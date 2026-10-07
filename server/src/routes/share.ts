@@ -52,7 +52,7 @@ export const ShareInputSchema = RestaurantImportSchema.extend({
   text: z.string().max(100000).nullable().optional().describe('Text from a photo or a share: a menu (restaurant), an ISBN or a title and author (book), or a flyer or invite (event). "Title:", "Date:", "Time:" and "Place:" lines help an event; "Title:" and "Author:" a book. The first of each line wins, so a model\'s lines can go first, then a "---" line, then the words as read: a Place with no street takes the street from them.'),
   event: EventDraftSchema.partial().nullable().optional().describe('An event as the person checked it (from a previous answer\'s event); used instead of text.'),
   save: z.preprocess(blankOff, z.boolean().optional()).describe('kind event only: add it to calendarId now instead of answering with a link to check it.'),
-  calendarId: z.preprocess(blankOff, z.string().optional()).describe('With save: the calendar to add the event to (GET /api/calendars, one that is writable).'),
+  calendarId: z.preprocess(blankOff, z.string().optional()).describe('With save: the calendar to add the event to (GET /api/calendars, one that is writable). Left out: the default calendar (default: true).'),
 }).openapi('ShareInput');
 const ShareResultSchema = z.object({
   kind: z.enum(KINDS),
@@ -151,7 +151,6 @@ export function shareRoutes(app: App) {
       if (!e) return fail("Send the flyer's or invite's text.", 400);
       const day = e.date ? new Date(`${e.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).replace(',', '') : null;
       if (input.save) {
-        if (!input.calendarId) return fail('Pick a calendar to add the event to.', 400);
         if (!e.title) return fail("Add the event's title, then try again.", 400);
         if (!e.date) return fail("Add the event's date, then try again.", 400);
         const [y, mo, d] = e.date.split('-').map(Number);

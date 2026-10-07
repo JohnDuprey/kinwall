@@ -17,6 +17,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import CalendarFilterSheet, { HiddenEventsSheet } from './CalendarFilterSheet.tsx'
 import { filterSummary } from './calendarFilter.ts'
 import TimezoneField from './TimezoneField.tsx'
+import PickField, { PickSwatch } from './PickField.tsx'
 import { AnyEmojiField, AvatarPicker } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
@@ -2336,6 +2337,33 @@ function CalendarProvidersSection({ toast }: { toast: (m: string, persist?: bool
   )
 }
 
+/** Settings → Calendars: where new events go unless someone picks another (default-calendar.ts on
+ * the server). Automatic is the server's pick, the calendar marked `default` while nothing is set. */
+function DefaultCalendarRow({ calendars, onSaved, toast }: { calendars: CalendarEntry[]; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const { settings, reloadCore } = useApp()
+  const open = calendars.filter(c => c.writable && c.enabled && !c.needsReconnect)
+  if (!open.length) return null
+  const chosen = open.find(c => c.id === settings.defaultCalendarId)
+  const auto = calendars.find(c => c.default)
+  const kindLabel = (c: CalendarEntry) => c.kind === 'local' ? 'Kinwall' : PROVIDER_LABEL[c.kind] ?? c.kind
+  const options = [
+    { value: '', label: auto && !chosen ? `Automatic: ${auto.name}` : 'Automatic', detail: 'Your own Kinwall calendar first' },
+    ...open.map(c => ({ value: c.id, label: c.name, detail: kindLabel(c), lead: <PickSwatch color={c.color ?? '#888'} /> })),
+  ]
+  const save = async ([id]: string[]) => {
+    try { await api.updateSettings({ defaultCalendarId: id || null }); reloadCore(); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  return (
+    <div className="settings-row">
+      <div>
+        <div className="settings-row-label">Default calendar for new events</div>
+        <div className="settings-row-sub">Where new events and shared invites go unless you pick another.</div>
+      </div>
+      <PickField label="Default calendar for new events" title="Default calendar" options={options} value={[chosen?.id ?? '']} onChange={save} />
+    </div>
+  )
+}
+
 function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccountId: string | null; onOpenedAccount: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
   const [calendars, setCalendars] = useState<CalendarEntry[]>([])
@@ -2374,6 +2402,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
 
   return (
     <Section title="Calendars" icon={<LinkIcon width={16} height={16} />}>
+      <DefaultCalendarRow calendars={calendars} onSaved={load} toast={toast} />
       {calendars.map(c => (
         <div key={c.id} className="cal-list-item" onClick={() => setEditCal(c)} style={{ cursor: 'pointer' }}>
           <div className="cal-list-top">

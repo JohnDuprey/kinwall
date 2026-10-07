@@ -31,7 +31,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
       let last = ''
       try { last = localStorage.getItem(LAST_CALENDAR_KEY) ?? '' } catch { /* private mode */ }
       setCalendars(writable)
-      setCalendarId(c => c ?? (writable.some(cal => cal.id === last) ? last : writable.find(cal => cal.kind === 'local')?.id ?? ''))
+      setCalendarId(c => c ?? (writable.some(cal => cal.id === last) ? last : (writable.find(cal => cal.default) ?? writable.find(cal => cal.kind === 'local'))?.id ?? ''))
       setEvents([...new Map(values.map(event => [event.id, event])).values()]); setLoading(false)
     }).catch(e => { if (!canceled) { setError(e instanceof Error ? e.message : 'Could not load calendars.'); setLoading(false) } })
     return () => { canceled = true }

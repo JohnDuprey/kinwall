@@ -1203,7 +1203,7 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
   const base = event ?? prefill ?? {}
   const [title, setTitle] = useState(base.title ?? '')
   const [allDay, setAllDay] = useState(!!base.allDay)
-  const [calendarId, setCalendarId] = useState(base.calendarId ?? writable[0]?.id ?? NEW_LOCAL_CALENDAR)
+  const [calendarId, setCalendarId] = useState(base.calendarId ?? (writable.find(c => c.default) ?? writable[0])?.id ?? NEW_LOCAL_CALENDAR)
   const calKind = calendarId === NEW_LOCAL_CALENDAR ? 'local' : calendars.find(c => c.id === calendarId)?.kind
   const remindersEditable = calKind === 'local' || calKind === 'google' || calKind === 'microsoft'
   const [memberIds, setMemberIds] = useState<string[]>(base.memberIds ?? [])

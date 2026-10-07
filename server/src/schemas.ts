@@ -330,6 +330,7 @@ export const SettingsSchema = z
     density: z.enum(['comfortable', 'compact']),
     typeface: z.enum(TYPEFACES).openapi({ description: "The family's typeface; a device can pick its own. 'default' is Nunito." }),
     timeFormat: z.enum(TIME_FORMATS).openapi({ description: "Clock times as 12-hour ('3:40 PM') or 24-hour ('15:40'). 'auto' follows each device's locale; server-written text (notifications) goes by the location's country. A device can pick its own." }),
+    defaultCalendarId: z.string().nullable().openapi({ description: "The calendar new events go on when none is named (a parent's pick). null: Kinwall picks (the family's own Kinwall calendar first). GET /api/calendars marks the one in use with default: true." }),
     defaultReminderMinutes: z.array(z.number()),
     lateCompletionCredit: z.number(), // percent of a chore's points earned when it's completed for a past day
     streakGraceDays: z.number(), // missed days per rolling 7 a streak survives (see computeStreak)
@@ -382,6 +383,7 @@ export const SettingsPatchSchema = z
     density: z.enum(['comfortable', 'compact']).optional(),
     typeface: z.enum(TYPEFACES).optional(),
     timeFormat: z.enum(TIME_FORMATS).optional(),
+    defaultCalendarId: z.string().max(200).nullable().optional(), // null clears it
     defaultReminderMinutes: z.array(z.number()).optional(),
     lateCompletionCredit: z.number().int().min(0).max(100).optional(),
     streakGraceDays: z.number().int().min(0).max(3).optional(),
@@ -464,6 +466,7 @@ export const CalendarSchema = z
     enabled: z.boolean(),
     displayEdit: z.boolean(), // wall screens and kids' devices may change its events (admins always can)
     canEditEvents: z.boolean(), // whether the key asking may change its events (see auth.ts canChangeEvents)
+    default: z.boolean().openapi({ description: "New events go here when no calendar is named: the family's pick (settings.defaultCalendarId), or Kinwall's while that's unset or can't take events. At most one is true." }),
     lastSyncedAt: z.string().nullable(),
     lastError: z.string().nullable(),
     syncFailures: z.number().int().openapi({ description: 'Failed syncs in a row; 0 after a good one.' }),
@@ -522,7 +525,7 @@ export const EventInstanceSchema = z
 
 export const EventInputSchema = z
   .object({
-    calendarId: z.string(),
+    calendarId: z.string().optional().openapi({ description: 'Left out: the default calendar (GET /api/calendars default: true)' }),
     title: z.string().min(1),
     start: z.string(),
     end: z.string(),

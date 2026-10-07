@@ -4,6 +4,14 @@
 
 ## Calendars
 
+**Default calendar for new events** is at the top: where new events go unless someone picks another calendar. It's what the event sheet's **Calendar** starts on, and what the phones' share sheets, the **Add to Kinwall** action, the API and AI assistants use when no calendar is named. Tap it to pick from the calendars you can add events to, or **Automatic**, which shows the calendar Kinwall picks:
+
+1. The family's own Kinwall (local) calendar, not one an automation fills in (like the Home Assistant meal kit blueprint's calendar).
+2. Otherwise the first writable calendar by name that isn't filled in by an automation, such as a shared Google calendar.
+3. Otherwise any writable calendar.
+
+A picked calendar that's removed, turned off or becomes read-only falls back to **Automatic** until you pick another. Only parents' devices can change it.
+
 Each calendar row shows its color, name, kind and status: "Synced *time*", "Never synced", "Local calendar", or the last error. Row actions:
 
 * **Sync now**: synced calendars only.

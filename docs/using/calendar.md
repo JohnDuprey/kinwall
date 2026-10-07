@@ -4,6 +4,8 @@
 
 ![Board view on the wall iPad](../screenshots/ipad-board.png)
 
+**New events** go on the family's default calendar unless you pick another in the event sheet: a parent sets it in [Settings → Calendars](../settings/calendars.md#calendars), and until then it's the family's own Kinwall calendar rather than an imported one (a school feed or a meal kit's deliveries). See [Events](events.md#creating-and-editing).
+
 **A calendar that stops syncing:** on a parent's device, Home shows a warning at the top ("⚠️ The Work calendar isn't syncing") when a connected calendar has failed to sync twice in a row (one blip doesn't count), or an imported one still needs reconnecting. **Repair the connection** opens Settings → Calendars, where the calendar shows what went wrong. The warning goes away once it syncs again. Wall screens and kids' devices don't show it.
 
 ## Views

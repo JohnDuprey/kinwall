@@ -15,6 +15,7 @@ import { deterministicEventId } from '../event-id.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { matchCategoryByKeyword, type CategoryRow } from '../calendar-categories.ts';
 import { eventWriteBlock, requestKey } from '../auth.ts';
+import { defaultCalendarId } from '../default-calendar.ts';
 import { filterActive, filterShows, parseFilter } from '../calendar-filter.ts';
 import { mealLinksQuery, parseMealLinks, prepAt } from '../prepBy.ts';
 
@@ -685,7 +686,9 @@ async function providerFail(c: Ctx, err: unknown): Promise<Fail<502>> {
 }
 
 export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>): Promise<Fail<400 | 403 | 502> | { row: EventRow; cal: CalendarRow }> {
-  const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(body.calendarId).first<CalendarRow>();
+  const calendarId = body.calendarId ?? (await defaultCalendarId(c.env.DB));
+  if (!calendarId) return { error: 'No calendar takes new events. Add a Kinwall calendar in Settings → Calendars.', status: 400 };
+  const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(calendarId).first<CalendarRow>();
   if (!cal) return { error: 'calendar not found', status: 400 };
   const block = await eventWriteBlock(c, [cal]);
   if (block) return { error: block, status: 403 };

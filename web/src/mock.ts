@@ -106,6 +106,7 @@ const settings: Settings = {
   density: 'comfortable',
   typeface: 'default',
   timeFormat: 'auto',
+  defaultCalendarId: null,
   defaultReminderMinutes: [30],
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
   lateCompletionCredit: 50,
@@ -1093,7 +1094,12 @@ export const mock = {
   }),
   geocode: async (q: string): Promise<GeocodeResult[]> => DEMO_PLACES.filter(p => p.label.toLowerCase().includes(q.trim().toLowerCase())),
 
-  getCalendars: async () => [...calendars],
+  // Like the server's default-calendar.ts: the family's pick while it can take events, else the first local one.
+  getCalendars: async () => {
+    const open = calendars.filter(c => c.writable && c.enabled)
+    const id = (open.find(c => c.id === settings.defaultCalendarId) ?? open.find(c => c.kind === 'local') ?? open[0])?.id
+    return calendars.map(c => ({ ...c, default: c.id === id }))
+  },
   createCalendar: async (c: Partial<CalendarEntry>) => {
     const memberIds = c.memberIds ?? (c.memberId ? [c.memberId] : [])
     const nc: CalendarEntry = {

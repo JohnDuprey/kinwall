@@ -27,7 +27,7 @@ Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). **+*
 | **Title** | Required. |
 | **All day** | All-day events are stored as dates. The end date you pick is inclusive. |
 | **Starts / Ends** | Native date and time pickers. Moving the start past the end drags the end along. |
-| **Calendar** | Only writable, enabled calendars this device may change are listed. On a kid's device that's only their own calendars, with the first one picked. If you have no local calendar yet, **Kinwall only (not synced)** creates one called "Kinwall". |
+| **Calendar** | Starts on the family's [default calendar for new events](../settings/calendars.md#calendars). Only writable, enabled calendars this device may change are listed. On a kid's device that's only their own calendars, with the first one picked. If you have no local calendar yet, **Kinwall only (not synced)** creates one called "Kinwall". |
 | **Location** | Optional. |
 | **Notes** | Optional, several lines: what to bring, a link, a gate code. See [Event notes](#event-notes). |
 | **Who** | Family member chips. |

@@ -670,7 +670,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'Create event',
       description: 'Create a calendar event. Writes through to the provider for remote (Google/Microsoft/CalDAV) calendars.',
       inputSchema: {
-        calendarId: z.string().describe('Target calendar id (see get_household for writable calendars).'),
+        calendarId: z.string().optional().describe("Target calendar id (see get_household for writable calendars). Leave it out for the family's default calendar (default: true)."),
         title: z.string(),
         start: z.string().describe('ISO datetime (UTC), or YYYY-MM-DD for an all-day event.'),
         end: z.string().describe('ISO datetime (UTC), exclusive, or YYYY-MM-DD for an all-day event.'),

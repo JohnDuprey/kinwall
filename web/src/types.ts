@@ -47,6 +47,7 @@ export interface Settings {
   density: Density
   typeface: Typeface // the family's; a device can pick its own
   timeFormat: TimeFormat // the family's; a device can pick its own
+  defaultCalendarId?: string | null // a parent's pick for new events; null: the server picks (CalendarEntry.default)
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives
@@ -310,6 +311,7 @@ export interface CalendarEntry {
   enabled: boolean
   displayEdit?: boolean // wall screens and kids' devices may change its events (admins always can)
   canEditEvents?: boolean // this device may change its events (server-decided; absent = yes)
+  default?: boolean // new events go here unless another is picked (settings.defaultCalendarId, or the server's fallback)
   lastSyncedAt: string | null
   lastError: string | null
   syncFailures?: number // failed syncs in a row; 0 after a good one

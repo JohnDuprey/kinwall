@@ -184,10 +184,10 @@ test('share: save adds the event to the chosen calendar in the household timezon
 
 test('share: save needs a writable calendar, a title and a date', async () => {
   const { share, call, db } = fixture();
-  const family = (await call('POST', '/api/calendars', { kind: 'local', name: 'Family' })).json;
   const school = (await call('POST', '/api/calendars', { kind: 'ics', name: 'School', url: 'https://school.example/cal.ics' })).json;
   const text = 'Title: Swim\nDate: 2027-05-08';
-  assert.equal((await share({ kind: 'event', text, save: true })).status, 400, 'no calendar');
+  assert.equal((await share({ kind: 'event', text, save: true })).status, 400, 'no writable calendar to default to');
+  const family = (await call('POST', '/api/calendars', { kind: 'local', name: 'Family' })).json;
   assert.equal((await share({ kind: 'event', text, save: true, calendarId: 'nope' })).status, 400);
   assert.ok(school.id, JSON.stringify(school));
   assert.equal((await share({ kind: 'event', text, save: true, calendarId: school.id })).status, 400, 'read-only');

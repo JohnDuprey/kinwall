@@ -446,7 +446,7 @@ function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { 
 async function addVisitToCalendar(e: TrackerEntry, m: { id: string | null; name: string }) {
   const d = e.data as HealthData
   const cals = (await api.getCalendars()).filter(c => c.writable && c.enabled && c.canEditEvents !== false)
-  const cal = cals.find(c => c.kind === 'local') ?? cals[0]
+  const cal = cals.find(c => c.default) ?? cals.find(c => c.kind === 'local') ?? cals[0]
   if (!cal) throw new Error('There is no calendar to add it to. Add one in Settings → Calendars.')
   const t = HEALTH_TYPES.find(x => x.key === d.type) ?? HEALTH_TYPES[5]
   const title = `${t.emoji} ${t.label}${m.id ? ` · ${m.name}` : ''}`

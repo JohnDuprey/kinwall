@@ -12,6 +12,7 @@ import { CalendarFilterSchema, CalendarInputSchema, CalendarSchema, ErrorSchema 
 import { parseFilter } from '../calendar-filter.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { canChangeEvents, requestKey } from '../auth.ts';
+import { defaultCalendarId } from '../default-calendar.ts';
 
 export const calendarsRoutes = createRouter();
 
@@ -36,7 +37,7 @@ type CalendarRow = {
 
 // canEditEvents: whether the requesting key may change this calendar's events (auth.ts). Only GET
 // works it out per key; the other routes are admin-only, where it's always true.
-function toApi(row: CalendarRow, canEditEvents = true) {
+function toApi(row: CalendarRow, canEditEvents = true, isDefault = false) {
   const memberIds = parseMemberIds(row.member_ids);
   return {
     id: row.id,
@@ -52,6 +53,7 @@ function toApi(row: CalendarRow, canEditEvents = true) {
     enabled: !!row.enabled,
     displayEdit: !!row.display_edit,
     canEditEvents,
+    default: isDefault,
     lastSyncedAt: row.last_synced_at,
     lastError: row.last_error,
     syncFailures: row.sync_failures ?? 0,
@@ -90,8 +92,8 @@ calendarsRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(CalendarSchema) } } } },
   }),
   async (c) => {
-    const [{ results }, key] = await Promise.all([c.env.DB.prepare('SELECT * FROM calendars ORDER BY name').all<CalendarRow>(), requestKey(c)]);
-    return c.json(results.map((r) => toApi(r, canChangeEvents(key, r))), 200);
+    const [{ results }, key, fallback] = await Promise.all([c.env.DB.prepare('SELECT * FROM calendars ORDER BY name').all<CalendarRow>(), requestKey(c), defaultCalendarId(c.env.DB)]);
+    return c.json(results.map((r) => toApi(r, canChangeEvents(key, r), r.id === fallback)), 200);
   },
 );
 

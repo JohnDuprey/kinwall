@@ -47,7 +47,7 @@ The app adds an **Add to Kinwall** action to the Shortcuts app. It has three set
 * **What it is**: **Automatic** (the default), **Recipe**, **Restaurant**, **Book** or **Event**. With Automatic, a link is read by Kinwall; for a photo or text, a book's barcode or Apple Intelligence's guess decides, and otherwise it asks "What is this?".
 * **Photo**: an image, such as **Shortcut Input** or a photo from **Take Photo**.
 * **Text or link**: some text, or a web or Maps link.
-* **Calendar**: for an event, the calendar to add it to. With a calendar, the event is saved there straight away; without one, the action passes on a link that opens the event sheet filled in, to check first.
+* **Calendar**: for an event, the calendar to add it to (it starts on the family's default calendar). With a calendar, the event is saved there straight away; without one, the action passes on a link that opens the event sheet filled in, to check first.
 
 It shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photo** or **Text or link** to **Shortcut Input**.
 
