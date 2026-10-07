@@ -1,6 +1,6 @@
 # Add to Kinwall from your iPhone
 
-One **Add to Kinwall** shortcut in the Shortcuts app sends whatever you share to the right place in Kinwall:
+Share something from any app on your iPhone and Kinwall puts it in the right place:
 
 | You share | It becomes |
 |---|---|
@@ -9,9 +9,9 @@ One **Add to Kinwall** shortcut in the Shortcuts app sends whatever you share to
 | A book's barcode or ISBN, or a photo of its cover | A book in the family's [library](trackers.md#library) |
 | A flyer, an invite or a screenshot with a date | A new event, which you check before it's saved |
 
-Links are read by Kinwall, which tells a recipe page from a restaurant's by the details the page publishes for search engines. For a photo or some text, the shortcut asks **What is this?** (Restaurant, Book or Event); Kinwall never guesses what a photo is.
+Links are read by Kinwall, which tells a recipe page from a restaurant's by the details the page publishes for search engines. For a photo or some text, you're asked **What is this?** (Restaurant, Book or Event); Kinwall never guesses what a photo is.
 
-When it's done, the shortcut shows one line, such as "Imported Lemon chicken", "Added Wool to the library" or "Check the event: Spring fair, Sat May 9 at 10 AM", and opens Kinwall at what was added.
+When it's done, you see one line, such as "Imported Lemon chicken", "Added Wool to the library" or "Check the event: Spring fair, Sat May 9 at 10 AM".
 
 * **Recipes** are saved like **Import from a link**. Sharing the same page again updates that recipe.
 * **Restaurants** work as in [Add restaurants from your iPhone](meals.md#add-restaurants-from-your-iphone): Kinwall finds the place by name or adds it, fills in only empty details and adds menu items that aren't there yet.
@@ -20,13 +20,48 @@ When it's done, the shortcut shows one line, such as "Imported Lemon chicken", "
 
 Meals and Reading have switches in **Settings → Features**. While one is off, Kinwall says so ("Meals is turned off in Settings → Features") and adds nothing there.
 
-## Before you start: make a parent API key
+## With the Kinwall app
+
+With the [Kinwall app](https://github.com/JohnDuprey/kinwall-mobile) on your iPhone, signed in as a grown-up, there's nothing to set up and no key to make.
+
+### From the share sheet
+
+In Safari, Maps, Photos, the Camera, or any app with a **Share** button, tap **Share** and pick **Kinwall**. If Kinwall isn't in the row of apps, tap **More** and turn it on.
+
+* **A link or a place in Maps** goes to Kinwall straight away.
+* **A photo or some text** is read on the iPhone first ("Reading the photo…"); nothing leaves the phone for that.
+  * A book's barcode means a book, and it's added straight away.
+  * On an iPhone with Apple Intelligence (iOS 26 or later), the on-device model works out what it is and sorts the words into the lines Kinwall reads best. The sheet shows its guess, such as "Looks like an event: Spring fair, Saturday, May 9". Tap **Add to Kinwall**, or **Not an event?** to pick Restaurant, Book or Event yourself.
+  * Without Apple Intelligence, or when the model isn't sure or takes more than about 20 seconds, the sheet asks **What is this?** (Restaurant, Book or Event) and sends the words as they were read. That works for most covers and menus; busy flyers come out better with the model.
+* **Events, and books Kinwall couldn't pick on its own,** open in the Kinwall app to check (the event sheet opens filled in). If the sheet can't open the app, it says so, and Kinwall opens there the next time you open the app.
+* **Anything saved** (a recipe, a restaurant, a book) shows Kinwall's one line, and the sheet closes after a couple of seconds.
+* A contact still opens the contact review ([Contacts](contacts.md)).
+
+Only a grown-up's phone can add things. On a wall screen or a kid's device, or when the app isn't signed in, the sheet says to open Kinwall and sign in as a grown-up.
+
+### In Shortcuts and Siri
+
+The app adds an **Add to Kinwall** action to the Shortcuts app. It has three settings, all optional:
+
+* **What it is**: **Automatic** (the default), **Recipe**, **Restaurant**, **Book** or **Event**. With Automatic, a link is read by Kinwall; for a photo or text, a book's barcode or Apple Intelligence's guess decides, and otherwise it asks "What is this?".
+* **Photo**: an image, such as **Shortcut Input** or a photo from **Take Photo**.
+* **Text or link**: some text, or a web or Maps link.
+
+It shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photo** or **Text or link** to **Shortcut Input**.
+
+Say "Add to Kinwall with Kinwall" or "Send this to Kinwall" to Siri, and it asks what to add and what it is.
+
+## Without the app: a shortcut with an API key
+
+No Kinwall app on your phone, or a script of your own? The **Add to Kinwall** shortcut below does the same with a parent API key.
+
+### Before you start: make a parent API key
 
 On a parent's device, open **Settings → Access → API Keys**, tap **New admin key** and copy the key (it's shown once). See [API Keys](../settings/access.md#api-keys). The shortcut sends it with every request; anyone with the key can change your Kinwall, so keep the shortcut on your own phone. Removing the key turns the shortcut off. Wall screens and kids' devices can't use this.
 
 Below, `https://your-kinwall` is your Kinwall address (the one in your browser's address bar) and `YOUR-KEY` is the key.
 
-## Make the shortcut
+### Make the shortcut
 
 1. In Shortcuts, tap **+** and name the shortcut **Add to Kinwall**. In its details (ⓘ), turn on **Show in Share Sheet**. At the top, set **Receive** to **Images**, **Text**, **URLs**, **Safari web pages** and **Locations**.
 2. **Get Type** of **Shortcut Input**.
@@ -75,13 +110,13 @@ Shared Text
 
 Without the model, Kinwall reads the photo's text as it is: the first line that isn't a date or a time is the title, and a line naming a school, park, hall or street is the place. The model does better with busy flyers.
 
-## The restaurant-only shortcut
+### The restaurant-only shortcut
 
 If you made the restaurant shortcut from [Add restaurants from your iPhone](meals.md#add-restaurants-from-your-iphone), it keeps working; it sends to `/api/restaurants/import`, which hasn't changed. This one does restaurants too, so you can keep either.
 
-The Kinwall app for iPhone and Android also has **Kinwall** in the share sheet for recipe links ([Sharing from your phone](meals.md#sharing-from-your-phone)); that opens the import to check before saving, where this shortcut saves right away.
+On Android, the Kinwall app's share sheet takes recipe links ([Sharing from your phone](meals.md#sharing-from-your-phone)) and opens the import to check before saving.
 
-## The request
+### The request
 
 Any script can send the same request:
 
