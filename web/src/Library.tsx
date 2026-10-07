@@ -121,7 +121,7 @@ export default function Library({ adding, onAdded, onStarted }: {
   const head = <>
     <span className="lib-count">{(() => { const a = books?.filter(isAudio).length ?? 0, p = shown - a; return [p || !a ? `📚 ${p} ${p === 1 ? 'book' : 'books'}` : '', a ? `🎧 ${a} ${a === 1 ? 'audiobook' : 'audiobooks'}` : ''].filter(Boolean).join(' · ') })()}</span>
     <Segmented label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
-      options={[{ key: 'list', label: '☰ List' }, { key: 'covers', label: '📚 Covers' }]} />
+      options={[{ key: 'covers', label: '📚 Covers' }, { key: 'list', label: '☰ List' }]} />
   </>
   return (
     <div className="lib">
