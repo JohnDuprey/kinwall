@@ -45,6 +45,14 @@ export function genresFrom(subjects: string[] | undefined): string[] {
 }
 
 /** Open Library's books for a search (title, author or ISBN), shaped for Kinwall; throws when unreachable. */
+/** " (Open Library answered 503)" or " (Open Library didn't answer)" for an error message, else "". */
+export function why(err: unknown): string {
+  const m = err instanceof Error ? err.message : ''
+  if (/answered \d{3}/.test(m)) return ` (${m})`
+  if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) return " (Open Library didn't answer)"
+  return ''
+}
+
 export async function searchOpenLibrary(q: string, limit = 8): Promise<BookResult[]> {
   const params = new URLSearchParams({ q, limit: String(limit), fields: FIELDS });
   const res = await fetch(`https://openlibrary.org/search.json?${params}`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -120,7 +128,7 @@ booksRoutes.openapi(
       return c.json(await searchOpenLibrary(q), 200);
     } catch (err) {
       console.error('book search failed', err instanceof Error ? err.message : err);
-      return c.json({ error: 'Book search is unavailable right now' }, 502);
+      return c.json({ error: `Book search is unavailable right now${why(err)}` }, 502);
     }
   },
 );

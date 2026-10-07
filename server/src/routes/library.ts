@@ -15,7 +15,7 @@ import { checkRate } from '../ratelimit.ts';
 import { fetchRecipeImage } from '../outbound.ts';
 import { ErrorSchema, LibraryBookInputSchema, LibraryBookPatchSchema, LibraryBookSchema } from '../schemas.ts';
 import { actorApi } from './lists.ts';
-import { cleanDescription, searchOpenLibrary, workDescription } from './books.ts';
+import { cleanDescription, searchOpenLibrary, workDescription, why } from './books.ts';
 import { lookUpBook, lookUpInBackground } from '../book-details.ts';
 import { todayIn } from './lists.ts';
 
@@ -157,7 +157,7 @@ libraryRoutes.openapi(
     if (!input.title) {
       let found;
       try { found = (await searchOpenLibrary(input.isbn!, 1))[0]; }
-      catch (err) { console.error('library lookup failed', err instanceof Error ? err.message : err); return c.json({ error: 'Book lookup is unavailable right now' }, 502); }
+      catch (err) { console.error('library lookup failed', err instanceof Error ? err.message : err); return c.json({ error: `Book lookup is unavailable right now${why(err)}` }, 502); }
       if (!found) return c.json({ error: "Couldn't find that book" }, 404);
       lookedUp = true;
       ratings = { average: found.ratingsAverage ?? null, count: found.ratingsCount ?? null };
@@ -241,7 +241,7 @@ libraryRoutes.openapi(
     const { id } = c.req.valid('param');
     let result;
     try { result = await lookUpBook(c.env.DB, id); }
-    catch (err) { console.error('library details lookup failed', err instanceof Error ? err.message : err); return c.json({ error: 'Book lookup is unavailable right now' }, 502); }
+    catch (err) { console.error('library details lookup failed', err instanceof Error ? err.message : err); return c.json({ error: `Book lookup is unavailable right now${why(err)}` }, 502); }
     if (result === 'busy') return c.json({ error: 'Too many lookups - try again in a minute' }, 429);
     if (result === 'gone') return c.json({ error: 'not found' }, 404);
     if (result === 'none') return c.json({ error: "Open Library doesn't know this book" }, 404);
