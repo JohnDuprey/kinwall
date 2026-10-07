@@ -2,7 +2,7 @@
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
 import { boardListTiles } from './listSections.ts'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent } from './types.ts'
@@ -16,13 +16,13 @@ import { tidbitCardTitle, tidbitCards, tidbitFor, tidbitQuery, tidbitSlot, type 
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
-import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
+import { TakeNowTile, useDueDoses, useTakeNowSlot } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
-import { PollsBoardCards } from './Polls.tsx'
+import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -41,11 +41,13 @@ function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar' | 'picture'
 /** A card's text size in a layout (boardLayout.ts), as a class. */
 const densityClass = (d: CardDensity | undefined) => d && d !== 'normal' ? ` board-density-${d}` : ''
 
-function Card({ title, area, link, density, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; children: React.ReactNode }) {
+/** `foot`: something under the rows that always shows (the "in Today" slot), taking its space from them. */
+function Card({ title, area, link, density, foot, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className={`board-card board-${area}${densityClass(density)}`} aria-label={title}>
       <h3 className="snap-heading">{title}{link}</h3>
       <FitBody title={title}>{children}</FitBody>
+      {foot}
     </section>
   )
 }
@@ -90,6 +92,61 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
   )
 }
 
+/** One thing in a card's "in Today" slot: shown whole (`full`), as one tappable row (`row`), or as a
+ *  small chip sharing one line with the others when space is very tight (`chip`). All plain elements
+ *  (their sheets live with their owner), since they're also drawn unseen to measure. */
+type SlotItem = { key: string; full: React.ReactNode; row: React.ReactNode; chip: React.ReactNode }
+
+/** The "in Today" slot at the foot of a Board card (Today; Coming up or a strip above the cards for a
+ *  poll without Today): the small things about today (Take now, today's chores, what's due today, an
+ *  open poll), in that order. The card's own rows come first; each item gets at least its row, always
+ *  shown, and goes whole when the room left allows (boardFit.ts slotLayout), so nothing is clipped and
+ *  no other card is squeezed. Every item and its row is drawn unseen too, to know their heights.
+ *  `fixed`: the Board shares out the screen's height (the three-column wall or tablet board). */
+function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [whole, setWhole] = useState('') // '1' per item shown whole, or 'chips'
+  const measure = useCallback(() => {
+    const el = ref.current, fit = el?.parentElement?.querySelector<HTMLElement>(':scope > .board-fit')
+    const unseen = el?.querySelector<HTMLElement>(':scope > .board-slot-measure')
+    if (!el || !fit || !unseen || !fixed) { setWhole(''); return }
+    // The card's rows at full length: FitBody may have hidden some, shown just to measure and hidden
+    // again before anything paints. All measured as drawn, since a card with bigger text is zoomed.
+    const body = fit.firstElementChild as HTMLElement
+    const cut = [...body.querySelectorAll<HTMLElement>('[hidden]')]
+    for (const e of cut) e.hidden = false
+    const top = body.getBoundingClientRect().top
+    const rows = Math.max(0, ...[...body.children].map(c => c.getBoundingClientRect().bottom - top))
+    for (const e of cut) e.hidden = true
+    const hs = [...unseen.children].map(c => c.getBoundingClientRect().height)
+    const chips = hs.pop() ?? 0
+    const sizes = Array.from({ length: hs.length / 2 }, (_, i) => ({ full: hs[2 * i], row: hs[2 * i + 1] }))
+    const space = fit.getBoundingClientRect().height + el.getBoundingClientRect().height
+    const scale = fit.clientHeight ? fit.getBoundingClientRect().height / fit.clientHeight : 1
+    const how = slotLayout({ fixed, rows, space, items: sizes, chips, minRows: MORE_SPACE * scale })
+    setWhole(how.chips ? 'chips' : how.whole.map(b => b ? '1' : '0').join(''))
+  }, [fixed])
+  useLayoutEffect(measure) // every render: the items or the card's rows may have changed
+  useEffect(() => {
+    const card = ref.current?.parentElement
+    if (!card) return
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(card)
+    return () => ro.disconnect()
+  }, [measure])
+  if (!items.length) return null
+  return (
+    <div ref={ref} className="board-slot">
+      {whole === 'chips' ? <div className="board-slot-item board-slot-chips">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
+        : items.map((it, i) => <div key={it.key} className="board-slot-item">{whole[i] === '1' ? it.full : it.row}</div>)}
+      <div className="board-slot-measure" aria-hidden="true" {...{ inert: '' }}>
+        {items.map(it => [<div key={`${it.key}:full`} className="board-slot-item">{it.full}</div>, <div key={`${it.key}:row`} className="board-slot-item">{it.row}</div>])}
+        <div className="board-slot-item board-slot-chips">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
+      </div>
+    </div>
+  )
+}
+
 /** `show`: the calendar's member/category filter, so a focused display's board matches its calendar. */
 export default function Board({ show, onTap }: { show: (e: EventInstance) => boolean; onTap: (e: EventInstance) => void }) {
   const { settings, members, refreshTick, selectedMemberId, focusMemberId, focusShowsShared, parentDevice, meMemberId } = useApp()
@@ -129,8 +186,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const [big, setBig] = useState(false)
   const [roomFor, setRoomFor] = useState(1) // tidbit cards
   const [boardW, setBoardW] = useState(0)
+  const [fixed, setFixed] = useState(false) // the three-column board that shares out the screen's height (styles.css)
   const loaded = !!data
   const meds = useDueDoses()
+  const medsSlot = useTakeNowSlot(meds)
+  const pollSlot = usePollSlot()
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -138,6 +198,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
       setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H)
       setRoomFor(tidbitCardsThatFit(e.contentRect.width, e.contentRect.height))
       setBoardW(e.contentRect.width)
+      setFixed(e.contentRect.width >= 880 && matchMedia('(min-height: 700px)').matches)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -196,9 +257,14 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const full = device.boardLists === 'full' || (device.boardLists !== 'counts' && big)
   const listTiles = boardListTiles(lists.filter(l => !focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
   // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
+  // In a layout, the Chores and Due soon tiles stand in for their cards when those aren't placed.
+  const choresTile = f.chores && (layout ? !placed.has('chores') : !full), dueTile = f.lists && (layout ? !placed.has('due') : !full)
+  // The tiles about today (Take now, Chores, Due soon) move into Today's slot when the Board shows Today
+  // (and the tiles at all: a layout without them, like Kids, keeps them off).
+  const todayOn = !layout || placed.has('today')
+  const todayTiles = todayOn && (!layout || layout.tiles)
   const tiles = [
-    // In a layout, the Chores and Due soon tiles stand in for their cards when those aren't placed.
-    meds.doses.length > 0 && 'meds', f.chores && (layout ? !placed.has('chores') : !full) && 'chores', f.lists && (layout ? !placed.has('due') : !full) && 'due', ...(f.lists ? listTiles.map(t => t.type) : []), rewards && rewardRequests > 0 && 'rewards',
+    !todayTiles && meds.doses.length > 0 && 'meds', !todayTiles && choresTile && 'chores', !todayTiles && dueTile && 'due', ...(f.lists ? listTiles.map(t => t.type) : []), rewards && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
   // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
@@ -219,12 +285,48 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
   const overdue = items.filter(i => i.overdue).length
   const dueWeek = items.filter(i => !i.overdue && i.dueDate).length
+  const dueToday = items.filter(i => i.overdue || i.dueDate === today)
+  const dueLater = items.filter(i => !i.overdue && i.dueDate && i.dueDate > today).length
+  const dueSummary = [overdue > 0 && `${overdue} overdue`, dueToday.length - overdue > 0 && `${dueToday.length - overdue} due today`, dueLater > 0 && `${dueLater} later this week`].filter(Boolean).join(' · ')
+  const choresPeople = chores.length > 0 && <span className="board-tile-people">
+    {chores.map(c => (
+      <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
+        <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
+        <span aria-hidden="true">{c.remaining || '✓'}</span>
+      </span>
+    ))}
+  </span>
+  const choresText = choresLeft ? `${choresLeft} left today` : 'All done ✓'
+  const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
+  // Today's slot, in order: Take now, today's chores, what's due today (the week's still a tap away), an open poll.
+  const todaySlot = [
+    todayTiles && medsSlot.item,
+    todayTiles && choresTile && chores.length > 0 && {
+      key: 'chores',
+      chip: <a className="board-slot-chip" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text">{choresLeft || '✓'}</span></a>,
+      row: <a className="board-slot-row" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">Chores · {choresText}</span></a>,
+      full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>Chores · {choresText}</span>{choresPeople}</a>,
+    },
+    todayTiles && dueTile && items.length > 0 && dueSummary && {
+      key: 'due',
+      chip: <a className="board-slot-chip" href="#/lists" aria-label={`Due: ${dueSummary}`}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span></a>,
+      row: dueRow,
+      full: !dueToday.length ? dueRow : <div className="board-slot-due">
+        <a className="board-slot-head board-slot-head-link" href="#/lists"><span aria-hidden="true">📝</span>Due today<span className="board-slot-row-meta">{dueLater > 0 ? `${dueLater} later this week ›` : 'All lists ›'}</span></a>
+        <ul className="snap-list">{dueToday.map(i => <ItemRow key={i.id} i={i} today={today} close={noop} />)}</ul>
+      </div>,
+    },
+    pollHost(shown) === 'today' && pollSlot.item,
+  ].filter(Boolean) as SlotItem[]
+  // Without Today, an open poll goes to the foot of Coming up, else a slim strip above the cards; the
+  // other tiles stay in the tile row.
+  const pollAlone = pollHost(shown) !== 'today' && pollSlot.item ? [pollSlot.item] : []
 
   return (
     <div className="board-scroll" ref={scrollRef}>
       <GetStarted />
-      {/* An open family poll: above the cards, on every layout, only while it's open. */}
-      {f.polls !== false && <div className="board-polls"><PollsBoardCards /></div>}
+      {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
+      {medsSlot.sheets}{pollSlot.sheets}
       <div className="board" style={custom ? custom.style : boardAreas(shown)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance" style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
@@ -302,7 +404,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           )}
         </section>}
 
-        {has('today') && <Card title="Today" area="today" density={dense('today')}>
+        {has('today') && <Card title="Today" area="today" density={dense('today')} foot={<TodaySlot fixed={fixed} items={todaySlot} />}>
           {(() => {
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = events.filter(e => e.date === today)
@@ -325,7 +427,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
         {has('meals') && <Card title="Today’s meals" area="meals" density={dense('meals')}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
-        {has('coming') && <Card title="Coming up" area="coming" density={dense('coming')}>
+        {has('coming') && <Card title="Coming up" area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
           {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {
             const wd = w?.days.find(x => x.date === d)
             const label = dayName(d, { weekday: 'long', month: 'short', day: 'numeric' })

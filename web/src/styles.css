@@ -2659,6 +2659,26 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-sheet .board-day + .board-day { margin-top: 14px; }
 .board-clock { grid-area: clock; container: board-clock / inline-size; min-height: auto; overflow-y: auto; }
 .board-today { grid-area: today; }
+/* The "in Today" slot (Board.tsx TodaySlot): Take now, today's chores, what's due today and an open
+   poll at the foot of Today, each whole or one row. The unseen copy is drawn only to measure. */
+.board-slot { flex: none; position: relative; }
+.board-slot-item { padding-top: 8px; }
+.board-slot-measure { position: absolute; left: 0; right: 0; top: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
+.board-polls .board-slot-item { padding: 0; }
+.board-slot-row, .board-slot-full, .board-poll-btn { box-sizing: border-box; width: 100%; border: 0; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; text-decoration: none; }
+.board-slot-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; font-weight: 800; }
+.board-slot-full, .board-poll-btn { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; }
+.board-slot-row.attn, .board-slot-full.attn { box-shadow: inset 0 0 0 2px var(--accent); }
+.board-polls .board-slot-row { border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
+.board-slot-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-slot-row-meta { flex: none; margin-left: auto; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.board-slot-head { display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text); text-decoration: none; }
+.board-slot-head-link { min-height: 32px; }
+.board-slot-due .snap-list { margin-top: 4px; }
+.board-slot-chips { display: flex; gap: 6px; }
+.board-slot-chip { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-decoration: none; }
+.board-slot-chip.attn { box-shadow: inset 0 0 0 2px var(--accent); }
+.board-slot-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }
 .board-goal-line .board-avatar { flex-shrink: 0; }
 /* Temp check: the goal of the one person the calendar shows. */
@@ -3528,20 +3548,24 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .news-who-btn.active { border-color: var(--accent); background: var(--accent-tint); }
 
 /* ---------- Family polls (Polls.tsx) ----------
-   The Board's card while a poll is open sits above the cards (every layout); a full-height wall board
-   gives it its row and shares the rest out as before. Votes show as avatars and counts, never color alone. */
+   An open poll sits in the Board's "in Today" slot (Board.tsx TodaySlot): whole when the card's rows
+   leave room, else one row. Without Today it's in Coming up, without that a slim strip above the cards. Votes show
+   as avatars and counts, never color alone. */
 .board-scroll:has(> .board-polls:not(:empty)) { display: flex; flex-direction: column; }
 .board-polls:empty { display: none; }
-.board-polls { flex: none; display: grid; gap: var(--gap); padding: 4px var(--pad) 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.board-polls { flex: none; padding: 4px var(--pad) 0; }
 .board-polls ~ .board { flex: 1 0 auto; }
-@media (min-height: 700px) { @container board (min-width: 880px) { .board-polls:not(:empty) ~ .board { height: auto; flex: 1 1 0; min-height: 560px; } /* the rest of the screen, but never squeezed: a short one scrolls */ } }
-.board-poll { padding: 0; box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
-.board-poll-btn { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px 16px; border: 0; border-radius: inherit; background: none; color: var(--text); font: inherit; text-align: left; }
+@media (min-height: 700px) { @container board (min-width: 880px) { .board-polls:not(:empty) ~ .board { height: auto; flex: 1 1 0; min-height: 480px; } /* the rest of the screen, but never squeezed: a short one scrolls */ } }
+.board-poll-btn { box-shadow: inset 0 0 0 2px var(--accent); }
+.board-poll-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; font-weight: 800; }
+.board-polls .board-poll-row { border-radius: var(--radius); }
+.board-poll-row-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-poll-row .board-poll-count { flex: none; font-size: 0.8125rem; color: var(--text-dim); }
 .board-poll-head { display: flex; gap: 8px; align-items: baseline; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
 .board-poll-count { margin-left: auto; text-transform: none; letter-spacing: 0; }
-.board-poll-q { font-size: 1.125rem; font-weight: 800; line-height: 1.25; }
+.board-poll-q { font-size: 1rem; font-weight: 800; line-height: 1.25; }
 .board-poll-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.board-poll-option { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px; border-radius: 999px; background: var(--bg-alt); font-weight: 700; font-size: 0.9375rem; }
+.board-poll-option { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 10px; border-radius: 999px; background: var(--card); font-weight: 700; font-size: 0.9375rem; }
 .board-poll-option.lead { background: var(--accent-tint); box-shadow: inset 0 0 0 2px var(--accent); }
 .board-poll-n { font-variant-numeric: tabular-nums; color: var(--text-dim); }
 .board-poll-cta { font-size: 0.8125rem; font-weight: 800; color: var(--accent-strong); }
@@ -3596,7 +3620,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
+    .activity-card, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */

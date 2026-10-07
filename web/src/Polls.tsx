@@ -1,5 +1,5 @@
 // Family polls (docs/using/polls.md; server: routes/polls.ts). Polls have no tab of their own: an open
-// poll is a card on the Board, the Polls button on Home's Board lists them all (and starts one), a
+// poll shows in the Board's Today card, the Polls button on Home's Board lists them all (and starts one), a
 // poll tied to a meal shows in that Meals week cell, and the bell's "New poll" opens it
 // (#/calendar?poll=<id>, handled in Calendar.tsx). Votes show who picked what, with avatars.
 //
@@ -18,7 +18,7 @@ import { BookIcon, ChevronRight, MealIcon, PlusIcon, XIcon } from './icons.tsx'
 import MealSheet, { RecipePicker, type MealDraft } from './MealSheet.tsx'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 import { todayKeyInTz } from './date.ts'
-import { leaders, planDraft, pollWhen, suggestedWinner, votedLabel, voteOf } from './polls.ts'
+import { leaders, planDraft, pollWhen, suggestedWinner, votedCount, votedLabel, voteOf } from './polls.ts'
 import type { Member, Poll, PollInput, PollOption } from './types.ts'
 import type { Meal, MealSlot, Recipe, Restaurant } from './meal-types.ts'
 
@@ -53,29 +53,51 @@ function Voters({ ids, members }: { ids: string[]; members: Member[] }) {
   return <span className="poll-voters" role="img" aria-label={`Voted: ${who.map(m => m.name).join(', ')}`}>{who.map(m => <Face key={m.id} m={m} />)}</span>
 }
 
-/** The Board's card for each open poll: the question, the choices with their votes, a tap to vote. */
-export function PollsBoardCards() {
+/** Open polls on the Board: an item for its "in Today" slot (Board.tsx TodaySlot; Coming up or a
+ * strip above the cards without Today), and the sheets it opens, which outlive it (closing a poll
+ * takes it off the Board, not the sheet with Plan it). `full`: the question, the choices with who
+ * voted, a tap to vote; `row`: "🗳 Where are we eating Friday? · 3 of 4 voted". Several open polls
+ * are one "2 polls open" row that opens the Polls sheet. */
+export function usePollSlot() {
   const { members } = useApp()
   const polls = usePolls('open')
   const [open, setOpen] = useState<string | null>(null)
-  // The sheet outlives the card: closing the poll takes the card away, not the sheet with Plan it.
-  return <>
-    {polls.slice(0, 2).map(p => {
-      const top = new Set(leaders(p).map(o => o.id))
-      return <section key={p.id} className="board-card board-poll" aria-label={`Poll: ${p.question}`}>
-        <button type="button" className="board-poll-btn" aria-haspopup="dialog" onClick={() => setOpen(p.id)}>
-          <span className="board-poll-head"><span aria-hidden="true">🗳</span> {pollWhen(p) ? `Poll · ${pollWhen(p)}` : 'Family poll'}<span className="board-poll-count">{votedLabel(p, members.length)}</span></span>
-          <strong className="board-poll-q">{p.question}</strong>
-          <span className="board-poll-options">{p.options.map(o => <span key={o.id} className={`board-poll-option ${top.has(o.id) ? 'lead' : ''}`}>
-            <span className="board-poll-label">{top.has(o.id) && <span aria-label="In the lead">⭐ </span>}{o.label}</span>
-            <Voters ids={o.votes} members={members} /><span className="board-poll-n">{o.votes.length}</span>
-          </span>)}</span>
-          <span className="board-poll-cta">Tap to vote</span>
-        </button>
-      </section>
-    })}
+  const [all, setAll] = useState(false)
+  const sheets = <>
     {open && <PollSheet id={open} onClose={() => setOpen(null)} />}
+    {all && <PollsSheet onClose={() => setAll(false)} />}
   </>
+  if (!polls.length) return { item: null, sheets }
+  const p = polls.length === 1 ? polls[0] : null
+  if (!p) {
+    const row = <button type="button" className="board-slot-row attn" aria-haspopup="dialog" onClick={() => setAll(true)}>
+      <span aria-hidden="true">🗳</span><span className="board-slot-row-text">{polls.length} polls open</span><span className="board-slot-row-meta">Tap to vote</span>
+    </button>
+    const chip = <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={`${polls.length} polls open`} onClick={() => setAll(true)}><span aria-hidden="true">🗳</span><span aria-hidden="true" className="board-slot-chip-text">{polls.length}</span></button>
+    return { item: { key: 'polls', full: row, row, chip }, sheets }
+  }
+  const top = new Set(leaders(p).map(o => o.id))
+  return {
+    sheets,
+    item: {
+      key: 'polls',
+      chip: <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={`Poll: ${p.question}, ${votedLabel(p, members.length)}. Tap to vote`} onClick={() => setOpen(p.id)}>
+        <span aria-hidden="true">🗳</span><span aria-hidden="true" className="board-slot-chip-text">{votedCount(p)}/{members.length}</span>
+      </button>,
+      row: <button type="button" className="board-slot-row attn" aria-haspopup="dialog" aria-label={`Poll: ${p.question}, ${votedLabel(p, members.length)}. Tap to vote`} onClick={() => setOpen(p.id)}>
+        <span aria-hidden="true">🗳</span><span className="board-slot-row-text">{p.question}</span><span className="board-slot-row-meta">{votedLabel(p, members.length)}</span>
+      </button>,
+      full: <button type="button" className="board-poll-btn" aria-haspopup="dialog" aria-label={`Poll: ${p.question}`} onClick={() => setOpen(p.id)}>
+        <span className="board-poll-head"><span aria-hidden="true">🗳</span> {pollWhen(p) ? `Poll · ${pollWhen(p)}` : 'Family poll'}<span className="board-poll-count">{votedLabel(p, members.length)}</span></span>
+        <strong className="board-poll-q">{p.question}</strong>
+        <span className="board-poll-options">{p.options.map(o => <span key={o.id} className={`board-poll-option ${top.has(o.id) ? 'lead' : ''}`}>
+          <span className="board-poll-label">{top.has(o.id) && <span aria-label="In the lead">⭐ </span>}{o.label}</span>
+          <Voters ids={o.votes} members={members} /><span className="board-poll-n">{o.votes.length}</span>
+        </span>)}</span>
+        <span className="board-poll-cta">Tap to vote</span>
+      </button>,
+    },
+  }
 }
 
 /** Home's Polls button (Board view): every poll, and New poll for parents. */

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, rowsThatFit, tileColumns } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, tileColumns } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -62,4 +62,32 @@ test('tileColumns: one row when every tile gets room, else balanced rows', () =>
   assert.equal(tileColumns(713, 5), 3, '3 + 2')
   assert.equal(tileColumns(713, 4), 4, 'four still fit in a row')
   assert.equal(tileColumns(100, 3), 1)
+})
+
+test('pollHost: Today, else Coming up, else a strip above the cards', () => {
+  assert.equal(pollHost(['clock', 'today', 'coming']), 'today')
+  assert.equal(pollHost(['clock', 'coming', 'photo']), 'coming')
+  assert.equal(pollHost(['clock', 'photo']), 'strip')
+})
+
+test("slotLayout: the card's rows first, then each item whole in order while it fits", () => {
+  const items = [{ full: 100, row: 40 }, { full: 80, row: 40 }, { full: 150, row: 50 }]
+  const whole = (o: Parameters<typeof slotLayout>[0]) => slotLayout(o).whole
+  assert.deepEqual(whole({ fixed: true, rows: 200, space: 900, items }), [true, true, true])
+  // 130 rows + 200 left over: the first goes whole (+60), the second too (+40), not the third (+100)
+  assert.deepEqual(whole({ fixed: true, rows: 200, space: 460, items }), [true, true, false])
+  // a later, smaller item can still fit after a big one didn't
+  assert.deepEqual(whole({ fixed: true, rows: 200, space: 380, items: [{ full: 200, row: 40 }, { full: 60, row: 40 }] }), [false, true])
+  // a busy day: rows only, the card's rows go behind More
+  assert.deepEqual(slotLayout({ fixed: true, rows: 500, space: 300, items, chips: 50 }), { chips: false, whole: [false, false, false] })
+  // a phone or a scrolling board: rows
+  assert.deepEqual(slotLayout({ fixed: false, rows: 0, space: 9999, items, chips: 50 }), { chips: false, whole: [false, false, false] })
+})
+
+test('slotLayout: one line of chips when the rows would leave the card no room of its own', () => {
+  const items = [{ full: 100, row: 50 }, { full: 80, row: 50 }, { full: 150, row: 50 }]
+  assert.equal(slotLayout({ fixed: true, rows: 300, space: 180, items, chips: 52 }).chips, true) // 150 of rows, 30 left: not even More
+  assert.equal(slotLayout({ fixed: true, rows: 300, space: 200, items, chips: 52 }).chips, false) // 50 left: More fits
+  assert.equal(slotLayout({ fixed: true, rows: 20, space: 175, items, chips: 52 }).chips, false) // a short day's one row fits
+  assert.equal(slotLayout({ fixed: true, rows: 300, space: 100, items: [items[0]], chips: 52 }).chips, false) // one item stays a row
 })

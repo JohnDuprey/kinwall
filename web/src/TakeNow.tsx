@@ -118,6 +118,31 @@ export function TakeNowTile({ doses, drop }: Due) {
   </>
 }
 
+/** Take now in the Board's "in Today" slot (Board.tsx TodaySlot), when the Board shows Today: the
+ * same as the tile, whole (who, with avatars) or as one row, and the sheet it opens. */
+export function useTakeNowSlot({ doses, drop }: Due) {
+  const { members } = useApp()
+  const [open, setOpen] = useState(false)
+  const sheets = open && doses.length > 0 && <Sheet title="💊 Take now" onClose={() => setOpen(false)}><DoseList doses={doses} drop={drop} /></Sheet>
+  if (!doses.length) return { item: null, sheets }
+  const who = [...new Set(doses.map(d => d.memberId))].map(id => members.find(m => m.id === id)).filter(m => m !== undefined)
+  const label = `Take now: ${doses.length} due${who.length ? `, ${who.map(m => m.name).join(', ')}` : ''}`
+  return {
+    sheets,
+    item: {
+      key: 'meds',
+      chip: <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}><PillIcon width={16} height={16} /><span aria-hidden="true" className="board-slot-chip-text">{doses.length}</span></button>,
+      row: <button type="button" className="board-slot-row attn" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}>
+        <PillIcon width={16} height={16} /><span className="board-slot-row-text">Take now · {doses.length} due</span><span className="board-slot-row-meta">{who.map(m => m.name).join(', ')}</span>
+      </button>,
+      full: <button type="button" className="board-slot-full attn" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}>
+        <span className="board-slot-head"><PillIcon width={16} height={16} />Take now · {doses.length} due</span>
+        <span className="board-tile-people">{who.map(m => <span key={m.id} className="board-tile-person"><Face m={m} className="board-avatar" aria-hidden="true" />{m.name}</span>)}</span>
+      </button>,
+    },
+  }
+}
+
 /** "When did you take it?" for a dose marked Taken more than ASK_AFTER_MS after its time: Just now (one
  *  tap), At its time, or Earlier… (from the start of its day to now). onPick gets the time, none for now. */
 export function WhenTakenSheet({ dose, today, onPick, onClose }: { dose: { date: string; dueAt: string }; today: string; onPick: (at?: string) => void; onClose: () => void }) {

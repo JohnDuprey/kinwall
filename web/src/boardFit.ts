@@ -75,3 +75,29 @@ export function tileColumns(width: number, count: number, min = 160, gap = 12): 
   const fit = Math.max(1, Math.floor((width + gap) / (min + gap)))
   return Math.ceil(count / Math.ceil(count / fit))
 }
+
+/** Where the Board shows open family polls (Polls.tsx PollsOnBoard): at the foot of Today, else of
+ *  Coming up when a layout leaves Today out, else a slim strip above the cards. */
+export const pollHost = (shown: string[]): 'today' | 'coming' | 'strip' =>
+  shown.includes('today') ? 'today' : shown.includes('coming') ? 'coming' : 'strip'
+
+/** How a card's "in Today" slot (Board.tsx TodaySlot) shows its items. Each gets at least its one
+ *  row; the card's own rows (`rows`: their height) come first, and what's left of `space` (what the
+ *  rows and the slot share) goes to items in order, each whole only if that still fits. When even the
+ *  rows would leave the card's own rows no room (not a single one, or the More button: `minRows`), the
+ *  items become one line of small chips (`chips`: its height) instead. Whole items only on a
+ *  fixed-height board: a phone or a scrolling board would just grow, so it gets rows. */
+export function slotLayout({ fixed, rows, space, items, chips = 0, minRows = 50 }: { fixed: boolean; rows: number; space: number; items: { full: number; row: number }[]; chips?: number; minRows?: number }): { chips: boolean; whole: boolean[] } {
+  const none = { chips: false, whole: items.map(() => false) }
+  if (!fixed) return none
+  let left = space - rows - items.reduce((n, i) => n + i.row, 0)
+  if (items.length > 1 && space - items.reduce((n, i) => n + i.row, 0) < Math.min(rows, minRows) - 0.5 && chips) return { chips: true, whole: none.whole }
+  return {
+    chips: false,
+    whole: items.map(i => {
+      const fits = i.full - i.row <= left + 0.5
+      if (fits) left -= i.full - i.row
+      return fits
+    }),
+  }
+}

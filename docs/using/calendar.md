@@ -43,14 +43,20 @@ The board carries its own large clock and date, so while it's showing, the wall'
 
 Across the top, count tiles sum things up; tap one to open its screen (on a phone they come after the clock, and on a tablet too narrow for one row they take two even rows):
 
-* **💊 Take now**: medicine doses due now, with who; tap it to mark them in a sheet. Only while a dose is due, with [medication reminders](medications.md) on. It shows with **Full lists** too, as the only tile when the others are cards.
-* **Chores**: how many of today's chores are left, with each person's avatar and count (a ✓ once they're done), or **All done ✓**.
-* **Due soon**: how many to-dos are overdue (in red) and how many are due this week.
 * **Groceries**: how many items are still on your [Groceries lists](lists.md#list-types). Hidden if you have none.
 * **Shopping**: the same for your Shopping lists (the hardware store and the like). Only while one of them has something on it.
 
 With one list of a type, its tile shows the list's emoji and name and opens it; with several, it opens the Lists page.
 * **Rewards**: reward requests waiting for a parent's OK. Hidden when there are none.
+
+Things about today sit at the bottom of the **Today** card, below today's events, in this order:
+
+* **💊 Take now**: medicine doses due now, with who; tap it to mark them in a sheet. Only while a dose is due, with [medication reminders](medications.md) on.
+* **✅ Chores**: how many of today's chores are left, with each person's avatar and count (a ✓ once they're done), or **All done ✓**. Tap it to go to Chores. Not with **Full lists**, where Chores today is its own card.
+* **📝 Due today**: to-dos due today and overdue ones (in red), and how many more are due later this week. Tap it to go to Lists, for the whole week. Not with **Full lists**, where Due soon is its own card.
+* **🗳 An open [family poll](polls.md)**: the question, its choices with who voted, and "3 of 4 voted". Tap it to vote.
+
+Today's events come first. Each of these shows whole when the card has room left under the events, and as one row ("🗳 Where are we eating Friday? · 3 of 4 voted") when it doesn't; on a phone or a board that scrolls they're always one row. They're always there, never cut off: when today is busy, the events show what fits and **+3 more** opens the rest. On a very short card (a tablet on its side) they share one line of small buttons (💊 3, ✅ 7, 📝 3, 🗳 3/4). On a [layout](#board-layouts) without Today, Take now, Chores and Due soon stay tiles across the top, and a poll moves to the bottom of **Coming up** (or a slim strip above the cards without that either). A layout with the tiles row turned off leaves Take now, Chores and Due soon off, but still shows a poll in Today.
 
 Below them are the cards:
 
