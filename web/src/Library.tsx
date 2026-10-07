@@ -127,6 +127,9 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     ...filters.genres.map(g => ({ k: 'genres' as const, v: g, label: `🏷️ ${g}` })),
   ].map(a => ({ ...a, face: a.k === 'who' ? people.find(m => m.id === a.v) : undefined }))
   const on = active.length
+  // The Filters button's badge counts a sort other than Title too: sort and filters share its sheet.
+  const sorted = !!sort && sort !== 'title'
+  const badge = on + (sorted ? 1 : 0)
   const genres = genreOptions(all ?? [], filters.genres)
   const group = (id: string, label: string, chips: ReactNode, hint: string) => (
     <div className="field">
@@ -141,7 +144,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   }
   const shown = books?.length ?? 0
   const scan = appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>
-  // One row: the count, small, the sort and filters that are on (wrapping if there are many), and the
+  // One row: the count, small, the filters that are on (wrapping if there are many), and the
   // view switch, icons only on a phone (Library view words from 700px); on a phone 📷 Scan joins it.
   const head = <div className="lib-head">
     <span className="lib-count">{(() => {
@@ -149,9 +152,8 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
       const part = (emoji: string, text: string) => <><span className="lib-count-emoji" aria-hidden="true">{emoji} </span>{text}</>
       return <>{(p || !a) && part('📚', `${p} ${p === 1 ? 'book' : 'books'}`)}{p > 0 && a > 0 && ' · '}{a > 0 && part('🎧', `${a} ${a === 1 ? 'audiobook' : 'audiobooks'}`)}</>
     })()}</span>
-    {(on > 0 || (sort && sort !== 'title')) && (
+    {on > 0 && (
       <div className="chip-row lib-active" role="group" aria-label="Sort and filters on">
-        {sort && sort !== 'title' && <button type="button" className="chip lib-active-chip" aria-label={`Sorted by ${SORT_LABEL[sort]}. Change`} onClick={() => setFiltering(true)}><span aria-hidden="true">↕</span> {SORT_LABEL[sort]}</button>}
         {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={`Remove filter: ${a.label}`} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
       </div>
     )}
@@ -165,9 +167,9 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   // The search row; on a phone it goes up beside the view picker (Trackers' bar slot).
   const searchBar = <div className="lib-bar">
     <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, genres'} value={q} onChange={e => setQ(e.target.value)} />
-    <button type="button" className={`icon-btn filter-btn lib-filter-btn ${on ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={on ? `Filters, ${on} on` : 'Filters'}>
+    <button type="button" className={`icon-btn filter-btn lib-filter-btn ${badge ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={`Sort and filters${sorted ? `, sorted by ${SORT_LABEL[sort!]}` : ''}${on ? `, ${on} filters on` : ''}`}>
       <FilterIcon width={20} height={20} />
-      {on > 0 && <span className="filter-badge" aria-hidden="true">{on}</span>}
+      {badge > 0 && <span className="filter-badge" aria-hidden="true">{badge}</span>}
     </button>
     {!isPhone && scan}
   </div>
