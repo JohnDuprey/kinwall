@@ -48,7 +48,8 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   }, [opener])
 
   // Keyboard up (keyboard.ts): the sheet drops its home-indicator padding (the keyboard covers that
-  // area) and may use the whole visible height.
+  // area) and may use the whole visible height, less the status bar's strip at the top (an iPhone's
+  // visible area starts under it).
   const keyboard = useKeyboard().up
 
   // iOS Safari keeps position:fixed tied to the full layout viewport when the keyboard opens, so a
@@ -111,7 +112,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
     <div className={`sheet-backdrop ${variant === 'dialog' ? 'sheet-backdrop-dialog' : ''}`} ref={backdropRef} onClick={onBackdrop}>
       <div className={`sheet ${variant ? `sheet-${variant}` : ''}`} ref={sheetRef} role={role} aria-modal="true" aria-labelledby={titleId} aria-describedby={describedBy}
         tabIndex={-1} onClick={e => e.stopPropagation()}
-        style={keyboard ? { paddingBottom: 8, maxHeight: '100%', borderRadius: '20px 20px 0 0' } : undefined}>
+        style={keyboard ? { paddingBottom: 8, maxHeight: 'calc(100% - var(--safe-t))', borderRadius: '20px 20px 0 0' } : undefined}>
         <div className={`sheet-drag ${dismissable ? '' : 'no-drag'}`} onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
           <div className="sheet-grabber" />
           <div className="sheet-header">
