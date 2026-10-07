@@ -33,7 +33,7 @@ In Safari, Maps, Photos, the Camera, or any app with a **Share** button, tap **S
   * A book's barcode means a book, and it's added straight away.
   * On an iPhone with Apple Intelligence (iOS 26 or later), the on-device model works out what it is and sorts the words into the lines Kinwall reads best. The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself. An event goes straight to its fields (below), with **Not an event?** under them.
   * Without Apple Intelligence, or when the model isn't sure or takes more than about 20 seconds, the sheet asks **What is this?** (Restaurant, Book or Event) and sends the words as they were read. That works for most covers and menus; busy flyers come out better with the model.
-* **An event** shows what Kinwall read, ready to fix in the sheet: **Title**, **Date**, **All day** (on when there's no time), **Starts** and **Ends**, and **Place**. Under them, **Calendar** lists the family's calendars you can add to, starting with the one the app's event sheet picks first. Tap **Add to calendar** to save it there without opening the app, or **Open in Kinwall** to finish it in the app's event sheet (to add people, a reminder or a repeat). With no calendar to add to, only **Open in Kinwall** is there.
+* **An event** shows what Kinwall read, ready to fix in the sheet: **Title**, **Date**, **All day** (on when there's no time), **Starts** and **Ends**, **Place**, and **Notes** (anything else worth knowing, like what to bring, costs or how to RSVP; saved as the event's [notes](events.md#event-notes)). Under them, **Calendar** lists the family's calendars you can add to, starting with the family's [default calendar for new events](../settings/calendars.md#calendars). Tap **Add to calendar** to save it there without opening the app, or **Open in Kinwall** to finish it in the app's event sheet (to add people, a reminder or a repeat). With no calendar to add to, only **Open in Kinwall** is there.
 * **Books Kinwall couldn't pick on its own** open in the Kinwall app to choose. If the sheet can't open the app, it says so, and Kinwall opens there the next time you open the app.
 * **Anything saved** (an event, a recipe, a restaurant, a book) shows Kinwall's one line, such as "Added Spring fair to Family, Sat May 9", with an **Open** button that shows it in the app. The sheet closes after about 3 seconds unless you touch it.
 * A contact still opens the contact review ([Contacts](contacts.md)).
@@ -60,7 +60,7 @@ In Chrome, Photos, the Camera, Messages or any app with a **Share** button, tap 
 * **A link** goes to Kinwall straight away. A recipe is saved there and then; a restaurant's page adds the restaurant.
 * **A photo or some text** is read on the phone first ("Reading the photo…"); nothing leaves the phone for that.
   * A book's barcode means a book, and it's added straight away.
-  * The phone picks out dates and times, addresses, phone numbers, websites and ISBNs and passes them to Kinwall as the lines it reads best (such as `Date:`, `Time:` and `Place:` for an event). The first time, it downloads a small language file for this (about 5 MB).
+  * The phone picks out dates and times, addresses, phone numbers, websites and ISBNs and passes them to Kinwall as the lines it reads best (such as `Date:`, `Time:` and `Place:` for an event). A time it can't tell is AM or PM is left for Kinwall to read from the words themselves. The first time, it downloads a small language file for this (about 5 MB).
   * On newer phones with Gemini Nano (Google's on-device model, such as recent Pixel and Galaxy phones), the model works out what it is and tidies the words, like Apple Intelligence on the iPhone.
   * The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself; an event goes straight to its fields. A date with no phone number looks like an event; prices or a phone number with an address look like a menu. When it can't tell, or Gemini Nano is unsure or takes more than about 20 seconds, it asks **What is this?** (Restaurant, Book or Event).
 * **An event** shows what Kinwall read, ready to fix, with **Calendar**, **Add to calendar** and **Open in Kinwall**, as on the iPhone.
@@ -123,13 +123,14 @@ Title: a short name for the event
 Date: its date, like Saturday, May 9, 2026
 Time: its start and end time, like 10:00 AM - 2:00 PM
 Place: the venue's name and its full street address and town on one line, like The Rivers Residence, 12 Elm Road, Springfield
+Notes: anything else worth knowing, like what to bring, costs, or how to RSVP
 
 Shared Text
 ```
 
-Without the model, Kinwall reads the photo's text as it is: the first line that isn't a date or a time is the title, and a line naming a school, park, hall or street is the place. The model does better with busy flyers.
+Without the model, Kinwall reads the photo's text as it is: the first line that isn't a date or a time is the title, a line naming a school, park, hall or street is the place, and the other lines worth knowing (what to bring, costs, how to RSVP, a phone number or a link) become the notes. Decoration like "join us to celebrate" is left out. The model does better with busy flyers.
 
-You can send both: the model's lines, then a line with only `---`, then the photo's text as it was read. The model's lines win, and when its `Place` has no street address, Kinwall adds the street line it finds in the photo's text (as the Kinwall app does).
+You can send both: the model's lines, then a line with only `---`, then the photo's text as it was read. The model's lines win, with a few fixes from the photo's text (as the Kinwall app does): a `Place` with no street address gets the street line, a `Place` that's only a street gets the "at …" venue line right above it, a `Time` with no AM or PM or no end takes the photo's fuller time for the same start ("3:00 - 5:00pm"), and an RSVP or phone line the model left out of `Notes` is added.
 
 ### The restaurant-only shortcut
 
@@ -147,6 +148,6 @@ Content-Type: application/json
 { "kind": "event", "text": "Title: Spring fair\nDate: Saturday, May 9\nTime: 10 AM - 2 PM\nPlace: Lincoln Elementary" }
 ```
 
-To add the event straight away, send `"save": true` and the `calendarId` of a calendar you can add to (from `GET /api/calendars`). The answer's `link` then opens the saved event. Without `save`, an event's answer also has `event` (`title`, `date`, `time`, `end` and `place`, as read), and you can send `event` back, changed, instead of `text`.
+To add the event straight away, send `"save": true` and the `calendarId` of a calendar you can add to (from `GET /api/calendars`; leave it out for the family's default calendar, the one marked `"default": true`). The answer's `link` then opens the saved event. Without `save`, an event's answer also has `event` (`title`, `date`, `time`, `end`, `place` and `notes`, as read), and you can send `event` back, changed, instead of `text`.
 
 The answer is always `{ kind, summary, link, review }`. Errors come back as `{ error, summary }`, so the notification still says what went wrong. See [REST API](../integrations/rest-api.md).

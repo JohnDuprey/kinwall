@@ -129,13 +129,17 @@ test('share: an event is never saved; it comes back as a link to check it', asyn
   assert.deepEqual(res.json, {
     kind: 'event', review: true, summary: 'Check the event: Spring fair, Sat May 8 at 10 AM',
     link: 'https://kinwall.example/#/calendar?draft=event&title=Spring+fair&date=2027-05-08&time=10%3A00&end=14%3A00&place=Lincoln+Elementary',
-    event: { title: 'Spring fair', date: '2027-05-08', time: '10:00', end: '14:00', place: 'Lincoln Elementary' },
+    event: { title: 'Spring fair', date: '2027-05-08', time: '10:00', end: '14:00', place: 'Lincoln Elementary', notes: null },
   });
   assert.equal((await db.prepare('SELECT count(*) AS n FROM events').first<{ n: number }>())?.n, 0);
   const noDate = await share({ kind: 'event', text: 'Pickup at 3:15 pm' });
   assert.equal(noDate.json.summary, 'Check the event: Pickup at 3:15 PM, no date found');
   assert.equal(noDate.json.link, 'https://kinwall.example/#/calendar?draft=event&title=Pickup&time=15%3A15');
   assert.equal((await share({ kind: 'event' })).status, 400);
+  // The rest worth knowing rides along as notes, in the event and the link to check it.
+  const rsvp = await share({ kind: 'event', text: 'Title: Swim party\nDate: 2027-05-08\n---\nSwim party\nBring a towel\nRSVP to Sam 555-0100' });
+  assert.equal(rsvp.json.event.notes, 'Bring a towel\nRSVP to Sam 555-0100');
+  assert.equal(new URLSearchParams(rsvp.json.link.split('?')[1]).get('notes'), 'Bring a towel\nRSVP to Sam 555-0100');
 });
 
 test('share: parent devices only; Meals or Reading off refuses with a clear message', async () => {
@@ -176,6 +180,13 @@ test('share: save adds the event to the chosen calendar in the household timezon
   await share({ kind: 'event', save: true, calendarId: family.id, event: { title: 'Late show', date: '2027-05-08', time: '22:00', end: '01:00' } });
   const late = await db.prepare("SELECT * FROM events WHERE title = 'Late show'").first<any>();
   assert.deepEqual([late.start, late.end], ['2027-05-09T02:00:00.000Z', '2027-05-09T05:00:00.000Z']);
+
+  // Notes are saved as the event's notes (its description); the checked ones win.
+  await share({ kind: 'event', save: true, calendarId: family.id, text: 'Title: Swim party\nDate: 2027-05-08\n---\nSwim party\nBring a towel' });
+  assert.equal((await db.prepare("SELECT description FROM events WHERE title = 'Swim party'").first<any>()).description, 'Bring a towel');
+  await share({ kind: 'event', save: true, calendarId: family.id, event: { title: 'Pool day', date: '2027-05-08', notes: ' Bring goggles ' } });
+  assert.equal((await db.prepare("SELECT description FROM events WHERE title = 'Pool day'").first<any>()).description, 'Bring goggles');
+  await db.prepare("DELETE FROM events WHERE title IN ('Swim party', 'Pool day')").run();
 
   // Without save, nothing is added even with a calendar.
   assert.equal((await share({ kind: 'event', text, calendarId: family.id })).json.review, true);

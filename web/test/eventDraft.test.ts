@@ -26,3 +26,8 @@ test('eventDraft: not a draft, or junk values, are ignored', () => {
   assert.equal(eventDraft(q('event=e1'), '2026-10-07'), null)
   assert.deepEqual(eventDraft(q('draft=event&date=tomorrow&time=25%3A99&end=later'), '2026-10-07'), { title: '', location: null, allDay: false })
 })
+
+test('eventDraft: notes (what to bring, how to RSVP) become the event notes', () => {
+  assert.deepEqual(eventDraft(q('draft=event&title=Swim&notes=Bring+a+towel%0ARSVP+to+Sam'), '2026-10-07'),
+    { title: 'Swim', location: null, description: 'Bring a towel\nRSVP to Sam', allDay: false })
+})

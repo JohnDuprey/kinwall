@@ -1,5 +1,5 @@
 // The "Add to Kinwall" Shortcut's event link (POST /api/share on the server):
-// #/calendar?draft=event&title=…&date=YYYY-MM-DD&time=HH:MM&end=HH:MM&place=… becomes the new event
+// #/calendar?draft=event&title=…&date=YYYY-MM-DD&time=HH:MM&end=HH:MM&place=…&notes=… becomes the new event
 // sheet's prefill, for a parent to check and save. Pure, so web/test/eventDraft.test.ts covers it.
 import type { EventInstance } from './types.ts'
 
@@ -13,7 +13,7 @@ export function eventDraft(q: URLSearchParams, today: string): Partial<EventInst
   const date = DAY.test(q.get('date') ?? '') && !Number.isNaN(Date.parse(q.get('date')!)) ? q.get('date')! : null
   const time = CLOCK.test(q.get('time') ?? '') ? q.get('time')! : null
   const end = CLOCK.test(q.get('end') ?? '') ? q.get('end')! : null
-  const base = { title: (q.get('title') ?? '').slice(0, 200), location: q.get('place')?.slice(0, 500) || null }
+  const base = { title: (q.get('title') ?? '').slice(0, 200), location: q.get('place')?.slice(0, 500) || null, ...(q.get('notes')?.trim() && { description: q.get('notes')!.trim().slice(0, 5000) }) }
   if (date && !time) {
     const next = new Date(`${date}T00:00:00Z`)
     next.setUTCDate(next.getUTCDate() + 1)

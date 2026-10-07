@@ -48,7 +48,7 @@ export function bookQuery(text: string): { title: string | null; author: string 
 
 // --- Events --------------------------------------------------------------------------------------
 
-export type EventDraft = { title: string | null; date: string | null; time: string | null; end: string | null; place: string | null };
+export type EventDraft = { title: string | null; date: string | null; time: string | null; end: string | null; place: string | null; notes: string | null };
 
 const MONTH = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?';
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -118,7 +118,16 @@ const VENUE = /\b(school|elementary|academy|park|church|temple|library|center|ce
 const EVENT_WORD = /\b(birthday|party|celebration|shower|wedding|reception|fair|festival|carnival|night|show|recital|concert|play|game|match|tournament|meet|dinner|lunch|brunch|picnic|bbq|cookout|potluck|sleepover|playdate|graduation|ceremony|parade|sale|fundraiser|open house|camp|class|practice)\b/i;
 // A street address: a number, then a street's name and its kind ("68 Dudley Road", "9 Lake Ave").
 const STREET = /\b\d+[a-z]?[ \t]+(?:[\p{L}.'’-]+[ \t]+){0,4}?(street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|court|ct|place|pl|circle|cir|terrace|ter|parkway|pkwy|highway|hwy|trail|trl|square|sq)\b/iu;
-const GENERIC = /^(you('|’)?re invited|you are invited|save the date|join us|please join us|all are welcome|come one,? come all)\W*$/i;
+const GENERIC = /^(you('|’)?re invited|you are invited|save the date|(please )?join us( to celebrate| for)?|come celebrate|all are welcome|come one,? come all)\W*$/i;
+// The header labels this file reads; their lines aren't part of the words as read.
+const LABELS = /^[-•*\s]*(title|event|what|name|date|time|when|place|location|where|address|venue|notes?|details)\s*:/i;
+const AMPM_WORD = /\d[ \t]*[ap]\.?[ \t]?m\b|\b(noon|midnight)\b/i;
+const mins = (hm: string) => +hm.slice(0, 2) * 60 + +hm.slice(3);
+// Worth a note whatever its length: how to RSVP, a phone number, what to bring or wear, a cost, a link.
+const KEEP = /\brsvp\b|\b(bring|wear|dress|costumes?|tickets?|admission|donations?|free|cost|bring your own|byo)\b|[$€£]\s?\d|https?:\/\/|\b\d{3}[\s.-]\d{4}\b/i;
+const PHONE_ONLY = /^\+?[\d\s().-]{7,}$/;
+const NOTE_LINE = 200;
+const NOTES_MAX = 1000;
 const tidy = (s: string) => s.replace(/\s+/g, ' ').replace(/^[\s,–—:@-]+|[\s,–—:@-]+$/g, '').replace(/\s+(at|on|from|this|next|in|@)$/i, '').trim();
 
 /** An event's title, date, time (and end) and place, for the person to check. Anything not found is
@@ -126,12 +135,26 @@ const tidy = (s: string) => s.replace(/\s+/g, ' ').replace(/^[\s,–—:@-]+|[\s
 export function parseEventText(text: string, today: string): EventDraft {
   const clean = text.replace(/\r/g, '').replace(/\*\*/g, '');
   const h = headerLines(clean);
+  // The words as read: under a "---" line, or (no such line) every line that isn't a header line.
+  const sep = /^[ \t]*-{3,}[ \t]*$/m.exec(clean);
+  const words = (sep ? clean.slice(sep.index + sep[0].length) : clean).split('\n').filter((l) => !LABELS.test(l)).join('\n');
   const whenLine = header(h, 'when');
   const dateLine = header(h, 'date') ?? whenLine;
   const timeLine = header(h, 'time') ?? whenLine;
   const date = findDate(dateLine ?? clean, today) ?? (dateLine === undefined ? null : findDate(clean, today));
   const blank = (s: string, m: { match: string } | null) => (m ? s.replace(m.match, ' ') : s);
-  const time = timeLine !== undefined ? findTime(blank(timeLine, date), true) : findTime(blank(clean, date), false);
+  let time = timeLine !== undefined ? findTime(blank(timeLine, date), true) : findTime(blank(clean, date), false);
+  // A header time with no am/pm or no end ("3:00", read off a photo by entity extraction, may come
+  // as 3:00 AM, or 3:00 AM - 3:00 PM) gives way to the words' own time for the same start on the clock face, when they
+  // say am or pm and are fuller ("3:00 - 5:00pm").
+  if (timeLine !== undefined && time) {
+    const read = findTime(blank(words, findDate(words, today)), false);
+    const fuller = read && AMPM_WORD.test(read.match) && mins(read.time) % 720 === mins(time.time) % 720 && (read.end || !AMPM_WORD.test(timeLine));
+    // The same start with an end of its own: the header was read with care, so it stays.
+    if (read && fuller && (read.time !== time.time || !time.end)) {
+      time = { ...read, end: read.end ?? (time.end && mins(time.end) > mins(read.time) ? time.end : null) };
+    }
+  }
 
   let place: string | null = header(h, 'place', 'location', 'where', 'address', 'venue') ?? null;
   let placeMatch: string | null = null;
@@ -173,7 +196,57 @@ export function parseEventText(text: string, today: string): EventDraft {
     const street = line && tidy(line.replace(/^(?:(?:at|in|@)\s+|[a-z]+\s*:\s*)/i, ''));
     if (street) place = street.toLowerCase().includes(place.toLowerCase()) ? street : `${place}, ${street}`;
   }
+  // A bare street ("Place: 12 Elm Road" from entity extraction) takes the venue on the "at …" line
+  // right above that street in the words ("at The Rivers Residence").
+  if (place && /^\d/.test(place) && STREET.test(place)) {
+    const lines = words.split('\n').map((l) => l.trim());
+    const street = place.split(',')[0].toLowerCase();
+    const i = lines.findIndex((l) => l.toLowerCase().includes(street));
+    const venue = i > 0 ? /^(?:at|@)[ \t]+(.+)$/i.exec(lines[i - 1]) : null;
+    if (venue && !findTime(venue[1], false)) place = `${tidy(venue[1])}, ${place}`;
+  }
   // Shouted on the card ("MAYA'S 6th BIRTHDAY"): title case reads better on the calendar.
   if (title && !/\p{Ll}{2}/u.test(title.replace(/\b\d+(st|nd|rd|th)\b/gi, ''))) title = title.toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
-  return { title: title || null, date: date?.date ?? null, time: time?.time ?? null, end: time?.end ?? null, place: place ? place.slice(0, 500) : null };
+  return { title: title || null, date: date?.date ?? null, time: time?.time ?? null, end: time?.end ?? null, place: place ? place.slice(0, 500) : null, notes: eventNotes(words, header(h, 'notes', 'note', 'details'), title, place, today) };
+}
+
+/** What else the invite says that's worth knowing (bounce house and pizza, how to RSVP), one line
+ * each in the card's order: lines of three words or more once the title, date, time and place are
+ * taken out, and RSVP, phone, bring/wear, cost and link lines whatever their length. Decoration
+ * ("join us to celebrate", a lone "6") is left out. A model's Notes/Details line is used instead,
+ * with any RSVP or phone line from the words it left out. Capped at 200 characters a line, 1,000 in all. */
+function eventNotes(words: string, given: string | undefined, title: string | null, place: string | null, today: string): string | null {
+  const found: string[] = [];
+  const has = (big: string, small: string) => big.toLowerCase().includes(small.toLowerCase());
+  for (const raw of words.split('\n')) {
+    const line = raw.replace(/^[-•*#\s]+/, '').replace(/\s+/g, ' ').trim();
+    if (!line || GENERIC.test(line)) continue;
+    if (PHONE_ONLY.test(line) && (line.match(/\d/g)?.length ?? 0) >= 7) {
+      if (found.length && /\brsvp\b/i.test(found[found.length - 1])) found[found.length - 1] += ` · ${line}`;
+      else found.push(line);
+      continue;
+    }
+    if (!KEEP.test(line)) {
+      let rest = line;
+      if (title) rest = rest.replace(new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' ');
+      const d = findDate(rest, today);
+      if (d) rest = rest.replace(d.match, ' ');
+      const t = findTime(rest, false);
+      if (t) rest = rest.replace(t.match, ' ');
+      if (place && has(place, tidy(rest.replace(/^\s*(at|in|@)\s+/i, '')))) continue;
+      if (rest.split(/\s+/).filter((w) => /\p{L}{2}/u.test(w) && !/^(at|in|on|from|to|this|next|the|@)$/i.test(w)).length < 3) continue;
+    }
+    found.push(line);
+  }
+  let lines = found;
+  if (given !== undefined) {
+    const extra = found.filter((l) => /\brsvp\b|\d{3}[\s.-]\d{4}/i.test(l) && !l.split(' · ').every((piece) => has(given, piece)));
+    lines = [given, ...extra].filter(Boolean);
+  }
+  let out = '';
+  for (const l of lines.map((x) => x.slice(0, NOTE_LINE))) {
+    if (out.length + l.length + 1 > NOTES_MAX) break;
+    out += out ? `\n${l}` : l;
+  }
+  return out || null;
 }

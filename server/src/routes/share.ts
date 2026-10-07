@@ -44,12 +44,13 @@ const EventDraftSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().describe('Start, HH:MM in the household timezone; none is all day'),
   end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().describe('End, HH:MM; one before the start is the next day'),
   place: z.string().max(500).nullable(),
+  notes: z.string().max(5000).nullable().describe('Anything else worth knowing (what to bring, costs, how to RSVP); saved as the event\'s notes'),
 }).openapi('ShareEvent');
 export const ShareInputSchema = RestaurantImportSchema.extend({
   // Shortcuts sends an unset variable as "" and a menu item as typed ("Book"): both are fine.
   kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
   url: z.string().max(5000).nullable().optional().describe('A shared link: a recipe or restaurant page, or an Apple Maps place.'),
-  text: z.string().max(100000).nullable().optional().describe('Text from a photo or a share: a menu (restaurant), an ISBN or a title and author (book), or a flyer or invite (event). "Title:", "Date:", "Time:" and "Place:" lines help an event; "Title:" and "Author:" a book. The first of each line wins, so a model\'s lines can go first, then a "---" line, then the words as read: a Place with no street takes the street from them.'),
+  text: z.string().max(100000).nullable().optional().describe('Text from a photo or a share: a menu (restaurant), an ISBN or a title and author (book), or a flyer or invite (event). "Title:", "Date:", "Time:", "Place:" and "Notes:" lines help an event; "Title:" and "Author:" a book. The first of each line wins, so a model\'s lines can go first, then a "---" line, then the words as read: a Place with no street takes the street from them, a bare street the "at" venue line above it, and a Time with no am/pm or end the words\' fuller time. Leftover lines worth knowing become notes.'),
   event: EventDraftSchema.partial().nullable().optional().describe('An event as the person checked it (from a previous answer\'s event); used instead of text.'),
   save: z.preprocess(blankOff, z.boolean().optional()).describe('kind event only: add it to calendarId now instead of answering with a link to check it.'),
   calendarId: z.preprocess(blankOff, z.string().optional()).describe('With save: the calendar to add the event to (GET /api/calendars, one that is writable). Left out: the default calendar (default: true).'),
@@ -147,7 +148,7 @@ export function shareRoutes(app: App) {
     if (kind === 'event') {
       const today = todayInTz(settings.timezone || hostTimezone());
       const given = input.event;
-      const e = given ? { title: given.title?.trim() || null, date: given.date ?? null, time: given.time ?? null, end: given.end ?? null, place: given.place?.trim() || null } : text ? parseEventText(text, today) : null;
+      const e = given ? { title: given.title?.trim() || null, date: given.date ?? null, time: given.time ?? null, end: given.end ?? null, place: given.place?.trim() || null, notes: given.notes?.trim() || null } : text ? parseEventText(text, today) : null;
       if (!e) return fail("Send the flyer's or invite's text.", 400);
       const day = e.date ? new Date(`${e.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).replace(',', '') : null;
       if (input.save) {
@@ -165,7 +166,7 @@ export function shareRoutes(app: App) {
           start = at(e.time);
           end = !e.end ? next(start, 1 / 24).toISOString() : e.end > e.time ? at(e.end) : next(at(e.end), 1).toISOString();
         }
-        const created = await createEvent(c, { calendarId: input.calendarId, title: e.title, start, end, allDay: !e.time, ...(e.place && { location: e.place }) });
+        const created = await createEvent(c, { calendarId: input.calendarId, title: e.title, start, end, allDay: !e.time, ...(e.place && { location: e.place }), ...(e.notes && { description: e.notes }) });
         if ('error' in created) return fail(created.error, created.status);
         return ok('event', `Added ${created.row.title} to ${created.cal.name}, ${day}`, `calendar?${new URLSearchParams({ event: created.row.id, at: created.row.start })}`);
       }
