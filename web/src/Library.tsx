@@ -12,7 +12,8 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, STATUS_LABEL, type LibraryFilters, type LibraryStatus } from './library.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, STATUS_LABEL, type LibraryFilters, type LibraryStatus } from './library.ts'
+import type { LibraryFormat } from './types.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
@@ -20,12 +21,14 @@ import { ChipFace } from './Face'
 import LibraryShelf from './LibraryShelf.tsx'
 
 const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
+const LISTEN_WORD: Record<ReadingStatus, string> = { want: 'wants to listen', reading: 'listening', finished: 'listened' }
 /** Between book scans: long enough to see what was added and pick up the next book. */
 const SCAN_PAUSE_MS = 2000
 // This device's choice of list or covers (covers until it picks list). The filters aren't kept: a wall that opens on a filtered
 // shelf looks like books went missing.
 const VIEW_KEY = 'kinwall.libraryView'
 const STATUSES = Object.keys(STATUS_LABEL) as LibraryStatus[]
+const FORMATS = Object.keys(FORMAT_LABEL) as LibraryFormat[]
 const stored = (key: string) => { try { return localStorage.getItem(key) } catch { return null } }
 const store = (key: string, v: string) => { try { localStorage.setItem(key, v) } catch { /* storage blocked: just this visit */ } }
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
@@ -95,9 +98,10 @@ export default function Library({ adding, onAdded, onStarted }: {
 
   const toggle = (k: keyof LibraryFilters, v: string) => setFilters(f => ({ ...f, [k]: (f[k] as string[]).includes(v) ? (f[k] as string[]).filter(x => x !== v) : [...f[k], v] }))
   const people = members
-  // What's on, as chips under the search (✕ drops one): Show, then Where, then Who.
+  // What's on, as chips under the search (✕ drops one): Show, then Format, then Where, then Who.
   const active = [
     ...filters.show.map(s => ({ k: 'show' as const, v: s as string, label: STATUS_LABEL[s] })),
+    ...filters.formats.map(f => ({ k: 'formats' as const, v: f as string, label: FORMAT_LABEL[f] })),
     ...filters.places.map(p => ({ k: 'places' as const, v: p, label: `📍 ${p}` })),
     ...filters.who.map(id => ({ k: 'who' as const, v: id, label: people.find(m => m.id === id)?.name ?? 'Family' })),
   ].map(a => ({ ...a, face: a.k === 'who' ? people.find(m => m.id === a.v) : undefined }))
@@ -115,7 +119,7 @@ export default function Library({ adding, onAdded, onStarted }: {
   }
   const shown = books?.length ?? 0
   const head = <>
-    <span className="lib-count">📚 {shown} {shown === 1 ? 'book' : 'books'}</span>
+    <span className="lib-count">{(() => { const a = books?.filter(isAudio).length ?? 0, p = shown - a; return [p || !a ? `📚 ${p} ${p === 1 ? 'book' : 'books'}` : '', a ? `🎧 ${a} ${a === 1 ? 'audiobook' : 'audiobooks'}` : ''].filter(Boolean).join(' · ') })()}</span>
     <Segmented label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
       options={[{ key: 'list', label: '☰ List' }, { key: 'covers', label: '📚 Covers' }]} />
   </>
@@ -141,6 +145,7 @@ export default function Library({ adding, onAdded, onStarted }: {
         </>}>
           {group('lib-f-show', 'Show', STATUSES.map(s => chip('show', s, STATUS_LABEL[s])),
             filters.show.length ? 'Books that match any of these.' : 'None picked: the books you have, without returned, wishlist or want-to-read-only ones.')}
+          {group('lib-f-format', 'Format', FORMATS.map(f => chip('formats', f, FORMAT_LABEL[f])), 'Paper books, audiobooks, or both.')}
           {places.length > 0 && group('lib-f-where', 'Where', places.map(p => chip('places', p, `📍 ${p}`)), 'Where it lives: any of these.')}
           {people.length > 0 && group('lib-f-who', 'Who', people.map(m => chip('who', m.id, <><ChipFace m={m} /> {m.name}</>, m.color)), 'On their reading shelf: reading, finished or want to read.')}
         </Sheet>
@@ -159,10 +164,11 @@ export default function Library({ adding, onAdded, onStarted }: {
               return (
                 <li key={b.id}>
                   <button type="button" className="lib-book" onClick={() => setOpen(b)} aria-label={`${b.title}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ', not read yet'}. Details`}>
-                    {cover ? <img className="lib-cover" src={cover} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} /> : <span className="lib-cover lib-cover-blank" aria-hidden="true">📖</span>}
+                    {cover ? <img className={`lib-cover ${isAudio(b) ? 'lib-cover-square' : ''}`} src={cover} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} /> : <span className={`lib-cover lib-cover-blank ${isAudio(b) ? 'lib-cover-square' : ''}`} aria-hidden="true">{isAudio(b) ? '🎧' : '📖'}</span>}
                     <span className="lib-book-text">
                       <span className="lib-book-title">{b.title}</span>
                       {b.author && <span className="trk-sub">{b.author}</span>}
+                      {isAudio(b) && <span className="trk-sub lib-format">🎧 Audiobook</span>}
                       {details && <span className="trk-sub">{details}</span>}
                       {!!b.genres.length && <span className="trk-sub lib-genres">{b.genres.join(' · ')}</span>}
                       {b.borrowedFrom && <span className={`trk-sub lib-where ${isOverdue(b, today) ? 'lib-overdue' : ''}`}>{[`📅 ${due ?? 'Borrowed'}`, `from ${b.borrowedFrom}`].join(' · ')}</span>}
@@ -214,6 +220,8 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   const listen = listenLabel(book)
   const rating = ratingLabel(book)
   const olUrl = openLibraryUrl(book)
+  const audio = isAudio(book)
+  const libro = audio ? libroUrl(book) : null
   const [looking, setLooking] = useState(false)
   // A parent's "Look up details": Open Library now, filling only what's empty.
   const lookUp = async () => {
@@ -233,7 +241,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         toast(`${m.name} is reading ${book.title}`); announce(`${m.name} is reading ${book.title}`); onStarted(); return
       }
       await api.addTracker({ kind: 'reading', memberId: m.id, title: book.title, data: {
-        format: 'book', status: 'reading', bookId: book.id, ...(book.author && { author: book.author }), ...(book.pages && { totalPages: book.pages }), ...(book.coverUrl && { coverUrl: book.coverUrl }),
+        format: audio ? 'audiobook' : 'book', status: 'reading', bookId: book.id, ...(book.author && { author: book.author }), ...(!audio && book.pages && { totalPages: book.pages }), ...(book.coverUrl && { coverUrl: book.coverUrl }),
       } })
       toast(`${m.name} is reading ${book.title}`); announce(`${m.name} is reading ${book.title}`); onStarted()
     } catch (e) { toast(msg(e, "Couldn't start it"), true) }
@@ -245,7 +253,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   return (
     <Sheet title={book.title} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="lib-detail">
-        {cover && <img className="lib-detail-cover" src={cover} alt="" onError={e => { e.currentTarget.hidden = true }} />}
+        {cover && <img className={`lib-detail-cover ${audio ? 'lib-cover-square' : ''}`} src={cover} alt="" onError={e => { e.currentTarget.hidden = true }} />}
         <div className="lib-detail-text">
           {book.author && <div className="lib-detail-author">{book.author}</div>}
           {series && <div className="lib-detail-series">📚 {series}</div>}
@@ -263,6 +271,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       {(book.isbn || (olUrl && canRemove)) && (
         <p className="trk-sub lib-detail-links">
           {book.isbn && <span>ISBN {book.isbn}</span>}
+          {libro && canRemove && <a className="text-link" href={libro} target="_blank" rel="noopener noreferrer">🎧 Listen on Libro.fm ↗</a>}
           {olUrl && canRemove && <a className="text-link" href={olUrl} target="_blank" rel="noopener noreferrer">View on Open Library ↗</a>}{/* parent devices: walls and kids stay in the app */}
         </p>
       )}
@@ -277,7 +286,8 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       </div>
       {picking === 'borrowed' && <BorrowFields sources={sources} today={today} onCancel={() => setPicking(null)}
         onSave={(from, due) => { setPicking(null); save({ borrowedFrom: from, dueOn: due }, `Borrowed from ${from}`) }} />}
-      {!book.wanted && <PlacePicker value={book.location ?? ''} places={places} onChange={v => save({ location: v || null }, v ? `Where it lives: ${v}` : `Place cleared: ${book.title}`)} />}
+      {/* An audiobook doesn't live on a shelf or go out on loan. */}
+      {!book.wanted && !audio && <PlacePicker value={book.location ?? ''} places={places} onChange={v => save({ location: v || null }, v ? `Where it lives: ${v}` : `Place cleared: ${book.title}`)} />}
       {book.wanted || picking ? null : book.borrowedFrom ? (
         <div className="field">
           <label htmlFor="lib-due">Due back to {book.borrowedFrom}</label>
@@ -294,7 +304,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
           )}
           {isOverdue(book, today) && <p className="field-hint lib-overdue">{dueLabel(book, today)}</p>}
         </div>
-      ) : <div className="field">
+      ) : audio ? null : <div className="field">
         <label htmlFor="lib-lend">Lending</label>
         {book.lentTo ? (
           <div className="lib-lent">
@@ -310,15 +320,15 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         )}
       </div>}
       <div className="field">
-        <label id="lib-readers">Read by</label>
+        <label id="lib-readers">{audio ? 'Listened to by' : 'Read by'}</label>
         {book.readers.length ? (
           <ul className="lib-reader-list" aria-labelledby="lib-readers">
-            {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? 'Family'} <span className="trk-sub">{STATUS_WORD[r.status]}</span></li> })}
+            {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? 'Family'} <span className="trk-sub">{(audio ? LISTEN_WORD : STATUS_WORD)[r.status]}</span></li> })}
           </ul>
         ) : <p className="trk-sub">Nobody yet.</p>}
       </div>
       <div className="field">
-        <label id="lib-read-it">Read it</label>
+        <label id="lib-read-it">{audio ? 'Listen to it' : 'Read it'}</label>
         <div className="chip-row" role="group" aria-labelledby="lib-read-it">
           {members.map(m => <button key={m.id} type="button" className="chip" style={{ ['--chip-color' as string]: m.color }} onClick={() => readIt(m)}><ChipFace m={m} /> {m.name}</button>)}
         </div>

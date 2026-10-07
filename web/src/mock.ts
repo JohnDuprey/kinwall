@@ -680,9 +680,13 @@ const bookLibrary: LibraryBook[] = [
   libraryBook('book-dog-man', 'Dog Man', 'Dav Pilkey', { pages: 240, year: 2016, genres: ['Graphic novel', 'Humor'], wanted: true, coverUrl: 'https://picsum.photos/seed/kinwall-dogman/120/180' }),
   libraryBook('book-wings-of-fire', 'The Dragonet Prophecy', 'Tui T. Sutherland', { pages: 336, year: 2012, series: 'Wings of Fire', seriesNumber: '1', genres: ['Fantasy'], wanted: true }),
   // Made from Maya's audiobook, then looked up on Open Library (book-details.ts).
-  libraryBook('book-mouse', 'The Mouse and the Motorcycle', 'Beverly Cleary', { format: 'audiobook', year: 1965, series: 'Ralph S. Mouse', seriesNumber: '1', lexile: 860, genres: ['Adventure', 'Animals', 'Fantasy', 'Humor'], workKey: '/works/OL2649765W', ratingsAverage: 4.0, ratingsCount: 312, lookedUpAt: daysAgo(6), coverUrl: 'https://picsum.photos/seed/kinwall-mouse/120/180', location: "Maya's room",
+  libraryBook('book-mouse', 'The Mouse and the Motorcycle', 'Beverly Cleary', { format: 'audiobook', year: 1965, series: 'Ralph S. Mouse', seriesNumber: '1', lexile: 860, genres: ['Adventure', 'Animals', 'Fantasy', 'Humor'], workKey: '/works/OL2649765W', ratingsAverage: 4.0, ratingsCount: 312, lookedUpAt: daysAgo(6), isbn: '9780062874511', coverUrl: 'https://picsum.photos/seed/kinwall-mouse/300/300',
     description: 'Ralph is a mouse who lives in a knothole in Room 215 of the Mountain View Inn. When a boy named Keith checks in with a shiny toy motorcycle, Ralph can hardly believe his luck: if he makes the right noise, it really goes. Soon Ralph is racing down the hallway, and a friendship begins that takes both of them on a wild, sometimes dangerous adventure, from a scary trip into the laundry basket to a midnight search for an aspirin when Keith runs a fever.' }),
   libraryBook('book-hatchet', 'Hatchet', 'Gary Paulsen', { pages: 195, year: 1987, lexile: 1020, genres: ['Adventure'], borrowedFrom: 'Town library', dueOn: daysAgo(12), returnedOn: daysAgo(14) }),
+  // More audiobooks for the crate: Sam listening, one not started, one without a cover.
+  libraryBook('audio-hobbit', 'The Hobbit', 'J. R. R. Tolkien', { format: 'audiobook', year: 1937, genres: ['Fantasy'], coverUrl: 'https://picsum.photos/seed/kinwall-hobbit-audio/300/300' }),
+  libraryBook('audio-charlotte', "Charlotte's Web", 'E. B. White', { format: 'audiobook', isbn: '9780739367216', year: 1952, genres: ['Fantasy', 'Animals'], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte-audio/300/300' }),
+  libraryBook('audio-ramona-pest', 'Ramona the Pest', 'Beverly Cleary', { format: 'audiobook', year: 1968, genres: ['Realistic fiction', 'Humor'] }),
 ]
 const withReaders = (b: LibraryBook): LibraryBook => {
   const reads = trackers.filter(t => t.kind === 'reading' && (t.data as ReadingData).bookId === b.id)
@@ -695,8 +699,9 @@ const trackers: TrackerEntry[] = [
   tracker('reading', 'm3', daysAgo(70), 'The Wild Robot', { author: 'Peter Brown', status: 'finished', pagesRead: 288, totalPages: 288, finishedOn: daysAgo(45), rating: 4 }),
   tracker('reading', 'm3', daysAgo(75), 'Because of Winn-Dixie', { author: 'Kate DiCamillo', status: 'finished', pagesRead: 182, totalPages: 182, finishedOn: daysAgo(60), rating: 4 }),
   tracker('reading', 'm3', daysAgo(100), 'Stuart Little', { author: 'E. B. White', status: 'finished', pagesRead: 131, totalPages: 131, finishedOn: daysAgo(85), rating: 3 }),
-  tracker('reading', 'm3', daysAgo(6), 'The Mouse and the Motorcycle', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'reading', minutesListened: 95, totalMinutes: 225 }),
-  tracker('reading', 'm3', daysAgo(35), 'Ramona the Pest', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'finished', minutesListened: 250, totalMinutes: 250, finishedOn: daysAgo(28), rating: 5 }),
+  tracker('reading', 'm3', daysAgo(6), 'The Mouse and the Motorcycle', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'reading', minutesListened: 95, totalMinutes: 225, bookId: 'book-mouse', coverUrl: 'https://picsum.photos/seed/kinwall-mouse/300/300' }),
+  tracker('reading', 'm3', daysAgo(35), 'Ramona the Pest', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'finished', minutesListened: 250, totalMinutes: 250, finishedOn: daysAgo(28), rating: 5, bookId: 'audio-ramona-pest' }),
+  tracker('reading', 'm2', daysAgo(10), 'The Hobbit', { format: 'audiobook', author: 'J. R. R. Tolkien', narrator: 'Theo Marsh', status: 'reading', minutesListened: 410, totalMinutes: 683, bookId: 'audio-hobbit', coverUrl: 'https://picsum.photos/seed/kinwall-hobbit-audio/300/300' }),
   tracker('reading', 'm3', daysAgo(2), 'Wonder', { author: 'R. J. Palacio', status: 'want', totalPages: 310 }),
   tracker('reading', 'm4', daysAgo(5), 'Rise of the Earth Dragon', { author: 'Tracey West', status: 'reading', pagesRead: 45, totalPages: 90, bookId: 'book-dragon-masters', coverUrl: 'https://picsum.photos/seed/kinwall-dragon/120/180' }),
   tracker('reading', 'm4', daysAgo(30), 'Frog and Toad Are Friends', { author: 'Arnold Lobel', status: 'finished', pagesRead: 64, totalPages: 64, finishedOn: daysAgo(25), rating: 5 }),
@@ -708,14 +713,15 @@ const trackers: TrackerEntry[] = [
   tracker('health', 'm4', daysAgo(14), 'Six-year checkup', { type: 'checkup', provider: 'Dr. Patel', time: '09:30', height: { value: 45.5, unit: 'in' }, weight: { value: 46, unit: 'lb' }, notes: 'All good. Next checkup in a year.', followUp: daysAgo(-351) }),
   tracker('health', 'm3', daysAgo(-9), 'Cleaning', { type: 'dentist', provider: 'Bright Smiles Dental', time: '15:40' }),
 ]
-// Mirrors the server (shelve.ts, roughly: same title, any case): every book on a Reading shelf is in the library.
+// Mirrors the server (shelve.ts, roughly: same title, any case, same format): every book on a Reading shelf is in the library.
 function shelveMock(t: TrackerEntry) {
   if (t.kind !== 'reading' || !t.title) return
   const d = t.data as ReadingData
   const key = t.title.split(':')[0].trim().toLowerCase()
-  let b = d.bookId ? bookLibrary.find(x => x.id === d.bookId) : bookLibrary.find(x => x.title.split(':')[0].trim().toLowerCase() === key)
+  const format = d.format === 'audiobook' ? 'audiobook' : 'book'
+  let b = d.bookId ? bookLibrary.find(x => x.id === d.bookId) : bookLibrary.find(x => x.format === format && x.title.split(':')[0].trim().toLowerCase() === key)
   if (!d.bookId && !b) {
-    b = libraryBook(`book-${uid()}`, t.title, d.author ?? '', { author: d.author ?? null, format: d.format === 'audiobook' ? 'audiobook' : 'book', pages: d.format === 'audiobook' ? null : d.totalPages ?? null, coverUrl: d.coverUrl ?? null, wanted: d.status === 'want', addedBy: t.memberId ? { memberId: t.memberId } : null })
+    b = libraryBook(`book-${uid()}`, t.title, d.author ?? '', { format, author: d.author ?? null, pages: d.format === 'audiobook' ? null : d.totalPages ?? null, coverUrl: d.coverUrl ?? null, wanted: d.status === 'want', addedBy: t.memberId ? { memberId: t.memberId } : null })
     bookLibrary.push(b)
   }
   if (b && d.status !== 'want') b.wanted = false

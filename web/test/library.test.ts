@@ -166,3 +166,25 @@ test('book sheet details: reading level band, series, audiobook, ratings, Open L
   assert.equal(openLibraryUrl({ workKey: null, isbn: '9780440414803' }), 'https://openlibrary.org/isbn/9780440414803')
   assert.equal(openLibraryUrl({ workKey: null, isbn: null }), null)
 })
+
+test('audiobooks: the Format filter, Libro.fm link and listening progress', async () => {
+  const { filterLibrary, NO_FILTERS, isAudio, libroUrl, listening } = await import('../src/library.ts')
+  const bk = (id: string, d: Record<string, unknown> = {}) => ({ id, format: 'book', readers: [], wanted: false, returnedOn: null, borrowedFrom: null, dueOn: null, lentTo: null, location: null, isbn: null, ...d }) as never
+  const books = [bk('paper'), bk('audio', { format: 'audiobook' }), bk('old', { format: undefined })]
+  const ids = (formats: string[]) => filterLibrary(books, { ...NO_FILTERS, formats: formats as never }).map((b: { id: string }) => b.id)
+  assert.deepEqual(ids([]), ['paper', 'audio', 'old'])
+  assert.deepEqual(ids(['audiobook']), ['audio'])
+  assert.deepEqual(ids(['book']), ['paper', 'old'], 'no format: a book')
+  assert.deepEqual(ids(['book', 'audiobook']), ['paper', 'audio', 'old'], 'OR within Format')
+  assert.equal(isAudio(books[1]), true)
+  assert.equal(isAudio(books[2]), false)
+
+  assert.equal(libroUrl({ isbn: '9781774248188' }), 'https://libro.fm/audiobooks/9781774248188')
+  assert.equal(libroUrl({ isbn: null }), null)
+
+  const r = (memberId: string, status: string, d: Record<string, unknown> = {}) => ({ entryId: memberId, memberId, status: status as never, ...d })
+  // The first one listening, with how far along (null without a length).
+  assert.deepEqual(listening({ readers: [r('sam', 'finished'), r('maya', 'reading', { minutesListened: 90, totalMinutes: 360, narrator: 'Nora Bell' })] }), { memberId: 'maya', progress: 0.25 })
+  assert.deepEqual(listening({ readers: [r('leo', 'reading')] }), { memberId: 'leo', progress: null })
+  assert.equal(listening({ readers: [r('sam', 'want')] }), null)
+})

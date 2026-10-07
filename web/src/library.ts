@@ -1,6 +1,6 @@
 // The family's library (Library.tsx): labels, and which scanned barcodes are books. Pure, so
 // web/test/library.test.ts covers it.
-import type { LibraryBook, ReadingData, TrackerEntry } from './types.ts'
+import type { LibraryBook, LibraryFormat, ReadingData, TrackerEntry } from './types.ts'
 import { minutesLabel } from './meal-date.ts'
 
 /** A scanned barcode as an ISBN when it's a book's: an EAN-13 starting 978/979 (Bookland), or an
@@ -127,13 +127,14 @@ export const wantOnly = (b: Pick<LibraryBook, 'readers'>): boolean => b.readers.
 /** The library's Filters sheet. Show: which books (any of them; none = the default shelf). Where: the
  * places it lives. Who: whose reading shelf it's on. Any one in a group, every group that has one. */
 export type LibraryStatus = 'unread' | 'reading' | 'want' | 'finished' | 'lent' | 'borrowed' | 'returned' | 'wishlist'
-export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: string[] }
-export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [] }
+export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: string[]; formats: LibraryFormat[] }
+export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [], formats: [] }
+export const FORMAT_LABEL: Record<LibraryFormat, string> = { book: '📚 Books', audiobook: '🎧 Audiobooks' }
 export const STATUS_LABEL: Record<LibraryStatus, string> = {
   unread: 'Not read yet', reading: '📖 Reading now', want: '🔖 Want to read', finished: '📗 Finished',
   lent: '🤝 Lent out', borrowed: '📅 Borrowed', returned: '↩️ Returned', wishlist: '⭐ Wishlist',
 }
-type Filterable = Pick<LibraryBook, 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'>
+type Filterable = Pick<LibraryBook, 'format' | 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'>
 const has = (b: Filterable) => !b.wanted && !b.returnedOn // on our shelves: not the wishlist, not gone back
 const reads = (b: Filterable, s: string) => b.readers.some(r => r.status === s)
 const SHOWS: Record<LibraryStatus, (b: Filterable) => boolean> = {
@@ -151,7 +152,8 @@ const SHOWS: Record<LibraryStatus, (b: Filterable) => boolean> = {
 export function filterLibrary<B extends Filterable>(books: B[], f: LibraryFilters): B[] {
   const out = books.filter(b => (f.show.length ? f.show.some(s => SHOWS[s](b)) : has(b) && !wantOnly(b))
     && (!f.places.length || (!!b.location && f.places.includes(b.location)))
-    && (!f.who.length || b.readers.some(r => !!r.memberId && f.who.includes(r.memberId))))
+    && (!f.who.length || b.readers.some(r => !!r.memberId && f.who.includes(r.memberId)))
+    && (!f.formats.length || f.formats.includes(b.format ?? 'book')))
   return f.show.length === 1 && f.show[0] === 'borrowed' ? out.sort((a, z) => (a.dueOn ?? '9999').localeCompare(z.dueOn ?? '9999')) : out
 }
 /** Which lists beyond the books we have the filters reach (GET /api/library leaves both out otherwise). */
@@ -170,4 +172,15 @@ export function libraryQuery(q?: { q?: string; unread?: boolean; lent?: boolean;
   for (const k of ['unread', 'lent', 'borrowed', 'returned', 'wanted'] as const) if (q?.[k]) p.set(k, '1')
   if (q?.location) p.set('location', q.location)
   return p.toString()
+}
+
+/** An audiobook (its own library item, apart from a paper copy); a book without a format is a book. */
+export const isAudio = (b: Pick<LibraryBook, 'format'>) => b.format === 'audiobook'
+/** Where to listen to it on Libro.fm (its ISBN's page), or null without an ISBN. */
+export const libroUrl = (b: Pick<LibraryBook, 'isbn'>) => (b.isbn ? `https://libro.fm/audiobooks/${b.isbn}` : null)
+/** Who's listening to it (the first reader on it now) and how far along (0–1, null without a length): the spinning record. */
+export function listening(b: Pick<LibraryBook, 'readers'>): { memberId: string | null; progress: number | null } | null {
+  const r = b.readers.find(x => x.status === 'reading')
+  if (!r) return null
+  return { memberId: r.memberId, progress: r.totalMinutes ? Math.min(1, Math.max(0, (r.minutesListened ?? 0) / r.totalMinutes)) : null }
 }

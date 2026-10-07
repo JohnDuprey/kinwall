@@ -111,12 +111,12 @@ export interface ReadingData {
   bookId?: string // started from a library book (LibraryBook)
 }
 /** The family's library (GET /api/library): books owned, apart from who's reading what. */
+export type LibraryFormat = 'book' | 'audiobook' // each its own item: a paper copy and an audiobook of one title are two
 export interface LibraryBook {
-  id: string; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
+  id: string; format?: LibraryFormat; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
   year: number | null; series: string | null; seriesNumber: string | null; lexile: number | null; description: string | null; genres: string[]
   workKey?: string | null; ratingsAverage?: number | null; ratingsCount?: number | null // from Open Library (looked up after it's added)
   lookedUpAt?: string | null // when its details were last looked up, found or not
-  format?: 'book' | 'audiobook' // each its own item: a paper copy and an audiobook of one title are two
   location: string | null; lentTo: string | null; lentOn: string | null // where it lives; who has it on loan, since when
   wanted?: boolean // on the wishlist: wanted, not had yet
   borrowedFrom: string | null; dueOn: string | null; returnedOn: string | null // borrowed, not owned: who from, due back when; returned ones stay as history

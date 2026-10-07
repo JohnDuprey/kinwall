@@ -2,12 +2,14 @@
 // with no cover (or one that won't load) gets a cloth cover with its title. Borrowed books carry a
 // library-card due tag, wishlist books a ⭐ ribbon, and a book someone is reading has a bookmark with
 // their face. The shelf is whatever the Filters pick. "Pick a book for me" scans it and lands on one
-// (never a wishlist or returned book).
+// (never a wishlist or returned book). Audiobooks stand apart, as records in a crate below: square
+// sleeves with the record peeking out of the top, spinning with the listener's face as its label
+// (and a ring for how far along) while someone listens. "Pick a listen" does the same for the crate.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from './api.ts'
 import { announce, reducedMotion } from './a11y.tsx'
 import { Face } from './Face'
-import { bookLean, clothColor, dueTag, pickBook } from './library.ts'
+import { bookLean, clothColor, dueTag, isAudio, listening, pickBook } from './library.ts'
 import type { LibraryBook, Member } from './types.ts'
 
 const SCAN_STEPS = 12
@@ -24,8 +26,10 @@ export default function LibraryShelf({ head, books, members, today, onOpen }: {
   useEffect(() => () => timers.current.forEach(clearTimeout), [])
   const later = (fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)) }
 
-  const pick = () => {
-    const shelf = books.filter(b => !b.wanted && !b.returnedOn)
+  const paper = books.filter(b => !isAudio(b))
+  const audio = books.filter(isAudio)
+  const pick = (from: LibraryBook[]) => {
+    const shelf = from.filter(b => !b.wanted && !b.returnedOn)
     const chosen = pickBook(shelf)
     if (!chosen) return
     timers.current.forEach(clearTimeout); timers.current = []
@@ -41,15 +45,22 @@ export default function LibraryShelf({ head, books, members, today, onOpen }: {
   }
 
   const book = (b: LibraryBook) => <ShelfBook key={b.id} b={b} members={members} today={today} lit={lit === b.id} picked={picked === b.id} onOpen={onOpen} />
+  const record = (b: LibraryBook) => <CrateRecord key={b.id} b={b} members={members} today={today} lit={lit === b.id} picked={picked === b.id} onOpen={onOpen} />
+  const can = (list: LibraryBook[]) => list.some(b => !b.wanted && !b.returnedOn)
   return (
     <div className="lib-shelves">
       <div className="lib-head">
         {head}
-        {books.some(b => !b.wanted && !b.returnedOn) && (
-          <button type="button" className="btn btn-secondary lib-pick-btn" onClick={pick} disabled={!!lit}>🎲 Pick a book for me</button>
-        )}
+        {can(paper) && <button type="button" className="btn btn-secondary lib-pick-btn" onClick={() => pick(paper)} disabled={!!lit}>🎲 Pick a book for me</button>}
+        {can(audio) && <button type="button" className="btn btn-secondary lib-pick-btn" onClick={() => pick(audio)} disabled={!!lit}>🎧 Pick a listen</button>}
       </div>
-      {!!books.length && <ul className="lib-shelf" aria-label="Books">{books.map(book)}</ul>}
+      {!!paper.length && <ul className="lib-shelf" aria-label="Books">{paper.map(book)}</ul>}
+      {!!audio.length && (
+        <section className="lib-crate" aria-labelledby="lib-crate-title">
+          <h3 id="lib-crate-title" className="lib-crate-title">🎧 Audiobooks</h3>
+          <ul className="lib-crate-rows" aria-label="Audiobooks">{audio.map(record)}</ul>
+        </section>
+      )}
     </div>
   )
 }
@@ -87,6 +98,53 @@ function ShelfBook({ b, members, today, lit, picked, onOpen }: {
         )}
         {b.wanted && <span className="lib-ribbon" aria-hidden="true">⭐</span>}
         {due && <span className={`lib-card-tag ${due === 'Overdue' ? 'lib-overdue' : ''}`} aria-hidden="true">{due}</span>}
+      </button>
+    </li>
+  )
+}
+
+/** An audiobook in the crate: a square sleeve (Libro.fm covers are square), or made-up album art with
+ * its title, and a record peeking out of the top. Someone listening pulls it out further: it spins
+ * (not with reduced motion) with their face on the label, ringed by how far along they are. */
+function CrateRecord({ b, members, today, lit, picked, onOpen }: {
+  b: LibraryBook; members: Member[]; today: string; lit: boolean; picked: boolean; onOpen: (b: LibraryBook) => void
+}) {
+  const [broken, setBroken] = useState(false)
+  const cover = broken ? null : api.libraryCoverUrl(b)
+  const { tilt } = bookLean(b.id)
+  const due = dueTag(b, today)
+  const now = listening(b)
+  const who = now && members.find(m => m.id === now.memberId)
+  const name = [
+    `${b.title}${b.author ? ` by ${b.author}` : ''}, audiobook`,
+    due, b.wanted ? 'on the wishlist' : null,
+    now ? `${who?.name ?? 'Someone'} is listening${now.progress !== null ? `, ${Math.round(now.progress * 100)}% in` : ''}` : null,
+  ].filter(Boolean).join(', ')
+  return (
+    <li id={`lib-shelf-${b.id}`} className="lib-crate-slot">
+      <button type="button" className={`lib-sleeve ${now ? 'playing' : ''} ${lit ? 'lit' : ''} ${picked ? 'picked' : ''}`} aria-label={name} onClick={() => onOpen(b)}
+        style={{ ['--tilt' as string]: `${tilt}deg` }}>
+        <span className="lib-record" aria-hidden="true">
+          <span className="lib-record-disc">
+            <span className="lib-record-label" style={who ? { background: who.color } : { background: clothColor(b.title) }}>
+              {who ? <Face m={who} className="lib-record-face" /> : <span className="lib-record-hole" />}
+            </span>
+          </span>
+          {now?.progress != null && <span className="lib-record-ring" style={{ ['--p' as string]: now.progress }} />}
+        </span>
+        <span className="lib-sleeve-art">
+          {cover
+            ? <img className="lib-sleeve-cover" src={cover} alt="" loading="lazy" onError={() => setBroken(true)} />
+            : (
+              <span className="lib-sleeve-cover lib-album" style={{ background: clothColor(b.title) }} aria-hidden="true">
+                <span className="lib-album-title">{b.title}</span>
+                {b.author && <span className="lib-album-author">{b.author}</span>}
+              </span>
+            )}
+          <span className="lib-sleeve-badge" aria-hidden="true">🎧</span>
+          {b.wanted && <span className="lib-ribbon" aria-hidden="true">⭐</span>}
+          {due && <span className={`lib-card-tag ${due === 'Overdue' ? 'lib-overdue' : ''}`} aria-hidden="true">{due}</span>}
+        </span>
       </button>
     </li>
   )
