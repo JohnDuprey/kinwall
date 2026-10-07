@@ -125,16 +125,16 @@ export function dueTag(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'returned
 export const wantOnly = (b: Pick<LibraryBook, 'readers'>): boolean => b.readers.length > 0 && b.readers.every(r => r.status === 'want')
 
 /** The library's Filters sheet. Show: which books (any of them; none = the default shelf). Where: the
- * places it lives. Who: whose reading shelf it's on. Any one in a group, every group that has one. */
+ * places it lives. Who: whose reading shelf it's on. Genre: any of its genres. Any one in a group, every group that has one. */
 export type LibraryStatus = 'unread' | 'reading' | 'want' | 'finished' | 'lent' | 'borrowed' | 'returned' | 'wishlist'
-export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: string[]; formats: LibraryFormat[] }
-export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [], formats: [] }
+export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: string[]; formats: LibraryFormat[]; genres: string[] }
+export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [], formats: [], genres: [] }
 export const FORMAT_LABEL: Record<LibraryFormat, string> = { book: '📚 Books', audiobook: '🎧 Audiobooks' }
 export const STATUS_LABEL: Record<LibraryStatus, string> = {
   unread: 'Not read yet', reading: `${STATUS_EMOJI.reading} ${STATUS_WORDS.reading}`, want: `${STATUS_EMOJI.want} ${STATUS_WORDS.want}`, finished: `${STATUS_EMOJI.finished} ${STATUS_WORDS.finished}`,
   lent: '🤝 Lent out', borrowed: '📅 Borrowed', returned: '↩️ Returned', wishlist: '⭐ Wishlist',
 }
-type Filterable = Pick<LibraryBook, 'format' | 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'>
+type Filterable = Pick<LibraryBook, 'format' | 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'> & { genres?: string[] }
 const has = (b: Filterable) => !b.wanted && !b.returnedOn // on our shelves: not the wishlist, not gone back
 const reads = (b: Filterable, s: string) => b.readers.some(r => r.status === s)
 const SHOWS: Record<LibraryStatus, (b: Filterable) => boolean> = {
@@ -153,8 +153,17 @@ export function filterLibrary<B extends Filterable>(books: B[], f: LibraryFilter
   const out = books.filter(b => (f.show.length ? f.show.some(s => SHOWS[s](b)) : has(b) && !wantOnly(b))
     && (!f.places.length || (!!b.location && f.places.includes(b.location)))
     && (!f.who.length || b.readers.some(r => !!r.memberId && f.who.includes(r.memberId)))
-    && (!f.formats.length || f.formats.includes(b.format ?? 'book')))
+    && (!f.formats.length || f.formats.includes(b.format ?? 'book'))
+    && (!f.genres.length || f.genres.some(g => b.genres?.includes(g))))
   return f.show.length === 1 && f.show[0] === 'borrowed' ? out.sort((a, z) => (a.dueOn ?? '9999').localeCompare(z.dueOn ?? '9999')) : out
+}
+/** The Genre filter's choices: the genres on these books, most common first (then A-Z), plus any
+ * picked one that isn't (a search can hide its books), so it can still be turned off. */
+export function genreOptions(books: { genres?: string[] }[], picked: string[] = []): { genre: string; count: number }[] {
+  const n = new Map<string, number>()
+  for (const b of books) for (const g of b.genres ?? []) n.set(g, (n.get(g) ?? 0) + 1)
+  for (const g of picked) if (!n.has(g)) n.set(g, 0)
+  return [...n].map(([genre, count]) => ({ genre, count })).sort((a, z) => z.count - a.count || a.genre.localeCompare(z.genre))
 }
 /** The library's Sort by (the Filters sheet), remembered per device. Title is GET /api/library's own
  * order: A-Z, a series together under its name, in order. */

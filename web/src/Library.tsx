@@ -13,7 +13,7 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, SORT_LABEL, sortLibrary, STATUS_LABEL, type LibraryFilters, type LibrarySort, type LibraryStatus } from './library.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, genreOptions, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, SORT_LABEL, sortLibrary, STATUS_LABEL, type LibraryFilters, type LibrarySort, type LibraryStatus } from './library.ts'
 import type { LibraryFormat } from './types.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
@@ -118,14 +118,16 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
 
   const toggle = (k: keyof LibraryFilters, v: string) => setFilters(f => ({ ...f, [k]: (f[k] as string[]).includes(v) ? (f[k] as string[]).filter(x => x !== v) : [...f[k], v] }))
   const people = members
-  // What's on, as chips under the search (✕ drops one): Show, then Format, then Where, then Who.
+  // What's on, as chips under the search (✕ drops one): Show, then Format, then Where, then Who, then Genre.
   const active = [
     ...filters.show.map(s => ({ k: 'show' as const, v: s as string, label: STATUS_LABEL[s] })),
     ...filters.formats.map(f => ({ k: 'formats' as const, v: f as string, label: FORMAT_LABEL[f] })),
     ...filters.places.map(p => ({ k: 'places' as const, v: p, label: `📍 ${p}` })),
     ...filters.who.map(id => ({ k: 'who' as const, v: id, label: people.find(m => m.id === id)?.name ?? 'Family' })),
+    ...filters.genres.map(g => ({ k: 'genres' as const, v: g, label: `🏷️ ${g}` })),
   ].map(a => ({ ...a, face: a.k === 'who' ? people.find(m => m.id === a.v) : undefined }))
   const on = active.length
+  const genres = genreOptions(all ?? [], filters.genres)
   const group = (id: string, label: string, chips: ReactNode, hint: string) => (
     <div className="field">
       <label id={id}>{label}</label>
@@ -186,6 +188,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
           {group('lib-f-format', 'Format', FORMATS.map(f => chip('formats', f, FORMAT_LABEL[f])), 'Paper books, audiobooks, or both.')}
           {places.length > 0 && group('lib-f-where', 'Where', places.map(p => chip('places', p, `📍 ${p}`)), 'Where it lives: any of these.')}
           {people.length > 0 && group('lib-f-who', 'Who', people.map(m => chip('who', m.id, <><ChipFace m={m} /> {m.name}</>, m.color)), 'On their reading shelf: reading, finished or want to read.')}
+          {genres.length > 0 && group('lib-f-genre', 'Genre', genres.map(({ genre, count }) => chip('genres', genre, <>{genre} <span className="chip-count">{count}</span></>)), 'Any of these genres. Most common first.')}
         </Sheet>
       )}
       {head}

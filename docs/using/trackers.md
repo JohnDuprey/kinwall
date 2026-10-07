@@ -41,6 +41,7 @@ A shelf per person, with what they're reading first, then what they want to read
   * **Format:** **📚 Books**, **🎧 Audiobooks**, or both.
   * **Where:** the places books live; any of them.
   * **Who:** family members; books on any of their reading shelves (reading, finished or want to read).
+  * **Genre:** the genres your books have (filled in from Open Library, or set in a book's sheet), the most common first, each with how many books have it; books with any of the ones you pick. **Fantasy** and **Leo** shows Leo's fantasy books.
   * Groups combine: **Want to read** and **Maya** shows the books Maya wants to read. **Clear** turns everything off, **Done** closes the sheet. What's on shows as chips under the search; tap one's **✕** to drop it. Filters start fresh each visit, so a wall display never opens on a filtered shelf.
 * **Where it lives:** pick a place in a book's sheet ("Maya's room", "Living room shelf"), or **New place…**. Cards show 📍 the place.
 * **Lending:** type who you're lending it to ("Grandma", a friend) and tap **Lend**; the card shows 🤝 "Lent to Grandma since Sep 23". Tap **It's back** when it's returned; it keeps its place.

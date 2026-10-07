@@ -226,3 +226,15 @@ test('sortLibrary: each sort, ties by title, missing values last', () => {
   // Doesn't change the list it's given.
   assert.equal(books[0].id, 'Holes')
 })
+
+test('genres: the Genre filter and its choices, most common first', async () => {
+  const { filterLibrary, genreOptions, NO_FILTERS } = await import('../src/library.ts')
+  const bk = (id: string, genres?: string[]) => ({ id, readers: [], wanted: false, returnedOn: null, borrowedFrom: null, dueOn: null, lentTo: null, location: null, genres }) as never
+  const books = [bk('a', ['Fantasy', 'Animals']), bk('b', ['Humor']), bk('c', ['Fantasy']), bk('d', []), bk('e')]
+  const ids = (genres: string[]) => filterLibrary(books, { ...NO_FILTERS, genres }).map((b: { id: string }) => b.id)
+  assert.deepEqual(ids([]), ['a', 'b', 'c', 'd', 'e'])
+  assert.deepEqual(ids(['Fantasy']), ['a', 'c'])
+  assert.deepEqual(ids(['Animals', 'Humor']), ['a', 'b'], 'OR within Genre')
+  assert.deepEqual(genreOptions(books), [{ genre: 'Fantasy', count: 2 }, { genre: 'Animals', count: 1 }, { genre: 'Humor', count: 1 }], 'by count, then A-Z')
+  assert.deepEqual(genreOptions(books, ['Poetry']).at(-1), { genre: 'Poetry', count: 0 }, 'a picked genre stays, so it can be turned off')
+})
