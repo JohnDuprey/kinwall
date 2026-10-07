@@ -54,7 +54,7 @@ export default function LibraryShelf({ books, members, today, onOpen }: {
         <section aria-labelledby="lib-shelf-title">
           <div className="lib-sec-head">
             <h3 id="lib-shelf-title" className="lib-sec-title">📚 Books</h3>
-            {can(paper) && pickBtn(paper, 'Pick a book for me')}
+            {can(paper) && pickBtn(paper, 'Pick one book for me')}
           </div>
           <ul className="lib-shelf" aria-label="Books">{paper.map(book)}</ul>
         </section>
@@ -63,7 +63,7 @@ export default function LibraryShelf({ books, members, today, onOpen }: {
         <section className="lib-crate" aria-labelledby="lib-crate-title">
           <div className="lib-sec-head">
             <h3 id="lib-crate-title" className="lib-sec-title">🎧 Audiobooks</h3>
-            {can(audio) && pickBtn(audio, 'Pick a listen for me')}
+            {can(audio) && pickBtn(audio, 'Pick one audiobook for me')}
           </div>
           <ul className="lib-crate-rows" aria-label="Audiobooks">{audio.map(record)}</ul>
         </section>
