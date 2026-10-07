@@ -1674,10 +1674,6 @@ button.month-cell .month-daynum { flex: none; }
 .boot-screen { --boot-mark: 120px; }
 .boot-screen .brand-lockup { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; }
 .boot-screen .brand-mark { display: block; width: var(--boot-mark); }
-/* The app's splash is the mark alone, so in the app the loading screen leaves the name off too (the
-   spinner follows the mark without anything popping in); browsers have no splash and keep it. */
-.boot-screen.native .brand-name { display: none; }
-.boot-screen.native .boot-below { top: calc(50% + var(--boot-mark) * 0.294 + 20px); }
 .boot-screen .brand-name { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; }
 .boot-below { position: fixed; left: 16px; right: 16px; top: calc(50% + var(--boot-mark) * 0.294 + 3.75em); display: flex; justify-content: center; }
 .gate-loading { display: flex; justify-content: center; padding: 8px; }
