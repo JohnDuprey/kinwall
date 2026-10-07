@@ -20,7 +20,8 @@ import { OrderSheet, OrderSummary, useMealRestaurant } from './Orders.tsx'
 import { ORDER_TYPE_LABEL } from './orders.ts'
 import { Face } from './Face'
 
-export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe; restaurant?: Restaurant }
+/** Where a new meal starts. recipe or title (a poll's winner: Polls.tsx) also prefill an existing meal. */
+export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe; restaurant?: Restaurant; title?: string }
 
 /** Small overlapping avatars of who's eating (planner card, Board, meal sheet). */
 export function EaterAvatars({ ids, members, label = 'Eating' }: { ids: string[]; members: Member[]; label?: string }) {
@@ -34,7 +35,7 @@ export function EaterAvatars({ ids, members, label = 'Eating' }: { ids: string[]
 export default function MealSheet({ meal, initial, recipes, admin, owner, me = null, startOrders = false, onClose, onSaved, onRecipe, onChanged }: {
   meal: Meal | null; initial: MealDraft; recipes: Recipe[]; admin: boolean; owner?: string | null
   me?: Me | null; startOrders?: boolean // a link from "Ask for orders" opens the order sheet over it
-  onClose: () => void; onSaved: () => void; onRecipe: (recipe: Recipe) => void; onChanged?: () => void // onChanged: orders changed (the sheet stays open)
+  onClose: () => void; onSaved: (saved?: Meal) => void; onRecipe: (recipe: Recipe) => void; onChanged?: () => void // onChanged: orders changed (the sheet stays open)
 }) {
   const { members, settings, toast } = useApp()
   const dialog = useDialog()
@@ -45,6 +46,8 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
     restaurantId: meal?.restaurantId ?? initial.restaurant?.id ?? null, orderType: meal?.orderType ?? (initial.restaurant ? 'pickup' : null),
     servings: meal?.servings ?? initial.recipe?.defaultServings ?? 4, assigneeMemberId: meal?.assigneeMemberId ?? null, eaterIds: meal?.eaterIds ?? [],
     notes: meal?.notes ?? null, plannedTime: meal?.plannedTime ?? null, status: meal?.status ?? 'planned', sourceUrl: meal?.sourceUrl ?? null,
+    ...(initial.recipe ? { title: initial.recipe.name, mealKind: 'recipe' as const, recipeId: initial.recipe.id, restaurantId: null }
+      : initial.title ? { title: initial.title, mealKind: meal?.mealKind === 'dining_out' ? 'dining_out' as const : 'freeform' as const, recipeId: null, restaurantId: null } : {}),
   }))
   const [refreshRecipe, setRefreshRecipe] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -89,9 +92,9 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
     setBusy(true); setError('')
     try {
       const body = { ...draft, title: draft.title.trim(), recipeId: draft.mealKind === 'recipe' ? draft.recipeId : null }
-      if (meal) await api.updateMeal(meal.id, admin ? { ...body, ...(refreshRecipe ? { refreshRecipe: true } : {}) } : { notes: draft.notes, status: draft.status })
-      else await api.createMeal(body)
-      toast('Meal saved'); onSaved()
+      const saved = meal ? await api.updateMeal(meal.id, admin ? { ...body, ...(refreshRecipe ? { refreshRecipe: true } : {}) } : { notes: draft.notes, status: draft.status })
+        : await api.createMeal(body)
+      toast('Meal saved'); onSaved(saved)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save meal.') }
     finally { setBusy(false) }
   }
@@ -186,7 +189,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
 }
 
 /** Choosing a meal's recipe: search by name or ingredient, arrows move through the list, Enter picks. */
-function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
+export function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
   recipes: Recipe[]; currentId: string | null; saved: { id: string | null; name: string } | null
   onPick: (recipe: Recipe | null) => void; onClose: () => void
 }) {

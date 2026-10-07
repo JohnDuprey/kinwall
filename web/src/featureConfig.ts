@@ -11,6 +11,7 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'photos', label: 'Photos', sub: 'Family photos in Activities, Newscast and memories, and on the Board and Night screen. Google Photos and nature pictures still show.' },
   { key: 'notes', label: 'Notes', sub: 'Discussions on events and list items. An item’s own notes still show.' },
   { key: 'meals', label: 'Meals', sub: 'The Meals tab with recipes, cooking mode, the restaurant binder, order nights and the week’s plan, and today’s meals on the Board and in the daily summary.' },
+  { key: 'polls', label: 'Family polls', sub: 'Polls everyone votes in, like “Which movie tonight?”, on the Board and in the bell. With Meals on, choices can be recipes and a poll can plan the meal.' },
   { key: 'messages', label: 'Family messages', sub: 'Sending a message from the bell. Messages already sent still show.' },
   { key: 'newscast', label: 'Newscast', sub: 'Home’s Newscast tab: chores done, rewards, photos and drawings, books, memories, birthdays and announcements, with reactions.' },
   { key: 'checkIns', label: 'Check-ins & journal', sub: 'Temp check, goal checks, the energy battery, journals and Insights. Who gets them is set per person in Family.' },

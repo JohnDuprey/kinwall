@@ -90,6 +90,7 @@ test('mcp: tools/list returns the tools', async () => {
     'ask_for_orders',
     'assign_chore_from_library',
     'award_points',
+    'close_poll',
     'complete_chore',
     'create_chore',
     'create_contact',
@@ -97,6 +98,7 @@ test('mcp: tools/list returns the tools', async () => {
     'create_event',
     'create_list',
     'create_meal',
+    'create_poll',
     'create_recipe',
     'create_restaurant',
     'create_reward',
@@ -147,6 +149,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_notes',
     'list_notifications',
     'list_pending_approvals',
+    'list_polls',
     'list_recipes',
     'list_remembered_items',
     'list_restaurants',
@@ -190,6 +193,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_restaurant',
     'update_reward',
     'update_tracker_entry',
+    'vote_poll',
   ]);
 });
 
@@ -584,6 +588,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('set_night_screen', { on: true });
   await call('list_notifications');
   assert.ok(Array.isArray((await call('list_newscast', { days: 3 })).items));
+  const poll = (await call('create_poll', { question: 'Which movie tonight?', ideas: ['Moana', 'Cars'] })).poll;
+  assert.equal((await call('vote_poll', { member: 'ava', option: 'cars' })).poll.options[1].votes.length, 1);
+  assert.equal((await call('list_polls', { status: 'open' })).polls[0].id, poll.id);
+  assert.equal((await call('close_poll', {})).poll.winnerOptionId, poll.options[1].id);
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });

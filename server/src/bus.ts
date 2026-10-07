@@ -41,6 +41,7 @@ export type BusEventType =
   | 'tracker.changed'
   | 'newscast.posted'
   | 'newscast.changed'
+  | 'poll.changed'
   | 'display.paired'
   | 'display.night_screen';
 

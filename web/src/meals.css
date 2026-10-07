@@ -27,6 +27,8 @@
 .meal-complete { border-style: dashed; }
 .meal-note-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .meal-add { display: flex; align-items: center; justify-content: center; min-height: 44px; width: 100%; color: var(--text-dim); border: 1px dashed var(--border); border-radius: 10px; background: transparent; }
+.meal-poll { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 44px; margin-bottom: 6px; padding: 8px 10px; border: 2px solid var(--accent); border-radius: 10px; background: var(--accent-tint); color: var(--text); font: inherit; font-weight: 800; text-align: left; }
+.meal-poll small { font-weight: 600; color: var(--text-dim); }
 .meal-empty { display: block; padding: 12px; color: var(--text-dim); }
 .recipe-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--gap); margin-top: 16px; }
 .recipe-card { background: var(--card); padding: 20px; box-shadow: var(--shadow); }

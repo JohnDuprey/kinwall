@@ -123,7 +123,7 @@ const settings: Settings = {
   boardPresets: [],
   nightLook: { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null },
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, checkIns: true },
+  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, polls: true, checkIns: true },
   newscastNotFeatured: [],
   newscastPostingPaused: [],
 }

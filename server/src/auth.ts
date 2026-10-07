@@ -204,6 +204,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PUT', pattern: /^\/api\/meals\/[^/]+\/orders\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/meals\/[^/]+\/orders\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/events\/[^/]+\/meal$/ }, // the order summary on the event page
+  // Family polls: everyone reads and votes (routes/polls.ts keeps a member's own device to that member); starting, closing and deleting: parents.
+  { method: 'GET', pattern: /^\/api\/polls(\/[^/]+)?$/ },
+  { method: 'PUT', pattern: /^\/api\/polls\/[^/]+\/vote$/ },
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },

@@ -3527,6 +3527,55 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .news-who-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 88px; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
 .news-who-btn.active { border-color: var(--accent); background: var(--accent-tint); }
 
+/* ---------- Family polls (Polls.tsx) ----------
+   The Board's card while a poll is open sits above the cards (every layout); a full-height wall board
+   gives it its row and shares the rest out as before. Votes show as avatars and counts, never color alone. */
+.board-scroll:has(> .board-polls:not(:empty)) { display: flex; flex-direction: column; }
+.board-polls:empty { display: none; }
+.board-polls { flex: none; display: grid; gap: var(--gap); padding: 4px var(--pad) 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.board-polls ~ .board { flex: 1 0 auto; }
+@media (min-height: 700px) { @container board (min-width: 880px) { .board-polls:not(:empty) ~ .board { height: auto; flex: 1 1 0; min-height: 560px; } /* the rest of the screen, but never squeezed: a short one scrolls */ } }
+.board-poll { padding: 0; box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
+.board-poll-btn { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px 16px; border: 0; border-radius: inherit; background: none; color: var(--text); font: inherit; text-align: left; }
+.board-poll-head { display: flex; gap: 8px; align-items: baseline; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
+.board-poll-count { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.board-poll-q { font-size: 1.125rem; font-weight: 800; line-height: 1.25; }
+.board-poll-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.board-poll-option { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px; border-radius: 999px; background: var(--bg-alt); font-weight: 700; font-size: 0.9375rem; }
+.board-poll-option.lead { background: var(--accent-tint); box-shadow: inset 0 0 0 2px var(--accent); }
+.board-poll-n { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.board-poll-cta { font-size: 0.8125rem; font-weight: 800; color: var(--accent-strong); }
+.poll-voters { display: inline-flex; align-items: center; }
+.poll-voters .member-avatar-sm { width: 22px; height: 22px; font-size: 0.75rem; box-shadow: 0 0 0 2px var(--card); }
+.poll-voters .member-avatar-sm + .member-avatar-sm { margin-left: -6px; }
+.polls-btn.btn { flex: none; min-height: 44px; min-width: 44px; padding: 6px 16px; }
+@media (max-width: 600px) { .calendar-toolbar .polls-btn.btn { grid-column: 3; grid-row: 1; padding: 6px 10px; } .polls-btn-label { display: none; } } /* a phone's toolbar is full: the 🗳 alone */
+.sheet-link > .poll-row-emoji { flex: none; font-size: 1.25rem; }
+.poll-meta { margin: 0 0 12px; color: var(--text-dim); font-weight: 700; }
+.poll-who { margin-bottom: 14px; }
+.poll-who-label { margin: 0 0 8px; font-weight: 800; }
+.poll-who-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.poll-who-btn { min-height: 76px; padding: 8px; }
+.poll-who-done { font-size: 0.75rem; color: var(--text-dim); }
+.poll-voting-as { display: flex; align-items: center; gap: 8px; font-weight: 800; margin: 0 0 12px; }
+.poll-winner { margin: 0 0 12px; font-size: 1.0625rem; }
+.poll-options { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.poll-option { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; }
+.poll-option[aria-pressed="true"], .poll-option.winner { border-color: var(--accent); background: var(--accent-tint); }
+.poll-option-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.poll-option-label { font-weight: 800; font-size: 1.0625rem; }
+.poll-option-label svg { vertical-align: -2px; color: var(--text-dim); }
+.poll-option-n { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.poll-close, .poll-more { margin-top: 8px; }
+.poll-choices { border: 0; margin: 0; padding: 0; }
+.poll-choices legend { font-weight: 700; margin-bottom: 6px; padding: 0; }
+.poll-choice { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.poll-choice > input { flex: 1; min-width: 0; }
+.poll-choice .icon-btn { flex: none; }
+.poll-choice-recipe { flex: 1; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: var(--radius-sm); background: var(--bg-alt); font-weight: 700; }
+.poll-add { flex-wrap: wrap; }
+.poll-add .btn { flex: none; }
+
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */
@@ -3540,14 +3589,14 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
-    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn,
+    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll,
     .setup-choice, .setup-provider-card, .get-started-item
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
+    .activity-card, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */

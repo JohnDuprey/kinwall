@@ -17,6 +17,7 @@ import { recipeMatches } from './recipe-search.ts'
 import type { Meal, Recipe, RecipeKind, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
+import { PollSheet, usePolls } from './Polls.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
 
@@ -59,6 +60,9 @@ export default function Meals() {
   const [pendingOrders, setPendingOrders] = useState(false) // #/meals?meal=<id>&orders=1: "Ask for orders" opens the order sheet
   const [pendingRecipe, setPendingRecipe] = useState<string | null>(null) // #/meals?recipe=<id> (Spotlight, Siri)
   const admin = me?.scope === 'admin'
+  // An open family poll about a meal shows in its cell (polls off: none come back).
+  const polls = usePolls('open')
+  const [openPoll, setOpenPoll] = useState<string | null>(null)
   useEffect(() => {
     const read = () => {
       const query = new URLSearchParams(location.hash.split('?')[1] ?? '')
@@ -144,7 +148,7 @@ export default function Meals() {
               {meal.status !== 'planned' && <span>✓ {meal.status === 'prepared' ? meal.mealKind === 'dining_out' ? 'Ordered' : 'Prepared' : 'Handled'}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
             </button>
-          })}{admin ? <button className="meal-add" aria-label={`Plan ${SLOT_LABEL[slot].toLowerCase()} for ${mealDayLabel(date)}`} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">Plan meal</span></button> : !bySlot.has(`${date}:${slot}`) && <span className="meal-empty" aria-label="No meal planned">—</span>}</td>)}
+          })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> Vote open</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={`Plan ${SLOT_LABEL[slot].toLowerCase()} for ${mealDayLabel(date)}`} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">Plan meal</span></button> : !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label="No meal planned">—</span>}</td>)}
         </tr>)}</tbody></table>
       </div>}
     </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(t => t + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
@@ -174,6 +178,7 @@ export default function Meals() {
       onOpenMeal={(id, date) => { setPlace(null); location.hash = `#/meals?date=${date}&meal=${encodeURIComponent(id)}` }}
       onSaved={saved => { setTick(t => t + 1); setPlace(saved && !saved.archived ? { restaurant: saved, editing: false } : null) }} />}
     {place?.editing && <RestaurantEditSheet restaurant={place.restaurant} onClose={() => setPlace(place.restaurant ? { ...place, editing: false } : null)} onSaved={saved => { setTick(t => t + 1); setPlace({ restaurant: saved, editing: false }) }} />}
+    {openPoll && <PollSheet id={openPoll} onClose={() => { setOpenPoll(null); setTick(t => t + 1) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>
 }

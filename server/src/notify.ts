@@ -165,7 +165,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // Medicine notes (kind 'medication') are health data (AGENTS.md "Health data"): the title (whose

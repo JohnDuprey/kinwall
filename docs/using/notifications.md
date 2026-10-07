@@ -48,6 +48,10 @@ iOS shows the sending app's name under each notification, so a reminder reads as
 
 On an admin device, **Settings → Access → Notifications** lists every subscribed device ("added …, delivered …" or "never delivered"). You can remove a device there. Below the list, **Send a message** takes a **Title**, a **Message** and **To** (members, or Everyone), then **Send now**. The message also lands in everyone's [notification feed](#notification-feed). The API equivalent is `POST /api/notify {title, body, memberIds?, url?}` (admin only), and the MCP tool is `send_notification`. Turning off **Family messages** in [Settings → General → Features](../settings/general.md#features) hides **Send a message** everywhere and makes `POST /api/notify` answer 403. Turning off **Chores & points** or **Lists** there also hides the **Chore reminder** or **List updates** setting and stops those notifications.
 
+## New polls
+
+When a parent starts a [family poll](polls.md), every device with notifications on gets "🗳 New poll: *the question*" with the choices, whatever its settings above, and it's in the feed. Tapping it opens the poll to vote. Turning **Family polls** off stops them.
+
 ## Notification feed
 
 Every notification Kinwall sends is also kept in the app, whether or not any device has push turned on. Tap the **bell** next to the family avatars in the header, on the wall and on phones. The red badge counts what's new since this device last opened the feed (shown as "9+" past nine).

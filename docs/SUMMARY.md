@@ -18,6 +18,7 @@
 * [Home & calendar](using/calendar.md)
 * [Daily & weekly snapshot](using/snapshot.md)
 * [Newscast](using/newscast.md)
+* [Family polls](using/polls.md)
 * [Events](using/events.md)
 * [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)

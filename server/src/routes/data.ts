@@ -35,6 +35,7 @@ import { DrainedSchema, FollowupSchema, openDrained, openTempCheck, readCustom, 
 import { openEntry, sealEntry, type JournalRow } from './journal.ts';
 import { DoseTimesSchema, LateWindowSchema, loadLogs, loadMedications, sealLog, sealMedication, type DoseLog } from './medications.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
+import { PollSchema, readPolls } from './polls.ts';
 import {
   CalendarSchema,
   CalendarFilterSchema,
@@ -175,6 +176,8 @@ const ExportSchema = z
     meals: z.array(MealSchema),
     // The restaurant binder (0100), each with its menu.
     restaurants: z.array(RestaurantSchema),
+    // Family polls (0102), each with its choices and who voted for what.
+    polls: z.array(PollSchema),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
@@ -380,6 +383,7 @@ dataRoutes.openapi(
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         restaurants: await readRestaurants(db, { archived: true }),
+        polls: await readPolls(db),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
@@ -437,6 +441,7 @@ const ImportSchema = ExportSchema.extend({
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
   restaurants: ExportSchema.shape.restaurants.default([]),
+  polls: ExportSchema.shape.polls.default([]),
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
@@ -482,6 +487,7 @@ const ImportResultSchema = z
       recipes: z.number(),
       meals: z.number(),
       restaurants: z.number(),
+      polls: z.number(),
       mealShoppingSources: z.number(),
       itemMemory: z.number(),
       storeAisles: z.number(),
@@ -982,6 +988,12 @@ dataRoutes.openapi(
       db.prepare("INSERT INTO meal_orders (meal_id, member_id, items, note, updated_at) SELECT j.value->>'meal_id', j.value->>'member_id', j.value->>'items', j.value->>'note', j.value->>'updated_at' FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(meal_id, member_id) DO NOTHING")
         // ponytail: one JSON param for every order (a family's takeout fits easily); chunk like upserts() if it ever nears D1's 2 MB.
         .bind(JSON.stringify(body.meals.flatMap((m) => m.orders.map((o) => ({ meal_id: m.id, member_id: o.memberId, items: JSON.stringify(o.items), note: o.note, updated_at: o.updatedAt }))))),
+      // A poll's choices in the file replace its choices here; votes by members or for choices not here are dropped.
+      ...upserts(db, 'polls', 'id', body.polls.map((p) => ({ id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winner_option_id: p.winnerOptionId, meal_id: p.mealId, created_by: p.createdBy, created_at: p.createdAt, closed_at: p.closedAt })), { ...keepCreated, expr: { meal_id: "(SELECT id FROM meals WHERE id = j.value->>'meal_id')", created_by: memberRef('created_by') } }),
+      db.prepare('DELETE FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.polls.map((p) => p.id))),
+      ...upserts(db, 'poll_options', 'id', body.polls.flatMap((p) => p.options.map((o) => ({ id: o.id, poll_id: p.id, label: o.label, recipe_id: o.recipeId, sort: o.sort }))), { expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')" } }),
+      db.prepare("INSERT INTO poll_votes (poll_id, member_id, option_id, updated_at) SELECT j.value->>'poll_id', j.value->>'member_id', j.value->>'option_id', ? FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) AND j.value->>'option_id' IN (SELECT id FROM poll_options) ON CONFLICT(poll_id, member_id) DO UPDATE SET option_id = excluded.option_id")
+        .bind(new Date().toISOString(), JSON.stringify(body.polls.flatMap((p) => p.options.flatMap((o) => o.votes.map((member_id) => ({ poll_id: p.id, member_id, option_id: o.id })))))),
       ...upserts(db, 'meal_shopping_sources', 'list_id, source_ref', mealSources.map((s) => ({ list_id: s.listId, source_ref: s.sourceRef, item_id: s.itemId, fingerprint: s.fingerprint }))),
       // Newer knowledge wins: a remembered place only replaces one that is older.
       ...upserts(db, 'item_memory', 'catalog, name_key, store', catalogs.rows(body.itemMemory).map((m) => ({ catalog: m.catalog, name_key: m.nameKey, store: m.store, category: m.category, aisle: m.aisle, updated_at: m.updatedAt })), { where: 'excluded.updated_at > item_memory.updated_at' }),
@@ -1018,6 +1030,7 @@ dataRoutes.openapi(
       ['recipe.changed', body.recipes.length],
       ['meal.changed', body.meals.length],
       ['restaurant.changed', body.restaurants.length],
+      ['poll.changed', body.polls.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1057,6 +1070,7 @@ dataRoutes.openapi(
           recipes: body.recipes.length,
           meals: body.meals.length,
           restaurants: body.restaurants.length,
+          polls: body.polls.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

@@ -11,6 +11,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { Poll, PollInput } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -255,6 +256,10 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
   }
+  if (MOCK && /^api\/polls([/?]|$)/.test(path)) {
+    const { mockPollRequest } = await import('./mock-polls.ts')
+    return mockPollRequest(path, opts) as Promise<T>
+  }
   const { useAdmin, ...init } = opts
   const key = useAdmin ? (getAdminKey() ?? getKey()) : getKey()
   let res: Response
@@ -328,6 +333,13 @@ export const api = {
   setMealOrder: (mealId: string, memberId: string, body: { items: OrderItem[]; note: string | null }) => put<Meal>(`api/meals/${encodeURIComponent(mealId)}/orders/${encodeURIComponent(memberId)}`, body),
   askForOrders: (mealId: string) => post<{ ok: boolean; sent: number }>(`api/meals/${encodeURIComponent(mealId)}/ask-orders`),
   getEventMeal: async (eventId: string): Promise<{ meal: Meal | null }> => MOCK ? (await import('./mock-meals.ts')).mockEventMeal(eventId) : get(`api/events/${encodeURIComponent(eventId)}/meal`),
+  getPolls: (status?: Poll['status']) => get<Poll[]>(`api/polls${status ? `?status=${status}` : ''}`),
+  getPoll: (id: string) => get<Poll>(`api/polls/${encodeURIComponent(id)}`),
+  createPoll: (body: PollInput) => post<Poll>('api/polls', body),
+  votePoll: (id: string, memberId: string, optionId: string | null) => put<Poll>(`api/polls/${encodeURIComponent(id)}/vote`, { memberId, optionId }),
+  closePoll: (id: string, optionId?: string) => post<Poll>(`api/polls/${encodeURIComponent(id)}/close`, { optionId }),
+  updatePoll: (id: string, body: { question?: string; mealId?: string | null }) => patch<Poll>(`api/polls/${encodeURIComponent(id)}`, body),
+  deletePoll: (id: string) => del<{ ok: boolean }>(`api/polls/${encodeURIComponent(id)}`),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),

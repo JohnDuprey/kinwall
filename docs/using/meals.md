@@ -20,6 +20,8 @@ To trade two meals around, open a planned meal's sheet and tap **Swap with…**,
 
 A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where you can also delete it. A planned meal shows small avatars of who's eating.
 
+Can't decide? Start a [family poll](polls.md) for that meal: it shows **🗳 Vote open** in the slot until it closes, and **Plan it** fills the meal in with the winner.
+
 When the header is filtered to one person, the planner and the Board's **Today's meals** show the meals that person is eating or cooking, plus meals with nobody picked.
 
 ## Recipes

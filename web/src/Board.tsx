@@ -20,6 +20,7 @@ import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
+import { PollsBoardCards } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
@@ -222,6 +223,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   return (
     <div className="board-scroll" ref={scrollRef}>
       <GetStarted />
+      {/* An open family poll: above the cards, on every layout, only while it's open. */}
+      {f.polls !== false && <div className="board-polls"><PollsBoardCards /></div>}
       <div className="board" style={custom ? custom.style : boardAreas(shown)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance" style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>

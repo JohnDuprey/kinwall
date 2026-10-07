@@ -281,6 +281,7 @@ export const FeaturesSchema = z
     trackersHealth: z.boolean().default(true),
     meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
     newscast: z.boolean().default(true), // Home's Newscast tab: GET /api/newscast and its routes answer 404 while off
+    polls: z.boolean().default(true), // Family polls: /api/polls and its routes answer 404 while off, no poll notifications
     checkIns: z.boolean().default(true), // Temp check, goal checks, the energy battery, journals, Insights: no check-in, goal or battery notifications and no check-in points while off
   })
   .openapi('Features');
@@ -1051,7 +1052,7 @@ export const NotificationSchema = z
   .object({
     id: z.string(),
     at: z.string(),
-    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy', 'meal']),
+    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy', 'meal', 'poll']),
     title: z.string(),
     body: z.string().nullable(),
     url: z.string().nullable(),

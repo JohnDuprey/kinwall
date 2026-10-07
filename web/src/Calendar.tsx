@@ -23,6 +23,7 @@ import Board from './Board.tsx'
 import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 import { hashQuery } from './hashQuery.ts'
+import { PollSheet, PollsButton } from './Polls.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
@@ -181,6 +182,19 @@ export default function CalendarView() {
       if (at) setAnchor(at.length === 10 ? new Date(at + 'T00:00:00') : new Date(at))
       setViewMode(v => (v === 'month' ? 'schedule' : v))
       setPendingEventId(id)
+      history.replaceState(null, '', '#/calendar')
+    }
+    read()
+    window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
+  }, [])
+  // #/calendar?poll=<id> (the bell's "New poll"): that poll, over whatever Home shows.
+  const [linkedPoll, setLinkedPoll] = useState<string | null>(null)
+  useEffect(() => {
+    const read = () => {
+      const id = hashQuery(location.hash).get('poll')
+      if (!id || !location.hash.startsWith('#/calendar')) return
+      setLinkedPoll(id)
       history.replaceState(null, '', '#/calendar')
     }
     read()
@@ -399,6 +413,7 @@ export default function CalendarView() {
         <div className="toolbar-end">
           {/* The Board's layout, off to the side like the filter; not on a screen whose view is locked. */}
           {viewMode === 'board' && !device.lockView && <BoardLayoutPicker />}
+          {viewMode === 'board' && !device.lockView && settings.features.polls !== false && <PollsButton />}
           {isPhone && viewMode === 'day' && dayFrom && !device.lockView && (
             <button type="button" className="btn btn-secondary day-back" aria-label={`Back to ${viewLabel(dayFrom, true)}`} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>
               <ChevronLeft width={18} height={18} />{viewLabel(dayFrom, true)}
@@ -475,6 +490,7 @@ export default function CalendarView() {
           ? 'Ask a parent to let this device change your calendar in Settings → Calendars.'
           : 'Ask a parent to give you a calendar in Settings → Calendars.'}</p>)}
 
+      {linkedPoll && settings.features.polls !== false && <PollSheet id={linkedPoll} onClose={() => setLinkedPoll(null)} />}
       {detail && (
         <EventDetailSheet
           event={detail}

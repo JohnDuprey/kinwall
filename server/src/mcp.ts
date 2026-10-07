@@ -20,6 +20,8 @@ import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, Categ
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
+import { PollSchema } from './routes/polls.ts';
+import { MealSlotSchema } from './meal-schemas.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -277,6 +279,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   set_night_screen: NightScreenSchema.shape,
   list_notifications: { notifications: z.array(NotificationSchema) },
   list_newscast: NewscastSchema.shape,
+  list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
   update_note: { note: NoteSchema },
@@ -301,7 +304,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1640,6 +1643,65 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const state = res.json as { displays: { id: string; name: string }[] };
       const names = ids ? state.displays.filter((d) => ids.includes(d.id)).map((d) => d.name).join(', ') : 'every wall screen';
       return okResult(`Night screen ${on ? 'on' : 'off'} for ${names}.`, state as unknown as Record<string, unknown>);
+    },
+  );
+
+  // Family polls: a poll by id or its exact question; left out, the one open poll.
+  const findPoll = async (ref: string | undefined): Promise<{ id: string; question: string; options: { id: string; label: string; votes: string[] }[] }> => {
+    const res = await call(app, env, auth, 'GET', '/api/polls');
+    if (res.status >= 400) throw new MemberResolutionError(String((res.json as { error?: string })?.error ?? 'failed to read polls'));
+    const polls = res.json as { id: string; question: string; status: string; options: { id: string; label: string; votes: string[] }[] }[];
+    const hits = ref ? polls.filter((p) => p.id === ref || p.question.toLowerCase() === ref.trim().toLowerCase()) : polls.filter((p) => p.status === 'open');
+    if (hits.length === 1) return hits[0];
+    throw new MemberResolutionError(ref ? (hits.length ? `"${ref}" matches ${hits.length} polls; use the id` : `no poll with id or question "${ref}"`) : hits.length ? `${hits.length} polls are open: ${hits.map((p) => `"${p.question}"`).join(', ')}; say which` : 'no poll is open');
+  };
+  const findOption = (poll: { options: { id: string; label: string }[] }, ref: string) => {
+    const q = ref.trim().toLowerCase();
+    const hit = poll.options.find((o) => o.id === ref) ?? poll.options.find((o) => o.label.toLowerCase() === q) ?? (poll.options.filter((o) => o.label.toLowerCase().includes(q)).length === 1 ? poll.options.find((o) => o.label.toLowerCase().includes(q)) : undefined);
+    if (!hit) throw new MemberResolutionError(`no choice matching "${ref}"; the choices are ${poll.options.map((o) => o.label).join(', ')}`);
+    return hit;
+  };
+  const tally = (p: { question: string; status: string; options: { label: string; votes: string[] }[] }) => `"${p.question}" (${p.status}): ${p.options.map((o) => `${o.label} ${o.votes.length}`).join(', ')}`;
+  tool(
+    'list_polls',
+    { title: 'List family polls', description: 'Family polls ("Where are we eating Friday?", "Which movie tonight?"), open ones first, each choice with the member ids who voted for it (see get_household for names), the winner once closed, and the meal planned from it. A poll with date/slot is about that meal.', inputSchema: { status: z.enum(['open', 'closed']).optional() } },
+    async ({ status }) => {
+      const res = await call(app, env, auth, 'GET', `/api/polls${status ? `?status=${status}` : ''}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to read polls');
+      const polls = res.json as Parameters<typeof tally>[0][];
+      return okResult(polls.length ? polls.slice(0, 5).map(tally).join('; ') : 'No polls.', { polls: polls as unknown as Record<string, unknown>[] });
+    },
+  );
+  tool(
+    'create_poll',
+    { title: 'Start a family poll', description: 'Admin: ask the family a question everyone votes on, kids too (one vote each), and notify every device. Choices: ideas (typed text) and/or recipes from the recipe book (ids or exact names; needs Meals on), at least two in all. date and slot tie it to a meal; when it closes, a parent can plan the winner from the app.', inputSchema: { question: z.string().min(1).max(200), ideas: jsonList(z.array(z.string().min(1).max(120))).optional(), recipes: jsonList(z.array(z.string())).optional().describe('Recipe ids or exact names.'), date: z.string().optional().describe('YYYY-MM-DD of the meal it decides.'), slot: MealSlotSchema.optional() } },
+    async ({ question, ideas = [], recipes = [], date, slot }) => {
+      let recipeIds: string[];
+      try { recipeIds = await Promise.all(recipes.map(async (r) => (await resolveExact(app, env, auth, '/api/recipes', r, 'recipe')).id)); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'recipe lookup failed'); }
+      const res = await call(app, env, auth, 'POST', '/api/polls', { question, date, slot: date ? slot ?? 'dinner' : undefined, options: [...ideas.map((label) => ({ label })), ...recipeIds.map((recipeId) => ({ recipeId }))] });
+      return res.status >= 400 ? errorResult(res.json, 'failed to start the poll') : okResult(`Poll started: ${tally(res.json as Parameters<typeof tally>[0])}`, { poll: res.json });
+    },
+  );
+  tool(
+    'vote_poll',
+    { title: 'Vote in a family poll', description: "Set or change a family member's vote in an open poll (one vote each; option null takes it back). poll: its id or exact question, left out for the one open poll. option: the choice's id or label.", inputSchema: { member: z.string().describe('Member name (case-insensitive) or id.'), option: z.string().nullable(), poll: z.string().optional() } },
+    async ({ member, option, poll }) => {
+      let body: { memberId: string; optionId: string | null }, id: string;
+      try { const p = await findPoll(poll); id = p.id; body = { memberId: await resolveMember(app, env, auth, member), optionId: option === null ? null : findOption(p, option).id }; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+      const res = await call(app, env, auth, 'PUT', `/api/polls/${encodeURIComponent(id)}/vote`, body);
+      return res.status >= 400 ? errorResult(res.json, 'failed to vote') : okResult(`Voted. ${tally(res.json as Parameters<typeof tally>[0])}`, { poll: res.json });
+    },
+  );
+  tool(
+    'close_poll',
+    { title: 'Close a family poll', description: 'Admin: close a poll and pick the winner: option (id or label), else the choice with the most votes (a tie goes to the one listed first). On a closed poll, changes the winner. Plan the winning meal with create_meal if it was about one.', inputSchema: { poll: z.string().optional().describe('Id or exact question; left out, the one open poll.'), option: z.string().optional() } },
+    async ({ poll, option }) => {
+      let id: string, optionId: string | undefined;
+      try { const p = await findPoll(poll); id = p.id; optionId = option ? findOption(p, option).id : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+      const res = await call(app, env, auth, 'POST', `/api/polls/${encodeURIComponent(id)}/close`, { optionId });
+      if (res.status >= 400) return errorResult(res.json, 'failed to close the poll');
+      const p = res.json as { winnerOptionId: string | null; options: { id: string; label: string }[] } & Parameters<typeof tally>[0];
+      return okResult(`Closed. Winner: ${p.options.find((o) => o.id === p.winnerOptionId)?.label ?? 'none'}. ${tally(p)}`, { poll: p });
     },
   );
 

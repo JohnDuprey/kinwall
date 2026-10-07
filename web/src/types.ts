@@ -94,6 +94,7 @@ export interface Features {
   trackersHealth: boolean
   meals: boolean // Meals tab, the Board's meals card, meals in the daily summary
   newscast: boolean // Home's Newscast tab (with its routes)
+  polls: boolean // Family polls: the Board card, the Polls sheet, poll notifications (their routes answer 404 while off)
   checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
 
@@ -922,7 +923,7 @@ export interface PushSubscriptionPrefs {
 export interface AppNotification {
   id: string
   at: string
-  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal'
+  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll'
   title: string
   body: string | null
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens
@@ -1050,3 +1051,12 @@ export interface MemberStats {
   badges: { id: string; emoji: string; title: string; earned: boolean }[]
   birthday: { date: string; daysUntil: number; turning: number | null } | null
 }
+
+// Family polls (server: routes/polls.ts). votes: the member ids who picked that choice.
+export interface PollOption { id: string; label: string; recipeId: string | null; sort: number; votes: string[] }
+export interface Poll {
+  id: string; question: string; date: string | null; slot: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null
+  status: 'open' | 'closed'; winnerOptionId: string | null; mealId: string | null
+  createdBy: string | null; createdAt: string; closedAt: string | null; options: PollOption[]
+}
+export interface PollInput { question: string; date?: string | null; slot?: Poll['slot']; options: { label?: string; recipeId?: string }[] }
