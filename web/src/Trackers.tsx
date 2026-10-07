@@ -96,7 +96,7 @@ export default function Trackers({ sub }: { sub?: string }) {
   const go = (v: TrackerView) => { location.hash = `#/trackers/${VIEW_TO_SUB[v]}` }
   const kind: TrackerKind = library ? 'reading' : view // the library's readers come from reading entries
   const isPhone = useIsPhone()
-  const [tools, setTools] = useState<HTMLDivElement | null>(null) // phones: the library's search sits here, by the picker
+  const [tools, setTools] = useState<HTMLDivElement | null>(null) // the library's search sits here, beside the view picker
 
   const [entries, setEntries] = useState<TrackerEntry[] | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
@@ -137,12 +137,12 @@ export default function Trackers({ sub }: { sub?: string }) {
       <div className="trackers-head">
         {isPhone
           ? <><TrackerViewPicker views={tabs} value={view} onChange={go} compact={library} />{library && <div className="trackers-tools" ref={setTools} />}</>
-          : <Segmented tabs idBase="trk-tab" label="Tracker" value={view} onChange={go}
-            options={tabs.map(t => ({ key: t.key, label: <><span aria-hidden="true">{t.emoji}</span> {t.label}</> }))} />}
+          : <><Segmented tabs idBase="trk-tab" label="Tracker" value={view} onChange={go}
+            options={tabs.map(t => ({ key: t.key, label: <><span aria-hidden="true">{t.emoji}</span> {t.label}</> }))} />{library && <div className="trackers-tools" ref={setTools} />}</>}
       </div>
       <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={isPhone ? undefined : `trk-tab-${view}`} aria-label={isPhone ? tabs.find(t => t.key === view)?.label : undefined}>
         {entries === null ? <div className="state-card">Loading…</div>
-          : library ? <Library bar={isPhone ? tools : undefined} adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
+          : library ? <Library bar={tools} adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
           : kind === 'reading' ? <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
           : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={healthPerson} switcher={

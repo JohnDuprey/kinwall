@@ -40,7 +40,7 @@ const store = (key: string, v: string) => { try { localStorage.setItem(key, v) }
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
 export default function Library({ bar, adding, onAdded, onStarted }: {
-  bar?: HTMLElement | null // phones: where the search and Filters go (the row with the view picker); null until it's there
+  bar?: HTMLElement | null // where the search and Filters go (the row with the view picker); null until it's there
   adding: boolean // the + button: Add a book sheet
   onAdded: () => void // closes it
   onStarted: () => void // a reading entry was started: the shelves reload
@@ -158,7 +158,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   </div>
   // The search row; on a phone it goes up beside the view picker (Trackers' bar slot).
   const searchBar = <div className="lib-bar">
-    <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, series, genres'} value={q} onChange={e => setQ(e.target.value)} />
+    <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, genres'} value={q} onChange={e => setQ(e.target.value)} />
     <button type="button" className={`icon-btn filter-btn lib-filter-btn ${on ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={on ? `Filters, ${on} on` : 'Filters'}>
       <FilterIcon width={20} height={20} />
       {on > 0 && <span className="filter-badge" aria-hidden="true">{on}</span>}
