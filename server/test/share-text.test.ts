@@ -75,3 +75,19 @@ test('event text: a party invite read off a photo, decoration and all', () => {
   assert.deepEqual(parseEventText(invite, '2026-10-07'),
     { title: "Maya's 6th Birthday", date: '2026-10-17', time: '15:00', end: '17:00', place: 'The Rivers Residence, 12 Elm Road, Springfield' });
 });
+
+test("event text: the model's Place with no street takes the street from the photo's text under ---", () => {
+  // The phone sends the model's lines, a --- line, then the words as the photo read them.
+  const raw = "MAYA'S 6th BIRTHDAY\nSaturday, October 17th 3:00 - 5:00pm\nat The Rivers Residence\n12 Elm Road, Springfield\nRSVP to Sam by 10/10";
+  const model = "Title: Maya's 6th Birthday\nDate: Saturday, October 17, 2026\nTime: 3:00 PM - 5:00 PM\nPlace: The Rivers Residence";
+  assert.deepEqual(parseEventText(`${model}\n---\n${raw}`, '2026-10-07'),
+    { title: "Maya's 6th Birthday", date: '2026-10-17', time: '15:00', end: '17:00', place: 'The Rivers Residence, 12 Elm Road, Springfield' });
+  // A Place that has its street keeps it as it is.
+  assert.equal(parseEventText(`Title: Swim meet\nPlace: Oak Pool, 9 Lake Ave\n---\nSwim meet\n40 Main Street, Springfield`, TODAY).place, 'Oak Pool, 9 Lake Ave');
+  // The street line already names the venue: it is the place.
+  assert.equal(parseEventText(`Title: Bake sale\nPlace: Grace Church\n---\nBake sale\nGrace Church, 3 Hill Rd, Springfield`, TODAY).place, 'Grace Church, 3 Hill Rd, Springfield');
+  // No street anywhere: the Place line alone. An RSVP line's address isn't the place.
+  assert.equal(parseEventText(`Title: Picnic\nPlace: Riverside Park\n---\nPicnic at Riverside Park\nRSVP to 12 Elm Road`, TODAY).place, 'Riverside Park');
+  // The model's own lines win over the photo's: its Title and Time, not the photo's.
+  assert.deepEqual(parseEventText(`Title: Book fair\nTime: 9 AM\n---\nTime: 10am\nFall Fair`, TODAY), { title: 'Book fair', date: null, time: '09:00', end: null, place: null });
+});

@@ -1,6 +1,7 @@
 // Reading what the "Add to Kinwall" Shortcut sends as text (POST /api/share, routes/share.ts): an
 // ISBN, a book's title and author, or an event off a flyer, invite or screenshot. The text is either
-// what Extract Text from Image read or a Use Model answer in "Title: …" lines; both are handled.
+// what Extract Text from Image read or a Use Model answer in "Title: …" lines, or both: the app's share
+// sheets send the model's lines, a "---" line, then the words as read. The first of each label wins.
 // Pure, so test/share-text.test.ts covers it.
 
 const NOTHING = /^(unknown|none|n\/?a|not (found|listed|available|visible|shown|given)|tbd|-+)\.?$/i;
@@ -115,6 +116,8 @@ function findTime(text: string, lenient: boolean): { time: string; end: string |
 
 const VENUE = /\b(school|elementary|academy|park|church|temple|library|center|centre|hall|gym|field|cafeteria|auditorium|club|ymca|museum|arena|stadium|theater|theatre|pool|street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)\b/i;
 const EVENT_WORD = /\b(birthday|party|celebration|shower|wedding|reception|fair|festival|carnival|night|show|recital|concert|play|game|match|tournament|meet|dinner|lunch|brunch|picnic|bbq|cookout|potluck|sleepover|playdate|graduation|ceremony|parade|sale|fundraiser|open house|camp|class|practice)\b/i;
+// A street address: a number, then a street's name and its kind ("68 Dudley Road", "9 Lake Ave").
+const STREET = /\b\d+[a-z]?[ \t]+(?:[\p{L}.'’-]+[ \t]+){0,4}?(street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|court|ct|place|pl|circle|cir|terrace|ter|parkway|pkwy|highway|hwy|trail|trl|square|sq)\b/iu;
 const GENERIC = /^(you('|’)?re invited|you are invited|save the date|join us|please join us|all are welcome|come one,? come all)\W*$/i;
 const tidy = (s: string) => s.replace(/\s+/g, ' ').replace(/^[\s,–—:@-]+|[\s,–—:@-]+$/g, '').replace(/\s+(at|on|from|this|next|in|@)$/i, '').trim();
 
@@ -162,6 +165,13 @@ export function parseEventText(text: string, today: string): EventDraft {
   if (place === null) {
     const line = clean.split('\n').map((l) => l.trim()).find((l) => l && l !== title && !l.startsWith(title ?? '\u0000') && VENUE.test(l) && !/^rsvp\b/i.test(l));
     if (line) place = tidy(line.replace(/^(at|in|@)\s+/i, ''));
+  }
+  // A venue with no street ("Place: The Rivers Residence" from the model) takes the street line from the
+  // photo's own words, which the phone sends under the model's lines after a "---" line.
+  if (place && !STREET.test(place)) {
+    const line = clean.split('\n').map((l) => l.trim()).find((l) => STREET.test(l) && !/^rsvp\b/i.test(l));
+    const street = line && tidy(line.replace(/^(?:(?:at|in|@)\s+|[a-z]+\s*:\s*)/i, ''));
+    if (street) place = street.toLowerCase().includes(place.toLowerCase()) ? street : `${place}, ${street}`;
   }
   // Shouted on the card ("MAYA'S 6th BIRTHDAY"): title case reads better on the calendar.
   if (title && !/\p{Ll}{2}/u.test(title.replace(/\b\d+(st|nd|rd|th)\b/gi, ''))) title = title.toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());

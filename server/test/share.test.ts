@@ -129,6 +129,7 @@ test('share: an event is never saved; it comes back as a link to check it', asyn
   assert.deepEqual(res.json, {
     kind: 'event', review: true, summary: 'Check the event: Spring fair, Sat May 8 at 10 AM',
     link: 'https://kinwall.example/#/calendar?draft=event&title=Spring+fair&date=2027-05-08&time=10%3A00&end=14%3A00&place=Lincoln+Elementary',
+    event: { title: 'Spring fair', date: '2027-05-08', time: '10:00', end: '14:00', place: 'Lincoln Elementary' },
   });
   assert.equal((await db.prepare('SELECT count(*) AS n FROM events').first<{ n: number }>())?.n, 0);
   const noDate = await share({ kind: 'event', text: 'Pickup at 3:15 pm' });
@@ -153,4 +154,57 @@ test('share: parent devices only; Meals or Reading off refuses with a clear mess
   assert.equal(book.status, 403);
   assert.match(book.json.error, /Reading is turned off/);
   assert.equal((await share({ kind: 'event', text: 'Title: Swim' })).status, 200, 'the calendar has no switch');
+});
+
+test('share: save adds the event to the chosen calendar in the household timezone; edited fields win', async () => {
+  const { share, call, db } = fixture();
+  await call('PATCH', '/api/settings', { timezone: 'America/New_York' });
+  const family = (await call('POST', '/api/calendars', { kind: 'local', name: 'Family' })).json;
+  const text = 'Title: Spring fair\nDate: 2027-05-08\nTime: 10 AM - 2 PM\nPlace: Lincoln Elementary';
+  const res = await share({ kind: 'event', text, save: true, calendarId: family.id });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  const row = await db.prepare('SELECT * FROM events').first<any>();
+  assert.deepEqual([row.calendar_id, row.title, row.start, row.end, row.all_day, row.location], [family.id, 'Spring fair', '2027-05-08T14:00:00.000Z', '2027-05-08T18:00:00.000Z', 0, 'Lincoln Elementary']);
+  assert.deepEqual(res.json, { kind: 'event', review: false, summary: 'Added Spring fair to Family, Sat May 8', link: `https://kinwall.example/#/calendar?event=${row.id}&at=2027-05-08T14%3A00%3A00.000Z` });
+
+  // What the person fixed in the sheet goes instead of the text; no time is all day.
+  const edited = await share({ kind: 'event', text, save: true, calendarId: family.id, event: { title: 'Spring Fair', date: '2027-05-09', time: null, end: null, place: 'Lincoln Elementary, 1 School St' } });
+  assert.equal(edited.json.summary, 'Added Spring Fair to Family, Sun May 9');
+  const day = await db.prepare("SELECT * FROM events WHERE title = 'Spring Fair'").first<any>();
+  assert.deepEqual([day.start, day.end, day.all_day, day.location], ['2027-05-09', '2027-05-10', 1, 'Lincoln Elementary, 1 School St']);
+  // A start with no end is an hour; an end before the start is after midnight.
+  await share({ kind: 'event', save: true, calendarId: family.id, event: { title: 'Late show', date: '2027-05-08', time: '22:00', end: '01:00' } });
+  const late = await db.prepare("SELECT * FROM events WHERE title = 'Late show'").first<any>();
+  assert.deepEqual([late.start, late.end], ['2027-05-09T02:00:00.000Z', '2027-05-09T05:00:00.000Z']);
+
+  // Without save, nothing is added even with a calendar.
+  assert.equal((await share({ kind: 'event', text, calendarId: family.id })).json.review, true);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM events').first<{ n: number }>())?.n, 3);
+});
+
+test('share: save needs a writable calendar, a title and a date', async () => {
+  const { share, call, db } = fixture();
+  const family = (await call('POST', '/api/calendars', { kind: 'local', name: 'Family' })).json;
+  const school = (await call('POST', '/api/calendars', { kind: 'ics', name: 'School', url: 'https://school.example/cal.ics' })).json;
+  const text = 'Title: Swim\nDate: 2027-05-08';
+  assert.equal((await share({ kind: 'event', text, save: true })).status, 400, 'no calendar');
+  assert.equal((await share({ kind: 'event', text, save: true, calendarId: 'nope' })).status, 400);
+  assert.ok(school.id, JSON.stringify(school));
+  assert.equal((await share({ kind: 'event', text, save: true, calendarId: school.id })).status, 400, 'read-only');
+  assert.match((await share({ kind: 'event', text: 'Title: Swim', save: true, calendarId: family.id })).json.summary, /date/);
+  assert.match((await share({ kind: 'event', save: true, calendarId: family.id, event: { title: ' ', date: '2027-05-08' } })).json.summary, /title/);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM events').first<{ n: number }>())?.n, 0);
+});
+
+test("share: a wall screen or a kid's device can't save an event", async () => {
+  const { share, call, db } = fixture();
+  const family = (await call('POST', '/api/calendars', { kind: 'local', name: 'Family' })).json;
+  const leo = (await call('POST', '/api/members', { name: 'Leo', color: '#7AB8FF', grownUp: false })).json;
+  const wall = (await call('POST', '/api/keys', { name: 'Wall', scope: 'display' })).json;
+  const kid = (await call('POST', '/api/keys', { name: "Leo's tablet", scope: 'display' })).json;
+  assert.equal((await call('PATCH', `/api/keys/${kid.id}`, { kind: 'kid', owner: leo.id })).status, 200);
+  for (const key of [wall.key, kid.key]) {
+    assert.equal((await share({ kind: 'event', text: 'Title: Swim\nDate: 2027-05-08', save: true, calendarId: family.id }, key)).status, 403);
+  }
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM events').first<{ n: number }>())?.n, 0);
 });
