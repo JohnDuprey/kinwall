@@ -141,14 +141,20 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   }
   const shown = books?.length ?? 0
   const scan = appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>
-  // One row: the count, small, and the view switch, icons only on a phone (Library view words from 700px);
-  // on a phone 📷 Scan joins it (the search row is full).
+  // One row: the count, small, the sort and filters that are on (wrapping if there are many), and the
+  // view switch, icons only on a phone (Library view words from 700px); on a phone 📷 Scan joins it.
   const head = <div className="lib-head">
     <span className="lib-count">{(() => {
       const a = books?.filter(isAudio).length ?? 0, p = shown - a
       const part = (emoji: string, text: string) => <><span className="lib-count-emoji" aria-hidden="true">{emoji} </span>{text}</>
       return <>{(p || !a) && part('📚', `${p} ${p === 1 ? 'book' : 'books'}`)}{p > 0 && a > 0 && ' · '}{a > 0 && part('🎧', `${a} ${a === 1 ? 'audiobook' : 'audiobooks'}`)}</>
     })()}</span>
+    {(on > 0 || (sort && sort !== 'title')) && (
+      <div className="chip-row lib-active" role="group" aria-label="Sort and filters on">
+        {sort && sort !== 'title' && <button type="button" className="chip lib-active-chip" aria-label={`Sorted by ${SORT_LABEL[sort]}. Change`} onClick={() => setFiltering(true)}><span aria-hidden="true">↕</span> {SORT_LABEL[sort]}</button>}
+        {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={`Remove filter: ${a.label}`} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
+      </div>
+    )}
     {isPhone && scan}
     <Segmented className="lib-view" label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
       options={[
@@ -168,12 +174,6 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   return (
     <div className="lib">
       {bar === undefined ? searchBar : bar && createPortal(searchBar, bar)}
-      {(on > 0 || (sort && sort !== 'title')) && (
-        <div className="chip-row lib-active" role="group" aria-label="Sort and filters on">
-          {sort && sort !== 'title' && <button type="button" className="chip lib-active-chip" aria-label={`Sorted by ${SORT_LABEL[sort]}. Change`} onClick={() => setFiltering(true)}><span aria-hidden="true">↕</span> {SORT_LABEL[sort]}</button>}
-          {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={`Remove filter: ${a.label}`} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
-        </div>
-      )}
       {filtering && (
         <Sheet title="Filters" onClose={() => setFiltering(false)} actions={<>
           {on > 0 && <button className="btn btn-secondary" onClick={() => setFilters(NO_FILTERS)}>Clear</button>}
