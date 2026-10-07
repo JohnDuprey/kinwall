@@ -40,7 +40,7 @@ test('event text: the suggested Title/Date/Time/Place lines', () => {
 
 test('event text: a flyer read off a photo', () => {
   assert.deepEqual(parseEventText('SPRING FAIR\nSat May 9\n10am - 2pm\nLincoln Elementary School\nGames, food and fun for the whole family!', TODAY),
-    { title: 'SPRING FAIR', date: '2026-05-09', time: '10:00', end: '14:00', place: 'Lincoln Elementary School' });
+    { title: 'Spring Fair', date: '2026-05-09', time: '10:00', end: '14:00', place: 'Lincoln Elementary School' });
   assert.deepEqual(parseEventText("You're invited!\nMaya's 7th birthday party\nSunday, June 14th at 2:00 PM\nWhere: 45 Oak Ave\nRSVP to Alex 555-0100", TODAY),
     { title: "Maya's 7th birthday party", date: '2026-06-14', time: '14:00', end: null, place: '45 Oak Ave' });
   assert.deepEqual(parseEventText('Fall Book Fair\nOctober 3rd, 2026 from 11-2pm\nin the school library', TODAY),
@@ -64,4 +64,14 @@ test('event text: times without a date, AM/PM forms, 12 o\'clock', () => {
   assert.deepEqual(parseEventText('Title: Swim\nTime: 18:00 - 19:30', TODAY), { title: 'Swim', date: null, time: '18:00', end: '19:30', place: null });
   // A phone number, a price or a grade isn't a time.
   assert.deepEqual(parseEventText('Car wash\nCall 555-0100, $5 a car, grades 3-5', TODAY), { title: 'Car wash', date: null, time: null, end: null, place: null });
+});
+
+test('event text: a party invite read off a photo, decoration and all', () => {
+  // A photo's text comes out in reading order: the decorative ring first ("IN MY BIRTHDAY ERA"),
+  // then the real name of the party, then the place over two lines, then the RSVP.
+  const invite = 'I\nN\nMY BIRTHDAY\nMaya Rivers\nis turning\n6\nERA\njoin us to celebrate\nMAYA\'S 6th BIRTHDAY\n' +
+    'Join us for the bounce house, pizza, & s\'mores!\nSaturday, October 17th 3:00 - 5:00pm\nat The Rivers Residence\n12 Elm Road, Springfield\n' +
+    'RSVP to Sam by 10/10\n555-0100'
+  assert.deepEqual(parseEventText(invite, '2026-10-07'),
+    { title: "Maya's 6th Birthday", date: '2026-10-17', time: '15:00', end: '17:00', place: 'The Rivers Residence, 12 Elm Road, Springfield' });
 });

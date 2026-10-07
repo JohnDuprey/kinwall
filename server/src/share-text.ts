@@ -114,6 +114,7 @@ function findTime(text: string, lenient: boolean): { time: string; end: string |
 }
 
 const VENUE = /\b(school|elementary|academy|park|church|temple|library|center|centre|hall|gym|field|cafeteria|auditorium|club|ymca|museum|arena|stadium|theater|theatre|pool|street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)\b/i;
+const EVENT_WORD = /\b(birthday|party|celebration|shower|wedding|reception|fair|festival|carnival|night|show|recital|concert|play|game|match|tournament|meet|dinner|lunch|brunch|picnic|bbq|cookout|potluck|sleepover|playdate|graduation|ceremony|parade|sale|fundraiser|open house|camp|class|practice)\b/i;
 const GENERIC = /^(you('|’)?re invited|you are invited|save the date|join us|please join us|all are welcome|come one,? come all)\W*$/i;
 const tidy = (s: string) => s.replace(/\s+/g, ' ').replace(/^[\s,–—:@-]+|[\s,–—:@-]+$/g, '').replace(/\s+(at|on|from|this|next|in|@)$/i, '').trim();
 
@@ -131,12 +132,23 @@ export function parseEventText(text: string, today: string): EventDraft {
 
   let place: string | null = header(h, 'place', 'location', 'where', 'address', 'venue') ?? null;
   let placeMatch: string | null = null;
+  // "at The Rivers Residence" with the street on the next line: both make the place.
+  if (place === null) {
+    const two = /^(?:at|@)[ \t]+(.+)\n[ \t]*(\d+[ \t]+\p{L}.*)$/imu.exec(clean);
+    if (two) { place = `${tidy(two[1])}, ${tidy(two[2])}`; placeMatch = two[0].split('\n')[0]; }
+  }
   if (place === null) {
     const at = new RegExp(`\\b(?:at|@)[ \\t]+([^,\\n]*${VENUE.source}[^,\\n]*)`, 'i').exec(clean);
     if (at) { place = tidy(at[1]); placeMatch = at[0]; }
   }
 
   let title = header(h, 'title', 'event', 'what', 'name') ?? null;
+  // An invite names its party with whose and which one ("Maya's 6th Birthday"); that line beats the first
+  // line, which on a photo is often decoration ("IN MY BIRTHDAY ERA").
+  if (title === null) {
+    const named = clean.split('\n').map((l) => l.trim()).find((l) => EVENT_WORD.test(l) && /\p{L}['’]s\b|\b\d+(st|nd|rd|th)\b/iu.test(l) && !/^rsvp\b/i.test(l));
+    if (named) title = tidy(named).slice(0, 200);
+  }
   if (title === null) {
     for (const raw of clean.split('\n')) {
       const line = raw.replace(/^[-•*#\s]+/, '').trim();
@@ -151,5 +163,7 @@ export function parseEventText(text: string, today: string): EventDraft {
     const line = clean.split('\n').map((l) => l.trim()).find((l) => l && l !== title && !l.startsWith(title ?? '\u0000') && VENUE.test(l) && !/^rsvp\b/i.test(l));
     if (line) place = tidy(line.replace(/^(at|in|@)\s+/i, ''));
   }
+  // Shouted on the card ("MAYA'S 6th BIRTHDAY"): title case reads better on the calendar.
+  if (title && !/\p{Ll}{2}/u.test(title.replace(/\b\d+(st|nd|rd|th)\b/gi, ''))) title = title.toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
   return { title: title || null, date: date?.date ?? null, time: time?.time ?? null, end: time?.end ?? null, place: place ? place.slice(0, 500) : null };
 }
