@@ -2910,13 +2910,16 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 /* One row of the view picker (compact in the library on phones) and the view's tools, the library's
    search, Filters and 📷 (Library.tsx portals them into .trackers-tools), so the shelves keep the
    height, which matters most on a landscape tablet. Phones space it with an even --gap. */
-.trackers-head { display: flex; align-items: center; gap: var(--gap); }
+.trackers-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
 .trackers-head > .segmented { flex: none; }
-.trackers-tools { flex: 1; min-width: 0; }
+/* Room for a usable search beside Scan books; when the tabs leave less (phone landscape), the tools
+   wrap under the tabs instead of squeezing the search to nothing. */
+.trackers-tools { flex: 1 1 400px; min-width: 0; }
 .trackers-tools .lib-bar { flex-wrap: nowrap; gap: var(--gap); margin: 0; }
 .trackers-tools .lib-search { flex: 1 1 0; }
 @media (max-width: 600px) {
-  .trackers-head { padding: var(--gap) var(--pad) 0; }
+  .trackers-head { flex-wrap: nowrap; padding: var(--gap) var(--pad) 0; }
+  .trackers-tools { flex-basis: 0; }
   .trackers-body { padding-top: var(--gap); }
   .lib-head { margin-bottom: var(--gap); }
   .lib-active { margin: 0 0 var(--gap); }
