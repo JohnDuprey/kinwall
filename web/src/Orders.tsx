@@ -142,7 +142,7 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
         <span aria-live="polite">{item.qty}</span>
         <button type="button" className="icon-btn" aria-label={`One more ${item.name}`} disabled={item.qty >= 99} onClick={() => set(i, { qty: item.qty + 1 })}><PlusIcon width={18} height={18} /></button>
       </span>
-    </li>)}</ul> : <p className="state-card">Tap what {name} wants.</p>}
+    </li>)}</ul> : <p className="state-card">Nothing in {name}’s order yet. {restaurant?.menu.length ? 'Pick from the menu below, or add something else.' : 'Add what they’d like below.'}</p>}
     {usual && <button type="button" className="chip order-usual-pick" onClick={() => setItems(usual)}>↺ Same as last time: {itemsLabel(usual)}</button>}
     <div className="field"><label htmlFor="order-note">Note</label><input id="order-note" type="text" maxLength={1000} placeholder="I’ll share with Leo…" value={note} onChange={e => setNote(e.target.value)} /></div>
     {restaurant?.menu.length ? <>
