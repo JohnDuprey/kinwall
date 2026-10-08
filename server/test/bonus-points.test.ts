@@ -37,7 +37,7 @@ async function setup() {
     await flush();
     globalThis.fetch = realFetch;
   };
-  const events = () => sent.filter((s) => s.url.startsWith('https://hooks.example.com')).map((s) => JSON.parse(s.body) as { type: string; data: any });
+  const events = () => sent.filter((s) => new URL(s.url).origin === 'https://hooks.example.com').map((s) => JSON.parse(s.body) as { type: string; data: any });
   const pushes = (device: string) => sent.filter((s) => s.url === `https://fcm.googleapis.com/fcm/send/${device}`).length;
 
   const leo = (await req('/api/members', 'POST', { name: 'Leo', color: '#e57' })).json;

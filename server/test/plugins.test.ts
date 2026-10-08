@@ -198,7 +198,7 @@ test('plugins: install from a GitHub release package', async () => {
     assert.equal((await json('/api/plugins/sight-words/update', 'POST', {})).status, 200);
     const none = await json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/no-package' });
     assert.match(((await none.json()) as any).error, /has no release with a kinwall-plugin\.zip/);
-    assert.ok(!calls.some((u) => u.includes('api.github.com')), 'never the rate-limited API');
+    assert.ok(!calls.some((u) => new URL(u).hostname === 'api.github.com'), 'never the rate-limited API');
   } finally {
     globalThis.fetch = realFetch;
   }

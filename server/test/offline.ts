@@ -4,6 +4,7 @@
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-  if (new URL(url).hostname.endsWith('openlibrary.org')) throw new Error('no network in tests');
+  const host = new URL(url).hostname;
+  if (host === 'openlibrary.org' || host.endsWith('.openlibrary.org')) throw new Error('no network in tests');
   return realFetch(input, init);
 }) as typeof fetch;

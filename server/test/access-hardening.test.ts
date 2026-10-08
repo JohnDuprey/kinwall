@@ -138,7 +138,7 @@ test('/docs loads one pinned Swagger UI release, and only from that CDN', async 
   const t = setup();
   const res = await t.send('GET', '/docs', undefined, null);
   assert.equal(res.status, 200);
-  const cdn = 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@';
+  const cdn = 'https://cdn\\.jsdelivr\\.net/npm/swagger-ui-dist@';
   assert.match(res.text, new RegExp(`<script src="${cdn}\\d+\\.\\d+\\.\\d+/swagger-ui-bundle\\.js"`));
   assert.match(res.text, new RegExp(`<link rel="stylesheet" href="${cdn}\\d+\\.\\d+\\.\\d+/swagger-ui\\.css"`));
   assert.doesNotMatch(res.text, /swagger-ui-dist\//, 'never the unpinned latest');

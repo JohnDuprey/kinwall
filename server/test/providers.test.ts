@@ -144,7 +144,7 @@ test('google: refreshes an expired token, saves it, and maps events (timed + all
     assert.equal(events[1].start, '2026-02-01');
     assert.equal(events[1].end, '2026-02-05');
     assert.deepEqual(saved, { access_token: 'new-token', refresh_token: 'r1', expires_at: saved.expires_at });
-    assert.ok(calls.some((c) => c.url.includes('oauth2.googleapis.com/token')));
+    assert.ok(calls.some((c) => new URL(c.url).href.startsWith('https://oauth2.googleapis.com/token')));
   } finally {
     restore();
   }
@@ -212,7 +212,7 @@ test('microsoft: refreshes an expired token and maps events, converting all-day 
     assert.equal(events[1].start, '2026-02-01');
     assert.equal(events[1].end, '2026-02-02');
     assert.equal(saved.refresh_token, 'r2');
-    assert.ok(calls.some((c) => c.url.includes('login.microsoftonline.com')));
+    assert.ok(calls.some((c) => new URL(c.url).hostname === 'login.microsoftonline.com'));
   } finally {
     restore();
   }
