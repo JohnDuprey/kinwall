@@ -96,7 +96,7 @@ When you plan a recipe, the meal keeps its own copy of the ingredients. Editing,
 
 ### Sharing a recipe
 
-To send a recipe to someone outside the family, open it and tap **Share recipe** (parents' devices only). Kinwall makes a link like `https://yourfamily.kinwall.family/r/…` and shows it with **Copy link** and, on phones and tablets, **Share**. Tapping **Share recipe** again shows the same link.
+To send a recipe to someone outside the family, open it and tap **Share recipe** (parents' devices only). Kinwall makes a link like `https://your-kinwall/r/…` (your Kinwall address) and shows it with **Copy link** and, on phones and tablets, **Share**. Tapping **Share recipe** again shows the same link.
 
 The link opens a simple page that works in any browser, no Kinwall needed: the recipe's name, photo, description, servings (or, for a basic, how much it makes) and times, ingredients (amounts as in Kinwall, like "1½ cups"), numbered steps (with their photos) and its source link, with "Shared from Kinwall" at the bottom (linking to kinwall.family). It follows the viewer's light or dark setting, and printing it leaves out the save form. Recipe apps and websites that read recipe links can import it too (with the standard recipe data: ingredients as lines of text, and steps with their titles and photos). Under the recipe, **Save to my Kinwall** asks for the other family's Kinwall address (like `theirfamily.kinwall.family`, or their own server's), then opens their Kinwall's **Import from a link** with the recipe ready to save. The browser remembers that address for next time.
 

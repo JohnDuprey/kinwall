@@ -15,7 +15,7 @@ Fill in **Client ID**, **Client secret** and **Tenant** (default `common`, which
 
 Or use environment variables: `MS_CLIENT_ID`, `MS_CLIENT_SECRET` and `MS_TENANT`. The same precedence as Google applies: the UI wins, and variables-only configuration shows "Provided by your host".
 
-If the card already says **Provided by your host**, someone else set up the Microsoft app for you (hosted Kinwall will work this way). Skip to step 2.
+If the card already says **Provided by your host**, someone else set up the Microsoft app for you. Skip to step 2.
 
 ## 2. Connect
 
