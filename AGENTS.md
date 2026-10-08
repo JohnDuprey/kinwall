@@ -94,6 +94,14 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
 - Destructive or rare actions (archive, delete) go in a "More…" select or at the bottom of a sheet,
   never next to the primary button.
 - Copy: US English, short and plain, sentence case. Say what happens ("Saved: Tacos"), not how.
+- Plain words, never the code's words. Families (and kids) read every label, hint, toast, error and
+  notification, and translators will too: name things the way a family would ("grocery list", not
+  "shopping projection"; "Breakfast, lunch or dinner", not "meal slot";
+  "a grown-up", not "admin"; "this tablet", not "display key"). Keep API values, enum names and
+  tool names as they are; only what people see changes. One word for one thing everywhere, and
+  whole sentences rather than strings glued from parts, so each translates cleanly.
+- Words a screen reader hears must also be visible where there's room: an icon or count alone
+  (🗳 3/4) gets a few words on tablets and larger ("3 of 4 voted").
 - Kids use this: no dark patterns, nothing scary, parent-only actions stay behind parent access.
 
 ## Content
