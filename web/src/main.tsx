@@ -9,6 +9,7 @@ import { homeAlias } from './hashQuery.ts'
 import { retryBoot } from './appUpdate.ts'
 import { applyScreenScale } from './screenScale.ts'
 import { watchKeyboard } from './keyboard.ts'
+import { watchIsland } from './safeArea.ts'
 markNativeApp()
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
@@ -118,6 +119,7 @@ class BootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
   componentDidCatch(e: unknown) { console.error(e); if (canRetry()) location.reload() }
   render() { return this.state.failed ? <BootFailed /> : this.props.children }
 }
+watchIsland() // data-island on <html>: which side of an iPhone on its side has the island (safeArea.ts)
 watchKeyboard() // data-keyboard and --kbd on <html> while the on-screen keyboard is up (keyboard.ts)
 const root = createRoot(document.getElementById('root')!)
 

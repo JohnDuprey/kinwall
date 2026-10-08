@@ -3677,6 +3677,11 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, .chore-col-spend, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
+/* An iPhone on its side reports the island's inset (about 60px) on both sides; the side without it
+   only needs to clear the rounded corners (safeArea.ts sets data-island). 20px keeps the rail's top
+   and bottom buttons and the cards' corners inside the curve. */
+:root[data-island="left"] { --safe-r: min(env(safe-area-inset-right, 0px), 20px); }
+:root[data-island="right"] { --safe-l: min(env(safe-area-inset-left, 0px), 20px); }
 /* The Android app already lays the page out between the status and navigation bars (its SafeAreaView),
    but the WebView still reports those bars as safe-area insets, so the page padded for them twice
    (about 20px lost above the header and below the tabs on a tablet). Inside it, there are none. */
