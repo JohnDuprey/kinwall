@@ -3349,7 +3349,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .profile-today-pts { font-size: 0.8125rem; color: var(--text-dim); }
 .profile-check { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 900; flex-shrink: 0; }
 .profile-check.done { background: var(--success); border-color: var(--success); color: #fff; }
-.nav-me { font-size: 1.375rem; line-height: 1; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+.nav-me { font-size: 1.375rem; line-height: 1; width: 24px; height: 24px; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; }
 .nav-me-pic { border-radius: 50%; font-size: 0.875rem; }
 @media (max-width: 600px) {
   .profile { padding: 12px 14px; }
