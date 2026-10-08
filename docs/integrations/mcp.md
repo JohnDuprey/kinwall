@@ -32,7 +32,7 @@ The sign-in flow: no key to copy, and each app gets its own revocable grant. Kin
    * **Deny**.
 4. Connected apps are listed and revocable under **Settings → Access → Connected apps**.
 
-The consent screen shows where you'll return afterwards: a website's address, **the Kinwall app**, or, for another app's own link, **an unverified app** with that link's scheme. The app's name is whatever it registered itself as, so check the address before approving.
+The consent screen shows where you'll return afterward: a website's address, **the Kinwall app**, or, for another app's own link, **an unverified app** with that link's scheme. The app's name is whatever it registered itself as, so check the address before approving.
 
 ### What connected apps can't do
 
