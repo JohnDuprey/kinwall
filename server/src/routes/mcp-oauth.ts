@@ -32,6 +32,15 @@ const REGISTER_MAX = 20;
 const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 const MAX_PENDING_CLIENTS = 100;
 
+// A refresh token presented again within this window, by the same client, gets the same new pair
+// instead of revoking the connection: a phone's share sheet and app (or two requests from one app)
+// refreshing at the same moment is normal, not theft. Kept in memory only (never the raw tokens in
+// the database); a replay after the window, or one this server copy didn't answer, is treated as
+// before. ponytail: per-process memory; a multi-isolate self-host refuses (without revoking) instead.
+const REFRESH_GRACE_MS = 30 * 1000;
+type TokenPair = Awaited<ReturnType<typeof issueTokens>>;
+const recentRefreshes = new Map<string, { at: number; clientId: string; tokens: Promise<TokenPair> }>();
+
 type ClientRow = { id: string; name: string; redirect_uris: string; created_at: string };
 
 // Issuer/resource URLs must be the public https origin, not whatever a reverse proxy forwarded.
@@ -310,20 +319,45 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
   if (p.grant_type === 'refresh_token') {
     if (!p.refresh_token) return oauthError(c, 'invalid_request', 'refresh_token is required');
     const hash = await sha256Hex(p.refresh_token);
+    const sameAgain = async () => {
+      const recent = recentRefreshes.get(hash);
+      if (!recent || Date.now() - recent.at >= REFRESH_GRACE_MS || (p.client_id && p.client_id !== recent.clientId)) return null;
+      return recent.tokens;
+    };
+    const again = await sameAgain();
+    if (again) {
+      c.header('Cache-Control', 'no-store');
+      return c.json(again);
+    }
     const row = await db
       .prepare('SELECT r.grant_id, r.expires_at, r.used_at, g.scope, g.client_id, g.owner, cl.name AS client_name FROM oauth_refresh_tokens r JOIN oauth_grants g ON g.id = r.grant_id JOIN oauth_clients cl ON cl.id = g.client_id WHERE r.hash = ?')
       .bind(hash)
       .first<{ grant_id: string; expires_at: string; used_at: string | null; scope: KeyScope; client_id: string; owner: string | null; client_name: string }>();
     if (!row) return oauthError(c, 'invalid_grant', 'unknown refresh token');
-    if (row.used_at) {
+    if (row.expires_at < now || (p.client_id && p.client_id !== row.client_id)) return oauthError(c, 'invalid_grant', 'refresh token expired or not for this client');
+    // Check-and-mark in one statement, so two refreshes landing together can't both pass.
+    const marked = row.used_at ? 0 : (await db.prepare('UPDATE oauth_refresh_tokens SET used_at = ? WHERE hash = ? AND used_at IS NULL').bind(now, hash).run()).meta.changes;
+    if (!marked) {
+      // Lost the race to a refresh a moment ago (the phone's share sheet and the app at once):
+      // hand back that same pair. Without it (another server copy), refuse without revoking.
+      const same = await sameAgain();
+      if (same) {
+        c.header('Cache-Control', 'no-store');
+        return c.json(same);
+      }
+      const usedAt = row.used_at ?? (await db.prepare('SELECT used_at FROM oauth_refresh_tokens WHERE hash = ?').bind(hash).first<{ used_at: string | null }>())?.used_at;
+      if (usedAt && Date.now() - Date.parse(usedAt) < REFRESH_GRACE_MS) return oauthError(c, 'invalid_grant', 'refresh token was just used');
       // Rotation reuse = likely theft. Revoke the whole connection; the user re-approves.
       await revokeGrant(db, row.grant_id, { why: 'an old sign-in token was used again' });
       return oauthError(c, 'invalid_grant', 'refresh token already used');
     }
-    if (row.expires_at < now || (p.client_id && p.client_id !== row.client_id)) return oauthError(c, 'invalid_grant', 'refresh token expired or not for this client');
-    await db.prepare('UPDATE oauth_refresh_tokens SET used_at = ? WHERE hash = ?').bind(now, hash).run();
+    const at = Date.now();
+    for (const [k, v] of recentRefreshes) if (at - v.at >= REFRESH_GRACE_MS) recentRefreshes.delete(k);
+    const tokens = issueTokens(db, { id: row.grant_id, scope: row.scope, clientName: row.client_name, owner: row.owner });
+    recentRefreshes.set(hash, { at, clientId: row.client_id, tokens });
+    tokens.catch(() => recentRefreshes.delete(hash));
     c.header('Cache-Control', 'no-store');
-    return c.json(await issueTokens(db, { id: row.grant_id, scope: row.scope, clientName: row.client_name, owner: row.owner }));
+    return c.json(await tokens);
   }
 
   return oauthError(c, 'unsupported_grant_type', 'use authorization_code or refresh_token');

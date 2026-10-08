@@ -88,13 +88,45 @@ test('oauth: full flow issues a working token; refresh rotates; revoking in Sett
   assert.equal(dead.status, 400);
 });
 
-test('oauth: a reused refresh token revokes the whole connection', async () => {
+test('oauth: a reused refresh token revokes the whole connection', async (tc) => {
   const t = setup();
+  tc.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   const tok = await (await exchange(t, await authorize(t))).json() as any;
   const next = await (await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }))).json() as any;
+  tc.mock.timers.tick(31_000); // past the grace window for a refresh race
   const replay = await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }));
   assert.equal(((await replay.json()) as any).error, 'invalid_grant');
   assert.equal((await t.mcp(next.access_token)).status, 401, 'tokens from the rotated chain are dead too');
+});
+
+test('oauth: two refreshes of the same token at once get the same new pair and keep the sign-in', async () => {
+  const t = setup();
+  const tok = await (await exchange(t, await authorize(t))).json() as any;
+  const refresh = () => t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }));
+  const results = await Promise.all([refresh(), refresh(), refresh()]);
+  const bodies = await Promise.all(results.map((r) => r.json() as Promise<any>));
+  assert.deepEqual(results.map((r) => r.status), [200, 200, 200]);
+  assert.equal(new Set(bodies.map((b) => b.refresh_token)).size, 1, 'one new refresh token, not two chains');
+  assert.equal(new Set(bodies.map((b) => b.access_token)).size, 1);
+  assert.equal((await t.mcp(bodies[0].access_token)).status, 200, 'the sign-in is not revoked');
+  const db = t.env.DB as any;
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM oauth_refresh_tokens WHERE used_at IS NULL').first()).n, 1);
+  // A retry a few seconds later still gets the same pair; the chain carries on from it.
+  const later = await (await refresh()).json() as any;
+  assert.equal(later.refresh_token, bodies[0].refresh_token);
+  const onward = await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: later.refresh_token }));
+  assert.equal(onward.status, 200);
+});
+
+test('oauth: a just-used refresh token this server copy did not answer is refused without revoking', async () => {
+  const t = setup();
+  const tok = await (await exchange(t, await authorize(t))).json() as any;
+  const db = t.env.DB as any;
+  // Another server copy marked it used a moment ago.
+  await db.prepare('UPDATE oauth_refresh_tokens SET used_at = ?').bind(new Date().toISOString()).run();
+  const res = await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }));
+  assert.equal(((await res.json()) as any).error, 'invalid_grant');
+  assert.equal((await t.mcp(tok.access_token)).status, 200, 'still signed in');
 });
 
 test('oauth: PKCE, code reuse, expiry and redirect mismatches are refused', async () => {
