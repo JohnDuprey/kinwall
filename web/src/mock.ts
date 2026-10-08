@@ -414,6 +414,7 @@ const chores: Chore[] = [
   { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4', pluginId: null, pluginMinutes: null },
   { id: 'ch7', title: 'Bedtime routine', emoji: '🌙', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '20:00', active: true, sort: 7, listId: 'l6', pluginId: null, pluginMinutes: null },
   // An activity chore: tapping the card plays Spelling practice as Maya, and 10 minutes of it ticks it.
+  { id: 'ch9', title: 'Practice piano', emoji: '🎹', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '16:00', timerMinutes: 20, active: true, sort: 9, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean }>() // key `${choreId}:${date}`
@@ -1255,7 +1256,7 @@ export const mock = {
     })
   },
   createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null }
+    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null }
     chores.push(nc); bump(); return nc
   },
   updateChore: async (id: string, patch: Partial<Chore>) => {
@@ -1882,8 +1883,12 @@ function mockBoard(days: number): Board {
     chores: !settings.features.chores ? [] : owners.map(id => {
       const mine = todays.filter(c => c.memberId === id)
       const m = members.find(x => x.id === id)
-      return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`)).length }
+      return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`) || !!completions.get(`${c.id}:${today}`)?.pending).length }
     }).filter(c => c.total > 0),
+    timedChores: !settings.features.chores ? [] : todays.filter(c => c.dueTime || c.timerMinutes).map(c => {
+      const comp = completions.get(`${c.id}:${today}`)
+      return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending }
+    }),
     birthdays,
     meals: [], // api.ts adds the demo menu (mock-meals.ts)
     booksDue: bookLibrary.filter(b => b.borrowedFrom && b.dueOn && !b.returnedOn && b.dueOn <= to)

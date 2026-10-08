@@ -417,7 +417,7 @@ export interface Chore {
   points: number
   rrule: string | null
   dueDate: string | null
-  dueTime: string | null
+  dueTime: string | null // start time, "HH:MM"
   active: boolean
   sort: number
   listId: string | null // checklist: a list that must be fully ticked before the chore can be completed
@@ -426,6 +426,7 @@ export interface Chore {
   needsApproval?: boolean | null // ticks from wall screens and kids' devices wait for a parent's OK; null = the person's default
   approveTimedPlay?: boolean // activity chores: timed play waits for an OK too (auto-approves otherwise)
   libraryId?: string | null // made from this chore library item
+  timerMinutes?: number | null // Start runs the app's timer this long (ChoreTimer.tsx)
 }
 
 /** A saved chore in the chore library (server: routes/chore-library.ts). Parent devices only. */
@@ -994,6 +995,8 @@ export interface Snapshot {
   checkInPoints: number // what checking in earns; 0 = off
 }
 /** GET /api/board?days=N - the whole family's bulletin board, today through `to`. */
+export interface TimedChore { id: string; title: string; emoji: string | null; memberId: string | null; dueTime: string | null; timerMinutes: number | null; done: boolean; pending: boolean }
+
 export interface Board {
   today: string
   to: string
@@ -1002,6 +1005,7 @@ export interface Board {
   events: SnapshotEvent[] // everyone's, sorted by start
   items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
   chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number; pending?: number }[]
+  timedChores?: TimedChore[] // today's chores with a start time or a timer: rows of their own on Today
   birthdays: SnapshotBirthday[]
   meals: Meal[] // today through `to`; [] while Meals is off
   booksDue: { id: string; title: string; borrowedFrom: string; dueOn: string; date: string; overdue: boolean }[] // borrowed library books due back; date: the board day (overdue ones show today)

@@ -562,7 +562,7 @@ export const ChoreSchema = z
     points: z.number(),
     rrule: z.string().nullable(),
     dueDate: z.string().nullable(),
-    dueTime: z.string().nullable(),
+    dueTime: z.string().nullable().openapi({ description: 'Start time, "HH:MM" (24-hour, household time): when the chore should start each day it is due. It shows on the chore and as its own row on the Board\'s Today card.' }),
     active: z.boolean(),
     sort: z.number(),
     listId: z.string().nullable().openapi({ description: 'Checklist: a list that must be fully ticked before the chore can be completed.' }),
@@ -571,6 +571,7 @@ export const ChoreSchema = z
     needsApproval: z.boolean().nullable().openapi({ description: "Ticks from wall screens and kids' devices wait for a parent's OK. null follows the person's default (Member.needsApproval)." }),
     approveTimedPlay: z.boolean().openapi({ description: "Activity chores: completion by timed play also waits for a parent's OK (it auto-approves otherwise)." }),
     libraryId: z.string().nullable().openapi({ description: 'The chore library item it was made from (see /api/chore-library), if any. Its completions count as that item\'s "last done".' }),
+    timerMinutes: z.number().nullable().openapi({ description: 'Timer length in minutes ("Practice piano - 20 min"): Start on the chore runs the app\'s timer this long, and when it rings it offers to mark the chore done. null = no timer.' }),
   })
   .openapi('Chore');
 
@@ -582,7 +583,7 @@ export const ChoreInputSchema = z
     points: z.number().optional(),
     rrule: z.string().nullable().optional(),
     dueDate: z.string().nullable().optional(),
-    dueTime: z.string().nullable().optional(),
+    dueTime: z.string().regex(HHMM_RE, 'Use a time like 16:00.').nullable().optional().openapi({ description: 'Start time, "HH:MM" (24-hour, household time); null for none.' }),
     active: z.boolean().optional(),
     sort: z.number().optional(),
     listId: z.string().nullable().optional().openapi({ description: 'Checklist list id; null to unlink. A reusable list resets when the chore is completed.' }),
@@ -591,6 +592,7 @@ export const ChoreInputSchema = z
     needsApproval: z.boolean().nullable().optional().openapi({ description: "true/false overrides the person's default; null follows it." }),
     approveTimedPlay: z.boolean().optional(),
     libraryId: z.string().nullable().optional().openapi({ description: 'Create only: the chore library item this chore is made from (e.g. a repeating version of it).' }),
+    timerMinutes: z.number().int().min(1).max(240).nullable().optional().openapi({ description: 'Timer length in minutes, 1-240; null for no timer.' }),
   })
   .openapi('ChoreInput');
 
@@ -1467,6 +1469,10 @@ export const BoardSchema = z
     items: z.array(SnapshotItemSchema), // anyone's open items due by `to` (incl. overdue), plus undated urgent/high
     chores: z.array(
       z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number(), pending: z.number() }), // pending: of remaining, ticked and waiting for a parent's OK
+    ),
+    // Today's chores with a start time or a timer, each on its own: the Board's Today card shows them as rows among the day's events.
+    timedChores: z.array(
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean() }),
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
     meals: z.array(MealSchema),

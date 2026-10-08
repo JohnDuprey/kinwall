@@ -70,6 +70,8 @@ function birthdaysInRange(
   return birthdays;
 }
 
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 const priorityRank = (p: string) => ({ urgent: 0, high: 1, normal: 2, low: 3 } as Record<string, number>)[p] ?? 2;
 
 snapshotRoutes.openapi(
@@ -248,6 +250,10 @@ snapshotRoutes.openapi(
         return { memberId, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, remaining: rows.filter((r) => !completedToday.has(r.id)).length, total: rows.length, pending: rows.filter((r) => pendingToday.has(r.id)).length };
       })
       .filter((c) => c.total > 0);
+    // A start time that isn't "HH:MM" (an older free-text one from the API) isn't a time to sort by.
+    const timedChores = !settings.features.chores ? [] : dueToday
+      .filter((r) => (r.due_time && HHMM.test(r.due_time)) || r.timer_minutes)
+      .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, dueTime: r.due_time && HHMM.test(r.due_time) ? r.due_time : null, timerMinutes: r.timer_minutes ?? null, done: completedToday.has(r.id), pending: pendingToday.has(r.id) }));
 
     const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);
     const itemRows = settings.features.lists ? itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[] : [];
@@ -272,6 +278,7 @@ snapshotRoutes.openapi(
       events,
       items,
       chores,
+      timedChores,
       birthdays: birthdays.filter((b) => b.date <= to),
       meals: meals.filter((m) => m.date <= to),
       booksDue,

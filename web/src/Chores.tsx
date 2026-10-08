@@ -19,6 +19,9 @@ import { ChoreLibrarySheet, type RepeatDraft } from './ChoreLibrary.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { intervalRrule, repeatText } from './choreLibrary.ts'
 import { Face, type FaceMember, ChipFace } from './Face'
+import { ChoreTimerText, startChoreTimer } from './ChoreTimer.tsx'
+import { formatTime } from './timeFormat.ts'
+import { durationLabel } from './timers.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -204,6 +207,9 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   const actProgress = act && !chore.completed && act.doneSeconds > 0 ? `${Math.floor(act.doneSeconds / 60)} of ${act.needSeconds / 60} min` : ''
   const player = chore.memberId ?? selectedMemberId
   const play = () => { location.hash = `#/activities/plugin/${act!.pluginId}${player ? `?member=${player}` : ''}` }
+  // A timer (not on an activity chore, which times itself): tapping the card starts it, the check ticks it.
+  const timer = !act && !ticked && chore.timerMinutes ? chore.timerMinutes : 0
+  const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? formatTime(chore.dueTime) : ''
   const [burst, setBurst] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout>>()
   const longPressed = useRef(false)
@@ -225,7 +231,8 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
       <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
       <div className="chore-info">
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-        <div className="chore-pts">{[by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
+        <div className="chore-pts">{[startsAt, by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
+        {timer > 0 && <div className="chore-pts chore-activity"><ChoreTimerText chore={chore} /></div>}
         {pending && <div className="chore-waiting">Waiting for OK</div>}
         {notYet && <div className="chore-notyet">{notYet}</div>}
         {actLabel && <div className="chore-pts chore-activity">{actLabel}</div>}
@@ -235,14 +242,14 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   )
   const check = <div className={`chore-check ${chore.completed ? 'done' : pending ? 'pending' : ''}`}>{chore.completed ? <CheckIcon width={18} height={18} /> : pending && <span aria-hidden="true">⏳</span>}</div>
   const said = [pending && "waiting for a parent's OK", notYet].filter(Boolean)
-  if (act) {
-    // Two controls: play (the card) and done (the check). Long-press/right-click still edits.
+  if (act || timer) {
+    // Two controls: play or start the timer (the card) and done (the check). Long-press/right-click still edits.
     return (
       <>
         <div className={`chore-card ${chore.completed ? 'done' : ''}`} onContextMenu={e => { e.preventDefault(); onEdit() }}
           onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
-          <button className="chore-play" aria-label={[`Play ${act.name} for ${chore.title}`, actLabel, actProgress && `${actProgress} played`].filter(Boolean).join(', ')}
-            onClick={() => { if (longPressed.current) { longPressed.current = false; return } play() }}>{info}</button>
+          <button className="chore-play" aria-label={act ? [`Play ${act.name} for ${chore.title}`, actLabel, actProgress && `${actProgress} played`].filter(Boolean).join(', ') : [`Start a ${durationLabel(timer)} timer for ${chore.title}`, startsAt && `starts at ${startsAt}`].filter(Boolean).join(', ')}
+            onClick={() => { if (longPressed.current) { longPressed.current = false; return } if (act) play(); else startChoreTimer(chore, members.find(m => m.id === player)?.name) }}>{info}</button>
           <button className="chore-check-btn" role="checkbox" aria-checked={pending ? 'mixed' : chore.completed}
             aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`, ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
@@ -263,7 +270,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={pending ? 'mixed' : chore.completed} tabIndex={0}
-        aria-label={[chore.title, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel, ...said].filter(Boolean).join(', ')}
+        aria-label={[chore.title, startsAt && `starts at ${startsAt}`, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel, ...said].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
         onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)} onClick={handleClick}>
         {info}
@@ -516,14 +523,16 @@ export default function Chores() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   useEffect(() => {
-    const id = new URLSearchParams(location.hash.split('?')[1] || '').get('done')
+    const params = new URLSearchParams(location.hash.split('?')[1] || '')
+    const id = params.get('done')
     if (!id || loading) return
     if (key !== dateKey(new Date())) { setSelectedDate(new Date()); return } // the widget shows today
     history.replaceState(null, '', '#/chores')
     const c = chores.find(x => x.id === id)
     if (!c || c.completed || c.pending) return
     const opensSheet = (c.checklist && c.checklist.done < c.checklist.total) || (!c.memberId && !selectedMemberId && members.length > 0)
-    if (opensSheet) { toggle(c); return }
+    // sure=1: "Mark done" on the chore's own timer, which already asked.
+    if (opensSheet || params.get('sure') === '1') { toggle(c); return }
     const who = members.find(m => m.id === (c.memberId ?? selectedMemberId))?.name
     dialog.confirm({ title: `Mark "${c.title}" done${who ? ` for ${who}` : ''}?`, confirmLabel: 'Mark done' }).then(ok => { if (ok) toggle(c) })
   }, [loading, chores, hashTick]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -680,6 +689,8 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   const [minutes, setMinutes] = useState(chore?.pluginMinutes ?? 5)
   const [needsApproval, setNeedsApproval] = useState<boolean | null>(chore?.needsApproval ?? from?.needsApproval ?? null)
   const [approveTimedPlay, setApproveTimedPlay] = useState(!!chore?.approveTimedPlay)
+  const [timerMinutes, setTimerMinutes] = useState<number | null>(chore?.timerMinutes ?? null)
+  const [startTime, setStartTime] = useState(chore?.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? chore.dueTime : '') // an older free-text one isn't kept
   const [plugins, setPlugins] = useState<Plugin[]>([])
   useEffect(() => { api.getPlugins().then(setPlugins).catch(() => { /* no activities to offer */ }) }, [])
   // The family's activities that are on, plus the linked one even if it's off (so saving keeps it).
@@ -701,7 +712,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
     if (!title.trim() || !isSingleEmoji(emoji)) return
     const rrule = schedTouched || (!chore && !draft) ? formToRrule(sched) : storedRrule
     // A repeat from the library starts on the day picked there (its anchor); others on their creation day.
-    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule && !draft ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, ...(from ? { libraryId: from.id } : {}) }
+    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule && !draft ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -791,6 +802,22 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
           )}
         </div>
       )}
+      <div className="field">
+        <label htmlFor="chore-start">Start time (optional)</label>
+        <div className="timer-custom-row">
+          <input id="chore-start" type="time" value={startTime} aria-describedby="chore-start-hint" onChange={e => setStartTime(e.target.value)} />
+          {startTime && <button type="button" className="btn btn-secondary" onClick={() => setStartTime('')}>No start time</button>}
+        </div>
+        <p className="field-hint" id="chore-start-hint">When it should start, every day it's due. It shows on Today on the Board.</p>
+      </div>
+      {!pluginId && <div className="field">
+        <label htmlFor="chore-timer">Timer (optional)</label>
+        <select id="chore-timer" value={timerMinutes ?? ''} onChange={e => setTimerMinutes(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">None</option>
+          {[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
+        </select>
+        <p className="field-hint">Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.</p>
+      </div>}
       <div className="field">
         <label htmlFor="chore-approval">Needs a parent's OK</label>
         <select id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>

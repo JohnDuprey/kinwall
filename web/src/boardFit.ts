@@ -143,3 +143,19 @@ export function todayOrder<T extends { start: string; end: string; allDay: boole
  *  when its lines still leave `keep` (the card's first row and More) of the `space`. Never clipped. */
 export const chipWords = (chips: number, words: number, space: number, keep: number) =>
   words <= chips + 0.5 || space - words >= keep - 0.5
+
+/** Today's rows on the Board: the events (in todayOrder's order) with the chores that have a start
+ *  time or a timer between them by time of day. `minute`: an event's start in minutes after midnight
+ *  (-1 for all day or one that began before today). A chore with a timer and no start time goes
+ *  last; one that's done or waiting for a parent's OK drops off, like an event that's over. */
+export function withTimedChores<E, C extends { dueTime: string | null; done: boolean; pending: boolean }>(events: E[], minute: (e: E) => number, chores: C[]): ({ event: E } | { chore: C })[] {
+  const at = (t: string | null) => t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : 24 * 60
+  const left = chores.filter(c => !c.done && !c.pending).sort((a, b) => at(a.dueTime) - at(b.dueTime))
+  const out: ({ event: E } | { chore: C })[] = []
+  let i = 0
+  for (const event of events) {
+    while (i < left.length && at(left[i].dueTime) < minute(event)) out.push({ chore: left[i++] })
+    out.push({ event })
+  }
+  return [...out, ...left.slice(i).map(chore => ({ chore }))]
+}

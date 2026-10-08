@@ -7,7 +7,7 @@ import { timerActivity, timerName } from './liveActivity.ts'
 import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
 import Sheet from './Sheet.tsx'
 import {
-  clock, dismissRung, durationLabel, getTimers, isRunning, pauseTimer, remaining, resetTimer, resumeTimer, ringDue,
+  choreOfTimer, clock, dismissRung, durationLabel, getTimers, isRunning, pauseTimer, remaining, resetTimer, resumeTimer, ringDue,
   startTimer, stopTimer, subscribeTimers, type NewTimer, type Timer,
 } from './timers.ts'
 
@@ -98,7 +98,15 @@ export function TimerHost() {
   return createPortal(
     <div className="timer-alarm">
       <span>⏰ Time's up: {rang.map(t => [t.label, about(t)].filter(Boolean).join(', ')).join('; ')}</span>
-      <button type="button" className="btn" onClick={dismissRung}>OK</button>
+      {/* A chore's timer offers to mark it done: the Chores tab ticks it (who did it, a checklist, a parent's OK as usual). */}
+      <div className="timer-alarm-actions">
+        {rang.filter(t => choreOfTimer(t)).map(t => (
+          <button key={t.id} type="button" className="btn" onClick={() => { stopTimer(t.id); location.hash = `#/chores?done=${encodeURIComponent(choreOfTimer(t)!)}&sure=1` }}>
+            {rang.length > 1 ? `Mark ${timerName(t.label)} done` : 'Mark done'}
+          </button>
+        ))}
+        <button type="button" className="btn" onClick={dismissRung}>OK</button>
+      </div>
     </div>,
     document.body,
   )

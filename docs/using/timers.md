@@ -24,3 +24,4 @@ A red banner flashes across the top of the screen, over whatever is showing (the
 * Timers belong to the device they were started on. A timer started on a phone doesn't show on the wall.
 * They keep running through a reload, when a wall screen goes back to the calendar after sitting idle, and after you close cooking mode.
 * Cooking mode's step timers are the same timers: they show under the header's timer button too.
+* A chore's timer is one of these too: tap a chore that has one, or **Start** on the Board's Today card, and **Mark done** on the banner ticks it off. See [Start time and timer](chores.md#start-time-and-timer).

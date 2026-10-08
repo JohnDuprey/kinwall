@@ -91,3 +91,43 @@ test('chores: a linked checklist gates completion (409 until every item is ticke
   // Unlink via PATCH.
   assert.equal((await json(await req(`/api/chores/${chore.id}`, 'PATCH', { listId: null }))).listId, null);
 });
+
+test('chores: a timer and a start time are saved, changed, cleared, checked, and shown on the Board on their own', async () => {
+  const { createApp } = await import('../src/app.ts');
+  const { openDb, applyMigrations } = await import('../src/d1-sqlite.ts');
+  const path = await import('node:path');
+  const db = openDb(':memory:');
+  applyMigrations(db, path.join(import.meta.dirname, '..', 'migrations'));
+  const env = { DB: db, ADMIN_API_KEY: 'k', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const req = (p: string, method: string, body?: unknown) =>
+    createApp().request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: 'Bearer k', 'Content-Type': 'application/json' } }, env);
+  const json = async (r: Response) => (await r.json()) as any;
+
+  const created = await req('/api/chores', 'POST', { title: 'Practice piano', emoji: '🎹', rrule: 'FREQ=DAILY', dueTime: '16:00', timerMinutes: 20 });
+  assert.equal(created.status, 201);
+  const piano = await json(created);
+  assert.equal(piano.timerMinutes, 20);
+  assert.equal(piano.dueTime, '16:00');
+  const plain = await json(await req('/api/chores', 'POST', { title: 'Make bed', rrule: 'FREQ=DAILY' }));
+  assert.equal(plain.timerMinutes, null);
+
+  // Bad values are refused.
+  assert.equal((await req('/api/chores', 'POST', { title: 'x', timerMinutes: 0 })).status, 400);
+  assert.equal((await req('/api/chores', 'POST', { title: 'x', timerMinutes: 241 })).status, 400);
+  assert.equal((await req('/api/chores', 'POST', { title: 'x', dueTime: '4pm' })).status, 400);
+  assert.equal((await req(`/api/chores/${piano.id}`, 'PATCH', { dueTime: '24:00' })).status, 400);
+
+  // A change keeps the other field; null clears.
+  const changed = await json(await req(`/api/chores/${piano.id}`, 'PATCH', { timerMinutes: 30 }));
+  assert.equal(changed.timerMinutes, 30);
+  assert.equal(changed.dueTime, '16:00');
+
+  const board = await json(await req('/api/board', 'GET'));
+  assert.deepEqual(board.timedChores.map((c: any) => [c.title, c.dueTime, c.timerMinutes, c.done]), [['Practice piano', '16:00', 30, false]]);
+  assert.equal(board.chores.reduce((n: number, c: any) => n + c.total, 0), 2); // still counted with the rest
+
+  const cleared = await json(await req(`/api/chores/${piano.id}`, 'PATCH', { timerMinutes: null, dueTime: null }));
+  assert.equal(cleared.timerMinutes, null);
+  assert.equal(cleared.dueTime, null);
+  assert.deepEqual((await json(await req('/api/board', 'GET'))).timedChores, []);
+});

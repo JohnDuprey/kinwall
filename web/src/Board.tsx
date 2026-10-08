@@ -6,10 +6,11 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { createPortal } from 'react-dom'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent } from './types.ts'
+import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent, TimedChore } from './types.ts'
 import { rewardsOn } from './types.ts'
 import { zonedParts } from './date.ts'
 import { formatTime } from './timeFormat.ts'
+import { durationLabel } from './timers.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
 import { boardSources, nightFieldsFor } from './saverSources.ts'
@@ -23,12 +24,13 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
 import { clockTimeZone } from './timezone.ts'
 import { Face } from './Face'
+import { ChoreTimerButton } from './ChoreTimer.tsx'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -369,29 +371,38 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const has = (a: string) => shown.includes(a)
   const dense = (a: string) => custom?.density.get(a)
   const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
+  // Chores with a start time or a timer are rows of their own on Today (withTimedChores), so its
+  // summary counts the rest; the Chores card and tiles still count them all.
+  const timed = boardChores(data.timedChores ?? [], selectedMemberId, focusMemberId, focusShowsShared)
+  const restChores = !timed.length ? chores : chores.map(c => {
+    const own = timed.filter(t => t.memberId === c.memberId)
+    return { ...c, remaining: c.remaining - own.filter(t => !t.done).length, total: c.total - own.length }
+  }).filter(c => c.total > 0)
+  const restLeft = restChores.reduce((n, c) => n + c.remaining, 0)
   const overdue = items.filter(i => i.overdue).length
   const dueWeek = items.filter(i => !i.overdue && i.dueDate).length
   const dueToday = items.filter(i => i.overdue || i.dueDate === today)
   const dueLater = items.filter(i => !i.overdue && i.dueDate && i.dueDate > today).length
   const dueSummary = [overdue > 0 && `${overdue} overdue`, dueToday.length - overdue > 0 && `${dueToday.length - overdue} due today`, dueLater > 0 && `${dueLater} later this week`].filter(Boolean).join(' · ')
-  const choresPeople = chores.length > 0 && <span className="board-tile-people">
-    {chores.map(c => (
+  const choresPeople = restChores.length > 0 && <span className="board-tile-people">
+    {restChores.map(c => (
       <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
         <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
         <span aria-hidden="true">{c.remaining || '✓'}</span>
       </span>
     ))}
   </span>
-  const choresText = choresLeft ? `${choresLeft} left today` : 'All done ✓'
+  const choresText = restLeft ? `${restLeft} left today` : 'All done ✓'
+  const choresName = timed.length ? 'Other chores' : 'Chores'
   const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
   // Today's slot, in order: Take now, today's chores, what's due today (the week's still a tap away), an open poll.
   const todaySlot = [
     todayTiles && medsSlot.item,
-    todayTiles && choresTile && chores.length > 0 && {
+    todayTiles && choresTile && restChores.length > 0 && {
       key: 'chores',
-      chip: <a className="board-slot-chip" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{choresLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!choresLeft ? 'All done' : choresLeft === 1 ? '1 chore' : `${choresLeft} chores`}</span></a>,
-      row: <a className="board-slot-row" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">Chores · {choresText}</span></a>,
-      full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>Chores · {choresText}</span>{choresPeople}</a>,
+      chip: <a className="board-slot-chip" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{restLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!restLeft ? 'All done' : restLeft === 1 ? '1 chore' : `${restLeft} chores`}</span></a>,
+      row: <a className="board-slot-row" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">{choresName} · {choresText}</span></a>,
+      full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
     },
     todayTiles && dueTile && items.length > 0 && dueSummary && {
       key: 'due',
@@ -505,13 +516,18 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
               <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
             ))
             const books = bookRows(today)
-            if (!bdays.length && !todays.shown.length && !todays.earlier.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
+            // Chores with a start time or a timer, among the events by time (boardFit.ts withTimedChores).
+            const startOf = (e: SnapshotEvent) => { const z = zonedParts(e.start, tz); return e.allDay || `${z.year}-${String(z.month).padStart(2, '0')}-${String(z.day).padStart(2, '0')}` < today ? -1 : z.hour * 60 + z.minute }
+            const rows = withTimedChores(todays.shown, startOf, timed)
+            if (!bdays.length && !rows.length && !todays.earlier.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
             return (
               <ul className="snap-list">
                 {goals}
                 {bdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you="" close={noop} />)}
                 {books}
-                {todays.shown.map(e => <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={onTap} />)}
+                {rows.map(r => 'event' in r
+                  ? <EventLine key={`${r.event.id}:${r.event.start}`} e={r.event} tz={tz} byId={byId} onTap={onTap} />
+                  : <ChoreLine key={`chore:${r.chore.id}`} c={r.chore} who={byId.get(r.chore.memberId ?? selectedMemberId ?? '')} />)}
                 {todays.earlier.length > 0 && <li><button className="snap-row board-earlier" aria-haspopup="dialog" onClick={() => setEarlierOpen(true)}>
                   {todays.earlier.length === 1 ? '1 event earlier today' : `${todays.earlier.length} events earlier today`}<span aria-hidden="true"> ›</span>
                 </button></li>}
@@ -709,6 +725,28 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
         {who.length > 0 && <span className="board-avatars" aria-hidden="true">{who.map(m => <Avatar key={m.id} m={m} />)}</span>}
       </button>
     </li>
+  )
+}
+
+/** A chore with a start time or a timer on Today, like an event: "4:00 PM · 20 min", "🎹 Practice
+ *  piano", whose it is, and Start for its timer (ChoreTimer.tsx). Without a timer it opens the Chores tab. */
+function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
+  const when = [c.dueTime ? formatTime(c.dueTime) : 'Today', c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
+  const main = <>
+    <span className="board-bar" style={{ background: who?.color ?? 'var(--border)' }} aria-hidden="true" />
+    <span className="snap-main" aria-hidden="true">
+      <span className="board-when">{when}</span>
+      <span className="snap-title">{c.emoji && <span>{c.emoji}</span>}{c.title}</span>
+    </span>
+    {who && <span className="board-avatars" aria-hidden="true"><Avatar m={who} /></span>}
+  </>
+  const label = `Chore: ${[c.dueTime && formatTime(c.dueTime), c.title, c.timerMinutes && `${durationLabel(c.timerMinutes)} timer`, who?.name ?? (!c.memberId && 'anyone')].filter(Boolean).join(', ')}`
+  if (!c.timerMinutes) return <li><a className="snap-row board-event board-chore-line" href="#/chores" aria-label={label}>{main}</a></li>
+  return (
+    <li><div className="snap-row board-event board-chore-line" role="group" aria-label={label}>
+      {main}
+      <ChoreTimerButton chore={c} who={who?.name} />
+    </div></li>
   )
 }
 

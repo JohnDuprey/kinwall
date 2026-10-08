@@ -2306,7 +2306,9 @@ a.activity-card:active { transform: scale(0.98); }
   background: var(--danger-fill); color: #fff; font-size: 1.25rem; font-weight: 800; box-shadow: var(--shadow);
   animation: timer-flash 0.8s ease-in-out infinite alternate;
 }
-.timer-alarm span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.timer-alarm { flex-wrap: wrap; row-gap: 8px; } /* with a chore's "Mark done" the buttons wrap under the words on a phone */
+.timer-alarm-actions { display: flex; gap: 12px; margin-left: auto; }
+.timer-alarm span { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
 .timer-alarm .btn { flex: none; min-width: 96px; background: #fff; color: var(--danger-fill); }
 @keyframes timer-flash { to { filter: brightness(1.35); } }
 @media (prefers-reduced-motion: reduce) { .timer-alarm { animation: none; } }
@@ -2855,6 +2857,11 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-event { align-items: flex-start; }
 .board-when { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .board-event.past { opacity: 0.55; }
+/* A chore on the Board's Today card (Board.tsx ChoreLine): Start for its timer at the row's end. */
+.board-chore-line { align-items: center; }
+.board-chore-line .snap-main { align-self: flex-start; }
+.chore-timer-start { flex: none; min-height: 44px; padding: 0 14px; }
+.chore-timer-left { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-text); }
 .board-day + .board-day { margin-top: 10px; }
 .board-chore { align-items: center; }
 .board-meter { display: block; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 4px; }

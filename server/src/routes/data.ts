@@ -118,7 +118,7 @@ const ExportSchema = z
     hiddenEvents: z.array(z.object({ calendarId: z.string(), scope: z.enum(['occurrence', 'series']), key: z.string(), title: z.string(), start: z.string(), allDay: z.boolean() })),
     // listId: exports before 0027 lack it; pluginId/pluginMinutes before 0033.
     // needsApproval/approveTimedPlay before 0037.
-    chores: z.array(ChoreSchema.extend({ libraryId: z.string().nullable().default(null), listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false), archived: z.boolean().default(false) })), // archived: deleted after it was done, kept for its history
+    chores: z.array(ChoreSchema.extend({ libraryId: z.string().nullable().default(null), listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false), archived: z.boolean().default(false), timerMinutes: z.number().nullable().default(null) })), // archived: deleted after it was done, kept for its history
     // The chore library (0082): saved chores to hand out. Older exports predate it.
     choreLibrary: z.array(LibraryChoreSchema.pick({ id: true, title: true, emoji: true, points: true, listId: true, memberId: true, everyN: true, everyUnit: true, needsApproval: true, notes: true, createdAt: true })),
     // pointsAwarded: older exports predate it - null imports as the chore's full points.
@@ -249,7 +249,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -847,6 +847,7 @@ dataRoutes.openapi(
           plugin_minutes: ch.pluginId ? ch.pluginMinutes ?? null : null,
           needs_approval: ch.needsApproval == null ? null : ch.needsApproval ? 1 : 0,
           approve_timed_play: ch.approveTimedPlay ? 1 : 0,
+          timer_minutes: ch.timerMinutes,
           archived: ch.archived ? 1 : 0,
           library_id: ch.libraryId,
         })),

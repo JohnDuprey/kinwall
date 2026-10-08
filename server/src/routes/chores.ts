@@ -34,6 +34,7 @@ export type ChoreRow = {
   approve_timed_play?: number;
   archived?: number; // deleted after it was done: kept for its history (migration 0050)
   library_id?: string | null; // made from a chore library item (migration 0082)
+  timer_minutes?: number | null; // Start on the chore runs the app's timer this long (migration 0110)
 };
 
 export function toApi(row: ChoreRow) {
@@ -54,6 +55,7 @@ export function toApi(row: ChoreRow) {
     needsApproval: row.needs_approval == null ? null : !!row.needs_approval,
     approveTimedPlay: !!row.approve_timed_play,
     libraryId: row.library_id ?? null,
+    timerMinutes: row.timer_minutes ?? null,
   };
 }
 
@@ -83,9 +85,9 @@ async function checkLibrary(c: { env: Env }, libraryId: string | null | undefine
 export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
   await db
     .prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null)
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null)
     .run();
 }
 
@@ -142,6 +144,7 @@ choresRoutes.openapi(
       needs_approval: body.needsApproval == null ? null : body.needsApproval ? 1 : 0,
       approve_timed_play: body.approveTimedPlay ? 1 : 0,
       library_id: body.libraryId ?? null,
+      timer_minutes: body.timerMinutes ?? null,
     };
     await insertChore(c.env.DB, row);
     emit(c, 'chore.changed', { id: row.id });
@@ -191,12 +194,13 @@ choresRoutes.openapi(
       plugin_id: body.pluginId !== undefined ? body.pluginId : existing.plugin_id ?? null,
       needs_approval: body.needsApproval !== undefined ? (body.needsApproval === null ? null : body.needsApproval ? 1 : 0) : existing.needs_approval ?? null,
       approve_timed_play: body.approveTimedPlay !== undefined ? (body.approveTimedPlay ? 1 : 0) : existing.approve_timed_play ?? 0,
+      timer_minutes: body.timerMinutes !== undefined ? body.timerMinutes : existing.timer_minutes ?? null,
     };
     updated.plugin_minutes = updated.plugin_id ? body.pluginMinutes ?? existing.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null;
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, id)
       .run();
     emit(c, 'chore.changed', { id });
     return c.json(toApi(updated), 200);

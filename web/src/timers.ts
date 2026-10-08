@@ -34,6 +34,11 @@ export const wasReset = (ts: Timer[], id: number, at: number) => ts.map(t => t.i
 /** The running timers that are up at `at`. */
 export const due = (ts: Timer[], at: number) => ts.filter(t => isRunning(t) && t.endsAt <= at)
 
+/** A chore's timer (ChoreTimer.tsx) is keyed to it, so the chore can show it and "Mark done" can find it. */
+export const choreTimerKey = (choreId: string) => `chore:${choreId}`
+/** The chore a timer was started for, or null. */
+export const choreOfTimer = (t: Pick<Timer, 'key'>) => t.key?.startsWith('chore:') ? t.key.slice(6) : null
+
 // ---- The store ----
 
 const STORE_KEY = 'kinwall.timers'

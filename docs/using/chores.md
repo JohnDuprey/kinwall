@@ -35,6 +35,8 @@ Tap **+** (Add chore). The sheet has:
 | **Ends (optional)** (Daily/Weekly) | The last date it's due. It's stored as `UNTIL` in the rule. |
 | **Due date** (Once) | The day a one-off chore is due. |
 | **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See [Checklists](#checklists). |
+| **Start time (optional)** | When the chore should start, such as 4:00 PM. One time for every day it's due. It shows on the chore and on the Board's Today card. **No start time** clears it. |
+| **Timer (optional)** | How long it takes, such as 20 min. Tapping the chore starts a timer that long. See [Start time and timer](#start-time-and-timer). Not shown with an activity, which times itself. |
 | **Do an activity (optional)** | One of the family's [activities](activities.md) and **Minutes** (1–60, default 5). Playing it completes the chore. See [Activity chores](#activity-chores). Shown once an activity is installed. |
 | **Needs a parent's OK** | **Default**, **Yes** or **No**. See [Parent approval](#parent-approval). With an activity, also **Needs a parent's OK even for timed play**. |
 
@@ -64,6 +66,19 @@ So one "Bedtime" list can serve both Maya's and Leo's bedtime chores:
 Ticks are saved on the list itself. A shared item ticked by one child is ticked for the other too, while each child's own steps stay separate. Completing the chore resets only that person's items and the shared ones.
 
 **API and MCP:** `listId` on `POST/PATCH /api/chores`, `checklist` progress on `GET /api/chores/day`, and `POST /api/chores/{id}/complete` answers **409** with `remaining` while items are open. In MCP, use the `list` argument on `create_chore` and `update_chore`.
+
+## Start time and timer
+
+A chore can say when it starts and how long it takes, such as **🎹 Practice piano** at 4:00 PM for 20 minutes. Set either or both in the chore's sheet.
+
+* The card shows the start time ("4:00 PM · 5 pts · Daily") and, with a timer, **⏱ Start · 20 min**.
+* **Tap the card** to start the timer. It's the same [timer](timers.md) as the header's ⏱, named after the chore and its person ("Practice piano · 20 min, Maya"), so the header shows the time left and the card shows it too ("⏱ 12:34 left"). Tapping again while it runs doesn't start a second one. **Tap the check** to tick the chore off by hand, as with any chore.
+* Kids can start their own timers from their own device or from a wall screen. Starting a timer never ticks anything off.
+* When the time is up, the red banner has **Mark done** next to **OK**. **Mark done** opens Chores and ticks the chore off, the same as tapping its check: an **Anyone** chore asks **Who did it?** (unless the family is filtered to one person), a checklist with open items opens first, and a chore that needs a parent's OK waits for one. **OK** just stops the ringing; the chore stays open.
+* On the Board's **Today** card, chores with a start time or a timer get rows of their own among the day's events, in time order, such as "4:00 PM · 20 min 🎹 Practice piano" with the person's picture and **Start**. Chores with a timer and no start time come after the events. A chore drops off once it's done or waiting for a parent's OK. The rest of the day's chores stay in the **Chores** line under the events, which then reads **Other chores**.
+* Timers belong to the device they were started on, like every timer: one started on a kid's tablet rings there, not on the wall.
+
+**API and MCP:** `dueTime` (start time, `"HH:MM"`, 24-hour, household time) and `timerMinutes` (1–240) on `POST/PATCH /api/chores`; `null` clears either. `GET /api/board` lists today's chores with either in `timedChores`. In MCP, `create_chore` and `update_chore` take `dueTime` and `timerMinutes`.
 
 ## Activity chores
 

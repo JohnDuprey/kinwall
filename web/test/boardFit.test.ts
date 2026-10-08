@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -160,4 +160,17 @@ test('chipWords: the chips say what they count when that fits on their line, or 
   assert.equal(chipWords(44, 44, 100, 200), true, 'one line either way')
   assert.equal(chipWords(44, 94, 300, 200), true, 'two lines still leave the card a row and More')
   assert.equal(chipWords(44, 94, 250, 200), false, 'two lines would crowd out the card: counts only')
+})
+
+test('withTimedChores: chores with a start time sit among the events by time, timer-only ones last, finished ones gone', () => {
+  const ev = (title: string, minute: number) => ({ title, minute })
+  const ch = (title: string, dueTime: string | null, done = false, pending = false) => ({ title, dueTime, done, pending })
+  const rows = withTimedChores(
+    [ev('All day fair', -1), ev('Soccer', 15 * 60), ev('Dinner', 18 * 60)],
+    e => e.minute,
+    [ch('Read', null), ch('Practice piano', '16:00'), ch('Feed fish', '07:30'), ch('Walk dog', '15:00'), ch('Done one', '09:00', true), ch('Waiting one', '10:00', false, true)],
+  )
+  assert.deepEqual(rows.map(r => 'event' in r ? r.event.title : `chore:${r.chore.title}`),
+    ['All day fair', 'chore:Feed fish', 'Soccer', 'chore:Walk dog', 'chore:Practice piano', 'Dinner', 'chore:Read'])
+  assert.deepEqual(withTimedChores([], () => 0, [ch('Read', null)]).map(r => 'chore' in r && r.chore.title), ['Read'])
 })

@@ -778,7 +778,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'create_chore',
     {
       title: 'Create chore',
-      description: 'Create a recurring or one-off chore.',
+      description: 'Create a recurring or one-off chore, optionally with a start time and a timer.',
       inputSchema: {
         title: z.string(),
         emoji: z.string().optional(),
@@ -786,7 +786,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         points: z.number().optional(),
         rrule: z.string().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR. Omit for a one-off chore.'),
         dueDate: z.string().optional().describe('YYYY-MM-DD. Required if rrule is omitted (one-off); anchors the recurrence otherwise.'),
-        dueTime: z.string().optional(),
+        dueTime: z.string().optional().describe('Start time, HH:MM 24-hour household time, e.g. 16:00 for "practice at 4 PM". It shows on the chore and as its own row on the Board\'s Today card.'),
+        timerMinutes: z.number().int().min(1).max(240).optional().describe('Timer length in minutes, e.g. 20 for "Practice piano - 20 min": the chore gets a Start button that runs a timer, which offers to mark it done when it rings.'),
         list: z.string().optional().describe('Checklist: a list (name or id) that must be fully ticked before the chore can be completed. A reusable list resets on completion.'),
         activity: z.string().optional().describe('Activity: an installed activity plugin (name or id). Playing it in Kinwall for `minutes` in a day completes the chore, e.g. "5 min of Sight words".'),
         minutes: z.number().int().min(1).max(60).optional().describe('Minutes of play the activity needs, 1-60. Default 5.'),
@@ -817,7 +818,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'Update chore',
       description:
-        "Change a chore: title, emoji, assignee, points, recurrence, due date/time, checklist, linked activity, whether it needs a parent's OK, or active state. Only provided fields change; pass member: null to unassign (anyone). " +
+        "Change a chore: title, emoji, assignee, points, recurrence, due date, start time, timer, checklist, linked activity, whether it needs a parent's OK, or active state. Only provided fields change; pass member: null to unassign (anyone). " +
         'rrule uses standard RRULE syntax, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally ending with ;UNTIL=YYYYMMDD to stop the recurrence on a date; pass rrule: null to make it one-off (requires dueDate).',
       inputSchema: {
         choreId: z.string(),
@@ -827,7 +828,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         points: z.number().optional(),
         rrule: z.string().nullable().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally with ;UNTIL=YYYYMMDD. null to clear (one-off).'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD.'),
-        dueTime: z.string().nullable().optional(),
+        dueTime: z.string().nullable().optional().describe('Start time, HH:MM 24-hour household time; null to clear.'),
+        timerMinutes: z.number().int().min(1).max(240).nullable().optional().describe('Timer length in minutes; null to remove the timer.'),
         active: z.boolean().optional(),
         list: z.string().nullable().optional().describe('Checklist list (name or id); null to unlink.'),
         activity: z.string().nullable().optional().describe('Activity plugin (name or id) whose play completes the chore; null to unlink.'),
