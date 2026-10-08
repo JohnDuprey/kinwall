@@ -96,6 +96,10 @@ export function Stars({ average, count }: { average: number; count: number }) {
   </span>
 }
 
+/** Whose stars this device may set, for RecipeSheet's owner: a kid's own device or a wall screen set to one
+ * person rates only for them (the server's ownerBlock); a grown-up's own phone rates for anyone. */
+export const ratingOwner = (me: { scope: string; owner?: string | null } | null | undefined) => me?.scope === 'display' ? me.owner ?? null : null
+
 /** Collapsed to the family average; open it for each member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
 function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | null; onRated?: () => void }) {
   const { members, toast } = useApp()

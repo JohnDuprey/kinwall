@@ -3,7 +3,7 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { mealRecipe } from './meal-date.ts'
 import MealSheet from './MealSheet.tsx'
-import RecipeSheet from './RecipeSheet.tsx'
+import RecipeSheet, { ratingOwner } from './RecipeSheet.tsx'
 import type { Meal, Recipe } from './meal-types.ts'
 import type { Me } from './types.ts'
 
@@ -20,9 +20,9 @@ export function PlannedMealSheet({ meal, recipes, me, startOrders, onClose, onSa
   return <>
     {details || !recipe
       ? <MealSheet meal={meal} initial={{ date: meal.date, slot: meal.slot }} recipes={recipes} admin={admin} owner={me?.owner} me={me} startOrders={startOrders} onClose={onClose} onSaved={onSaved} onRecipe={setViewing} onChanged={onRated} />
-      : <RecipeSheet key={recipe.id} recipe={recipe} library={recipes} admin={false} owner={me?.owner} onRated={onRated} onClose={onClose} onSaved={onSaved}
+      : <RecipeSheet key={recipe.id} recipe={recipe} library={recipes} admin={false} owner={ratingOwner(me)} onRated={onRated} onClose={onClose} onSaved={onSaved}
         onEditMeal={{ label: admin ? 'Edit meal' : 'Meal details', open: () => setDetails(true) }} />}
-    {viewing && <RecipeSheet key={viewing.id} recipe={viewing} library={recipes} admin={false} owner={me?.owner} onRated={onRated} onClose={() => setViewing(null)} onSaved={onSaved} />}
+    {viewing && <RecipeSheet key={viewing.id} recipe={viewing} library={recipes} admin={false} owner={ratingOwner(me)} onRated={onRated} onClose={() => setViewing(null)} onSaved={onSaved} />}
   </>
 }
 

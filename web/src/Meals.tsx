@@ -7,7 +7,7 @@ import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
-import RecipeSheet, { Stars } from './RecipeSheet.tsx'
+import RecipeSheet, { Stars, ratingOwner } from './RecipeSheet.tsx'
 import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
@@ -179,7 +179,7 @@ export default function Meals() {
     </section>}
     {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(t => t + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
     {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(t => t + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
     {place && !place.editing && place.restaurant && <RestaurantSheet key={place.restaurant.id} restaurant={place.restaurant} admin={admin} onClose={() => setPlace(null)} onEdit={() => setPlace({ ...place, editing: true })}
       onPlan={restaurant => { setPlace(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', restaurant } }) }}
