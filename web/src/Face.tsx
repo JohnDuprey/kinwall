@@ -27,7 +27,7 @@ export function Face({ m, className = 'member-avatar-sm', style, ...rest }: { m:
 
 /** Inline avatars after a title (calendar events): a picture as a small circle, else the emoji as text. */
 export function InlineFaces({ who, className = 'event-avatars' }: { who: (FaceMember & { id: string })[]; className?: string }) {
-  return <span className={className}>{who.map((m, i) => <Fragment key={m.id}>{i > 0 && ' '}{m.picture ? <Face m={m} className="inline-face" /> : m.avatar || m.name[0]}</Fragment>)}</span>
+  return <span className={className}>{who.map((m, i) => <Fragment key={m.id}>{i > 0 && ' '}{m.picture ? <Face m={m} className="inline-face" /> : <span className="inline-emoji">{m.avatar || m.name[0]}</span>}</Fragment>)}</span>
 }
 
 /** A member's avatar at the start of a chip or button label: a small picture, else the emoji. */

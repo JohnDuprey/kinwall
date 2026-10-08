@@ -589,6 +589,12 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 :root[data-theme="dark"] .event-title-pill { background: rgba(0,0,0,0.4); color: #ffffff; }
 .event-avatars { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 0.8125rem; line-height: 1; letter-spacing: 1px; }
 .schedule-avatars { margin-left: 6px; font-size: 0.875rem; }
+/* A narrow block (side by side with another event on a phone) overlaps its faces so all of them fit. */
+.event-title-row { container-type: inline-size; }
+@container (max-width: 260px) {
+  .event-avatars > * + * { margin-left: -0.55em; }
+  .event-avatars .inline-face { box-shadow: 0 0 0 1.5px var(--bg); }
+}
 
 /* ---------- Month view ---------- */
 .month-grid {
