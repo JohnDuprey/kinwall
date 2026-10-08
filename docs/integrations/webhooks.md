@@ -52,7 +52,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
 | `meal.changed` | A meal is planned, edited or deleted, or someone's order for it changed. `data`: `{ id }`. |
-| `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too, or by an [import from a phone](../using/meals.md#add-restaurants-from-your-iphone) that changed something), archived or deleted. `data`: `{ id }`. |
+| `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too, or by an [import from a phone](../using/meals.md#add-restaurants-from-your-phone) that changed something), archived or deleted. `data`: `{ id }`. |
 | `poll.changed` | A [family poll](../using/polls.md) was started, voted in, closed, linked to a meal or deleted. `data`: `{ id, status }` (`open`, `closed` with `winnerOptionId`, or `deleted`), never who voted for what. |
 | `display.paired` | A wall display was paired. |
 | `display.night_screen` | The [Night screen](../using/night.md#start-it-from-home-assistant) was started or ended remotely. `data`: `{ on, displays, until }`, where `displays` is the display key IDs or `null` for every wall screen, and `until` is when "on" runs out (`null` for off). |

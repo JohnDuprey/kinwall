@@ -14,7 +14,7 @@ Links are read by Kinwall, which tells a recipe page from a restaurant's by the 
 When it's done, you see one line, such as "Imported Lemon chicken", "Added Wool to the library" or "Check the event: Spring fair, Sat May 9 at 10 AM".
 
 * **Recipes** are saved like **Import from a link**. Sharing the same page again updates that recipe.
-* **Restaurants** work as in [Add restaurants from your iPhone](meals.md#add-restaurants-from-your-iphone): Kinwall finds the place by name or adds it, fills in only empty details and adds menu items that aren't there yet.
+* **Restaurants** work as in [Add restaurants from your phone](meals.md#add-restaurants-from-your-phone): Kinwall finds the place by name or adds it, fills in only empty details and adds menu items that aren't there yet.
 * **Books** with an ISBN (the barcode's number, read off a photo, with or without dashes) are added like **Scan**: looked up on [Open Library](https://openlibrary.org), and a book that's already in the library isn't added twice. Without an ISBN, Kinwall searches Open Library for the title and author and adds the book only when there's one clear match. Otherwise it opens **Add a book** with the title filled in, so you can look it up and pick the right one.
 * **Events are never saved without you.** Kinwall reads the title, date, time and place it can find, and a date without a year is the next one coming up. With the Kinwall app, the share sheet shows them for you to fix and add to a calendar right there (below). Otherwise Kinwall opens the new event sheet with them filled in: check them, pick the calendar and who it's for, and tap **Add event**. Anything it couldn't find is left for you. Only a parent's phone adds events.
 
@@ -34,8 +34,8 @@ In Safari, Maps, Photos, the Camera, or any app with a **Share** button, tap **S
   * On an iPhone with Apple Intelligence (iOS 26 or later), the on-device model works out what it is and sorts the words into the lines Kinwall reads best. The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself. An event goes straight to its fields (below), with **Not an event?** under them.
   * Without Apple Intelligence, or when the model isn't sure or takes more than about 20 seconds, the sheet asks **What is this?** (Restaurant, Book or Event) and sends the words as they were read. That works for most covers and menus; busy flyers come out better with the model.
 * **An event** shows what Kinwall read, ready to fix in the sheet: **Title**, **Date**, **All day** (on when there's no time), **Starts** and **Ends**, **Place**, and **Notes** (anything else worth knowing, like what to bring, costs or how to RSVP; saved as the event's [notes](events.md#event-notes)). Under them, **Calendar** lists the family's calendars you can add to, starting with the family's [default calendar for new events](../settings/calendars.md#calendars). **Calendar** sits right above **Add to calendar**, which saves it there without opening the app; to add people, a reminder or a repeat, edit the event in Kinwall afterward. The ✕ at the top right closes the sheet without adding anything.
-* **Books Kinwall couldn't pick on its own** open in the Kinwall app to choose. If the sheet can't open the app, it says so, and Kinwall opens there the next time you open the app.
-* **Anything saved** (an event, a recipe, a restaurant, a book) shows Kinwall's one line, such as "Added Spring fair to Family, Sat May 9", and the sheet closes after about 3 seconds unless you touch it. (iOS doesn't let a share sheet open its own app, so there's no Open button on iPhone; a book you need to pick waits in Kinwall for the next time you open it.)
+* **Books Kinwall couldn't pick on its own** wait in Kinwall: the sheet says **Open Kinwall to check it**, and the book is there to pick the next time you open the app.
+* **Anything saved** (an event, a recipe, a restaurant, a book) shows Kinwall's one line, such as "Added Spring fair to Family, Sat May 9", and the sheet closes after about 3 seconds unless you touch it. There's no **Open** button on the iPhone: iOS doesn't let a share sheet open its own app.
 * A contact still opens the contact review ([Contacts](contacts.md)).
 
 Only a grown-up's phone can add things, on iPhone and Android. On a wall screen or a kid's device, or when the app isn't signed in, the sheet says to open Kinwall and sign in as a grown-up.
@@ -63,9 +63,9 @@ In Chrome, Photos, the Camera, Messages or any app with a **Share** button, tap 
   * The phone picks out dates and times, addresses, phone numbers, websites and ISBNs and passes them to Kinwall as the lines it reads best (such as `Date:`, `Time:` and `Place:` for an event). A time it can't tell is AM or PM is left for Kinwall to read from the words themselves. The first time, it downloads a small language file for this (about 5 MB).
   * On newer phones with Gemini Nano (Google's on-device model, such as recent Pixel and Galaxy phones), the model works out what it is and tidies the words, like Apple Intelligence on the iPhone.
   * The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself; an event goes straight to its fields. A date with no phone number looks like an event; prices or a phone number with an address look like a menu. When it can't tell, or Gemini Nano is unsure or takes more than about 20 seconds, it asks **What is this?** (Restaurant, Book or Event).
-* **An event** shows what Kinwall read, ready to fix, with **Calendar**, **Add to calendar** and **Open in Kinwall**, as on the iPhone.
+* **An event** shows what Kinwall read, ready to fix, with **Calendar** and **Add to calendar** as on the iPhone, plus **Open in Kinwall** to finish it in the app (to add people, a reminder or a repeat).
 * **Books Kinwall couldn't pick on its own** open in the Kinwall app to choose.
-* **Anything saved** shows Kinwall's one line with an **Open** button, and the sheet closes after about 3 seconds unless you touch it.
+* **Anything saved** shows Kinwall's one line with an **Open** button (unlike the iPhone's), and the sheet closes after about 3 seconds unless you touch it.
 * A contact still opens the contact review ([Contacts](contacts.md)).
 
 Reading photos needs Google Play services. Picking out dates and places, and Gemini Nano, need Android 8 or later; on older phones the sheet asks **What is this?**. There's nothing to turn on.
@@ -134,7 +134,7 @@ You can send both: the model's lines, then a line with only `---`, then the phot
 
 ### The restaurant-only shortcut
 
-If you made the restaurant shortcut from [Add restaurants from your iPhone](meals.md#add-restaurants-from-your-iphone), it keeps working; it sends to `/api/restaurants/import`, which hasn't changed. This one does restaurants too, so you can keep either.
+If you made the older **Add a restaurant to Kinwall** shortcut from [Add restaurants from your phone](meals.md#add-restaurants-from-your-phone), it keeps working; it sends to `/api/restaurants/import`, which hasn't changed. This one does restaurants too, so you can keep either.
 
 ### The request
 

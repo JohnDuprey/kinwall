@@ -51,7 +51,7 @@ A **basic** is a recipe for something you make to use in other recipes: a season
 
 Everyone in the family can rate a recipe: the recipe's view shows a one-line summary ("★ 4.3 · 3 ratings", or **Rate this recipe** with none yet) that expands to a row for each person with five big stars. Tap a star to rate, tap the same star again to clear it. The family average also shows on the recipe's card in the library (with how many have rated it) and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the family's favorites first.
 
-Rating is an everyday action like ticking off a chore: a wall display rates for anyone, and a device that belongs to one person rates only for them. Deleting a recipe or a person removes their ratings. The API's `PUT /api/recipes/{id}/rating` (`{ "memberId": "…", "stars": 1-5 }`, `null` or `0` clears it) and the MCP tool `rate_recipe` do the same.
+Rating is an everyday action like ticking off a chore: a wall display rates for anyone, and so does a grown-up's own phone. A kid's own device, or a wall screen set to one person, rates only for that person. Deleting a recipe or a person removes their ratings. The API's `PUT /api/recipes/{id}/rating` (`{ "memberId": "…", "stars": 1-5 }`, `null` or `0` clears it) and the MCP tool `rate_recipe` do the same.
 
 ### Steps and cooking along
 
@@ -191,17 +191,17 @@ Or paste the whole menu in **Paste a menu** and tap **Add these items**:
 * A line without a price that's followed by priced lines starts a section (`Pizza`), and so does any line ending in a colon (`Sides:`).
 * A price alone on the next line belongs to the item above it, which is how text copied off a photo often comes out.
 
-The items are added below the ones you have, so you can check and fix them before **Save restaurant**. For a paper menu, take a photo and copy its text (Live Text on an iPhone or iPad, Google Lens on Android), then paste it. Or send the photo to your family assistant: through [MCP](../integrations/mcp.md) it can read the menu off the photo and add it with `import_restaurant`. Or add it from your phone with a [shortcut](#add-restaurants-from-your-iphone).
+The items are added below the ones you have, so you can check and fix them before **Save restaurant**. For a paper menu, take a photo and copy its text (Live Text on an iPhone or iPad, Google Lens on Android), then paste it. Or send the photo to your family assistant: through [MCP](../integrations/mcp.md) it can read the menu off the photo and add it with `import_restaurant`. Or add it from your phone with a [shortcut](#add-restaurants-from-your-phone).
 
 ### Fill in from website
 
 Type or paste the restaurant's address in **Website** and tap **Fill in from website**. Kinwall reads the details the site publishes for search engines (its name, cuisine, phone, address and menu link) and fills in whichever of those are still empty, for you to check. Nothing is saved until you tap **Save restaurant**, and nothing you typed is changed. Not every site publishes these details; when one doesn't, Kinwall says so and you fill them in by hand. An Apple Maps link works too: Kinwall takes the place's name and address from the link.
 
-### Add restaurants from your iPhone
+### Add restaurants from your phone
 
-With the Kinwall app on your iPhone, share a menu photo, a place in Maps or the restaurant's website to **Kinwall**: no shortcut or key needed ([Add to Kinwall from your phone](share-to-kinwall.md#with-the-kinwall-app)). Without the app, the [Add to Kinwall](share-to-kinwall.md) shortcut does all of this and more (recipes, books and events) in one shortcut. The restaurant-only shortcut below still works.
+With the Kinwall app on your iPhone or Android phone, share a menu photo, a place in Maps or the restaurant's website to **Kinwall**: no shortcut or key needed ([Add to Kinwall from your phone](share-to-kinwall.md#with-the-kinwall-app)). Without the app, the [Add to Kinwall](share-to-kinwall.md) shortcut does all of this and more (recipes, books and events) in one shortcut, so new families can skip the rest of this section. The older restaurant-only shortcut below, **Add a restaurant to Kinwall**, still works.
 
-An **Add to Kinwall** shortcut in the Shortcuts app adds a place from the share sheet: a photo of a paper menu, a place in Apple Maps, or the restaurant's website. It sends whatever it has to Kinwall, which:
+The **Add a restaurant to Kinwall** shortcut in the Shortcuts app adds a place from the share sheet: a photo of a paper menu, a place in Apple Maps, or the restaurant's website. It sends whatever it has to Kinwall, which:
 
 * Finds the restaurant in the binder by name (capitals, spaces and punctuation don't matter: "corner slice!" is **Corner Slice**) or adds it.
 * Fills in only the details that are still empty (cuisine, phone, address, website, ordering link, menu link), so it never changes what a parent typed.
@@ -220,7 +220,7 @@ Each recipe ends the same way, to show what happened: **Get Dictionary Value** (
 
 #### From a menu photo
 
-1. New shortcut, named **Add to Kinwall**. In its details (ⓘ), turn on **Show in Share Sheet**; at the top, set **Receive** to **Images**.
+1. New shortcut, named **Add a restaurant to Kinwall**. In its details (ⓘ), turn on **Show in Share Sheet**; at the top, set **Receive** to **Images**.
 2. **Extract Text from Image** with **Shortcut Input**.
 3. Optional, on an iPhone with Apple Intelligence on iOS 26: **Use Model** (**On-Device** or **Private Cloud Compute**) with this prompt, putting the **Extracted Text** variable where it says *Extracted Text*:
 
@@ -240,7 +240,7 @@ Each recipe ends the same way, to show what happened: **Get Dictionary Value** (
 4. Without step 3, add **Ask for Input** (**Text**, prompt "Restaurant name?"), because a menu photo's text usually doesn't say which restaurant it is.
 5. **Get Contents of URL** to `https://your-kinwall/api/restaurants/import` with the field `menuText` set to the model's **Response** (or, without step 3, to the **Extracted Text**), plus `name` set to **Provided Input** if you added step 4.
 
-Share a menu photo from Photos (or take one in the Camera, then share it) and pick **Add to Kinwall**. Kinwall reads the `Name:`, `Cuisine:`, `Phone:`, `Address:` and `Website:` lines at the top of the model's answer and the menu below them, the same way **Paste a menu** does. For a menu with several pages, share them one at a time: each adds the items that aren't there yet.
+Share a menu photo from Photos (or take one in the Camera, then share it) and pick **Add a restaurant to Kinwall**. Kinwall reads the `Name:`, `Cuisine:`, `Phone:`, `Address:` and `Website:` lines at the top of the model's answer and the menu below them, the same way **Paste a menu** does. For a menu with several pages, share them one at a time: each adds the items that aren't there yet.
 
 #### From a place in Apple Maps
 
@@ -257,7 +257,7 @@ In Maps, open the place, tap **Share** and pick the shortcut. When the shared li
 
 On the restaurant's website in Safari, tap **Share** and pick the shortcut. Kinwall reads the details the site publishes, as **Fill in from website** does, and saves the link as the website when the site doesn't name one. If the site has none of these details, Kinwall needs a name: add **Ask for Input** and send it as `name`.
 
-To keep all three in one **Add to Kinwall** shortcut, set **Receive** to **Images**, **Locations**, **URLs** and **Safari web pages**, add **Get Type** of **Shortcut Input**, and put each recipe's steps inside **If** blocks: **If** the type is `Image`, the photo steps; **Otherwise**, **If** it's `Location`, the Maps steps; **Otherwise**, the link steps.
+To keep all three in one **Add a restaurant to Kinwall** shortcut, set **Receive** to **Images**, **Locations**, **URLs** and **Safari web pages**, add **Get Type** of **Shortcut Input**, and put each recipe's steps inside **If** blocks: **If** the type is `Image`, the photo steps; **Otherwise**, **If** it's `Location`, the Maps steps; **Otherwise**, the link steps.
 
 #### The request
 
@@ -356,7 +356,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/restaurants/{id}` | One restaurant with its menu. Display keys too. |
 | `POST` / `PATCH` / `DELETE` | `/api/restaurants`, `/api/restaurants/{id}` | Add, edit (`archived: true` archives) or delete a restaurant (admin): `{ name, cuisine, phone, address, website, orderUrl, menuUrl, notes, menu }`. Sending `menu` replaces the whole menu; an item that keeps its `id` keeps its star. |
 | `POST` | `/api/restaurants/parse-menu` | Read pasted menu text `{ text }` into `{ items: [{ section, name, priceCents }] }` to review, without saving (admin). |
-| `POST` | `/api/restaurants/import` | Add a restaurant from a phone or script (admin), as the [iPhone shortcut](#add-restaurants-from-your-iphone) does: `{ name?, cuisine?, phone?, address?, website?, orderUrl?, menuUrl?, url?, menuText?, menu?: [{ section?, name, description?, price? }] }`. Matches a restaurant by name (case, spaces and punctuation ignored; archived places aren't matched) or adds it, fills only empty fields, and adds `menuText` (read like `parse-menu`, with `Name:`, `Cuisine:`, `Phone:`, `Address:` and `Website:` lines at the top filling those fields) and `menu` items to the end of the menu, skipping items whose name is already in that section. `url` (or `website`) is read for the page's schema.org `Restaurant`, `FoodEstablishment` or `LocalBusiness` details (fetched like `import-url`; a failed fetch just fills nothing); an Apple Maps link gives its `name` (or `q`) and `address` without a fetch. `price` is lenient: `"$12.99"`, `"12.99"`, `"12"` or `12.99`. Answers 201 when added, 200 when updated: `{ restaurant, created, filled, added, skipped, summary }`, `summary` one line such as "Added 23 items to Corner Slice". 400 when there's no name from any of them. |
+| `POST` | `/api/restaurants/import` | Add a restaurant from a phone or script (admin), as the [restaurant shortcut](#add-restaurants-from-your-phone) does: `{ name?, cuisine?, phone?, address?, website?, orderUrl?, menuUrl?, url?, menuText?, menu?: [{ section?, name, description?, price? }] }`. Matches a restaurant by name (case, spaces and punctuation ignored; archived places aren't matched) or adds it, fills only empty fields, and adds `menuText` (read like `parse-menu`, with `Name:`, `Cuisine:`, `Phone:`, `Address:` and `Website:` lines at the top filling those fields) and `menu` items to the end of the menu, skipping items whose name is already in that section. `url` (or `website`) is read for the page's schema.org `Restaurant`, `FoodEstablishment` or `LocalBusiness` details (fetched like `import-url`; a failed fetch just fills nothing); an Apple Maps link gives its `name` (or `q`) and `address` without a fetch. `price` is lenient: `"$12.99"`, `"12.99"`, `"12"` or `12.99`. Answers 201 when added, 200 when updated: `{ restaurant, created, filled, added, skipped, summary }`, `summary` one line such as "Added 23 items to Corner Slice". 400 when there's no name from any of them. |
 | `POST` | `/api/restaurants/details` | Read a restaurant's details `{ url }` from its web page or an Apple Maps link into `{ details: { name, cuisine, phone, address, website, menuUrl } }`, without saving (admin); all `null` when nothing is found. The editor's **Fill in from website**. |
 | `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). A dining-out meal has `restaurantId`, `orderType` (`dine_in`, `pickup` or `delivery`) and `orders: [{ memberId, items: [{ menuItemId, name, qty, note }], note, updatedAt }]`. A restaurant read also has `upcoming` (its nights from today on) and `lastOrders` (each person's latest order there from a night already ordered). |
 | `PUT` / `DELETE` | `/api/meals/{id}/orders/{memberId}` | Set `{ items, note }` or clear a member's order on a dining-out meal (no items and no note clears it too). Wall and member devices too, a member's own device only for them; once the meal's `status` is `prepared` (Ordered), parents only. |
