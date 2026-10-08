@@ -313,7 +313,10 @@ test('plugins: an installed plugin whose repo the catalog lists becomes reviewed
   }
 });
 
-test('activity chores: link a plugin, heartbeats add up (capped), and complete once at the threshold, with points', async () => {
+test('activity chores: link a plugin, heartbeats add up (capped), and complete once at the threshold, with points', async (tc) => {
+  // Heartbeats count real time since the last one: a minute passes before each (at noon, so hours
+  // of them stay on one day).
+  tc.mock.timers.enable({ apis: ['Date'], now: new Date().setHours(12, 0, 0, 0) });
   const { req, json } = setup();
   const { todayInTz } = await import('../src/routes/members.ts');
   const { hostTimezone } = await import('../src/env.ts');
@@ -323,7 +326,7 @@ test('activity chores: link a plugin, heartbeats add up (capped), and complete o
   const sam = (await (await json('/api/members', 'POST', { name: 'Sam', color: '#FF9E7A' })).json()) as any;
   const display = (await (await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
   const body = async (r: Response) => (await r.json()) as any;
-  const play = (member: string, seconds: number, key?: string) => json('/api/plugins/sight-words/playtime', 'POST', { member, seconds }, key);
+  const play = (member: string, seconds: number, key?: string) => { tc.mock.timers.tick(61_000); return json('/api/plugins/sight-words/playtime', 'POST', { member, seconds }, key); };
 
   // Linking: must be an installed plugin; minutes 1-60, default 5; null unlinks.
   assert.equal((await json('/api/chores', 'POST', { title: 'x', dueDate: today, pluginId: 'nope' })).status, 400);
@@ -389,7 +392,10 @@ test('activity chores: link a plugin, heartbeats add up (capped), and complete o
   assert.equal((await json(`/api/chores/${mine.id}/complete`, 'POST', { date: today })).status, 200); // a plain tick still works
 });
 
-test("activity chores: a parent resets one person's play time for a day; walls and kids' devices can't", async () => {
+test("activity chores: a parent resets one person's play time for a day; walls and kids' devices can't", async (tc) => {
+  // Heartbeats count real time since the last one: a minute passes before each (at noon, so hours
+  // of them stay on one day).
+  tc.mock.timers.enable({ apis: ['Date'], now: new Date().setHours(12, 0, 0, 0) });
   const { req, json, db } = setup();
   const { todayInTz } = await import('../src/routes/members.ts');
   const { hostTimezone } = await import('../src/env.ts');
@@ -399,7 +405,7 @@ test("activity chores: a parent resets one person's play time for a day; walls a
   const sam = (await (await json('/api/members', 'POST', { name: 'Sam', color: '#FF9E7A' })).json()) as any;
   const display = (await (await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
   const body = async (r: Response) => (await r.json()) as any;
-  const play = (member: string, seconds: number) => json('/api/plugins/sight-words/playtime', 'POST', { member, seconds });
+  const play = (member: string, seconds: number) => { tc.mock.timers.tick(61_000); return json('/api/plugins/sight-words/playtime', 'POST', { member, seconds }); };
   const reset = (q: string, key?: string) => req(`/api/plugins/sight-words/playtime?${q}`, { method: 'DELETE', key });
   const seconds = async (date: string, member: string, plugin = 'sight-words') =>
     (await db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(date, member, plugin).first<{ seconds: number }>())?.seconds ?? 0;
@@ -452,6 +458,31 @@ const SPELLING = {
     archiveList: { description: 'Archive a list.', input: { properties: { title: { type: 'string' } }, required: ['title'] } },
   },
 };
+
+test('activity chores: play time counts only real time between heartbeats, so a burst of calls finishes nothing', async (tc) => {
+  tc.mock.timers.enable({ apis: ['Date'], now: new Date().setHours(12, 0, 0, 0) });
+  const { req, json } = setup();
+  assert.equal((await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': '<h1>Hi</h1>' }))).status, 201);
+  const maya = (await (await json('/api/members', 'POST', { name: 'Maya', color: '#7AB8FF' })).json()) as any;
+  const wall = (await (await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
+  const chore = (await (await json('/api/chores', 'POST', { title: 'Sight words', rrule: 'FREQ=DAILY', points: 50, memberId: maya.id, pluginId: 'sight-words', pluginMinutes: 10 })).json()) as any;
+  const play = async (seconds: number) => ((await (await json('/api/plugins/sight-words/playtime', 'POST', { member: maya.id, seconds }, wall.key)).json()) as any[]).find((p) => p.choreId === chore.id);
+
+  // The review's proof: ten 60-second calls at once from a wall. Only the first (nothing before it) counts.
+  let p;
+  for (let i = 0; i < 10; i++) p = await play(60);
+  assert.deepEqual([p.doneSeconds, p.completed], [60, false]);
+  const burst = await Promise.all(Array.from({ length: 5 }, () => play(60)));
+  assert.ok(burst.every((b) => b.doneSeconds <= 62), 'calls at once share one gap, not one each');
+
+  // Real play: the player sends what it counted every ~30 s; all of it counts.
+  const before = (await play(0)).doneSeconds;
+  tc.mock.timers.tick(30_000);
+  assert.equal((await play(30)).doneSeconds, before + 30);
+  // Claiming more than the time that passed counts only the time that passed (and a little slack).
+  tc.mock.timers.tick(10_000);
+  assert.equal((await play(45)).doneSeconds, before + 30 + 12);
+});
 
 test('plugin actions: manifests declare them, checked at install', async () => {
   const { req } = setup();

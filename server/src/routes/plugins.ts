@@ -47,7 +47,7 @@ export const PLUGIN_LIMITS = {
   maxValueBytes: 16 * 1024, // one saved value
   maxKeys: 100, // saved values per person, per plugin
   maxDataBytes: 1024 * 1024, // everything one plugin saves, for everyone together
-  maxPlaytimeCall: 60, // seconds one playtime heartbeat can add (the player sends ~30)
+  maxPlaytimeCall: 60, // seconds one playtime heartbeat can add (the player sends ~30), and no more than the real time since the last one
   maxPlaytimeDay: 4 * 60 * 60, // seconds counted per person, plugin and day
   maxActions: 10, // actions one manifest declares
   maxActionFields: 20, // input fields one action declares
@@ -317,6 +317,9 @@ export async function fetchPackage(repo: string, tag?: string): Promise<Uint8Arr
   return out;
 }
 
+// A heartbeat's seconds come from a once-a-second timer, which can run a little ahead of the clock.
+const PLAYTIME_SLACK_S = 2;
+
 const json = (schema: z.ZodTypeAny) => ({ 'application/json': { schema } });
 const errors = { 400: { description: 'bad package', content: json(ErrorSchema) }, 403: { description: 'not in the catalog (PLUGINS_CATALOG_ONLY)', content: json(ErrorSchema) }, 404: { description: 'not found', content: json(ErrorSchema) } };
 const IdParam = z.object({ id: z.string() });
@@ -436,6 +439,7 @@ pluginsRoutes.openapi(
       db.prepare('DELETE FROM plugin_data WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugin_inbox WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugin_playtime WHERE plugin_id = ?').bind(id),
+      db.prepare('DELETE FROM plugin_heartbeats WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugin_files WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugins WHERE id = ?').bind(id),
     ]);
@@ -605,7 +609,8 @@ pluginsRoutes.openapi(
 // Activity chores ("5 min of Sight words"). Kinwall times play, not the plugin: the player counts
 // 15-second steps while its page is visible, each only with a tap, answer or spoken word in it
 // (web/src/playtime.ts), and sends them here every ~30 s. Nothing here
-// depends on saves; the per-call and per-day caps and ownerBlock are the server's guards. The day's total (household timezone) completes that person's linked chores
+// depends on saves; the per-call and per-day caps, the real time since the last call
+// (realSecondsSinceLast) and ownerBlock are the server's guards. The day's total (household timezone) completes that person's linked chores
 // due today, through the same path as a tick, once each.
 export const ActivityChoreProgressSchema = z.object({
   choreId: z.string(),
@@ -619,7 +624,7 @@ export const ActivityChoreProgressSchema = z.object({
 pluginsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/plugins/{id}/playtime', tags: ['Plugins'], security: [{ Bearer: [] }],
-    summary: `Add seconds of active play for one person (at most ${PLUGIN_LIMITS.maxPlaytimeCall} per call, ${PLUGIN_LIMITS.maxPlaytimeDay / 3600} hours a day) and complete their chores linked to this plugin that are due today once the day's play reaches them. seconds 0 just reads the progress. Returns that person's linked chores due today.`,
+    summary: `Add seconds of active play for one person (at most ${PLUGIN_LIMITS.maxPlaytimeCall} per call and no more than the real time since that person's last call for this activity, ${PLUGIN_LIMITS.maxPlaytimeDay / 3600} hours a day) and complete their chores linked to this plugin that are due today once the day's play reaches them. seconds 0 just reads the progress. Returns that person's linked chores due today.`,
     request: { params: IdParam, body: { required: true, content: { 'application/json': { schema: z.object({ member: z.string().min(1), seconds: z.number().min(0) }) } } } },
     responses: { 200: { description: 'ok', content: json(z.array(ActivityChoreProgressSchema)) }, 403: { description: 'this device belongs to someone else', content: json(ErrorSchema) }, 404: errors[404] },
   }),
@@ -638,7 +643,7 @@ pluginsRoutes.openapi(
     if (!memberRes.results.length) return c.json({ error: 'member not found' }, 404);
     const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
     const today = todayInTz(tz);
-    const add = Math.min(Math.floor(seconds), PLUGIN_LIMITS.maxPlaytimeCall);
+    const add = Math.min(Math.floor(seconds), PLUGIN_LIMITS.maxPlaytimeCall, await realSecondsSinceLast(db, member, id));
     if (add > 0) {
       await db
         .prepare('INSERT INTO plugin_playtime (date, member_id, plugin_id, seconds) VALUES (?,?,?,?) ON CONFLICT(date, member_id, plugin_id) DO UPDATE SET seconds = MIN(plugin_playtime.seconds + excluded.seconds, ?)')
@@ -648,6 +653,19 @@ pluginsRoutes.openapi(
     return c.json(await choreProgress(c, id, member, today, tz), 200);
   },
 );
+
+/** Seconds since this person's last play-time call for this activity, plus a little for timer
+ * jitter, and marks this one: a call counts at most the real time since the one before, so a burst
+ * of calls adds nothing. A person's very first call has nothing before it and gets the per-call
+ * cap. Checked and set in one compare-and-set, so two calls at once can't both claim the gap. */
+async function realSecondsSinceLast(db: KinwallDb, member: string, id: string): Promise<number> {
+  const now = Date.now();
+  const first = await db.prepare('INSERT OR IGNORE INTO plugin_heartbeats (member_id, plugin_id, at) VALUES (?,?,?)').bind(member, id, now).run();
+  if (first.meta.changes) return PLUGIN_LIMITS.maxPlaytimeCall;
+  const last = (await db.prepare('SELECT at FROM plugin_heartbeats WHERE member_id = ? AND plugin_id = ?').bind(member, id).first<{ at: number }>())?.at ?? now;
+  const moved = await db.prepare('UPDATE plugin_heartbeats SET at = ? WHERE member_id = ? AND plugin_id = ? AND at = ?').bind(now, member, id, last).run();
+  return moved.meta.changes && now > last ? Math.floor((now - last) / 1000) + PLAYTIME_SLACK_S : 0;
+}
 
 // A parent clears a day's counted play (someone opened the activity as a kid to check something).
 // Full access only: auth.ts doesn't allow it to display keys (wall screens, kids' devices). A chore
