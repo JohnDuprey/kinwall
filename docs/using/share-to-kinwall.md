@@ -11,7 +11,7 @@ Share something from any app on your iPhone or Android phone and Kinwall puts it
 
 Links are read by Kinwall, which tells a recipe page from a restaurant's by the details the page publishes for search engines. For a photo or some text, you're asked **What is this?** (Restaurant, Book or Event); Kinwall never guesses what a photo is.
 
-When it's done, you see one line, such as "Imported Lemon chicken", "Added Wool to the library" or "Check the event: Spring fair, Sat May 9 at 10 AM".
+When it's done, you see one line, such as "Imported Lemon chicken", "Added Wool to the library" or "Check the event: Spring fair, Sat May 9 at 10 AM". In the Kinwall app's share sheet, a recipe, a restaurant or a book shows what will be saved first, and nothing is added until you tap **Add to Kinwall** (below). Shortcuts, Siri and the API save it straight away.
 
 * **Recipes** are saved like **Import from a link**. Sharing the same page again updates that recipe.
 * **Restaurants** work as in [Add restaurants from your phone](meals.md#add-restaurants-from-your-phone): Kinwall finds the place by name or adds it, fills in only empty details and adds menu items that aren't there yet.
@@ -28,12 +28,18 @@ With the [Kinwall app](https://github.com/JohnDuprey/kinwall-mobile) on your iPh
 
 In Safari, Maps, Photos, the Camera, or any app with a **Share** button, tap **Share** and pick **Kinwall**. If Kinwall isn't in the row of apps, tap **More** and turn it on.
 
-* **A link or a place in Maps** goes to Kinwall straight away.
+* **A link or a place in Maps** goes to Kinwall straight away, to be read.
 * **A photo or some text** is read on the iPhone first ("Reading the photo…"); nothing leaves the phone for that.
-  * **Several photos** work too, up to 10: a menu that's double-sided or doesn't fit in one picture. Select them all in Photos, then **Share → Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go to Kinwall together, in the order you picked them, as one menu (or one event). The sheet guesses a menu when it can't tell, such as "Looks like a menu: Corner Slice, 3 pages". If the restaurant is already in Kinwall, it says so ("Corner Slice is already in Kinwall, so these will be added to its menu"), and only the items that aren't there yet are added.
-  * A book's barcode means a book, and it's added straight away.
-  * On an iPhone with Apple Intelligence (iOS 26 or later), the on-device model works out what it is and sorts the words into the lines Kinwall reads best. The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself. An event goes straight to its fields (below), with **Not an event?** under them.
+  * **Several photos** work too, up to 10: a menu that's double-sided or doesn't fit in one picture. Select them all in Photos, then **Share → Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go to Kinwall together, in the order you picked them, as one menu (or one event). The sheet guesses a menu when it can't tell ("Looks like a menu"). If the restaurant is already in Kinwall, its card says so, and only the items that aren't there yet are added.
+  * A book's barcode means a book, and it goes straight to the book's card (below).
+  * On an iPhone with Apple Intelligence (iOS 26 or later), the on-device model works out what it is and sorts the words into the lines Kinwall reads best. The sheet goes straight to what Kinwall read, under its guess ("Looks like a menu"), with **Not a menu?** to pick Restaurant, Book or Event yourself. An event goes straight to its fields (below), with **Not an event?** under them.
   * Without Apple Intelligence, or when the model isn't sure or takes more than about 20 seconds, the sheet asks **What is this?** (Restaurant, Book or Event) and sends the words as they were read. That works for most covers and menus; busy flyers come out better with the model.
+* **A recipe, a restaurant or a book** shows a card with what will be saved, before anything is added: the photo or cover, the name, and a few short lines.
+  * A recipe: how many it serves, its number of ingredients and steps, how long it takes and the site it's from.
+  * A restaurant: its cuisine, phone, address, and how many menu items and sections were read. One that's already in Kinwall says what's new, such as "Already in Kinwall: 12 new items will be added, 30 are already there."
+  * A book: its author, Book or Audiobook, and the shelf it goes on (Auto picks Kids or Grown-ups, as in the [library](trackers.md#library)). One that's already there says "Already in the library."
+
+  **Add to Kinwall** saves it, then the sheet shows Kinwall's one line and closes by itself. The ✕ at the top right closes the sheet without adding anything. When the sheet guessed what a photo is, the card's title says so ("Looks like a menu") and **Not a menu?** (or **Not a book?**) sits under **Add to Kinwall**.
 * **An event** shows what Kinwall read, ready to fix in the sheet: **Title**, **Date**, **All day** (on when there's no time), **Starts** and **Ends**, **Place**, and **Notes** (anything else worth knowing, like what to bring, costs or how to RSVP; saved as the event's [notes](events.md#event-notes)). Under them, **Calendar** lists the family's calendars you can add to, starting with the family's [default calendar for new events](../settings/calendars.md#calendars). **Calendar** sits right above **Add to calendar**, which saves it there without opening the app; to add people, a reminder or a repeat, edit the event in Kinwall afterward. The ✕ at the top right closes the sheet without adding anything.
 * **Books Kinwall couldn't pick on its own** wait in Kinwall: the sheet says **Open Kinwall to check it**, and the book is there to pick the next time you open the app. An event waits there the same way when there's no calendar this phone can add to (or it's offline).
 * **Anything saved** (an event, a recipe, a restaurant, a book) shows Kinwall's one line, such as "Added Spring fair to Family, Sat May 9", and the sheet closes after about 3 seconds unless you touch it. There's no **Open** button on the iPhone: iOS doesn't let a share sheet open its own app.
@@ -50,7 +56,7 @@ The app adds an **Add to Kinwall** action to the Shortcuts app. It has three set
 * **Text or link**: some text, or a web or Maps link.
 * **Calendar**: for an event, the calendar to add it to (it starts on the family's default calendar). With a calendar, the event is saved there straight away; without one, the action passes on a link that opens the event sheet filled in, to check first.
 
-It shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photos** or **Text or link** to **Shortcut Input**.
+It saves straight away, with no card to check first, then shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photos** or **Text or link** to **Shortcut Input**.
 
 Add to Kinwall has no Siri phrase, since Siri can't take a photo or text by voice. Use it in a shortcut, or from the share sheet. The app's other Shortcuts actions are listed in [the Kinwall app's Siri and Shortcuts](https://github.com/JohnDuprey/kinwall-mobile/blob/main/docs/WIDGETS-AND-WATCH.md#siri-shortcuts-and-spotlight-app-intents).
 
@@ -58,13 +64,14 @@ Add to Kinwall has no Siri phrase, since Siri can't take a photo or text by voic
 
 In Chrome, Photos, the Camera, Messages or any app with a **Share** button, tap **Share** and pick **Kinwall**. A small Kinwall sheet opens over the app you're in.
 
-* **A link** goes to Kinwall straight away. A recipe is saved there and then; a restaurant's page adds the restaurant.
+* **A link** goes to Kinwall straight away, to be read.
 * **A photo or some text** is read on the phone first ("Reading the photo…"); nothing leaves the phone for that.
-  * **Several photos** work as on the iPhone, up to 10: select them in Photos, tap **Share** and pick **Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go together as one menu (or one event), with a guess such as "Looks like a menu: 3 pages".
-  * A book's barcode means a book, and it's added straight away.
+  * **Several photos** work as on the iPhone, up to 10: select them in Photos, tap **Share** and pick **Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go together as one menu (or one event), guessed a menu when nothing else can tell.
+  * A book's barcode means a book, and it goes straight to the book's card.
   * The phone picks out dates and times, addresses, phone numbers, websites and ISBNs and passes them to Kinwall as the lines it reads best (such as `Date:`, `Time:` and `Place:` for an event). A time it can't tell is AM or PM is left for Kinwall to read from the words themselves. The first time, it downloads a small language file for this (about 5 MB).
   * On newer phones with Gemini Nano (Google's on-device model, such as recent Pixel and Galaxy phones), the model works out what it is and tidies the words, like Apple Intelligence on the iPhone.
-  * The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself; an event goes straight to its fields. A date with no phone number looks like an event; prices or a phone number with an address look like a menu. When it can't tell, or Gemini Nano is unsure or takes more than about 20 seconds, it asks **What is this?** (Restaurant, Book or Event).
+  * The sheet goes straight to what Kinwall read, under its guess ("Looks like a menu"), with **Not a menu?** to pick Restaurant, Book or Event yourself; an event goes straight to its fields. A date with no phone number looks like an event; prices or a phone number with an address look like a menu. When it can't tell, or Gemini Nano is unsure or takes more than about 20 seconds, it asks **What is this?** (Restaurant, Book or Event).
+* **A recipe, a restaurant or a book** shows the same card as on the iPhone, with **Add to Kinwall** under it and **Cancel** to close the sheet without adding anything.
 * **An event** shows what Kinwall read, ready to fix, with **Calendar** and **Add to calendar** as on the iPhone, plus **Open in Kinwall** to finish it in the app (to add people, a reminder or a repeat).
 * **Books Kinwall couldn't pick on its own** open in the Kinwall app to choose.
 * **Anything saved** shows Kinwall's one line with an **Open** button (unlike the iPhone's), and the sheet closes after about 3 seconds unless you touch it.
@@ -151,5 +158,7 @@ Content-Type: application/json
 ```
 
 To add the event straight away, send `"save": true` and the `calendarId` of a calendar you can add to (from `GET /api/calendars`; leave it out for the family's default calendar, the one marked `"default": true`). The answer's `link` then opens the saved event. Without `save`, an event's answer also has `event` (`title`, `date`, `time`, `end`, `place` and `notes`, as read), and you can send `event` back, changed, instead of `text`.
+
+To check a recipe, restaurant or book before saving it, as the app's share sheet does, send `"preview": true`. Nothing is saved: the answer has `review: true` and `preview` (`title`, `imageUrl`, `exists`, `lines`, `already`, a `token` for a link, and the details for its kind). Send the same request again without `preview` to save it, with `"token"` from the preview for a link so the page isn't read twice.
 
 The answer is always `{ kind, summary, link, review }`. Errors come back as `{ error, summary }`, so the notification still says what went wrong. See [REST API](../integrations/rest-api.md).

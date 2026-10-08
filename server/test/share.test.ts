@@ -12,6 +12,7 @@ const ld = (block: unknown) => `<!doctype html><html><head><script type="applica
 const PAGES: Record<string, string> = {
   'https://food.example/lemon-chicken': ld({ '@context': 'https://schema.org', '@type': 'Recipe', name: 'Lemon chicken', recipeYield: '4', recipeIngredient: ['1 lemon', '2 lb chicken thighs'], recipeInstructions: ['Roast it.'] }),
   'https://cornerslice.example/': ld({ '@type': ['Restaurant', 'LocalBusiness'], name: 'Corner Slice', telephone: '555-0100', servesCuisine: 'Pizza', url: 'https://cornerslice.example/' }),
+  'https://food.example/tacos': ld({ '@type': 'Recipe', name: 'Fish tacos', image: 'https://food.example/tacos.jpg', recipeYield: '4 servings', totalTime: 'PT1H15M', recipeIngredient: ['1 lb cod', '8 tortillas', '1 lime'], recipeInstructions: ['Season the fish.', 'Cook it.'] }),
   'https://news.example/story': '<html><head><title>News</title></head><body>No data</body></html>',
 };
 const HOBBIT = { key: '/works/OL1W', title: 'The Hobbit', author_name: ['J.R.R. Tolkien'], isbn: ['9780547928227'], first_publish_year: 1937 };
@@ -246,4 +247,92 @@ test("share: a wall screen or a kid's device can't save an event", async () => {
     assert.equal((await share({ kind: 'event', text: 'Title: Swim\nDate: 2027-05-08', save: true, calendarId: family.id }, key)).status, 403);
   }
   assert.equal((await db.prepare('SELECT count(*) AS n FROM events').first<{ n: number }>())?.n, 0);
+});
+
+// preview: true answers with what would be saved (review: true) and saves nothing; the same share
+// without preview saves it. The phones' share sheets show it before Add to Kinwall.
+const count = async (db: ReturnType<typeof fixture>['db'], table: string) => (await db.prepare(`SELECT count(*) AS n FROM ${table}`).first<{ n: number }>())!.n;
+
+test('share preview: a recipe link shows what would be saved; the save with its token reads the page once', async () => {
+  const { share, db, fetched } = fixture();
+  const res = await share({ url: 'https://food.example/tacos', preview: true });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  const { token, ...preview } = res.json.preview;
+  assert.match(token, /^[\w-]{20,}$/);
+  assert.deepEqual({ ...res.json, preview }, {
+    kind: 'recipe', review: true, summary: 'Ready to add: Fish tacos', link: 'https://kinwall.example/#/meals',
+    preview: {
+      title: 'Fish tacos', imageUrl: 'https://food.example/tacos.jpg', exists: false, already: null,
+      lines: ['Serves 4', '3 ingredients, 2 steps', 'Ready in 1 hr 15 min', 'From food.example'],
+      recipe: { servings: 4, ingredients: 3, steps: 2, totalMinutes: 75, site: 'food.example' },
+    },
+  });
+  assert.equal(await count(db, 'recipes'), 0, 'nothing saved');
+  const saved = await share({ url: 'https://food.example/tacos', token });
+  assert.deepEqual([saved.json.summary, saved.json.review], ['Imported Fish tacos', false]);
+  assert.deepEqual(fetched, ['https://food.example/tacos'], 'the save used what the preview read');
+  // A token is used once; and one for another link isn't used.
+  await share({ url: 'https://food.example/tacos', token });
+  await share({ url: 'https://food.example/lemon-chicken', token: (await share({ url: 'https://food.example/tacos', preview: true })).json.preview.token });
+  assert.equal(fetched.length, 4);
+
+  const again = (await share({ url: 'https://food.example/tacos', preview: true })).json;
+  assert.equal(again.preview.exists, true);
+  assert.equal(again.preview.already, 'Already in Kinwall: adding it again updates it.');
+  assert.match(again.link, /#\/meals\?recipe=[\w-]+$/);
+});
+
+test('share preview: a restaurant says what is new to a menu already in the binder; nothing is saved', async () => {
+  const { share, call, db } = fixture();
+  const page = await share({ url: 'https://cornerslice.example/', preview: true });
+  assert.equal(page.status, 200, JSON.stringify(page.json));
+  assert.deepEqual([page.json.kind, page.json.review, page.json.preview.title, page.json.preview.exists], ['restaurant', true, 'Corner Slice', false]);
+  assert.deepEqual(page.json.preview.lines, ['Pizza', '555-0100']);
+  assert.equal(await count(db, 'restaurants'), 0);
+  assert.equal((await share({ url: 'https://cornerslice.example/', token: page.json.preview.token })).json.summary, 'Added Corner Slice to the binder');
+
+  const menu = 'Name: Corner Slice\nAddress: 1 Main St\nMenu:\nPizza\nCheese 12\nPepperoni 14\nSalads\nCaesar 9';
+  const first = (await share({ kind: 'restaurant', text: menu, preview: true })).json.preview;
+  assert.deepEqual(first.restaurant, { cuisine: 'Pizza', phone: '555-0100', address: '1 Main St', items: 3, sections: 2, added: 3, alreadyThere: 0 });
+  assert.deepEqual(first.lines, ['Pizza', '555-0100', '1 Main St', '3 menu items in 2 sections']);
+  assert.equal(first.already, 'Already in Kinwall: 3 new items will be added.');
+  assert.equal(first.token, null, 'text is sent again with the save');
+  await share({ kind: 'restaurant', text: menu });
+  const more = (await share({ kind: 'restaurant', text: `${menu}\nGreek 10`, preview: true })).json;
+  assert.equal(more.preview.already, 'Already in Kinwall: 1 new item will be added, 3 are already there.');
+  assert.match(more.link, /#\/meals\?restaurant=[\w-]+$/);
+  assert.equal((await share({ kind: 'restaurant', text: menu, preview: true })).json.preview.already, 'Already in Kinwall and up to date.');
+  assert.equal((await call('GET', '/api/restaurants')).json[0].menu.length, 3, 'previews add nothing');
+});
+
+test('share preview: a book shows its cover, author and shelf; one already there says so; unclear titles are picked as before', async () => {
+  const { share, call } = fixture();
+  openLibrary([{ ...HOBBIT, cover_i: 42, number_of_pages_median: 300, subject: ['Fantasy', 'Juvenile fiction'] }]);
+  const res = await share({ kind: 'book', text: '9780547928227', preview: true });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual({ ...res.json.preview, token: undefined }, {
+    title: 'The Hobbit', imageUrl: 'https://covers.openlibrary.org/b/id/42-M.jpg', exists: false, already: null, token: undefined,
+    lines: ['By J.R.R. Tolkien', 'Book', 'Shelf: Kids (Auto)'],
+    book: { author: 'J.R.R. Tolkien', format: 'book', shelf: 'kids' },
+  });
+  assert.equal(res.json.review, true);
+  assert.equal((await call('GET', '/api/library')).json.length, 0, 'nothing added');
+  await share({ kind: 'book', text: '9780547928227' });
+  const again = (await share({ kind: 'book', text: '9780547928227', preview: true })).json;
+  assert.deepEqual([again.preview.exists, again.preview.already], [true, 'Already in the library.']);
+  assert.match(again.link, /#\/trackers\/library\?book=[\w-]+$/);
+
+  openLibrary([{ key: '/works/OL3W', title: 'Holes', author_name: ['Louis Sachar'] }, { key: '/works/OL4W', title: 'Holes', author_name: ['Someone Else'] }]);
+  const pick = (await share({ kind: 'book', text: 'Holes', preview: true })).json;
+  assert.deepEqual([pick.review, pick.summary, pick.preview], [true, 'Pick the right book: Holes', undefined]);
+});
+
+test("share preview: parent devices only; an event's answer is the same with or without it", async () => {
+  const { share, call } = fixture();
+  const wall = (await call('POST', '/api/keys', { name: 'Wall', scope: 'display' })).json;
+  assert.equal((await share({ url: 'https://food.example/tacos', preview: true }, wall.key)).status, 403);
+  const text = 'Title: Spring fair\nDate: 2027-05-08';
+  assert.deepEqual((await share({ kind: 'event', text, preview: true })).json, (await share({ kind: 'event', text })).json);
+  // Shortcuts sends a switch as text.
+  assert.equal((await share({ url: 'https://food.example/tacos', preview: 'true' })).json.review, true);
 });

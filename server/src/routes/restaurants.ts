@@ -107,10 +107,10 @@ export const RestaurantImportResultSchema = z.object({
   added: z.number().int(), skipped: z.number().int().describe('Menu items already on the menu (same name in the same section).'), summary: z.string().describe('One line for a notification, e.g. "Added 23 items to Corner Slice".'),
 }).openapi('RestaurantImportResult');
 const FILLABLE = ['cuisine', 'phone', 'address', 'website', 'orderUrl', 'menuUrl'] as const;
-const LABEL: Record<(typeof FILLABLE)[number], string> = { cuisine: 'cuisine', phone: 'phone', address: 'address', website: 'website', orderUrl: 'ordering link', menuUrl: 'menu link' };
+export const LABEL: Record<(typeof FILLABLE)[number], string> = { cuisine: 'cuisine', phone: 'phone', address: 'address', website: 'website', orderUrl: 'ordering link', menuUrl: 'menu link' };
 const LIMIT = { name: 200, cuisine: 200, phone: 50, address: 500 } as const;
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
-const andList = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
+export const andList = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
 
 /** Each section's items together, sections in the order first seen and spelled as first seen: several
  * photos of one menu, or pages shared later, add to the sections already there. */
@@ -123,9 +123,9 @@ function bySection<T extends { section: string | null }>(items: T[]): T[] {
   return [...groups.values()].flat();
 }
 
-/** The import, or an error message for a 400. `page`: what url's page says, when the caller has
- * already read it (POST /api/share), so it isn't fetched twice. */
-export async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<typeof RestaurantImportSchema>, page?: PlaceDetails | null) {
+/** What the import would do, without saving, or an error message for a 400. `page`: what url's page
+ * says, when the caller has already read it (POST /api/share), so it isn't fetched twice. */
+export async function planRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<typeof RestaurantImportSchema>, page?: PlaceDetails | null) {
   const db = c.env.DB;
   const header = input.menuText ? splitMenuHeader(input.menuText) : { fields: {}, menuText: '' };
   const text = (k: 'name' | 'cuisine' | 'phone' | 'address') => (input[k]?.trim() || header.fields[k]?.trim() || null)?.slice(0, LIMIT[k]) ?? null;
@@ -161,11 +161,20 @@ export async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.i
     if (seen.has(key(item.section, item.name)) || (old?.menu.length ?? 0) + added.length >= 500) { skipped++; continue }
     seen.add(key(item.section, item.name)); added.push(item);
   }
+  const sections = new Set(incoming.filter((i) => i.section).map((i) => nameKey(i.section))).size;
+  return { fields, name: fields.name, old, filled, incoming, added, skipped, sections };
+}
 
+/** The import, or an error message for a 400 (planRestaurant, then saved). */
+export async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<typeof RestaurantImportSchema>, page?: PlaceDetails | null) {
+  const plan = await planRestaurant(c, input, page);
+  if (typeof plan === 'string') return plan;
+  const { fields, name: given, old, filled, added, skipped } = plan;
+  const db = c.env.DB;
   let restaurant = old;
   if (!old || filled.length || added.length) {
     const changes = Object.fromEntries(filled.map((k) => [k, fields[k]]));
-    restaurant = await saveRestaurant(db, { name: old?.name ?? fields.name, ...changes, ...(added.length && { menu: bySection([...(old?.menu ?? []), ...added]) }) }, old);
+    restaurant = await saveRestaurant(db, { name: old?.name ?? given, ...changes, ...(added.length && { menu: bySection([...(old?.menu ?? []), ...added]) }) }, old);
     emit(c, 'restaurant.changed', { id: restaurant.id });
   }
   const name = restaurant!.name, extra = skipped ? ` (${skipped} already there)` : '';
