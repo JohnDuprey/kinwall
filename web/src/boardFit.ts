@@ -115,10 +115,15 @@ export function slotLayout({ fixed, rows, space, items, chips = 0, keep = [0, 0]
 export const tileChips = (tiles: string[], toolbar: boolean) =>
   toolbar && tiles.length > 0 && tiles.length <= 2 && tiles.every(t => !['meds', 'chores', 'due'].includes(t))
 
-/** Whether the toolbar chips show their names: only when every chip fits whole (`widths`: each with
- *  its whole name) in `room`, else each is just its icon and count (never "G… 14"). */
-export const chipNamesFit = (widths: number[], room: number, gap = 8) =>
-  widths.reduce((n, w) => n + w, 0) + gap * (widths.length - 1) <= room + 0.5
+/** How the toolbar chips fit their spot (`room`, px): with their whole names (`full`: each chip's
+ *  width) when all fit, else each just its icon and count (`short`; never "G… 14"), else 'tight': short
+ *  chips, and the toolbar's Family wall and Polls buttons down to their icons, which frees `freed` px.
+ *  Measured while tight (`tight`), the spot is that much wider than with the words back, and it takes
+ *  a few px to spare to bring them back, so it can't flip back and forth at the edge. */
+export function chipFit(full: number[], short: number[], room: number, freed: number, tight = false, gap = 8): 'names' | 'short' | 'tight' {
+  const fits = (w: number[]) => w.reduce((n, x) => n + x, 0) + gap * (w.length - 1) <= room - (tight ? freed + gap : 0) + 0.5
+  return fits(full) ? 'names' : fits(short) ? 'short' : 'tight'
+}
 
 /** Today's events on the Board, for a glance late in the day: what's on now (all-day ones too), then
  *  what's next, in start order; the ones already over go to `earlier`, which the card folds into one

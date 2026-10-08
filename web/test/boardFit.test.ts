@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder, chipWords } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -111,11 +111,20 @@ test('tileChips: one or two list or Rewards tiles go on the toolbar, three or mo
   assert.equal(tileChips(['meds'], true), false)
 })
 
-test('chipNamesFit: names only when every chip fits whole, else icon and count', () => {
-  assert.equal(chipNamesFit([153, 188], 349), true, 'both whole, with the gap between them')
-  assert.equal(chipNamesFit([153, 188], 340), false, 'not both: no names, rather than "G… 14"')
-  assert.equal(chipNamesFit([153], 153), true)
-  assert.equal(chipNamesFit([153], 100), false)
+test('chipFit: names when every chip fits whole, else icon and count, else the toolbar buttons lose their words', () => {
+  assert.equal(chipFit([153, 188], [70, 72], 349, 150), 'names', 'both whole, with the gap between them')
+  assert.equal(chipFit([153, 188], [70, 72], 340, 150), 'short', 'not both: no names, rather than "G… 14"')
+  assert.equal(chipFit([153], [70], 153, 150), 'names')
+  assert.equal(chipFit([153], [70], 100, 150), 'short')
+  assert.equal(chipFit([153], [70], 60, 150), 'tight', 'not even icon and count: Family wall and Polls go to their icons')
+  assert.equal(chipFit([153, 188], [70, 72], 120, 150), 'tight')
+})
+
+test('chipFit: room is the toolbar with Family wall and Polls showing their words', () => {
+  // Measured while tight, the spot is `freed` wider than it would be with the words back.
+  assert.equal(chipFit([153], [70], 60 + 150, 150, true), 'tight', 'the words back would leave 60: stay tight')
+  assert.equal(chipFit([153], [70], 90 + 150, 150, true), 'short', 'room for icon and count with the words back')
+  assert.equal(chipFit([153], [70], 72 + 150, 150, true), 'tight', 'a few px short of leaving: no flip-flopping at the edge')
 })
 
 test('todayOrder: on now first, then upcoming, then the finished ones folded away', () => {

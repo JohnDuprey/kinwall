@@ -23,7 +23,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder, chipWords } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -172,22 +172,34 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
 type CountTile = { key: string; href: string; icon: React.ReactNode; name: string; value: string; count: string }
 
 /** The Board's one or two count tiles as chips on the toolbar (`host`, boardFit.ts tileChips): with
- *  their names when they all fit whole, else each its icon and count (boardFit.ts chipNamesFit). */
+ *  their names when they all fit whole, else each its icon and count, else (a phone on its side at a
+ *  large text size) the toolbar's Family wall and Polls buttons drop to their icons too (boardFit.ts chipFit). */
 function ToolbarChips({ host, tiles }: { host: HTMLElement | null | undefined; tiles: CountTile[] }) {
-  const [names, setNames] = useState(true)
+  const [fit, setFit] = useState<'names' | 'short' | 'tight'>('names')
   const text = tiles.map(t => t.name + t.count).join()
   useLayoutEffect(() => {
-    if (!host) return
-    // A chip's whole width: a hidden name still measures its text as scrollWidth.
-    const check = () => setNames(chipNamesFit([...host.querySelectorAll<HTMLElement>('.board-chip')].map(c => {
-      const n = c.querySelector<HTMLElement>('.board-chip-name')
-      return c.offsetWidth + (n ? n.scrollWidth - n.clientWidth : 0)
-    }), host.clientWidth))
+    const bar = host?.parentElement
+    if (!host || !bar) return
+    // A hidden name or button word still measures its text as scrollWidth. A chip's gaps are 6px with
+    // its name, 3px without (styles.css .board-chip), and a button's word sits 8px from its icon.
+    const check = () => {
+      const chips = [...host.querySelectorAll<HTMLElement>('.board-chip')].map(c => {
+        const n = c.querySelector<HTMLElement>('.board-chip-name')
+        const named = !!n && n.clientWidth > 0
+        return { full: c.offsetWidth + (n && !named ? n.scrollWidth + 6 : 0), short: c.offsetWidth - (n && named ? n.clientWidth + 6 : 0) }
+      })
+      const words = [...bar.querySelectorAll<HTMLElement>('.board-layout-pick > span, .polls-btn-label')]
+      const tight = bar.dataset.chips === 'tight'
+      const next = chipFit(chips.map(c => c.full), chips.map(c => c.short), host.clientWidth, words.reduce((n, w) => n + w.scrollWidth + 8, 0), tight)
+      if (next === 'tight') bar.dataset.chips = 'tight'; else delete bar.dataset.chips
+      setFit(next)
+    }
     check()
     const ro = new ResizeObserver(check)
     ro.observe(host)
-    return () => ro.disconnect()
+    return () => { ro.disconnect(); delete bar.dataset.chips }
   }, [host, text])
+  const names = fit === 'names'
   return host && createPortal(tiles.map(t => (
     <a key={t.key} className={`btn btn-secondary board-chip ${names ? '' : 'board-chip-short'}`} href={t.href} aria-label={`${t.name}: ${t.value}`}>
       <span aria-hidden="true" className="board-chip-icon">{t.icon}</span><span aria-hidden="true" className="board-chip-name">{t.name}</span><span aria-hidden="true" className="board-chip-count">{t.count}</span>
