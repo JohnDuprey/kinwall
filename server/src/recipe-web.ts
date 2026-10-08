@@ -29,11 +29,17 @@ export function decodeEntities(s: string): string {
   });
   return once(once(s));
 }
+/** Applies `f` until the string stops changing, so a strip can't leave a tag rebuilt from the
+ * pieces around one it removed ("<scr<script>ipt>"). */
+export function untilStable(s: string, f: (t: string) => string): string {
+  for (let prev = ''; s !== prev; ) [prev, s] = [s, f(s)];
+  return s;
+}
 /** Text from a value that may hold HTML: tags gone, entities decoded, whitespace collapsed
  * (line breaks kept when `keepLines`). */
 export function clean(value: unknown, keepLines = false): string {
   if (typeof value !== 'string' && typeof value !== 'number') return '';
-  const tags = (t: string) => t.replace(/<br\s*\/?>|<\/(p|li|div|h\d|tr)>/gi, '\n').replace(/<[^>]*>/g, '');
+  const tags = (t: string) => untilStable(t, (u) => u.replace(/<br\s*\/?>|<\/(p|li|div|h\d|tr)>/gi, '\n').replace(/<[^>]*>/g, ''));
   const s = tags(decodeEntities(tags(String(value)))); // twice: markup that was itself entity-encoded
   return keepLines ? s.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n') : s.replace(/\s+/g, ' ').trim();
 }

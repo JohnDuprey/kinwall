@@ -105,3 +105,12 @@ test('notesText: HTML becomes plain text with its line breaks; plain text passes
   assert.equal(notesText('<p>a</p><p></p><p></p><p>b</p>'), 'a\n\nb', 'no runs of blank lines');
   assert.equal(notesText('&lt;b&gt;not a tag&lt;/b&gt;<br>'), '<b>not a tag</b>', 'encoded markup stays text');
 });
+
+test('notesText: nested, broken and odd-case script tags leave no tag behind', () => {
+  for (const html of ['<scr<script>ipt>alert(1)</script>', '<<script>script>alert(1)<</script>/script>', '<SCRIPT >alert(1)</SCRIPT foo>Hi', '<p>a</p><scr<b>ipt>x']) {
+    const out = notesText(html) ?? '';
+    assert.doesNotMatch(out, /<\s*script/i, html);
+    assert.doesNotMatch(out, /alert/, html);
+  }
+  assert.equal(notesText('<SCRIPT >alert(1)</SCRIPT foo>Hi'), 'Hi');
+});

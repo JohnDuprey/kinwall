@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { decodeEntities, isoMinutes, parseRecipeHtml, parseRecipeText, yieldServings } from '../src/recipe-web.ts';
+import { clean, decodeEntities, isoMinutes, parseRecipeHtml, parseRecipeText, yieldServings } from '../src/recipe-web.ts';
 import type { Env } from '../src/env.ts';
 
 const page = (...blocks: unknown[]) => `<!doctype html><html><head><title>x</title>${blocks.map((b) => `<script type="application/ld+json">${typeof b === 'string' ? b : JSON.stringify(b)}</script>`).join('')}</head><body>hi</body></html>`;
@@ -201,4 +201,11 @@ test('parse-text and import-url are admin only; parse-text previews', async () =
   const key = (await post('/api/keys', { name: 'wall', scope: 'display' })).json.key;
   assert.equal((await post('/api/recipes/parse-text', { text: 'x' }, key)).status, 403);
   assert.equal((await post('/api/recipes/import-url', { url: `${base}/chili` }, key)).status, 403);
+});
+
+test('clean: nested and broken tags leave no tag behind', () => {
+  for (const html of ['<scr<script>ipt>alert(1)</script>', '<<script>script>x', '&lt;scr<b>ipt&gt;x', '<p>Mix <scr<i>ipt>well</p>']) {
+    assert.doesNotMatch(clean(html), /<\s*script/i, html);
+  }
+  assert.equal(clean('<p>Mix <b>well</b></p>'), 'Mix well');
 });
