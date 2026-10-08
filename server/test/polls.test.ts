@@ -128,3 +128,13 @@ test('polls: export and import carry polls, choices and votes', async () => {
   const back = (await t.send('GET', `/api/polls/${poll.id}`)).body;
   assert.deepEqual(back.options.map((o: any) => [o.label, o.restaurantId, o.votes]), [['Uno', null, []], ['Chess', null, [t.maya.id]], ['Corner Slice', t.slice.id, []]]);
 });
+
+test('polls: a family starts at most 10 new polls an hour, so a runaway app cannot flood everyone', async () => {
+  const t = await setup();
+  const start = () => t.send('POST', '/api/polls', { question: 'Pizza?', options: [{ label: 'Yes' }, { label: 'No' }] });
+  for (let i = 0; i < 10; i++) assert.equal((await start()).status, 201);
+  const refused = await start();
+  assert.equal(refused.status, 429);
+  assert.match(refused.body.error, /10 new polls this hour/);
+  assert.equal((await t.send('GET', '/api/polls')).body.length, 10, 'the refused one was not started');
+});

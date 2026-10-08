@@ -172,6 +172,20 @@ test('plugins: size limits hold against zip bombs, a full family and chatty savi
   await refused(await zip({ 'kinwall-plugin.json': JSON.stringify({ ...MANIFEST, homepage: 'javascript:alert(1)' }), 'index.html': 'x' }), /homepage/);
 });
 
+test('plugins: connected apps (MCP and other OAuth apps) cannot install or update activities', async () => {
+  const { req, json } = setup({ PLUGIN_CATALOG: async () => [] });
+  const pkg = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': '<h1>Hi</h1>' });
+  const app = { 'X-Kinwall-Source': 'mcp' };
+  const viaApp = await req('/api/plugins', { method: 'POST', headers: { 'Content-Type': 'application/zip', ...app }, body: pkg });
+  assert.equal(viaApp.status, 403);
+  assert.match(((await viaApp.json()) as any).error, /Connected apps can't add or update activities/);
+  assert.equal((await req('/api/plugins', { method: 'POST', headers: { 'Content-Type': 'application/json', ...app }, body: JSON.stringify({ url: 'https://github.com/ourfamily/kinwall-plugin-words' }) })).status, 403);
+  assert.equal((await upload(req, pkg)).status, 201, 'a parent still can');
+  assert.equal((await req('/api/plugins/sight-words/update', { method: 'POST', headers: app })).status, 403);
+  assert.equal((await req('/api/plugins', { headers: app })).status, 200, 'listing them is fine');
+  assert.equal((await json('/api/plugins/sight-words', 'PATCH', { enabled: false })).status, 200);
+});
+
 test('plugins: GitHub links resolve to owner/repo', () => {
   assert.equal(githubRepo('https://github.com/ourfamily/kinwall-plugin-math'), 'ourfamily/kinwall-plugin-math');
   assert.equal(githubRepo('https://github.com/ourfamily/kinwall-plugin-math/releases/tag/v1.0.0'), 'ourfamily/kinwall-plugin-math');

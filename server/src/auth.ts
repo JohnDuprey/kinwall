@@ -354,6 +354,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
 // change. Both would get around aiHealthAccess.
 const NOT_A_DEVICE = "Connected apps can't get push notifications. Turn them on from a family member's own device.";
 const NO_WEBHOOKS = "Connected apps can't set up webhooks. Do this from a parent's own device.";
+const NO_PLUGINS = "Connected apps can't add or update activities. Do this from a parent's own device.";
 const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[] = [
   { method: /^(POST)$/, pattern: /^\/api\/keys$/ },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/keys\/[^/]+$/ },
@@ -371,6 +372,8 @@ const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[
   { method: /^(POST)$/, pattern: /^\/api\/push\/subscriptions$/, error: NOT_A_DEVICE },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/push\/subscriptions\/[^/]+$/, error: NOT_A_DEVICE },
   { method: /^(POST)$/, pattern: /^\/api\/push\/test\/[^/]+$/, error: NOT_A_DEVICE },
+  // Installing or updating an activity puts new code on the kids' tablets: a parent, on their own device.
+  { method: /^(POST)$/, pattern: /^\/api\/plugins(\/[^/]+\/update)?$/, error: NO_PLUGINS },
   { method: /^(POST)$/, pattern: /^\/api\/webhooks(\/[^/]+\/rotate)?$/, error: NO_WEBHOOKS },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/webhooks\/[^/]+$/, error: NO_WEBHOOKS },
 ];

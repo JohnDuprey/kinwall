@@ -23,6 +23,7 @@ import { ErrorSchema } from '../schemas.ts';
 import { MealDateSchema, MealSlotSchema } from '../meal-schemas.ts';
 import { readFeatures } from './settings.ts';
 import { loadSubs, recordNotification, sendToSub } from '../notify.ts';
+import { checkRate } from '../ratelimit.ts';
 
 export const pollsRoutes = createRouter();
 
@@ -75,6 +76,9 @@ const errors = {
   404: { description: 'not found, or polls are turned off (settings.features.polls)', content: { 'application/json': { schema: ErrorSchema } } },
   409: { description: 'the poll is closed', content: { 'application/json': { schema: ErrorSchema } } },
 };
+// A few polls an hour is plenty for a family; each one notifies everyone.
+const NEW_POLLS_PER_HOUR = 10;
+const tooMany = { 429: { description: 'too many new polls this hour', content: { 'application/json': { schema: ErrorSchema } } } };
 const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
 const pollResponse = { description: 'poll', content: { 'application/json': { schema: PollSchema } } };
 
@@ -147,7 +151,7 @@ pollsRoutes.openapi(
 pollsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/polls', tags: ['Polls'], summary: 'Start a poll (parents); everyone gets a notification. Recipe and restaurant choices need Meals on; one without a label takes the recipe\'s or restaurant\'s name', security: [{ Bearer: [] }],
-    request: { body: body(PollInputSchema) }, responses: { 201: pollResponse, ...errors },
+    request: { body: body(PollInputSchema) }, responses: { 201: pollResponse, ...errors, ...tooMany },
   }),
   async (c) => {
     const db = c.env.DB;
@@ -164,6 +168,8 @@ pollsRoutes.openapi(
     const names = new Map([...recipes.results, ...places.results].map((r) => [r.id, r.name]));
     const missing = [...recipeIds, ...restaurantIds].find((id) => !names.has(id));
     if (missing) return c.json({ error: `${recipeIds.includes(missing) ? 'recipe' : 'restaurant'} not found: ${missing}` }, 400);
+    // Each poll notifies everyone, so a runaway app or script can't flood the family's phones.
+    if (!(await checkRate(db, 'polls:new', NEW_POLLS_PER_HOUR, 3600_000))) return c.json({ error: `That's ${NEW_POLLS_PER_HOUR} new polls this hour, so this one wasn't started. Try again in a while.` }, 429);
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const by = (await actorOf(c)).memberId;

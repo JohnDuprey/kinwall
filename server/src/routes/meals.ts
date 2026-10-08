@@ -16,6 +16,7 @@ import { pushToMembers, recordNotification } from '../notify.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
 import { parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
+import { checkRate } from '../ratelimit.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -24,6 +25,8 @@ const errors = {
   403: { description: 'admin or assigned device required', content: { 'application/json': { schema: ErrorSchema } } },
   404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
 };
+// Asking for orders notifies everyone eating; a few times an hour is plenty.
+const ASK_ORDERS_PER_HOUR = 10;
 const providerError = { 502: { description: 'the calendar provider refused the event change', content: { 'application/json': { schema: ErrorSchema } } } };
 const ok = { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } };
 const recipeResponse = { description: 'recipe', content: { 'application/json': { schema: RecipeSchema } } };
@@ -392,11 +395,13 @@ mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}/order
 });
 const ORDER_HOW = { dine_in: 'Eating there', pickup: 'Pickup', delivery: 'Delivery' } as const;
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-orders', tags: ['Meals'], summary: "Ask who's eating (everyone when nobody is picked) what they want: a bell notification and a push to their devices, opening the order sheet (admin)", security: [{ Bearer: [] }], request: { params },
-  responses: { 200: { description: 'how many devices got the push', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } }, ...errors } }), async (c) => {
+  responses: { 200: { description: 'how many devices got the push', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } }, ...errors, 429: { description: 'asked too often this hour', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);
   if (!meal) return c.json({ error: 'meal not found' }, 404);
   if (meal.mealKind !== 'dining_out') return c.json({ error: 'orders are for dining-out meals' }, 400);
   if (!(await readFeatures(c.env.DB)).meals) return c.json({ error: 'Meals is turned off in Settings → General → Features' }, 403);
+  // Each ask notifies everyone eating, so a runaway app or script can't flood the family's phones.
+  if (!(await checkRate(c.env.DB, 'meals:ask-orders', ASK_ORDERS_PER_HOUR, 3600_000))) return c.json({ error: `Everyone was already asked for their orders ${ASK_ORDERS_PER_HOUR} times this hour, so nobody was asked again. Try again in a while.` }, 429);
   const day = new Date(`${meal.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   const title = `${meal.title}, ${day} ${meal.slot}: what do you want?`;
   const text = `${meal.orderType ? `${ORDER_HOW[meal.orderType]}. ` : ''}Tap to add your order.`;

@@ -116,3 +116,12 @@ test("meal orders: a restaurant shows nights coming up and each person's usual; 
   assert.equal(again.restaurantId, place.id); assert.equal(again.orderType, 'pickup');
   assert.deepEqual(again.orders.map((o: any) => [o.memberId, o.items[0].qty]), [[sam.id, 2]]);
 });
+
+test('meal orders: asking for orders is limited to 10 times an hour per family', async () => {
+  const f = fixture();
+  const { meal } = await orderNight(f);
+  for (let i = 0; i < 10; i++) assert.equal((await f.request(`/api/meals/${meal.id}/ask-orders`, 'POST')).status, 200);
+  const refused = await f.request(`/api/meals/${meal.id}/ask-orders`, 'POST');
+  assert.equal(refused.status, 429);
+  assert.match(((await refused.json()) as any).error, /asked for their orders 10 times this hour/);
+});

@@ -21,7 +21,7 @@ Parents start polls: **Home → Board → 🗳 Polls → New poll**.
    * **Add an idea**: anything typed, like "Pizza night" or "Moana".
    * **Add a recipe**: a recipe from the recipe book (with Meals on).
    * **Add a restaurant**: a place from the [restaurant binder](meals.md#restaurants) (with Meals on).
-4. Tap **Start poll**. Everyone gets the notification.
+4. Tap **Start poll**. Everyone gets the notification. A family can start 10 polls an hour at most.
 
 ## Voting
 
