@@ -106,7 +106,7 @@ export default function CalendarView() {
   // Newscast turned off (Settings → Features): its tab goes, and a screen showing or locked to it shows the Board.
   const newscastOn = settings.features.newscast !== false
   const viewMode: ViewMode = ((v: ViewMode) => v === 'newscast' && !newscastOn ? 'board' : v)(device.lockView ?? chosenView)
-  // Board and Newscast are for reading: no paging, adding, hidden events or category filter.
+  // Board and Newscast are for reading: no paging, hidden events or category filter (the Board can add one).
   const calendarish = viewMode !== 'board' && viewMode !== 'newscast'
   // Picked in the switcher: a calendar view (Day, Week, Month) is what Calendar opens next time on this device.
   const pickView = (v: ViewMode) => { if (isCalendarView(v)) rememberCalendarView(v); setViewMode(v); setDayFrom(null) }
@@ -318,7 +318,7 @@ export default function CalendarView() {
   const openAdd = (prefill?: Partial<EventInstance>) => { if (canAdd) setEditState({ event: null, prefill }) }
   // + adds to the day on screen (newEventDay), not always today.
   const shownDays = viewMode === 'week' ? weekDays : viewMode === 'month' ? eachDayOfInterval({ start: startOfMonth(anchor), end: endOfMonth(anchor) }) : [startOfDay(anchor)]
-  const addOnShownDay = () => openAdd({ ...newEventTimes(newEventDay(shownDays)), allDay: false })
+  const addOnShownDay = () => openAdd({ ...newEventTimes(newEventDay(viewMode === 'board' ? [new Date()] : shownDays)), allDay: false }) // the Board is today
   // Opening a day from the week/month grid replaces the focused cell; land focus on the new
   // period heading instead of dropping it to the top of the page.
   const periodRef = useRef<HTMLHeadingElement>(null)
@@ -509,9 +509,10 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {/* Not on the board: it would sit over the Due soon card, and the board is for reading. */}
-      {calendarish && (canAdd ? <button className="fab" onClick={addOnShownDay} aria-label="Add event"><PlusIcon /></button>
-        : kidDevice && calendars.length > 0 && <p className="fab-hint">{calendars.some(c => c.memberIds.includes(meMemberId!))
+      {/* The Board too (not Newscast, which is for reading): its cards keep their rows clear of it
+          (Board.tsx FitBody, and room to scroll past it where the Board scrolls). */}
+      {(calendarish || viewMode === 'board') && canAdd ? <button className="fab" onClick={addOnShownDay} aria-label="Add event"><PlusIcon /></button>
+        : calendarish && (kidDevice && calendars.length > 0 && <p className="fab-hint">{calendars.some(c => c.memberIds.includes(meMemberId!))
           ? 'Ask a parent to let this device change your calendar in Settings → Calendars.'
           : 'Ask a parent to give you a calendar in Settings → Calendars.'}</p>)}
 

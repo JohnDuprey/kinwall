@@ -72,7 +72,11 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
     const top = b.getBoundingClientRect().top
     const info = els.map(e => ({ bottom: e.getBoundingClientRect().bottom - top, heading: e.matches('.snap-day-heading') }))
     // A card with bigger or smaller text is zoomed: measure the space as drawn, like the rows.
-    const space = w.getBoundingClientRect().height, scale = w.clientHeight ? space / w.clientHeight : 1
+    const box = w.getBoundingClientRect(), scale = w.clientHeight ? box.height / w.clientHeight : 1
+    // On the fixed board, rows that would sit under the add button (Calendar.tsx) go to More instead.
+    const fab = w.closest('[data-fixed]') && document.querySelector('.fab')?.getBoundingClientRect()
+    const under = fab && fab.left < box.right && fab.right > box.left && fab.top < box.bottom
+    const space = under ? Math.max(0, fab.top - 8 - box.top) : box.height
     const shown = rowsThatFit(info, space, MORE_SPACE * scale)
     els.forEach((e, i) => { e.hidden = i >= shown })
     for (const d of days) d.hidden = !!d.querySelector('.snap-day-heading[hidden]') // a day whose rows all went
@@ -403,7 +407,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   ]
 
   return (
-    <div className="board-scroll" ref={scrollRef}>
+    <div className="board-scroll" ref={scrollRef} data-fixed={fixed || undefined}>
       <ToolbarChips host={chips ? chipHost : null} tiles={countTiles} />
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}

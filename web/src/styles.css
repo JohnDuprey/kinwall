@@ -3565,6 +3565,9 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
    An open poll sits in the Board's "in Today" slot (Board.tsx TodaySlot): whole when the card's rows
    leave room, else one row. Without Today it's in Coming up, without that a slim strip above the cards. Votes show
    as avatars and counts, never color alone. */
+/* With the add button over it, a scrolling Board can scroll its last card clear (the fixed one's
+   cards move their rows out from under it: Board.tsx FitBody). */
+.content:has(> .fab) .board-scroll:not([data-fixed]) { padding-bottom: calc(60px + 22px + var(--safe-b) + 16px); }
 .board-scroll:has(> .board-polls:not(:empty)) { display: flex; flex-direction: column; }
 .board-polls:empty { display: none; }
 .board-polls { flex: none; padding: 4px var(--pad) 0; }
