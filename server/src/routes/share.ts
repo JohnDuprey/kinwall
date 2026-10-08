@@ -2,6 +2,8 @@
 // is shared goes where it belongs, through what each area already does:
 // - a link with no kind is read once and sent by its JSON-LD: Recipe → the recipe import (saved),
 //   Restaurant/FoodEstablishment/LocalBusiness → the restaurant import; an Apple Maps place → restaurant
+// - kind place: a Maps place (or a page's place) as a contact of kind place; one with the same name
+//   (case ignored, as convertRefillPlaces matches) gets only its empty address, phone and websites filled
 // - a photo or text comes with kind from the Shortcut's "What is this?" menu (Kinwall never guesses):
 //   restaurant (menu text) → the restaurant import; book → an ISBN in it is added like add-by-ISBN,
 //   else its title and author, only when Open Library has one clear match; event → a link that opens
@@ -21,7 +23,7 @@ import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import { fetchRecipePage } from '../outbound.ts';
 import { parseRecipeHtml } from '../recipe-web.ts';
-import { mapsPlace, nameKey, normalizeLink, parseRestaurantHtml } from '../restaurant-import.ts';
+import { linkDetails, mapsPlace, nameKey, normalizeLink, parseRestaurantHtml } from '../restaurant-import.ts';
 import { bookQuery, findIsbn, parseEventText } from '../share-text.ts';
 import { autoShelf, sameBook } from '../shelve.ts';
 import { checkRate } from '../ratelimit.ts';
@@ -33,12 +35,15 @@ import { searchOpenLibrary, why } from './books.ts';
 import { todayInTz } from './members.ts';
 import { createEvent } from './events.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
+import { fromRow, inputOf, insert, update, type ContactRow } from './contacts.ts';
+import { ContactInputSchema } from '../schemas.ts';
+import { emit } from '../bus.ts';
 
 type C = Context<{ Bindings: Env }>;
 /** The app, to add a book through POST /api/library itself (as the MCP tools do). */
 type App = { request: (path: string, init: RequestInit, env: Env) => Response | Promise<Response> };
 
-const KINDS = ['recipe', 'restaurant', 'book', 'event'] as const;
+const KINDS = ['recipe', 'restaurant', 'book', 'event', 'place'] as const;
 /** A link to show on a card: its host and path, shortened ("cornerslice.example/order…"). */
 export const shortLink = (u: string) => { const l = u.replace(/^https?:\/\/(?:www\.)?/i, '').replace(/\/$/, ''); return l.length > 40 ? `${l.slice(0, 39)}…` : l; };
 // Shortcuts sends an unset variable as "" and a switch as text.
@@ -53,8 +58,8 @@ const EventDraftSchema = z.object({
 }).openapi('ShareEvent');
 export const ShareInputSchema = RestaurantImportSchema.extend({
   // Shortcuts sends an unset variable as "" and a menu item as typed ("Book"): both are fine.
-  kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
-  url: z.string().max(5000).nullable().optional().describe('A shared link: a recipe or restaurant page, or an Apple Maps place.'),
+  kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page, and a Maps place is a restaurant. place: a Maps place (or any place) as a contact of kind place, with its name, address, the link as its "Map" website and phone; a contact with the same name gets only its empty fields filled in. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
+  url: z.string().max(5000).nullable().optional().describe('A shared link: a recipe or restaurant page, or an Apple or Google Maps place (a short link is followed to the place).'),
   text: z.string().max(100000).nullable().optional().describe('Text from a photo or a share: a menu (restaurant), an ISBN or a title and author (book), or a flyer or invite (event). "Title:", "Date:", "Time:", "Place:" and "Notes:" lines help an event; "Title:" and "Author:" a book. The first of each line wins, so a model\'s lines can go first, then a "---" line, then the words as read: a Place with no street takes the street from them, a bare street the "at" venue line above it, and a Time with no am/pm or end the words\' fuller time. Leftover lines worth knowing become notes.'),
   event: EventDraftSchema.partial().nullable().optional().describe('An event as the person checked it (from a previous answer\'s event); used instead of text.'),
   save: z.preprocess(blankOff, z.boolean().optional()).describe('kind event only: add it to calendarId now instead of answering with a link to check it.'),
@@ -107,12 +112,13 @@ type Preview = NonNullable<z.infer<typeof ShareResultSchema>['preview']>;
 
 const origin = (c: C) => (c.env.PUBLIC_URL ? new URL(c.env.PUBLIC_URL).origin : new URL(c.req.url).origin);
 const MEALS_OFF = 'Meals is turned off in Settings → General → Features';
+const CONTACTS_OFF = 'Contacts is turned off in Settings → General → Features';
 
 export function shareRoutes(app: App) {
   const routes = createRouter();
   routes.openapi(createRoute({
     method: 'post', path: '/api/share', tags: ['Share'], security: [{ Bearer: [] }],
-    summary: 'Add whatever a phone shares (the "Add to Kinwall" Shortcut): a recipe or restaurant link (read once, sent by its schema.org type), an Apple Maps place, a menu, a book (ISBN, or title and author) or an event to check before it is saved (admin)',
+    summary: 'Add whatever a phone shares (the "Add to Kinwall" Shortcut): a recipe or restaurant link (read once, sent by its schema.org type), a Maps place (a restaurant, or with kind place a contact), a menu, a book (ISBN, or title and author) or an event to check before it is saved (admin)',
     request: { body: { content: { 'application/json': { schema: ShareInputSchema } } } },
     responses: {
       200: { description: 'added, or a link to check it', content: { 'application/json': { schema: ShareResultSchema } } },
@@ -155,6 +161,35 @@ export function shareRoutes(app: App) {
       const result = await importRestaurant(c, body, page);
       return typeof result === 'string' ? fail(result, 400) : ok('restaurant', result.summary, `meals?restaurant=${encodeURIComponent(result.restaurant.id)}`);
     };
+
+    if (kind === 'place') {
+      if (!settings.features.contacts) return fail(CONTACTS_OFF, 403);
+      const found = url ? await linkDetails(c.env, url) : null;
+      const name = (input.name?.trim() || found?.name)?.slice(0, 200);
+      if (!name) return fail("Add the place's name, then try again.", 400);
+      const address = input.address?.trim() || found?.address || null;
+      const phone = input.phone?.trim() || found?.phone || null;
+      // ponytail: a map link past the contact field's 500 characters is left out (Google long links can be); share the short link.
+      const map = url && url.length <= 500 ? url : null;
+      const same = await c.env.DB.prepare('SELECT * FROM contacts WHERE name = ? COLLATE NOCASE ORDER BY created_at, id LIMIT 1').bind(name).first<ContactRow>();
+      const old = same ? inputOf(fromRow(same)) : null;
+      const fill = {
+        ...(address && !old?.addresses.length && { addresses: [{ street: address.slice(0, 500) }] }),
+        ...(phone && !old?.phones.length && { phones: [{ label: 'Main', value: phone.slice(0, 500) }] }),
+        ...(map && !old?.websites.length && { websites: [{ label: 'Map', value: map }] }),
+      };
+      const filled = [fill.addresses && 'address', fill.phones && 'phone', fill.websites && 'map link'].filter((x): x is string => !!x);
+      const path = same ? `contacts?contact=${encodeURIComponent(same.id)}` : 'contacts';
+      if (input.preview) {
+        const already = !old ? null : filled.length ? `Already in Contacts: its ${andList(filled)} will be filled in.` : 'Already in Contacts and up to date.';
+        return shown('place', path, { title: same?.name ?? name, imageUrl: null, exists: !!same, lines: [address, phone].filter((l): l is string => !!l), already, token: null });
+      }
+      const parsed = ContactInputSchema.safeParse(old ? { ...old, ...fill } : { kind: 'place', name, ...fill });
+      if (!parsed.success) return fail("Kinwall couldn't read this place. Check its details and try again.", 400);
+      const saved = old ? await update(c.env.DB, same!.id, parsed.data) : await insert(c.env.DB, parsed.data);
+      emit(c, 'contact.changed', { id: saved.id, action: old ? 'updated' : 'created' });
+      return ok('place', old ? `Filled in ${saved.name} in Contacts` : `Added ${saved.name} to Contacts`, `contacts?contact=${encodeURIComponent(saved.id)}`);
+    }
 
     // An Apple Maps link is never fetched (it's read off the link itself), whatever it's shared as.
     if (url && kind === 'recipe' && mapsPlace(url)) return fail('This page has no recipe Kinwall can read.', 422);

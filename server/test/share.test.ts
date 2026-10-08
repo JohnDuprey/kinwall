@@ -15,6 +15,7 @@ const PAGES: Record<string, string> = {
   'https://food.example/tacos': ld({ '@type': 'Recipe', name: 'Fish tacos', image: 'https://food.example/tacos.jpg', recipeYield: '4 servings', totalTime: 'PT1H15M', recipeIngredient: ['1 lb cod', '8 tortillas', '1 lime'], recipeInstructions: ['Season the fish.', 'Cook it.'] }),
   'https://news.example/story': '<html><head><title>News</title></head><body>No data</body></html>',
 };
+const REDIRECTS: Record<string, string> = { 'https://maps.app.goo.gl/AbCd': 'https://www.google.com/maps/place/Maple+Park,+20+Lake+Rd,+Springfield/@1.2,3.4,17z' };
 const HOBBIT = { key: '/works/OL1W', title: 'The Hobbit', author_name: ['J.R.R. Tolkien'], isbn: ['9780547928227'], first_publish_year: 1937 };
 
 const realFetch = globalThis.fetch;
@@ -30,6 +31,7 @@ function fixture() {
   const fetched: string[] = [];
   const OUTBOUND_FETCH = async (input: string | URL | Request) => {
     const url = String(input instanceof Request ? input.url : input); fetched.push(url);
+    if (REDIRECTS[url]) return new Response(null, { status: 302, headers: { location: REDIRECTS[url] } });
     return PAGES[url] ? new Response(PAGES[url], { headers: { 'content-type': 'text/html; charset=utf-8' } }) : new Response('nope', { status: 404 });
   };
   const env: Env = { DB: db, ADMIN_API_KEY: 'test-admin', PUBLIC_URL: 'https://kinwall.example', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', OUTBOUND_FETCH };
@@ -362,4 +364,58 @@ test("share preview: a menu photo's QR code links show on their own lines, and o
   assert.equal(place.orderUrl, 'https://order.golden.example/start');
   await share({ kind: 'restaurant', text: `Order online: https://other.example/\n${menu}` });
   assert.equal((await call('GET', '/api/restaurants')).json[0].orderUrl, 'https://order.golden.example/start', 'filled only when empty');
+});
+
+test('share: a Maps place shared as a place becomes a contact, after a preview', async () => {
+  const { share, call } = fixture();
+  const url = 'https://maps.apple.com/place?name=Maple%20Park&address=20%20Lake%20Rd,%20Springfield';
+  const preview = await share({ url, kind: 'place', preview: true });
+  assert.equal(preview.status, 200, JSON.stringify(preview.json));
+  assert.equal(preview.json.kind, 'place');
+  assert.equal(preview.json.review, true);
+  assert.deepEqual([preview.json.preview.title, preview.json.preview.exists, preview.json.preview.lines, preview.json.preview.already], ['Maple Park', false, ['20 Lake Rd, Springfield'], null]);
+  assert.equal(preview.json.link, 'https://kinwall.example/#/contacts');
+  assert.equal((await call('GET', '/api/contacts')).json.length, 0, 'a preview saves nothing');
+
+  const saved = await share({ url, kind: 'place' });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  const [contact] = (await call('GET', '/api/contacts')).json;
+  assert.deepEqual([saved.json.kind, saved.json.summary, saved.json.link], ['place', 'Added Maple Park to Contacts', `https://kinwall.example/#/contacts?contact=${contact.id}`]);
+  assert.deepEqual([contact.kind, contact.name, contact.visibility, contact.addresses[0].street, contact.websites.map((w: any) => [w.label, w.value])], ['place', 'Maple Park', 'household', '20 Lake Rd, Springfield', [['Map', url]]]);
+  // The old app's restaurant share (no kind) still goes to the binder.
+  assert.equal((await share({ url })).json.kind, 'restaurant');
+});
+
+test('share: a place already in Contacts gets only its empty fields filled in', async () => {
+  const { share, call } = fixture();
+  const old = (await call('POST', '/api/contacts', { kind: 'organization', name: 'maple park', phones: [{ label: 'Office', value: '555-0100' }] })).json;
+  const url = 'https://maps.apple.com/place?name=Maple%20Park&address=20%20Lake%20Rd';
+  const preview = await share({ url, kind: 'place', phone: '555-0199', preview: true });
+  assert.deepEqual([preview.json.preview.title, preview.json.preview.exists, preview.json.preview.already], ['maple park', true, 'Already in Contacts: its address and map link will be filled in.']);
+  assert.equal(preview.json.link, `https://kinwall.example/#/contacts?contact=${old.id}`);
+  const saved = await share({ url, kind: 'place', phone: '555-0199' });
+  assert.equal(saved.json.summary, 'Filled in maple park in Contacts');
+  const all = (await call('GET', '/api/contacts')).json;
+  assert.equal(all.length, 1);
+  assert.deepEqual([all[0].kind, all[0].phones.map((p: any) => p.value), all[0].addresses[0].street, all[0].websites[0].value], ['organization', ['555-0100'], '20 Lake Rd', url]);
+  // Again: nothing left to fill.
+  assert.equal((await share({ url, kind: 'place', preview: true })).json.preview.already, 'Already in Contacts and up to date.');
+});
+
+test('share: a place needs a name; a Google short link finds it through its redirect', async () => {
+  const { share, call, fetched } = fixture();
+  const none = await share({ url: 'https://maps.google.com/?q=41.9,-70.6', kind: 'place' });
+  assert.deepEqual([none.status, none.json.error], [400, "Add the place's name, then try again."]);
+  const short = await share({ url: 'https://maps.app.goo.gl/AbCd', kind: 'place' });
+  assert.equal(short.status, 200, JSON.stringify(short.json));
+  assert.deepEqual(fetched, ['https://maps.app.goo.gl/AbCd']);
+  const [contact] = (await call('GET', '/api/contacts')).json;
+  assert.deepEqual([contact.name, contact.addresses[0].street, contact.websites[0].value], ['Maple Park', '20 Lake Rd, Springfield', 'https://maps.app.goo.gl/AbCd']);
+  // The name the phone sends wins over the link's.
+  await share({ url: 'https://maps.apple.com/place?name=Lake', kind: 'place', name: 'Lakeside beach' });
+  assert.ok((await call('GET', '/api/contacts')).json.some((c: any) => c.name === 'Lakeside beach'));
+  // Contacts turned off: nothing is added.
+  const s = (await call('GET', '/api/settings')).json;
+  await call('PATCH', '/api/settings', { features: { ...s.features, contacts: false } });
+  assert.equal((await share({ url: 'https://maps.apple.com/place?name=Pond', kind: 'place' })).status, 403);
 });

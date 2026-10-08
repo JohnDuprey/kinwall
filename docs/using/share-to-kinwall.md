@@ -5,20 +5,22 @@ Share something from any app on your iPhone or Android phone and Kinwall puts it
 | You share | It becomes |
 |---|---|
 | A recipe's web page | A recipe in the [recipe library](meals.md) |
-| A restaurant's website, a place in Apple Maps, or a photo of a menu | A restaurant in the [binder](meals.md#restaurants) |
+| A restaurant's website, a restaurant in Apple Maps or Google Maps, or a photo of a menu | A restaurant in the [binder](meals.md#restaurants) |
+| A place in Apple Maps or Google Maps that isn't a restaurant (a park, a school, a friend's house) | A place in [Contacts](contacts.md) |
 | A book's barcode or ISBN, or a photo of its cover | A book in the family's [library](trackers.md#library) |
 | A flyer, an invite or a screenshot with a date | An event on the calendar you pick, after you check it |
 
-Links are read by Kinwall, which tells a recipe page from a restaurant's by the details the page publishes for search engines. For a photo or some text, you're asked **What is this?** (Restaurant, Book or Event); Kinwall never guesses what a photo is.
+Links are read by Kinwall, which tells a recipe page from a restaurant's by the details the page publishes for search engines. For a photo or some text, you're asked **What is this?** (Restaurant, Book or Event); Kinwall never guesses what a photo is. For a place in Maps, the Kinwall app asks **Restaurant or place?**.
 
 When it's done, you see one line, such as "Imported Lemon chicken", "Added Wool to the library" or "Check the event: Spring fair, Sat May 9 at 10 AM". In the Kinwall app's share sheet, a recipe, a restaurant or a book shows what will be saved first, and nothing is added until you tap **Add to Kinwall** (below). Shortcuts, Siri and the API save it straight away.
 
 * **Recipes** are saved like **Import from a link**. Sharing the same page again updates that recipe.
 * **Restaurants** work as in [Add restaurants from your phone](meals.md#add-restaurants-from-your-phone): Kinwall finds the place by name or adds it, fills in only empty details and adds menu items that aren't there yet.
+* **Places** become a contact of kind Place with the place's name, address and the Maps link (labeled **Map**), seen by everyone in the family like any new contact. If Contacts already has one with the same name, Kinwall fills in only what it's missing (its address, phone or links) instead of adding it twice.
 * **Books** with an ISBN (the barcode's number, read off a photo, with or without dashes) are added like **Scan**: looked up on [Open Library](https://openlibrary.org), and a book that's already in the library isn't added twice. Without an ISBN, Kinwall searches Open Library for the title and author and adds the book only when there's one clear match. Otherwise it opens **Add a book** with the title filled in, so you can look it up and pick the right one.
 * **Events are never saved without you.** Kinwall reads the title, date, time and place it can find, and a date without a year is the next one coming up. With the Kinwall app, the share sheet shows them for you to fix and add to a calendar right there (below). Otherwise Kinwall opens the new event sheet with them filled in: check them, pick the calendar and who it's for, and tap **Add event**. Anything it couldn't find is left for you. Only a parent's phone adds events.
 
-Meals and Reading have switches in **Settings → General → Features**. While one is off, Kinwall says so ("Meals is turned off in Settings → General → Features") and adds nothing there.
+Meals, Reading and Contacts have switches in **Settings → General → Features**. While one is off, Kinwall says so ("Meals is turned off in Settings → General → Features") and adds nothing there.
 
 ## With the Kinwall app
 
@@ -28,7 +30,8 @@ With the [Kinwall app](https://github.com/JohnDuprey/kinwall-mobile) on your iPh
 
 In Safari, Maps, Photos, the Camera, or any app with a **Share** button, tap **Share** and pick **Kinwall**. If Kinwall isn't in the row of apps, tap **More** and turn it on.
 
-* **A link or a place in Maps** goes to Kinwall straight away, to be read.
+* **A link** goes to Kinwall straight away, to be read.
+* **A place in Maps** (Apple Maps or Google Maps) asks **Restaurant or place?** first. **Restaurant** adds it to the binder as above. **Place** shows a card titled **Check the place** with its name and address ("Already in Contacts: its address will be filled in." when Contacts has it), then **Add to Kinwall** saves it to Contacts.
 * **A photo or some text** is read on the iPhone first ("Reading the photo…"); nothing leaves the phone for that.
   * **Several photos** work too, up to 10: a menu that's double-sided or doesn't fit in one picture. Select them all in Photos, then **Share → Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go to Kinwall together, in the order you picked them, as one menu (or one event). The sheet guesses a menu when it can't tell ("Looks like a menu"). If the restaurant is already in Kinwall, its card says so, and only the items that aren't there yet are added.
   * A book's barcode means a book, and it goes straight to the book's card (below).
@@ -65,6 +68,7 @@ Add to Kinwall has no Siri phrase, since Siri can't take a photo or text by voic
 In Chrome, Photos, the Camera, Messages or any app with a **Share** button, tap **Share** and pick **Kinwall**. A small Kinwall sheet opens over the app you're in.
 
 * **A link** goes to Kinwall straight away, to be read.
+* **A place in Google Maps** (or an Apple Maps link) asks **Restaurant or place?** first, as on the iPhone.
 * **A photo or some text** is read on the phone first ("Reading the photo…"); nothing leaves the phone for that.
   * **Several photos** work as on the iPhone, up to 10: select them in Photos, tap **Share** and pick **Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go together as one menu (or one event), guessed a menu when nothing else can tell.
   * A book's barcode means a book, and it goes straight to the book's card.
@@ -159,6 +163,6 @@ Content-Type: application/json
 
 To add the event straight away, send `"save": true` and the `calendarId` of a calendar you can add to (from `GET /api/calendars`; leave it out for the family's default calendar, the one marked `"default": true`). The answer's `link` then opens the saved event. Without `save`, an event's answer also has `event` (`title`, `date`, `time`, `end`, `place` and `notes`, as read), and you can send `event` back, changed, instead of `text`.
 
-To check a recipe, restaurant or book before saving it, as the app's share sheet does, send `"preview": true`. Nothing is saved: the answer has `review: true` and `preview` (`title`, `imageUrl`, `exists`, `lines`, `already`, a `token` for a link, and the details for its kind). Send the same request again without `preview` to save it, with `"token"` from the preview for a link so the page isn't read twice.
+For a Maps place that isn't a restaurant, send `"kind": "place"` with the Maps link as `url` (and its `name`, if you have it). To check a recipe, restaurant, book or place before saving it, as the app's share sheet does, send `"preview": true`. Nothing is saved: the answer has `review: true` and `preview` (`title`, `imageUrl`, `exists`, `lines`, `already`, a `token` for a link, and the details for its kind). Send the same request again without `preview` to save it, with `"token"` from the preview for a link so the page isn't read twice.
 
 The answer is always `{ kind, summary, link, review }`. Errors come back as `{ error, summary }`, so the notification still says what went wrong. See [REST API](../integrations/rest-api.md).

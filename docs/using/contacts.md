@@ -60,6 +60,10 @@ Either way, nothing is saved until you import, and photos on a shared contact ar
 
 Direct full address-book access requires platform-specific native permissions. Kinwall doesn't read the phone's address book on its own or keep contacts in sync with it; sharing a contact is a one-time import. The import boundary is intentionally normalized so future native adapters can provide contact drafts without changing the directory API.
 
+## Share a place from Maps
+
+Share a place from Apple Maps or Google Maps to Kinwall and pick **Place** when the Kinwall app asks **Restaurant or place?**. It becomes a contact of kind Place with its name, address and a **Map** link, or fills in what's missing on a contact with the same name. See [Add to Kinwall from your phone](share-to-kinwall.md).
+
 ## REST and MCP
 
 The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Search and filters match only what the asking device is shown, so a wall screen or a kid's device can't find a contact by a field that's hidden from it. Import preview saves nothing and takes vCard text (`vcard`) or normalized drafts (`contacts`); the MCP tool takes drafts only.
