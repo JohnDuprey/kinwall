@@ -2052,7 +2052,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_tracker_entry',
     {
       title: 'Add tracker entry',
-      description: `Log a book, a memory or a health visit. title: the book (required for reading), a memory's headline, or a visit's reason. A book also joins the family's library (data.bookId comes back: the library book with the same title and author, or a new one; status want puts a new one on the wishlist). ${HEALTH_DOC}`,
+      description: `Log a book, a memory or a health visit. title: the book (required for reading), a memory's headline, or a visit's reason. A book also joins the family's library (data.bookId comes back: the library book with the same title and author, or a new one the family has, even for status want; the wishlist is only books marked wanted with add_to_library or update_library_book, and reading or finishing one takes it off). ${HEALTH_DOC}`,
       inputSchema: {
         kind: z.enum(TRACKER_KINDS),
         member: z.string().optional().describe('Whose entry: member name or id. Omit for the whole family.'),
