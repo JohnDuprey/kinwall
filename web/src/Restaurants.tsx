@@ -138,7 +138,7 @@ export function RestaurantEditSheet({ restaurant, onClose, onSaved }: { restaura
     try {
       const { items } = await api.parseMenuText(paste)
       if (!items.length) { setError('No menu items found in that text.'); return }
-      setRows(rs => [...rs, ...items.map(i => toRow({ ...i, description: null, favorite: false }))]); setPaste('')
+      setRows(rs => [...rs, ...items.map(i => toRow({ ...i, favorite: false }))]); setPaste('')
       toast(`Added ${items.length} item${items.length === 1 ? '' : 's'}: check them, then save`)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not read the menu.') } finally { setReading(false) }
   }

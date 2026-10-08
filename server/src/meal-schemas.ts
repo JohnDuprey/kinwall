@@ -209,7 +209,7 @@ export const RestaurantSchema = z.object({
     .describe('Planned meals from here, today on.'),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Restaurant');
-export const MenuTextParseSchema = z.object({ text: z.string().min(1).max(100000).describe('Pasted menu text: one item per line with its price at the end; a line without a price over priced lines starts a section.') }).strict().openapi('MenuTextParse');
+export const MenuTextParseSchema = z.object({ text: z.string().min(1).max(100000).describe('Pasted menu text: one item per line with its prices at the end; lines under an item that read like a description are its description; a heading line (or "Section: …") starts a section.') }).strict().openapi('MenuTextParse');
 export type Restaurant = z.infer<typeof RestaurantSchema>;
 export type Recipe = z.infer<typeof RecipeSchema>;
 export type RecipeStep = z.infer<typeof RecipeStepSchema>;

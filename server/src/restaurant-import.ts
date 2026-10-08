@@ -74,11 +74,15 @@ export function parsePrice(v: unknown): number | null {
   return /^\d{1,5}(\.\d{1,2})?$/.test(s) ? Math.round(Number(s) * 100) : null;
 }
 
-export type HeaderFields = Partial<Record<'name' | 'cuisine' | 'phone' | 'address' | 'website', string>>;
-const HEADER = /^(name|restaurant|cuisine|phone|address|website)\s*:\s*(.*)$/i;
+export type HeaderFields = Partial<Record<'name' | 'cuisine' | 'phone' | 'address' | 'website' | 'orderUrl' | 'menuUrl' | 'qr', string>>;
+const HEADER = /^(name|restaurant|cuisine|phone|address|website|order online|menu link|qr code)\s*:\s*(.*)$/i;
+// The phones' lines for a QR code on the menu (what the words around it say it's for).
+const LINK_LABEL: Record<string, keyof HeaderFields> = { restaurant: 'name', 'order online': 'orderUrl', 'menu link': 'menuUrl', 'qr code': 'qr' };
 const NOTHING = /^(unknown|none|n\/?a|not (found|listed|available|visible|shown)|-+)\.?$/i;
 /** "Name: …", "Cuisine: …", "Phone: …", "Address: …", "Website: …" lines at the top of menu text (an
- * AI step's answer), then an optional "Menu:" line, then the menu. Plain photo text has no header.
+ * AI step's answer), then an optional "Menu:" line, then the menu. The phones add a QR code's link
+ * read off the photo as "Order online: …", "Menu link: …" or "Website: …" when the words beside it
+ * say what it's for, else "QR code: …" (shown, never saved). Plain photo text has no header.
  * Several photos come joined by page lines ("--- Page 2 ---"); a page may start with its own header
  * (tidied page by page), which fills only what the pages before it left empty. */
 export function splitMenuHeader(text: string): { fields: HeaderFields; menuText: string } {
@@ -92,7 +96,7 @@ export function splitMenuHeader(text: string): { fields: HeaderFields; menuText:
       if (!line) continue;
       const m = HEADER.exec(line);
       if (!m) { if (/^menu\s*:?$/i.test(line)) i++; break; }
-      const key = m[1].toLowerCase() === 'restaurant' ? 'name' : m[1].toLowerCase() as keyof HeaderFields;
+      const key = LINK_LABEL[m[1].toLowerCase()] ?? m[1].toLowerCase() as keyof HeaderFields;
       if (m[2].trim() && !NOTHING.test(m[2].trim())) fields[key] ??= m[2].trim();
     }
     const menu = page.slice(i).join('\n').trim();

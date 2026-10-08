@@ -89,7 +89,7 @@ restaurantRoutes.openapi(createRoute({ method: 'get', path: '/api/restaurants', 
 });
 // Static routes before /{id}.
 restaurantRoutes.openapi(createRoute({ method: 'post', path: '/api/restaurants/parse-menu', tags: ['Meals'], summary: 'Read pasted menu text into menu items to review, without saving (admin)', security: [{ Bearer: [] }], request: { body: body(MenuTextParseSchema) },
-  responses: { 200: { description: 'items read', content: { 'application/json': { schema: z.object({ items: z.array(MenuItemSchema.pick({ section: true, name: true, priceCents: true })) }) } } }, ...errors } }), async (c) => {
+  responses: { 200: { description: 'items read', content: { 'application/json': { schema: z.object({ items: z.array(MenuItemSchema.pick({ section: true, name: true, priceCents: true, description: true })) }) } } }, ...errors } }), async (c) => {
   return c.json({ items: parseMenuText(c.req.valid('json').text) }, 200);
 });
 // Adding from a phone (the "Add to Kinwall" Shortcut, import_restaurant): lenient on purpose, since
@@ -98,7 +98,7 @@ const loose = z.string().max(5000).nullable().optional();
 export const RestaurantImportSchema = z.object({
   name: loose, cuisine: loose, phone: loose, address: loose, website: loose.describe('The restaurant\'s site; read for details like url.'), orderUrl: loose, menuUrl: loose,
   url: loose.describe('A link the phone shared: the restaurant\'s web page (read for its schema.org Restaurant details) or an Apple Maps place (its name and address are read off the link).'),
-  menuText: z.string().max(100000).nullable().optional().describe('Menu text (from a photo): one item per line with its price at the end. "Name:", "Cuisine:", "Phone:", "Address:" and "Website:" lines at the top fill those fields; a "Menu:" line may separate them from the menu. Several photos\' text can come joined by "--- Page 2 ---" lines: a heading seen again ("Pizza (continued)") is the same section, and later pages\' header lines fill only what\'s still empty.'),
+  menuText: z.string().max(100000).nullable().optional().describe('Menu text (from a photo): one item per line with its prices at the end and its description after " — " or on the lines under it; "Section: …" lines (with the section\'s prices, if any) start sections. Coupons, hours and mailing labels are skipped, and add-ons go in an "Add-ons" section. "Name:", "Cuisine:", "Phone:", "Address:", "Website:", "Order online:" and "Menu link:" lines at the top fill those fields ("QR code:" is only shown on a preview); a "Menu:" line may separate them from the menu. Several photos\' text can come joined by "--- Page 2 ---" lines: a heading seen again ("Pizza (continued)") is the same section, and later pages\' header lines fill only what\'s still empty.'),
   menu: z.array(z.object({ section: loose, name: z.string().max(1000), description: loose, price: z.union([z.string().max(50), z.number()]).nullable().optional().describe('"$12.99", "12.99", "12" or 12.99.') })).max(500).optional(),
 }).openapi('RestaurantImport');
 const PlaceDetailsSchema = z.object({ name: z.string().nullable(), cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(), website: z.string().nullable(), menuUrl: z.string().nullable() });
@@ -139,7 +139,8 @@ export async function planRestaurant(c: Context<{ Bindings: Env }>, input: z.inf
   const pick = (k: keyof PlaceDetails) => page?.[k] ?? found?.[k] ?? null;
   const fields = {
     name: text('name') ?? pick('name'), cuisine: text('cuisine') ?? pick('cuisine'), phone: text('phone') ?? pick('phone'), address: text('address') ?? pick('address'),
-    website: site ?? pick('website') ?? url, orderUrl: normalizeLink(input.orderUrl), menuUrl: normalizeLink(input.menuUrl) ?? pick('menuUrl'),
+    website: site ?? pick('website') ?? url, orderUrl: normalizeLink(input.orderUrl ?? header.fields.orderUrl),
+    menuUrl: normalizeLink(input.menuUrl ?? header.fields.menuUrl) ?? pick('menuUrl'),
   };
   if (!fields.name) return "Kinwall needs the restaurant's name. Add a name, or share the restaurant's website or Maps place.";
 
@@ -151,7 +152,7 @@ export async function planRestaurant(c: Context<{ Bindings: Env }>, input: z.inf
   const key = (section: string | null | undefined, name: string) => `${nameKey(section)}|${nameKey(name)}`;
   const seen = new Set(old?.menu.map((i) => key(i.section, i.name)));
   const incoming = [
-    ...parseMenuText(header.menuText).map((i) => ({ ...i, description: null })),
+    ...parseMenuText(header.menuText, { name: fields.name }),
     ...(input.menu ?? []).map((i) => ({ section: i.section?.trim().slice(0, 200) || null, name: i.name.trim().slice(0, 200), description: i.description?.trim().slice(0, 1000) || null, priceCents: parsePrice(i.price) })),
   ].filter((i) => i.name);
   const added: typeof incoming = [];
@@ -162,7 +163,9 @@ export async function planRestaurant(c: Context<{ Bindings: Env }>, input: z.inf
     seen.add(key(item.section, item.name)); added.push(item);
   }
   const sections = new Set(incoming.filter((i) => i.section).map((i) => nameKey(i.section))).size;
-  return { fields, name: fields.name, old, filled, incoming, added, skipped, sections };
+  // A QR code on the menu that nothing said the purpose of: shown on the preview, never saved.
+  const qr = normalizeLink(header.fields.qr);
+  return { fields, name: fields.name, old, filled, incoming, added, skipped, sections, qr, read: header.fields };
 }
 
 /** The import, or an error message for a 400 (planRestaurant, then saved). */

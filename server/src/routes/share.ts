@@ -39,6 +39,8 @@ type C = Context<{ Bindings: Env }>;
 type App = { request: (path: string, init: RequestInit, env: Env) => Response | Promise<Response> };
 
 const KINDS = ['recipe', 'restaurant', 'book', 'event'] as const;
+/** A link to show on a card: its host and path, shortened ("cornerslice.example/order…"). */
+export const shortLink = (u: string) => { const l = u.replace(/^https?:\/\/(?:www\.)?/i, '').replace(/\/$/, ''); return l.length > 40 ? `${l.slice(0, 39)}…` : l; };
 // Shortcuts sends an unset variable as "" and a switch as text.
 const blankOff = (v: unknown) => (v === '' || v === null ? undefined : v === 'true' ? true : v === 'false' ? false : v);
 const EventDraftSchema = z.object({
@@ -136,15 +138,18 @@ export function shareRoutes(app: App) {
       if (input.preview) {
         const plan = await planRestaurant(c, body, page);
         if (typeof plan === 'string') return fail(plan, 400);
-        const { fields: f, name, old, filled, incoming, added, skipped, sections } = plan;
+        const { fields: f, name, old, filled, incoming, added, skipped, sections, qr, read } = plan;
         const pick = (k: 'cuisine' | 'phone' | 'address') => old?.[k] || f[k] || null;
         const r = { cuisine: pick('cuisine'), phone: pick('phone'), address: pick('address'), items: incoming.length, sections, added: added.length, alreadyThere: skipped };
         const already = !old ? null
           : added.length ? `Already in Kinwall: ${plural(added.length, 'new item')} will be added${skipped ? `, ${skipped} ${skipped === 1 ? 'is' : 'are'} already there` : ''}.`
           : filled.length ? `Already in Kinwall: its ${andList(filled.map((k) => LABEL[k]))} will be filled in.` : 'Already in Kinwall and up to date.';
         const items = r.items ? `${plural(r.items, 'menu item')}${sections > 1 ? ` in ${sections} sections` : ''}` : null;
+        // Links read off a QR code (or given) that saving fills in, each on its own line to check.
+        const links = [filled.includes('website') && read.website && `Website: ${shortLink(f.website!)}`, filled.includes('orderUrl') && `Order online: ${shortLink(f.orderUrl!)}`, filled.includes('menuUrl') && `Menu link: ${shortLink(f.menuUrl!)}`,
+          qr && qr !== f.orderUrl && qr !== f.menuUrl && qr !== f.website && `Found a QR code: ${shortLink(qr)}, not sure what it's for`];
         return shown('restaurant', old ? `meals?restaurant=${encodeURIComponent(old.id)}` : 'meals', {
-          title: old?.name ?? name, imageUrl: null, exists: !!old, lines: [r.cuisine, r.phone, r.address, items].filter((l): l is string => !!l), already, token, restaurant: r,
+          title: old?.name ?? name, imageUrl: null, exists: !!old, lines: [r.cuisine, r.phone, r.address, ...links, items].filter((l): l is string => !!l), already, token, restaurant: r,
         });
       }
       const result = await importRestaurant(c, body, page);

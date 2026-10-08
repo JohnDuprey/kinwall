@@ -146,4 +146,4 @@ export interface Restaurant extends Omit<RestaurantInput, 'menu'> {
   lastOrders?: { memberId: string; mealId: string; date: string; items: OrderItem[] }[] // each person's latest, from a night already ordered: their usual
   upcoming?: { mealId: string; date: string; slot: MealSlot; plannedTime: string | null; orderType: OrderType | null; status: MealStatus; eaterIds: string[]; orderCount: number }[]
 }
-export type ParsedMenuItem = Pick<MenuItem, 'section' | 'name' | 'priceCents'>
+export type ParsedMenuItem = Pick<MenuItem, 'section' | 'name' | 'priceCents' | 'description'>

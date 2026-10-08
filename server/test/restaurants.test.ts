@@ -49,8 +49,8 @@ test('restaurants: the binder keeps menus in order, and menu edits keep items an
 
 test('restaurants: pasted menu text is read for review, not saved', async () => {
   const { json } = fixture();
-  const { items } = await json('/api/restaurants/parse-menu', 'POST', { text: 'Pizza\nCheese 12.99\nPepperoni $14' });
-  assert.deepEqual(items, [{ section: 'Pizza', name: 'Cheese', priceCents: 1299 }, { section: 'Pizza', name: 'Pepperoni', priceCents: 1400 }]);
+  const { items } = await json('/api/restaurants/parse-menu', 'POST', { text: 'Pizza\nCheese 12.99\nPepperoni $14\nPepperoni, basil' });
+  assert.deepEqual(items, [{ section: 'Pizza', name: 'Cheese', priceCents: 1299, description: null }, { section: 'Pizza', name: 'Pepperoni', priceCents: 1400, description: 'Pepperoni, basil' }]);
   assert.deepEqual(await json('/api/restaurants'), []);
 });
 

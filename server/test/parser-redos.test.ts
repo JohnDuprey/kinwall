@@ -26,6 +26,14 @@ test('parsers: 100k characters of adversarial menu, share and event text parse q
   quick('menu spaces and dots', () => parseMenuText(`a${' .'.repeat(N / 2)}x`));
   quick('menu spaces before a price', () => parseMenuText(`Pizza${' '.repeat(N)}$12`));
   quick('menu header', () => splitMenuHeader(`Name:${' '.repeat(N)}x`));
+  // Long lines are cut to 500 characters, so these are many worst-case lines.
+  const lines = (line: string) => Array.from({ length: N / line.length }, () => line).join('\n');
+  quick('menu many prices', () => parseMenuText(lines(`Pizza ${'1.00 '.repeat(98)}`)));
+  quick('menu many dollar prices', () => parseMenuText(lines(`Pizza ${'(4) $1.00 | '.repeat(40)}x`)));
+  quick('menu bars and dashes', () => parseMenuText(lines(`a${' | — '.repeat(98)}`)));
+  quick('menu sizes', () => parseMenuText(lines(`Pizza ${'10": '.repeat(120)}`)));
+  quick('menu words', () => parseMenuText(lines(`Wraps ${'all wraps come '.repeat(33)}`)));
+  quick('menu names', () => parseMenuText(lines('Garden Party Special')));
   quick('event tabs after at', () => parseEventText(`at${' \t'.repeat(N / 2)}x`, '2026-10-07'));
   quick('event many ats', () => parseEventText('at '.repeat(N / 3), '2026-10-07'));
   quick('event street words', () => parseEventText(`12 ${'Elm '.repeat(N / 4)}`, '2026-10-07'));

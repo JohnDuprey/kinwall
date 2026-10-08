@@ -1,0 +1,29 @@
+Order online: https://order.cornerslice.example/start
+Name: Corner Slice
+Cuisine: Pizza
+Phone: 555-0100
+Address: 12 Elm Road, Springfield
+Website: cornerslice.example
+Menu:
+Section: Starters
+Garlic Knots (6) $5.10 | (12) $9.20
+Crispy Wings (6) $8.40 | (12) $15.10 — Flavors: Mild, Hot, Lemon Pepper, Maple BBQ
+Pretzel Bites $7.25
+Section: Specialty Pizza 10" $14.55 | 14" $19.70
+Garden Party — Onions, green peppers, mushrooms, olives, tomatoes
+Fig & Goat — Fig jam base, roasted garlic, goat cheese, arugula
+Additional Toppings 10" $1.75 | 14" $2.50 — Onion, Pepper, Mushroom, Olive
+Section: Smash Burgers
+Sub French Fries $1.75
+Classic Smash $9.35 Single | $12.45 Double — American cheese, lettuce, tomato
+The Barn Burner $13.50 — Double smash patties, jalapeños, pepper jack
+20% OFF Any Order
+--- Page 2 ---
+Section: Hoagies & Melts
+Sub French Fries $1.75
+Steak & Cheese Hoagie $13.50 — Shaved steak on a toasted roll
+Veggie | Chicken Caprese $11.45 | $13.50 — Fresh mozzarella, tomato, basil pesto
+Section: Kids Menu
+Chicken Fingers $6.25
+Section: Dessert
+Brownie Sundae $4.25

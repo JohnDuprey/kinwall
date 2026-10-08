@@ -336,3 +336,23 @@ test("share preview: parent devices only; an event's answer is the same with or 
   // Shortcuts sends a switch as text.
   assert.equal((await share({ url: 'https://food.example/tacos', preview: 'true' })).json.review, true);
 });
+
+test("share preview: a menu photo's QR code links show on their own lines, and only a clear one is saved", async () => {
+  const { share, call } = fixture();
+  const menu = 'Name: Golden Bowl\nMenu:\nNoodles\nPad thai 12.50';
+  const order = (await share({ kind: 'restaurant', text: `Order online: https://order.golden.example/start\nMenu link: https://golden.example/menu.pdf\n${menu}`, preview: true })).json.preview;
+  assert.deepEqual(order.lines, ['Order online: order.golden.example/start', 'Menu link: golden.example/menu.pdf', '1 menu item']);
+  const unsure = (await share({ kind: 'restaurant', text: `QR code: https://golden.example/x?ref=flyer-2026-fall-promotion-code\n${menu}`, preview: true })).json.preview;
+  assert.deepEqual(unsure.lines, ["Found a QR code: golden.example/x?ref=flyer-2026-fall-pr…, not sure what it's for", '1 menu item']);
+  // Not a web link: nothing to show or save.
+  assert.deepEqual((await share({ kind: 'restaurant', text: `Order online: javascript:alert(1)\n${menu}`, preview: true })).json.preview.lines, ['1 menu item']);
+
+  await share({ kind: 'restaurant', text: `QR code: https://golden.example/x\n${menu}` });
+  let [place] = (await call('GET', '/api/restaurants')).json;
+  assert.deepEqual([place.orderUrl, place.menuUrl, place.website], [null, null, null], 'a QR code nothing said the purpose of is never saved');
+  await share({ kind: 'restaurant', text: `Order online: https://order.golden.example/start\n${menu}` });
+  [place] = (await call('GET', '/api/restaurants')).json;
+  assert.equal(place.orderUrl, 'https://order.golden.example/start');
+  await share({ kind: 'restaurant', text: `Order online: https://other.example/\n${menu}` });
+  assert.equal((await call('GET', '/api/restaurants')).json[0].orderUrl, 'https://order.golden.example/start', 'filled only when empty');
+});
