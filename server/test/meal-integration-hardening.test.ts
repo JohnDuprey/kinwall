@@ -316,3 +316,16 @@ test('meal hardening: MCP preserves REST authorization and rejects invalid range
   assert.equal((await f.json<Meal[]>('GET', `/api/meals?${query}`)).length, 1);
   assert.deepEqual((await f.json('GET', `/api/lists/${shopping.id}`)).items, []);
 });
+
+test("meal hardening: on an order night, the assigned kid's device can add notes but not lock or reopen the orders", async () => {
+  const f = fixture();
+  const kid = await f.json('POST', '/api/members', { name: 'Leo', color: '#2563eb' }, 201);
+  const place = await f.json('POST', '/api/restaurants', { name: 'Corner Slice', menu: [] }, 201);
+  const night = await f.meal({ mealKind: 'dining_out', restaurantId: place.id, assigneeMemberId: kid.id });
+  const leo = await f.key(kid.id);
+  await f.json('PATCH', `/api/meals/${night.id}`, { status: 'prepared' }, 403, leo);
+  await f.json('PATCH', `/api/meals/${night.id}`, { notes: 'Extra napkins' }, 200, leo);
+  await f.json('PATCH', `/api/meals/${night.id}`, { status: 'prepared' }); // a grown-up marks it ordered
+  await f.json('PATCH', `/api/meals/${night.id}`, { status: 'planned' }, 403, leo);
+  assert.equal((await f.json('GET', `/api/meals/${night.id}`)).status, 'prepared');
+});

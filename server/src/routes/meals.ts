@@ -286,6 +286,8 @@ mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meals/{id}', tags
   const patch = c.req.valid('json');
   const key = await resolveKey(c);
   if (key?.scope !== 'admin' && (!old.assigneeMemberId || key?.owner !== old.assigneeMemberId || Object.keys(patch).some((k) => k !== 'notes' && k !== 'status'))) return c.json({ error: 'Only admins can change the plan; assigned members may update notes and status' }, 403);
+  // On an order night the status locks and reopens everyone's orders ("Ordered"), which is a grown-up's call.
+  if (key?.scope !== 'admin' && old.mealKind === 'dining_out' && patch.status !== undefined && patch.status !== old.status) return c.json({ error: 'Only a grown-up can mark an order night ordered or reopen it' }, 403);
   const meal = await buildMeal(c.env.DB, patch, old);
   if (typeof meal === 'string') return c.json({ error: meal }, 400);
   // The event first: when a synced calendar refuses the change, the meal stays as it was so the two agree.

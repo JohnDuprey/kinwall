@@ -174,7 +174,8 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       {linkedMeal?.mealKind === 'dining_out' && !isOrderNight(linkedMeal) && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {draft.mealKind !== 'recipe' && <p className="field-hint">{draft.mealKind === 'dining_out' ? 'Eating out doesn’t add anything to the grocery list.' : 'Only recipes add to the grocery list.'}</p>}
       {canUpdate ? <fieldset className="meal-fieldset meal-spaced" disabled={busy}>
-        <div className="field"><label htmlFor={`${formId}-status`}>Status</label><select id={`${formId}-status`} value={draft.status} onChange={e => update('status', e.target.value as MealStatus)}>{(['planned', 'prepared'] as const).map(status => <option key={status} value={status}>{statusLabel({ status, mealKind: draft.mealKind })}</option>)}</select></div>
+        {/* On an order night the status locks everyone's orders: a grown-up's call (the server says so too). */}
+        {(admin || draft.mealKind !== 'dining_out') && <div className="field"><label htmlFor={`${formId}-status`}>Status</label><select id={`${formId}-status`} value={draft.status} onChange={e => update('status', e.target.value as MealStatus)}>{(['planned', 'prepared'] as const).map(status => <option key={status} value={status}>{statusLabel({ status, mealKind: draft.mealKind })}</option>)}</select></div>}
         <div className="field"><label htmlFor={`${formId}-notes`}>Notes</label><textarea id={`${formId}-notes`} maxLength={10000} value={draft.notes ?? ''} onChange={e => update('notes', e.target.value || null)} /></div>
       </fieldset> : <><p>Status: {statusLabel(draft)}</p>{draft.notes && <p className="meal-prose">{draft.notes}</p>}</>}
       {((snapshot && selectedRecipe) || meal?.sourceUrl || linkedMeal?.calendarEventId) && <div className="sheet-links">
