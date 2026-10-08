@@ -39,6 +39,8 @@ With Meals on, a poll whose voting has ended has **Plan it**. It opens the meal 
 
 To delete a poll and its votes: open it, then **More… → Delete poll**.
 
+In the Kinwall app for iPhone, the Shortcuts app has a **Vote in a poll** action: pick the poll, your choice and who's voting. A phone that belongs to someone always votes for them; on a shared phone, it asks who's voting.
+
 ## Turning polls off
 
 **Settings → General → Features → Family polls**. Off, polls are gone everywhere: nothing on the Board, no Polls button, nothing in the Meals planner, no notifications (and earlier poll notifications leave the bell), and the API and AI tools answer that polls are off. Polls already made are kept and come back when it's turned on. With Meals off, polls still work with typed ideas only (recipes and restaurants need Meals), and there's no **Plan it**.

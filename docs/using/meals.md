@@ -334,6 +334,7 @@ An event Kinwall made follows the meal, on whichever calendar it's on. Saving th
 * The Board has a **Today's meals** card, with the next one marked and who's eating. Tapping a meal opens it right there, the same sheet as tapping it in the week planner, and closing it leaves you on the Board.
 * A person's day (tap their avatar) lists today's meals, which open the same way over their day, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
 * The morning summary includes the day's meals. See [Notifications](notifications.md).
+* **Ask Siri** in the Kinwall app for iPhone: "What's for dinner in Kinwall?" says tonight's dinner ("Dinner tonight is Tacos, at 6:00 PM."). On an order night it says the restaurant and how ("Dinner tonight is pickup from Pizza Palace."). With no dinner planned, it says the next meal still ahead today, or that nothing's planned.
 
 A wall display (a display key) can see the week, the recipes and the restaurant binder, but not plan, edit restaurants, edit recipes or add to the grocery list. A device that belongs to someone can update the **Notes** and **Status** of meals assigned to that person, for example marking dinner **Cooked**. Walls and everyone's own devices can add orders on a dining-out night (a kid's device only their own), until a parent marks it ordered.
 

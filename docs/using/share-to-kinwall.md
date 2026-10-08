@@ -52,7 +52,7 @@ The app adds an **Add to Kinwall** action to the Shortcuts app. It has three set
 
 It shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photos** or **Text or link** to **Shortcut Input**.
 
-Say "Add to Kinwall with Kinwall" or "Send this to Kinwall" to Siri, and it asks what to add and what it is.
+Add to Kinwall has no Siri phrase, since Siri can't take a photo or text by voice. Use it in a shortcut, or from the share sheet. The app's other Shortcuts actions are listed in [the Kinwall app's Siri and Shortcuts](https://github.com/JohnDuprey/kinwall-mobile/blob/main/docs/WIDGETS-AND-WATCH.md#siri-shortcuts-and-spotlight-app-intents).
 
 ### From the Android share sheet
 

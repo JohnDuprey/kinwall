@@ -60,6 +60,8 @@ A shelf per person, with what they're reading first, then what they want to read
 
 A person's day (tap their avatar) lists what they're reading, like "Charlotte's Web — 45%" (for an audiobook, how much of its length they've listened to). See [Daily & weekly snapshot](snapshot.md).
 
+**Ask Siri** in the Kinwall app for iPhone: "Log reading in Kinwall", then the book and how many pages (or minutes for an audiobook). It moves the place in the book on, logs the day, and marks the book finished at the last page. On a device that belongs to someone, it offers only their books.
+
 ## Memories 📝
 
 A family journal. **Add today's memory** opens a new entry for today: what happened, an optional headline, a mood and one photo (optional).
