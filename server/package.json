@@ -18,7 +18,7 @@
     "@hono/zod-openapi": "^1.6.3",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@simplewebauthn/server": "^14.0.3",
-    "hono": "^4.13.9",
+    "hono": "^4.13.13",
     "ical.js": "^2.2.1",
     "rrule": "^2.8.1",
     "tsdav": "^2.3.4",
