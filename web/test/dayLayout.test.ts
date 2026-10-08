@@ -2,7 +2,7 @@
 // which events count for Now / Next and leave-by (leadTime.ts blocksTime).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dedupeEvents, eventPeople, FREE_EDGE, hourPx, layoutDay, newEventDay, newEventTimes } from '../src/dayLayout.ts'
+import { dedupeEvents, eventPeople, FREE_EDGE, hourPx, layoutDay, newEventDay, newEventStart } from '../src/dayLayout.ts'
 import { blocksTime } from '../src/leadTime.ts'
 import type { EventInstance } from '../src/types.ts'
 
@@ -64,18 +64,17 @@ test('eventPeople: who an event is for, in family order', () => {
   assert.deepEqual(eventPeople({ memberIds: [] }, members), [])
 })
 
-test('newEventDay / newEventTimes: + adds to the day on screen, at a sensible time', () => {
+test('newEventDay / newEventStart: + adds to the day on screen, at a sensible time', () => {
   const now = new Date(2026, 9, 1, 15, 40) // Thu Oct 1, 3:40 PM local
   const fri = new Date(2026, 9, 2), wed = new Date(2026, 8, 30)
   assert.equal(newEventDay([fri], now), fri, 'Day view on another day: that day')
   assert.equal(newEventDay([wed, new Date(2026, 9, 1), fri], now).getDate(), 1, 'Week with today in it: today')
   assert.equal(newEventDay([new Date(2026, 9, 4), new Date(2026, 9, 5)], now).getDate(), 4, 'Week paged ahead: its first day')
-  const today = newEventTimes(new Date(2026, 9, 1), now)
+  const today = newEventStart(new Date(2026, 9, 1), now)
   assert.deepEqual([new Date(today.start).getHours(), new Date(today.start).getMinutes()], [16, 0], 'today: the next half hour')
-  assert.equal(new Date(newEventTimes(new Date(2026, 9, 1), new Date(2026, 9, 1, 9, 10)).start).getMinutes(), 30)
-  const other = newEventTimes(fri, now)
+  assert.equal(new Date(newEventStart(new Date(2026, 9, 1), new Date(2026, 9, 1, 9, 10)).start).getMinutes(), 30)
+  const other = newEventStart(fri, now)
   assert.equal(new Date(other.start).toString(), new Date(2026, 9, 2, 9).toString(), 'another day: 9 AM')
-  assert.equal(Date.parse(other.end) - Date.parse(other.start), 3600000, 'an hour long')
 })
 
 test('hourPx: matches the CSS hour rows, including a phone on its side', () => {

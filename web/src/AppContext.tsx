@@ -14,8 +14,11 @@ export interface AppCtx {
   parentDevice: boolean // full access (admin key): may add, edit and delete chores; wall screens and kids' devices only tick them off
   refreshTick: number
   reloadCore: () => void
-  toast: (msg: string, persist?: boolean) => void // persist: stays until tapped (errors, results)
+  toast: (msg: string, persist?: boolean, action?: ToastAction) => void // persist: stays until tapped (errors, results)
 }
+
+/** A button in the toast that does one thing ("View"), e.g. open what was just saved. */
+export type ToastAction = { label: string; run: () => void }
 
 export const AppContext = createContext<AppCtx | null>(null)
 

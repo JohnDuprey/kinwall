@@ -47,7 +47,7 @@ const EventDraftSchema = z.object({
   title: z.string().max(200).nullable(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().describe('YYYY-MM-DD'),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().describe('Start, HH:MM in the household timezone; none is all day'),
-  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().describe('End, HH:MM; one before the start is the next day'),
+  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().describe('End, HH:MM; one before the start is the next day; none: the family\'s new event length (settings.defaultEventMinutes)'),
   place: z.string().max(500).nullable(),
   notes: z.string().max(5000).nullable().describe('Anything else worth knowing (what to bring, costs, how to RSVP); saved as the event\'s notes'),
 }).openapi('ShareEvent');
@@ -272,7 +272,7 @@ export function shareRoutes(app: App) {
           // The household's clock, as the event sheet uses (settings.timezone).
           const at = (hm: string) => zonedTimeToUtc({ y, mo: mo - 1, d, h: +hm.slice(0, 2), mi: +hm.slice(3), s: 0 }, settings.timezone || hostTimezone()).toISOString();
           start = at(e.time);
-          end = !e.end ? next(start, 1 / 24).toISOString() : e.end > e.time ? at(e.end) : next(at(e.end), 1).toISOString();
+          end = !e.end ? new Date(Date.parse(start) + settings.defaultEventMinutes * 60000).toISOString() : e.end > e.time ? at(e.end) : next(at(e.end), 1).toISOString();
         }
         const created = await createEvent(c, { calendarId: input.calendarId, title: e.title, start, end, allDay: !e.time, ...(e.place && { location: e.place }), ...(e.notes && { description: e.notes }) });
         if ('error' in created) return fail(created.error, created.status);

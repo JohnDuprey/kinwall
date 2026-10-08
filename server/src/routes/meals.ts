@@ -422,7 +422,7 @@ type Ctx = Context<{ Bindings: Env }>;
 type EventStart = z.infer<typeof MealEventStartSchema>;
 
 /** The event a meal gets: at its own time, else the family's usual time for that slot (Settings),
- * lasting as long as the recipe takes (60 minutes when that's unknown); people are the eaters and the cook. */
+ * lasting as long as the recipe takes (the family's new-event length when that's unknown); people are the eaters and the cook. */
 async function mealEvent(db: KinwallDb, meal: Meal, from: EventStart) {
   const settings = await readSettings(db);
   const [y, mo, d] = meal.date.split('-').map(Number);
@@ -430,7 +430,7 @@ async function mealEvent(db: KinwallDb, meal: Meal, from: EventStart) {
   const at = zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, settings.timezone || hostTimezone()).getTime();
   const recipeMinutes = meal.recipeSnapshot?.totalMinutes
     ?? (meal.recipeId ? (await db.prepare('SELECT total_minutes FROM recipes WHERE id = ?').bind(meal.recipeId).first<{ total_minutes: number | null }>())?.total_minutes : null);
-  const length = (recipeMinutes || 60) * 60000;
+  const length = (recipeMinutes || settings.defaultEventMinutes) * 60000;
   const [start, end] = from === 'cooking' ? [at - length, at] : [at, at + length];
   return {
     title: `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)} · ${meal.title}`,

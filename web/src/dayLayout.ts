@@ -88,13 +88,13 @@ export function eventPeople<M extends { id: string }>(ev: Pick<EventInstance, 'm
 }
 
 /** Where + starts a new event: on the day being looked at (`day`), at the next half hour when that's
- * today, else 9 AM; an hour long. Local time, like tapping a slot in the grid. */
-export function newEventTimes(day: Date, now = new Date()): { start: string; end: string } {
+ * today, else 9 AM (the event sheet picks the end). Local time, like tapping a slot in the grid. */
+export function newEventStart(day: Date, now = new Date()): { start: string } {
   const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9)
   if (start.toDateString() === now.toDateString()) {
     start.setHours(now.getHours(), now.getMinutes() < 30 ? 30 : 60)
   }
-  return { start: start.toISOString(), end: new Date(start.getTime() + 3600000).toISOString() }
+  return { start: start.toISOString() } // the event sheet adds the family's event length
 }
 
 /** The day + adds to: Day view's day; Week / 3 Day and Month: today when it's on screen, else the

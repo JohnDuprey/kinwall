@@ -209,6 +209,13 @@ test('share: save adds the event to the chosen calendar in the household timezon
   await share({ kind: 'event', save: true, calendarId: family.id, event: { title: 'Late show', date: '2027-05-08', time: '22:00', end: '01:00' } });
   const late = await db.prepare("SELECT * FROM events WHERE title = 'Late show'").first<any>();
   assert.deepEqual([late.start, late.end], ['2027-05-09T02:00:00.000Z', '2027-05-09T05:00:00.000Z']);
+  // No end: the family's new-event length (an hour unless changed).
+  await share({ kind: 'event', save: true, calendarId: family.id, event: { title: 'Swim', date: '2027-05-08', time: '18:00', end: null } });
+  await call('PATCH', '/api/settings', { defaultEventMinutes: 30 });
+  await share({ kind: 'event', save: true, calendarId: family.id, event: { title: 'Haircut', date: '2027-05-08', time: '18:00', end: null } });
+  const ends = (await db.prepare("SELECT title, end FROM events WHERE title IN ('Swim', 'Haircut') ORDER BY title").all<any>()).results.map((r: any) => [r.title, r.end]);
+  assert.deepEqual(ends, [['Haircut', '2027-05-08T22:30:00.000Z'], ['Swim', '2027-05-08T23:00:00.000Z']]);
+  await db.prepare("DELETE FROM events WHERE title IN ('Swim', 'Haircut')").run();
 
   // Notes are saved as the event's notes (its description); the checked ones win.
   await share({ kind: 'event', save: true, calendarId: family.id, text: 'Title: Swim party\nDate: 2027-05-08\n---\nSwim party\nBring a towel' });

@@ -12,6 +12,8 @@
 
 A picked calendar that's removed, turned off or becomes read-only falls back to **Automatic** until you pick another. Only parents' devices can change it.
 
+**New events last** is right under it: 15, 30 or 45 minutes, 1 hour (the default), or 1.5, 2 or 3 hours. Picking a start in the event sheet fills in the end this long after it, and it's also how long an event lasts when it's saved with a start and no end: a shared invite with no end time, a checkup from the Health tracker, and a meal on the calendar whose recipe has no total time.
+
 Each calendar row shows its color, name, kind and status: "Synced *time*", "Never synced", "Local calendar", or the last error. Row actions:
 
 * **Sync now**: synced calendars only.

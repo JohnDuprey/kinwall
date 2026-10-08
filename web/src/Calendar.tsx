@@ -25,12 +25,13 @@ import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 import { hashQuery } from './hashQuery.ts'
 import { eventDraft } from './eventDraft.ts'
+import { addMinutes, endAfterStartMove } from './eventEnd.ts'
 import { PollSheet, PollsButton } from './Polls.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { dedupeEvents, eventPeople, hourPx, layoutDay, newEventDay, newEventTimes } from './dayLayout.ts'
+import { dedupeEvents, eventPeople, hourPx, layoutDay, newEventDay, newEventStart } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, viewTabs, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
@@ -319,7 +320,7 @@ export default function CalendarView() {
   const openAdd = (prefill?: Partial<EventInstance>) => { if (canAdd) setEditState({ event: null, prefill }) }
   // + adds to the day on screen (newEventDay), not always today.
   const shownDays = viewMode === 'week' ? weekDays : viewMode === 'month' ? eachDayOfInterval({ start: startOfMonth(anchor), end: endOfMonth(anchor) }) : [startOfDay(anchor)]
-  const addOnShownDay = () => openAdd({ ...newEventTimes(newEventDay(viewMode === 'board' ? [new Date()] : shownDays)), allDay: false }) // the Board is today
+  const addOnShownDay = () => openAdd({ ...newEventStart(newEventDay(viewMode === 'board' ? [new Date()] : shownDays)), allDay: false }) // the Board is today
   // Opening a day from the week/month grid replaces the focused cell; land focus on the new
   // period heading instead of dropping it to the top of the page.
   const periodRef = useRef<HTMLHeadingElement>(null)
@@ -333,14 +334,14 @@ export default function CalendarView() {
         setCalendars(cs => [...cs, cal])
         body = { ...body, calendarId: cal.id }
       }
-      if (id) await api.updateEvent(id, body)
-      else await api.createEvent(body)
+      const saved = id ? await api.updateEvent(id, body) : await api.createEvent(body)
       if (id && seriesCategory) await api.updateEvent(id, seriesCategory)
       setEditState(null)
       reloadCore()
       setEvents(evs => [...evs]) // no-op to be explicit; real refetch happens via refreshTick after reloadCore bump isn't guaranteed for mock — force refetch:
       loadEvents().then(setEvents).catch(() => {})
-      toast(id ? 'Event updated' : 'Event added')
+      // View opens it the way a notification does (#/calendar?event=…), from here or any other tab.
+      toast(id ? 'Event updated' : 'Event added', false, { label: 'View', run: () => { location.hash = `#/calendar?${new URLSearchParams({ event: saved.id, at: saved.start })}` } })
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Could not save event', true)
     }
@@ -711,8 +712,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
                 const minutes = Math.max(0, Math.round(((e.clientY - rect.top) / HOUR_PX) * 60 / 15) * 15)
                 const hh = Math.floor(minutes / 60), mm = minutes % 60
                 const start = new Date(d); start.setHours(hh, mm, 0, 0)
-                const end = new Date(start.getTime() + 60 * 60000)
-                onSlotTap({ start: start.toISOString(), end: end.toISOString(), allDay: false })
+                onSlotTap({ start: start.toISOString(), allDay: false }) // the sheet adds the family's event length
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
@@ -1217,6 +1217,7 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
 }) {
   const writable = calendars // already just the ones this device may add to (writable, on, and allowed)
   const base = event ?? prefill ?? {}
+  const eventMinutes = useApp().settings.defaultEventMinutes ?? 60
   const [title, setTitle] = useState(base.title ?? '')
   const [allDay, setAllDay] = useState(!!base.allDay)
   const [calendarId, setCalendarId] = useState(base.calendarId ?? (writable.find(c => c.default) ?? writable[0])?.id ?? NEW_LOCAL_CALENDAR)
@@ -1258,13 +1259,22 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
   const seedStart = base.start ? (base.allDay ? localDay(base.start) : new Date(base.start)) : new Date()
   const seedEnd = base.end
     ? (base.allDay ? addDays(localDay(base.end), -1) : new Date(base.end)) // all-day end shown inclusive
-    : new Date(seedStart.getTime() + 3600000)
+    : new Date(seedStart.getTime() + eventMinutes * 60000) // the family's new-event length (Settings → Calendars)
   const [startDate, setStartDate] = useState(format(seedStart, 'yyyy-MM-dd'))
   const [startTime, setStartTime] = useState(base.allDay ? '09:00' : format(seedStart, 'HH:mm'))
   const [endDate, setEndDate] = useState(format(seedEnd, 'yyyy-MM-dd'))
-  const [endTime, setEndTime] = useState(base.allDay ? '10:00' : format(seedEnd, 'HH:mm'))
-  // Moving the start past the end drags the end along, so the range never inverts.
-  const changeStartDate = (d: string) => { setStartDate(d); if (d > endDate) setEndDate(d) }
+  const [endTime, setEndTime] = useState(base.allDay ? addMinutes({ date: '2000-01-01', time: '09:00' }, eventMinutes).time : format(seedEnd, 'HH:mm'))
+  // The end follows the start (eventEnd.ts): the default length until someone picks an end (an
+  // existing event's, or a link's, counts), then the length they picked.
+  const [endPicked, setEndPicked] = useState(!!base.end)
+  const moveStart = (date: string, time: string) => {
+    if (allDay) { if (date > endDate) setEndDate(date) } // all day: just never let the range invert
+    else {
+      const end = endAfterStartMove({ date: startDate, time: startTime }, { date: endDate, time: endTime }, { date, time }, eventMinutes, endPicked)
+      setEndDate(end.date); setEndTime(end.time)
+    }
+    setStartDate(date); setStartTime(time)
+  }
   const endBeforeStart = allDay ? endDate < startDate : `${endDate}T${endTime}` <= `${startDate}T${startTime}`
 
   const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
@@ -1329,23 +1339,23 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">
           <label>Starts</label>
-          <input type="date" value={startDate} onChange={e => changeStartDate(e.target.value)} />
+          <input type="date" value={startDate} onChange={e => { if (e.target.value) moveStart(e.target.value, startTime) }} />
         </div>
         {!allDay && (
           <div className="field">
             <label>&nbsp;</label>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} aria-label="Start time" />
+            <input type="time" value={startTime} onChange={e => { if (e.target.value) moveStart(startDate, e.target.value) }} aria-label="Start time" />
           </div>
         )}
         <div className="field">
           <label>Ends</label>
-          <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)}
+          <input type="date" value={endDate} min={startDate} onChange={e => { setEndDate(e.target.value); setEndPicked(true) }}
             aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? 'event-end-error' : undefined} />
         </div>
         {!allDay && (
           <div className="field">
             <label>&nbsp;</label>
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} aria-label="End time"
+            <input type="time" value={endTime} onChange={e => { setEndTime(e.target.value); setEndPicked(true) }} aria-label="End time"
               aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? 'event-end-error' : undefined} />
           </div>
         )}

@@ -49,6 +49,7 @@ export interface Settings {
   typeface: Typeface // the family's; a device can pick its own
   timeFormat: TimeFormat // the family's; a device can pick its own
   defaultCalendarId?: string | null // a parent's pick for new events; null: the server picks (CalendarEntry.default)
+  defaultEventMinutes?: number // how long a new event lasts once its start is picked (60 unless changed)
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives

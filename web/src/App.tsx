@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
-import { AppContext, useApp } from './AppContext.tsx'
+import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { rewardsOn, trackerKinds } from './types.ts'
 import { BookIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon } from './icons.tsx'
@@ -1105,7 +1105,8 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const [toApprove, setToApprove] = useState(0) // chores and rewards waiting for a parent's OK (parent devices)
   const [rewardRequests, setRewardRequests] = useState(0) // ...of which rewards
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
-  const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
+  // With an action, a button in it (one tap: run it) and 8s to reach it.
+  const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean; action?: ToastAction } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
   const [bannerMsg, setBannerMsg] = useState<string | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -1219,7 +1220,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     if (!toastMsg) return
     announce(toastMsg.msg, toastMsg.persist)
     if (toastMsg.persist) return
-    const id = setTimeout(() => setToastMsg(null), 4000)
+    const id = setTimeout(() => setToastMsg(null), toastMsg.action ? 8000 : 4000)
     return () => clearTimeout(id)
   }, [toastMsg])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
@@ -1311,7 +1312,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
       focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: ownerLocks, meMemberId, parentDevice,
       refreshTick: pollTick + manualTick,
       reloadCore: () => setManualTick(t => t + 1),
-      toast: (msg, persist = false) => setToastMsg({ msg, persist }),
+      toast: (msg, persist = false, action) => setToastMsg({ msg, persist, action }),
     }}>
       <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
         {/* A button, not href="#main": the hash is the router. */}
@@ -1327,7 +1328,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
         </div>
         {navMode === 'right' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <SaveIndicator />
-        {toastMsg && (toastMsg.persist
+        {toastMsg && (toastMsg.action
+          ? <div className="toast toast-with-action">{toastMsg.msg}<button type="button" className="toast-action" onClick={() => { setToastMsg(null); toastMsg.action!.run() }}>{toastMsg.action.label}</button></div>
+          : toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>
           : <div className="toast">{toastMsg.msg}</div>)}
         {MOCK && inNativeApp() && <div className="demo-bar" role="status">Demo — nothing is saved.<button type="button" className="demo-bar-leave" onClick={tellAppLeaveDemo}>Leave demo</button></div>}

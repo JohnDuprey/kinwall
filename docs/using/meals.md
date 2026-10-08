@@ -330,7 +330,7 @@ A meal can have one calendar event. Tap **Add to calendar** in its sheet (**Mana
 * The list has every calendar this device can add events to: the ones on Kinwall first, then synced Google, Outlook and CalDAV calendars, each with its color. The first time, a Kinwall calendar is picked; after that, this device remembers the one you used last. With no Kinwall calendar yet, **A new "Meals" calendar on Kinwall** makes one.
 * Kinwall only writes to a synced calendar when you pick it here (or name it in a [meal-kit import](#importing-recipes)). The event then shows up in Google or Outlook too, like any event you add in Kinwall.
 * The event is titled like "Dinner · Tuesday Tacos". It's at the meal's time, or the family's usual time for that meal when the meal has none (set in [Settings → Family → Meals](../settings/family.md#meals); 6:00 PM for dinner unless you change it). Events are always timed, never all-day.
-* It lasts as long as the recipe takes (its total time), or an hour when that isn't known.
+* It lasts as long as the recipe takes (its total time), or the family's [new event length](../settings/calendars.md#calendars) (an hour unless changed) when that isn't known.
 * **When**: **At the meal time** (the default) starts the event when you eat. **Start the event when cooking starts** starts it the recipe's total time earlier, so it ends when you eat. The sheet shows the times before you add it.
 * Its people are who's eating plus who's cooking, and the meal's notes become its description.
 

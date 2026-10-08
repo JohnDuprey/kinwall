@@ -25,7 +25,7 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 - Landmarks: a header, a "Main" navigation (the current page is marked), and the main content, which starts with a heading for the page. Settings sections, sheet titles and list names are headings too.
 - Every control has a name. Event blocks read as a sentence: "4:00 PM Soccer Practice, Sam, Park field, Sports". Day cells read like "Friday, September 25, 2 events. Open day". Color swatches are named ("Peach", "Sky blue"), not hex codes.
 - Selected states are exposed: segmented controls as radio buttons or tabs, chips and swatches as pressed toggle buttons, on/off settings as switches, chores and list items as checkboxes.
-- Messages are announced: saving and saved, confirmations ("Event added"), a completed chore ("Make bed done, 5 points"), a moved list item, the "Signed in with a recovery code" banner, and import results. Errors are announced immediately and stay on screen until you tap them away.
+- Messages are announced: saving and saved, confirmations ("Event added", with a **View** button that opens the event), a completed chore ("Make bed done, 5 points"), a moved list item, the "Signed in with a recovery code" banner, and import results. Errors are announced immediately and stay on screen until you tap them away.
 - Confirmations and prompts ("Delete this event?", the ICS feed-URL prompt) are in-app dialogs with proper dialog semantics, not browser pop-ups.
 - Form fields have visible labels tied to the field; field errors are linked to the field they belong to.
 

@@ -23,6 +23,7 @@ const DEFAULTS: Record<string, string> = {
   backgroundDark: 'cocoa',
   textScale: 'm',
   density: 'comfortable',
+  defaultEventMinutes: '60',
   defaultReminderMinutes: '[30]',
   lateCompletionCredit: '50',
   streakGraceDays: '1',
@@ -72,6 +73,7 @@ export async function readSettings(db: KinwallDb) {
     typeface: TYPEFACES.find((t) => t === map.get('typeface')) ?? 'default',
     timeFormat: TIME_FORMATS.find((t) => t === map.get('timeFormat')) ?? 'auto',
     defaultCalendarId: map.get('defaultCalendarId') || null, // default-calendar.ts; GET /api/calendars marks the one in use
+    defaultEventMinutes: Number(map.get('defaultEventMinutes') || DEFAULTS.defaultEventMinutes),
     defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),
     lateCompletionCredit: Number(map.get('lateCompletionCredit') ?? DEFAULTS.lateCompletionCredit),
     streakGraceDays: Number(map.get('streakGraceDays') ?? DEFAULTS.streakGraceDays),

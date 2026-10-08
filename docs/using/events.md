@@ -23,13 +23,13 @@ Tap an event to open its sheet. It shows:
 In the Kinwall app for iPhone, the Shortcuts app also has an **Add an event** action: a title, when it starts, and optionally when it ends (an hour later otherwise) and the calendar (the family's default for new events otherwise).
 
 
-Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). **+** starts on the day you're looking at, at the next half hour today or 9 AM on another day; see [Navigating](calendar.md#navigating). The edit sheet has:
+Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). After you save, "Event added" (or "Event updated") shows at the bottom with **View**, which opens the event, from the calendar or any other tab. **+** starts on the day you're looking at, at the next half hour today or 9 AM on another day; see [Navigating](calendar.md#navigating). The edit sheet has:
 
 | Field | Notes |
 |---|---|
 | **Title** | Required. |
 | **All day** | All-day events are stored as dates. The end date you pick is inclusive. |
-| **Starts / Ends** | Native date and time pickers. Moving the start past the end drags the end along. |
+| **Starts / Ends** | Native date and time pickers. Picking a start fills in the end, the family's [new event length](../settings/calendars.md#calendars) later (an hour unless a parent changed it), crossing into the next day when it has to. Once you change the end yourself (or edit an event that already has one), moving the start keeps the length you set. For an all-day event, moving the start past the end drags the end along. |
 | **Calendar** | Starts on the family's [default calendar for new events](../settings/calendars.md#calendars). Only writable, enabled calendars this device may change are listed. On a kid's device that's only their own calendars, with the first one picked. If you have no local calendar yet, **Kinwall only (not synced)** creates one called "Kinwall". |
 | **Location** | Optional. |
 | **Notes** | Optional, several lines: what to bring, a link, a gate code. See [Event notes](#event-notes). |

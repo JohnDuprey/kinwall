@@ -128,6 +128,7 @@ const settings: Settings = {
   typeface: 'default',
   timeFormat: 'auto',
   defaultCalendarId: null,
+  defaultEventMinutes: 60,
   defaultReminderMinutes: [30],
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
   lateCompletionCredit: 50,

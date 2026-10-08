@@ -399,11 +399,11 @@ function measureText(d: HealthData) {
 // Health visits and, when medication reminders are on, each person's medicines (parent devices only).
 function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void; meds: boolean; memberId: string | null; switcher: ReactNode }) {
   const who = useWho()
-  const { toast } = useApp()
+  const { toast, settings } = useApp()
   const upcoming = entries.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
   const past = entries.filter(e => e.date < today)
   const addToCalendar = async (e: TrackerEntry) => {
-    try { onSave(e, { data: { eventId: (await addVisitToCalendar(e, who(e))).id } }, 'Added to the calendar') } catch (err) { toast(errMsg(err, 'Could not add it to the calendar'), true) }
+    try { onSave(e, { data: { eventId: (await addVisitToCalendar(e, who(e), settings.defaultEventMinutes ?? 60)).id } }, 'Added to the calendar') } catch (err) { toast(errMsg(err, 'Could not add it to the calendar'), true) }
   }
   const row = (e: TrackerEntry) => {
     const d = e.data as HealthData
@@ -443,7 +443,7 @@ function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { 
 }
 
 /** A normal calendar event for a future visit: its type and who, never the reason, notes or measurements (the calendar is on the wall). */
-async function addVisitToCalendar(e: TrackerEntry, m: { id: string | null; name: string }) {
+async function addVisitToCalendar(e: TrackerEntry, m: { id: string | null; name: string }, minutes: number) {
   const d = e.data as HealthData
   const cals = (await api.getCalendars()).filter(c => c.writable && c.enabled && c.canEditEvents !== false)
   const cal = cals.find(c => c.default) ?? cals.find(c => c.kind === 'local') ?? cals[0]
@@ -454,7 +454,7 @@ async function addVisitToCalendar(e: TrackerEntry, m: { id: string | null; name:
   const start = d.time ? new Date(`${e.date}T${d.time}`) : null
   return api.createEvent({
     calendarId: cal.id, title, memberIds: m.id ? [m.id] : [],
-    ...(start ? { allDay: false, start: start.toISOString(), end: new Date(start.getTime() + 3_600_000).toISOString() } : { allDay: true, start: e.date, end: next }),
+    ...(start ? { allDay: false, start: start.toISOString(), end: new Date(start.getTime() + minutes * 60000).toISOString() } : { allDay: true, start: e.date, end: next }),
     location: d.provider ?? null,
   })
 }

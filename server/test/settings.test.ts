@@ -52,3 +52,11 @@ test('settings: quiet hours reject bad times and half-set pairs', async () => {
   // Unrelated patches don't need the pair.
   assert.equal((await req({ familyName: 'X' })).status, 200);
 });
+
+test('settings: new events last an hour unless the family picks another listed length', async () => {
+  const req = makeRequest();
+  assert.equal(((await (await req()).json()) as any).defaultEventMinutes, 60);
+  assert.equal(((await (await req({ defaultEventMinutes: 90 })).json()) as any).defaultEventMinutes, 90);
+  assert.equal((await req({ defaultEventMinutes: 61 })).status, 400);
+  assert.equal(((await (await req()).json()) as any).defaultEventMinutes, 90);
+});

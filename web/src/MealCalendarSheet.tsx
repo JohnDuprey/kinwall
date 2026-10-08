@@ -47,9 +47,9 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
     return api.createMealCalendarEvent(meal.id, { ...(calendarId ? { calendarId } : {}), eventStart })
   }, 'Added to the calendar')
 
-  // The same times the server uses: the meal's time or the usual one; the recipe's total time, else an hour.
+  // The same times the server uses: the meal's time or the usual one; the recipe's total time, else the family's event length.
   const time = meal.plannedTime ?? settings.mealTimes[meal.slot]
-  const minutes = meal.recipeSnapshot?.totalMinutes || 60
+  const minutes = meal.recipeSnapshot?.totalMinutes || settings.defaultEventMinutes || 60
   const at = Number(time.slice(0, 2)) * 60 + Number(time.slice(3))
   const [from, to] = eventStart === 'cooking' ? [at - minutes, at] : [at, at + minutes]
   const chosen = calendars.find(c => c.id === calendarId)

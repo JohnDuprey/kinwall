@@ -54,6 +54,7 @@ import { Brand } from './Brand.tsx'
 import { filterSettings, matchesAll, queryWords, readOpen, writeOpen } from './settingsSearch.ts'
 import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
+import { EVENT_LENGTHS } from './eventEnd.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
@@ -2365,6 +2366,26 @@ function DefaultCalendarRow({ calendars, onSaved, toast }: { calendars: Calendar
   )
 }
 
+/** Settings → Calendars: how long a new event lasts once its start is picked (eventEnd.ts). */
+function EventLengthRow({ toast }: { toast: (m: string, persist?: boolean) => void }) {
+  const { settings, reloadCore } = useApp()
+  const label = (m: number) => m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`
+  const save = async (defaultEventMinutes: number) => {
+    try { await api.updateSettings({ defaultEventMinutes }); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  return (
+    <div className="settings-row">
+      <div>
+        <div className="settings-row-label">New events last</div>
+        <div className="settings-row-sub">Picking a start fills in the end this long after it.</div>
+      </div>
+      <select className="settings-select" aria-label="New events last" value={settings.defaultEventMinutes ?? 60} onChange={e => void save(Number(e.target.value))}>
+        {EVENT_LENGTHS.map(m => <option key={m} value={m}>{label(m)}</option>)}
+      </select>
+    </div>
+  )
+}
+
 function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccountId: string | null; onOpenedAccount: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
   const { members } = useApp()
@@ -2405,6 +2426,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
   return (
     <Section title="Calendars" icon={<LinkIcon width={16} height={16} />}>
       <DefaultCalendarRow calendars={calendars} onSaved={load} toast={toast} />
+      <EventLengthRow toast={toast} />
       {calendars.map(c => (
         <div key={c.id} className="cal-list-item" onClick={() => setEditCal(c)} style={{ cursor: 'pointer' }}>
           <div className="cal-list-top">

@@ -398,8 +398,9 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     if (action === 'calendar-event' && !old!.calendarEventId) {
       const calendar = (await mock.getCalendars()).find(c => c.writable && (body.calendarId ? c.id === body.calendarId : c.kind === 'local'))
       if (!calendar) throw new Error('Create a writable local calendar first.')
-      const time = old!.plannedTime ?? (await mock.getSettings()).mealTimes[old!.slot]
-      const minutes = (old!.recipeSnapshot?.totalMinutes || 60) * 60000
+      const settings = await mock.getSettings()
+      const time = old!.plannedTime ?? settings.mealTimes[old!.slot]
+      const minutes = (old!.recipeSnapshot?.totalMinutes || settings.defaultEventMinutes || 60) * 60000
       const at = new Date(`${old!.date}T${time}:00`).getTime()
       const [start, end] = body.eventStart === 'cooking' ? [at - minutes, at] : [at, at + minutes]
       const event = await mock.createEvent({ title: `${old!.slot[0].toUpperCase()}${old!.slot.slice(1)} · ${old!.title}`, calendarId: calendar.id, start: new Date(start).toISOString(), end: new Date(end).toISOString(), allDay: false, memberIds: [...new Set([...old!.eaterIds, ...(old!.assigneeMemberId ? [old!.assigneeMemberId] : [])])] })
