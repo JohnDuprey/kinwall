@@ -120,7 +120,7 @@ export function PollsSheet({ onClose }: { onClose: () => void }) {
         const winner = p.options.find(o => o.id === p.winnerOptionId)
         return <button key={p.id} type="button" className="sheet-link" aria-haspopup="dialog" onClick={() => setOpen(p.id)}>
           <span aria-hidden="true" className="poll-row-emoji">{p.status === 'open' ? '🗳' : '🏆'}</span>
-          <span>{p.question}<small>{[pollWhen(p), p.status === 'open' ? `Open · ${votedLabel(p, members.length)}` : `Closed${winner ? ` · ${winner.label}` : ''}`].filter(Boolean).join(' · ')}</small></span>
+          <span>{p.question}<small>{[pollWhen(p), p.status === 'open' ? `Open · ${votedLabel(p, members.length)}` : `Voting ended${winner ? ` · ${winner.label}` : ''}`].filter(Boolean).join(' · ')}</small></span>
           <ChevronRight />
         </button>
       })}</div>}
@@ -175,8 +175,8 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
   }
   const close = async () => {
     setBusy(true)
-    try { const p = await api.closePoll(poll.id, closing ?? undefined); setPoll(p); setClosing(null); changed(); toast(`Poll closed: ${p.options.find(o => o.id === p.winnerOptionId)?.label ?? 'no winner'}`) }
-    catch (e) { fail(e, 'close the poll') } finally { setBusy(false) }
+    try { const p = await api.closePoll(poll.id, closing ?? undefined); setPoll(p); setClosing(null); changed(); const w = p.options.find(o => o.id === p.winnerOptionId)?.label; toast(w ? `Voting ended. The winner is ${w}.` : 'Voting ended with no winner.') }
+    catch (e) { fail(e, 'end voting') } finally { setBusy(false) }
   }
   // Plan it: the meal it's tied to (linked before, or already planned in that slot) with the winner
   // filled in, else a new meal on the poll's day.
@@ -200,12 +200,12 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
   }
 
   const actions = parentDevice ? open
-    ? closing === null ? <button className="btn btn-primary" disabled={busy} onClick={() => setClosing(suggestedWinner(poll)?.id ?? '')}>Close poll</button>
-      : <><button className="btn btn-secondary" disabled={busy} onClick={() => setClosing(null)}>Keep voting</button><button className="btn btn-primary" disabled={busy || !closing} onClick={() => void close()}>Close poll</button></>
+    ? closing === null ? <button className="btn btn-secondary" disabled={busy} onClick={() => setClosing(suggestedWinner(poll)?.id ?? '')}>End voting…</button>
+      : <><button className="btn btn-secondary" disabled={busy} onClick={() => setClosing(null)}>Keep voting</button><button className="btn btn-primary" disabled={busy || !closing} onClick={() => void close()}>End voting</button></>
     : meals && winner ? <button className="btn btn-primary" disabled={busy} onClick={() => void plan()}>{poll.mealId ? 'Open the meal' : 'Plan it'}</button> : undefined
     : undefined
   return <Sheet title={poll.question} onClose={onClose} actions={actions}>
-    <p className="poll-meta">{[pollWhen(poll), open ? votedLabel(poll, members.length) : 'Closed'].filter(Boolean).join(' · ')}</p>
+    <p className="poll-meta">{[pollWhen(poll), open ? votedLabel(poll, members.length) : 'Voting ended'].filter(Boolean).join(' · ')}</p>
     {open && (lockedTo ? <p className="poll-voting-as"><Face m={members.find(m => m.id === lockedTo) ?? { name: '?', color: 'var(--bg-alt)' }} /> Voting as {name(lockedTo)}</p>
       : <div className="poll-who">
         <p className="poll-who-label" id={`poll-who-${poll.id}`}>{who ? `Voting as ${name(who)}` : 'Who’s voting? Tap your name.'}</p>
@@ -237,7 +237,7 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
       <select id={`poll-winner-${poll.id}`} value={closing} onChange={e => setClosing(e.target.value)}>
         {poll.options.map(o => <option key={o.id} value={o.id}>{o.label} ({o.votes.length} vote{o.votes.length === 1 ? '' : 's'})</option>)}
       </select>
-      <p className="field-hint">{tie ? 'It’s a tie: pick the winner.' : 'The choice with the most votes is picked.'} Nobody can vote after it closes.</p>
+      <p className="field-hint">{tie ? 'It’s a tie: pick the winner.' : 'The choice with the most votes is picked.'} Nobody can vote after voting ends.</p>
     </div>}
     {parentDevice && closing === null && <div className="field poll-more">
       <label htmlFor={`poll-more-${poll.id}`} className="sr-only">More</label>
@@ -295,7 +295,7 @@ export function NewPollSheet({ onClose, onCreated }: { onClose: () => void; onCr
         <div className="field"><label htmlFor={`${formId}-q`}>Question</label><input id={`${formId}-q`} type="text" required maxLength={200} placeholder="Where are we eating Friday?" value={question} onChange={e => setQuestion(e.target.value)} /></div>
         {meals && <div className="meal-form-row">
           <div className="field"><label htmlFor={`${formId}-date`}>For a meal (optional)</label><input id={`${formId}-date`} type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
-          <div className="field"><label htmlFor={`${formId}-slot`}>Meal slot</label><select id={`${formId}-slot`} disabled={!date} value={slot} onChange={e => setSlot(e.target.value as MealSlot)}>{MEAL_SLOTS.map(s => <option key={s} value={s}>{SLOT_LABEL[s]}</option>)}</select></div>
+          <div className="field"><label htmlFor={`${formId}-slot`}>Meal</label><select id={`${formId}-slot`} disabled={!date} value={slot} onChange={e => setSlot(e.target.value as MealSlot)}>{MEAL_SLOTS.map(s => <option key={s} value={s}>{SLOT_LABEL[s]}</option>)}</select></div>
         </div>}
         <fieldset className="poll-choices"><legend>Choices</legend>
           {choices.map((c, i) => <div key={c.key} className="poll-choice">

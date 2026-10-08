@@ -16,7 +16,7 @@ Polls don't have a tab of their own:
 Parents start polls: **Home → Board → 🗳 Polls → New poll**.
 
 1. Type the question.
-2. With [Meals](meals.md) on, pick a date and meal slot if the poll decides a meal (optional).
+2. With [Meals](meals.md) on, pick a date and **Meal** (breakfast, lunch, dinner…) if the poll decides one (optional).
 3. Add the choices, at least two and up to twelve:
    * **Add an idea**: anything typed, like "Pizza night" or "Moana".
    * **Add a recipe**: a recipe from the recipe book (with Meals on).
@@ -31,11 +31,11 @@ Open the poll from the Board, the Polls list, the Meals planner or the notificat
 * **A wall screen** asks "Who's voting?" first: tap your name, then your choice. After each vote it's ready for the next person.
 * **A parent's device** starts on its owner and can vote for anyone (for a kid who's not near a screen, say).
 
-## Closing a poll and planning it
+## Ending voting and planning it
 
-On a parent's device, open the poll and tap **Close poll**. The choice with the most votes is picked; on a tie, pick the winner from the list. Tap **Close poll** again to finish. Nobody can vote after that, and it leaves the Board. A parent can open a closed poll and close it again to pick a different winner.
+On a parent's device, open the poll and tap **End voting…**. The choice with the most votes is picked; on a tie, pick the winner from the list. Tap **End voting** to finish, or **Keep voting** to leave it open. Nobody can vote after that, and the poll leaves the Board. To pick a different winner afterwards, end voting again through the API or an AI assistant (`close_poll`).
 
-With Meals on, a closed poll has **Plan it**. It opens the meal the poll was about with the winner filled in: the meal already planned in that slot if there is one, else a new meal on that day (today's dinner for a poll without a date). A recipe choice plans that recipe, a restaurant plans dining out there, and an idea becomes the meal's name. Save it and the poll links to that meal (**Open the meal** next time).
+With Meals on, a poll whose voting has ended has **Plan it**. It opens the meal the poll was about with the winner filled in: the meal already planned in that slot if there is one, else a new meal on that day (today's dinner for a poll without a date). A recipe choice plans that recipe, a restaurant plans dining out there, and an idea becomes the meal's name. Save it and the poll links to that meal (**Open the meal** next time).
 
 To delete a poll and its votes: open it, then **More… → Delete poll**.
 

@@ -1705,14 +1705,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
   tool(
     'close_poll',
-    { title: 'Close a family poll', description: 'Admin: close a poll and pick the winner: option (id or label), else the choice with the most votes (a tie goes to the one listed first). On a closed poll, changes the winner. Plan the winning meal with create_meal if it was about one.', inputSchema: { poll: z.string().optional().describe('Id or exact question; left out, the one open poll.'), option: z.string().optional() } },
+    { title: 'End voting on a family poll', description: 'Admin: end voting on a poll and pick the winner: option (id or label), else the choice with the most votes (a tie goes to the one listed first). On a poll whose voting already ended, changes the winner. Plan the winning meal with create_meal if it was about one.', inputSchema: { poll: z.string().optional().describe('Id or exact question; left out, the one open poll.'), option: z.string().optional() } },
     async ({ poll, option }) => {
       let id: string, optionId: string | undefined;
       try { const p = await findPoll(poll); id = p.id; optionId = option ? findOption(p, option).id : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
       const res = await call(app, env, auth, 'POST', `/api/polls/${encodeURIComponent(id)}/close`, { optionId });
-      if (res.status >= 400) return errorResult(res.json, 'failed to close the poll');
+      if (res.status >= 400) return errorResult(res.json, 'failed to end voting');
       const p = res.json as { winnerOptionId: string | null; options: { id: string; label: string }[] } & Parameters<typeof tally>[0];
-      return okResult(`Closed. Winner: ${p.options.find((o) => o.id === p.winnerOptionId)?.label ?? 'none'}. ${tally(p)}`, { poll: p });
+      return okResult(`Voting ended. Winner: ${p.options.find((o) => o.id === p.winnerOptionId)?.label ?? 'none'}. ${tally(p)}`, { poll: p });
     },
   );
 

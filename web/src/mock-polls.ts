@@ -45,7 +45,7 @@ export async function mockPollRequest(path: string, options: RequestInit): Promi
   if (!poll) throw new Error('poll not found')
   if (method === 'DELETE') { polls = polls.filter(p => p.id !== id); return { ok: true } }
   if (action === 'vote') {
-    if (poll.status !== 'open') throw new Error('This poll is closed.')
+    if (poll.status !== 'open') throw new Error('Voting on this poll has ended.')
     for (const o of poll.options) o.votes = o.votes.filter(m => m !== body.memberId)
     if (body.optionId) poll.options.find(o => o.id === body.optionId)!.votes.push(body.memberId)
   } else if (action === 'close') {

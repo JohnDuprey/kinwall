@@ -191,7 +191,7 @@ pollsRoutes.openapi(
     if (blocked) return c.json({ error: blocked }, 403);
     const poll = await onePoll(c.env.DB, id);
     if (!poll) return c.json({ error: 'poll not found' }, 404);
-    if (poll.status !== 'open') return c.json({ error: 'This poll is closed.' }, 409);
+    if (poll.status !== 'open') return c.json({ error: 'Voting on this poll has ended.' }, 409);
     if (optionId && !poll.options.some((o) => o.id === optionId)) return c.json({ error: 'choice not found in this poll' }, 400);
     if (!(await c.env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(memberId).first())) return c.json({ error: 'member not found' }, 404);
     await (optionId
