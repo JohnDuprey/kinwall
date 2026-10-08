@@ -11,7 +11,7 @@ import { asYou, daySections, newCount, pictureAlt, weekDigest } from './newscast
 import { formatTime } from './timeFormat.ts'
 import { useMediaQuery } from './useIsPhone.ts'
 import { useDeviceAppearance } from './useTheme.ts'
-import { preparePhoto } from './photos.ts'
+import { preparePhoto, safeImageSrc } from './photos.ts'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
@@ -308,7 +308,7 @@ function Composer({ inSheet, onPosted }: { inSheet: boolean; onPosted: () => voi
         </div>
         {photo && (
           <div className="news-photo-pick">
-            <img src={photo.url} alt="The photo to share" />
+            <img src={safeImageSrc(photo.url)} alt="The photo to share" />
             <button type="button" className="btn btn-secondary" onClick={() => pickPhoto(undefined)}>Leave out the photo</button>
           </div>
         )}

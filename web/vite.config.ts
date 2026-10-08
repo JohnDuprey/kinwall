@@ -26,7 +26,8 @@ function selfHostedLegacyGuard(): Plugin {
         html = html.replace(DATA_GUARD, "import'./assets/legacy-guard.js?detect'")
         // The Docker web stage has no server/ folder; CI and local builds still check both.
         const csps = ['public/_headers', '../server/src/app.ts'].map(f => new URL(f, import.meta.url)).filter(existsSync).map(u => readFileSync(u, 'utf8'))
-        const hashes = [...html.matchAll(/<script\b[^>]*>([^<]+)<\/script>/g)].map(([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`)
+        // Any case, any attributes, any content (even a '<'): every inline script must be hashed.
+        const hashes = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)].filter(([, code]) => code).map(([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`)
         if (!csps.every(c => hashes.every(h => c.includes(h)))) throw new Error(`script-src in web/public/_headers and server/src/app.ts must allow the inline scripts: 'self' ${hashes.join(' ')}`)
         return html
       },

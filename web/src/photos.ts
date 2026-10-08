@@ -4,6 +4,16 @@
 const MAX_EDGE = 1280
 export const MAX_PHOTO_BYTES = 600 * 1024
 
+/** An image address that's safe to render: one this page made (an object URL or an inline image) or
+ * one from its own origin. Anything else gives undefined, so it's never put in an <img>. */
+export function safeImageSrc(url: string, origin = location.origin): string | undefined {
+  if (/^data:image\//i.test(url)) return url
+  try {
+    const u = new URL(url, origin)
+    return ['blob:', 'http:', 'https:'].includes(u.protocol) && u.origin === origin ? url : undefined
+  } catch { return undefined }
+}
+
 export class PhotoFormatError extends Error {
   constructor() { super("This photo format can't be read here — pick it from Photos (iPhone converts it) or export as JPEG") }
 }
