@@ -111,7 +111,7 @@ test('meals: admin boundary and assigned-device notes/status are enforced', asyn
   assert.equal((await request(`/api/meals/${meal.id}`, 'PATCH', { title: 'X' }, owner.key)).status, 403);
   assert.equal((await request(`/api/meals/${meal.id}`, 'PATCH', { notes: 'X' }, shared.key)).status, 403);
   assert.equal((await request(`/api/meals/${meal.id}`, 'DELETE', undefined, owner.key)).status, 403);
-  assert.equal((await json(`/api/meals/${meal.id}`, 'PATCH', { notes: 'Done', status: 'handled' }, owner.key)).status, 'handled');
+  assert.equal((await json(`/api/meals/${meal.id}`, 'PATCH', { notes: 'Done', status: 'prepared' }, owner.key)).status, 'prepared');
 });
 
 test('meals: invalid dates, ranges, servings, URLs and references are rejected before writes', async () => {
@@ -271,4 +271,11 @@ test('meals: family ratings set, overwrite, clear, average, and go with their re
   assert.deepEqual((await json('/api/recipes'))[0].rating, { average: 1, count: 1, byMember: { [ada.id]: 1 } });
   await json(`/api/recipes/${recipe.id}`, 'DELETE');
   assert.equal((await db.prepare('SELECT count(*) AS n FROM recipe_ratings').first<{ n: number }>())!.n, 0);
+});
+
+test('meals: handled is gone; an old export saying handled imports as cooked (prepared)', async () => {
+  const { MealSchema } = await import('../src/meal-schemas.ts');
+  const parsed = MealSchema.shape.status.parse('handled');
+  assert.equal(parsed, 'prepared');
+  assert.throws(() => MealSchema.shape.status.parse('eaten'));
 });

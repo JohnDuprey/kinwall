@@ -104,6 +104,7 @@ import m0100 from '../migrations/0100_restaurants.sql';
 import m0101 from '../migrations/0101_meal_orders.sql';
 import m0102 from '../migrations/0102_polls.sql';
 import m0103 from '../migrations/0103_library_shelf.sql';
+import m0104 from '../migrations/0104_meal_status_cooked.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -209,4 +210,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0101_meal_orders.sql', sql: m0101 },
   { name: '0102_polls.sql', sql: m0102 },
   { name: '0103_library_shelf.sql', sql: m0103 },
+  { name: '0104_meal_status_cooked.sql', sql: m0104 },
 ];

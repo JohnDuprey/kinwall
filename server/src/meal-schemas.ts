@@ -141,7 +141,7 @@ export const MealInputSchema = z.object({
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']).optional(), recipeId: z.string().nullable().optional(),
   servings: servings.optional(), assigneeMemberId: z.string().nullable().optional().describe("Who's cooking."), eaterIds: eaterIds.optional(), notes: text.optional(),
   plannedTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-  status: z.enum(['planned', 'prepared', 'handled']).optional().describe('For dining out, prepared reads "Ordered": it locks the orders for everyone but parents.'), sourceUrl: url.optional(),
+  status: z.enum(['planned', 'prepared']).optional().describe('planned, or prepared (shown as Cooked; for dining out, Ordered, which locks the orders for everyone but parents).'), sourceUrl: url.optional(),
   restaurantId: z.string().nullable().optional().describe('Dining out: the restaurant (from the binder). Without a title, the meal takes its name.'),
   orderType: OrderTypeSchema.nullable().optional(),
 }).strict().openapi('MealInput');
@@ -152,7 +152,8 @@ export const MealSchema = z.object({
   servings, assigneeMemberId: z.string().nullable(), eaterIds: z.array(z.string()).default([]), notes: text, plannedTime: z.string().nullable(),
   calendarEventId: z.string().nullable(),
   calendarEventStart: MealEventStartSchema.nullable().default(null).describe('Set when Kinwall created the event (it then follows the meal): when it starts. null for an event you linked yourself, which is never changed.'),
-  status: z.enum(['planned', 'prepared', 'handled']), sourceUrl: url,
+  // An export from before 0104 can say handled, which was the same as prepared.
+  status: z.preprocess((v) => (v === 'handled' ? 'prepared' : v), z.enum(['planned', 'prepared'])), sourceUrl: url,
   // Defaults so older exports still import.
   restaurantId: z.string().nullable().default(null), orderType: OrderTypeSchema.nullable().default(null),
   orders: z.array(MealOrderSchema).default([]).describe("Each person's order (dining out)."),
@@ -204,7 +205,7 @@ export const RestaurantSchema = z.object({
   // Read only (optional so exports without them import).
   lastOrders: z.array(z.object({ memberId: z.string(), mealId: z.string(), date: z.string(), items: z.array(OrderItemSchema) })).optional()
     .describe("Each person's latest order here, from a night already ordered: their usual."),
-  upcoming: z.array(z.object({ mealId: z.string(), date: z.string(), slot: MealSlotSchema, plannedTime: z.string().nullable(), orderType: OrderTypeSchema.nullable(), status: z.enum(['planned', 'prepared', 'handled']), eaterIds: z.array(z.string()), orderCount: z.number().int() })).optional()
+  upcoming: z.array(z.object({ mealId: z.string(), date: z.string(), slot: MealSlotSchema, plannedTime: z.string().nullable(), orderType: OrderTypeSchema.nullable(), status: z.enum(['planned', 'prepared']), eaterIds: z.array(z.string()), orderCount: z.number().int() })).optional()
     .describe('Planned meals from here, today on.'),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Restaurant');

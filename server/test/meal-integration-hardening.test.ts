@@ -159,7 +159,7 @@ test('meal hardening: display authorization covers every mutation and binds note
     ] as const) await json(method, path, body, 403, key);
     await json('PATCH', `/api/meals/${unassigned.id}`, { notes: 'Unassigned' }, 403, key);
   }
-  for (const key of others) await json('PATCH', `/api/meals/${m.id}`, { notes: 'Not mine', status: 'handled' }, 403, key);
+  for (const key of others) await json('PATCH', `/api/meals/${m.id}`, { notes: 'Not mine', status: 'prepared' }, 403, key);
   const updated = await json<Meal>('PATCH', `/api/meals/${m.id}`, { notes: 'Ready', status: 'prepared' }, 200, assigned);
   assert.deepEqual([updated.notes, updated.status, updated.assigneeMemberId], ['Ready', 'prepared', ada.id]);
   await json('PATCH', `/api/meals/${m.id}`, { notes: 'Spoof', owner: ada.id }, 400, others[0]);
@@ -305,7 +305,7 @@ test('meal hardening: MCP preserves REST authorization and rejects invalid range
     assert.equal(result.result.isError, true, name);
     assert.match(result.result.content[0].text, /admin|display key/i, name);
   }
-  assert.equal((await f.tool('update_meal', { id: meal.id, notes: 'Ready', status: 'handled' }, own)).meal.status, 'handled');
+  assert.equal((await f.tool('update_meal', { id: meal.id, notes: 'Ready', status: 'prepared' }, own)).meal.status, 'prepared');
   assert.equal((await f.mcp('tools/call', { name: 'update_meal', arguments: { id: meal.id, notes: 'No' } }, shared)).result.isError, true);
   assert.equal((await f.tool('get_recipe', { id: recipe.id }, shared)).recipe.id, recipe.id);
   for (const name of ['list_meals', 'get_meal_projection', 'apply_meal_projection']) {

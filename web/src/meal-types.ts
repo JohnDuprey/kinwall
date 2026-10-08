@@ -1,7 +1,7 @@
 // JSON shapes mirror the meal API. Dates are household calendar dates, never week ids.
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export type MealKind = 'recipe' | 'freeform' | 'dining_out'
-export type MealStatus = 'planned' | 'prepared' | 'handled'
+export type MealStatus = 'planned' | 'prepared'
 export interface IngredientInput {
   name: string
   quantity: number | null

@@ -146,7 +146,7 @@ let meals: Meal[] = menu.flatMap((day, dayIndex) => day.map((key, slotIndex) => 
     recipeSnapshot: chosen ? { name: chosen.name, defaultServings: chosen.defaultServings, ingredients: chosen.ingredients.map(i => ({ ...i })) } : null,
     servings: key === 'tacos' ? 6 : 4, assigneeMemberId: dayIndex % 2 === 0 ? 'm1' : 'm2', eaterIds: slotIndex === 2 && key !== 'tacos' ? ['m1', 'm2', 'm3', 'm4'] : [],
     notes: key === 'leftovers' ? 'Use the reserved taco filling and toppings from Tuesday.' : key === 'takeout' ? 'Pizza night! Pick up on the way home from practice.' : key === 'cafe' ? 'Meet after the morning activities; no groceries needed.' : key === 'tacos' ? 'Taco Tuesday! Six servings so there is filling for Wednesday lunch.' : chosen!.preparationNotes,
-    plannedTime: ['07:30', '12:00', '18:00', '15:30'][slotIndex], status: dayIndex === 0 ? 'prepared' : key === 'leftovers' ? 'handled' : 'planned',
+    plannedTime: ['07:30', '12:00', '18:00', '15:30'][slotIndex], status: dayIndex === 0 ? 'prepared' : key === 'leftovers' ? 'prepared' : 'planned',
     sourceUrl: null, calendarEventId: null, createdAt: stamp, updatedAt: stamp,
   }
 }))
@@ -179,7 +179,7 @@ const pick = (placeId: string, n: number, qty = 1, note: string | null = null) =
 const placed = (memberId: string, items: ReturnType<typeof pick>[], note: string | null = null) => ({ memberId, items, note, updatedAt: stamp })
 const friday = meals.find(m => m.restaurantId === 'demo-corner-slice')!
 friday.orders = [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5), pick('demo-corner-slice', 4)], 'Extra ranch, please'), placed('m4', [pick('demo-corner-slice', 6, 1, 'Honey mustard on the side')])]
-meals.push({ ...friday, id: 'demo-meal-last-friday', date: dateKey(new Date(Date.parse(`${friday.date}T12:00:00`) - 7 * 86400000)), status: 'handled', notes: null,
+meals.push({ ...friday, id: 'demo-meal-last-friday', date: dateKey(new Date(Date.parse(`${friday.date}T12:00:00`) - 7 * 86400000)), status: 'prepared', notes: null,
   orders: [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5)]), placed('m3', [pick('demo-corner-slice', 3, 1, 'Extra cheese')]), placed('m4', [pick('demo-corner-slice', 6)])] })
 /** The server's read-only lastOrders / upcoming on a restaurant (server/src/routes/restaurants.ts). */
 function withNights(r: Restaurant): Restaurant {

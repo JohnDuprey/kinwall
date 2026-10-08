@@ -105,7 +105,7 @@ test("meal orders: a restaurant shows nights coming up and each person's usual; 
   assert.deepEqual(read.lastOrders, []); // not ordered yet: no usual
   const past = await f.json('/api/meals', 'POST', { date: '2020-01-03', slot: 'dinner', mealKind: 'dining_out', restaurantId: place.id });
   await f.json(`/api/meals/${past.id}/orders/${leo.id}`, 'PUT', { items: [{ name: 'Garlic knots' }] });
-  await f.json(`/api/meals/${past.id}`, 'PATCH', { status: 'handled' });
+  await f.json(`/api/meals/${past.id}`, 'PATCH', { status: 'prepared' });
   read = await f.json(`/api/restaurants/${place.id}`);
   assert.deepEqual(read.lastOrders.map((o: any) => [o.memberId, o.mealId, o.items[0].name]), [[leo.id, past.id, 'Garlic knots']]);
   assert.equal(read.upcoming.length, 1); // 2020 is long gone
