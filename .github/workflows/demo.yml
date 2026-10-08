@@ -2,6 +2,7 @@
 # visitor gets a fresh private copy) to a Cloudflare Pages project on tagged releases. Needs the
 # same CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets as cloudflare.yml plus a Pages project
 # named in the DEMO_PAGES_PROJECT variable (its custom domain is set in the dashboard).
+# Same split as cloudflare.yml: `build` (no secrets) runs npm, `deploy` only uploads the files.
 name: Deploy demo
 on:
   push:
@@ -11,17 +12,34 @@ on:
 permissions:
   contents: read
 jobs:
-  demo:
+  build:
     runs-on: ubuntu-latest
     if: ${{ vars.DEMO_PAGES_PROJECT != '' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci && npm run build:demo
         working-directory: web
-      - uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/dist-demo --project-name=${{ vars.DEMO_PAGES_PROJECT }}
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with: { name: demo, path: web/dist-demo, include-hidden-files: true, if-no-files-found: error, retention-days: 3 }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: server/package-lock.json }
+      - run: npm ci --ignore-scripts
+        working-directory: server
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with: { name: demo, path: web/dist-demo }
+      - run: npx --no wrangler pages deploy ../web/dist-demo --project-name="$DEMO_PAGES_PROJECT"
+        working-directory: server
+        env:
+          DEMO_PAGES_PROJECT: ${{ vars.DEMO_PAGES_PROJECT }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

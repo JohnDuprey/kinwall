@@ -4,6 +4,12 @@
 # secrets: CLOUDFLARE_API_TOKEN (Workers Scripts:Edit, D1:Edit, Workers Routes:Edit) and
 # CLOUDFLARE_ACCOUNT_ID. Account-specific settings come from the same variables
 # scripts/cloudflare-config.sh reads (D1_DATABASE_ID, CUSTOM_DOMAIN) set as repository variables.
+#
+# Two jobs, so the Cloudflare token never shares a machine with dependency code:
+# build   No secrets. npm installs and builds the web app, uploaded as an artifact.
+# deploy  Installs the server's packages with --ignore-scripts (no dependency code runs; wrangler
+#         only bundles), takes the built web app from `build` (KINWALL_WEB_PREBUILT skips
+#         wrangler.toml's [build]), and gives the secrets only to the wrangler step.
 name: Deploy to Cloudflare
 on:
   push:
@@ -13,19 +19,38 @@ on:
 permissions:
   contents: read
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     if: ${{ vars.CLOUDFLARE_DEPLOY == 'true' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci && npm run build
+        working-directory: web
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with: { name: web, path: web/dist, include-hidden-files: true, if-no-files-found: error, retention-days: 3 }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: server/package-lock.json }
       - run: sh scripts/cloudflare-config.sh
         env:
           D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
           CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
-      - uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+      - run: npm ci --ignore-scripts
+        working-directory: server
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with: { name: web, path: web/dist }
+      - run: npx --no wrangler deploy --config ../wrangler.toml
+        working-directory: server
+        env:
+          KINWALL_WEB_PREBUILT: '1'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
