@@ -194,6 +194,8 @@ Or paste the whole menu in **Paste a menu** and tap **Add these items**:
 * A line under an item that reads like a description (it starts in lowercase, lists things with commas, or is a sentence) is that item's description, however many lines it takes. `Name $9 — what's in it` works too.
 * A heading starts a section: a common one (`Desserts`, `Kids Menu`), a short line over items, a line ending in a colon (`Sides:`) or `Section: Pizza`. A heading with prices (`Specialty Pizza 10" $15.55 | 14" $20.70`) gives them to its items that have none.
 * A price alone on the next line belongs to the item above it, which is how text copied off a photo often comes out.
+* A price is `$12.45`, `12.45` or `+$5.00` (an add-on), or a plain number at the end of an item's line (`Cheese 12`). Numbers run into letters (`+8t` off a mailing label) are never prices.
+* An item's name over two lines right under a heading (`Jumbo Chocolate`, then `Chip Cookie $2.25`) is one item, and a heading misread by one letter (`Pasias`) is spelled right (`Pastas`).
 * Add-ons and sides to swap (`Sub French Fries $1.75`, `Add Ons: Bacon $2.00`, an "Add Protein" box) go together in an **Add-ons** section at the end, each saying what it goes with ("For Burgers and Wraps").
 * Coupons and deals, opening hours, phone numbers, web addresses and mailing labels are left out.
 

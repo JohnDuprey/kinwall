@@ -32,7 +32,7 @@ export const PAGE_LINE = /^[\s\-=–—_*·•]*page\s+\d+(?:\s*(?:of|\/)\s*\d+)
 const PAGE_NOTE = /^\(?\s*(?:continued(?:\s+on\s+(?:the\s+)?(?:back|next page|other side|reverse))?|see\s+(?:the\s+)?(?:back|other side|reverse)|(?:please\s+)?turn\s+over|over)\s*\)?\.?$/i;
 const CONTINUED = /(?<![\s,.\-–—:])[\s,.\-–—:]+[([]?\s*(?:continued|cont'?d|cont)\.?\s*[)\]]?$/i;
 const key = (s: string) => s.normalize('NFKD').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-const tidy = (s: string) => s.replace(/^[-•*·,\s]+/, '').replace(/(?<![\s.\-–—:·…,|])[\s.\-–—:·…,|]+$/, '').trim().slice(0, 200);
+const tidy = (s: string) => s.replace(/^[-•*·,\s]+/, '').replace(/(?<![\s.\-–—:·…,|+•*])[\s.\-–—:·…,|+•*]+$/, '').trim().slice(0, 200);
 // No menu line is this long; a longer one is cut, so no line can cost much.
 const LINE_MAX = 500;
 
@@ -43,7 +43,8 @@ const JUNK = [
   /\d{1,2}:\d{2}\s*[ap]\.?m|\b\d{1,2}\s*[ap]m\s*[-–]/i, // hours
   /\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b|^\d{3}[\s.-]\d{4}$/, // phone numbers
   /\bwww\.|https?:\/\/|\b[a-z0-9-]+\.(?:com|net|org|us|biz|info|example)\b/i, // links
-  /\b(?:prsrt|presorted|postage|permit\s*#|ecrwss|resident|postal\s+customer|mail\s*shark)\b/i, // mailing label
+  /\b(?:prs?r?t\s*std|presorted|postage|permit\s*#|ecrwss|resident|postal\s+customer|mail\s*shark)\b/i, // mailing label
+  /\b\p{Lu}{3,},\s*\p{Lu}{2}$/u, // a mailing label's TOWN, ST
   /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/, // state and ZIP
   /^\d+\s+(?:[\p{L}.']+\s+){0,3}(?:rd|road|st|street|ave|avenue|dr|drive|ln|lane|way|blvd|hwy)\.?$/iu, // a street
   /^[-–—~=*]+\s*\S.*\S\s*[-–—~=*]+$/, // a tagline between dashes ("- PIZZA & GRILLE -")
@@ -84,13 +85,13 @@ function splitPrice(line: string): { name: string; rest: string; price: Price | 
   // is prices after, else a bare number at the end ("Pizza - 12"). A count or size just before it
   // ("(4) $8.30", '10" $11.40') is part of the prices.
   let at = -1;
-  const dollar = /[+$]\s*\d/.exec(line) ?? (() => {
-    for (const m of line.matchAll(/(?<!\d)(?<!\d[.,])\+?\d{1,4}[.,]\d{2}(?!\d)/g)) if (PRICEISH.test(line.slice(m.index))) return m;
+  const dollar = /\$\s*\d{1,4}(?:[.,]\d{1,2})?(?![\d\p{L}])|\+\s*\d{1,4}[.,]\d{2}(?![\d\p{L}])/u.exec(line) ?? (() => {
+    for (const m of line.matchAll(/(?<!\d)(?<!\d[.,])\+?\d{1,4}[.,]\d{2}(?![\d\p{L}])/gu)) if (PRICEISH.test(line.slice(m.index))) return m;
     return null;
   })();
   if (dollar) {
     at = dollar.index;
-    const before = /(?:\(\s*\d{1,3}\s*\)|\b\d{1,2}\s*["”]\s*:?)\s*$/.exec(line.slice(0, at));
+    const before = /(?:\(\s*\d{1,3}\s*\)|\b\d{1,2}\s*["”]\s*:?|(?<!\S)\+)\s*$/.exec(line.slice(0, at));
     if (before) at = before.index;
   }
   if (at < 0) {
@@ -142,7 +143,7 @@ type Token =
   | { t: 'heading'; name: string; price: Price | null; explicit: boolean }
   | { t: 'price'; price: Price }
   | { t: 'item'; name: string; price: Price; desc: string | null; addon: boolean }
-  | { t: 'name'; name: string; addon: boolean }
+  | { t: 'name'; name: string; addon: boolean; lead?: boolean }
   | { t: 'desc'; text: string; note: boolean }
   | { t: 'promo' }
   | { t: 'junk' };
@@ -173,12 +174,34 @@ function tokens(line: string, name: string | null): Token[] {
   if (line.endsWith(':') && !LABELLED.test(line)) return [{ t: 'heading', name: tidy(line.replace(/^add[- ]?ons?\s*:/i, 'Add-ons')), price: null, explicit: true }];
   const { name: text, rest, price } = splitPrice(line.replace(/^add[- ]?ons?\s*:\s*(?=\S)/i, ''));
   const addon = ADDON.test(line);
-  if (letters(text) < 2) return price ? [{ t: 'price', price }] : [];
+  // A price on its own line is "$12", "12.45" or "+$5.00", never a bare number ("30", a mailing code's "+8").
+  if (letters(text) < 2) return price && /\$|\d[.,]\d\d/.test(line) ? [{ t: 'price', price }] : [];
   if (letters(line) < 3 && !price) return [];
   if (price) return [{ t: 'item', name: text, price, desc: null, addon }];
   if (isDesc(rest)) return [{ t: 'desc', text: rest.replace(/^[-•*·\s]+/, ''), note: NOTE.test(rest) }];
-  if (HEADING_WORDS.test(text.replace(CONTINUED, '').trim())) return [{ t: 'heading', name: text, price: null, explicit: false }];
-  return [{ t: 'name', name: text, addon }];
+  const known = knownHeading(text);
+  if (known) return [{ t: 'heading', name: known, price: null, explicit: false }];
+  // lead: it ends in dot leaders, so its price was on its row (read apart), not on a next line.
+  return [{ t: 'name', name: text, addon, lead: /[.…·]\s*$/.test(rest) }];
+}
+
+/** A line that's a common section heading, spelled right ("Pasias" read off a photo is "Pastas"),
+ * or null. One letter off counts for a one-word heading of five letters or more. */
+const SECTION_WORDS = ['appetizers', 'starters', 'salads', 'soups', 'burgers', 'sandwiches', 'hoagies', 'wraps', 'pastas', 'pasta', 'entrees', 'sides',
+  'desserts', 'dessert', 'beverages', 'drinks', 'platters', 'calzones', 'specials', 'tacos', 'bowls', 'combos', 'paninis', 'pizzas', 'noodles', 'seafood', 'breakfast'];
+function knownHeading(text: string): string | null {
+  const t = text.replace(CONTINUED, '').trim();
+  if (HEADING_WORDS.test(t)) return text;
+  if (!/^\p{L}{5,14}$/u.test(t)) return null;
+  const w = SECTION_WORDS.find((s) => oneOff(t.toLowerCase(), s));
+  return w ? (/^\p{Lu}/u.test(t) ? w[0].toUpperCase() + w.slice(1) : w) : null;
+}
+/** a and b differ by at most one letter: changed, added or left out. */
+function oneOff(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return a.slice(i + (a.length >= b.length ? 1 : 0)) === b.slice(i + (b.length >= a.length ? 1 : 0));
 }
 
 type Entry = { kind: 'heading'; name: string; price: Price | null } | { kind: 'item'; name: string; price: Price | null; desc: string[]; addon: boolean };
@@ -214,7 +237,11 @@ export function parseMenuText(text: string, opts: { name?: string | null } = {})
     const tk = toks[i];
     if (tk.t === 'page') { open = null; continue }
     if (tk.t === 'heading') { heading(tk.name, tk.price); continue }
-    if (tk.t === 'item') { item(tk.name, tk.price, tk.addon); if (tk.desc) open!.desc.push(tk.desc); continue }
+    if (tk.t === 'item') {
+      // A description with the price on its row (a tilted photo): the item above's, when it has none.
+      if (!tk.addon && isDesc(tk.name) && /[,;]|^\p{Ll}/u.test(tk.name) && open && open.price === null && !open.desc.length) { open.price = tk.price; open.desc.push(tk.name); continue }
+      item(tk.name, tk.price, tk.addon || !!tk.price.parts[0]?.plus); if (tk.desc) open!.desc.push(tk.desc); continue
+    }
     if (tk.t === 'desc') {
       if (open && !(tk.note && !open.desc.length && open.price === null)) open.desc.push(tk.text);
       continue; // a section's own note ("All burgers come with chips") has no item to go with
@@ -222,8 +249,12 @@ export function parseMenuText(text: string, opts: { name?: string | null } = {})
     if (tk.t === 'price') {
       // A price under a description: the item's, read in a separate column.
       const last = entries.at(-1);
+      const before = entries.at(-2);
       if (open && open.price === null) { open.price = tk.price; open.name = byNames(open.name, open.price) }
       else if (!open && last?.kind === 'heading' && !last.price) last.price = tk.price; // "Specialty Pizza" over '$10": $15.55 | 14": $20.70'
+      // Two names over two prices with the first price read on the second name's line ("Grilled
+      // Chicken", "Crispy Tofu . + $4.00", "+$4.00"): the name above's.
+      else if (open && before?.kind === 'item' && before.price === null && !before.desc.length) before.price = tk.price;
       continue;
     }
     // A name with no price: names and prices read as two columns ("BLT", "Tuna Melt", "$10.45",
@@ -241,8 +272,26 @@ export function parseMenuText(text: string, opts: { name?: string | null } = {})
       i += m + k - 1;
       continue;
     }
-    const next = toks[i + 1];
-    if (!tk.addon && (next?.t === 'heading' ? false : next?.t === 'desc' ? next.note : looksLikeItem(i + 1))) heading(tk.name, null);
+    const next = toks[i + 1], last = entries.at(-1);
+    // An item's name over two lines, right under a heading ("Desserts", "Jumbo Chocolate", "Chip
+    // Cookie $2.25"): one item. Anywhere else a name over a priced name is a heading.
+    const fragment = next?.t === 'item' ? next : next?.t === 'name' && toks[i + 2]?.t === 'price' ? next : null;
+    if (!tk.addon && !tk.lead && fragment && !fragment.addon && last?.kind === 'heading' && !/^add\b/i.test(last.name) && !(next?.t === 'item' && next.price.parts[0]?.plus) && words(tk.name) + words(fragment.name) <= 6 && !isDesc(fragment.name) && (titleCase(fragment.name) || /^\p{Ll}/u.test(fragment.name))) {
+      item(`${tk.name} ${fragment.name}`, next?.t === 'item' ? next.price : null, false);
+      i++;
+      continue;
+    }
+    // A heading is a name over items, but not among short names with no prices ("Water" between
+    // "Fountain Soda" and "Juices"), and not one over an add-on's "+$" price (it's an add-on too).
+    const since = entries.slice(entries.findLastIndex((e) => e.kind === 'heading') + 1);
+    const unpricedRun = since.length > 0 && since.every((e) => e.kind === 'item' && !e.price);
+    const overAddon = next?.t === 'item' && !!next.price.parts[0]?.plus;
+    // "Add Protein" over names with "+$" prices: a box of add-ons for the section above.
+    let j = i + 1;
+    while (toks[j]?.t === 'name') j++;
+    const box = toks[j]?.t === 'item' && !!(toks[j] as Extract<Token, { t: 'item' }>).price.parts[0]?.plus;
+    if (tk.addon && /^add\b/i.test(tk.name) && box) heading(tk.name, null);
+    else if (!tk.addon && !tk.lead && !unpricedRun && !overAddon && (next?.t === 'heading' ? false : next?.t === 'desc' ? next.note : looksLikeItem(i + 1))) heading(tk.name, null);
     else item(tk.name, null, tk.addon);
   }
 

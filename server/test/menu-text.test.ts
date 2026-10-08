@@ -154,6 +154,8 @@ Tue-Sun: 11:00am-9:00pm
 555-0100
 cornerslice.example
 PRSRT STD
+PRST STD
+0555-019-+8t SPRINGFIELD, ZZ
 US POSTAGE PAID
 RESIDENT
 1 MAIN ST
@@ -240,5 +242,49 @@ test("menu text: the phones' model lines (Section: lines, prices and a descripti
     ['Dessert', 'Brownie Sundae', 425, null],
     [ADDONS, 'Additional Toppings', 175, '10" $1.75 · 14" $2.50 — Onion, Pepper, Mushroom, Olive — For Specialty Pizza'],
     [ADDONS, 'Sub French Fries', 175, 'For Smash Burgers and Hoagies & Melts'],
+  ]);
+});
+
+// --- What a phone's photo text did on a real tri-fold (made-up names, the same patterns) -----------
+
+test('menu text: a price is only ever $12.45, 12.45 or +$5.00, never a token with letters or a mailing code', () => {
+  assert.deepEqual(full('Beverages\nFountain Soda $2.50\nJuices\n+8t\n68Et\nIced Tea 8t\n0555-019-+8t'), [
+    ['Beverages', 'Fountain Soda', 250, null], ['Beverages', 'Juices', null, null], ['Beverages', 'Iced Tea 8t', null, null],
+  ]);
+});
+
+test('menu text: an item name over two lines is one item, its price on the second line', () => {
+  assert.deepEqual(full('Desserts\nGiant Oatmeal\nRaisin Cookie $2.25\nBeverages\nFountain\nSoda Products $2.85\nWater $2.85\nJuices $2.85'), [
+    ['Desserts', 'Giant Oatmeal Raisin Cookie', 225, null],
+    ['Beverages', 'Fountain Soda Products', 285, null], ['Beverages', 'Water', 285, null], ['Beverages', 'Juices', 285, null],
+  ]);
+  // The price read on a line of its own under the name's second line.
+  assert.deepEqual(full('Desserts\nGiant Oatmeal\nRaisin Cookie\n$2.25').map((i) => i.slice(0, 3)), [['Desserts', 'Giant Oatmeal Raisin Cookie', 225]]);
+  // A name ending in dot leaders had its price on its row: not the start of the next name.
+  assert.deepEqual(full('Kids Menu\nChicken Fingers .\nMac & Cheese\n$6.25').map((i) => i.slice(0, 3)), [['Kids Menu', 'Chicken Fingers', null], ['Kids Menu', 'Mac & Cheese', 625]]);
+  // A heading over a priced item stays a heading.
+  assert.deepEqual(full('Noodles\nPad thai 12.50\nLo mein 11.50').map((i) => i.slice(0, 3)), [['Noodles', 'Pad thai', 1250], ['Noodles', 'Lo mein', 1150]]);
+});
+
+test('menu text: short lines without prices in a section of them are items, not headings', () => {
+  assert.deepEqual(full('Beverages\nFountain Soda\nIced Tea\nWater\nJuices $2.85').map((i) => i.slice(0, 3)), [
+    ['Beverages', 'Fountain Soda', null], ['Beverages', 'Iced Tea', null], ['Beverages', 'Water', null], ['Beverages', 'Juices', 285],
+  ]);
+});
+
+test('menu text: an "Add Protein" box over +$ prices is add-ons for the section above', () => {
+  // Each with its price on its own line, or as a phone read it: names, then a price, then one more.
+  assert.deepEqual(full('Salads\nHarvest $9.10\nAdd Protein\nGrilled Chicken +$4.00\nCrispy Tofu +$4.00\nPizza\nPlain Cheese $10.40'), full('Salads\nHarvest $9.10\nAdd Protein\nGrilled Chicken\nCrispy Tofu . + $4,00\n+$4,00\nPizza\nPlain Cheese $10.40'));
+  // Not "Add mushrooms or onions" over the next sandwich.
+  assert.deepEqual(full('Hoagies\nSteak Hoagie $13.50\nAdd mushrooms or onions\nTurkey Club $12.95\nRoast turkey, bacon').map((i) => i.slice(0, 3)), [['Hoagies', 'Steak Hoagie', 1350], ['Hoagies', 'Turkey Club', 1295], [ADDONS, 'Add mushrooms or onions', null]]);
+  assert.deepEqual(full('Salads\nHarvest $9.10\nAdd Protein\nGrilled Chicken\nCrispy Tofu . + $4,00\n+$4,00\nPizza\nPlain Cheese $10.40'), [
+    ['Salads', 'Harvest', 910, null], ['Pizza', 'Plain Cheese', 1040, null],
+    [ADDONS, 'Grilled Chicken', 400, 'For Salads'], [ADDONS, 'Crispy Tofu', 400, 'For Salads'],
+  ]);
+});
+
+test('menu text: leader dots and stray marks are trimmed off names, and a misread heading is spelled right', () => {
+  assert.deepEqual(full('Wraps\nFalafel Pita. • $11.40\nVeggie Wrap... $10.00\nPasias\nBaked Ziti $14.50\nDeserts\nBrownie $4'), [
+    ['Wraps', 'Falafel Pita', 1140, null], ['Wraps', 'Veggie Wrap', 1000, null], ['Pastas', 'Baked Ziti', 1450, null], ['Desserts', 'Brownie', 400, null],
   ]);
 });
