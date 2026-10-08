@@ -119,3 +119,13 @@ export const tileChips = (tiles: string[], toolbar: boolean) =>
  *  its whole name) in `room`, else each is just its icon and count (never "G… 14"). */
 export const chipNamesFit = (widths: number[], room: number, gap = 8) =>
   widths.reduce((n, w) => n + w, 0) + gap * (widths.length - 1) <= room + 0.5
+
+/** Today's events on the Board, for a glance late in the day: what's on now (all-day ones too), then
+ *  what's next, in start order; the ones already over go to `earlier`, which the card folds into one
+ *  "3 earlier" row, so they never push what's on now behind "+N more". */
+export function todayOrder<T extends { start: string; end: string; allDay: boolean }>(events: T[], now: number): { shown: T[]; earlier: T[] } {
+  const byStart = [...events].sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
+  const over = (e: T) => !e.allDay && Date.parse(e.end) < now
+  const on = (e: T) => e.allDay || Date.parse(e.start) <= now
+  return { shown: [...byStart.filter(e => !over(e) && on(e)), ...byStart.filter(e => !over(e) && !on(e))], earlier: byStart.filter(over) }
+}

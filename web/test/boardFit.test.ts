@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipNamesFit, tileChips, tileColumns } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -116,4 +116,27 @@ test('chipNamesFit: names only when every chip fits whole, else icon and count',
   assert.equal(chipNamesFit([153, 188], 340), false, 'not both: no names, rather than "G… 14"')
   assert.equal(chipNamesFit([153], 153), true)
   assert.equal(chipNamesFit([153], 100), false)
+})
+
+test('todayOrder: on now first, then upcoming, then the finished ones folded away', () => {
+  const t = (h: number, m = 0) => `2026-10-07T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`
+  const ev = (title: string, start: string, end: string, allDay = false) => ({ title, start, end, allDay })
+  const events = [
+    ev('Soccer', t(16), t(17, 30)),
+    ev('Holiday', t(0), t(23, 59), true),
+    ev('Piano', t(23, 55), t(23, 59)),
+    ev('Meeting', t(16, 30), t(17)),
+    ev('Reading', t(22, 25), t(23, 10)),
+    ev('Late film', t(23, 0), t(23, 30)),
+  ]
+  const { shown, earlier } = todayOrder(events, Date.parse(t(22, 45)))
+  assert.deepEqual(shown.map(e => e.title), ['Holiday', 'Reading', 'Late film', 'Piano'])
+  assert.deepEqual(earlier.map(e => e.title), ['Soccer', 'Meeting'])
+})
+
+test('todayOrder: nothing over yet keeps the day in order', () => {
+  const e = [{ title: 'b', start: '2026-10-07T10:00:00Z', end: '2026-10-07T11:00:00Z', allDay: false }, { title: 'a', start: '2026-10-07T09:00:00Z', end: '2026-10-07T09:30:00Z', allDay: false }]
+  const r = todayOrder(e, Date.parse('2026-10-07T08:00:00Z'))
+  assert.deepEqual(r.shown.map(x => x.title), ['a', 'b'])
+  assert.equal(r.earlier.length, 0)
 })

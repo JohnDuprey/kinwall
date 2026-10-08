@@ -23,7 +23,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipNamesFit, tileChips, tileColumns } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -222,6 +222,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     if (rewards) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRedemptions(r) }).catch(() => { /* likewise */ })
     return () => { canceled = true }
   }, [refreshTick, tick, f.lists, rewards])
+  const [earlierOpen, setEarlierOpen] = useState(false) // Today's events that are over, in a sheet
   // Auto: measure the board to decide between full lists and counts.
   const scrollRef = useRef<HTMLDivElement>(null)
   const [big, setBig] = useState(false)
@@ -473,19 +474,22 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         {has('today') && <Card title="Today" area="today" density={dense('today')} foot={<TodaySlot fixed={fixed} items={todaySlot} />}>
           {(() => {
             const bdays = data.birthdays.filter(b => b.date === today)
-            const todays = events.filter(e => e.date === today)
+            const todays = todayOrder(events.filter(e => e.date === today), now.getTime())
             // Temp check goals, for the people who chose to show theirs.
             const goals = !f.checkIns ? [] : boardGoals(members, focusMemberId, { selected: selectedMemberId, kidDevice }).map(m => (
               <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
             ))
             const books = bookRows(today)
-            if (!bdays.length && !todays.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
+            if (!bdays.length && !todays.shown.length && !todays.earlier.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
             return (
               <ul className="snap-list">
                 {goals}
                 {bdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you="" close={noop} />)}
                 {books}
-                {todays.map(e => <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={onTap} past={!e.allDay && Date.parse(e.end) < now.getTime()} />)}
+                {todays.shown.map(e => <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={onTap} />)}
+                {todays.earlier.length > 0 && <li><button className="snap-row board-earlier" aria-haspopup="dialog" onClick={() => setEarlierOpen(true)}>
+                  {todays.earlier.length === 1 ? '1 event earlier today' : `${todays.earlier.length} events earlier today`}<span aria-hidden="true"> ›</span>
+                </button></li>}
               </ul>
             )
           })()}
@@ -499,6 +503,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             const label = dayName(d, { weekday: 'long', month: 'short', day: 'numeric' })
             return (
               <section key={d} className="board-day" aria-label={label}>
+        {earlierOpen && <Sheet title="Earlier today" onClose={() => setEarlierOpen(false)}>
+          <ul className="snap-list board-sheet">{todayOrder(events.filter(e => e.date === today), now.getTime()).earlier.map(e =>
+            <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
+        </Sheet>}
+
                 <h4 className="snap-heading snap-day-heading">
                   <span>{label}</span>
                   {wd && <span className="snap-day-weather"><span aria-hidden="true">{wd.emoji}</span><span className="sr-only">{wd.text}, </span> {wd.high}°/{wd.low}°</span>}
