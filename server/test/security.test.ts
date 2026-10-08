@@ -529,6 +529,10 @@ test('self-host CSP matches web/public/_headers (the Workers one)', () => {
   assert.equal(CSP_DEFAULT, csp);
 });
 
+test('the app CSP keeps frames (activity plugins) on Kinwall itself', () => {
+  assert.match(CSP_DEFAULT, /(^|; )frame-src 'self';/);
+});
+
 test('the app CSP loads fonts only from Kinwall itself, never Google', () => {
   assert.doesNotMatch(CSP_DEFAULT, /fonts\.googleapis\.com|fonts\.gstatic\.com/);
   assert.match(CSP_DEFAULT, /font-src 'self';/);

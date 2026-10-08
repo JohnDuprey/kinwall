@@ -66,11 +66,12 @@ import { shareRoutes } from './routes/share.ts';
 import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
-// blob: = Paint drawings; Met + Picsum = the quiet-hours screensaver (per display, off by default).
+// frame-src 'self': an activity's sandboxed frame can't navigate to another site (web/src/pluginFrame.ts);
+// spelled out so loosening default-src never loosens it. blob: = Paint drawings; Met + Picsum = the quiet-hours screensaver (per display, off by default).
 // script-src hashes: the inline loader scripts @vitejs/plugin-legacy adds to index.html for old
 // Safari; web/vite.config.ts fails the build (printing the new list) if they ever change.
 export const CSP_DEFAULT =
-  "default-src 'self'; script-src 'self' 'sha256-hVuWKiiLwHwswXAaru00Ouusz3CAwXF9FKoMwru+9ts=' 'sha256-+5XkZFazzJo8n0iOP4ti/cLCMUudTf//Mzkb7xNPXIc=' 'sha256-MS6/3FCg4WjP9gwgaBGwLpRCY6fZBgwmhVCdrPrNf3E=' 'sha256-tQjf8gvb2ROOMapIxFvFAYBeUJ0v1HCbOcSmDNXGtDo='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'";
+  "default-src 'self'; script-src 'self' 'sha256-hVuWKiiLwHwswXAaru00Ouusz3CAwXF9FKoMwru+9ts=' 'sha256-+5XkZFazzJo8n0iOP4ti/cLCMUudTf//Mzkb7xNPXIc=' 'sha256-MS6/3FCg4WjP9gwgaBGwLpRCY6fZBgwmhVCdrPrNf3E=' 'sha256-tQjf8gvb2ROOMapIxFvFAYBeUJ0v1HCbOcSmDNXGtDo='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-src 'self'; frame-ancestors 'self'";
 // /docs (Swagger UI) loads its JS/CSS from a CDN - loosen only for that path, and only for that
 // host: the page shares an origin with the web app, which keeps its key in localStorage.
 const CSP_DOCS =

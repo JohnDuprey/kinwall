@@ -6,7 +6,8 @@
 // from elsewhere. The bridge below is the only way in: it answers messages from that one frame, for
 // the person picked to play. What a sandbox can't stop is a page navigating its own frame to another
 // site, and taking what it was told (who's playing, its saved progress) along in the address. So the
-// bridge stops for good once the frame loads a second page (pluginFrame.ts), and only reviewed
+// bridge stops for good once the frame loads a second page (pluginFrame.ts), the app's CSP keeps
+// the frame from loading any other site (frame-src 'self'), and only reviewed
 // plugins can be installed on hosted Kinwall (PLUGINS_CATALOG_ONLY).
 //
 // Actions: other apps (the REST API, MCP, Home Assistant) can queue requests a plugin declares, like
@@ -20,7 +21,7 @@ import Sheet from './Sheet.tsx'
 import { announce, reducedMotion } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
-import { frameLive, frameLoaded } from './pluginFrame.ts'
+import { frameLive, frameLoaded, fromPluginFrame } from './pluginFrame.ts'
 import { canSpeak, speak, stopSpeaking } from './pluginSpeech.ts'
 import { playClock } from './playtime.ts'
 import { ActivityRing } from './ActivityRing.tsx'
@@ -98,8 +99,8 @@ export function PluginPlayer({ id }: { id: string }) {
     }
     const reply = (msg: Msg, ok: boolean, value?: unknown, error?: string) => send({ kinwall: 1, re: msg.id, ok, value, error })
     const onMessage = async (e: MessageEvent) => {
-      // Only this plugin's frame; its origin is opaque ('null'), so the window is what identifies it.
-      if (!frame.current || e.source !== frame.current.contentWindow || !frameLive(frame.current)) return
+      // Only this plugin's frame, from its sandbox's opaque origin, until it loads a second page.
+      if (!fromPluginFrame(e, frame.current)) return
       const msg = e.data as Msg
       if (!msg || msg.kinwall !== 1) return
       // Playing: a real tap or key inside the activity (kinwall.js), an answer saved or a word
