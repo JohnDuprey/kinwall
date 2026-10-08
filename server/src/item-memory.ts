@@ -77,9 +77,22 @@ export function rememberPlace(db: KinwallDb, catalog: Catalog, title: string, pl
 
 /** Remember an item's name for autocomplete (migration 0041): its spelling, and one more use when
  * added (uses 0 for a rename). Goes in the same batch as the add. */
-/** The family's own name for a product barcode in this catalog (migration 0085), else null. */
+/** One product's codes: a UPC-A (12 digits, as Android scans it) and its EAN-13 (a leading 0, as the
+ * iPhone scans it) are the same product. Codes are saved as scanned and matched in both forms, so
+ * the ones saved before this keep working without being rewritten. */
+export function barcodeForms(barcode: string): string[] {
+  if (barcode.length === 12) return [barcode, `0${barcode}`];
+  if (barcode.length === 13 && barcode.startsWith('0')) return [barcode, barcode.slice(1)];
+  return [barcode];
+}
+
+/** The family's own name for a product barcode in this catalog (migration 0085), else null. Either
+ * form (barcodeForms); saved under both, the newest name wins. */
 export async function recallBarcode(db: KinwallDb, catalog: Catalog, barcode: string): Promise<string | null> {
-  return (await db.prepare('SELECT title FROM item_barcodes WHERE catalog = ? AND barcode = ?').bind(catalog, barcode).first<{ title: string }>())?.title ?? null;
+  return (await db
+    .prepare('SELECT title FROM item_barcodes WHERE catalog = ? AND barcode IN (SELECT value FROM json_each(?)) ORDER BY updated_at DESC LIMIT 1')
+    .bind(catalog, JSON.stringify(barcodeForms(barcode)))
+    .first<{ title: string }>())?.title ?? null;
 }
 
 /** A scanned item was added as `title`: the next scan of that barcode suggests it. */

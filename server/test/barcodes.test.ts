@@ -169,3 +169,31 @@ test("barcodes: Open Food Facts first, then its household, beauty and pet databa
   assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Milk', source: 'openfoodfacts' });
   assert.equal(calls.length, 1, 'found in food: the others are not asked');
 });
+
+test("barcodes: a UPC-A (Android's 12 digits) and its EAN-13 (the iPhone's leading 0) are one product", async () => {
+  const { send, db } = setup();
+  const list = (await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping' })).body;
+  const calls = mockFetch(offMissing);
+  // Saved from Android as 12 digits, found from the iPhone as 13, and the other way round.
+  await send('POST', `/api/lists/${list.id}/items`, { title: 'Cheerios', barcode: CHEERIOS.slice(1) });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS}`)).body, { title: 'Cheerios', source: 'family' });
+  await send('POST', `/api/lists/${list.id}/items`, { title: 'Oat milk', barcode: '0041250000000' });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/041250000000`)).body, { title: 'Oat milk', source: 'family' });
+  assert.deepEqual(calls, [], 'no outside lookup for a product the family knows in either form');
+  // Codes already saved stay as they were: matched both ways, never rewritten.
+  assert.deepEqual((await db.prepare('SELECT barcode FROM item_barcodes ORDER BY barcode').all()).results.map((r: any) => r.barcode), ['0041250000000', CHEERIOS.slice(1)]);
+
+  // Taught again from the other phone: the newest name wins, whichever form it was saved under.
+  await send('POST', `/api/lists/${list.id}/items`, { title: 'Honey Nut Cheerios', barcode: CHEERIOS });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS.slice(1)}`)).body, { title: 'Honey Nut Cheerios', source: 'family' });
+
+  // Other lengths and a 13-digit code without a leading 0 only match themselves.
+  await send('POST', `/api/lists/${list.id}/items`, { title: 'Jam', barcode: '4006381333931' });
+  assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/006381333931`)).status, 404);
+
+  // Forgetting the item forgets both forms.
+  assert.equal((await send('DELETE', '/api/lists/remembered/honey nut cheerio')).status, 200);
+  assert.equal((await send('DELETE', '/api/lists/remembered/cheerio')).status, 200);
+  assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS}`)).status, 404);
+  assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS.slice(1)}`)).status, 404);
+});
