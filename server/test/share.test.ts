@@ -74,6 +74,9 @@ test('share: a restaurant page goes to the restaurant import without a second fe
   assert.equal(maps.status, 200, JSON.stringify(maps.json));
   assert.deepEqual([maps.json.kind, maps.json.summary], ['restaurant', 'Added Golden Bowl to the binder']);
   assert.equal(fetched.length, 1, 'a Maps link is read off the link itself');
+  const asRecipe = await share({ url: 'https://maps.apple.com/place?name=Golden%20Bowl', kind: 'recipe' });
+  assert.equal(asRecipe.status, 422);
+  assert.equal(fetched.length, 1, 'not even when it is shared as a recipe');
   // A photo of a menu: kind restaurant with the text the Shortcut read.
   const menu = await share({ kind: 'restaurant', text: 'Name: Golden Bowl\nMenu:\nNoodles\nPad thai 12.50' });
   assert.equal(menu.json.summary, 'Added 1 item to Golden Bowl');

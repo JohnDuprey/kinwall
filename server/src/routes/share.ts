@@ -97,6 +97,8 @@ export function shareRoutes(app: App) {
       return typeof result === 'string' ? fail(result, 400) : ok('restaurant', result.summary, `meals?restaurant=${encodeURIComponent(result.restaurant.id)}`);
     };
 
+    // An Apple Maps link is never fetched (it's read off the link itself), whatever it's shared as.
+    if (url && kind === 'recipe' && mapsPlace(url)) return fail('This page has no recipe Kinwall can read.', 422);
     if (url && (kind === 'recipe' || (!kind && !mapsPlace(url)))) {
       if (kind && !settings.features.meals) return fail(MEALS_OFF, 403);
       // https only (an http:// link is tried as https), unless a self-hoster allows private addresses.
