@@ -2,7 +2,7 @@
 // place's details off its web page (schema.org Restaurant JSON-LD), an Apple Maps link's name, lenient
 // prices, and the "Name: …" lines an AI step writes above a menu. No DOM (Workers has none).
 import { clean, httpUrl, isType, jsonLdNodes } from './recipe-web.ts';
-import { fetchRecipePage, type FeedEnv } from './outbound.ts';
+import { fetchRecipePage, outboundFetch, type FeedEnv } from './outbound.ts';
 import { PAGE_LINE } from './menu-text.ts';
 
 export type PlaceDetails = { name: string | null; cuisine: string | null; phone: string | null; address: string | null; website: string | null; menuUrl: string | null };
@@ -36,15 +36,28 @@ export function parseRestaurantHtml(html: string, pageUrl: string): PlaceDetails
   };
 }
 
-/** An Apple Maps link's place name (name=, else q=) and address, read off the link itself; null when
- * it isn't a Maps link. Short maps.apple/p/… links carry neither. */
+/** A Maps link's place name and address, read off the link itself; null when it isn't a Maps link.
+ * Apple Maps: name= (else q=) and address=. Google Maps: /maps/place/<name>/, else q= or query=
+ * ("Name, address"). Short links (maps.apple/p/…, maps.app.goo.gl/…, goo.gl/maps/…) carry neither. */
 export function mapsPlace(raw: string): { name: string | null; address: string | null } | null {
   let u: URL;
   try { u = new URL(raw); } catch { return null; }
-  if (!/^(maps\.apple\.com|maps\.apple)$/i.test(u.hostname)) return null;
+  const host = u.hostname.toLowerCase();
   const p = (k: string) => u.searchParams.get(k)?.trim() || null;
-  return { name: (p('name') ?? p('q'))?.slice(0, 200) ?? null, address: p('address')?.slice(0, 500) ?? null };
+  if (host === 'maps.apple.com' || host === 'maps.apple') return { name: (p('name') ?? p('q'))?.slice(0, 200) ?? null, address: p('address')?.slice(0, 500) ?? null };
+  if (googleShort(u)) return { name: null, address: null };
+  const google = /^(www\.)?google\.[a-z.]+$/.test(host) && u.pathname.startsWith('/maps') || /^maps\.google\.[a-z.]+$/.test(host);
+  if (!google) return null;
+  const place = /^\/maps\/place\/([^/]+)/.exec(u.pathname)?.[1];
+  let words = place ? decodeURIComponent(place.replace(/\+/g, ' ')) : p('q') ?? p('query');
+  if (words && /^-?[\d.]+,\s*-?[\d.]+$/.test(words)) words = null; // just coordinates
+  if (!words) return { name: null, address: null };
+  const comma = words.indexOf(', ');
+  return comma > 0 ? { name: words.slice(0, comma).slice(0, 200), address: words.slice(comma + 2).slice(0, 500) } : { name: words.slice(0, 200), address: null };
 }
+
+/** A Google Maps short link (maps.app.goo.gl/…, goo.gl/maps/…), which only says where it leads. */
+const googleShort = (u: URL) => u.hostname.toLowerCase() === 'maps.app.goo.gl' || (u.hostname.toLowerCase() === 'goo.gl' && u.pathname.startsWith('/maps'));
 
 /** A link as typed or shared: "example.com" gets https://; anything that isn't http(s) is dropped. */
 export function normalizeLink(raw: string | null | undefined): string | null {
@@ -59,6 +72,16 @@ export async function linkDetails(env: FeedEnv, raw: string): Promise<PlaceDetai
   const link = normalizeLink(raw);
   if (!link) return null;
   const maps = mapsPlace(link);
+  // A Google short link is followed once to the long link it leads to, which has the name.
+  if (maps && !maps.name && googleShort(new URL(link))) {
+    let to: string | null = null;
+    try {
+      const res = await outboundFetch(env, false)(link, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
+      await res.body?.cancel();
+      to = res.headers.get('location');
+    } catch { /* unreachable: no name */ }
+    return { ...EMPTY, ...((to && mapsPlace(new URL(to, link).href)) || maps) };
+  }
   if (maps) return { ...EMPTY, ...maps };
   // https only (an http:// link is tried as https), unless a self-hoster allows private addresses.
   const page = await fetchRecipePage(env, env.ALLOW_PRIVATE_FEED_URLS === '1' ? link : link.replace(/^http:/i, 'https:'));

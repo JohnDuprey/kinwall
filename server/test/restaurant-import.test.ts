@@ -51,6 +51,13 @@ test('restaurant import: Apple Maps links give the place name and address withou
   assert.deepEqual(mapsPlace('https://maps.apple.com/?q=Golden+Bowl&ll=1,2'), { name: 'Golden Bowl', address: null });
   assert.deepEqual(mapsPlace('https://maps.apple/p/AbCdEf'), { name: null, address: null });
   assert.equal(mapsPlace('https://cornerslice.example/?q=pizza'), null);
+  // Google Maps: the place's name from /maps/place/, else q= as "Name, address"; short links carry nothing.
+  assert.deepEqual(mapsPlace('https://www.google.com/maps/place/Corner+Slice/@1.2,3.4,17z/data=!3m1'), { name: 'Corner Slice', address: null });
+  assert.deepEqual(mapsPlace('https://maps.google.com/?q=Golden%20Bowl,%2012%20Elm%20St,%20Springfield&ftid=0x1'), { name: 'Golden Bowl', address: '12 Elm St, Springfield' });
+  assert.deepEqual(mapsPlace('https://maps.google.com/?q=41.9,-70.6'), { name: null, address: null });
+  assert.deepEqual(mapsPlace('https://maps.app.goo.gl/AbCdEf'), { name: null, address: null });
+  assert.deepEqual(mapsPlace('https://goo.gl/maps/AbCdEf'), { name: null, address: null });
+  assert.equal(mapsPlace('https://www.google.com/search?q=pizza'), null);
 });
 
 test('restaurant import: prices are lenient and AI header lines become fields', () => {
