@@ -577,8 +577,9 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   // A meal's event counts down to starting prep instead (prepBy.ts), for its cook.
   const meals = parseMealLinks(mealsRes.results);
   const withCounts = out.map((ev) => {
-    const meal = ev.allDay ? undefined : meals.get(ev.id);
-    return { ...ev, linkedItemCount: linkedCounts.get(ev.id) ?? 0, noteCount: noteCounts.get(ev.id) ?? 0, prepAt: meal ? prepAt(ev.start, meal.eventStart, meal.minutes) : null, cookId: meal?.cookId ?? null };
+    const link = meals.get(ev.id);
+    const meal = ev.allDay ? undefined : link;
+    return { ...ev, linkedItemCount: linkedCounts.get(ev.id) ?? 0, noteCount: noteCounts.get(ev.id) ?? 0, prepAt: meal ? prepAt(ev.start, meal.eventStart, meal.minutes) : null, cookId: meal?.cookId ?? null, meal: link?.meal ?? null };
   });
   withCounts.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
   return withCounts;

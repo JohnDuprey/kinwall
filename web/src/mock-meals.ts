@@ -181,6 +181,16 @@ const friday = meals.find(m => m.restaurantId === 'demo-corner-slice')!
 friday.orders = [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5), pick('demo-corner-slice', 4)], 'Extra ranch, please'), placed('m4', [pick('demo-corner-slice', 6, 1, 'Honey mustard on the side')])]
 meals.push({ ...friday, id: 'demo-meal-last-friday', date: dateKey(new Date(Date.parse(`${friday.date}T12:00:00`) - 7 * 86400000)), status: 'prepared', notes: null,
   orders: [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5)]), placed('m3', [pick('demo-corner-slice', 3, 1, 'Extra cheese')]), placed('m4', [pick('demo-corner-slice', 6)])] })
+// On the calendar (mock.ts's demo-meal-ev-* events): Sunday's dinner (cooked), Tuesday Tacos, Wednesday's leftovers (cooked),
+// Friday's pizza night (3 of 4 orders in) and last Friday's (ordered).
+for (const [mealId, eventId] of [['demo-meal-0-dinner', 'demo-meal-ev-0'], ['demo-meal-2-dinner', 'demo-meal-ev-2'], ['demo-meal-3-lunch', 'demo-meal-ev-3'], [friday.id, 'demo-meal-ev-5'], ['demo-meal-last-friday', 'demo-meal-ev-last']]) {
+  const meal = meals.find(m => m.id === mealId)!
+  meal.calendarEventId = eventId; meal.calendarEventStart = 'meal'
+}
+/** GET /api/events' `meal` on each linked event (server/src/prepBy.ts). */
+export const mockEventMeals = () => new Map(meals.filter(m => m.calendarEventId).map(m => [m.calendarEventId!, {
+  id: m.id, status: m.status, mealKind: m.mealKind, restaurantId: m.restaurantId ?? null, eaterCount: m.eaterIds.length, orderCount: (m.orders ?? []).filter(o => o.items.length).length,
+}]))
 /** The server's read-only lastOrders / upcoming on a restaurant (server/src/routes/restaurants.ts). */
 function withNights(r: Restaurant): Restaurant {
   const today = dateKey(new Date())

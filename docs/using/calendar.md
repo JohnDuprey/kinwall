@@ -31,6 +31,18 @@ Every device opens Home on **Board**. You can switch views any time, and a displ
   <img src="../screenshots/phone-schedule.png" width="32%" alt="Schedule view on a phone" />
 </p>
 
+### Meals on the calendar
+
+A [meal's calendar event](meals.md#the-calendar) has 🍽️ before its title, so it reads as a meal in every view. Once the meal is **Cooked** (or **Ordered**, when eating out) it gets a ✓ as well:
+
+* **Month** cells and all-day chips show just 🍽️✓.
+* **Week**, **3 Day** and **Day** put "✓ Cooked" or "✓ Ordered" after the time. A meal still to come shows nothing extra.
+* **Day** also shows how an order night is going ("6:00 PM · 3 of 4 orders in") until it's ordered.
+* **Schedule** adds a small tag: **✓ Cooked**, **✓ Ordered**, **Planned**, or an order night's "3 of 4 orders in".
+* The event's page shows the same tag under its time; an order night's page shows its orders instead.
+
+Screen readers hear it too ("meal: Cooked").
+
 ### One event, shown once
 
 In every view, an event shared by several people shows once, with each person's avatar on it. The same event can also come in from two connected calendars (say a meeting on both the family calendar and a work calendar). Kinwall treats two events as the same when they're on different calendars and have the same title (ignoring capitals and extra spaces), start, end and all-day setting. They show as one, with everyone from both, and tapping it opens the first one. Two events with the same title and time on one calendar stay separate, so each can still be opened and changed. If one copy was renamed, both show.

@@ -519,6 +519,14 @@ export const EventInstanceSchema = z
     noteCount: z.number().optional(), // notes in this event's thread (GET /api/events only)
     prepAt: z.string().nullable().optional().openapi({ description: "A meal's event: when to start prep (the meal time minus the recipe's total or prep time, 30 minutes when it has none). GET /api/events only" }),
     cookId: z.string().nullable().optional().openapi({ description: "A meal's event: who's cooking, the one its prep countdown is for. GET /api/events only" }),
+    meal: z.object({
+      id: z.string(),
+      status: z.enum(['planned', 'prepared']).openapi({ description: 'planned, or prepared (shown as Cooked; Ordered for eating out)' }),
+      mealKind: z.enum(['recipe', 'freeform', 'dining_out']),
+      restaurantId: z.string().nullable().openapi({ description: 'Set for an order night (eating out from a restaurant in the binder)' }),
+      eaterCount: z.number().openapi({ description: "Who's eating (0 when nobody is picked)" }),
+      orderCount: z.number().openapi({ description: 'Orders in so far, each with at least one item (order nights)' }),
+    }).nullable().optional().openapi({ description: "The planned meal this event is linked to, so the calendar can mark it without a request per event (the whole meal is GET /api/events/{id}/meal). GET /api/events only; null for other events" }),
     hidden: z.enum(['event', 'series', 'filter']).nullable().optional().openapi({ description: "Why the family doesn't see it: hidden on its own ('event'), with its series ('series'), or by its calendar's filter ('filter'). Set with includeHidden=true; null = shown" }),
   })
   .openapi('EventInstance');

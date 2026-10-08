@@ -19,6 +19,7 @@ import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
 import NotesThread, { Linkified } from './NotesThread.tsx'
 import { EventOrders } from './MealQuickSheet.tsx'
+import { mealEventStatus } from './meal-date.ts'
 import Board from './Board.tsx'
 import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
@@ -561,7 +562,7 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[]): string {
   const who = members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name).join(' and ')
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  return [`${ev.hidden ? 'Hidden: ' : ''}${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, ev.busy === false && 'free', who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
+  return [`${ev.hidden ? 'Hidden: ' : ''}${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, ev.busy === false && 'free', who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`, ev.meal && `meal: ${mealEventStatus(ev.meal).text.replace('✓ ', '')}`].filter(Boolean).join(', ')
 }
 
 /** Solid category color (overrides member color entirely) when the event has one, else: solid
@@ -611,8 +612,10 @@ function CategoryMark({ mark }: { mark: string }) {
 /** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
  * multi-member or categorized events - an inline avatar row and a translucent backing pill so
  * text stays readable over the stripes/category color. */
-function EventTitle({ title, avatars, emoji, pill, hidden, free }: { title: string; avatars: ChipMember[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean }) {
-  const text = <>{hidden && <HiddenMark />}{free && <FreeMark />}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
+function EventTitle({ title, avatars, emoji, pill, hidden, free, meal }: { title: string; avatars: ChipMember[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean; meal?: EventInstance['meal'] }) {
+  // A planned meal's 🍽 (✓ once cooked or ordered) stands in for a 🍽 category emoji rather than doubling it.
+  if (meal && emoji?.startsWith('🍽')) emoji = null
+  const text = <>{hidden && <HiddenMark />}{free && <FreeMark />}{meal && <><span className="event-emoji">{mealEventStatus(meal).compact}</span> </>}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
   if (avatars.length === 0) return <span className="event-title-text">{text}</span>
   return (
     <>
@@ -632,9 +635,16 @@ function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventIns
   const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, small ? 7 : 10)
   return (
     <div className={(small ? 'allday-chip' : 'event-chip') + evClass(ev)} style={evFill(background, ink, solid)} {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
-      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} />
+      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
     </div>
   )
+}
+
+/** A timed meal event's words after its time: ✓ Cooked / ✓ Ordered, and an order night's "3 of 4 orders in"
+ * only where there's room (Day view). Planned says nothing; the 🍽 already marks it. */
+function timedMealText(meal: NonNullable<EventInstance['meal']>, wide: boolean) {
+  const { done, text } = mealEventStatus(meal)
+  return done || (wide && text !== 'Planned') ? ` · ${text}` : ''
 }
 
 /** Renders an N-day time grid (all-day row, now-line, auto-scroll, overlap columns). Used for
@@ -714,8 +724,8 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
                     <div className={`timed-event${evClass(ev)}`}
                       style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} /></div>
-                      <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
+                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} /></div>
+                      <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}{ev.meal && timedMealText(ev.meal, days.length === 1)}</span>
                     </div>
                   </Fragment>
                 )
@@ -796,7 +806,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                 const { background, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 6)
                 return (
                   <span key={ev.id} aria-hidden="true" className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)}>
-                    <EventTitle title={ev.title} avatars={[]} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} />
+                    <EventTitle title={ev.title} avatars={[]} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
                   </span>
                 )
               })}
@@ -814,7 +824,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                 return (
                   <div key={ev.id} className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
                     {/* A phone's month cell is ~50px wide: time or avatars alone filled it, so show just the title. */}
-                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} />
+                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
                   </div>
                 )
               })}
@@ -856,7 +866,7 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
                 <div className="schedule-time" aria-hidden="true">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
-                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <InlineFaces who={avatars} className="event-avatars schedule-avatars" />}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
+                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{ev.meal && <><span className="event-emoji">🍽️</span> </>}{emoji && !(ev.meal && emoji.startsWith('🍽')) && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <InlineFaces who={avatars} className="event-avatars schedule-avatars" />}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}{ev.meal && <span className={`chip chip-static schedule-meal${ev.meal.status === 'prepared' ? ' done' : ''}`} aria-hidden="true">{mealEventStatus(ev.meal).text}</span>}</button>
                   {leadOf(ev) && <div className="leave-by" aria-hidden="true">{leadText(ev, t => formatTime(t, tz))}</div>}
                   {ev.location && (() => {
                     const href = locationHref(ev.location)
@@ -948,6 +958,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
           {event.allDay ? `${format(new Date(event.start + 'T00:00:00'), 'EEE, MMM d')}${event.end !== addDays(new Date(event.start + 'T00:00:00'), 1).toISOString().slice(0, 10) ? ' – ' + format(addDays(new Date(event.end + 'T00:00:00'), -1), 'EEE, MMM d') : ''} · All day`
             : `${format(new Date(event.start), 'EEE, MMM d')} · ${formatTime(event.start, tz)} – ${formatTime(event.end, tz)}`}
         </div>
+        {event.meal && event.meal.mealKind !== 'dining_out' && <div className="chip-row"><span className="chip chip-static">🍽️ {mealEventStatus(event.meal).text}</span></div>}
         {event.location && (() => {
           const href = locationHref(event.location)
           return (

@@ -7,7 +7,7 @@ import { CalendarIcon, CartIcon, ChevronRight, LinkIcon, LocationIcon, PhoneIcon
 import { EaterAvatars } from './MealSheet.tsx'
 import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
 import { formatTime } from './timeFormat.ts'
-import { ORDER_TYPE_LABEL } from './orders.ts'
+import { ORDER_TYPE_LABEL, ordersInLabel } from './orders.ts'
 import { mapHref, menuSections, parsePrice, priceLabel, telHref } from './restaurants.ts'
 import type { MenuItem, MenuItemInput, Restaurant, RestaurantInput } from './meal-types.ts'
 
@@ -87,7 +87,7 @@ export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved, o
       <div className="sheet-links">
         {restaurant.upcoming?.map(u => <button key={u.mealId} type="button" className="sheet-link" onClick={() => onOpenMeal?.(u.mealId, u.date)}>
           <CalendarIcon /><span>{mealDayLabel(u.date, { weekday: 'long' })} {SLOT_LABEL[u.slot].toLowerCase()}{u.plannedTime ? ` · ${formatTime(u.plannedTime)}` : ''}
-            <small>{[u.orderType && ORDER_TYPE_LABEL[u.orderType], u.status === 'planned' ? u.eaterIds.length ? `${u.orderCount} of ${u.eaterIds.length} orders in` : `${u.orderCount} order${u.orderCount === 1 ? '' : 's'} in` : '✓ Ordered'].filter(Boolean).join(' · ')}</small></span>
+            <small>{[u.orderType && ORDER_TYPE_LABEL[u.orderType], u.status === 'planned' ? ordersInLabel(u.orderCount, u.eaterIds.length) : '✓ Ordered'].filter(Boolean).join(' · ')}</small></span>
           <EaterAvatars ids={u.eaterIds} members={members} /><ChevronRight />
         </button>)}
         {admin && onPlan && !restaurant.archived && <button type="button" className="sheet-link" onClick={() => onPlan(restaurant)}><PlusIcon /><span>Plan a night here</span><ChevronRight /></button>}

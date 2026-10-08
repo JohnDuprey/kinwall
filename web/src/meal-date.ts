@@ -1,6 +1,7 @@
 import { addDays, startOfWeek } from 'date-fns'
 import { dateKey } from './date.ts'
 import type { MealKind, MealSlot, MealStatus } from './meal-types.ts'
+import { ordersInLabel } from './orders.ts'
 
 export const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack']
 export const SLOT_LABEL: Record<MealSlot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' }
@@ -9,6 +10,13 @@ export const STATUS_LABEL: Record<MealStatus, string> = { planned: 'Planned', pr
 export const statusLabel = (meal: { status: MealStatus; mealKind: MealKind }) => meal.status === 'prepared' && meal.mealKind === 'dining_out' ? 'Ordered' : STATUS_LABEL[meal.status]
 /** Eating out from a binder restaurant: tapping it opens the order view, with Edit meal a tap away. */
 export const isOrderNight = (meal: { mealKind: MealKind; restaurantId?: string | null }) => meal.mealKind === 'dining_out' && !!meal.restaurantId
+/** A meal's calendar event (GET /api/events `meal`): "✓ Cooked" / "✓ Ordered" once done, an order night's
+ * "3 of 4 orders in" before then, else "Planned". `compact` is for month cells: 🍽️, with ✓ once done. */
+export function mealEventStatus(meal: { status: MealStatus; mealKind: MealKind; restaurantId: string | null; eaterCount: number; orderCount: number }) {
+  const done = meal.status === 'prepared'
+  const text = done ? `✓ ${statusLabel(meal)}` : isOrderNight(meal) ? ordersInLabel(meal.orderCount, meal.eaterCount) : 'Planned'
+  return { done, text, compact: done ? '🍽️✓' : '🍽️' }
+}
 /** Local noon avoids midnight DST transitions; date-fns advances calendar days, not 24-hour spans. */
 export function mealWeek(anchor: string, weekStart: 0 | 1): string[] {
   const start = startOfWeek(new Date(`${anchor}T12:00:00`), { weekStartsOn: weekStart })

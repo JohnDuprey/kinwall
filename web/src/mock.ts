@@ -10,6 +10,7 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { mealWeek, moveMealDate } from './meal-date.ts'
 import { setLogDay } from './reading.ts'
 import { DEMO_DRAWINGS, drawingPhoto } from './mock-drawings.ts'
 import { SECURITY_PAGE, matchesSecurityQuery } from './securityActivity.ts'
@@ -327,6 +328,12 @@ const events: EventInstance[] = [
   { id: 'e25', calendarId: 'c1', title: 'Family Dinner', start: at(0, 18), end: at(0, 19), allDay: false, location: 'Home', description: null, memberIds: ['m1', 'm2', 'm3', 'm4'], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e26', calendarId: 'c3', title: 'Team Meeting', start: at(0, 16, 30), end: at(0, 17), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'calendar', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e24', calendarId: 'c1', title: '📦 Grocery delivery', start: at(0, 16), end: at(0, 18), allDay: false, location: null, description: 'Delivery window, 4 to 6 PM', memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false, busy: false },
+  // Planned meals on the calendar (mock-meals.ts links them; GET /api/events adds each one's `meal`).
+  ...([['demo-meal-ev-0', 0, 'Dinner · Lemon chicken with rice and broccoli', '18:00'], ['demo-meal-ev-2', 2, 'Dinner · Tuesday Tacos', '18:00'], ['demo-meal-ev-3', 3, 'Lunch · Leftover taco bowls', '12:00'], ['demo-meal-ev-5', 5, 'Dinner · Corner Slice', '18:00'], ['demo-meal-ev-last', -2, 'Dinner · Corner Slice', '18:00']] as const).map(([id, day, title, time]): EventInstance => {
+    const date = day < 0 ? moveMealDate(mealWeek(dateKey(new Date()), 0)[0], day) : mealWeek(dateKey(new Date()), 0)[day]
+    const start = new Date(`${date}T${time}:00`)
+    return { id, calendarId: 'c1', title, start: start.toISOString(), end: new Date(start.getTime() + 3600000).toISOString(), allDay: false, location: null, description: null, memberIds: ['m1', 'm2', 'm3', 'm4'], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false }
+  }),
   { id: 'e21', calendarId: 'c1', title: 'Reading Time', start: fromNow(-20), end: fromNow(25), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e22', calendarId: 'c1', title: 'Piano Lesson', start: fromNow(70), end: fromNow(115), allDay: false, location: 'Music school', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: 45, leaveAt: null, remindBeforeLeave: true },
 ]
@@ -1152,11 +1159,11 @@ export const mock = {
     { remoteId: 'remote-4', name: 'Birthdays', color: '#FF8FA3', writable: false },
   ]),
 
-  getEvents: async (from: string, to: string, calendarId?: string, includeHidden?: boolean) => events
+  getEvents: async (from: string, to: string, calendarId?: string, includeHidden?: boolean) => { const meals = (await import('./mock-meals.ts')).mockEventMeals(); return events
     .filter(e => e.start < to && e.end > from && (!calendarId || e.calendarId === calendarId))
     .map(e => ({ ...e, hidden: hiddenWhy(e) })).filter(e => includeHidden || !e.hidden)
     .sort((a, b) => a.start.localeCompare(b.start))
-    .map(e => ({ ...withLeave(e), linkedItemCount: listItems.filter(i => i.eventId === e.id && !i.done).length, noteCount: noteCount('event', e.id) })),
+    .map(e => ({ ...withLeave(e), linkedItemCount: listItems.filter(i => i.eventId === e.id && !i.done).length, noteCount: noteCount('event', e.id), meal: meals.get(e.id) ?? null })) },
   getEventItems: async (eventId: string) => listItems.filter(i => i.eventId === eventId)
     .sort((a, b) => Number(a.done) - Number(b.done) || a.sort - b.sort)
     .map(i => ({ ...i, listName: lists.find(l => l.id === i.listId)?.name ?? '' })),

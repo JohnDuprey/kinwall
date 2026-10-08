@@ -350,6 +350,8 @@ export interface EventInstance {
   busy?: boolean // Show as: false = free (never Now/Next, no leave-by or transition warnings); missing = busy
   prepAt?: string | null // a meal's event: when to start prep (server/src/prepBy.ts); GET /api/events only
   cookId?: string | null // a meal's event: who's cooking, the one the prep countdown is for
+  /** The planned meal it's linked to (GET /api/events only), for the calendar's 🍽 marker; meal-date.ts mealEventStatus. */
+  meal?: { id: string; status: 'planned' | 'prepared'; mealKind: 'recipe' | 'freeform' | 'dining_out'; restaurantId: string | null; eaterCount: number; orderCount: number } | null
   hidden?: 'event' | 'series' | 'filter' | null // why the family doesn't see it (only with includeHidden, on parents' devices)
 }
 

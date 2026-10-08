@@ -16,9 +16,9 @@ export function orderPeople<P extends Person>(meal: Pick<Meal, 'eaterIds' | 'ord
 
 /** "2 of 4 orders in" (or "1 order in" when nobody's picked as eating). */
 export function ordersLabel(meal: Pick<Meal, 'eaterIds' | 'orders'>): string {
-  const n = (meal.orders ?? []).filter(o => o.items.length).length
-  return meal.eaterIds.length ? `${n} of ${meal.eaterIds.length} orders in` : `${n} order${n === 1 ? '' : 's'} in`
+  return ordersInLabel((meal.orders ?? []).filter(o => o.items.length).length, meal.eaterIds.length)
 }
+export const ordersInLabel = (n: number, eaters: number) => eaters ? `${n} of ${eaters} orders in` : `${n} order${n === 1 ? '' : 's'} in`
 
 /** The order the way the caller reads it: the same item (and item note) added up, with who it's for. */
 export function orderLines(orders: MealOrder[], members: Person[]): { key: string; qty: number; name: string; note: string | null; who: string[] }[] {

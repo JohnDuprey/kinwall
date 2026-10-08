@@ -53,3 +53,33 @@ test('events: a meal\'s event carries prepAt and its cook; other events don\'t',
   assert.deepEqual([by('Soup').start, by('Soup').prepAt, by('Soup').cookId], ['2030-01-02T11:00:00.000Z', '2030-01-02T11:00:00.000Z', null]);
   assert.deepEqual([by('Soccer').prepAt, by('Soccer').leaveAt], [null, '2030-01-01T15:40:00.000Z']);
 });
+
+test('events: a meal\'s event says how the meal is going (status, order night, orders in) in the same read', async () => {
+  const db = openDb(':memory:');
+  applyMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
+  const env: Env = { DB: db, ADMIN_API_KEY: 'test-admin', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' };
+  const app = createApp();
+  const json = async (path: string, method = 'GET', body?: unknown): Promise<any> => {
+    const res = await app.request(path, { method, headers: { Authorization: 'Bearer test-admin', 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, env);
+    const data = await res.json(); assert.ok(res.ok, `${method} ${path}: ${res.status} ${JSON.stringify(data)}`); return data;
+  };
+  await json('/api/settings', 'PATCH', { timezone: 'UTC' });
+  const sam = await json('/api/members', 'POST', { name: 'Sam', color: '#123456' });
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#654321' });
+  const soup = await json('/api/meals', 'POST', { date: '2030-01-01', slot: 'lunch', plannedTime: '12:00', title: 'Soup' });
+  await json(`/api/meals/${soup.id}/calendar-event`, 'POST', {});
+  await json(`/api/meals/${soup.id}`, 'PATCH', { status: 'prepared' });
+  const place = await json('/api/restaurants', 'POST', { name: 'Corner Slice', menu: [{ name: 'Cheese slice' }] });
+  const pizza = await json('/api/meals', 'POST', { date: '2030-01-01', slot: 'dinner', plannedTime: '18:00', mealKind: 'dining_out', title: 'Pizza', restaurantId: place.id, eaterIds: [sam.id, leo.id] });
+  await json(`/api/meals/${pizza.id}/calendar-event`, 'POST', {});
+  await json(`/api/meals/${pizza.id}/orders/${sam.id}`, 'PUT', { items: [{ name: 'Cheese slice' }] });
+  await json(`/api/meals/${pizza.id}/orders/${leo.id}`, 'PUT', { items: [], note: 'Thinking' });
+  const cal = (await json('/api/calendars')).find((c: any) => c.kind === 'local');
+  await json('/api/events', 'POST', { calendarId: cal.id, title: 'Soccer', start: '2030-01-01T16:00:00Z', end: '2030-01-01T17:00:00Z', allDay: false });
+
+  const list = await json('/api/events?from=2030-01-01T00:00:00Z&to=2030-01-02T00:00:00Z');
+  const by = (t: string) => list.find((e: any) => e.title.includes(t));
+  assert.deepEqual(by('Soup').meal, { id: soup.id, status: 'prepared', mealKind: 'freeform', restaurantId: null, eaterCount: 0, orderCount: 0 });
+  assert.deepEqual(by('Pizza').meal, { id: pizza.id, status: 'planned', mealKind: 'dining_out', restaurantId: place.id, eaterCount: 2, orderCount: 1 }, 'an empty order (just a note) isn\'t in yet');
+  assert.equal(by('Soccer').meal, null);
+});

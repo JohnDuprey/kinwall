@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which sheet a tapped planned meal opens: its recipe, or the meal's details.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { STATUS_LABEL, isOrderNight, mealRecipe, statusLabel } from '../src/meal-date.ts'
+import { STATUS_LABEL, isOrderNight, mealEventStatus, mealRecipe, statusLabel } from '../src/meal-date.ts'
 
 test('mealRecipe: a recipe meal opens its recipe from the library; anything else opens the meal sheet', () => {
   const tacos = { id: 'r1', name: 'Tacos' }
@@ -25,4 +25,15 @@ test('statusLabel: plain words for what the family did; the API values stay', ()
   assert.equal(statusLabel({ status: 'prepared', mealKind: 'freeform' }), 'Cooked')
   assert.equal(statusLabel({ status: 'prepared', mealKind: 'dining_out' }), 'Ordered')
   assert.deepEqual(Object.keys(STATUS_LABEL), ['planned', 'prepared'])
+})
+
+test('mealEventStatus: what a meal event says on the calendar', () => {
+  const meal = { status: 'planned' as const, mealKind: 'recipe' as const, restaurantId: null, eaterCount: 4, orderCount: 0 }
+  assert.deepEqual(mealEventStatus(meal), { done: false, text: 'Planned', compact: '🍽️' })
+  assert.deepEqual(mealEventStatus({ ...meal, status: 'prepared' }), { done: true, text: '✓ Cooked', compact: '🍽️✓' })
+  const pizza = { ...meal, mealKind: 'dining_out' as const, restaurantId: 'r1', orderCount: 3 }
+  assert.deepEqual(mealEventStatus(pizza), { done: false, text: '3 of 4 orders in', compact: '🍽️' })
+  assert.equal(mealEventStatus({ ...pizza, eaterCount: 0, orderCount: 1 }).text, '1 order in')
+  assert.deepEqual(mealEventStatus({ ...pizza, status: 'prepared' }), { done: true, text: '✓ Ordered', compact: '🍽️✓' })
+  assert.equal(mealEventStatus({ ...pizza, restaurantId: null }).text, 'Planned') // eating out somewhere else: no orders to count
 })
