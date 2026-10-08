@@ -5,3 +5,9 @@ data
 **/.wrangler
 web/dist
 .git
+.dev.vars
+**/.dev.vars
+.env
+.env.*
+**/.env
+**/.env.*
