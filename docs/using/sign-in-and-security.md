@@ -70,7 +70,7 @@ While you have only one passkey and no unused recovery codes, **Access** shows a
 
 ## Display keys
 
-Pairing a display creates a **display** key named after the display. It's listed under **Settings → Access → Displays**. Removing it there signs the display out. You can also create display keys with `POST /api/keys` for a read-mostly automation.
+Pairing a display creates a **display** key named after the display. It's listed under **Settings → Access → Paired devices**. Removing it there signs the display out. You can also create display keys with `POST /api/keys` for a read-mostly automation.
 
 ## Sessions and tokens
 

@@ -87,4 +87,4 @@ Kinwall needs a connection to your server whether it's installed or not. It does
 ## Unpair or replace a display
 
 * On the display: **Settings → General → Troubleshooting → Unpair this display**.
-* From an admin device: **Settings → Access → Displays**, then remove the display. It's signed out at once and needs pairing again.
+* From an admin device: **Settings → Access → Paired devices**, then remove the display. It's signed out at once and needs pairing again.

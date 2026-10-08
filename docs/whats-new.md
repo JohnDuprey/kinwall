@@ -124,7 +124,7 @@ meals, the groceries, the chores and the people.
 * **Color schemes and typefaces** for the family or one device. New families start on **Peacock**;
   if you never picked a scheme, you keep the colors you have. See [Appearance](using/appearance.md).
 * Turn off **Check-ins & journal** or **Rewards** if your family doesn't use them, like the other
-  switches in Settings → Features. Nothing is deleted.
+  switches in Settings → General → Features. Nothing is deleted.
 
 ### Home Assistant
 
