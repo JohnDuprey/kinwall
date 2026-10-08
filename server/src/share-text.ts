@@ -35,6 +35,7 @@ export function findIsbn(text: string): string | null {
 /** A book's title and author: "Title:"/"Author:" lines, "Wool by Hugh Howey", or a cover's text
  * (the first line, with a "by …" line right under it as the author). */
 export function bookQuery(text: string): { title: string | null; author: string | null } {
+  text = bounded(text);
   const h = headerLines(text);
   const t = header(h, 'title', 'book');
   if (t !== undefined) return { title: t || null, author: header(h, 'author', 'by') || null };
@@ -128,12 +129,19 @@ const KEEP = /\brsvp\b|\b(bring|wear|dress|costumes?|tickets?|admission|donation
 const PHONE_ONLY = /^\+?[\d\s().-]{7,}$/;
 const NOTE_LINE = 200;
 const NOTES_MAX = 1000;
-const tidy = (s: string) => s.replace(/\s+/g, ' ').replace(/^[\s,–—:@-]+|[\s,–—:@-]+$/g, '').replace(/\s+(at|on|from|this|next|in|@)$/i, '').trim();
+// Trailing runs are matched only from their start (the lookbehinds): from every character of a long
+// run was quadratic.
+const tidy = (s: string) => s.replace(/\s+/g, ' ').replace(/^[\s,–—:@-]+|(?<![\s,–—:@-])[\s,–—:@-]+$/g, '').replace(/(?<!\s)\s+(at|on|from|this|next|in|@)$/i, '').trim();
+// Far more than any flyer, invite or book cover holds. Longer text, and longer lines, are cut first,
+// so no pattern below can take long however the text is made.
+const TEXT_MAX = 20_000;
+const LINE_MAX = 500;
+const bounded = (text: string) => text.slice(0, TEXT_MAX).split('\n').map((l) => l.slice(0, LINE_MAX)).join('\n');
 
 /** An event's title, date, time (and end) and place, for the person to check. Anything not found is
  * null; nothing is invented. `today` (YYYY-MM-DD, the household's) places a date without a year. */
 export function parseEventText(text: string, today: string): EventDraft {
-  const clean = text.replace(/\r/g, '').replace(/\*\*/g, '');
+  const clean = bounded(text).replace(/\r/g, '').replace(/\*\*/g, '');
   const h = headerLines(clean);
   // The words as read: under a "---" line, or (no such line) every line that isn't a header line.
   const sep = /^[ \t]*-{3,}[ \t]*$/m.exec(clean);
@@ -164,7 +172,7 @@ export function parseEventText(text: string, today: string): EventDraft {
     if (two) { place = `${tidy(two[1])}, ${tidy(two[2])}`; placeMatch = two[0].split('\n')[0]; }
   }
   if (place === null) {
-    const at = new RegExp(`\\b(?:at|@)[ \\t]+([^,\\n]*${VENUE.source}[^,\\n]*)`, 'i').exec(clean);
+    const at = new RegExp(`\\b(?:at|@)[ \\t]+(?![ \\t])([^,\\n]*${VENUE.source}[^,\\n]*)`, 'i').exec(clean);
     if (at) { place = tidy(at[1]); placeMatch = at[0]; }
   }
 

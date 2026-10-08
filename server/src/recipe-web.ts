@@ -29,17 +29,29 @@ export function decodeEntities(s: string): string {
   });
   return once(once(s));
 }
-/** Every tag removed, repeating until none is left, so a strip can't leave a tag rebuilt from the
- * pieces around one it removed ("<scr<script>ipt>"). */
+/** Every tag removed, nested ones too, so a strip can't leave a tag rebuilt from the pieces around
+ * one it removed ("<scr<script>ipt>"): the same as stripping innermost tags until none is left, in
+ * one linear pass. Each ">" drops everything back to the "<" it closes; a "<" never closed stays as
+ * text ("ready in < 5 min"). A regex loop here was quadratic on a page of "<" or nested tags. */
 export function stripTags(s: string): string {
-  let prev;
-  do { prev = s; s = s.replace(/<[^>]*>/g, ''); } while (s !== prev);
-  return s;
+  if (!s.includes('<') || !s.includes('>')) return s;
+  const out: string[] = [];
+  const opens: number[] = [];
+  for (const ch of s) {
+    if (ch === '<') opens.push(out.length);
+    else if (ch === '>' && opens.length) { out.length = opens.pop()!; continue; }
+    out.push(ch);
+  }
+  return out.join('');
 }
+// Longer than any field Kinwall keeps (a recipe's text is cut to 10,000), so a page can't make one
+// string cost more than this.
+const CLEAN_MAX = 50_000;
 /** Text from a value that may hold HTML: tags gone, entities decoded, whitespace collapsed
  * (line breaks kept when `keepLines`). */
 export function clean(value: unknown, keepLines = false): string {
   if (typeof value !== 'string' && typeof value !== 'number') return '';
+  value = String(value).slice(0, CLEAN_MAX);
   const tags = (t: string) => stripTags(t.replace(/<br\s*\/?>|<\/(p|li|div|h\d|tr)>/gi, '\n'));
   const s = tags(decodeEntities(tags(String(value)))); // twice: markup that was itself entity-encoded
   return keepLines ? s.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n') : s.replace(/\s+/g, ' ').trim();
@@ -61,6 +73,35 @@ export function yieldServings(value: unknown): number | null {
   return null;
 }
 
+/** Every opening tag named `name` ("<link …>"), in order. Searched for, not matched with one regex:
+ * a [^>]* that can run to the end of the page backtracks quadratically over a page of unclosed tags. */
+export function openingTags(html: string, name: string): string[] {
+  const out: string[] = [];
+  const start = new RegExp(`<${name}\\b`, 'gi');
+  for (let m = start.exec(html); m; m = start.exec(html)) {
+    const end = html.indexOf('>', m.index);
+    if (end < 0) break;
+    out.push(html.slice(m.index, end + 1));
+    start.lastIndex = end + 1;
+  }
+  return out;
+}
+/** Every <script> element's opening tag and body, in order, found the same linear way. */
+export function scriptElements(html: string): { tag: string; body: string }[] {
+  const out: { tag: string; body: string }[] = [];
+  const start = /<script\b/gi, close = /<\/script>/gi;
+  for (let m = start.exec(html); m; m = start.exec(html)) {
+    const end = html.indexOf('>', m.index);
+    if (end < 0) break;
+    close.lastIndex = end + 1;
+    const c = close.exec(html);
+    if (!c) break;
+    out.push({ tag: html.slice(m.index, end + 1), body: html.slice(end + 1, c.index) });
+    start.lastIndex = c.index + c[0].length;
+  }
+  return out;
+}
+
 type Node = Record<string, unknown>;
 const isObj = (v: unknown): v is Node => !!v && typeof v === 'object' && !Array.isArray(v);
 const types = (n: Node) => (Array.isArray(n['@type']) ? n['@type'] : [n['@type']]).map(String);
@@ -76,11 +117,12 @@ export function jsonLdNodes(html: string): Node[] {
     out.push(v);
     for (const [k, x] of Object.entries(v)) if (k === '@graph' || k === 'mainEntity' || k === 'mainEntityOfPage' || (isObj(x) && isType(x, 'Recipe'))) walk(x, depth + 1);
   };
-  for (const m of html.matchAll(/<script\b[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)) {
-    const raw = m[1].trim().replace(/^<!\[CDATA\[|\]\]>$/g, '');
+  for (const { tag, body } of scriptElements(html)) {
+    if (!/type\s*=\s*["']?application\/ld\+json/i.test(tag)) continue;
+    const raw = body.trim().replace(/^<!\[CDATA\[|\]\]>$/g, '');
     try { walk(JSON.parse(raw), 0); continue; } catch { /* below */ }
     // Some sites leave raw line breaks and tabs inside strings, which JSON doesn't allow.
-    try { walk(JSON.parse(raw.replace(/[\u0000-\u001f]+/g, ' ')), 0); } catch { /* not JSON: skip it */ }
+    if (/[\u0000-\u001f]/.test(raw)) try { walk(JSON.parse(raw.replace(/[\u0000-\u001f]+/g, ' ')), 0); } catch { /* not JSON: skip it */ }
   }
   return out;
 }
@@ -141,7 +183,7 @@ function ingredientLines(lines: string[]): PreviewIngredient[] {
 const SharedRecipeSchema = z.object({ kinwall: z.literal(1), recipe: RecipeImportSchema.omit({ source: true, externalId: true, plan: true }) });
 const https = (url: string | null | undefined) => (url && /^https:\/\//i.test(url) ? url : null);
 function kinwallRecipe(html: string, pageUrl: string): RecipePreview | null {
-  const raw = /<script\b[^>]*\bid\s*=\s*["']?kinwall-recipe["']?[^>]*>([\s\S]*?)<\/script>/i.exec(html)?.[1];
+  const raw = scriptElements(html).find(({ tag }) => /\bid\s*=\s*["']?kinwall-recipe/i.test(tag))?.body;
   let data: unknown;
   try { data = raw && JSON.parse(raw); } catch { return null; }
   const parsed = SharedRecipeSchema.safeParse(data);
@@ -166,7 +208,7 @@ export function parseRecipeHtml(html: string, pageUrl: string): RecipePreview | 
   const recipe = nodes.find((n) => isType(n, 'Recipe'));
   if (!recipe) return null;
   const byId = new Map(nodes.filter((n) => typeof n['@id'] === 'string').map((n) => [n['@id'] as string, n]));
-  const canonical = /<link\b[^>]*rel\s*=\s*["']?canonical["']?[^>]*>/i.exec(html)?.[0];
+  const canonical = openingTags(html, 'link').find((tag) => /rel\s*=\s*["']?canonical/i.test(tag));
   const sourceUrl = (httpUrl(canonical && /href\s*=\s*["']([^"']+)["']/i.exec(canonical)?.[1], pageUrl) ?? httpUrl(recipe.url, pageUrl) ?? pageUrl).replace(/#.*$/, '');
   const prep = isoMinutes(recipe.prepTime), cook = isoMinutes(recipe.cookTime);
   const ingredients = recipe.recipeIngredient ?? recipe.ingredients;

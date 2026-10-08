@@ -8,17 +8,22 @@
 export type ParsedMenuItem = { section: string | null; name: string; priceCents: number | null };
 
 const PRICE_ONLY = /^\$?\s*(\d{1,4}(?:[.,]\d{1,2})?)$/;
-const TRAILING_PRICE = /(?:^|[\s.\-–—:·…])\$?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*$/;
+// On a trimmed line. The match may start only at the first of a run of spaces (or a space before
+// "$"), and a trailing run is trimmed only from its start: matching from every space of a long
+// run of spaces or dots was quadratic.
+const TRAILING_PRICE = /(?:^|(?<!\s)[\s.\-–—:·…]|\s(?=\$))\$?\s*(\d{1,4}(?:[.,]\d{1,2})?)$/;
 const cents = (s: string) => Math.round(Number(s.replace(',', '.')) * 100);
 /** The line the phones put between photos' words ("--- Page 2 ---"), or a printed "Page 2 of 3". */
 export const PAGE_LINE = /^[\s\-=–—_*·•]*page\s+\d+(?:\s*(?:of|\/)\s*\d+)?[\s\-=–—_*·•]*$/i;
 const PAGE_NOTE = /^\(?\s*(?:continued(?:\s+on\s+(?:the\s+)?(?:back|next page|other side|reverse))?|see\s+(?:the\s+)?(?:back|other side|reverse)|(?:please\s+)?turn\s+over|over)\s*\)?\.?$/i;
-const CONTINUED = /[\s,.\-–—:]+[([]?\s*(?:continued|cont'?d|cont)\.?\s*[)\]]?$/i;
+const CONTINUED = /(?<![\s,.\-–—:])[\s,.\-–—:]+[([]?\s*(?:continued|cont'?d|cont)\.?\s*[)\]]?$/i;
 const key = (s: string) => s.normalize('NFKD').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-const tidy = (s: string) => s.replace(/^[-•*·\s]+/, '').replace(/[\s.\-–—:·…]+$/, '').trim().slice(0, 200);
+const tidy = (s: string) => s.replace(/^[-•*·\s]+/, '').replace(/(?<![\s.\-–—:·…])[\s.\-–—:·…]+$/, '').trim().slice(0, 200);
+// No menu line is this long; a longer one is cut, so no line can cost much.
+const LINE_MAX = 500;
 
 export function parseMenuText(text: string): ParsedMenuItem[] {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => (/\p{L}/u.test(l) && !PAGE_LINE.test(l) && !PAGE_NOTE.test(l)) || PRICE_ONLY.test(l));
+  const lines = text.split(/\r?\n/).map((l) => l.slice(0, LINE_MAX).trim()).filter((l) => (/\p{L}/u.test(l) && !PAGE_LINE.test(l) && !PAGE_NOTE.test(l)) || PRICE_ONLY.test(l));
   // A section's name as first spelled, by its letters: "PIZZA (continued)" on page 2 is "Pizza".
   const spelled = new Map<string, string>();
   const heading = (line: string) => {
