@@ -25,7 +25,7 @@ import { toEntryApi, toPlacementApi, type PointEntryRow, type PlacementRow } fro
 import { toRewardApi, toRedemptionApi, type RewardRow, type RedemptionRow } from './rewards.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { RECONNECT_MESSAGE } from '../sync.ts';
-import { decryptConfig, encryptConfig } from '../crypto.ts';
+import { decryptConfig, encryptConfig, seal } from '../crypto.ts';
 import { isSafeFeedUrl } from '../outbound.ts';
 import type { CategoryRow } from '../calendar-categories.ts';
 import { grownUpChangeStmts, isAdultBirthday, kidRefusal, noteGrownUpChange, parseTempCheck, parseTransitions } from './members.ts';
@@ -34,7 +34,7 @@ import { isConnectedApp } from '../auth.ts';
 import { DrainedSchema, FollowupSchema, openDrained, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openEntry, sealEntry, type JournalRow } from './journal.ts';
 import { DoseTimesSchema, LateWindowSchema, loadLogs, loadMedications, NO_REFILL, RefillRequestSchema, RefillSchema, sealLog, sealMedication, type DoseLog } from './medications.ts';
-import { loadContacts, RefillContactSchema, sealContact } from './medication-refills.ts';
+import { convertRefillPlaces } from './medication-refills.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
 import { PollSchema, readPolls } from './polls.ts';
 import {
@@ -168,8 +168,6 @@ const ExportSchema = z
     // Medications (0056) and each dose marked or snoozed: opened here (the family's own backup), sealed again on
     // import; none for a connected app without aiHealthAccess.
     medications: z.array(z.object({ id: z.string(), memberId: z.string(), name: z.string().min(1), dose: z.string(), times: DoseTimesSchema, days: z.array(z.number().int().min(0).max(6)).min(1), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null), totalDoses: z.number().int().min(1).max(1000).nullable().default(null), lateWindow: LateWindowSchema.default('3h'), refill: RefillSchema.default(NO_REFILL), refillRequest: RefillRequestSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
-    // Refill places (0109): opened here, sealed again on import; none without aiHealthAccess, like medications.
-    medicationRefillContacts: z.array(RefillContactSchema),
     medicationLog: z.array(z.object({ medicationId: z.string(), date: z.string(), time: z.string(), status: z.enum(['taken', 'skipped']).nullable(), at: z.string().nullable(), by: z.string().nullable(), snoozedUntil: z.string().nullable(), startedAt: z.string().nullable().default(null) })),
     scrapbook: z.array(StickerPlacementSchema),
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.
@@ -378,7 +376,7 @@ dataRoutes.openapi(
           return { memberId: r.member_id, date: r.date, ...v, private: !!r.private, createdAt: r.created_at, updatedAt: r.updated_at };
         })),
         journalEntries: healthHidden ? [] : await Promise.all((journal as JournalRow[]).map((r) => openEntry(c.env, r, false))), // never a private entry's words
-        ...(healthHidden ? { medications: [], medicationLog: [], medicationRefillContacts: [] } : { ...(await exportMedications(c.env)), medicationRefillContacts: await loadContacts(c.env) }),
+        ...(healthHidden ? { medications: [], medicationLog: [] } : await exportMedications(c.env)),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
@@ -437,7 +435,8 @@ const ImportSchema = ExportSchema.extend({
   journalEntries: ExportSchema.shape.journalEntries.default([]),
   medications: ExportSchema.shape.medications.default([]),
   medicationLog: ExportSchema.shape.medicationLog.default([]),
-  medicationRefillContacts: ExportSchema.shape.medicationRefillContacts.default([]),
+  // Refill places in a backup from before contacts held them: sealed into medication_refill_contacts, then made contacts (convertRefillPlaces).
+  medicationRefillContacts: z.array(z.object({ id: z.string(), name: z.string().min(1), createdAt: z.string(), updatedAt: z.string() }).passthrough()).default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
   rewards: ExportSchema.shape.rewards.default([]),
   choreLibrary: ExportSchema.shape.choreLibrary.default([]),
@@ -698,7 +697,7 @@ dataRoutes.openapi(
       day.log[d.time] = { ...(d.startedAt ? { startedAt: d.startedAt } : {}), ...(d.status ? { status: d.status, ...(d.at ? { at: d.at } : {}), ...(d.by ? { by: d.by } : {}) } : d.snoozedUntil ? { snoozedUntil: d.snoozedUntil } : {}) };
     }
     const sealedMeds = await Promise.all(medications.map(async (m) => ({ id: m.id, member_id: m.memberId, data: await sealMedication(c.env, m), created_at: m.createdAt, updated_at: m.updatedAt })));
-    const sealedContacts = await Promise.all((healthHidden ? [] : body.medicationRefillContacts).map(async (r) => ({ id: r.id, data: await sealContact(c.env, r), created_at: r.createdAt, updated_at: r.updatedAt })));
+    const sealedContacts = await Promise.all((healthHidden ? [] : body.medicationRefillContacts).map(async ({ id, createdAt, updatedAt, ...r }) => ({ id, data: await seal(c.env, JSON.stringify(r), `${id}:refill`), created_at: createdAt, updated_at: updatedAt })));
     const sealedLog = await Promise.all([...logDays.values()].map(async (d) => ({ medication_id: d.medicationId, date: d.date, log: await sealLog(c.env, d.medicationId, d.date, d.log), updated_at: d.date })));
     const memberFeelings = new Map(healthHidden ? [] : await Promise.all(body.members.map(async (m) => [m.id, await sealCustom(c.env, m.id, m.tempCheckFeelings)] as const)));
     const sealedTrackers = await Promise.all(trackers.map((t) => sealRow(c.env, { id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })));
@@ -1019,6 +1018,7 @@ dataRoutes.openapi(
     for (const m of flips) await noteGrownUpChange(c, m.id, m.name, grownUp(m));
     // An entry already here as health keeps its kind (kind is kept on conflict), so sweep up anything the file brought in as another kind.
     if (trackers.length) await sealHealthEntries(c.env);
+    if (sealedContacts.length) await convertRefillPlaces(c.env); // refill places from an older backup become contacts
 
     const changed: [BusEventType, number][] = [
       ['settings.changed', Object.keys(settings.data).length],

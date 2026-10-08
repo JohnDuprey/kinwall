@@ -1,6 +1,9 @@
+import type { DialStep } from './dialSteps.ts'
+
 /** Household directory records. Private records are for admin devices only; the API must enforce
  * that boundary too, since hiding a card in the browser cannot protect its data. */
-export interface ContactMethod { label: string; value: string }
+/** menu: a phone's menu (dialSteps.ts), which Call dials through; only on phones. */
+export interface ContactMethod { label: string; value: string; menu?: DialStep[] }
 export interface ContactAddress { label: string; street: string; city: string; region: string; postalCode: string; country: string }
 export interface ContactCategory { id: string; name: string; color: string | null; sort: number; createdAt: string; updatedAt: string }
 export interface Contact {

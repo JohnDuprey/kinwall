@@ -1,4 +1,4 @@
-// node --test test/ (npm test). A refill place's phone menu: steps to a dial string and words, and back.
+// node --test test/ (npm test). A contact phone's menu: steps to a dial string and words, and back.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { dialToSteps, stepsToDial, stepsToWords, telUri, type DialStep } from '../src/dialSteps.ts'

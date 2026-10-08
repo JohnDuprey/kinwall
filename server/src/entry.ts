@@ -8,6 +8,7 @@ import { runMigrations, type Migration } from './migrate.ts';
 import { sealHealthEntries } from './routes/trackers.ts';
 import { shelveReadingEntries } from './shelve.ts';
 import { lookUpSome } from './book-details.ts';
+import { convertRefillPlaces } from './routes/medication-refills.ts';
 
 const errorName = (err: unknown) => (err instanceof Error ? err.name : 'error'); // never the message: it can carry data
 
@@ -56,8 +57,12 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
     // sealing, a failure is logged and retried on the next call, never served as an error.
     shelved ??= shelveReadingEntries(env).then(() => undefined, (err) => { shelved = undefined; console.error('shelving reading entries failed', errorName(err)); });
     await shelved;
+    // And once: refill places from before contacts held them become contacts (routes/medication-refills.ts).
+    converted ??= convertRefillPlaces(env).then(() => undefined, (err) => { converted = undefined; console.error('converting refill places failed', errorName(err)); });
+    await converted;
   }
   let shelved: Promise<void> | undefined;
+  let converted: Promise<void> | undefined;
 
   return {
     /** The Hono app, for hosts that add their own routes/middleware (node.ts adds static files). */

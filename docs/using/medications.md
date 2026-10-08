@@ -85,41 +85,43 @@ It opens on the person's own device and on parents' devices, and both can catch 
 
 Each medicine can say where and how to ask for a refill. Set it up from a parent's device: **Trackers → Health → Medicines**, tap the medicine, and fill in **Refills** at the bottom.
 
-* **Ask for refills at**: a doctor's office or pharmacy. Pick one, or **Add a place…**. Several medicines can share a place, so you set up an office once. A place can have:
-  * an **app** (its name, and a link that opens it or its refill page),
-  * a **website**,
-  * a **phone number** with its **phone menu**, built from steps: **Wait** a few seconds, **Press** keys (like `2` or `1234#`), or **Wait for me** (your phone asks before going on). Give a step a short label like "Prescriptions" if it helps. Move steps up and down, or remove them. Under the steps you see them in words ("Wait 4 seconds, press 2 (Prescriptions), then press 1 (Refill line)") and a **Try it** button that calls,
-  * **What to say**: the message to leave. Leave it empty for the usual one, or write your own with these blanks: `{name}` `{dateOfBirth}` `{medicine}` `{dose}` `{howOften}` `{pharmacy}` `{callback}`.
+* **Ask for refills at**: who to ask, picked from your [contacts](contacts.md): doctors' offices and pharmacies first, then other places, then people. Or **Add a contact…** to make one right there, and **Edit contact** to change the one picked. Several medicines can share a contact, so you set up an office once. On the refill card it shows with:
+  * its **phone numbers**, each with its [phone menu](contacts.md#phone-menus) if it has one, so **Call** gets you through "press 2 for prescriptions" for you,
+  * its **websites and apps** (like the office's patient portal), each with **Open**.
 * **Pharmacy**: pick it from your [contacts](contacts.md) (pharmacies are listed first, then other places), or type its name if it isn't a contact.
 * **Date of birth** and **Callback number**: said in the message.
 * **Remind me to ask on**: on that day at 9 AM, Kinwall adds the refill to-do by itself and sends a reminder (to a grown-up's own devices, or to parents' devices for a kid's medicine).
 
-**Same as …** copies the pharmacy, date of birth and callback number from the person's other medicine.
+**Same as …** copies who to ask, the pharmacy, date of birth and callback number from the person's other medicine.
+
+The message is always the same plain one: who it's for and their date of birth, the medicine with its dose and how often, the pharmacy and the callback number.
+
+Refill places set up before refills moved to Contacts became contacts by themselves when the server updated: a service contact (relationship Medical) with the phone number and its phone menu, and the app link and website, or the menu and links were added to a contact with the same name. Each medicine now points to that contact. A place's own message wasn't kept; every card uses the message above.
 
 ### Request refill
 
 On the person's [medicines page](#a-persons-medicines-page), **Refills** lists each medicine with **Request refill**. Tapping it:
 
 1. adds a to-do, "Request refill: Allergy medicine for Leo", at the top of the page, in the bell (for parents and that person) and in **Trackers → Health**. There's only ever one open per medicine; tapping again just opens the card.
-2. opens the refill card: where to ask, with **Open app**, **Open website** and **Call**, the phone menu in words, the pharmacy with **Call** and **Map**, and **What to say** in large print, one sentence per line, with **Copy**.
+2. opens the refill card: the contact to ask, with **Open** for its websites and apps and **Call** for each phone number, the phone menu in words, the pharmacy with **Call** and **Map**, and **What to say** in large print, one sentence per line, with **Copy**.
 
 **Call** dials the number and then the phone menu for you on most phones. Some phones ignore the waits, so the steps are written out too. Anything the family hasn't filled in shows in [brackets] in the message so you know to say it yourself.
 
 When you've asked, tap **Done, requested** to close the to-do.
 
-A kid's own device can request a refill for their own medicine too. Their card shows the pharmacy contact only if they can see that contact; otherwise the pharmacy's typed name.
+A kid's own device can request a refill for their own medicine too. Their card shows the contact to ask only if they can see that contact (set it to **Grown-ups only** to keep it off kids' devices), and the pharmacy contact likewise; otherwise the pharmacy's typed name.
 
 ## Who sees what
 
 | Device | Sees | Can do |
 |---|---|---|
-| Parent devices | Everyone's medicines, cards with names, today and 7-day history, refill cards | Add, change, delete; refill places; mark any dose; request refills |
+| Parent devices | Everyone's medicines, cards with names, today and 7-day history, refill cards | Add, change, delete; pick who to ask for refills; mark any dose; request refills |
 | A person's own device | Their own medicines, cards, history and refill cards | Mark their own doses and request their own refills (kids too) |
 | Shared wall screen | Take now cards for whoever is due ("Meds" unless names are on) | Mark Taken, Skip or Snooze |
 | Another person's device | Nothing about others' medicines | Nothing |
-| Claude and other connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | With it on: read a refill card, request a refill, set the pharmacy |
+| Claude and other connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | With it on: read a refill card, request a refill, set the pharmacy and who to ask |
 
-Everything is encrypted on the server, including refill places, the phone menu, the message, date of birth, pharmacy and callback number, and the medicine notes in the bell's feed. See [Privacy](../your-data/privacy.md#medications).
+Everything is encrypted on the server, including who to ask, the pharmacy, date of birth and callback number, and the medicine notes in the bell's feed. See [Privacy](../your-data/privacy.md#medications).
 
 ## Not in this version
 
@@ -137,8 +139,7 @@ All medication routes answer 404 while the feature is off.
 * `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze", at? }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device. `at` (ISO, taken or skipped only) is when it really happened, for a dose marked after the fact; the default is now. It must be between the start of the dose's household day (midnight) and now; up to 2 minutes ahead counts as a fast clock and is stored as now, anything else answers 400.
 * `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed. Their own device and parent devices only.
 * `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: a device paired as theirs, or for a grown-up a full-access key, passkey or Kinwall app sign-in they own (`PUT /api/me/owner`). 403 for other parent devices, shared walls, connected apps and anyone else.
-* Each medicine also has `refill: { contactId, pharmacyContactId, pharmacy, dateOfBirth, callback, remindOn }` (set with POST or PATCH; PATCH changes only the refill fields sent; `pharmacyContactId` must be a contact, else 400) and `refillRequest: { at, by } | null`, the open to-do.
-* `GET/POST /api/medication-refill-contacts`, `PATCH/DELETE /api/medication-refill-contacts/{id}`: refill places, parent devices only. `{ name, appName, appLink, website, phone, menu, script }`; `menu` is a list of steps, `{ kind: "wait", seconds }`, `{ kind: "press", digits }` (digits, `*` and `#`) or `{ kind: "confirm" }`, each with an optional `label`. Answers add `phoneSteps` (the steps in words) and `dialDigits` (dialed after the number: `,` waits 2 seconds, `;` waits for the caller).
-* `GET /api/medications/{id}/refill`: the refill card, `{ medicationId, memberId, contact, call: { number, steps, telUri }, pharmacy: { name, contactId, phone, telUri, address }, script, request }`. Parent devices and the person's own device.
+* Each medicine also has `refill: { contactId, pharmacyContactId, pharmacy, dateOfBirth, callback, remindOn }` (set with POST or PATCH; PATCH changes only the refill fields sent; `contactId`, who to ask, and `pharmacyContactId` must be contacts, else 400) and `refillRequest: { at, by } | null`, the open to-do.
+* `GET /api/medications/{id}/refill`: the refill card, `{ medicationId, memberId, contact: { id, name, phones: [{ label, number, steps, telUri }], websites: [{ label, url }] }, pharmacy: { name, contactId, phone, telUri, address }, script, request }`. Parent devices and the person's own device. `contact` is the contact as that device may see it (null if it can't); `steps` is a phone's menu in words and `telUri` dials it. Phone menus are set on the contact (`phones[].menu`, see [Contacts](contacts.md#phone-menus)).
 * `POST /api/medications/{id}/refill-request` with `{ action: "open" | "done" }`: open the to-do (201, `created: true`, with a bell note) or, if one is open already, return it (200, `created: false`); `done` closes it. Parent devices and the person's own device.
-* Connected apps get 403 unless `aiHealthAccess` is on. There are no webhook events. MCP tools: `get_medication_refill`, `request_medication_refill`, `set_medication_pharmacy`.
+* Connected apps get 403 unless `aiHealthAccess` is on. There are no webhook events. MCP tools: `get_medication_refill`, `request_medication_refill`, `set_medication_pharmacy`, `set_medication_refill_contact`.

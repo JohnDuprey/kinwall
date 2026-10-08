@@ -39,7 +39,12 @@
 .contact-methods legend, .contact-options legend { padding: 0; margin-bottom: 9px; font-size: .83rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
 .contact-method-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(130px, 2fr) auto; gap: 8px; align-items: end; }
 .contact-method-row .field { min-width: 0; margin-bottom: 8px; }
-.contact-method-row input[type="email"], .contact-method-row input[type="tel"] { width: 100%; min-height: 52px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: max(1rem, 16px); font-family: inherit; }
+.contact-method-row input[type="email"], .contact-method-row input[type="tel"], .contact-method-row input[type="url"] { width: 100%; min-height: 52px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: max(1rem, 16px); font-family: inherit; }
+/* A phone's menu (PhoneMenu.tsx): the whole row's width, under its number. */
+.contact-method-row > .contact-inline-btn, .contact-phone-menu { grid-column: 1 / -1; justify-self: start; margin-bottom: 10px; }
+.contact-phone-menu { justify-self: stretch; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.contact-phone-menu .dial-editor { width: 100%; margin: 0; }
+.contact-phone-steps { flex-basis: 100%; margin: 0; font-weight: 700; color: var(--text-dim); }
 .contact-remove-method { min-height: 52px; border: none; background: none; color: var(--danger); font-weight: 800; cursor: pointer; }
 .contact-options label { display: flex; align-items: center; gap: 9px; min-height: 44px; font-weight: 700; }
 .contact-options input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent-strong); }

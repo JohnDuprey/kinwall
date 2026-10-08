@@ -301,13 +301,13 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   preview_contact_import: { entries: z.array(z.object({ contact: ContactInputSchema, duplicateIds: z.array(z.string()) })) },
   import_contacts: { created: z.number(), merged: z.number(), skipped: z.number(), ids: z.array(z.string()) },
   merge_contacts: { contact: ContactSchema },
-  get_medication_refill: { refill: RefillCardSchema }, request_medication_refill: RefillRequestResultSchema.shape, set_medication_pharmacy: { pharmacy: z.object({ contactId: z.string().nullable(), name: z.string() }) },
+  get_medication_refill: { refill: RefillCardSchema }, request_medication_refill: RefillRequestResultSchema.shape, set_medication_pharmacy: { pharmacy: z.object({ contactId: z.string().nullable(), name: z.string() }) }, set_medication_refill_contact: { contact: z.object({ id: z.string(), name: z.string() }).nullable() },
   delete_tracker_entry: OK, delete_meal: OK, delete_recipe: OK, delete_reward: OK, delete_contact: OK, delete_contact_category: OK,
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1491,11 +1491,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'GET', `/api/contacts/${encodeURIComponent(resolved)}`);
     return res.status >= 400 ? errorResult(res.json, 'contact not found') : okResult('Contact', { contact: res.json as Record<string, unknown> });
   });
-  tool('create_contact', { title: 'Create household contact', description: 'Admin: add a person or organization. visibility private hides the whole record from display keys; privateFields hides selected fields on household contacts.', inputSchema: ContactInputSchema.shape }, async (input) => {
+  tool('create_contact', { title: 'Create household contact', description: 'Admin: add a person or organization. visibility private hides the whole record from display keys; privateFields hides selected fields on household contacts. A phone can carry its phone menu (phones[].menu: wait N seconds, press keys, or wait for the caller), which Call dials through.', inputSchema: ContactInputSchema.shape }, async (input) => {
     const res = await call(app, env, auth, 'POST', '/api/contacts', input);
     return res.status >= 400 ? errorResult(res.json, 'failed to create contact') : okResult('Contact created', { contact: res.json as Record<string, unknown> });
   });
-  tool('update_contact', { title: 'Update household contact', description: 'Admin: change only the provided fields of a contact. Use id from list_contacts.', inputSchema: { id: z.string().uuid(), ...ContactPatchSchema.shape } }, async ({ id, ...input }) => {
+  tool('update_contact', { title: 'Update household contact', description: 'Admin: change only the provided fields of a contact. Use id from list_contacts. phones replaces every phone; keep each phone\'s menu (phones[].menu) when changing others.', inputSchema: { id: z.string().uuid(), ...ContactPatchSchema.shape } }, async ({ id, ...input }) => {
     const res = await call(app, env, auth, 'PATCH', `/api/contacts/${encodeURIComponent(id)}`, input);
     return res.status >= 400 ? errorResult(res.json, 'failed to update contact') : okResult('Contact updated', { contact: res.json as Record<string, unknown> });
   });
@@ -2042,7 +2042,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_medication_refill',
     {
       title: 'How to ask for a refill',
-      description: `A medicine's refill card: where to ask (the app, the website, or the phone number with the phone-menu steps and a tel: link that dials them), what to say on the message (filled in with the person, date of birth, medicine, dose, how often, pharmacy and callback number; a blank nobody entered is in [brackets]), and any open "Request refill" to-do. ${MEDS_DOC}`,
+      description: `A medicine's refill card: where to ask (the contact picked for refills: its phone numbers, each with its phone-menu steps and a tel: link that dials them, and its websites and app links), what to say on the message (filled in with the person, date of birth, medicine, dose, how often, pharmacy and callback number; a blank nobody entered is in [brackets]), and any open "Request refill" to-do. ${MEDS_DOC}`,
       inputSchema: { medicine: z.string().describe('The medicine by name or id.'), member: z.string().optional().describe("Whose medicine: member name or id (needed when two people's medicines share a name).") },
     },
     async ({ medicine, member }) => {
@@ -2070,6 +2070,18 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     },
   );
 
+  // A contact by name or id; `prefer` picks among several partial matches (pharmacies, offices).
+  const findContact = async (ref: string, prefer: RegExp): Promise<{ id: string; name: string } | undefined | CallToolResult> => {
+    const res = await call(app, env, auth, 'GET', '/api/contacts');
+    if (res.status >= 400) return errorResult(res.json, 'failed to look up contacts');
+    const all = res.json as { id: string; name: string; organization?: string | null; relationship?: string | null; kind: string }[];
+    const q = ref.toLowerCase();
+    const named = (c: (typeof all)[number]) => c.name.toLowerCase() === q || c.organization?.toLowerCase() === q;
+    const hits = all.filter((c) => c.id === ref || named(c));
+    const partial = hits.length ? hits : all.filter((c) => c.name.toLowerCase().includes(q));
+    const preferred = partial.filter((c) => prefer.test(`${c.name} ${c.organization ?? ''} ${c.relationship ?? ''}`));
+    return (preferred.length === 1 ? preferred : partial.length === 1 ? partial : [])[0];
+  };
   tool(
     'set_medication_pharmacy',
     {
@@ -2081,22 +2093,31 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const m = await findMedicine(medicine as string, member as string | undefined);
       if (typeof m !== 'string') return m;
       const ref = (pharmacy as string).trim();
-      let contact: { id: string; name: string } | undefined;
-      if (ref) {
-        const res = await call(app, env, auth, 'GET', '/api/contacts');
-        if (res.status >= 400) return errorResult(res.json, 'failed to look up contacts');
-        const all = res.json as { id: string; name: string; organization?: string | null; relationship?: string | null; kind: string }[];
-        const q = ref.toLowerCase();
-        const named = (c: (typeof all)[number]) => c.name.toLowerCase() === q || c.organization?.toLowerCase() === q;
-        const hits = all.filter((c) => c.id === ref || named(c));
-        const partial = hits.length ? hits : all.filter((c) => c.name.toLowerCase().includes(q));
-        const pharm = partial.filter((c) => /pharm/i.test(`${c.name} ${c.organization ?? ''} ${c.relationship ?? ''}`));
-        contact = (pharm.length === 1 ? pharm : partial.length === 1 ? partial : [])[0];
-      }
+      const contact = ref ? await findContact(ref, /pharm/i) : undefined;
+      if (contact && 'content' in contact) return contact;
       const refill = contact ? { pharmacyContactId: contact.id, pharmacy: contact.name } : { pharmacyContactId: null, pharmacy: ref };
       const res = await call(app, env, auth, 'PATCH', `/api/medications/${encodeURIComponent(m)}`, { refill });
       if (res.status >= 400) return errorResult(res.json, 'failed to set the pharmacy');
       return okResult(contact ? `Pharmacy set to the contact ${contact.name}.` : ref ? `Pharmacy set to "${ref}" (not a contact).` : 'Pharmacy cleared.', { pharmacy: { contactId: refill.pharmacyContactId, name: refill.pharmacy } });
+    },
+  );
+  tool(
+    'set_medication_refill_contact',
+    {
+      title: 'Set where to ask for a medicine\'s refills',
+      description: `Full access: which contact to ask for a medicine's refills, like the doctor's office (its phone numbers with their phone menus, and its websites, show on the refill card). contact: a contact's name or id from the family's contacts; '' clears it. To add a phone menu, change the contact (update_contact, phones[].menu). ${MEDS_DOC}`,
+      inputSchema: { medicine: z.string().describe('The medicine by name or id.'), member: z.string().optional().describe('Whose medicine: member name or id.'), contact: z.string().describe("A contact's name or id, or '' to clear.") },
+    },
+    async ({ medicine, member, contact: ref }) => {
+      const m = await findMedicine(medicine as string, member as string | undefined);
+      if (typeof m !== 'string') return m;
+      const q = (ref as string).trim();
+      const contact = q ? await findContact(q, /doctor|medical|pediatric|clinic|office|pharm/i) : undefined;
+      if (contact && 'content' in contact) return contact;
+      if (q && !contact) return errorResult(null, `no single contact matches "${q}"; use its exact name or id, or add it with create_contact`);
+      const res = await call(app, env, auth, 'PATCH', `/api/medications/${encodeURIComponent(m)}`, { refill: { contactId: contact?.id ?? null } });
+      if (res.status >= 400) return errorResult(res.json, 'failed to set where to ask for refills');
+      return okResult(contact ? `Refills: ask ${contact.name}.` : 'Cleared where to ask for refills.', { contact: contact ? { id: contact.id, name: contact.name } : null });
     },
   );
 

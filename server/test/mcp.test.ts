@@ -177,6 +177,7 @@ test('mcp: tools/list returns the tools', async () => {
     'set_list_item_done',
     'set_meal_order',
     'set_medication_pharmacy',
+    'set_medication_refill_contact',
     'set_night_screen',
     'set_step_done',
     'set_store_aisle_order',

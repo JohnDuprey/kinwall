@@ -19,6 +19,16 @@ export const ContactValueSchema = z.object({
   emergency: z.boolean().default(false),
   wallVisible: z.boolean().default(false),
 }).strict();
+// A phone number's menu (dial-steps.ts): wait some seconds, press keys, or wait until the caller is ready.
+const DialLabel = z.string().trim().max(40).optional();
+export const DialStepSchema = z.union([
+  z.object({ kind: z.literal('wait'), seconds: z.number().int().min(1).max(60), label: DialLabel }).strict(),
+  z.object({ kind: z.literal('press'), digits: z.string().regex(/^[0-9*#]{1,20}$/, 'press: digits, * and # only'), label: DialLabel }).strict(),
+  z.object({ kind: z.literal('confirm'), label: DialLabel }).strict(),
+]).openapi('DialStep');
+export const ContactPhoneSchema = ContactValueSchema.extend({
+  menu: z.array(DialStepSchema).max(20).optional().openapi({ description: 'The phone menu after this number, step by step: wait some seconds, press keys, or wait until the caller is ready; each may have a short label ("Prescriptions"). Call dials through it.' }),
+}).strict();
 export const ContactAddressSchema = z.object({
   label: z.string().trim().max(50).default(''), street: z.string().max(500).default(''), city: z.string().max(200).default(''),
   region: z.string().max(200).default(''), postalCode: z.string().max(50).default(''), country: z.string().max(200).default(''),
@@ -35,7 +45,7 @@ export const ContactInputSchema = z.object({
   familyName: z.string().trim().max(200).nullable().optional(),
   nickname: z.string().trim().max(200).nullable().optional(),
   favorite: z.boolean().default(false), emergency: z.boolean().default(false),
-  phones: z.array(ContactValueSchema).max(30).default([]),
+  phones: z.array(ContactPhoneSchema).max(30).default([]),
   emails: z.array(ContactValueSchema).max(30).default([]),
   addresses: z.array(ContactAddressSchema).max(20).default([]),
   websites: z.array(ContactValueSchema).max(30).default([]),
@@ -60,7 +70,7 @@ export const ContactPatchSchema = z.object({
   kind: ContactKindSchema.optional(), name: z.string().trim().min(1).max(200).optional(),
   organization: z.string().trim().max(200).nullable().optional(), relationship: z.string().trim().max(200).nullable().optional(), title: z.string().trim().max(200).nullable().optional(), givenName: z.string().trim().max(200).nullable().optional(), familyName: z.string().trim().max(200).nullable().optional(), nickname: z.string().trim().max(200).nullable().optional(),
   favorite: z.boolean().optional(), emergency: z.boolean().optional(),
-  phones: z.array(ContactValueSchema).max(30).optional(), emails: z.array(ContactValueSchema).max(30).optional(),
+  phones: z.array(ContactPhoneSchema).max(30).optional(), emails: z.array(ContactValueSchema).max(30).optional(),
   addresses: z.array(ContactAddressSchema).max(20).optional(), websites: z.array(ContactValueSchema).max(30).optional(),
   dates: z.array(ContactDateSchema).max(30).optional(), notes: z.string().max(10000).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(50)).max(50).optional(), memberIds: z.array(z.string()).max(50).optional(), serviceHours: z.string().max(500).nullable().optional(), serviceArea: z.string().max(500).nullable().optional(), alwaysOpen: z.boolean().optional(), wallVisible: z.boolean().optional(), emergencyVisible: z.boolean().optional(), phoneVisibleOnWall: z.boolean().optional(), addressVisibleOnWall: z.boolean().optional(),

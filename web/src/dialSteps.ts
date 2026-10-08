@@ -1,4 +1,4 @@
-// A refill place's phone menu as steps (Refills.tsx: the step editor and its preview): wait some seconds, press keys,
+// A contact phone's menu as steps (PhoneMenu.tsx: the step editor and its preview): wait some seconds, press keys,
 // or wait for the caller. The dial string after the number ("," = a 2-second pause, ";" = the phone
 // asks before going on) and the written steps both come from them. The server has the same code
 // (server/src/dial-steps.ts); change both together. Tested in web/test/dialSteps.test.ts.
@@ -28,8 +28,13 @@ export function dialToSteps(dial: string): DialStep[] {
   return steps;
 }
 
-/** "tel:5550102233,,2,1" (as the server's routes/medication-refills.ts telUri): the number's digits, then the dial string; # escaped. */
+/** "tel:5550102233,,2,1" (as the server's routes/medication-refills.ts telUri; Contacts.tsx Call and the refill card): the number's digits, then the dial string; # escaped. */
 export function telUri(phone: string, dial: string): string | null {
   const n = phone.replace(/[^0-9+]/g, '').replace(/(?!^)\+/g, '')
   return /\d/.test(n) ? `tel:${n}${dial}`.replace(/#/g, '%23') : null
 }
+
+// A new phone menu starts as "Wait 2 seconds, then press …"; a press with no keys is dropped on save.
+export const STARTER: DialStep[] = [{ kind: 'wait', seconds: 2 }, { kind: 'press', digits: '' }]
+/** The steps worth saving: labels trimmed. */
+export const usable = (steps: DialStep[]) => steps.filter(s => s.kind !== 'press' || s.digits).map(s => ({ ...s, label: s.label?.trim() || undefined }))

@@ -10,7 +10,7 @@
 //   Only who (member_id) and which day (date, and updated_at holds the day too) stay plain. No key: 500, nothing stored.
 // - The bell's medicine notes (notifications, kind 'medication') are sealed too, text and exact time
 //   (notify.ts recordNotification / openNote); only kind, day and member stay plain. No key: no note.
-// - Refills (routes/medication-refills.ts): each medicine's refill details (which place to ask, the pharmacy,
+// - Refills (routes/medication-refills.ts): each medicine's refill details (which contact to ask, the pharmacy,
 //   date of birth, callback number, a reminder day) and its open refill request ride in the same sealed JSON.
 // - Never logged, no webhook events at all, not in snapshots, profiles or share links. MCP tools only
 //   read and start refill requests, through these routes (so aiHealthAccess applies).
@@ -76,7 +76,7 @@ export const LateWindowSchema = z.enum(LATE_WINDOWS).openapi({ description: "How
 // Refill details (routes/medication-refills.ts), sealed with the rest.
 export const RefillSchema = z
   .object({
-    contactId: z.string().nullable().openapi({ description: 'Where to ask for refills: a refill place (GET /api/medication-refill-contacts), or null.' }),
+    contactId: z.string().nullable().openapi({ description: 'Where to ask for refills: a contact from the family\'s contacts (GET /api/contacts), like the doctor\'s office, or null.' }),
     pharmacyContactId: z.string().nullable().openapi({ description: 'The pharmacy from the family\'s contacts (GET /api/contacts), or null.' }),
     pharmacy: z.string().trim().max(120).openapi({ description: 'The pharmacy by name: used when no contact is picked (or it was deleted, or this device can\'t see it).' }),
     dateOfBirth: DateSchema.nullable().openapi({ description: 'YYYY-MM-DD, said in the refill message.' }),
@@ -322,6 +322,7 @@ export async function findMed(c: C, id: string) {
   const row = await c.env.DB.prepare('SELECT * FROM medications WHERE id = ?').bind(id).first<MedRow>();
   return row && openMedication(c.env, row);
 }
+// A pharmacy or refill contact id that is not a contact.
 const badPharmacy = async (c: C, id: string | null | undefined) => !!id && !(await c.env.DB.prepare('SELECT 1 FROM contacts WHERE id = ?').bind(id).first());
 async function write(c: C, m: Medication) {
   const data = await sealMedication(c.env, m); // throws without a key, before anything is written
@@ -365,6 +366,7 @@ medicationsRoutes.openapi(
     const body = c.req.valid('json');
     if (!(await c.env.DB.prepare('SELECT 1 FROM members WHERE id = ?').bind(body.memberId).first())) return c.json({ error: 'member not found' }, 404);
     if (await badPharmacy(c, body.refill?.pharmacyContactId)) return c.json({ error: 'pharmacy contact not found' }, 400);
+    if (await badPharmacy(c, body.refill?.contactId)) return c.json({ error: 'refill contact not found' }, 400);
     const now = new Date().toISOString();
     const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, endDate: body.endDate, totalDoses: body.totalDoses, lateWindow: body.lateWindow, dosesLeft: body.totalDoses, refill: { ...NO_REFILL, ...body.refill }, refillRequest: null, createdAt: now, updatedAt: now };
     await write(c, m);
@@ -389,6 +391,7 @@ medicationsRoutes.openapi(
     if (!found) return c.json({ error: 'not found' }, 404);
     const body = c.req.valid('json');
     if (await badPharmacy(c, body.refill?.pharmacyContactId)) return c.json({ error: 'pharmacy contact not found' }, 400);
+    if (await badPharmacy(c, body.refill?.contactId)) return c.json({ error: 'refill contact not found' }, 400);
     const m: Medication = {
       ...found, name: body.name ?? found.name, dose: body.dose ?? found.dose, times: body.times ?? found.times, days: body.days ?? found.days,
       endDate: body.endDate !== undefined ? body.endDate : found.endDate, totalDoses: body.totalDoses !== undefined ? body.totalDoses : found.totalDoses, lateWindow: body.lateWindow ?? found.lateWindow, refill: { ...found.refill, ...body.refill }, updatedAt: new Date().toISOString(),
@@ -423,7 +426,7 @@ medicationsRoutes.openapi(
 medicationsRoutes.openapi(
   createRoute({
     method: 'delete', path: '/api/medications', tags: TAG, security: [{ Bearer: [] }],
-    summary: "Delete all medication data: every medicine, its log, the refill places and its notifications (parent devices only; works while the feature is off).",
+    summary: "Delete all medication data: every medicine, its log and its notifications (parent devices only; works while the feature is off).",
     responses: { 200: { description: 'deleted', content: json(z.object({ deleted: z.number() })) }, 403: denied[403] },
   }),
   async (c) => {

@@ -1,4 +1,4 @@
-// A refill place's phone menu as steps (routes/medication-refills.ts): wait some seconds, press keys,
+// A contact phone's menu as steps (schemas.ts ContactPhoneSchema; the refill card in routes/medication-refills.ts): wait some seconds, press keys,
 // or wait for the caller. The dial string after the number ("," = a 2-second pause, ";" = the phone
 // asks before going on) and the written steps both come from them. The web app has the same code
 // (web/src/dialSteps.ts, with its test); change both together.

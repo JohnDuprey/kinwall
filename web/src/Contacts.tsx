@@ -14,6 +14,8 @@ import { activeContactFilters, contactDate, contactFilterSummary, contactLabel, 
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
 import { Face } from './Face'
+import PhoneMenuEditor from './PhoneMenu.tsx'
+import { STARTER, stepsToDial, stepsToWords, telUri, usable } from './dialSteps.ts'
 
 // Choices for the category and member pickers: a category's color, a member's avatar.
 const categoryOptions = (categories: ContactCategory[]): PickOption[] => categories.map(c => ({ value: c.id, label: c.name, lead: c.color ? <PickSwatch color={c.color} /> : undefined }))
@@ -63,7 +65,10 @@ const faceTimeHref = (value: string) => { const to = callHref(value)?.slice(4) ?
 const canMeet = typeof window !== 'undefined' && !!(window as Window & { kinwallNative?: { videoCall?: boolean } }).kinwallNative?.videoCall
 const MEET = 'com.google.android.apps.tachyon'
 const meetHref = (value: string) => { const to = callHref(value)?.slice(4); return canMeet && to ? `intent:tel:${to}#Intent;action=${MEET}.action.CALL;package=${MEET};end` : null }
-const webHref = (value: string) => /^https?:\/\//i.test(value.trim()) ? value.trim() : null
+// A website, or an app's own link ("myclinic://refills"); never one that runs code or reads files.
+const webHref = (value: string) => { const v = value.trim(); return /^https?:\/\//i.test(v) || (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) && !/^(javascript|data|vbscript|file|blob):/i.test(v)) ? v : null }
+/** Call through the number's phone menu, when it has one (the steps wait or press after it answers). */
+const menuCallHref = (m: ContactMethod) => m.menu?.length && callHref(m.value) ? telUri(m.value, stepsToDial(m.menu)) : callHref(m.value)
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(p => Array.from(p)[0]).slice(0, 2).join('').toLocaleUpperCase()
 
 function ContactCard({ contact, categoryNames, onOpen }: { contact: Contact; categoryNames: Map<string, string>; onOpen: () => void }) {
@@ -86,14 +91,15 @@ function ContactCard({ contact, categoryNames, onOpen }: { contact: Contact; cat
 }
 
 /** Suggested labels; any other label can still be typed. */
-const METHOD_LABELS = {
-  phone: ['Mobile', 'Home', 'Work', 'Main', 'Office', 'Direct', 'After hours', 'Emergency', 'School', 'Text only', 'Fax', 'Other'],
-  email: ['Personal', 'Work', 'School', 'Office', 'Billing', 'Other'],
-}
+const METHODS = {
+  phone: { legend: 'Phone numbers', title: 'Phone', value: 'Number', type: 'tel', auto: 'tel', add: 'phone', start: 'Mobile', labels: ['Mobile', 'Home', 'Work', 'Main', 'Office', 'Direct', 'After hours', 'Emergency', 'School', 'Text only', 'Fax', 'Other'] },
+  email: { legend: 'Email addresses', title: 'Email', value: 'Address', type: 'email', auto: 'email', add: 'email', start: 'Personal', labels: ['Personal', 'Work', 'School', 'Office', 'Billing', 'Other'] },
+  website: { legend: 'Websites and apps', title: 'Website', value: 'Link', type: 'url', auto: 'url', add: 'website or app link', start: 'Website', labels: ['Website', 'App', 'Patient portal', 'Booking', 'Other'] },
+} as const
 
-/** A phone or email label: one of the choices, or Custom… with a text box. A label saved before (or
+/** A phone, email or website label: one of the choices, or Custom… with a text box. A label saved before (or
  *  imported) that isn't a choice opens as Custom. */
-function MethodLabel({ id, title, choices, value, onChange }: { id: string; title: string; choices: string[]; value: string; onChange: (label: string) => void }) {
+function MethodLabel({ id, title, choices, value, onChange }: { id: string; title: string; choices: readonly string[]; value: string; onChange: (label: string) => void }) {
   const shown = contactLabel(value)
   const [custom, setCustom] = useState(() => !choices.includes(shown))
   return <div className="field"><label htmlFor={id}>{title} label</label>
@@ -105,22 +111,30 @@ function MethodLabel({ id, title, choices, value, onChange }: { id: string; titl
   </div>
 }
 
-function Methods({ title, methods, onChange }: { title: string; methods: ContactMethod[]; onChange: (methods: ContactMethod[]) => void }) {
+function Methods({ kind, methods, onChange }: { kind: keyof typeof METHODS; methods: ContactMethod[]; onChange: (methods: ContactMethod[]) => void }) {
   const id = useId()
+  const k = METHODS[kind]
   const update = (index: number, patch: Partial<ContactMethod>) => onChange(methods.map((m, i) => i === index ? { ...m, ...patch } : m))
   return <fieldset className="contact-methods">
-    <legend>{title}</legend>
+    <legend>{k.legend}</legend>
     {methods.map((method, i) => <div className="contact-method-row" key={`${id}-${i}`}>
-      <MethodLabel id={`${id}-label-${i}`} title={title === 'Phone numbers' ? 'Phone' : 'Email'} choices={METHOD_LABELS[title === 'Phone numbers' ? 'phone' : 'email']} value={method.label} onChange={label => update(i, { label })} />
-      <div className="field"><label htmlFor={`${id}-value-${i}`}>{title === 'Phone numbers' ? 'Number' : 'Address'}</label>
-        <input id={`${id}-value-${i}`} type={title === 'Phone numbers' ? 'tel' : 'email'} value={method.value} onChange={e => update(i, { value: e.target.value })} autoComplete={title === 'Phone numbers' ? 'tel' : 'email'} /></div>
-      <button type="button" className="contact-remove-method" onClick={() => onChange(methods.filter((_, n) => n !== i))} aria-label={`Remove ${title === 'Phone numbers' ? 'phone' : 'email'} ${i + 1}`}>Remove</button>
+      <MethodLabel id={`${id}-label-${i}`} title={k.title} choices={k.labels} value={method.label} onChange={label => update(i, { label })} />
+      <div className="field"><label htmlFor={`${id}-value-${i}`}>{k.value}</label>
+        <input id={`${id}-value-${i}`} type={k.type} value={method.value} onChange={e => update(i, { value: e.target.value })} autoComplete={k.auto} placeholder={kind === 'website' ? 'https://…' : undefined} /></div>
+      <button type="button" className="contact-remove-method" onClick={() => onChange(methods.filter((_, n) => n !== i))} aria-label={`Remove ${k.add} ${i + 1}`}>Remove</button>
+      {kind === 'phone' && (method.menu
+        ? <div className="contact-phone-menu">
+            <PhoneMenuEditor steps={method.menu} onChange={menu => update(i, { menu })} phone={method.value} />
+            <button type="button" className="contact-inline-btn" onClick={() => update(i, { menu: undefined })}>Remove phone menu</button>
+          </div>
+        : <button type="button" className="contact-inline-btn" onClick={() => update(i, { menu: STARTER })}>+ Phone menu (optional)</button>)}
     </div>)}
-    <button type="button" className="contact-inline-btn" onClick={() => onChange([...methods, { label: title === 'Phone numbers' ? 'Mobile' : 'Personal', value: '' }])}>+ Add {title === 'Phone numbers' ? 'phone' : 'email'}</button>
+    <button type="button" className="contact-inline-btn" onClick={() => onChange([...methods, { label: k.start, value: '' }])}>+ Add {k.add}</button>
+    {kind === 'phone' && methods.length > 0 && <p className="field-hint">A phone menu presses the keys for you when you call, like "press 2 for prescriptions".</p>}
   </fieldset>
 }
 
-function ContactForm({ initial, categories, members, onClose, onSaved }: { initial: Contact | null; categories: ContactCategory[]; members: Member[]; onClose: () => void; onSaved: (contact: Contact) => void }) {
+export function ContactForm({ initial, categories, members, onClose, onSaved }: { initial: Contact | null; categories: ContactCategory[]; members: Member[]; onClose: () => void; onSaved: (contact: Contact) => void }) {
   const { toast } = useApp()
   const id = useId()
   const [form, setForm] = useState<ContactInput>(() => {
@@ -137,14 +151,16 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
   const save = async () => {
     const name = form.name.trim()
     if (!name) { setValidation('Add a name.'); return }
-    const phones = form.phones.map(m => ({ label: m.label.trim() || 'Phone', value: m.value.trim() })).filter(m => m.value)
+    const phones = form.phones.map(m => ({ label: m.label.trim() || 'Phone', value: m.value.trim(), ...(m.menu && usable(m.menu).length ? { menu: usable(m.menu) } : {}) })).filter(m => m.value)
     const emails = form.emails.map(m => ({ label: m.label.trim() || 'Email', value: m.value.trim() })).filter(m => m.value)
+    const websites = (form.websites ?? []).map(m => ({ label: m.label.trim() || 'Website', value: m.value.trim() })).filter(m => m.value)
     if (phones.some(m => !callHref(m.value))) { setValidation('Enter a valid phone number or remove the empty row.'); return }
     if (emails.some(m => !mailHref(m.value))) { setValidation('Enter a valid email address.'); return }
+    if (websites.some(m => !webHref(m.value))) { setValidation('Enter a link that starts with https://, or an app link.'); return }
     if (form.visibility === 'selected_members' && !form.selectedMemberIds?.length) { setValidation('Choose who can see it.'); return }
     const addresses = (form.addresses ?? []).map(a => ({ ...a, street: a.street.trim(), city: a.city.trim(), region: a.region.trim(), postalCode: a.postalCode.trim() })).filter(a => formatAddress(a))
     const body: ContactInput = { ...form, name, organization: clean(form.organization ?? ''), relationship: clean(form.relationship ?? ''),
-      notes: clean(form.notes ?? ''), phones, emails, addresses }
+      notes: clean(form.notes ?? ''), phones, emails, websites, addresses }
     setSaving(true); setValidation('')
     try { onSaved(initial ? await api.updateContact(initial.id, body) : await api.createContact(body)) }
     catch (error) { toast(errorText(error, 'Could not save contact.'), true) }
@@ -157,8 +173,9 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
     <div className="field"><label htmlFor={`${id}-kind`}>Contact kind</label><select id={`${id}-kind`} value={form.kind ?? 'person'} onChange={e => change('kind', e.target.value as ContactInput['kind'])}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></div>
     <div className="row-2"><div className="field"><label htmlFor={`${id}-relationship`}>Relationship</label><input id={`${id}-relationship`} type="text" value={form.relationship ?? ''} onChange={e => change('relationship', e.target.value)} placeholder="School, doctor, neighbor…" maxLength={100} /></div>
       <div className="field"><label htmlFor={`${id}-org`}>Organization</label><input id={`${id}-org`} type="text" value={form.organization ?? ''} onChange={e => change('organization', e.target.value)} maxLength={160} autoComplete="organization" /></div></div>
-    <Methods title="Phone numbers" methods={form.phones} onChange={v => change('phones', v)} />
-    <Methods title="Email addresses" methods={form.emails} onChange={v => change('emails', v)} />
+    <Methods kind="phone" methods={form.phones} onChange={v => change('phones', v)} />
+    <Methods kind="email" methods={form.emails} onChange={v => change('emails', v)} />
+    <Methods kind="website" methods={form.websites ?? []} onChange={v => change('websites', v)} />
     <fieldset className="contact-methods"><legend>Address</legend>
       <div className="field"><label htmlFor={`${id}-street`}>Street</label><input id={`${id}-street`} type="text" value={address.street} onChange={e => changeAddress({ street: e.target.value })} maxLength={500} autoComplete="street-address" /></div>
       <div className="row-2"><div className="field"><label htmlFor={`${id}-city`}>City</label><input id={`${id}-city`} type="text" value={address.city} onChange={e => changeAddress({ city: e.target.value })} maxLength={200} autoComplete="address-level2" /></div>
@@ -197,7 +214,7 @@ function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit,
       <div><h3>{contact.name}</h3><p>{[contact.relationship, contact.organization].filter(Boolean).join(' · ') || 'Household contact'}</p></div></div>
     <div className="contact-badges">{contact.favorite && <span>★ Favorite</span>}{contact.emergency && <span>✚ Emergency</span>}{contact.wallVisible && <span>▣ On wall</span>}</div>
     {(categoryNames.length > 0 || memberNames.length > 0 || contact.serviceHours || contact.serviceArea || contact.alwaysOpen) && <section className="contact-detail-section"><h4>Directory details</h4>{categoryNames.length > 0 && <p>Categories: {categoryNames.join(', ')}</p>}{memberNames.length > 0 && <p>For: {memberNames.join(', ')}</p>}{contact.serviceHours && <p>Hours: {contact.serviceHours}</p>}{contact.alwaysOpen && <p>Available 24/7</p>}{contact.serviceArea && <p>Service area: {contact.serviceArea}</p>}</section>}
-    {contact.phones.length > 0 && <section className="contact-detail-section"><h4>Phone</h4>{contact.phones.map((m, i) => <div className="contact-detail-line" key={i}><span>{contactLabel(m.label)}</span><strong>{m.value}</strong>{callHref(m.value) && <a className="contact-action" href={callHref(m.value)!} aria-label={`Call ${contact.name}, ${m.label}`}>Call</a>}{callHref(m.value) && <a className="contact-action" href={`sms:${callHref(m.value)!.slice(4)}`} aria-label={`Text ${contact.name}, ${m.label}`}>Text</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}{meetHref(m.value) && <a className="contact-action" href={meetHref(m.value)!} aria-label={`Video call ${contact.name}, ${m.label}, with Google Meet`}>Video call</a>}<button className="contact-action" onClick={() => navigator.clipboard?.writeText(m.value)}>Copy</button></div>)}</section>}
+    {contact.phones.length > 0 && <section className="contact-detail-section"><h4>Phone</h4>{contact.phones.map((m, i) => <div className="contact-detail-line" key={i}><span>{contactLabel(m.label)}</span><strong>{m.value}</strong>{menuCallHref(m) && <a className="contact-action" href={menuCallHref(m)!} aria-label={`Call ${contact.name}, ${m.label}`}>Call</a>}{callHref(m.value) && <a className="contact-action" href={`sms:${callHref(m.value)!.slice(4)}`} aria-label={`Text ${contact.name}, ${m.label}`}>Text</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}{meetHref(m.value) && <a className="contact-action" href={meetHref(m.value)!} aria-label={`Video call ${contact.name}, ${m.label}, with Google Meet`}>Video call</a>}<button className="contact-action" onClick={() => navigator.clipboard?.writeText(m.value)}>Copy</button>{m.menu?.length ? <p className="contact-phone-steps">Phone menu: {stepsToWords(m.menu)}</p> : null}</div>)}</section>}
     {contact.emails.length > 0 && <section className="contact-detail-section"><h4>Email</h4>{contact.emails.map((m, i) => <div className="contact-detail-line" key={i}><span>{contactLabel(m.label)}</span><strong>{m.value}</strong>{mailHref(m.value) && <a className="contact-action" href={mailHref(m.value)!} aria-label={`Email ${contact.name}, ${m.label}`}>Email</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}</div>)}</section>}
     {contact.addresses?.length ? <section className="contact-detail-section"><h4>Address</h4>{contact.addresses.map((a, i) => <div className="contact-detail-line" key={i}>{a.label && <span>{contactLabel(a.label)}</span>}<strong>{formatAddress(a)}</strong><a className="contact-action" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress(a))}`}>Map</a><button className="contact-action" onClick={() => navigator.clipboard?.writeText(formatAddress(a))}>Copy</button></div>)}</section> : null}
     {contact.websites?.length ? <section className="contact-detail-section"><h4>Websites</h4>{contact.websites.map((site, i) => webHref(site.value) ? <p key={i}><a href={webHref(site.value)!} target="_blank" rel="noreferrer">{contactLabel(site.label) || site.value}</a></p> : null)}</section> : null}

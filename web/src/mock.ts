@@ -1,9 +1,9 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
-import { stepsToDial, stepsToWords, telUri, type DialStep } from './dialSteps.ts'
+import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
 import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, RefillContact, RefillContactInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -65,27 +65,24 @@ const blankInsightDay = (date: string): InsightDay => ({ date, checkedIn: false,
 // (his day started at 9:40 AM), with a week of history; Sam's vitamin wasn't marked yesterday, for the
 // catch-up buttons. The demo is a parent's device, and today's doses are due any time of day so the
 // Take now card always shows.
-const withMenu = (menu: DialStep[]) => ({ menu, phoneSteps: stepsToWords(menu), dialDigits: stepsToDial(menu) })
 const NO_REFILL: MedicationRefill = { contactId: null, pharmacyContactId: null, pharmacy: '', dateOfBirth: null, callback: '', remindOn: null }
-// Refills: Leo's allergy medicine comes from the pediatrician's office (fake 555 numbers, example.org links).
-const refillContacts: RefillContact[] = [
-  { id: 'refill1', name: 'Northside Pediatrics', appName: 'Northside patient portal', appLink: 'https://northside.example.org/refills', website: '', phone: '555-010-3300', ...withMenu([{ kind: 'wait', seconds: 4 }, { kind: 'press', digits: '2', label: 'Prescriptions' }, { kind: 'wait', seconds: 4 }, { kind: 'press', digits: '1', label: 'Refill line' }]), script: '', createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
-]
+// Refills: Leo's allergy medicine comes from the pediatrician's office (a demo contact with a phone menu).
 const DEFAULT_SCRIPT = 'Hi, this is a refill request for {name}, date of birth {dateOfBirth}.\nThe medicine is {medicine}, {dose}, taken {howOften}.\nPlease send it to {pharmacy}.\nYou can call me back at {callback}.\nThank you.'
+const safeLink = (s: string) => /^[a-z][a-z0-9+.-]*:/i.test(s) && !/^(javascript|data|vbscript|file|blob):/i.test(s)
 // As the server's routes/medication-refills.ts fillScript and telUri, for the demo.
 function refillCard(m: Medication): RefillCard {
-  const contact = refillContacts.find(c => c.id === m.refill.contactId) ?? null
+  const c = contacts.find(x => x.id === m.refill.contactId)
+  const contact = c ? { id: c.id, name: c.name, phones: c.phones.map(p => ({ label: p.label, number: p.value, steps: stepsToWords(p.menu ?? []), telUri: telUri(p.value, stepsToDial(p.menu ?? [])) })), websites: (c.websites ?? []).filter(w => safeLink(w.value)).map(w => ({ label: w.label, url: w.value })) } : null
   const n = m.times.length
   const dob = m.refill.dateOfBirth ? new Date(`${m.refill.dateOfBirth}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
   const pc = contacts.find(x => x.id === m.refill.pharmacyContactId)
   const ph = pc ? { name: pc.name, contactId: pc.id, phone: pc.phones[0]?.value ?? null, telUri: pc.phones[0] ? telUri(pc.phones[0].value, '') : null, address: pc.addresses?.[0] ? [pc.addresses[0].street, [pc.addresses[0].city, pc.addresses[0].region].filter(Boolean).join(', '), pc.addresses[0].postalCode].filter(Boolean).join(', ') : null } : m.refill.pharmacy ? { name: m.refill.pharmacy, contactId: null, phone: null, telUri: null, address: null } : null
   const v: Record<string, [string, string]> = { name: [members.find(x => x.id === m.memberId)?.name ?? '', 'name'], dateOfBirth: [dob, 'date of birth'], medicine: [m.name, 'medicine'], dose: [m.dose, 'dose'], howOften: [n === 1 ? 'once a day' : n === 2 ? 'twice a day' : `${n} times a day`, 'how often'], pharmacy: [ph?.name ?? '', 'pharmacy'], callback: [m.refill.callback, 'callback number'] }
-  const script = (contact?.script.trim() || DEFAULT_SCRIPT).replace(/\{(\w+)\}/g, (all, k: string) => (v[k] ? v[k][0] || `[${v[k][1]}]` : all))
-  const tel = contact ? telUri(contact.phone, contact.dialDigits) : null
-  return { medicationId: m.id, memberId: m.memberId, contact: contact && { ...contact }, call: contact && tel ? { number: contact.phone, steps: contact.phoneSteps, telUri: tel } : null, pharmacy: ph, script, request: m.refillRequest }
+  const script = DEFAULT_SCRIPT.replace(/\{(\w+)\}/g, (all, k: string) => (v[k] ? v[k][0] || `[${v[k][1]}]` : all))
+  return { medicationId: m.id, memberId: m.memberId, contact, pharmacy: ph, script, request: m.refillRequest }
 }
 const medications: Medication[] = [
-  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'evening', dosesLeft: null, refill: { contactId: 'refill1', pharmacyContactId: 'contact-pharmacy', pharmacy: 'Rose City Pharmacy', dateOfBirth: '2020-05-14', callback: '555-010-4400', remindOn: null }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'evening', dosesLeft: null, refill: { contactId: 'contact-northside', pharmacyContactId: 'contact-pharmacy', pharmacy: 'Rose City Pharmacy', dateOfBirth: '2020-05-14', callback: '555-010-4400', remindOn: null }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
   { id: 'med3', memberId: 'm2', name: 'Morning medicine', dose: '1 tablet', times: [{ wake: true, latest: '12:00' }], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: '3h', dosesLeft: null, refill: { ...NO_REFILL }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
   { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'endOfDay', dosesLeft: null, refill: { ...NO_REFILL }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
 ]
@@ -180,6 +177,7 @@ const contacts: Contact[] = [
   demoContact({ id: 'contact-poison', kind: 'service', name: 'Poison Control', organization: 'National Poison Control Center', relationship: 'Emergency service', title: '24-hour hotline', phones: [{ label: 'Hotline', value: '555-010-1222' }], emails: [], notes: 'For suspected poison exposure. Call immediately; do not wait for symptoms.', favorite: true, emergency: true, alwaysOpen: true, wallVisible: true, emergencyVisible: true, phoneVisibleOnWall: true, categoryIds: ['contact-category-1'], tags: ['urgent', 'medical'], serviceHours: '24/7', serviceArea: 'United States' }),
   demoContact({ id: 'contact-fire', kind: 'service', name: 'Maple Grove Fire Department', organization: 'City emergency services', relationship: 'Emergency service', phones: [{ label: 'Emergency', value: '911' }, { label: 'Non-emergency', value: '555-010-9110' }], emails: [], notes: 'Call 911 for immediate danger, fire, or medical emergencies.', favorite: true, emergency: true, alwaysOpen: true, wallVisible: true, emergencyVisible: true, phoneVisibleOnWall: true, categoryIds: ['contact-category-1'], tags: ['urgent', 'fire'], serviceHours: '24/7', serviceArea: 'Maple Grove area', addresses: [{ label: 'Office', street: '55 Harbor Way', city: 'Maple Grove', region: 'OR', postalCode: '97205', country: 'US' }] }),
   demoContact({ id: 'contact-vet', kind: 'service', name: 'Oak Animal Clinic', organization: 'Oak Animal Clinic', relationship: 'Veterinarian', phones: [{ label: 'Office', value: '555-010-9900' }], emails: [{ label: 'Office', value: 'care@example.vet' }], notes: 'Biscuit is due for a wellness visit this fall.', favorite: true, emergency: false, categoryIds: ['contact-category-3'], memberIds: ['m4'], tags: ['pet', 'Biscuit'], serviceHours: 'Mon–Sat, 8:00am–6:00pm', serviceArea: 'Maple Grove area', addresses: [{ label: 'Clinic', street: '88 Oak Avenue', city: 'Maple Grove', region: 'OR', postalCode: '97205', country: 'US' }], websites: [{ label: 'Website', value: 'https://oak-animal.example.org' }] }),
+  demoContact({ id: 'contact-northside', kind: 'service', name: 'Northside Pediatrics', relationship: 'Medical', phones: [{ label: 'Office', value: '555-010-3300', menu: [{ kind: 'wait', seconds: 4 }, { kind: 'press', digits: '2', label: 'Prescriptions' }, { kind: 'wait', seconds: 4 }, { kind: 'press', digits: '1', label: 'Refill line' }] }], categoryIds: ['contact-category-2'], memberIds: ['m3', 'm4'], serviceHours: 'Mon–Fri, 8:00am–5:00pm', websites: [{ label: 'Patient portal', value: 'https://northside.example.org/refills' }], addresses: [{ label: 'Clinic', street: '42 Cedar Avenue', city: 'Maple Grove', region: 'OR', postalCode: '97205', country: 'US' }] }),
   demoContact({ id: 'contact-pharmacy', kind: 'service', name: 'Rose City Pharmacy', organization: 'Rose City Pharmacy', relationship: 'Pharmacy', phones: [{ label: 'Pharmacy', value: '555-010-4455' }], emails: [{ label: 'Refills', value: 'refills@example.pharmacy' }], notes: 'Ask for the family pickup bin.', favorite: false, emergency: false, categoryIds: ['contact-category-2'], memberIds: ['m3', 'm4'], tags: ['medical', 'prescriptions'], serviceHours: 'Mon–Sun, 8:00am–9:00pm', serviceArea: 'Maple Grove area', websites: [{ label: 'Refill portal', value: 'https://rose-city.example.org' }], addresses: [{ label: 'Office', street: '210 Main Street', city: 'Maple Grove', region: 'OR', postalCode: '97205', country: 'US' }] }),
   demoContact({ id: 'contact-locksmith', kind: 'service', name: 'Harbor Locksmith', organization: 'Harbor Locksmith', relationship: 'Home service', phones: [{ label: 'Dispatch', value: '555-010-7788' }], emails: [{ label: 'Dispatch', value: 'dispatch@example.locksmith' }], notes: 'Trusted after-hours lockout service.', favorite: false, emergency: false, categoryIds: ['contact-category-10'], tags: ['home', 'after-hours'], serviceHours: 'Mon–Sun, 7:00am–10:00pm', serviceArea: 'Maple Grove area', addresses: [{ label: 'Office', street: '12 Industrial Way', city: 'Maple Grove', region: 'OR', postalCode: '97205', country: 'US' }] }),
   demoContact({ id: 'contact-utilities', kind: 'organization', name: 'Rose City Utilities', organization: 'Rose City Utilities', relationship: 'Utility company', phones: [{ label: 'Customer service', value: '555-010-1212' }], emails: [{ label: 'Support', value: 'support@example.utilities' }], notes: 'Account is in Alex and Sam’s names.', favorite: false, emergency: false, categoryIds: ['contact-category-10'], tags: ['home', 'account'], serviceHours: 'Mon–Fri, 7:00am–7:00pm', serviceArea: 'Maple Grove', websites: [{ label: 'Account portal', value: 'https://utilities.example.org' }], addresses: [{ label: 'Office', street: '400 Civic Plaza', city: 'Maple Grove', region: 'OR', postalCode: '97205', country: 'US' }] }),
@@ -1069,7 +1067,7 @@ export const mock = {
     for (const k of [...medLog.keys()]) if (k.startsWith(`${id}:`)) medLog.delete(k)
     bump()
   },
-  deleteAllMedications: async (): Promise<{ deleted: number }> => { const deleted = medications.length; medications.length = 0; refillContacts.length = 0; medLog.clear(); bump(); return { deleted } },
+  deleteAllMedications: async (): Promise<{ deleted: number }> => { const deleted = medications.length; medications.length = 0; medLog.clear(); bump(); return { deleted } },
   getRefillCard: async (id: string): Promise<RefillCard> => { const m = medications.find(x => x.id === id); if (!m) throw new Error('not found'); return refillCard(m) },
   refillRequest: async (id: string, action: 'open' | 'done') => {
     const m = medications.find(x => x.id === id); if (!m) throw new Error('not found')
@@ -1079,17 +1077,6 @@ export const mock = {
     notifications.unshift({ id: uid(), at: m.refillRequest.at, kind: 'medication', title: `Request refill: ${m.name} for ${members.find(x => x.id === m.memberId)?.name ?? 'someone'}`, body: null, url: `/#/medications/${m.memberId}`, memberIds: [m.memberId], source: 'system' })
     bump(); return { request: m.refillRequest, created: true }
   },
-  getRefillContacts: async (): Promise<RefillContact[]> => refillContacts.map(c => ({ ...c })),
-  addRefillContact: async (b: Partial<RefillContactInput> & { name: string }): Promise<RefillContact> => {
-    const now = new Date().toISOString()
-    const c: RefillContact = { id: uid(), appName: '', appLink: '', website: '', phone: '', script: '', ...b, ...withMenu(b.menu ?? []), createdAt: now, updatedAt: now }
-    refillContacts.push(c); bump(); return { ...c }
-  },
-  updateRefillContact: async (id: string, b: Partial<RefillContactInput>): Promise<RefillContact> => {
-    const c = refillContacts.find(x => x.id === id); if (!c) throw new Error('not found')
-    Object.assign(c, b, withMenu(b.menu ?? c.menu), { updatedAt: new Date().toISOString() }); bump(); return { ...c }
-  },
-  deleteRefillContact: async (id: string): Promise<void> => { const i = refillContacts.findIndex(x => x.id === id); if (i >= 0) refillContacts.splice(i, 1); bump() },
   getMedicationsDue: async (): Promise<MedicationsDue> => {
     if (!settings.medications) throw new Error('Medications are turned off')
     const date = dateKey(new Date()), now = Date.now()

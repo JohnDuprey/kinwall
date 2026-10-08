@@ -4,7 +4,7 @@ Kinwall's Contacts directory stores people, services, organizations, and places 
 
 An admin can turn off **Contacts** in **Settings → General** (tap **Change** under **Features**). The Contacts tab is hidden, contacts are kept, and the contacts API keeps answering. See [Features](../settings/general.md#features).
 
-Contacts support multiple categories, tags, phone numbers, email addresses, postal addresses, relationships, associated household members, service hours, service areas, an emergency flag, favorites, and wall visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
+Contacts support multiple categories, tags, phone numbers (each with an optional [phone menu](#phone-menus)), email addresses, websites and app links, postal addresses, relationships, associated household members, service hours, service areas, an emergency flag, favorites, and wall visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
 
 ## Finding a contact
 
@@ -31,6 +31,14 @@ A member's own device is one whose owner is that member under [Settings → Acce
 
 **Show on wall** (`wallVisible`) is a separate switch, off by default. On a wall screen, phone numbers show only when **Show permitted phone numbers on wall** is on (and only the numbers marked for the wall), and the address only when **Show address on wall** is on. Wall screens never get email, notes, tags, dates or who the contact is for. Members' own devices get the contact without its notes and without the fields listed in `privateFields`. `memberIds` is who a contact is for ("Leo's dentist"); `selectedMemberIds` is who may see a contact set to `selected_members`. Device keys can read contacts but can't add, import, merge, edit or delete them.
 
+## Phone menus
+
+A phone number can have a **phone menu**: the keys an office's phone tree wants, like "press 2 for prescriptions, then 1 for the refill line". In the contact form, tap **+ Phone menu (optional)** under the number and build it from steps: **Wait** a few seconds, **Press** keys (like `2` or `1234#`), or **Wait for me** (your phone asks before going on). Give a step a short label like "Prescriptions" if it helps, move steps up and down, or remove them. Under the steps you see them in words, the full number to dial, and **Try it**, which calls.
+
+On the contact's sheet, **Call** for that number dials it and then the menu (on most phones; some ignore the waits), and the steps are written out under the number so you can press them yourself. Medicines use the same contact and menu for [refills](medications.md#refills).
+
+**Websites and apps** in the contact form hold the contact's links: a website, or an app's own link (like a patient portal's) that opens the app.
+
 ## Emergency contacts
 
 The Contacts page has an Emergency filter (under **Filters → Show**) and blank templates for Poison Control, Animal Control, emergency services, police non-emergency, fire department, pediatrician, veterinarian, pharmacy, school office, utility company, locksmith, insurance provider, and custom services. Templates never guess country-specific phone numbers. Enter and verify those numbers for your household. Emergency records can include service hours or a 24/7 flag and support `tel:`, `sms:`, email, copy, and map actions. On an iPhone, iPad or Mac, phone numbers and email addresses also get **FaceTime**, which starts a FaceTime video call (by number or Apple ID email). In the Kinwall Android app, phone numbers get **Video call**, which starts a Google Meet video call to that number (or opens Google Meet in the Play Store when it isn't installed). Android browsers can't start a Meet call from a page, so they don't show it.
@@ -56,7 +64,9 @@ Direct full address-book access requires platform-specific native permissions. K
 
 The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Search and filters match only what the asking device is shown, so a wall screen or a kid's device can't find a contact by a field that's hidden from it. Import preview saves nothing and takes vCard text (`vcard`) or normalized drafts (`contacts`); the MCP tool takes drafts only.
 
-MCP provides `list_contacts` (with an optional search), `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category tools. Read results follow the caller's key scope. Import, merge, delete, and category management require administrative authorization.
+A phone's menu is `phones[].menu`: a list of up to 20 steps, `{ kind: "wait", seconds }` (1 to 60), `{ kind: "press", digits }` (digits, `*` and `#`) or `{ kind: "confirm" }` (wait for the caller), each with an optional `label`; anything else is refused (400).
+
+MCP provides `list_contacts` (with an optional search), `get_contact`, `create_contact`, `update_contact` (both take phone menus), `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category tools. Read results follow the caller's key scope. Import, merge, delete, and category management require administrative authorization.
 
 ## Export and import
 

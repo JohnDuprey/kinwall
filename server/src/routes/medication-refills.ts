@@ -1,12 +1,11 @@
 // Medicine refills: where and how a family asks for one, and a "Request refill" to-do per medicine.
 //
-// - Refill places (medication_refill_contacts, 0109): a doctor's office or pharmacy with any of an app,
-//   a website and a phone number, the phone-menu steps in words, dial digits for that menu ("," waits
-//   2 seconds, ";" waits for the caller to tap), and what to say on the message (a script with blanks).
-//   Several medicines can point to one place (medications.data refill.contactId). Sealed: one JSON,
-//   aad '<id>:refill'. Parent devices only list, add, change and delete them.
-// - The refill card (GET /api/medications/{id}/refill): the place, a tel: link with the dial digits, and
-//   the script filled in from the medicine (name, dose, how often), the person and the medicine's refill
+// - Where to ask: a family contact (medications.data refill.contactId), like the doctor's office: its
+//   phone numbers, each with its phone menu (schemas.ts ContactPhoneSchema, dial-steps.ts), and its
+//   websites and app links. Contacts aren't health data; who takes which medicine stays sealed here.
+// - The refill card (GET /api/medications/{id}/refill): that contact as this device may see it, a tel:
+//   link per phone that dials its menu ("," waits 2 seconds, ";" waits for the caller to tap), and the
+//   message filled in from the medicine (name, dose, how often), the person and the medicine's refill
 //   details (date of birth, pharmacy, callback number; sealed with the medicine). Parent devices and the
 //   person's own device; never a shared wall or another member's device (routes/medications.ts gate).
 // - The to-do (POST /api/medications/{id}/refill-request): opens a "Request refill: <medicine> for
@@ -14,27 +13,27 @@
 //   'medication', sealed, shown to parents and that person's devices); "Done, requested" closes it. Kept
 //   in the medicine rather than on a to-do list, because list items are plain text that every screen sees.
 //   A medicine's refill.remindOn day opens one by itself (notify.ts runMedicationReminders).
+// - Refill places from before (medication_refill_contacts, 0109, sealed) become contacts once
+//   (convertRefillPlaces, from entry.ts and a data import). The table stays, empty, until a later migration drops it.
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
 import { requestKey } from '../auth.ts';
-import { seal, unseal, type EncryptionEnv } from '../crypto.ts';
-import { ErrorSchema } from '../schemas.ts';
+import { unseal, type EncryptionEnv } from '../crypto.ts';
+import { ContactInputSchema, DialStepSchema, ErrorSchema } from '../schemas.ts';
 import { recordNotification } from '../notify.ts';
-import { contactFor } from './contacts.ts';
+import { contactFor, fromRow, inputOf, insert, update, type ContactRow } from './contacts.ts';
+import { phoneKey } from '../vcard.ts';
 import { dialToSteps, stepsToDial, stepsToWords, type DialStep } from '../dial-steps.ts';
-import { RefillRequestSchema, PARENTS, PRIVATE, bumpRev, findMed, gate, openMedication, sealMedication, type Medication, type MedRow } from './medications.ts';
+import { RefillRequestSchema, PRIVATE, bumpRev, findMed, gate, loadMedications, openMedication, sealMedication, type Medication, type MedRow } from './medications.ts';
 
 export const medicationRefillRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
 
-// Dial digits after the number: digits, + * #, "," (a 2-second pause) and ";" (wait for the caller).
-export const DIAL_RE = /^[0-9+,;*#]*$/;
-const PHONE_RE = /^[0-9+()\-.\s]*$/;
-// An app link may be an app's own scheme (e.g. "myclinic://"), never one that runs code or reads files.
-const safeLink = (s: string) => s === '' || (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^(javascript|data|vbscript|file|blob):/i.test(s));
+// A link the card opens: a website, or an app's own link (e.g. "myclinic://"), never one that runs code or reads files.
+const safeLink = (s: string) => /^[a-z][a-z0-9+.-]*:/i.test(s) && !/^(javascript|data|vbscript|file|blob):/i.test(s);
 
 export const DEFAULT_SCRIPT = [
   'Hi, this is a refill request for {name}, date of birth {dateOfBirth}.',
@@ -44,38 +43,18 @@ export const DEFAULT_SCRIPT = [
   'Thank you.',
 ].join('\n');
 
-const Label = z.string().trim().max(40).optional();
-export const DialStepSchema = z.union([
-  z.object({ kind: z.literal('wait'), seconds: z.number().int().min(1).max(60), label: Label }).strict(),
-  z.object({ kind: z.literal('press'), digits: z.string().regex(/^[0-9*#]{1,20}$/, 'press: digits, * and # only'), label: Label }).strict(),
-  z.object({ kind: z.literal('confirm'), label: Label }).strict(),
-]).openapi('MedicationRefillDialStep');
-const ContactFields = {
-  name: z.string().trim().min(1).max(80).openapi({ description: 'The office or pharmacy, e.g. "Maple Street Pediatrics".' }),
-  appName: z.string().trim().max(60).openapi({ description: 'The app to ask through, by name.' }),
-  appLink: z.string().trim().max(500).refine(safeLink, 'appLink: a link').openapi({ description: "A link that opens the app or its refill page (https:// or the app's own link)." }),
-  website: z.string().trim().max(500).refine((s) => s === '' || /^https?:\/\//i.test(s), 'website: an http(s) link').openapi({ description: 'A website to ask on.' }),
-  phone: z.string().trim().max(30).regex(PHONE_RE, 'phone: a phone number').openapi({ description: 'The number to call, as written, e.g. "(555) 010-2233".' }),
-  menu: z.array(DialStepSchema).max(20).openapi({ description: 'The phone menu, step by step: wait some seconds, press keys, or wait until the caller is ready. Each step may have a short label ("Prescriptions").' }),
-  script: z.string().trim().max(1000).openapi({ description: "What to say on the message; '' uses the default. Blanks: {name} {dateOfBirth} {medicine} {dose} {howOften} {pharmacy} {callback}." }),
-};
-export const RefillContactSchema = z.object({
-  id: z.string(), ...ContactFields,
-  phoneSteps: z.string().openapi({ description: 'The menu in words, from menu: "Wait 4 seconds, then press 2 (Prescriptions)."' }),
-  dialDigits: z.string().openapi({ description: 'Dialed after the number, from menu: "," waits 2 seconds, ";" waits until the caller taps.' }),
-  createdAt: z.string(), updatedAt: z.string() }).openapi('MedicationRefillContact');
-const ContactInputSchema = z.object({
-  name: ContactFields.name, appName: ContactFields.appName.default(''), appLink: ContactFields.appLink.default(''), website: ContactFields.website.default(''),
-  phone: ContactFields.phone.default(''), menu: ContactFields.menu.default([]), script: ContactFields.script.default(''),
-}).openapi('MedicationRefillContactInput');
-const ContactPatchSchema = z.object(ContactFields).partial().openapi('MedicationRefillContactPatch');
-export type RefillContact = z.infer<typeof RefillContactSchema>;
-type ContactRow = { id: string; data: string; created_at: string; updated_at: string };
-
+const RefillPhoneSchema = z.object({
+  label: z.string(), number: z.string(),
+  steps: z.string().openapi({ description: 'The phone menu in words: "Wait 4 seconds, then press 2 (Prescriptions)."; \'\' without one.' }),
+  telUri: z.string().nullable().openapi({ description: 'tel: link that dials the menu after the number; not every phone waits at the pauses, so show the steps too.' }),
+}).openapi('MedicationRefillPhone');
 export const RefillCardSchema = z.object({
   medicationId: z.string(), memberId: z.string(),
-  contact: RefillContactSchema.nullable(),
-  call: z.object({ number: z.string(), steps: z.string(), telUri: z.string().openapi({ description: 'tel: link with the dial digits; not every phone waits at the pauses, so show the steps too.' }) }).nullable(),
+  contact: z.object({
+    id: z.string(), name: z.string(),
+    phones: z.array(RefillPhoneSchema),
+    websites: z.array(z.object({ label: z.string(), url: z.string() })).openapi({ description: "The contact's websites and app links." }),
+  }).nullable().openapi({ description: 'Where to ask: the contact picked as refill.contactId, as this device may see it; null when none is picked (or this device can\'t see it).' }),
   pharmacy: z.object({
     name: z.string(), contactId: z.string().nullable().openapi({ description: 'The picked contact, when this device can see it; null: the typed name.' }),
     phone: z.string().nullable(), telUri: z.string().nullable(), address: z.string().nullable().openapi({ description: 'One line, for a map search.' }),
@@ -83,35 +62,6 @@ export const RefillCardSchema = z.object({
   script: z.string().openapi({ description: 'The message filled in; a blank the family has not entered stays in [brackets].' }),
   request: RefillRequestSchema.nullable(),
 }).openapi('MedicationRefillCard');
-
-const aad = (id: string) => `${id}:refill`;
-export const sealContact = (env: EncryptionEnv, c: Omit<RefillContact, 'phoneSteps' | 'dialDigits'>) => {
-  const { id: _i, createdAt: _c, updatedAt: _u, phoneSteps: _p, dialDigits: _d, ...data } = c as RefillContact;
-  return seal(env, JSON.stringify(data), aad(c.id));
-};
-/** With its dial string and written steps, both from the menu. */
-export function withMenu<T extends { menu: DialStep[] }>(c: T): T & { phoneSteps: string; dialDigits: string } {
-  const dialDigits = stepsToDial(c.menu);
-  if (!DIAL_RE.test(dialDigits)) throw new Error('bad dial string'); // the steps' schema rules this out
-  return { ...c, phoneSteps: stepsToWords(c.menu), dialDigits };
-}
-export async function openContact(env: EncryptionEnv, r: ContactRow): Promise<RefillContact> {
-  const d = JSON.parse(await unseal(env, r.data, aad(r.id)));
-  // A place saved with a raw dial string (before steps): its steps from that string.
-  const menu: DialStep[] = d.menu ?? dialToSteps(d.dialDigits ?? '');
-  return withMenu({ id: r.id, name: d.name, appName: d.appName ?? '', appLink: d.appLink ?? '', website: d.website ?? '', phone: d.phone ?? '', menu, script: d.script ?? '', createdAt: r.created_at, updatedAt: r.updated_at });
-}
-export async function loadContacts(env: EncryptionEnv & { DB: KinwallDb }): Promise<RefillContact[]> {
-  const { results } = await env.DB.prepare('SELECT * FROM medication_refill_contacts ORDER BY created_at, id').all<ContactRow>();
-  return Promise.all(results.map((r) => openContact(env, r)));
-}
-export async function writeContact(env: EncryptionEnv & { DB: KinwallDb }, c: Omit<RefillContact, 'phoneSteps' | 'dialDigits'>) {
-  const data = await sealContact(env, c); // throws without a key, before anything is written
-  await env.DB.batch([
-    env.DB.prepare('INSERT INTO medication_refill_contacts (id, data, created_at, updated_at) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at').bind(c.id, data, c.createdAt, c.updatedAt),
-    bumpRev(env.DB),
-  ]);
-}
 
 /** "tel:5550102233,,2,1": the number's digits (and a leading +), then the dial digits; # is escaped. */
 export function telUri(phone: string, dialDigits: string): string | null {
@@ -131,7 +81,7 @@ export function howOften(m: Pick<Medication, 'times' | 'days'>): string {
 const spokenDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
 /** The message with its blanks filled; one with nothing known stays as "[date of birth]" so it's said aloud. */
-export function fillScript(template: string, m: Medication, memberName: string, pharmacy = m.refill.pharmacy): string {
+export function fillScript(m: Medication, memberName: string, pharmacy = m.refill.pharmacy, template = DEFAULT_SCRIPT): string {
   const v: Record<string, [string, string]> = {
     name: [memberName, 'name'],
     dateOfBirth: [m.refill.dateOfBirth ? spokenDate(m.refill.dateOfBirth) : '', 'date of birth'],
@@ -141,7 +91,7 @@ export function fillScript(template: string, m: Medication, memberName: string, 
     pharmacy: [pharmacy, 'pharmacy'],
     callback: [m.refill.callback, 'callback number'],
   };
-  return (template.trim() || DEFAULT_SCRIPT).replace(/\{(\w+)\}/g, (all, k: string) => (v[k] ? v[k][0] || `[${v[k][1]}]` : all));
+  return template.replace(/\{(\w+)\}/g, (all, k: string) => (v[k] ? v[k][0] || `[${v[k][1]}]` : all));
 }
 
 /** Open a refill request on a medicine unless one is open: written only if nobody changed the medicine
@@ -175,79 +125,6 @@ const TAG = ['Medications'];
 export const RefillRequestResultSchema = z.object({ request: RefillRequestSchema.nullable(), created: z.boolean() }).openapi('MedicationRefillRequestResult');
 const idParams = z.object({ id: z.string() });
 
-/** The gate for a parent-only route: a parent device, or what to answer. */
-async function parentGate(c: C) {
-  const g = await gate(c);
-  if (g.fail) return { fail: g.fail, status: g.status };
-  if (g.who.kind !== 'parent') return { fail: PARENTS, status: 403 as const };
-  return g;
-}
-medicationRefillRoutes.openapi(
-  createRoute({
-    method: 'get', path: '/api/medication-refill-contacts', tags: TAG, security: [{ Bearer: [] }],
-    summary: 'Refill places: where the family asks for medicine refills (parent devices only).',
-    responses: { 200: { description: 'ok', content: json(z.array(RefillContactSchema)) }, ...denied },
-  }),
-  async (c) => {
-    const g = await parentGate(c);
-    if ('fail' in g) return c.json(g.fail, g.status);
-    return c.json(await loadContacts(c.env), 200);
-  },
-);
-
-medicationRefillRoutes.openapi(
-  createRoute({
-    method: 'post', path: '/api/medication-refill-contacts', tags: TAG, security: [{ Bearer: [] }],
-    summary: 'Add a refill place (parent devices only).',
-    request: { body: { content: json(ContactInputSchema) } },
-    responses: { 201: { description: 'added', content: json(RefillContactSchema) }, 400: err('bad input'), ...denied },
-  }),
-  async (c) => {
-    const g = await parentGate(c);
-    if ('fail' in g) return c.json(g.fail, g.status);
-    const now = new Date().toISOString();
-    const contact = withMenu({ id: crypto.randomUUID(), ...c.req.valid('json'), createdAt: now, updatedAt: now });
-    await writeContact(c.env, contact);
-    return c.json(contact, 201);
-  },
-);
-
-medicationRefillRoutes.openapi(
-  createRoute({
-    method: 'patch', path: '/api/medication-refill-contacts/{id}', tags: TAG, security: [{ Bearer: [] }],
-    summary: 'Change a refill place (only the fields sent; parent devices only). Every medicine pointing to it follows.',
-    request: { params: idParams, body: { content: json(ContactPatchSchema) } },
-    responses: { 200: { description: 'saved', content: json(RefillContactSchema) }, 400: err('bad input'), ...denied },
-  }),
-  async (c) => {
-    const g = await parentGate(c);
-    if ('fail' in g) return c.json(g.fail, g.status);
-    const row = await c.env.DB.prepare('SELECT * FROM medication_refill_contacts WHERE id = ?').bind(c.req.valid('param').id).first<ContactRow>();
-    if (!row) return c.json({ error: 'not found' }, 404);
-    const patch = Object.fromEntries(Object.entries(c.req.valid('json')).filter(([, v]) => v !== undefined));
-    const contact = withMenu({ ...(await openContact(c.env, row)), ...patch, updatedAt: new Date().toISOString() });
-    await writeContact(c.env, contact);
-    return c.json(contact, 200);
-  },
-);
-
-medicationRefillRoutes.openapi(
-  createRoute({
-    method: 'delete', path: '/api/medication-refill-contacts/{id}', tags: TAG, security: [{ Bearer: [] }],
-    summary: 'Delete a refill place (parent devices only). Medicines that pointed to it keep their other refill details.',
-    request: { params: idParams },
-    responses: { 204: { description: 'deleted' }, ...denied },
-  }),
-  async (c) => {
-    const g = await parentGate(c);
-    if ('fail' in g) return c.json(g.fail, g.status);
-    const res = await c.env.DB.prepare('DELETE FROM medication_refill_contacts WHERE id = ?').bind(c.req.valid('param').id).run();
-    if (!res.meta.changes) return c.json({ error: 'not found' }, 404);
-    await bumpRev(c.env.DB).run();
-    return c.body(null, 204);
-  },
-);
-
 /** The medicine for a card or request route, if this caller may see it. */
 type Refused = { fail: { error: string }; status: 403 | 404 };
 async function medFor(c: C, id: string): Promise<Refused | { m: Medication }> {
@@ -271,10 +148,13 @@ medicationRefillRoutes.openapi(
     const r = await medFor(c, c.req.valid('param').id);
     if (!('m' in r)) return c.json(r.fail, r.status);
     const { m } = r;
-    const row = m.refill.contactId ? await c.env.DB.prepare('SELECT * FROM medication_refill_contacts WHERE id = ?').bind(m.refill.contactId).first<ContactRow>() : null;
-    const contact = row ? await openContact(c.env, row) : null;
+    const where = m.refill.contactId ? await contactFor(c, m.refill.contactId) : null;
     const member = await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(m.memberId).first<{ name: string }>();
-    const tel = contact ? telUri(contact.phone, contact.dialDigits) : null;
+    const contact = where && {
+      id: where.id, name: where.name,
+      phones: where.phones.map((p) => ({ label: p.label, number: p.value, steps: stepsToWords(p.menu ?? []), telUri: telUri(p.value, stepsToDial(p.menu ?? [])) })),
+      websites: where.websites.filter((w) => safeLink(w.value)).map((w) => ({ label: w.label, url: w.value })),
+    };
     // A pharmacy contact this device can't see (a grown-ups-only one on a kid's device) falls back to the typed name.
     const pc = m.refill.pharmacyContactId ? await contactFor(c, m.refill.pharmacyContactId) : null;
     const phone = pc?.phones[0]?.value ?? null;
@@ -284,9 +164,8 @@ medicationRefillRoutes.openapi(
       : m.refill.pharmacy ? { name: m.refill.pharmacy, contactId: null, phone: null, telUri: null, address: null } : null;
     return c.json({
       medicationId: m.id, memberId: m.memberId, contact,
-      call: contact && tel ? { number: contact.phone, steps: contact.phoneSteps, telUri: tel } : null,
       pharmacy,
-      script: fillScript(contact?.script ?? '', m, member?.name ?? '', pharmacy?.name ?? ''),
+      script: fillScript(m, member?.name ?? '', pharmacy?.name ?? ''),
       request: m.refillRequest,
     }, 200);
   },
@@ -317,3 +196,49 @@ medicationRefillRoutes.openapi(
     return c.json({ request: now?.refillRequest ?? null, created: false }, 200);
   },
 );
+
+// ---- Refill places from before (0109) become contacts, once. ----
+// Each sealed place: a contact with the same name gets its phone (with the phone menu, or the menu on
+// that number when it had none) and its app link and website; with none, a new service contact
+// (relationship Medical) holds them. Its medicines then point to that contact, and the place is deleted
+// only once they all do. Run again after a crash, the same-name match means no second contact.
+// The per-place message was dropped: every card uses DEFAULT_SCRIPT now.
+// ponytail: delete this with the migration that drops medication_refill_contacts.
+type PlaceRow = { id: string; data: string };
+const PlaceMenu = z.array(DialStepSchema).max(20);
+export async function convertRefillPlaces(env: EncryptionEnv & { DB: KinwallDb }): Promise<number> {
+  const { results } = await env.DB.prepare('SELECT id, data FROM medication_refill_contacts ORDER BY created_at, id').all<PlaceRow>();
+  if (!results.length) return 0;
+  const meds = await loadMedications(env);
+  for (const r of results) {
+    const d = JSON.parse(await unseal(env, r.data, `${r.id}:refill`)) as { name: string; appName?: string; appLink?: string; website?: string; phone?: string; menu?: DialStep[]; dialDigits?: string };
+    const parsedMenu = PlaceMenu.safeParse(d.menu ?? dialToSteps(d.dialDigits ?? ''));
+    const menu = parsedMenu.success ? parsedMenu.data : []; // a place saved before steps, with a pause too long for a step: no menu
+    const phone = d.phone?.trim() ?? '';
+    const links = [d.appLink?.trim() && { label: (d.appName?.trim() || 'App').slice(0, 50), value: d.appLink.trim() }, d.website?.trim() && { label: 'Website', value: d.website.trim() }].filter((x): x is { label: string; value: string } => !!x);
+    const same = await env.DB.prepare('SELECT * FROM contacts WHERE name = ? COLLATE NOCASE ORDER BY created_at, id LIMIT 1').bind(d.name.trim()).first<ContactRow>();
+    let id: string;
+    if (same) {
+      const c = inputOf(fromRow(same));
+      const at = phone ? c.phones.findIndex((p) => phoneKey(p.value) === phoneKey(phone)) : -1;
+      const phones = !phone ? c.phones
+        : at < 0 ? [...c.phones, { label: 'Refills', value: phone, primary: false, emergency: false, wallVisible: false, ...(menu.length ? { menu } : {}) }]
+        : c.phones.map((p, i) => (i === at && !p.menu?.length && menu.length ? { ...p, menu } : p));
+      const websites = [...c.websites, ...links.filter((l) => !c.websites.some((w) => w.value === l.value)).map((l) => ({ ...l, primary: false, emergency: false, wallVisible: false }))];
+      await update(env.DB, same.id, ContactInputSchema.parse({ ...c, phones, websites }));
+      id = same.id;
+    } else {
+      id = (await insert(env.DB, ContactInputSchema.parse({ kind: 'service', name: d.name.trim(), relationship: 'Medical', phones: phone ? [{ label: 'Office', value: phone, ...(menu.length ? { menu } : {}) }] : [], websites: links }))).id;
+    }
+    for (const m of meds.filter((x) => x.refill.contactId === r.id)) {
+      const row = await env.DB.prepare('SELECT * FROM medications WHERE id = ?').bind(m.id).first<MedRow>();
+      if (!row) continue;
+      const now = await openMedication(env, row);
+      const res = await env.DB.prepare('UPDATE medications SET data = ? WHERE id = ? AND data = ?').bind(await sealMedication(env, { ...now, refill: { ...now.refill, contactId: id } }), m.id, row.data).run();
+      if (!res.meta.changes) throw new Error('medicine changed meanwhile'); // the next run tries again
+    }
+    await env.DB.prepare('DELETE FROM medication_refill_contacts WHERE id = ?').bind(r.id).run();
+  }
+  await bumpRev(env.DB).run();
+  return results.length;
+}
