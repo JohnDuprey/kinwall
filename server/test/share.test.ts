@@ -152,7 +152,7 @@ test('share: parent devices only; Meals or Reading off refuses with a clear mess
   for (const body of [{ url: 'https://food.example/lemon-chicken' }, { url: 'https://cornerslice.example/' }, { kind: 'restaurant', name: 'Golden Bowl' }]) {
     const res = await share(body);
     assert.equal(res.status, 403, JSON.stringify(body));
-    assert.match(res.json.summary, /Meals is turned off in Settings → Features/);
+    assert.match(res.json.summary, /Meals is turned off in Settings → General → Features/);
   }
   const book = await share({ kind: 'book', text: '9780547928227' });
   assert.equal(book.status, 403);

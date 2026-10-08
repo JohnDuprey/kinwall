@@ -68,7 +68,7 @@ export const PollInputSchema = z
   .openapi('PollInput');
 
 const params = z.object({ id: z.string() });
-const OFF = { error: 'Polls are turned off in Settings → Features' };
+const OFF = { error: 'Polls are turned off in Settings → General → Features' };
 const errors = {
   400: { description: 'invalid request', content: { 'application/json': { schema: ErrorSchema } } },
   403: { description: 'parents only, or this device votes only for its owner', content: { 'application/json': { schema: ErrorSchema } } },
@@ -156,7 +156,7 @@ pollsRoutes.openapi(
     const input = c.req.valid('json');
     const recipeIds = input.options.flatMap((o) => (o.recipeId ? [o.recipeId] : []));
     const restaurantIds = input.options.flatMap((o) => (o.restaurantId ? [o.restaurantId] : []));
-    if ((recipeIds.length || restaurantIds.length) && !features.meals) return c.json({ error: 'Recipe and restaurant choices need Meals on in Settings → Features' }, 400);
+    if ((recipeIds.length || restaurantIds.length) && !features.meals) return c.json({ error: 'Recipe and restaurant choices need Meals on in Settings → General → Features' }, 400);
     const [recipes, places] = await db.batch<{ id: string; name: string }>([
       db.prepare('SELECT id, name FROM recipes WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(recipeIds)),
       db.prepare('SELECT id, name FROM restaurants WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(restaurantIds)),

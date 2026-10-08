@@ -18,7 +18,7 @@ When it's done, you see one line, such as "Imported Lemon chicken", "Added Wool 
 * **Books** with an ISBN (the barcode's number, read off a photo, with or without dashes) are added like **Scan**: looked up on [Open Library](https://openlibrary.org), and a book that's already in the library isn't added twice. Without an ISBN, Kinwall searches Open Library for the title and author and adds the book only when there's one clear match. Otherwise it opens **Add a book** with the title filled in, so you can look it up and pick the right one.
 * **Events are never saved without you.** Kinwall reads the title, date, time and place it can find, and a date without a year is the next one coming up. With the Kinwall app, the share sheet shows them for you to fix and add to a calendar right there (below). Otherwise Kinwall opens the new event sheet with them filled in: check them, pick the calendar and who it's for, and tap **Add event**. Anything it couldn't find is left for you. Only a parent's phone adds events.
 
-Meals and Reading have switches in **Settings → Features**. While one is off, Kinwall says so ("Meals is turned off in Settings → Features") and adds nothing there.
+Meals and Reading have switches in **Settings → General → Features**. While one is off, Kinwall says so ("Meals is turned off in Settings → General → Features") and adds nothing there.
 
 ## With the Kinwall app
 

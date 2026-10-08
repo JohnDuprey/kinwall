@@ -231,7 +231,7 @@ pushRoutes.openapi(
   }),
   async (c) => {
     const body = c.req.valid('json');
-    if (!(await readFeatures(c.env.DB)).messages) return c.json({ error: 'Family messages are turned off in Settings → Features' }, 403);
+    if (!(await readFeatures(c.env.DB)).messages) return c.json({ error: 'Family messages are turned off in Settings → General → Features' }, 403);
     // The MCP server calls this route in-process and tags itself; anything else is the REST API.
     const source = c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api';
     await recordNotification(c.env.DB, { kind: 'message', title: body.title, body: body.body, url: body.url, memberIds: body.memberIds, source });

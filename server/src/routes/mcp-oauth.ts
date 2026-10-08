@@ -368,7 +368,7 @@ mcpOAuthRoutes.get('/api/authorizations', async (c) => {
 
 // Whose device a signed-in app is: the grant and its current access key change now, the next
 // refresh copies it too. Widget/watch keys the app already made are displays of their own
-// (Settings → Access → Displays). Only the app's sign-ins have an owner, not MCP clients.
+// (Settings → Access → Paired devices). Only the app's sign-ins have an owner, not MCP clients.
 mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   const m = await managerGrant(c.env.DB, await resolveKey(c));
   // the app can't reassign or disconnect itself here (Sign out does that)

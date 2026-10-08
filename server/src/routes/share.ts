@@ -66,7 +66,7 @@ const ShareErrorSchema = z.object({ error: z.string(), summary: z.string().descr
 const err = { content: { 'application/json': { schema: ShareErrorSchema } } };
 
 const origin = (c: C) => (c.env.PUBLIC_URL ? new URL(c.env.PUBLIC_URL).origin : new URL(c.req.url).origin);
-const MEALS_OFF = 'Meals is turned off in Settings → Features';
+const MEALS_OFF = 'Meals is turned off in Settings → General → Features';
 
 export function shareRoutes(app: App) {
   const routes = createRouter();
@@ -117,7 +117,7 @@ export function shareRoutes(app: App) {
     if (kind === 'restaurant') return restaurant();
 
     if (kind === 'book') {
-      if (!settings.features.trackersReading) return fail('Reading is turned off in Settings → Features', 403);
+      if (!settings.features.trackersReading) return fail('Reading is turned off in Settings → General → Features', 403);
       const add = async (body: object) => {
         const res = await app.request('/api/library', { method: 'POST', headers: { Authorization: c.req.header('Authorization') ?? '', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, c.env);
         const json = (await res.json()) as { id?: string; title?: string; error?: string; book?: { id: string; title: string } };

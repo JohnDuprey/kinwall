@@ -396,7 +396,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-ord
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);
   if (!meal) return c.json({ error: 'meal not found' }, 404);
   if (meal.mealKind !== 'dining_out') return c.json({ error: 'orders are for dining-out meals' }, 400);
-  if (!(await readFeatures(c.env.DB)).meals) return c.json({ error: 'Meals is turned off in Settings → Features' }, 403);
+  if (!(await readFeatures(c.env.DB)).meals) return c.json({ error: 'Meals is turned off in Settings → General → Features' }, 403);
   const day = new Date(`${meal.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   const title = `${meal.title}, ${day} ${meal.slot}: what do you want?`;
   const text = `${meal.orderType ? `${ORDER_HOW[meal.orderType]}. ` : ''}Tap to add your order.`;

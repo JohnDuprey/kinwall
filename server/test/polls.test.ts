@@ -98,7 +98,7 @@ test('polls: one vote each, changeable while open; a kid\'s device votes only fo
   assert.equal((await t.send('GET', `/api/polls/${tie.id}`)).status, 404);
 });
 
-test('polls: off in Settings → Features means gone: routes answer 404, no notes in the bell; recipe choices need Meals', async () => {
+test('polls: off in Settings → General → Features means gone: routes answer 404, no notes in the bell; recipe choices need Meals', async () => {
   const t = await setup();
   const poll = (await t.send('POST', '/api/polls', { question: 'Weekend plans?', options: [{ label: 'Hike' }, { label: 'Zoo' }] })).body;
   await new Promise((r) => setTimeout(r, 20));

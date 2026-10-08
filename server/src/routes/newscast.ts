@@ -78,7 +78,7 @@ const addDays = (date: string, n: number) => {
 };
 const photoRef = (id: string) => ({ id, url: `/api/photos/${id}/image` });
 const quote = (s: string | null | undefined) => (s ? `“${s}”` : null);
-const OFF = { error: 'Newscast is turned off in Settings → Features' };
+const OFF = { error: 'Newscast is turned off in Settings → General → Features' };
 
 type PostRow = { id: string; member_id: string | null; text: string; emoji: string | null; photo_id: string | null; audience: 'everyone' | 'grownups'; status: 'live' | 'removed'; created_at: string };
 
