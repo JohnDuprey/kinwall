@@ -85,14 +85,33 @@ function ContactCard({ contact, categoryNames, onOpen }: { contact: Contact; cat
   </button>
 }
 
+/** Suggested labels; any other label can still be typed. */
+const METHOD_LABELS = {
+  phone: ['Mobile', 'Home', 'Work', 'Main', 'Office', 'Direct', 'After hours', 'Emergency', 'School', 'Text only', 'Fax', 'Other'],
+  email: ['Personal', 'Work', 'School', 'Office', 'Billing', 'Other'],
+}
+
+/** A phone or email label: one of the choices, or Custom… with a text box. A label saved before (or
+ *  imported) that isn't a choice opens as Custom. */
+function MethodLabel({ id, title, choices, value, onChange }: { id: string; title: string; choices: string[]; value: string; onChange: (label: string) => void }) {
+  const shown = contactLabel(value)
+  const [custom, setCustom] = useState(() => !choices.includes(shown))
+  return <div className="field"><label htmlFor={id}>{title} label</label>
+    <select id={id} value={custom ? '' : shown} onChange={e => { const v = e.target.value; setCustom(!v); onChange(v) }}>
+      {choices.map(l => <option key={l} value={l}>{l}</option>)}
+      <option value="">Custom…</option>
+    </select>
+    {custom && <input type="text" value={value} onChange={e => onChange(e.target.value)} aria-label={`${title} label`} placeholder={title === 'Phone' ? "Grandma's house…" : 'Soccer club…'} maxLength={40} autoFocus={!value} />}
+  </div>
+}
+
 function Methods({ title, methods, onChange }: { title: string; methods: ContactMethod[]; onChange: (methods: ContactMethod[]) => void }) {
   const id = useId()
   const update = (index: number, patch: Partial<ContactMethod>) => onChange(methods.map((m, i) => i === index ? { ...m, ...patch } : m))
   return <fieldset className="contact-methods">
     <legend>{title}</legend>
     {methods.map((method, i) => <div className="contact-method-row" key={`${id}-${i}`}>
-      <div className="field"><label htmlFor={`${id}-label-${i}`}>{title === 'Phone numbers' ? 'Phone' : 'Email'} label</label>
-        <input id={`${id}-label-${i}`} type="text" value={method.label} onChange={e => update(i, { label: e.target.value })} placeholder="Home, work…" maxLength={40} /></div>
+      <MethodLabel id={`${id}-label-${i}`} title={title === 'Phone numbers' ? 'Phone' : 'Email'} choices={METHOD_LABELS[title === 'Phone numbers' ? 'phone' : 'email']} value={method.label} onChange={label => update(i, { label })} />
       <div className="field"><label htmlFor={`${id}-value-${i}`}>{title === 'Phone numbers' ? 'Number' : 'Address'}</label>
         <input id={`${id}-value-${i}`} type={title === 'Phone numbers' ? 'tel' : 'email'} value={method.value} onChange={e => update(i, { value: e.target.value })} autoComplete={title === 'Phone numbers' ? 'tel' : 'email'} /></div>
       <button type="button" className="contact-remove-method" onClick={() => onChange(methods.filter((_, n) => n !== i))} aria-label={`Remove ${title === 'Phone numbers' ? 'phone' : 'email'} ${i + 1}`}>Remove</button>
