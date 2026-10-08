@@ -60,6 +60,11 @@ test('restaurant import: prices are lenient and AI header lines become fields', 
   });
   // Plain photo text has no header.
   assert.deepEqual(splitMenuHeader('Pizza\nCheese 12'), { fields: {}, menuText: 'Pizza\nCheese 12' });
+  // Several photos: each page may start with header lines (a model tidied them page by page); the
+  // first page's win and the rest are filled from later pages only when empty.
+  assert.deepEqual(splitMenuHeader('Name: Corner Slice\nMenu:\nPizza\nCheese 12\n--- Page 2 ---\nName: Corner Slice Pizzeria\nPhone: 555-0100\nMenu:\nSides\nFries 3'), {
+    fields: { name: 'Corner Slice', phone: '555-0100' }, menuText: 'Pizza\nCheese 12\n--- Page 2 ---\nSides\nFries 3',
+  });
 });
 
 test('restaurant import: creates a place, then matches it by name, fills only empty fields and appends new items', async () => {

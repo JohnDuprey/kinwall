@@ -30,6 +30,7 @@ In Safari, Maps, Photos, the Camera, or any app with a **Share** button, tap **S
 
 * **A link or a place in Maps** goes to Kinwall straight away.
 * **A photo or some text** is read on the iPhone first ("Reading the photo…"); nothing leaves the phone for that.
+  * **Several photos** work too, up to 10: a menu that's double-sided or doesn't fit in one picture. Select them all in Photos, then **Share → Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go to Kinwall together, in the order you picked them, as one menu (or one event). The sheet guesses a menu when it can't tell, such as "Looks like a menu: Corner Slice, 3 pages". If the restaurant is already in Kinwall, it says so ("Corner Slice is already in Kinwall, so these will be added to its menu"), and only the items that aren't there yet are added.
   * A book's barcode means a book, and it's added straight away.
   * On an iPhone with Apple Intelligence (iOS 26 or later), the on-device model works out what it is and sorts the words into the lines Kinwall reads best. The sheet shows its guess, such as "Looks like a menu: Corner Slice". Tap **Add to Kinwall**, or **Not a menu?** to pick Restaurant, Book or Event yourself. An event goes straight to its fields (below), with **Not an event?** under them.
   * Without Apple Intelligence, or when the model isn't sure or takes more than about 20 seconds, the sheet asks **What is this?** (Restaurant, Book or Event) and sends the words as they were read. That works for most covers and menus; busy flyers come out better with the model.
@@ -45,11 +46,11 @@ Only a grown-up's phone can add things, on iPhone and Android. On a wall screen 
 The app adds an **Add to Kinwall** action to the Shortcuts app. It has three settings, all optional:
 
 * **What it is**: **Automatic** (the default), **Recipe**, **Restaurant**, **Book** or **Event**. With Automatic, a link is read by Kinwall; for a photo or text, a book's barcode or Apple Intelligence's guess decides, and otherwise it asks "What is this?".
-* **Photo**: an image, such as **Shortcut Input** or a photo from **Take Photo**.
+* **Photos**: one image or several, such as **Shortcut Input**, a photo from **Take Photo**, or the pages of a menu from **Select Photos** with **Select Multiple** on. Several photos go as one menu (or one event).
 * **Text or link**: some text, or a web or Maps link.
 * **Calendar**: for an event, the calendar to add it to (it starts on the family's default calendar). With a calendar, the event is saved there straight away; without one, the action passes on a link that opens the event sheet filled in, to check first.
 
-It shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photo** or **Text or link** to **Shortcut Input**.
+It shows Kinwall's one line and passes on a link that opens the Kinwall app at what was added (or at what to check), for **Open URLs**. For a share-sheet shortcut of your own, set **Receive** to **Images**, **Text** and **URLs**, add **Add to Kinwall**, and set **Photos** or **Text or link** to **Shortcut Input**.
 
 Say "Add to Kinwall with Kinwall" or "Send this to Kinwall" to Siri, and it asks what to add and what it is.
 
@@ -59,6 +60,7 @@ In Chrome, Photos, the Camera, Messages or any app with a **Share** button, tap 
 
 * **A link** goes to Kinwall straight away. A recipe is saved there and then; a restaurant's page adds the restaurant.
 * **A photo or some text** is read on the phone first ("Reading the photo…"); nothing leaves the phone for that.
+  * **Several photos** work as on the iPhone, up to 10: select them in Photos, tap **Share** and pick **Kinwall**. They're read one at a time ("Reading photo 2 of 3…") and go together as one menu (or one event), with a guess such as "Looks like a menu: 3 pages".
   * A book's barcode means a book, and it's added straight away.
   * The phone picks out dates and times, addresses, phone numbers, websites and ISBNs and passes them to Kinwall as the lines it reads best (such as `Date:`, `Time:` and `Place:` for an event). A time it can't tell is AM or PM is left for Kinwall to read from the words themselves. The first time, it downloads a small language file for this (about 5 MB).
   * On newer phones with Gemini Nano (Google's on-device model, such as recent Pixel and Galaxy phones), the model works out what it is and tidies the words, like Apple Intelligence on the iPhone.

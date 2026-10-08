@@ -79,6 +79,31 @@ test('share: a restaurant page goes to the restaurant import without a second fe
   assert.equal(menu.json.summary, 'Added 1 item to Golden Bowl');
 });
 
+test('share: a menu from several photos is one restaurant, sections kept together; more pages later are added', async () => {
+  const { share, call } = fixture();
+  const items = (section: string, n: number, from = 0) => Array.from({ length: n }, (_, i) => `${section} special ${from + i + 1} ${10 + i}.99`).join('\n');
+  // What the phone sends: the pages' words joined by page lines.
+  const pages = [
+    `Name: Corner Slice\nCuisine: Pizza\nMenu:\nPizza\n${items('Pizza', 12)}\nSalads\n${items('Salad', 6)}`,
+    `Pizza (continued)\n${items('Pizza', 8, 12)}\nSides\n${items('Side', 10)}`,
+    `Salads cont.\n${items('Salad', 4, 6)}\nDrinks:\n${items('Drink', 6)}`,
+  ];
+  const text = pages.map((p, i) => (i ? `--- Page ${i + 1} ---\n` : '') + p).join('\n');
+  const res = await share({ kind: 'restaurant', text });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.equal(res.json.summary, 'Added Corner Slice with 46 menu items');
+  const [place] = (await call('GET', '/api/restaurants')).json;
+  const sections = place.menu.map((i: { section: string | null }) => i.section).filter((s: string | null, i: number, all: (string | null)[]) => s !== all[i - 1]);
+  assert.deepEqual(sections.slice(0, 4), ['Pizza', 'Salads', 'Sides', 'Drinks'], 'each section once, in the order first seen');
+  assert.equal(place.menu.filter((i: { section: string }) => i.section === 'Pizza').length, 20);
+
+  // The back of the menu, shared later: only what's new is added, into its section.
+  const later = await share({ kind: 'restaurant', text: `Name: Corner Slice\nMenu:\nDrinks\n${items('Drink', 8)}\nDesserts\nCannoli 6.50` });
+  assert.equal(later.json.summary, 'Added 3 items to Corner Slice (6 already there)');
+  const after = (await call('GET', '/api/restaurants')).json[0].menu.map((i: { section: string }) => i.section);
+  assert.deepEqual(after.slice(-9), [...Array(8).fill('Drinks'), 'Desserts'], 'new drinks join the drinks, not the end');
+});
+
 test('share: a link that is neither is a 400 asking what it is; a page that won\'t load says so', async () => {
   const { share } = fixture();
   const res = await share({ url: 'https://news.example/story' });

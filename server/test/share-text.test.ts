@@ -38,6 +38,11 @@ test('event text: the suggested Title/Date/Time/Place lines', () => {
     { title: 'Picture day', date: '2026-04-14', time: null, end: null, place: null, notes: null });
 });
 
+test('event text: a flyer in two photos is one event, without the page line', () => {
+  assert.deepEqual(parseEventText('SPRING FAIR\nSat May 9\n--- Page 2 ---\n10am - 2pm\nLincoln Elementary School\nGames, food and fun for the whole family!', TODAY),
+    { title: 'Spring Fair', date: '2026-05-09', time: '10:00', end: '14:00', place: 'Lincoln Elementary School', notes: 'Games, food and fun for the whole family!' });
+});
+
 test('event text: a flyer read off a photo', () => {
   assert.deepEqual(parseEventText('SPRING FAIR\nSat May 9\n10am - 2pm\nLincoln Elementary School\nGames, food and fun for the whole family!', TODAY),
     { title: 'Spring Fair', date: '2026-05-09', time: '10:00', end: '14:00', place: 'Lincoln Elementary School', notes: 'Games, food and fun for the whole family!' });

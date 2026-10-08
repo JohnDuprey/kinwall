@@ -98,7 +98,7 @@ const loose = z.string().max(5000).nullable().optional();
 export const RestaurantImportSchema = z.object({
   name: loose, cuisine: loose, phone: loose, address: loose, website: loose.describe('The restaurant\'s site; read for details like url.'), orderUrl: loose, menuUrl: loose,
   url: loose.describe('A link the phone shared: the restaurant\'s web page (read for its schema.org Restaurant details) or an Apple Maps place (its name and address are read off the link).'),
-  menuText: z.string().max(100000).nullable().optional().describe('Menu text (from a photo): one item per line with its price at the end. "Name:", "Cuisine:", "Phone:", "Address:" and "Website:" lines at the top fill those fields; a "Menu:" line may separate them from the menu.'),
+  menuText: z.string().max(100000).nullable().optional().describe('Menu text (from a photo): one item per line with its price at the end. "Name:", "Cuisine:", "Phone:", "Address:" and "Website:" lines at the top fill those fields; a "Menu:" line may separate them from the menu. Several photos\' text can come joined by "--- Page 2 ---" lines: a heading seen again ("Pizza (continued)") is the same section, and later pages\' header lines fill only what\'s still empty.'),
   menu: z.array(z.object({ section: loose, name: z.string().max(1000), description: loose, price: z.union([z.string().max(50), z.number()]).nullable().optional().describe('"$12.99", "12.99", "12" or 12.99.') })).max(500).optional(),
 }).openapi('RestaurantImport');
 const PlaceDetailsSchema = z.object({ name: z.string().nullable(), cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(), website: z.string().nullable(), menuUrl: z.string().nullable() });
@@ -111,6 +111,17 @@ const LABEL: Record<(typeof FILLABLE)[number], string> = { cuisine: 'cuisine', p
 const LIMIT = { name: 200, cuisine: 200, phone: 50, address: 500 } as const;
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 const andList = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
+
+/** Each section's items together, sections in the order first seen and spelled as first seen: several
+ * photos of one menu, or pages shared later, add to the sections already there. */
+function bySection<T extends { section: string | null }>(items: T[]): T[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const k = nameKey(item.section), group = groups.get(k);
+    if (group) group.push({ ...item, section: group[0].section }); else groups.set(k, [item]);
+  }
+  return [...groups.values()].flat();
+}
 
 /** The import, or an error message for a 400. `page`: what url's page says, when the caller has
  * already read it (POST /api/share), so it isn't fetched twice. */
@@ -154,7 +165,7 @@ export async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.i
   let restaurant = old;
   if (!old || filled.length || added.length) {
     const changes = Object.fromEntries(filled.map((k) => [k, fields[k]]));
-    restaurant = await saveRestaurant(db, { name: old?.name ?? fields.name, ...changes, ...(added.length && { menu: [...(old?.menu ?? []), ...added] }) }, old);
+    restaurant = await saveRestaurant(db, { name: old?.name ?? fields.name, ...changes, ...(added.length && { menu: bySection([...(old?.menu ?? []), ...added]) }) }, old);
     emit(c, 'restaurant.changed', { id: restaurant.id });
   }
   const name = restaurant!.name, extra = skipped ? ` (${skipped} already there)` : '';

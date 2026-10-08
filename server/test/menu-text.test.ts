@@ -33,3 +33,29 @@ test('menu text: numbers inside a name stay in the name, blank and junk lines ar
 test('menu text: long input is capped', () => {
   assert.equal(parseMenuText(Array.from({ length: 900 }, (_, i) => `Item ${i} $1`).join('\n')).length, 500);
 });
+
+test('menu text: several photos, one menu (page lines, repeated and "continued" headings, page notes)', () => {
+  const pages = `Pizza
+Cheese 12.99
+Pepperoni 14.99
+Continued on back
+--- Page 2 ---
+Margherita 15.50
+PIZZA (continued)
+White pizza 15.99
+Sides:
+Garlic knots 5.50
+--- Page 3 of 3 ---
+Pizza, cont'd
+Veggie 15.99
+Sides cont.
+Fries 3.25
+See other side`;
+  assert.deepEqual(brief(pages), [
+    ['Pizza', 'Cheese', 1299], ['Pizza', 'Pepperoni', 1499],
+    ['Pizza', 'Margherita', 1550], // a page that starts with items keeps the section it was in
+    ['Pizza', 'White pizza', 1599], // the same heading again is the same section, spelled as first seen
+    ['Sides', 'Garlic knots', 550],
+    ['Pizza', 'Veggie', 1599], ['Sides', 'Fries', 325],
+  ]);
+});

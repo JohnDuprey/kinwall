@@ -3,6 +3,7 @@
 // prices, and the "Name: …" lines an AI step writes above a menu. No DOM (Workers has none).
 import { clean, httpUrl, isType, jsonLdNodes } from './recipe-web.ts';
 import { fetchRecipePage, type FeedEnv } from './outbound.ts';
+import { PAGE_LINE } from './menu-text.ts';
 
 export type PlaceDetails = { name: string | null; cuisine: string | null; phone: string | null; address: string | null; website: string | null; menuUrl: string | null };
 const EMPTY: PlaceDetails = { name: null, cuisine: null, phone: null, address: null, website: null, menuUrl: null };
@@ -77,20 +78,31 @@ export type HeaderFields = Partial<Record<'name' | 'cuisine' | 'phone' | 'addres
 const HEADER = /^(name|restaurant|cuisine|phone|address|website)\s*:\s*(.*)$/i;
 const NOTHING = /^(unknown|none|n\/?a|not (found|listed|available|visible|shown)|-+)\.?$/i;
 /** "Name: …", "Cuisine: …", "Phone: …", "Address: …", "Website: …" lines at the top of menu text (an
- * AI step's answer), then an optional "Menu:" line, then the menu. Plain photo text has no header. */
+ * AI step's answer), then an optional "Menu:" line, then the menu. Plain photo text has no header.
+ * Several photos come joined by page lines ("--- Page 2 ---"); a page may start with its own header
+ * (tidied page by page), which fills only what the pages before it left empty. */
 export function splitMenuHeader(text: string): { fields: HeaderFields; menuText: string } {
-  const lines = text.replace(/\r/g, '').replace(/\*\*/g, '').split('\n');
   const fields: HeaderFields = {};
-  let i = 0;
-  for (; i < lines.length; i++) {
-    const line = lines[i].replace(/^[-•\s]+/, '').trim();
-    if (!line) continue;
-    const m = HEADER.exec(line);
-    if (!m) { if (/^menu\s*:?$/i.test(line)) i++; break; }
-    const key = m[1].toLowerCase() === 'restaurant' ? 'name' : m[1].toLowerCase() as keyof HeaderFields;
-    if (m[2].trim() && !NOTHING.test(m[2].trim())) fields[key] = m[2].trim();
+  const menus: string[] = [];
+  let page: string[] = [], pageLine = '';
+  const end = () => {
+    let i = 0;
+    for (; i < page.length; i++) {
+      const line = page[i].replace(/^[-•\s]+/, '').trim();
+      if (!line) continue;
+      const m = HEADER.exec(line);
+      if (!m) { if (/^menu\s*:?$/i.test(line)) i++; break; }
+      const key = m[1].toLowerCase() === 'restaurant' ? 'name' : m[1].toLowerCase() as keyof HeaderFields;
+      if (m[2].trim() && !NOTHING.test(m[2].trim())) fields[key] ??= m[2].trim();
+    }
+    const menu = page.slice(i).join('\n').trim();
+    if (menu) menus.push(pageLine ? `${pageLine}\n${menu}` : menu); // the menu parser skips page lines
+  };
+  for (const line of text.replace(/\r/g, '').replace(/\*\*/g, '').split('\n')) {
+    if (PAGE_LINE.test(line.trim())) { end(); page = []; pageLine = line.trim(); } else page.push(line);
   }
-  return { fields, menuText: lines.slice(i).join('\n').trim() };
+  end();
+  return { fields, menuText: menus.join('\n') };
 }
 
 /** A name for matching: case, accents, spaces and punctuation ignored ("Corner Slice!" = "corner slice"). */
