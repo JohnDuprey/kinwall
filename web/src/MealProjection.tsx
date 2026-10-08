@@ -70,13 +70,13 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
       const result = await api.applyMealProjection({ from, to, listId, omitKeys: current.items.filter(isOmitted).map(item => item.key), includeNotes, includeKitItems: true, ...(answers && { basics: answers }) })
       rememberList(listId)
       // Clear immediately so a failed refresh cannot leave an already-applied preview actionable.
-      setResult(null); setTick(t => t + 1); reloadCore(); toast(`Added ${result.added} grocery item${result.added === 1 ? '' : 's'}. Previously applied ingredients are skipped.`)
+      setResult(null); setTick(t => t + 1); reloadCore(); toast(`Added ${result.added} grocery item${result.added === 1 ? '' : 's'}. Anything added before was left out.`)
     } catch (e) { setApplyError(e instanceof Error ? `${e.message}. Refresh the preview, then retry safely.` : 'Could not add these groceries. You can retry safely.'); setResult(null); setTick(t => t + 1) }
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
   return <Sheet title="Groceries for these meals" onClose={close} dismissable={!busy} actions={admin ? <button className="btn btn-primary" disabled={busy || loading || !listId || !selected.length || !lists?.some(list => list.id === listId)} onClick={() => void apply()}>{busy ? 'Applying…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'} to list`}</button> : undefined}>
-    <p>Review ingredients before adding them. Existing list items stay as they are; previously applied meal ingredients are skipped.</p>
+    <p>Check what these meals need before adding it. What’s on the list already stays as it is, and anything added before is left out.</p>
     <fieldset className="meal-fieldset" disabled={busy}>
       <div className="meal-form-row">
         <div className="field"><label htmlFor={`${id}-from`}>From</label><input id={`${id}-from`} type="date" required value={from} onChange={e => { setFrom(e.target.value); setOmitted([]) }} /></div>
@@ -87,18 +87,18 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
       {lists?.length === 1 && <p className="field-hint">Adding to {lists[0].emoji} {lists[0].name}.</p>}
       {lists?.length === 0 && <p>No grocery lists yet. <a href="#/lists" onClick={close}>Create a Groceries list in Lists</a> to add these ingredients.</p>}
       {admin && <label className="meal-check"><input type="checkbox" checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)} /> Include source meals and preparation details as notes</label>}
-      {!admin && <p className="field-hint">An admin can add these ingredients to a grocery list.</p>}
+      {!admin && <p className="field-hint">A grown-up can add these to a grocery list.</p>}
       {loading && <p role="status">Calculating ingredients…</p>}
       {current && !loading && <>
-        {current.items.length === 0 ? <p className="state-card">No recipe ingredients in this date range. Free-form and dining-out meals do not create ingredient requirements.</p> : <>
+        {current.items.length === 0 ? <p className="state-card">No recipe meals in these dates, so there’s nothing to add. Only recipes add to the grocery list.</p> : <>
           {admin && <div className="meal-actions"><button type="button" className="link-btn" onClick={() => setOmitted([])}>Select all unapplied</button><button type="button" className="link-btn" onClick={() => setOmitted(current.items.map(item => item.key))}>Omit all</button></div>}
           <ul className="meal-projection-list">{current.items.map((item, index) => <li key={item.key} className="meal-projection-item">
             <div className="meal-check">
               {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (item.qualifier === KIT_QUALIFIER) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
               <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — <IngredientAmount quantity={item.quantity} unit={item.unit} qualifier={item.qualifier} /></label>
             </div>
-            <p className="field-hint">{item.applied ? 'Already applied to this list' : item.partiallyApplied ? 'Partly applied — only remaining contributions will be added' : 'Not yet applied'}{item.basicId ? ' · A basic: you’ll be asked if it’s made already' : ''}{item.category ? ` · ${item.category}` : ''}</p>
-            {item.changedSinceApplied && <p className="field-error">This meal changed after it was applied. Check the existing grocery item; adding again will not update it.</p>}
+            <p className="field-hint">{item.applied ? 'Already on this list' : item.partiallyApplied ? 'Partly on this list: only what’s missing is added' : 'Not on the list yet'}{item.basicId ? ' · A basic: you’ll be asked if it’s made already' : ''}{item.category ? ` · ${item.category}` : ''}</p>
+            {item.changedSinceApplied && <p className="field-error">This meal changed after it was added. Check the item on the list, because adding again won’t update it.</p>}
             {!item.scalable && <p className="field-hint">Amount needs review; this quantity was not scaled.</p>}
             {item.matches.length > 0 && <p className="field-hint">Existing matches: {item.matches.map(match => `${match.title}${match.quantity ? ` (${match.quantity})` : ''}${match.done ? ' — checked off' : ''}`).join(', ')}. Omit this ingredient if you already have enough.</p>}
             <details><summary>{item.sources.length} source meal{item.sources.length === 1 ? '' : 's'}</summary><ul>{item.sources.map(source => <li key={source.sourceRef}>

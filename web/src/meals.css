@@ -267,3 +267,13 @@ span.menu-star { width: 44px; text-align: center; }
 .order-line-note { font-size: 1rem; font-weight: 700; }
 .order-usual-pick { margin-bottom: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet-link > span.meal-eaters { flex: none; flex-direction: row; }
+
+/* An order night's view (Orders.tsx OrderNightSheet, a calendar event's page): when and how above the orders. */
+.order-night-facts { display: grid; gap: 8px; }
+.order-night-facts p { margin: 0; }
+.order-night-place { font-weight: 700; font-size: 1.125rem; }
+.event-order-night { margin: 16px 0; }
+.event-order-night .order-summary { margin-bottom: 12px; }
+/* Plan a meal's first step: Something else and Eating out under the recipe search. */
+.meal-choose-other { margin: 4px 0 16px; }
+.meal-choose-other .btn { flex: none; min-height: 48px; }

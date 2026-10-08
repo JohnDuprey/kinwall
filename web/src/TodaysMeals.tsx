@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { minutesSinceMidnight } from './date.ts'
 import { formatTime } from './timeFormat.ts'
-import { SLOT_LABEL, byMealTime, mealForMember, mealMinutes, minutesLabel } from './meal-date.ts'
+import { SLOT_LABEL, statusLabel, byMealTime, mealForMember, mealMinutes, minutesLabel } from './meal-date.ts'
 import type { Meal } from './meal-types.ts'
 import { EaterAvatars } from './MealSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
@@ -27,7 +27,7 @@ export default function TodaysMeals({ now, meals: all }: { now: Date; meals: Mea
             <span className="snap-main"><span className="board-when">{SLOT_LABEL[meal.slot]}{meal.plannedTime ? ` · ${formatTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? at(meal) >= minute ? ' · Next' : ' · Planned' : ''}</span>
               <span className="snap-title">{meal.mealKind === 'dining_out' ? '↗ ' : ''}{meal.title}</span>
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
-              <span className="snap-meta">{[meal.mealKind === 'dining_out' ? meal.orderType ? ORDER_TYPE_LABEL[meal.orderType] : 'Dining out' : null, meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length ? ordersLabel(meal) : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? meal.mealKind === 'dining_out' ? 'Ordered' : 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>
+              <span className="snap-meta">{[meal.mealKind === 'dining_out' ? meal.orderType ? ORDER_TYPE_LABEL[meal.orderType] : 'Eating out' : null, meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length ? ordersLabel(meal) : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? statusLabel(meal) : null].filter(Boolean).join(' · ')}</span>
             </span>
             {meal.mealKind === 'recipe' && meal.recipeId && <RecipePhoto id={meal.recipeId} className="meal-thumb-board" />}
           </button></li>

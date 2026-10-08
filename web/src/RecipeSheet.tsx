@@ -100,7 +100,7 @@ export function Stars({ average, count }: { average: number; count: number }) {
  * person rates only for them (the server's ownerBlock); a grown-up's own phone rates for anyone. */
 export const ratingOwner = (me: { scope: string; owner?: string | null } | null | undefined) => me?.scope === 'display' ? me.owner ?? null : null
 
-/** Collapsed to the family average; open it for each member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
+/** Collapsed to the family average (open on a kid's own device, their row first); open it for each member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
 function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | null; onRated?: () => void }) {
   const { members, toast } = useApp()
   const [rating, setRating] = useState<RecipeRating>(recipe.rating ?? { average: null, count: 0, byMember: {} })
@@ -112,9 +112,12 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
     catch (e) { toast(e instanceof Error ? e.message : 'Could not save the rating.', true) }
     finally { setBusy('') }
   }
-  return <details className="settings-disclosure recipe-ratings-box">
-    <summary>{rating.average !== null ? `★ ${rating.average} · ${rating.count} rating${rating.count === 1 ? '' : 's'}` : 'Rate this recipe'}</summary>
-    <ul className="recipe-ratings">{members.map(m => {
+  // A kid's own device: rating dinner is the main thing they do here, so the stars start open with their row first.
+  const kid = !!owner && owner !== 'shared'
+  const people = kid ? [...members].sort((a, b) => Number(b.id === owner) - Number(a.id === owner)) : members
+  return <details className="settings-disclosure recipe-ratings-box" open={kid || undefined}>
+    <summary>{kid ? 'How did you like it?' : rating.average !== null ? `★ ${rating.average} · ${rating.count} rating${rating.count === 1 ? '' : 's'}` : 'Rate this recipe'}</summary>
+    <ul className="recipe-ratings">{people.map(m => {
       const mine = rating.byMember[m.id] ?? 0
       const locked = !!owner && owner !== 'shared' && owner !== m.id
       return <li key={m.id}>

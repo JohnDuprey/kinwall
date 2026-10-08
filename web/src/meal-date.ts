@@ -1,9 +1,14 @@
 import { addDays, startOfWeek } from 'date-fns'
 import { dateKey } from './date.ts'
-import type { MealSlot } from './meal-types.ts'
+import type { MealKind, MealSlot, MealStatus } from './meal-types.ts'
 
 export const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack']
 export const SLOT_LABEL: Record<MealSlot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' }
+/** What the family did, in plain words (the API keeps planned / prepared / handled). Eating out is "Ordered" once a parent marks it. */
+export const STATUS_LABEL: Record<MealStatus, string> = { planned: 'Planned', prepared: 'Cooked', handled: 'All done' }
+export const statusLabel = (meal: { status: MealStatus; mealKind: MealKind }) => meal.status === 'prepared' && meal.mealKind === 'dining_out' ? 'Ordered' : STATUS_LABEL[meal.status]
+/** Eating out from a binder restaurant: tapping it opens the order view, with Edit meal a tap away. */
+export const isOrderNight = (meal: { mealKind: MealKind; restaurantId?: string | null }) => meal.mealKind === 'dining_out' && !!meal.restaurantId
 /** Local noon avoids midnight DST transitions; date-fns advances calendar days, not 24-hour spans. */
 export function mealWeek(anchor: string, weekStart: 0 | 1): string[] {
   const start = startOfWeek(new Date(`${anchor}T12:00:00`), { weekStartsOn: weekStart })

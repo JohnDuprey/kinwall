@@ -3,12 +3,14 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
 import { Face } from './Face'
-import { CartIcon, CheckIcon, MinusIcon, PhoneIcon, PlusIcon } from './icons.tsx'
+import { CartIcon, CheckIcon, EditIcon, MinusIcon, PhoneIcon, PlusIcon } from './icons.tsx'
 import { MenuList } from './Restaurants.tsx'
-import { itemsLabel, orderLines, orderPeople, ordersLabel, orderText, ORDER_TYPE_LABEL, ownOrderer, usualFor } from './orders.ts'
+import { itemsLabel, orderLines, orderPeople, ordersLabel, orderText, ORDER_TYPE_LABEL, ORDER_TYPE_ICON, ownOrderer, usualFor } from './orders.ts'
 import { telHref } from './restaurants.ts'
 import type { Meal, MenuItem, OrderItem, Restaurant } from './meal-types.ts'
 import type { Me } from './types.ts'
+import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
+import { formatTime } from './timeFormat.ts'
 
 const locked = (meal: Meal, me: Me | null) => meal.status !== 'planned' && me?.scope !== 'admin'
 
@@ -49,7 +51,6 @@ export function OrderSummary({ meal, restaurant, me, onChanged, onOrder }: {
     <div className="order-head">
       <h3>Orders</h3>
       <span className="chip chip-static">{ordered ? '✓ Ordered' : ordersLabel(meal)}</span>
-      {meal.orderType && <span className="chip chip-static">{ORDER_TYPE_LABEL[meal.orderType]}</span>}
     </div>
     {(tel || lines.length > 0 || restaurant?.orderUrl) && <div className="restaurant-actions">
       {tel && <a className="btn btn-primary" href={tel}><PhoneIcon /> Call {restaurant!.name}</a>}
@@ -92,7 +93,7 @@ export function OrderSheet({ meal: initial, restaurant, me, onClose, onSaved }: 
   }
   const person = members.find(m => m.id === picking)
   return <Sheet title={`Orders: ${meal.title}`} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
-    <p className="field-hint">{[meal.orderType && ORDER_TYPE_LABEL[meal.orderType], ordersLabel(meal)].filter(Boolean).join(' · ')}{readOnly ? '. It’s ordered: ask a grown-up to change an order.' : !own ? '. Tap a person to add their order.' : ''}</p>
+    <p className="field-hint">{meal.orderType ? `${ORDER_TYPE_LABEL[meal.orderType]}. ` : ''}{ordersLabel(meal)}. {readOnly ? 'It’s ordered, so ask a grown-up to change an order.' : !own ? 'Tap a person to add their order.' : ''}</p>
     <ul className="order-people">{people.map(m => {
       const order = meal.orders?.find(o => o.memberId === m.id)
       const usual = !readOnly ? usualFor(restaurant, m.id, meal) : null
@@ -155,21 +156,38 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
   </Sheet>
 }
 
-/** On a calendar event's page: the order night it belongs to, with the same summary and order sheet. */
-export function EventOrders({ eventId }: { eventId: string }) {
-  const [meal, setMeal] = useState<Meal | null>(null)
-  const [me, setMe] = useState<Me | null>(null)
+/** What an order night is: where (when the meal's name isn't the restaurant's), when, how, and its
+ * notes (left off on a calendar event, whose own Notes already show them). */
+export function OrderNightFacts({ meal, restaurant, notes = true }: { meal: Meal; restaurant: Restaurant | null; notes?: boolean }) {
+  const { settings } = useApp()
+  const time = meal.plannedTime ?? settings.mealTimes[meal.slot]
+  return <div className="order-night-facts">
+    {restaurant && restaurant.name !== meal.title && <p className="order-night-place">{restaurant.name}</p>}
+    {restaurant?.cuisine && <p className="field-hint">{restaurant.cuisine}</p>}
+    <div className="chip-row">
+      <span className="chip chip-static"><span aria-hidden="true">📅</span> {mealDayLabel(meal.date, { weekday: 'long', month: 'short', day: 'numeric' })}, {SLOT_LABEL[meal.slot].toLowerCase()}{time ? ` at ${formatTime(time)}` : ''}</span>
+      <span className="chip chip-static"><span aria-hidden="true">{meal.orderType ? ORDER_TYPE_ICON[meal.orderType] : '❔'}</span> {meal.orderType ? ORDER_TYPE_LABEL[meal.orderType] : 'How we’re getting it isn’t set yet'}</span>
+    </div>
+    {notes && meal.notes && <p className="meal-prose">{meal.notes}</p>}
+  </div>
+}
+
+/** Tapping an order night (planner, Board, a person's day): the restaurant, when and how, and the
+ * orders front and center. Edit meal (parents) opens the full meal form. */
+export function OrderNightSheet({ meal, me, startOrders = false, onClose, onChanged, onEdit }: {
+  meal: Meal; me: Me | null; startOrders?: boolean; onClose: () => void; onChanged: (meal: Meal) => void; onEdit?: () => void
+}) {
   const [ordering, setOrdering] = useState(false)
-  useEffect(() => {
-    let canceled = false
-    api.getEventMeal(eventId).then(({ meal }) => { if (!canceled && meal?.mealKind === 'dining_out') setMeal(meal) }).catch(() => {})
-    api.meStrict().then(value => { if (!canceled) setMe(value) }).catch(() => {})
-    return () => { canceled = true }
-  }, [eventId])
+  // A link from "Ask for orders" opens the order sheet over this one.
+  useEffect(() => { if (startOrders) setOrdering(true) }, [startOrders])
   const restaurant = useMealRestaurant(meal)
-  if (!meal) return null
-  return <>
-    <OrderSummary meal={meal} restaurant={restaurant} me={me} onChanged={setMeal} onOrder={() => setOrdering(true)} />
-    {ordering && <OrderSheet meal={meal} restaurant={restaurant} me={me} onClose={() => setOrdering(false)} onSaved={setMeal} />}
-  </>
+  return <Sheet title={meal.title} onClose={onClose} actions={<>
+    {onEdit && <button type="button" className="btn btn-secondary" onClick={onEdit}><EditIcon width={20} height={20} /> Edit meal</button>}
+    <button type="button" className="btn btn-primary" onClick={onClose}>Done</button>
+  </>}>
+    <OrderNightFacts meal={meal} restaurant={restaurant} />
+    <OrderSummary meal={meal} restaurant={restaurant} me={me} onChanged={onChanged} onOrder={() => setOrdering(true)} />
+    <p className="field-hint">Eating out doesn’t add anything to the grocery list.</p>
+    {ordering && <OrderSheet meal={meal} restaurant={restaurant} me={me} onClose={() => setOrdering(false)} onSaved={onChanged} />}
+  </Sheet>
 }

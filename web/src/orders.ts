@@ -3,6 +3,7 @@ import type { Meal, MealOrder, OrderItem, OrderType, Restaurant } from './meal-t
 import type { Me } from './types.ts'
 
 export const ORDER_TYPE_LABEL: Record<OrderType, string> = { dine_in: 'Eating there', pickup: 'Pickup', delivery: 'Delivery' }
+export const ORDER_TYPE_ICON: Record<OrderType, string> = { dine_in: '🍽️', pickup: '🛍️', delivery: '🚗' }
 type Person = { id: string; name: string }
 
 /** Whose rows the order sheet shows: a kid's own device only theirs; otherwise who's eating (everyone
