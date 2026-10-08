@@ -136,6 +136,7 @@ const ExportSchema = z
           // Older exports predate event links, priority, steps and aisles.
           ListItemSchema.omit({ meals: true }).extend({
             aisle: z.string().nullable().default(null),
+            forMemberIds: z.array(z.string()).default([]), // older exports predate it (0108)
             eventId: z.string().nullable().default(null),
             priority: ListItemSchema.shape.priority.default('normal'),
             steps: z.array(ListItemStepSchema.extend({ addedBy: ActorSchema.nullable().default(null), checkedBy: ActorSchema.nullable().default(null) })).default([]),
@@ -249,7 +250,7 @@ dataRoutes.openapi(
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
-        'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, done_by_label, added_by, added_by_label, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
+        'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, for_member_ids, due_date, event_id, priority, done, done_at, done_by, done_by_label, added_by, added_by_label, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
       db.prepare('SELECT id, item_id, title, done, done_at, sort, created_at, added_by, added_by_label, done_by, done_by_label FROM list_item_steps ORDER BY sort, created_at'),
       db.prepare('SELECT list_id, kind, name, sort FROM list_groups ORDER BY sort'),
@@ -900,6 +901,7 @@ dataRoutes.openapi(
           category: i.category,
           aisle: i.aisle,
           member_id: i.memberId,
+          for_member_ids: JSON.stringify(i.forMemberIds),
           due_date: i.dueDate,
           event_id: i.eventId,
           priority: i.priority,

@@ -72,6 +72,7 @@ export type ListItemRow = {
   category: string | null;
   aisle: string | null;
   member_id: string | null;
+  for_member_ids?: string; // 0108: JSON array of who it's for, [] = everyone
   due_date: string | null;
   event_id: string | null;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -130,6 +131,7 @@ export function toItemApi(row: ListItemRow, steps: ListItemStepRow[] = []) {
     category: row.category,
     aisle: row.aisle ?? null,
     memberId: row.member_id,
+    forMemberIds: parseMemberIds(row.for_member_ids),
     dueDate: row.due_date,
     eventId: row.event_id,
     priority: row.priority,
@@ -797,6 +799,9 @@ listsRoutes.openapi(
     // memberId validated against members up front, like calendars' resolveMemberIds - unknown ids drop to null.
     const requestedMemberIds = [...new Set(inputs.map((i) => i.memberId).filter((v): v is string => !!v))];
     const validMemberIds = new Set(await resolveMemberIds(c.env.DB, requestedMemberIds));
+    // forMemberIds is stricter: an id that isn't in the family is an error, not dropped.
+    const forIds = [...new Set(inputs.flatMap((i) => i.forMemberIds ?? []))];
+    if ((await resolveMemberIds(c.env.DB, forIds)).length !== forIds.length) return c.json({ error: 'member not found' }, 400);
 
     // Client ids make a replayed add idempotent: an id already in this list answers with that item
     // instead of inserting again; an id used anywhere else is a conflict.
@@ -854,6 +859,7 @@ listsRoutes.openapi(
         category,
         aisle,
         member_id: input.memberId && validMemberIds.has(input.memberId) ? input.memberId : null,
+        for_member_ids: JSON.stringify([...new Set(input.forMemberIds ?? [])]),
         due_date: input.dueDate ?? null,
         event_id: input.eventId ?? null,
         priority: input.priority ?? 'normal',
@@ -878,7 +884,7 @@ listsRoutes.openapi(
         ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL WHERE item_id = ? AND done = 1').bind(rid)),
         ...rows.map((r) =>
           c.env.DB.prepare(
-            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, for_member_ids, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).bind(
             r.id,
             r.list_id,
@@ -890,6 +896,7 @@ listsRoutes.openapi(
             r.category,
             r.aisle,
             r.member_id,
+            r.for_member_ids,
             r.due_date,
             r.event_id,
             r.priority,
@@ -1037,6 +1044,9 @@ listsRoutes.openapi(
       memberId = resolved[0] ?? null;
     }
 
+    const forIds = body.forMemberIds && [...new Set(body.forMemberIds)];
+    if (forIds && (await resolveMemberIds(c.env.DB, forIds)).length !== forIds.length) return c.json({ error: 'member not found' }, 400);
+
     const now = new Date().toISOString();
     const done = body.done !== undefined ? body.done : !!existing.done;
     // Ticked now (not already done): by whoever ticked it - or the member a caller names in doneBy.
@@ -1051,6 +1061,7 @@ listsRoutes.openapi(
       category: body.category !== undefined ? body.category : existing.category,
       aisle: body.aisle === undefined ? existing.aisle : body.aisleStore === undefined ? body.aisle : null, // trip: set below
       member_id: memberId,
+      for_member_ids: forIds ? JSON.stringify(forIds) : existing.for_member_ids,
       due_date: body.dueDate !== undefined ? body.dueDate : existing.due_date,
       event_id: body.eventId !== undefined ? body.eventId : existing.event_id,
       priority: body.priority ?? existing.priority,
@@ -1066,7 +1077,7 @@ listsRoutes.openapi(
     if (trip) updated.aisle = !updated.store || updated.store === trip.store ? trip.aisle : existing.aisle;
     await c.env.DB.batch([
       c.env.DB.prepare(
-        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, done_by_label=?, updated_at=? WHERE id=?',
+        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, for_member_ids=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, done_by_label=?, updated_at=? WHERE id=?',
       ).bind(
         updated.title,
         itemKey(updated.title),
@@ -1076,6 +1087,7 @@ listsRoutes.openapi(
         updated.category,
         updated.aisle,
         updated.member_id,
+        updated.for_member_ids,
         updated.due_date,
         updated.event_id,
         updated.priority,

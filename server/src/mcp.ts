@@ -1396,7 +1396,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_list_items',
     {
       title: 'Add list items',
-      description: `Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, aisle, member, dueDate, eventId, priority, steps). ${REMEMBER_DOC}`,
+      description: `Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, aisle, member, forMembers, dueDate, eventId, priority, steps). ${REMEMBER_DOC}`,
       inputSchema: {
         listId: z.string().optional().describe('List id (use this or listName).'),
         listName: z.string().optional().describe("List name, case-insensitive (use this or listId). Neither: the family's default Groceries list (else the first Groceries list)."),
@@ -1411,6 +1411,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
               category: z.string().optional().describe(CATEGORY_DOC),
               aisle: z.string().optional().describe(AISLE_DOC),
               member: z.string().optional().describe('Member name or id to assign this item to.'),
+              forMembers: jsonList(z.array(z.string())).optional().describe('Who it is for: member names or ids, e.g. ["Maya"] for a watch band for Maya. Left out = for everyone. Use this instead of writing the name in the title.'),
               dueDate: z.string().optional().describe('YYYY-MM-DD.'),
               eventId: z.string().optional().describe(EVENT_ID_DOC),
               priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().describe(PRIORITY_DOC),
@@ -1444,14 +1445,16 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
           body.push({ title: item });
           continue;
         }
-        const { member, ...rest } = item;
+        const { member, forMembers, ...rest } = item;
         let memberId: string | undefined;
+        let forMemberIds: string[] | undefined;
         try {
           if (member) memberId = await resolveMember(app, env, auth, member);
+          if (forMembers) forMemberIds = await resolveMemberIds(app, env, auth, forMembers);
         } catch (err) {
           return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
         }
-        body.push({ ...rest, memberId });
+        body.push({ ...rest, memberId, forMemberIds });
       }
       const res = await call(app, env, auth, 'POST', `/api/lists/${encodeURIComponent(resolvedListId)}/items`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to add list items');
@@ -1865,7 +1868,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_list_item',
     {
       title: 'Update list item',
-      description: 'Edit a list item: title, notes, quantity, store, category, aisle, assignee, due date, linked event, priority. Only provided fields change; pass member: null to unassign. A shopping item\'s store/category/aisle is remembered for next time.',
+      description: 'Edit a list item: title, notes, quantity, store, category, aisle, assignee, who it is for, due date, linked event, priority. Only provided fields change; pass member: null to unassign, forMembers: [] for everyone. A shopping item\'s store/category/aisle is remembered for next time.',
       inputSchema: {
         list: z.string().describe('List id or name.'),
         itemId: z.string(),
@@ -1876,21 +1879,24 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         category: z.string().nullable().optional().describe(CATEGORY_DOC),
         aisle: z.string().nullable().optional().describe(`${AISLE_DOC} null to clear.`),
         member: z.string().nullable().optional().describe('Member name or id to assign; null to unassign.'),
+        forMembers: jsonList(z.array(z.string())).optional().describe('Who it is for: member names or ids; replaces the whole set. [] = for everyone.'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear.'),
         eventId: z.string().nullable().optional().describe(`${EVENT_ID_DOC} null to unlink.`),
         priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().describe(PRIORITY_DOC),
       },
     },
-    async ({ list, itemId, member, ...input }) => {
+    async ({ list, itemId, member, forMembers, ...input }) => {
       let listId: string;
       let memberId: string | null | undefined;
+      let forMemberIds: string[] | undefined;
       try {
         listId = (await resolveList(app, env, auth, list)).id;
         if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
+        if (forMembers) forMemberIds = await resolveMemberIds(app, env, auth, forMembers);
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}) };
+      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}), ...(forMemberIds ? { forMemberIds } : {}) };
       const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to update item');
       return okResult(`Updated "${(res.json as { title: string }).title}".`, { item: res.json as Record<string, unknown> });

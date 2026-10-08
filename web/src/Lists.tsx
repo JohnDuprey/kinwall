@@ -30,7 +30,7 @@ import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
-import { Face, ChipFace } from './Face'
+import { Face, ChipFace, InlineFaces } from './Face'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -329,6 +329,8 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const lastStore = item.places?.find(p => p.store)?.store // suggested, never applied for you
   const deptAisle = departmentAisle(category, storeAisles(suggestions, aisleStore, aisleOrder)) // shown, not saved
   const [memberId, setMemberId] = useState<string | null>(item.memberId)
+  const [forIds, setForIds] = useState<string[]>(item.forMemberIds ?? [])
+  const showFor = kind === 'shopping' || !!item.forMemberIds?.length // shopping; set elsewhere (API, MCP) stays editable
   const [dueDate, setDueDate] = useState(item.dueDate ?? '')
   const [eventId, setEventId] = useState<string | null>(item.eventId)
   const [priority, setPriority] = useState(item.priority)
@@ -347,6 +349,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       ...(kind === 'shopping' && trip && aisle.trim() !== initialAisle ? { aisle: aisle.trim() || null, aisleStore: trip } : {}),
       // Assignees on to-do and reusable lists (a routine has each person's jobs); due dates are to-do only.
       ...(kind !== 'shopping' ? { memberId } : {}),
+      ...(showFor ? { forMemberIds: forIds } : {}),
       ...(showDue ? { dueDate: dueDate || null } : {}),
       ...(eventId !== item.eventId ? { eventId } : {}), // only when changed: a link to a since-deleted event still saves
     }
@@ -446,6 +449,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
         <ItemByLines item={live} members={members} />
       </div>
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
+      {showFor && <MemberPicker members={members} selected={forIds} onChange={setForIds} label="For" noneLabel="Everyone" />}
       {kind !== 'shopping' && priorityField}
       <StepsEditor listId={listId} item={live} onChange={setLive} />
       {kind !== 'shopping' && quantityAndPlace}
@@ -759,6 +763,8 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   from?: React.ReactNode // a combined trip: the other list it's on (FromTag)
 }) {
   const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
+  const forWho = members.filter(m => item.forMemberIds?.includes(m.id))
+  const forLabel = forWho.length ? `For ${new Intl.ListFormat('en-US').format(forWho.map(m => m.name))}` : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && groupBy !== 'aisle' && item.store
   const showAisle = kind === 'shopping' && groupBy !== 'aisle' && item.aisle
   // A department that just repeats the aisle ("Produce · Produce") isn't shown twice.
@@ -773,10 +779,11 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
         {item.done && <CheckIcon width={20} height={20} />}
       </button>
       <div className="list-item-body" {...pressable(onOpen)}
-        aria-label={[`Edit ${item.title}`, item.done && 'checked off', prio && `${PRIORITY_LABEL[prio]} priority`, due?.text, (item.notes || (notesOn && item.noteCount)) && 'has notes', item.stepsTotal > 0 && `${item.stepsDone} of ${item.stepsTotal} steps done`].filter(Boolean).join(', ')}>
+        aria-label={[`Edit ${item.title}`, item.done && 'checked off', prio && `${PRIORITY_LABEL[prio]} priority`, forLabel, due?.text, (item.notes || (notesOn && item.noteCount)) && 'has notes', item.stepsTotal > 0 && `${item.stepsDone} of ${item.stepsTotal} steps done`].filter(Boolean).join(', ')}>
         <div className="list-item-title-row">
           {prio && <PriorityBadge p={prio} />}
           <div className="list-item-title">{item.title}</div>
+          {forLabel && <span className="list-item-for" role="img" aria-label={forLabel} title={forLabel}><InlineFaces who={forWho} /></span>}
           {from}
           {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label="Has notes" />}
         </div>

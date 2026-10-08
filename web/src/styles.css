@@ -1448,6 +1448,8 @@ button.month-cell .month-daynum { flex: none; }
 .due-field input { flex: 1; min-width: 0; }
 .due-field .btn { flex: none; width: auto; min-height: 44px; }
 .list-item-note { flex-shrink: 0; color: var(--text-dim); margin-top: 3px; }
+.list-item-for { flex: none; display: inline-flex; margin-top: 2px; }
+.list-item-for .event-avatars { font-size: 0.875rem; }
 .list-item-steps { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-top: 3px; }
 .list-item-progress { flex: 1; max-width: 120px; height: 4px; border-radius: 2px; background: var(--bg-alt); overflow: hidden; }
 .list-item-progress > div { height: 100%; background: var(--success); border-radius: 2px; }
