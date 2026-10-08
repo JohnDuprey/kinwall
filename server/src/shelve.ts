@@ -15,6 +15,21 @@ type Book = { title: string; author: string | null };
 export type LibraryFormat = 'book' | 'audiobook';
 /** A reading entry's library format: an audiobook, or a book (paper, or anything else for now). */
 export const libraryFormat = (format: string | null | undefined): LibraryFormat => (format === 'audiobook' ? 'audiobook' : 'book');
+/** Who a library book is for: a parent's pick (library_books.shelf), or Auto (null), autoShelf's. Everyone is on both shelves. */
+export const SHELVES = ['kids', 'grownups', 'everyone'] as const;
+export type Shelf = (typeof SHELVES)[number];
+const KIDS_GENRES = /children|juvenile|picture book|middle grade|young adult/i; // books.ts genresFrom's Children's, Young adult, Picture book
+/** Auto: Kids when its genres say so (Open Library's juvenile, children's, picture book or young adult
+ * subjects), its reading level is under 1000L, it's picture-book short (48 pages or fewer), or only
+ * kids have read it or are reading it (`kids`: kids' member ids); otherwise Grown-ups. Never Everyone. */
+export function autoShelf(b: { genres: string[]; lexile: number | null; pages: number | null; format?: string | null; readers: { memberId: string | null; status: string }[] }, kids: Set<string>): 'kids' | 'grownups' {
+  if (b.genres.some((g) => KIDS_GENRES.test(g))) return 'kids';
+  // ponytail: a lexile alone puts an easy-reading grown-up novel (some are 700-900L) on Kids; a parent picks Grown-ups for those.
+  if (b.lexile !== null && b.lexile < 1000) return 'kids';
+  if (libraryFormat(b.format) === 'book' && b.pages !== null && b.pages <= 48) return 'kids';
+  const read = b.readers.filter((r) => r.status !== 'want' && r.memberId);
+  return read.length && read.every((r) => kids.has(r.memberId!)) ? 'kids' : 'grownups';
+}
 type ReadingLike = { status?: string; format?: string; author?: string | null; totalPages?: number | null; coverUrl?: string | null; bookId?: string | null };
 
 const words = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();

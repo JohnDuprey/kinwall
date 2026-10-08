@@ -1,6 +1,6 @@
 // The family's library (Library.tsx): labels, and which scanned barcodes are books. Pure, so
 // web/test/library.test.ts covers it.
-import type { LibraryBook, LibraryFormat, ReadingData, TrackerEntry } from './types.ts'
+import type { LibraryBook, LibraryFormat, LibraryShelf, ReadingData, TrackerEntry } from './types.ts'
 import { hoursMinutes, STATUS_EMOJI, STATUS_WORDS } from './reading.ts'
 
 /** A scanned barcode as an ISBN when it's a book's: an EAN-13 starting 978/979 (Bookland), or an
@@ -220,4 +220,17 @@ export function listening(b: Pick<LibraryBook, 'readers'>): { memberId: string |
   const r = b.readers.find(x => x.status === 'reading')
   if (!r) return null
   return { memberId: r.memberId, progress: r.totalMinutes ? Math.min(1, Math.max(0, (r.minutesListened ?? 0) / r.totalMinutes)) : null }
+}
+
+/** The shelf switcher at the top of the library: every book, the kids', or the grown-ups'. */
+export type ShelfPick = 'all' | Exclude<LibraryShelf, 'everyone'>
+export const SHELF_LABEL: Record<ShelfPick, string> = { all: 'All', kids: 'Kids', grownups: 'Grown-ups' }
+/** On that shelf: its effective shelf (the server's Auto when no one picked), Everyone's on both. */
+export const onShelf = (b: Pick<LibraryBook, 'effectiveShelf'>, pick: ShelfPick) =>
+  pick === 'all' || b.effectiveShelf === 'everyone' || (b.effectiveShelf ?? 'grownups') === pick
+/** Where the switcher starts: Kids for a kid (their own device, or a wall with a kid picked in the
+ * header), else what this device picked last (`stored`), else All. */
+export function startShelf(stored: string | null, kid: boolean): ShelfPick {
+  if (kid) return 'kids'
+  return stored === 'kids' || stored === 'grownups' ? stored : 'all'
 }

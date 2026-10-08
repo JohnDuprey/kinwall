@@ -33,7 +33,7 @@ test('library: add, list by title, search, edit; the same ISBN twice is a 409 wi
   const added = await send('POST', '/api/library', holes);
   assert.equal(added.status, 201);
   const { id: _id, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = added.body;
-  assert.deepEqual(fields, { ...holes, format: 'book', year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], workKey: null, ratingsAverage: null, ratingsCount: null, lookedUpAt: null, location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [] });
+  assert.deepEqual(fields, { ...holes, format: 'book', year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], workKey: null, ratingsAverage: null, ratingsCount: null, lookedUpAt: null, location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, shelf: null, effectiveShelf: 'grownups', readers: [] });
   await send('POST', '/api/library', { title: "Charlotte's Web", author: 'E. B. White' });
   await send('POST', '/api/library', { title: 'Matilda', author: 'Roald Dahl' });
 
@@ -121,7 +121,7 @@ test('library: adding by ISBN alone looks the book up, details and description i
   assert.deepEqual(fields, {
     workKey: '/works/OL1W', ratingsAverage: 4.2, ratingsCount: 120,
     title: 'Into the Wild', format: 'book', author: 'Erin Hunter', isbn: '9780060000028', pages: 272, coverUrl: 'https://covers.openlibrary.org/b/id/9-M.jpg',
-    year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [],
+    year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, shelf: null, effectiveShelf: 'kids', readers: [],
   });
   assert.ok(new URL(calls[0]).searchParams.get('q') === '9780060000028');
 

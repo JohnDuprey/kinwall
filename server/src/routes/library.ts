@@ -3,14 +3,14 @@
 // first). Adding a book by ISBN alone looks it up in Open Library (books.ts); details are copied in
 // then, so browsing never calls out. Covers come through the server (GET .../cover), like reading
 // entries' covers. Wall screens and kids' devices browse, add and edit (auth.ts display allow-list);
-// removing a book is for parent devices.
-import { libraryFormat, sameBook } from '../shelve.ts';
+// removing a book and picking its shelf (Kids, Grown-ups or Everyone; Auto otherwise, shelve.ts autoShelf) are for parent devices.
+import { autoShelf, libraryFormat, sameBook } from '../shelve.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { actorOf } from '../auth.ts';
+import { actorOf, requestKey } from '../auth.ts';
 import { checkRate } from '../ratelimit.ts';
 import { fetchRecipeImage } from '../outbound.ts';
 import { ErrorSchema, LibraryBookInputSchema, LibraryBookPatchSchema, LibraryBookSchema } from '../schemas.ts';
@@ -27,19 +27,24 @@ export type LibraryRow = {
   year: number | null; series: string | null; series_number: string | null; lexile: number | null; description: string | null; genres: string | null
   location: string | null; lent_to: string | null; lent_on: string | null
   work_key?: string | null; looked_up_at?: string | null; ratings_average?: number | null; ratings_count?: number | null
-  borrowed_from: string | null; due_on: string | null; returned_on: string | null; wanted?: number; format?: string
+  borrowed_from: string | null; due_on: string | null; returned_on: string | null; wanted?: number; format?: string; shelf?: string | null
   added_by: string | null; added_by_label: string | null; created_at: string; updated_at: string;
 };
 const parseGenres = (v: string | null): string[] => { try { const g = JSON.parse(v ?? '[]'); return Array.isArray(g) ? g.filter((x) => typeof x === 'string') : []; } catch { return []; } };
 type Reader = { entryId: string; memberId: string | null; status: 'want' | 'reading' | 'finished'; readAt: string | null; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null };
 
-export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
+type Shelf = 'kids' | 'grownups' | 'everyone';
+/** kids: the kids' member ids, for Auto's "only kids read it" (kidIds). */
+export function toLibraryApi(r: LibraryRow, readers: Reader[] = [], kids = new Set<string>()) {
+  const shelf = r.shelf === 'kids' || r.shelf === 'grownups' || r.shelf === 'everyone' ? (r.shelf as Shelf) : null;
+  const genres = parseGenres(r.genres);
   return {
     id: r.id, format: libraryFormat(r.format), title: r.title, author: r.author, isbn: r.isbn, pages: r.pages, coverUrl: r.cover_url, year: r.year,
-    series: r.series, seriesNumber: r.series_number, lexile: r.lexile, description: r.description && cleanDescription(r.description), genres: parseGenres(r.genres),
+    series: r.series, seriesNumber: r.series_number, lexile: r.lexile, description: r.description && cleanDescription(r.description), genres,
     workKey: r.work_key ?? null, ratingsAverage: r.ratings_average ?? null, ratingsCount: r.ratings_count ?? null, lookedUpAt: r.looked_up_at ?? null,
     location: r.location ?? null, lentTo: r.lent_to ?? null, lentOn: r.lent_on ?? null,
     borrowedFrom: r.borrowed_from ?? null, dueOn: r.due_on ?? null, returnedOn: r.returned_on ?? null, wanted: !!r.wanted,
+    shelf, effectiveShelf: shelf ?? autoShelf({ genres, lexile: r.lexile, pages: r.pages, format: r.format, readers }, kids),
     addedBy: actorApi(r.added_by, r.added_by_label), readers, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -66,11 +71,16 @@ async function readersByBook(c: C): Promise<Map<string, Reader[]>> {
   return out;
 }
 
+/** The kids' member ids (Auto's "only kids read it"). */
+const kidIds = async (c: C) => new Set((await c.env.DB.prepare('SELECT id FROM members WHERE grown_up = 0').all<{ id: string }>()).results.map((m) => m.id));
+/** A shelf is a parent's pick: the 403 for a wall screen or a kid's device, else null. */
+const shelfBlock = async (c: C) => ((await requestKey(c))?.scope === 'admin' ? null : "A parent picks a book's shelf, from a parent's device.");
+
 const householdDay = async (c: C) => todayIn((await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value);
 
 const one = async (c: C, id: string) => {
   const row = await c.env.DB.prepare('SELECT * FROM library_books WHERE id = ?').bind(id).first<LibraryRow>();
-  return row ? toLibraryApi(row, (await readersByBook(c)).get(id)) : null;
+  return row ? toLibraryApi(row, (await readersByBook(c)).get(id), await kidIds(c)) : null;
 };
 const json = <T extends z.ZodType>(schema: T) => ({ 'application/json': { schema } });
 const idParam = z.object({ id: z.string() });
@@ -80,20 +90,21 @@ libraryRoutes.openapi(
     method: 'get',
     path: '/api/library',
     tags: ['Trackers'],
-    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series, genres, where it lives and who has it; format=book or audiobook keeps that format, unread=1 keeps books nobody has started, lent=1 books on loan, borrowed=1 borrowed books still out (soonest due first), returned=1 borrowed books that went back, wanted=1 the wishlist (both are left out otherwise), location one place.",
+    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series, genres, where it lives and who has it; format=book or audiobook keeps that format, unread=1 keeps books nobody has started, lent=1 books on loan, borrowed=1 borrowed books still out (soonest due first), returned=1 borrowed books that went back, wanted=1 the wishlist (both are left out otherwise), location one place, shelf=kids or grownups one shelf (by effectiveShelf; everyone's books are on both).",
     security: [{ Bearer: [] }],
-    request: { query: z.object({ q: z.string().max(100).optional(), format: z.enum(['book', 'audiobook']).optional(), unread: z.enum(['1', 'true']).optional(), lent: z.enum(['1', 'true']).optional(), borrowed: z.enum(['1', 'true']).optional(), returned: z.enum(['1', 'true']).optional(), wanted: z.enum(['1', 'true']).optional(), location: z.string().max(80).optional() }) },
+    request: { query: z.object({ q: z.string().max(100).optional(), format: z.enum(['book', 'audiobook']).optional(), unread: z.enum(['1', 'true']).optional(), lent: z.enum(['1', 'true']).optional(), borrowed: z.enum(['1', 'true']).optional(), returned: z.enum(['1', 'true']).optional(), wanted: z.enum(['1', 'true']).optional(), location: z.string().max(80).optional(), shelf: z.enum(['kids', 'grownups']).optional() }) },
     responses: { 200: { description: 'ok', content: json(z.array(LibraryBookSchema)) } },
   }),
   async (c) => {
-    const { q, format, unread, lent, borrowed, returned, wanted, location } = c.req.valid('query');
+    const { q, format, unread, lent, borrowed, returned, wanted, location, shelf } = c.req.valid('query');
     const like = q?.trim() ? `%${q.trim().replace(/[\\%_]/g, (m) => `\\${m}`)}%` : null;
     const { results } = await c.env.DB.prepare(
       `SELECT * FROM library_books ${like ? "WHERE title LIKE ?1 ESCAPE '\\' OR author LIKE ?1 ESCAPE '\\' OR series LIKE ?1 ESCAPE '\\' OR genres LIKE ?1 ESCAPE '\\' OR location LIKE ?1 ESCAPE '\\' OR lent_to LIKE ?1 ESCAPE '\\' OR borrowed_from LIKE ?1 ESCAPE '\\'" : ''} ORDER BY coalesce(series, title) COLLATE NOCASE, CAST(series_number AS REAL), title COLLATE NOCASE, created_at`, // a series together, in order
     ).bind(...(like ? [like] : [])).all<LibraryRow>();
     const readers = await readersByBook(c);
-    const books = results.map((r) => toLibraryApi(r, readers.get(r.id)))
-      .filter((b) => (!format || b.format === format) && (!unread || !b.readers.length) && (!lent || b.lentTo) && (!location || b.location === location)
+    const kids = await kidIds(c);
+    const books = results.map((r) => toLibraryApi(r, readers.get(r.id), kids))
+      .filter((b) => (!shelf || b.effectiveShelf === shelf || b.effectiveShelf === 'everyone') && (!format || b.format === format) && (!unread || !b.readers.length) && (!lent || b.lentTo) && (!location || b.location === location)
         && (returned ? !!b.returnedOn : !b.returnedOn) && (wanted ? b.wanted : !b.wanted) && (!borrowed || !!b.borrowedFrom));
     if (borrowed) books.sort((a, b) => (a.dueOn ?? '9999').localeCompare(b.dueOn ?? '9999'));
     return c.json(books, 200);
@@ -123,6 +134,7 @@ libraryRoutes.openapi(
     responses: {
       201: { description: 'added', content: json(LibraryBookSchema) },
       400: { description: 'neither a title nor an isbn', content: json(ErrorSchema) },
+      403: { description: "a shelf picked on a wall screen or a kid's device", content: json(ErrorSchema) },
       404: { description: 'nobody knows that ISBN', content: json(ErrorSchema) },
       409: { description: 'already in the library', content: json(z.object({ error: z.string(), book: LibraryBookSchema })) },
       429: { description: 'too many lookups', content: json(ErrorSchema) },
@@ -132,6 +144,8 @@ libraryRoutes.openapi(
   async (c) => {
     let input = c.req.valid('json');
     if (!input.title && !input.isbn) return c.json({ error: 'A title or an ISBN' }, 400);
+    const blocked = input.shelf !== undefined ? await shelfBlock(c) : null;
+    if (blocked) return c.json({ error: blocked }, 403);
     if (input.isbn) {
       const have = await c.env.DB.prepare('SELECT id FROM library_books WHERE isbn = ?').bind(input.isbn).first<{ id: string }>();
       if (have) { const book = (await one(c, have.id))!; return c.json({ error: `Already in the library: ${book.title}`, book }, 409); }
@@ -172,24 +186,25 @@ libraryRoutes.openapi(
       lexile: input.lexile ?? null, description, genres: input.genres?.length ? JSON.stringify(input.genres) : null,
       location: input.location || null, lent_to: input.lentTo || null, lent_on: input.lentTo ? input.lentOn ?? (await householdDay(c)) : null,
       borrowed_from: input.borrowedFrom || null, due_on: input.borrowedFrom ? input.dueOn ?? null : null, returned_on: input.borrowedFrom ? input.returnedOn ?? null : null,
-      wanted: input.wanted && !input.borrowedFrom ? 1 : 0, format: input.format ?? 'book', added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
+      wanted: input.wanted && !input.borrowedFrom ? 1 : 0, format: input.format ?? 'book', shelf: input.shelf ?? null, added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
       work_key: input.workKey ?? null, looked_up_at: lookedUp ? now : null, ratings_average: ratings.average, ratings_count: ratings.count,
     };
     await c.env.DB.prepare(
-      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, location, lent_to, lent_on, borrowed_from, due_on, returned_on, wanted, format, added_by, added_by_label, created_at, updated_at, work_key, looked_up_at, ratings_average, ratings_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.location, row.lent_to, row.lent_on, row.borrowed_from, row.due_on, row.returned_on, row.wanted, row.format, row.added_by, row.added_by_label, row.created_at, row.updated_at, row.work_key, row.looked_up_at, row.ratings_average, row.ratings_count).run();
+      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, location, lent_to, lent_on, borrowed_from, due_on, returned_on, wanted, format, shelf, added_by, added_by_label, created_at, updated_at, work_key, looked_up_at, ratings_average, ratings_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.location, row.lent_to, row.lent_on, row.borrowed_from, row.due_on, row.returned_on, row.wanted, row.format, row.shelf, row.added_by, row.added_by_label, row.created_at, row.updated_at, row.work_key, row.looked_up_at, row.ratings_average, row.ratings_count).run();
     emit(c, 'tracker.changed', { library: row.id });
     if (!lookedUp) lookUpInBackground(c, row.id); // details it came without (book-details.ts)
-    return c.json(toLibraryApi(row), 201);
+    return c.json(toLibraryApi(row, [], await kidIds(c)), 201);
   },
 );
 
 libraryRoutes.openapi(
   createRoute({
-    method: 'patch', path: '/api/library/{id}', tags: ['Trackers'], summary: 'Edit a library book. Only given fields change; null clears one.', security: [{ Bearer: [] }],
+    method: 'patch', path: '/api/library/{id}', tags: ['Trackers'], summary: 'Edit a library book. Only given fields change; null clears one (shelf: null is Auto). Changing the shelf is for parent devices.', security: [{ Bearer: [] }],
     request: { params: idParam, body: { content: json(LibraryBookPatchSchema) } },
     responses: {
       200: { description: 'ok', content: json(LibraryBookSchema) }, 404: { description: 'not found', content: json(ErrorSchema) },
+      403: { description: "a shelf picked on a wall screen or a kid's device", content: json(ErrorSchema) },
       409: { description: 'another book has that ISBN', content: json(ErrorSchema) },
     },
   }),
@@ -198,6 +213,8 @@ libraryRoutes.openapi(
     const p = c.req.valid('json');
     const r = await c.env.DB.prepare('SELECT * FROM library_books WHERE id = ?').bind(id).first<LibraryRow>();
     if (!r) return c.json({ error: 'not found' }, 404);
+    const blocked = p.shelf !== undefined ? await shelfBlock(c) : null;
+    if (blocked) return c.json({ error: blocked }, 403);
     if (p.isbn && p.isbn !== r.isbn && (await c.env.DB.prepare('SELECT 1 FROM library_books WHERE isbn = ? AND id != ?').bind(p.isbn, id).first())) return c.json({ error: 'Another book in the library has that ISBN' }, 409);
     const v = <K extends keyof typeof p>(k: K, old: unknown) => (p[k] !== undefined ? p[k] : old);
     const next: LibraryRow = {
@@ -215,11 +232,12 @@ libraryRoutes.openapi(
       due_on: p.borrowedFrom === null || p.borrowedFrom === '' ? null : v('dueOn', r.due_on) as string | null,
       returned_on: p.borrowedFrom === null || p.borrowedFrom === '' ? null : v('returnedOn', r.returned_on) as string | null,
       format: p.format ?? r.format,
+      shelf: p.shelf !== undefined ? p.shelf : r.shelf ?? null,
       wanted: p.borrowedFrom ? 0 : p.wanted !== undefined ? (p.wanted ? 1 : 0) : r.wanted ?? 0, // borrowing it: had, for now
       updated_at: new Date().toISOString(),
     };
-    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, location=?, lent_to=?, lent_on=?, borrowed_from=?, due_on=?, returned_on=?, wanted=?, format=?, updated_at=? WHERE id=?')
-      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.location, next.lent_to, next.lent_on, next.borrowed_from, next.due_on, next.returned_on, next.wanted, next.format, next.updated_at, id).run();
+    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, location=?, lent_to=?, lent_on=?, borrowed_from=?, due_on=?, returned_on=?, wanted=?, format=?, shelf=?, updated_at=? WHERE id=?')
+      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.location, next.lent_to, next.lent_on, next.borrowed_from, next.due_on, next.returned_on, next.wanted, next.format, next.shelf, next.updated_at, id).run();
     emit(c, 'tracker.changed', { library: id });
     return c.json((await one(c, id))!, 200);
   },

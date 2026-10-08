@@ -5,6 +5,8 @@
 // on one (never a wishlist or returned book). Audiobooks stand apart, as records in a crate below: square
 // sleeves with the record peeking out of the top, spinning with the listener's face as its label
 // (and a ring for how far along) while someone listens. The crate's heading has its own "Pick one".
+// With split (the All shelf), the books stand in two bookcases, Kids' (Everyone's books too) and
+// Grown-ups', when there are both.
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { announce, reducedMotion } from './a11y.tsx'
@@ -16,8 +18,8 @@ const SCAN_STEPS = 12
 const SCAN_STEP_MS = 90
 const LAND_MS = 900 // the picked book glows this long before its sheet opens
 
-export default function LibraryShelf({ books, members, today, onOpen }: {
-  books: LibraryBook[]; members: Member[]; today: string; onOpen: (b: LibraryBook) => void
+export default function LibraryShelf({ books, members, today, onOpen, split = false }: {
+  books: LibraryBook[]; members: Member[]; today: string; onOpen: (b: LibraryBook) => void; split?: boolean
 }) {
   const [lit, setLit] = useState<string | null>(null) // the book the scan is on
   const [picked, setPicked] = useState<string | null>(null)
@@ -26,6 +28,10 @@ export default function LibraryShelf({ books, members, today, onOpen }: {
   const later = (fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)) }
 
   const paper = books.filter(b => !isAudio(b))
+  const kids = paper.filter(b => b.effectiveShelf === 'kids' || b.effectiveShelf === 'everyone')
+  const cases: [key: string, emoji: string, name: string, list: LibraryBook[]][] = split && kids.length && kids.length < paper.length
+    ? [['kids', '🧸', "Kids' books", kids], ['grownups', '📚', "Grown-ups' books", paper.filter(b => !kids.includes(b))]]
+    : [['books', '📚', 'Books', paper]]
   const audio = books.filter(isAudio)
   const pick = (from: LibraryBook[]) => {
     const shelf = from.filter(b => !b.wanted && !b.returnedOn)
@@ -50,15 +56,15 @@ export default function LibraryShelf({ books, members, today, onOpen }: {
     <button type="button" className="btn btn-secondary lib-pick-btn" aria-label={name} title={name} onClick={() => pick(from)} disabled={!!lit}>🎲 Pick one</button>
   return (
     <div className="lib-shelves">
-      {!!paper.length && (
-        <section className="lib-case" aria-labelledby="lib-shelf-title">
+      {cases.filter(([, , , list]) => list.length).map(([key, emoji, name, list]) => (
+        <section key={key} className="lib-case" aria-labelledby={`lib-shelf-title-${key}`}>
           <div className="lib-sec-head">
-            <h3 id="lib-shelf-title" className="lib-sec-title">📚 Books</h3>
-            {can(paper) && pickBtn(paper, 'Pick one book for me')}
+            <h3 id={`lib-shelf-title-${key}`} className="lib-sec-title">{emoji} {name}</h3>
+            {can(list) && pickBtn(list, key === 'books' ? 'Pick one book for me' : `Pick one of the ${name.toLowerCase()} for me`)}
           </div>
-          <ul className="lib-shelf" aria-label="Books">{paper.map(book)}</ul>
+          <ul className="lib-shelf" aria-label={name}>{list.map(book)}</ul>
         </section>
-      )}
+      ))}
       {!!audio.length && (
         <section className="lib-crate" aria-labelledby="lib-crate-title">
           <div className="lib-sec-head">

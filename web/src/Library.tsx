@@ -13,8 +13,8 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, genreOptions, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, SORT_LABEL, sortLibrary, STATUS_LABEL, type LibraryFilters, type LibrarySort, type LibraryStatus } from './library.ts'
-import type { LibraryFormat } from './types.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, genreOptions, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, onShelf, SHELF_LABEL, startShelf, type ShelfPick, SORT_LABEL, sortLibrary, STATUS_LABEL, type LibraryFilters, type LibrarySort, type LibraryStatus } from './library.ts'
+import type { LibraryFormat, LibraryShelf as BookShelf } from './types.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
@@ -25,6 +25,7 @@ import { hashPath, hashQuery } from './hashQuery.ts'
 import { STATUS_EMOJI } from './reading.ts'
 
 const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
+const SHELF_WORD: Record<BookShelf, string> = { kids: 'Kids', grownups: 'Grown-ups', everyone: 'Everyone' }
 const LISTEN_WORD: Record<ReadingStatus, string> = { want: 'wants to listen', reading: 'listening', finished: 'listened' }
 /** Between book scans: long enough to see what was added and pick up the next book. */
 const SCAN_PAUSE_MS = 2000
@@ -32,6 +33,9 @@ const SCAN_PAUSE_MS = 2000
 // shelf looks like books went missing.
 const VIEW_KEY = 'kinwall.libraryView'
 const SORT_KEY = 'kinwall.librarySort' // the sort is kept too: it never hides a book
+// The shelf (All, Kids, Grown-ups) is kept as well, except while a kid is picked: they get Kids.
+const SHELF_KEY = 'kinwall.libraryShelf'
+const SHELF_PICKS = Object.keys(SHELF_LABEL) as ShelfPick[]
 const STATUSES = Object.keys(STATUS_LABEL) as LibraryStatus[]
 const FORMATS = Object.keys(FORMAT_LABEL) as LibraryFormat[]
 const SORTS = Object.keys(SORT_LABEL) as LibrarySort[]
@@ -45,9 +49,15 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   onAdded: () => void // closes it
   onStarted: () => void // a reading entry was started: the shelves reload
 }) {
-  const { members, toast, parentDevice, focusLocked, meMemberId, refreshTick, settings } = useApp()
+  const { members, toast, parentDevice, focusLocked, meMemberId, refreshTick, settings, selectedMemberId } = useApp()
   const today = todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
   const kid = !parentDevice && focusLocked ? meMemberId : null
+  // A kid's own device, or a wall with a kid picked in the header, opens on the Kids shelf.
+  const kidView = !!kid || members.find(m => m.id === selectedMemberId)?.grownUp === false
+  // A pick lasts while it's the same kind of view (picking a kid in the header starts them on Kids again).
+  const [picked, setPicked] = useState<{ v: ShelfPick; kidView: boolean } | null>(null)
+  const shelf = picked && picked.kidView === kidView ? picked.v : startShelf(stored(SHELF_KEY), kidView)
+  const pickShelf = (v: ShelfPick) => { setPicked({ v, kidView }); if (!kidView) store(SHELF_KEY, v) }
   const [all, setAll] = useState<LibraryBook[] | null>(null) // what the filters need, before filtering
   const [q, setQ] = useState('')
   const [filters, setFilters] = useState<LibraryFilters>(NO_FILTERS)
@@ -72,7 +82,8 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     setSources(s => more(s, b.map(x => x.borrowedFrom)))
   }).catch(e => { setAll([]); toast(msg(e, "Couldn't load the library"), true) })
   useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, need.returned, need.wanted, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
-  const books = all && (sort ? sortLibrary(filterLibrary(all, filters), sort) : filterLibrary(all, filters))
+  const shelved = all && all.filter(b => onShelf(b, shelf))
+  const books = shelved && (sort ? sortLibrary(filterLibrary(shelved, filters), sort) : filterLibrary(shelved, filters))
   // #/trackers/library?book=<id> (a Reading entry's "Open in the library"): that book's sheet once the
   // library is in, looking among returned and wishlist books too; an unknown id just shows the library.
   // #/trackers/library?add=<title>&author=<author> (the Add to Kinwall Shortcut, when Open Library had no
@@ -140,7 +151,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   // The Filters button's badge counts a sort other than Title too: sort and filters share its sheet.
   const sorted = !!sort && sort !== 'title'
   const badge = on + (sorted ? 1 : 0)
-  const genres = genreOptions(all ?? [], filters.genres)
+  const genres = genreOptions(shelved ?? [], filters.genres)
   const group = (id: string, label: string, chips: ReactNode, hint: string) => (
     <div className="field">
       <label id={id}>{label}</label>
@@ -157,6 +168,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   // One row: the count, small, the filters that are on (wrapping if there are many), and the
   // view switch, icons only on a phone (Library view words from 700px); on a phone 📷 Scan joins it.
   const head = <div className="lib-head">
+    <Segmented className="lib-shelf-pick" label="Shelf" value={shelf} onChange={pickShelf} options={SHELF_PICKS.map(k => ({ key: k, label: SHELF_LABEL[k] }))} />
     <span className="lib-count">{(() => {
       const a = books?.filter(isAudio).length ?? 0, p = shown - a
       const part = (emoji: string, text: string) => <><span className="lib-count-emoji" aria-hidden="true">{emoji} </span>{text}</>
@@ -205,9 +217,9 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
       )}
       {head}
       {books === null ? <div className="state-card">Loading…</div>
-        : view === 'covers' && shown ? <LibraryShelf books={books} members={people} today={today} onOpen={setOpen} />
+        : view === 'covers' && shown ? <LibraryShelf books={books} members={people} today={today} onOpen={setOpen} split={shelf === 'all'} />
         : !books.length ? (
-          <div className="empty-card"><span className="emoji">📚</span>{filters.show.length === 1 && filters.show[0] === 'wishlist' && !q && !on ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || on ? 'No books match.' : all?.length ? 'Nothing here yet. Open Filters for the wishlist, returned books or want to read.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
+          <div className="empty-card"><span className="emoji">📚</span>{filters.show.length === 1 && filters.show[0] === 'wishlist' && !q && !on ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || on ? 'No books match.' : shelf !== 'all' && all?.length ? `Nothing on the ${SHELF_LABEL[shelf]} shelf yet. A parent can put a book there from its details.` : all?.length ? 'Nothing here yet. Open Filters for the wishlist, returned books or want to read.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
         ) : (
           <ul className="lib-grid">
             {books.map(b => {
@@ -339,6 +351,14 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
           <option value="wanted">Wishlist (don't have it yet)</option>
         </select>
         {book.wanted && !picking && <p className="field-hint">Got it? Pick Ours.</p>}
+      </div>
+      <div className="field">
+        <label htmlFor="lib-shelf">Shelf</label>
+        <select id="lib-shelf" value={book.shelf ?? ''} disabled={!canRemove} onChange={e => { const v = (e.target.value || null) as BookShelf | null; save({ shelf: v }, `Shelf: ${v ? SHELF_WORD[v] : 'Auto'}`) }}>
+          <option value="">{book.shelf ? 'Auto' : `Auto (${SHELF_WORD[book.effectiveShelf ?? 'grownups']})`}</option>
+          {(Object.keys(SHELF_WORD) as BookShelf[]).map(k => <option key={k} value={k}>{SHELF_WORD[k]}</option>)}
+        </select>
+        <p className="field-hint">{canRemove ? "Who it's for. Auto goes by its genres, reading level, length and who reads it." : "Who it's for. A parent can change it."}</p>
       </div>
       {picking === 'borrowed' && <BorrowFields sources={sources} today={today} onCancel={() => setPicking(null)}
         onSave={(from, due) => { setPicking(null); save({ borrowedFrom: from, dueOn: due }, `Borrowed from ${from}`) }} />}

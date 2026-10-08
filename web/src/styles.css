@@ -2952,6 +2952,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
   .lib-count { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lib-count-emoji { display: none; } /* the 📚 Books and 🎧 Audiobooks headings just below have them */
 }
+@media (max-width: 480px) { .lib-count { display: none; } } /* a phone's head row is the shelf and view switches */
 .trk-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
 .trk-card h3 { margin: 0; font-size: 1.0625rem; font-weight: 800; }
 .trk-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
@@ -3659,3 +3660,6 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 :root[data-native="android"] { --safe-t: 0px; --safe-b: 0px; --safe-l: 0px; --safe-r: 0px; }
 :root[data-native="android"] .demo-bar { height: 28px; padding-top: 0; }
 :root[data-native="android"] .timer-alarm { padding-top: 12px; }
+/* The library's shelf switcher (All · Kids · Grown-ups), first in its head row. */
+.lib-head .lib-shelf-pick { flex: none; padding: 2px; }
+.lib-shelf-pick button { min-height: 44px; min-width: 44px; padding: 0 12px; font-size: 0.875rem; white-space: nowrap; }

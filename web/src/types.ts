@@ -114,6 +114,7 @@ export interface ReadingData {
 }
 /** The family's library (GET /api/library): books owned, apart from who's reading what. */
 export type LibraryFormat = 'book' | 'audiobook' // each its own item: a paper copy and an audiobook of one title are two
+export type LibraryShelf = 'kids' | 'grownups' | 'everyone' // everyone's books are on both shelves
 export interface LibraryBook {
   id: string; format?: LibraryFormat; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
   year: number | null; series: string | null; seriesNumber: string | null; lexile: number | null; description: string | null; genres: string[]
@@ -121,10 +122,12 @@ export interface LibraryBook {
   lookedUpAt?: string | null // when its details were last looked up, found or not
   location: string | null; lentTo: string | null; lentOn: string | null // where it lives; who has it on loan, since when
   wanted?: boolean // on the wishlist: wanted, not had yet
+  shelf?: LibraryShelf | null // who it's for, as a parent picked; null is Auto
+  effectiveShelf?: LibraryShelf // the shelf it's on: its shelf, else the server's Auto (kids or grownups)
   borrowedFrom: string | null; dueOn: string | null; returnedOn: string | null // borrowed, not owned: who from, due back when; returned ones stay as history
   addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus; readAt?: string | null; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null }[]; createdAt: string; updatedAt: string
 }
-export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt' | 'workKey' | 'ratingsAverage' | 'ratingsCount' | 'lookedUpAt'>> & { workKey?: string }
+export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt' | 'workKey' | 'ratingsAverage' | 'ratingsCount' | 'lookedUpAt' | 'effectiveShelf'>> & { workKey?: string }
 export interface ReadingDay { date: string; amount: number } // pages for a book, minutes for an audiobook
 /** A book lookup result (GET /api/books/search, from Open Library). */
 export interface BookResult {

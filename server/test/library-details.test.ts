@@ -144,7 +144,7 @@ test("library details: an audiobook made from a reading entry is looked up, with
   await settle();
   const book = (await send('GET', `/api/library/${entry.data.bookId}`)).body;
   assert.equal(book.description, 'Stanley Yelnats digs holes.');
-  assert.deepEqual(book.genres, ['Adventure', 'Humor']);
+  assert.deepEqual(book.genres, ['Adventure', 'Humor', "Children's"]);
   assert.equal(book.format, 'audiobook');
   assert.equal(book.year, 1998);
   assert.deepEqual([book.isbn, book.pages], [null, null], "the paper copy's");

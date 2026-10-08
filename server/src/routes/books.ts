@@ -37,6 +37,9 @@ const GENRES: [string, RegExp][] = [
   ['Romance', /\bromance\b|love stories/i],
   ['Horror', /\bhorror\b|\bghost stories\b/i],
   ['Sports', /\bsports?\b|\bsoccer\b|\bbaseball\b|\bfootball\b|\bbasketball\b/i],
+  // Who it's for, which the library's Kids shelf goes by (shelve.ts autoShelf).
+  ['Young adult', /young adult/i],
+  ["Children's", /\bjuvenile (fiction|literature|works|nonfiction)|children'?s (fiction|books?|stories|literature)|\bmiddle[ -]grade\b/i],
 ];
 /** Up to five genres from a book's subjects, in GENRES order. */
 export function genresFrom(subjects: string[] | undefined): string[] {

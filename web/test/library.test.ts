@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook, sortLibrary, STATUS_LABEL } from '../src/library.ts'
+import { onShelf, startShelf, listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook, sortLibrary, STATUS_LABEL } from '../src/library.ts'
 import { STATUS_EMOJI, STATUS_WORDS } from '../src/reading.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
@@ -237,4 +237,19 @@ test('genres: the Genre filter and its choices, most common first', async () => 
   assert.deepEqual(ids(['Animals', 'Humor']), ['a', 'b'], 'OR within Genre')
   assert.deepEqual(genreOptions(books), [{ genre: 'Fantasy', count: 2 }, { genre: 'Animals', count: 1 }, { genre: 'Humor', count: 1 }], 'by count, then A-Z')
   assert.deepEqual(genreOptions(books, ['Poetry']).at(-1), { genre: 'Poetry', count: 0 }, 'a picked genre stays, so it can be turned off')
+})
+
+test('onShelf: All is every book; Kids and Grown-ups go by the effective shelf, and Everyone is on both', () => {
+  const b = (effectiveShelf?: 'kids' | 'grownups' | 'everyone') => ({ effectiveShelf })
+  assert.deepEqual(['kids', 'grownups', 'everyone', undefined].map(s => onShelf(b(s as never), 'kids')), [true, false, true, false])
+  assert.deepEqual(['kids', 'grownups', 'everyone', undefined].map(s => onShelf(b(s as never), 'grownups')), [false, true, true, true], 'no shelf yet (an older server) is a grown-up book')
+  assert.ok(onShelf(b('kids'), 'all'))
+})
+
+test("startShelf: a kid's device or a kid picked opens on Kids; otherwise the device's last pick, else All", () => {
+  assert.equal(startShelf(null, true), 'kids')
+  assert.equal(startShelf('grownups', true), 'kids', 'a kid picked: their shelf, whatever a grown-up left it on')
+  assert.equal(startShelf('grownups', false), 'grownups')
+  assert.equal(startShelf('nonsense', false), 'all')
+  assert.equal(startShelf(null, false), 'all')
 })

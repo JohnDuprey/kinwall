@@ -1352,6 +1352,7 @@ export const BookResultSchema = z
 // started from the book carry data.bookId).
 const LibraryIsbn = z.string().regex(/^(\d{9}[\dXx]|\d{13})$/, 'an ISBN-10 or ISBN-13, digits only');
 const LibraryFormat = z.enum(['book', 'audiobook']);
+const LibraryShelf = z.enum(['kids', 'grownups', 'everyone']);
 const LibraryCover = z.string().max(2000).refine(isPublicHttpsUrl, 'must be a public https address');
 export const LibraryBookSchema = z
   .object({
@@ -1370,6 +1371,8 @@ export const LibraryBookSchema = z
     dueOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book is due back.' }),
     returnedOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book went back; kept as history.' }),
     wanted: z.boolean().openapi({ description: "On the wishlist: wanted, not had yet. Left out of the library unless asked for (wanted=1)." }),
+    shelf: LibraryShelf.nullable().default(null).openapi({ description: "Who it's for, as a parent picked: kids, grownups or everyone (on both shelves); null is Auto (effectiveShelf)." }),
+    effectiveShelf: LibraryShelf.default('grownups').openapi({ description: "The shelf it's on: its shelf, else Auto: kids when its genres say children's, young adult or picture book, its reading level is under 1000L, it has 48 pages or fewer, or only kids have read it; otherwise grownups." }),
     addedBy: ActorSchema.nullable(),
     readers: z.array(z.object({
       entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']),
@@ -1395,6 +1398,7 @@ export const LibraryBookInputSchema = z
     dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'When a borrowed book is due back.' }),
     returnedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'Returned (a borrowed book), kept as history; null to borrow it again.' }),
     wanted: z.boolean().optional().openapi({ description: 'On the wishlist (not had yet); false when you get it. Borrowing it (borrowedFrom) takes it off.' }),
+    shelf: LibraryShelf.nullable().optional().openapi({ description: "Who it's for: kids, grownups or everyone; null for Auto. Parent devices only." }),
     workKey: z.string().regex(/^\/works\/OL\d+W$/).optional().openapi({ description: "A search result's workKey: its description is fetched (once)." }),
   })
   .openapi('LibraryBookInput');

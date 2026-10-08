@@ -356,15 +356,16 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_library',
     {
       title: 'List the library',
-      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, description, year, ISBN, Open Library's ratings and work (workKey), where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true), format (book or audiobook: each its own item, so a paper copy and an audiobook of one title are two) and readers (reading entries started from it: memberId, status and readAt, the day of their latest reading; an audiobook's narrator, minutesListened and totalMinutes). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place; format: only books or only audiobooks. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id); if they're already tracking it (an unfinished reading entry with that title), set data.bookId on that entry with update_tracker_entry instead of adding another.",
+      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, description, year, ISBN, Open Library's ratings and work (workKey), where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true), format (book or audiobook: each its own item, so a paper copy and an audiobook of one title are two), shelf (who it's for as a parent picked: kids, grownups or everyone; null is Auto) and effectiveShelf (the shelf it's on: its shelf, else Auto from its genres, reading level, length and readers), and readers (reading entries started from it: memberId, status and readAt, the day of their latest reading; an audiobook's narrator, minutesListened and totalMinutes). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place; format: only books or only audiobooks; shelf: only the kids' or the grown-ups' shelf (everyone's books are on both). Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id); if they're already tracking it (an unfinished reading entry with that title), set data.bookId on that entry with update_tracker_entry instead of adding another.",
       inputSchema: {
         q: z.string().max(100).optional(), format: z.enum(['book', 'audiobook']).optional().describe('Only books, or only audiobooks.'), unread: z.boolean().optional().describe('Only books nobody has started reading.'),
         lent: z.boolean().optional().describe('Only books lent out.'),
         borrowed: z.boolean().optional().describe('Only borrowed books not yet returned (soonest due first).'), returned: z.boolean().optional().describe('Only borrowed books that went back.'), wanted: z.boolean().optional().describe('Only the wishlist: books wanted, not had yet.'), location: z.string().max(80).optional().describe('Only books that live here, e.g. "Living room shelf".'),
+        shelf: z.enum(['kids', 'grownups']).optional().describe("Only the kids' shelf or the grown-ups' (by effectiveShelf)."),
       },
     },
-    async ({ q, format, unread, lent, borrowed, returned, wanted, location }) => {
-      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(format ? { format } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(borrowed ? { borrowed: '1' } : {}), ...(returned ? { returned: '1' } : {}), ...(wanted ? { wanted: '1' } : {}), ...(location ? { location } : {}) });
+    async ({ q, format, unread, lent, borrowed, returned, wanted, location, shelf }) => {
+      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(shelf ? { shelf } : {}), ...(format ? { format } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(borrowed ? { borrowed: '1' } : {}), ...(returned ? { returned: '1' } : {}), ...(wanted ? { wanted: '1' } : {}), ...(location ? { location } : {}) });
       const res = await call(app, env, auth, 'GET', `/api/library${params.size ? `?${params}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the library');
       const books = res.json as { title: string; author: string | null; format: string; readers: unknown[] }[];
@@ -420,11 +421,12 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(`Looked up "${b.title}" on Open Library.`, { book: b as unknown as Record<string, unknown> });
     },
   );
+  const SHELF_WORD = { kids: "kids'", grownups: "grown-ups'", everyone: "everyone's" };
   tool(
     'update_library_book',
     {
       title: 'Update a library book',
-      description: "Lend a library book out (lentTo: who has it; dated today), bring it back (lentTo: null), say where it lives (location), or fix its details. For a borrowed book: change its due date (dueOn), return it (returnedOn: today's date; it stays as history), or borrow it again (returnedOn: null with a new dueOn). A wishlist book: got it (wanted: false), or put a book on the wishlist (wanted: true). book is its id or title (case-insensitive). Only given fields change.",
+      description: "Lend a library book out (lentTo: who has it; dated today), bring it back (lentTo: null), say where it lives (location), or fix its details. For a borrowed book: change its due date (dueOn), return it (returnedOn: today's date; it stays as history), or borrow it again (returnedOn: null with a new dueOn). A wishlist book: got it (wanted: false), or put a book on the wishlist (wanted: true). Put it on the kids', grown-ups' or everyone's shelf (shelf; null for Auto). book is its id or title (case-insensitive). Only given fields change.",
       inputSchema: {
         book: z.string().describe('Library book id or title.'),
         lentTo: z.string().max(80).nullable().optional().describe('Who has it on loan, e.g. "Grandma"; null when it comes back.'),
@@ -435,6 +437,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         returnedOn: z.string().nullable().optional().describe('YYYY-MM-DD it went back; null to borrow it again.'),
         wanted: z.boolean().optional().describe('On the wishlist; false once you have it.'),
         format: z.enum(['book', 'audiobook']).optional().describe('A book or an audiobook.'),
+        shelf: z.enum(['kids', 'grownups', 'everyone']).nullable().optional().describe("Who it's for: kids, grownups or everyone (on both shelves); null lets Kinwall decide (Auto)."),
         title: z.string().optional(), author: z.string().nullable().optional(), pages: z.number().int().nullable().optional(),
         series: z.string().nullable().optional(), seriesNumber: z.string().nullable().optional(),
       },
@@ -443,8 +446,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const { id, books } = await libraryBook(book);
       const res = await call(app, env, auth, 'PATCH', `/api/library/${encodeURIComponent(id)}`, changes);
       if (res.status >= 400) return errorResult(res.json, books.length > 1 ? `"${book}" matches several books: ${books.map((b) => b.title).join(', ')}` : 'book not found in the library');
-      const b = res.json as { title: string; lentTo: string | null; location: string | null; borrowedFrom: string | null; dueOn: string | null };
-      const said = changes.returnedOn ? `returned to ${b.borrowedFrom}` : changes.dueOn || changes.returnedOn === null ? `due back ${b.dueOn ?? 'whenever'}` : changes.lentTo ? `lent to ${b.lentTo}` : changes.lentTo === null ? 'back home' : 'updated';
+      const b = res.json as { title: string; lentTo: string | null; location: string | null; borrowedFrom: string | null; dueOn: string | null; effectiveShelf: keyof typeof SHELF_WORD };
+      const said = changes.returnedOn ? `returned to ${b.borrowedFrom}` : changes.dueOn || changes.returnedOn === null ? `due back ${b.dueOn ?? 'whenever'}` : changes.lentTo ? `lent to ${b.lentTo}` : changes.lentTo === null ? 'back home' : changes.shelf !== undefined ? `on the ${SHELF_WORD[b.effectiveShelf]} shelf${changes.shelf === null ? ' (Auto)' : ''}` : 'updated';
       return okResult(`"${b.title}" ${said}${b.location ? ` (it lives at: ${b.location})` : ''}.`, { book: b as unknown as Record<string, unknown> });
     },
   );

@@ -668,30 +668,42 @@ const bookLibrary: LibraryBook[] = [
   libraryBook('book-charlotte', "Charlotte's Web", 'E. B. White', { isbn: '9780064400558', workKey: '/works/OL45804W', ratingsAverage: 4.1, ratingsCount: 860, pages: 184, year: 1952, lexile: 680, genres: ['Fantasy', 'Animals'], location: "Maya's room", coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180', description: 'Some pig! A runt piglet, a clever spider and a promise to save his life.' }),
   libraryBook('book-matilda', 'Matilda', 'Roald Dahl', { isbn: '9780142410370', pages: 240, year: 1988, lexile: 840, genres: ['Fantasy', 'Humor'], location: 'Living room shelf', lentTo: 'Grandma', lentOn: daysAgo(9), coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
   libraryBook('book-holes', 'Holes', 'Louis Sachar', { isbn: '9780440414803', pages: 233, year: 1998, lexile: 660, genres: ['Adventure', 'Mystery'], location: 'Living room shelf', description: 'There is no lake at Camp Green Lake.' }),
-  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { isbn: '9780060000028', workKey: '/works/OL5720023W', ratingsAverage: 4.3, ratingsCount: 1240, lookedUpAt: daysAgo(20), pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals'], description: 'Fire alone can save our Clan. For generations, four Clans of wild cats have shared the forest according to the laws laid down by their ancestors. But the warrior code is threatened, and the ThunderClan cats are in grave danger. When an ordinary housecat named Rusty wanders into the woods, he is invited to join the Clan as an apprentice and given a new name. Under the eye of his mentor, he learns to hunt, to fight and to keep the code, and he finds friends, rivals and a mystery that reaches back to the death of a deputy. Is he brave enough to become a true warrior, and can he find out who among the Clan cannot be trusted before it is too late?' }),
-  libraryBook('book-warriors-2', 'Fire and Ice', 'Erin Hunter', { pages: 320, year: 2003, series: 'Warriors', seriesNumber: '2', lexile: 1010, genres: ['Fantasy', 'Animals'] }),
+  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { isbn: '9780060000028', workKey: '/works/OL5720023W', ratingsAverage: 4.3, ratingsCount: 1240, lookedUpAt: daysAgo(20), pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals', "Children's"], description: 'Fire alone can save our Clan. For generations, four Clans of wild cats have shared the forest according to the laws laid down by their ancestors. But the warrior code is threatened, and the ThunderClan cats are in grave danger. When an ordinary housecat named Rusty wanders into the woods, he is invited to join the Clan as an apprentice and given a new name. Under the eye of his mentor, he learns to hunt, to fight and to keep the code, and he finds friends, rivals and a mystery that reaches back to the death of a deputy. Is he brave enough to become a true warrior, and can he find out who among the Clan cannot be trusted before it is too late?' }),
+  libraryBook('book-warriors-2', 'Fire and Ice', 'Erin Hunter', { pages: 320, year: 2003, series: 'Warriors', seriesNumber: '2', lexile: 1010, genres: ['Fantasy', 'Animals', "Children's"] }),
   libraryBook('book-frog', 'Frog and Toad Are Friends', 'Arnold Lobel', { pages: 64, year: 1970, lexile: 400 }),
   libraryBook('book-wonder', 'Wonder', 'R. J. Palacio', { pages: 310, year: 2012, lexile: 790, genres: ['Realistic fiction'], borrowedFrom: 'Town library', dueOn: inDays(3), location: "Maya's room" }),
   libraryBook('book-wild-robot', 'The Wild Robot', 'Peter Brown', { pages: 279, year: 2016, lexile: 740, genres: ['Science fiction', 'Animals'], wanted: true }),
   libraryBook('book-dragon-masters', 'Rise of the Earth Dragon', 'Tracey West', { pages: 90, year: 2014, series: 'Dragon Masters', seriesNumber: '1', lexile: 500, genres: ['Fantasy'], location: "Leo's room", coverUrl: 'https://picsum.photos/seed/kinwall-dragon/120/180' }),
   libraryBook('book-hail-mary', 'Project Hail Mary', 'Andy Weir', { pages: 476, year: 2021, genres: ['Science fiction'], location: 'Living room shelf', coverUrl: 'https://picsum.photos/seed/kinwall-hailmary/120/180' }),
+  // The grown-ups' shelf: Auto (no kids' genre, reading level or readers), and The Hobbit picked for Everyone.
+  libraryBook('book-midnight', 'The Midnight Library', 'Matt Haig', { pages: 304, year: 2020, genres: ['Fantasy'], location: 'Living room shelf', coverUrl: 'https://picsum.photos/seed/kinwall-midnight/120/180' }),
+  libraryBook('book-educated', 'Educated', 'Tara Westover', { pages: 334, year: 2018, genres: ['Biography'], location: 'Bedroom shelf', coverUrl: 'https://picsum.photos/seed/kinwall-educated/120/180' }),
   libraryBook('book-ramona', 'Ramona Quimby, Age 8', 'Beverly Cleary', { pages: 190, year: 1981, lexile: 860, genres: ['Realistic fiction', 'Humor'], location: "Maya's room", coverUrl: 'https://picsum.photos/seed/kinwall-ramona/120/180' }),
   libraryBook('book-owl-moon', 'Owl Moon', 'Jane Yolen', { pages: 32, year: 1987, genres: ['Picture book', 'Animals'], borrowedFrom: 'Town library', dueOn: inDays(9), coverUrl: 'https://picsum.photos/seed/kinwall-owlmoon/120/180' }),
   libraryBook('book-magic-tree', 'Dinosaurs Before Dark', 'Mary Pope Osborne', { pages: 80, year: 1992, series: 'Magic Tree House', seriesNumber: '1', lexile: 510, genres: ['Adventure', 'Fantasy'], location: "Leo's room", coverUrl: 'https://picsum.photos/seed/kinwall-treehouse/120/180' }),
-  libraryBook('book-dog-man', 'Dog Man', 'Dav Pilkey', { pages: 240, year: 2016, genres: ['Graphic novel', 'Humor'], wanted: true, coverUrl: 'https://picsum.photos/seed/kinwall-dogman/120/180' }),
-  libraryBook('book-wings-of-fire', 'The Dragonet Prophecy', 'Tui T. Sutherland', { pages: 336, year: 2012, series: 'Wings of Fire', seriesNumber: '1', genres: ['Fantasy'], wanted: true }),
+  libraryBook('book-dog-man', 'Dog Man', 'Dav Pilkey', { pages: 240, year: 2016, genres: ['Graphic novel', 'Humor', "Children's"], wanted: true, coverUrl: 'https://picsum.photos/seed/kinwall-dogman/120/180' }),
+  libraryBook('book-wings-of-fire', 'The Dragonet Prophecy', 'Tui T. Sutherland', { pages: 336, year: 2012, series: 'Wings of Fire', seriesNumber: '1', genres: ['Fantasy', "Children's"], wanted: true }),
   // Made from Maya's audiobook, then looked up on Open Library (book-details.ts).
   libraryBook('book-mouse', 'The Mouse and the Motorcycle', 'Beverly Cleary', { format: 'audiobook', year: 1965, series: 'Ralph S. Mouse', seriesNumber: '1', lexile: 860, genres: ['Adventure', 'Animals', 'Fantasy', 'Humor'], workKey: '/works/OL2649765W', ratingsAverage: 4.0, ratingsCount: 312, lookedUpAt: daysAgo(6), isbn: '9780062874511', coverUrl: 'https://picsum.photos/seed/kinwall-mouse/300/300',
     description: 'Ralph is a mouse who lives in a knothole in Room 215 of the Mountain View Inn. When a boy named Keith checks in with a shiny toy motorcycle, Ralph can hardly believe his luck: if he makes the right noise, it really goes. Soon Ralph is racing down the hallway, and a friendship begins that takes both of them on a wild, sometimes dangerous adventure, from a scary trip into the laundry basket to a midnight search for an aspirin when Keith runs a fever.' }),
   libraryBook('book-hatchet', 'Hatchet', 'Gary Paulsen', { pages: 195, year: 1987, lexile: 1020, genres: ['Adventure'], borrowedFrom: 'Town library', dueOn: daysAgo(12), returnedOn: daysAgo(14) }),
   // More audiobooks for the crate: Sam listening, one not started, one without a cover.
-  libraryBook('audio-hobbit', 'The Hobbit', 'J. R. R. Tolkien', { format: 'audiobook', year: 1937, genres: ['Fantasy'], coverUrl: 'https://picsum.photos/seed/kinwall-hobbit-audio/300/300' }),
-  libraryBook('audio-charlotte', "Charlotte's Web", 'E. B. White', { format: 'audiobook', isbn: '9780739367216', year: 1952, genres: ['Fantasy', 'Animals'], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte-audio/300/300' }),
+  libraryBook('audio-hobbit', 'The Hobbit', 'J. R. R. Tolkien', { format: 'audiobook', year: 1937, genres: ['Fantasy'], shelf: 'everyone', coverUrl: 'https://picsum.photos/seed/kinwall-hobbit-audio/300/300' }),
+  libraryBook('audio-charlotte', "Charlotte's Web", 'E. B. White', { format: 'audiobook', isbn: '9780739367216', year: 1952, genres: ['Fantasy', 'Animals', "Children's"], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte-audio/300/300' }),
+  libraryBook('audio-martian', 'The Martian', 'Andy Weir', { format: 'audiobook', year: 2011, genres: ['Science fiction'], coverUrl: 'https://picsum.photos/seed/kinwall-martian-audio/300/300' }),
   libraryBook('audio-ramona-pest', 'Ramona the Pest', 'Beverly Cleary', { format: 'audiobook', year: 1968, genres: ['Realistic fiction', 'Humor'] }),
 ]
+// Mirrors the server's Auto shelf (shelve.ts autoShelf): kids' genres, under 1000L, 48 pages or fewer, or only kids read it.
+const autoShelfMock = (b: LibraryBook): 'kids' | 'grownups' => {
+  const read = b.readers.filter(r => r.status !== 'want' && r.memberId)
+  return b.genres.some(g => /children|juvenile|picture book|middle grade|young adult/i.test(g)) || (b.lexile !== null && b.lexile < 1000)
+    || (b.format !== 'audiobook' && b.pages !== null && b.pages <= 48)
+    || (read.length > 0 && read.every(r => members.find(m => m.id === r.memberId)?.grownUp === false)) ? 'kids' : 'grownups'
+}
 const withReaders = (b: LibraryBook): LibraryBook => {
   const reads = trackers.filter(t => t.kind === 'reading' && (t.data as ReadingData).bookId === b.id)
-  return { ...b, readers: reads.map(t => { const d = t.data as ReadingData; return { entryId: t.id, memberId: t.memberId, status: d.status, readAt: (d.status === 'finished' && d.finishedOn) || d.log?.at(-1)?.date || (d.status !== 'want' ? t.updatedAt.slice(0, 10) : null), ...(d.format === 'audiobook' && { narrator: d.narrator ?? null, minutesListened: d.minutesListened ?? null, totalMinutes: d.totalMinutes ?? null }) } }) }
+  const read: LibraryBook = { ...b, readers: reads.map(t => { const d = t.data as ReadingData; return { entryId: t.id, memberId: t.memberId, status: d.status, readAt: (d.status === 'finished' && d.finishedOn) || d.log?.at(-1)?.date || (d.status !== 'want' ? t.updatedAt.slice(0, 10) : null), ...(d.format === 'audiobook' && { narrator: d.narrator ?? null, minutesListened: d.minutesListened ?? null, totalMinutes: d.totalMinutes ?? null }) } }) }
+  return { ...read, shelf: b.shelf ?? null, effectiveShelf: b.shelf ?? autoShelfMock(read) }
 }
 
 const trackers: TrackerEntry[] = [
@@ -1554,7 +1566,7 @@ export const mock = {
     if (!input.title && !found) throw new Error("Couldn't find that book")
     const { workKey: _w, ...fields } = input
     const book = libraryBook(uid(), (input.title ?? found!.title).trim(), input.author ?? found?.author ?? '', { ...(found && { pages: found.pages ?? null, coverUrl: found.coverUrl ?? null, year: found.year ?? null }), ...fields, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-    bookLibrary.push(book); bump(); return book
+    bookLibrary.push(book); bump(); return withReaders(book)
   },
   updateLibraryBook: async (id: string, changes: LibraryBookInput): Promise<LibraryBook> => {
     const b = bookLibrary.find(x => x.id === id); if (!b) throw new Error('not found')
