@@ -618,35 +618,38 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
 }
 
 const SETUP_PASSKEY_POLL_MS = 3000
+const SHARED = '__shared' // the owner step's "Shared (the whole family)": no owner
 
 /** A parent's device, once the family's in: whose it is (PUT /api/me/owner, on its passkey or key),
  * so it reads their private journal right away. Only a grown-up owns one, so only grown-ups (marked
- * on the members step) are offered, and no kid is ever turned into one. Skip leaves it shared. */
+ * on the members step) are offered, and no kid is ever turned into one. Shared leaves it unowned. */
 function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () => void; onBack: () => void }) {
   const grownUps = ownerChoices(members)
-  const [pick, setPick] = useState<string | null>(null)
+  const [pick, setPick] = useState<string | null>(null) // a grown-up's id, or SHARED
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const save = async () => {
     if (!pick) return
+    if (pick === SHARED) { onNext(); return }
     setBusy(true); setError('')
     try {
       await api.setMyOwner(pick)
       onNext()
-    } catch (e) { setError(oops(e, 'Could not save. Try again, or skip and set it later in Settings → Access.')) } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, 'Could not save. Try again, or pick Shared and set it later in Settings → Access.')) } finally { setBusy(false) }
   }
   return (
     <div className="setup-step">
       <h1>Whose device is this?</h1>
-      <p className="setup-sub">{grownUps.length ? "Grown-ups' journals are private. Pick yourself to read yours here."
-        : 'Only a grown-up can own this device, and no one is marked a grown-up yet. Go Back to mark yourself, or skip.'}</p>
+      <p className="setup-sub">{grownUps.length ? 'Pick yourself if this is your own phone or tablet, so it opens your private journal. Pick Shared for a wall screen or a family tablet.'
+        : 'Only a grown-up can own this device, and no one is marked a grown-up yet. Go Back to mark yourself, or pick Shared.'}</p>
       <div className="setup-choice-row setup-choice-wrap" role="group" aria-label="Whose device this is">
         {grownUps.map(m => (
           <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}><ChipFace m={m} /> {m.name}</button>
         ))}
+        <button className={`setup-choice ${pick === SHARED ? 'active' : ''}`} aria-pressed={pick === SHARED} onClick={() => setPick(SHARED)}><span aria-hidden="true">🏠</span> Shared (the whole family)</button>
       </div>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onBack={onBack} onSkip={onNext} onNext={save} nextDisabled={busy || !pick} nextLabel={busy ? 'Saving…' : 'Next'} />
+      <StepNav onBack={onBack} onNext={save} nextDisabled={busy || !pick} nextLabel={busy ? 'Saving…' : 'Next'} />
     </div>
   )
 }
