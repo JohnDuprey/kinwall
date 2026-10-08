@@ -63,8 +63,10 @@ const GROUP_LABEL: Record<ListGroupBy, string> = { store: 'Store', category: 'Ca
 /** What a new list of this kind starts with (the server's defaults); anything else counts on the View button. */
 const listViewDefaults = (kind: ListKind): { groupBy: ListGroupBy; sortBy: ListSortBy } =>
   kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : { groupBy: 'none', sortBy: 'manual' }
-/** Checkout on a shopping list, Reset on a reusable one (unchecks for next time), else Clear checked. */
-const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: 'Checkout', reusable: 'Reset', todo: 'Clear checked' }
+/** Reset on a reusable list (unchecks for next time), else Clear checked. A shopping trip's own
+ * checkout says "Done shopping" instead (TRIP_DONE_LABEL). */
+const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: 'Clear checked', reusable: 'Reset', todo: 'Clear checked' }
+const TRIP_DONE_LABEL = 'Done shopping'
 const todayKey = () => dateKey(new Date())
 
 /** "Due today" / "Due Fri, Oct 3" / "Overdue · Sep 22" (open items only). */
@@ -1556,8 +1558,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     announce(reversed ? 'Aisles in walking order' : 'Aisles reversed')
   }
 
-  // Shopping mode: the trip alone, full screen. "Done" leaves it with the trip still on (Shopping at
-  // on the list comes back to it); only Checkout or End ends the trip.
+  // Shopping mode: the trip alone, full screen. "Back" leaves it with the trip still on
+  // (Shopping at on the list comes back to it); only Done shopping (the checkout) or End ends the trip.
   const enterShop = () => { location.hash = `#/lists/${listId}/shop` }
   const exitShop = () => { location.hash = '#/lists' }
   const [picking, setPicking] = useState(false) // the store step
@@ -1791,7 +1793,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   if (error || !detail) {
     const card = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
     return shopMode
-      ? createPortal(<div className="shop-mode"><div className="shop-bar"><div className="shop-bar-title" /><button className="btn btn-secondary shop-done" onClick={exitShop}>Done</button></div>{card}</div>, document.body)
+      ? createPortal(<div className="shop-mode"><div className="shop-bar"><div className="shop-bar-title" /><button className="btn btn-secondary shop-done" onClick={exitShop}>Back</button></div>{card}</div>, document.body)
       : <div className="list-detail">{card}</div>
   }
 
@@ -1912,7 +1914,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
               <span aria-hidden="true">⇅</span>
             </button>
           )}
-          <button className="btn btn-secondary shop-done" onClick={exitShop}>Done</button>
+          <button className="btn btn-secondary shop-done" onClick={exitShop} aria-label="Back to the list. The trip stays on">Back</button>
         </div>
         <div className="shop-items scroll-y" ref={shopList} onScroll={saveShopScroll}>
           {items.length === 0 && <div className="empty-card"><span className="emoji">🛒</span>Nothing on the list yet.</div>}
@@ -1935,7 +1937,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             </button>
             {tripChecked.length > 0 && (
               <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
-                {checkoutLabel} ({tripChecked.length})
+                {TRIP_DONE_LABEL} ({tripChecked.length})
               </button>
             )}
           </div>
@@ -2078,7 +2080,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         {activeTrip ? tripChecked.length > 0 && (
           <div className="list-checkout-bar">
             <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
-              {checkoutLabel} ({tripChecked.length})
+              {TRIP_DONE_LABEL} ({tripChecked.length})
             </button>
           </div>
         ) : keep && checked.length > 0 && (
@@ -2094,7 +2096,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       {leftoversSheet}
       {checkout && (
         <div className="toast list-undo-toast" role="status">
-          <span>{checkout.reset ? `Reset ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : list.kind === 'shopping' ? `Checked out ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}${checkout.left ? `. ${checkout.left} left for next time.` : ''}` : `Cleared ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}`}</span>
+          <span>{checkout.reset ? `Reset ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : checkout.trip ? `Took ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'} off the list.${checkout.left ? ` ${checkout.left} ${checkout.left === 1 ? 'is' : 'are'} left for next time.` : ''}` : `Cleared ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}`}</span>
           <button className="list-undo-btn" onClick={undoCheckout}>Undo</button>
         </div>
       )}
