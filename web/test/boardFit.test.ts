@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder, chipWords } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -139,4 +139,10 @@ test('todayOrder: nothing over yet keeps the day in order', () => {
   const r = todayOrder(e, Date.parse('2026-10-07T08:00:00Z'))
   assert.deepEqual(r.shown.map(x => x.title), ['a', 'b'])
   assert.equal(r.earlier.length, 0)
+})
+
+test('chipWords: the chips say what they count when that fits on their line, or on two beside one of the card rows', () => {
+  assert.equal(chipWords(44, 44, 100, 200), true, 'one line either way')
+  assert.equal(chipWords(44, 94, 300, 200), true, 'two lines still leave the card a row and More')
+  assert.equal(chipWords(44, 94, 250, 200), false, 'two lines would crowd out the card: counts only')
 })

@@ -131,7 +131,7 @@ export function useTakeNowSlot({ doses, drop }: Due) {
     sheets,
     item: {
       key: 'meds',
-      chip: <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}><PillIcon width={16} height={16} /><span aria-hidden="true" className="board-slot-chip-text">{doses.length}</span></button>,
+      chip: <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}><span aria-hidden="true">💊</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{doses.length}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{doses.length} to take</span></button>,
       row: <button type="button" className="board-slot-row attn" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}>
         <PillIcon width={16} height={16} /><span className="board-slot-row-text">Take now · {doses.length} due</span><span className="board-slot-row-meta">{who.map(m => m.name).join(', ')}</span>
       </button>,

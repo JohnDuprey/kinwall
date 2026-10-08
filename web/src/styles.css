@@ -2679,6 +2679,12 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-chip { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-decoration: none; }
 .board-slot-chip.attn { box-shadow: inset 0 0 0 2px var(--accent); }
 .board-slot-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Each chip has its count alone and in words. With words, chips wrap whole onto a second line
+   rather than cut ("3 to t…"); Board.tsx TodaySlot measures both and picks (boardFit.ts chipWords). */
+.board-slot-chip-long, .board-slot-words .board-slot-chip-short { display: none; }
+.board-slot-words { flex-wrap: wrap; }
+.board-slot-words .board-slot-chip { flex: 1 1 auto; }
+.board-slot-words .board-slot-chip-long { display: inline; }
 /* Today's events that are over, folded into one quiet row under what's on now and next. */
 .board-earlier { width: 100%; min-height: 44px; justify-content: flex-start; color: var(--text-dim); font-weight: 700; }
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }

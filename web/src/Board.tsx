@@ -23,7 +23,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipNamesFit, tileChips, tileColumns, todayOrder, chipWords } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -98,7 +98,8 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
 }
 
 /** One thing in a card's "in Today" slot: shown whole (`full`), as one tappable row (`row`), or as a
- *  small chip sharing one line with the others when space is very tight (`chip`). All plain elements
+ *  small chip sharing one line with the others when space is very tight (`chip`: its icon, then a
+ *  `.board-slot-chip-short` count and a `.board-slot-chip-long` one in words, used when they fit: boardFit.ts chipWords). All plain elements
  *  (their sheets live with their owner), since they're also drawn unseen to measure. */
 type SlotItem = { key: string; full: React.ReactNode; row: React.ReactNode; chip: React.ReactNode }
 
@@ -111,7 +112,7 @@ type SlotItem = { key: string; full: React.ReactNode; row: React.ReactNode; chip
 function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLElement | null>(null)
-  const [whole, setWhole] = useState('') // '1' per item shown whole, or 'chips'
+  const [whole, setWhole] = useState('') // '1' per item shown whole, or 'chips' ('words': chips with their words)
   const measure = useCallback(() => {
     const el = ref.current, fit = el?.parentElement?.querySelector<HTMLElement>(':scope > .board-fit')
     const unseen = el?.querySelector<HTMLElement>(':scope > .board-slot-measure')
@@ -129,16 +130,18 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
     const own = [...body.querySelectorAll<HTMLElement>(ROWS)].filter(e => !e.matches('.snap-day-heading')).map(e => e.getBoundingClientRect().bottom - top)
     const keep = (k: number) => own.length <= k ? rows : own[k - 1] + MORE_SPACE * scale
     for (const e of cut) e.hidden = true
-    const hs = [...unseen.children].map(c => c.getBoundingClientRect().height)
-    const chips = hs.pop() ?? 0
+    const [chipRow, wordRow] = [...unseen.querySelectorAll<HTMLElement>(':scope > .board-slot-chips')]
+    const hs = [...unseen.children].filter(c => !c.matches('.board-slot-chips')).map(c => c.getBoundingClientRect().height)
+    const chips = chipRow.getBoundingClientRect().height, wordsH = wordRow.getBoundingClientRect().height
     const sizes = Array.from({ length: hs.length / 2 }, (_, i) => ({ full: hs[2 * i], row: hs[2 * i + 1] }))
     // The rows don't stretch (the slot follows them), so their space is the card's, under its heading.
     const c = el.parentElement!, box = c.getBoundingClientRect(), padBottom = parseFloat(getComputedStyle(c).paddingBottom)
     const space = box.bottom - padBottom * scale - fit.getBoundingClientRect().top
     const how = slotLayout({ fixed, rows, space, items: sizes, chips, keep: [keep(1), keep(2)] })
-    setWhole(how.chips ? 'chips' : how.whole.map(b => b ? '1' : '0').join(''))
+    const words = how.chips && chipWords(chips, wordsH, space, keep(1))
+    setWhole(how.chips ? (words ? 'words' : 'chips') : how.whole.map(b => b ? '1' : '0').join(''))
     // Never too short for that: the card's rows grow (a grid row grows to a minimum only as a length).
-    c.style.minHeight = `${Math.ceil((top - box.top + how.need) / scale + padBottom)}px`
+    c.style.minHeight = `${Math.ceil((top - box.top + how.need + (words ? wordsH - chips : 0)) / scale + padBottom)}px`
   }, [fixed])
   useLayoutEffect(measure) // every render: the items or the card's rows may have changed
   useEffect(() => {
@@ -151,11 +154,12 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
   if (!items.length) return null
   return (
     <div ref={ref} className="board-slot">
-      {whole === 'chips' ? <div className="board-slot-item board-slot-chips">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
+      {whole === 'chips' || whole === 'words' ? <div className={`board-slot-item board-slot-chips ${whole === 'words' ? 'board-slot-words' : ''}`}>{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
         : items.map((it, i) => <div key={it.key} className="board-slot-item">{whole[i] === '1' ? it.full : it.row}</div>)}
       <div className="board-slot-measure" aria-hidden="true" {...{ inert: '' }}>
         {items.map(it => [<div key={`${it.key}:full`} className="board-slot-item">{it.full}</div>, <div key={`${it.key}:row`} className="board-slot-item">{it.row}</div>])}
         <div className="board-slot-item board-slot-chips">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
+        <div className="board-slot-item board-slot-chips board-slot-words">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
       </div>
     </div>
   )
@@ -214,6 +218,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const f = settings.features
   const rewards = rewardsOn(settings)
   const [lists, setLists] = useState<List[]>([])
+  const [earlierOpen, setEarlierOpen] = useState(false) // Today's events that are over, in a sheet
   const [doing, setDoing] = useState<string | null>(null) // the Checklist card's list, in Get stuff done
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   useEffect(() => {
@@ -222,7 +227,6 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     if (rewards) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRedemptions(r) }).catch(() => { /* likewise */ })
     return () => { canceled = true }
   }, [refreshTick, tick, f.lists, rewards])
-  const [earlierOpen, setEarlierOpen] = useState(false) // Today's events that are over, in a sheet
   // Auto: measure the board to decide between full lists and counts.
   const scrollRef = useRef<HTMLDivElement>(null)
   const [big, setBig] = useState(false)
@@ -364,13 +368,13 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     todayTiles && medsSlot.item,
     todayTiles && choresTile && chores.length > 0 && {
       key: 'chores',
-      chip: <a className="board-slot-chip" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text">{choresLeft || '✓'}</span></a>,
+      chip: <a className="board-slot-chip" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{choresLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!choresLeft ? 'All done' : choresLeft === 1 ? '1 chore' : `${choresLeft} chores`}</span></a>,
       row: <a className="board-slot-row" href="#/chores" aria-label={`Chores: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">Chores · {choresText}</span></a>,
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>Chores · {choresText}</span>{choresPeople}</a>,
     },
     todayTiles && dueTile && items.length > 0 && dueSummary && {
       key: 'due',
-      chip: <a className="board-slot-chip" href="#/lists" aria-label={`Due: ${dueSummary}`}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span></a>,
+      chip: <a className="board-slot-chip" href="#/lists" aria-label={`Due: ${dueSummary}`}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${overdue ? 'snap-overdue' : ''}`}>{overdue && overdue === dueToday.length ? `${overdue} overdue` : dueToday.length ? `${dueToday.length} due` : `${dueLater} due soon`}</span></a>,
       row: dueRow,
       full: !dueToday.length ? dueRow : <div className="board-slot-due">
         <a className="board-slot-head board-slot-head-link" href="#/lists"><span aria-hidden="true">📝</span>Due today<span className="board-slot-row-meta">{dueLater > 0 ? `${dueLater} later this week ›` : 'All lists ›'}</span></a>
@@ -495,6 +499,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           })()}
         </Card>}
 
+        {earlierOpen && <Sheet title="Earlier today" onClose={() => setEarlierOpen(false)}>
+          <ul className="snap-list board-sheet">{todayOrder(events.filter(e => e.date === today), now.getTime()).earlier.map(e =>
+            <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
+        </Sheet>}
+
         {has('meals') && <Card title="Today’s meals" area="meals" density={dense('meals')}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
         {has('coming') && <Card title="Coming up" area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
@@ -503,11 +512,6 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             const label = dayName(d, { weekday: 'long', month: 'short', day: 'numeric' })
             return (
               <section key={d} className="board-day" aria-label={label}>
-        {earlierOpen && <Sheet title="Earlier today" onClose={() => setEarlierOpen(false)}>
-          <ul className="snap-list board-sheet">{todayOrder(events.filter(e => e.date === today), now.getTime()).earlier.map(e =>
-            <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
-        </Sheet>}
-
                 <h4 className="snap-heading snap-day-heading">
                   <span>{label}</span>
                   {wd && <span className="snap-day-weather"><span aria-hidden="true">{wd.emoji}</span><span className="sr-only">{wd.text}, </span> {wd.high}°/{wd.low}°</span>}

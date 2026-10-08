@@ -129,3 +129,9 @@ export function todayOrder<T extends { start: string; end: string; allDay: boole
   const on = (e: T) => e.allDay || Date.parse(e.start) <= now
   return { shown: [...byStart.filter(e => !over(e) && on(e)), ...byStart.filter(e => !over(e) && !on(e))], earlier: byStart.filter(over) }
 }
+
+/** Whether the "in Today" slot's chips (slotLayout's `chips`) say what they count ("3 to take"): when
+ *  that's still one line (`words`: its height, wrapping as it needs, vs `chips`: the counts alone), or
+ *  when its lines still leave `keep` (the card's first row and More) of the `space`. Never clipped. */
+export const chipWords = (chips: number, words: number, space: number, keep: number) =>
+  words <= chips + 0.5 || space - words >= keep - 0.5

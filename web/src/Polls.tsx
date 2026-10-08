@@ -73,7 +73,7 @@ export function usePollSlot() {
     const row = <button type="button" className="board-slot-row attn" aria-haspopup="dialog" onClick={() => setAll(true)}>
       <span aria-hidden="true">🗳</span><span className="board-slot-row-text">{polls.length} polls open</span><span className="board-slot-row-meta">Tap to vote</span>
     </button>
-    const chip = <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={`${polls.length} polls open`} onClick={() => setAll(true)}><span aria-hidden="true">🗳</span><span aria-hidden="true" className="board-slot-chip-text">{polls.length}</span></button>
+    const chip = <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={`${polls.length} polls open`} onClick={() => setAll(true)}><span aria-hidden="true">🗳</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{polls.length}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{polls.length} polls open</span></button>
     return { item: { key: 'polls', full: row, row, chip }, sheets }
   }
   const top = new Set(leaders(p).map(o => o.id))
@@ -82,7 +82,7 @@ export function usePollSlot() {
     item: {
       key: 'polls',
       chip: <button type="button" className="board-slot-chip attn" aria-haspopup="dialog" aria-label={`Poll: ${p.question}, ${votedLabel(p, members.length)}. Tap to vote`} onClick={() => setOpen(p.id)}>
-        <span aria-hidden="true">🗳</span><span aria-hidden="true" className="board-slot-chip-text">{votedCount(p)}/{members.length}</span>
+        <span aria-hidden="true">🗳</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{votedCount(p)}/{members.length}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{votedLabel(p, members.length)}</span>
       </button>,
       row: <button type="button" className="board-slot-row attn" aria-haspopup="dialog" aria-label={`Poll: ${p.question}, ${votedLabel(p, members.length)}. Tap to vote`} onClick={() => setOpen(p.id)}>
         <span aria-hidden="true">🗳</span><span className="board-slot-row-text">{p.question}</span><span className="board-slot-row-meta">{votedLabel(p, members.length)}</span>
