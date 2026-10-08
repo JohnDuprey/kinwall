@@ -9,8 +9,9 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { daysLabel, EVERY_DAY, scheduleLabel, WEEKDAYS } from './medications.ts'
-import type { LateWindow, Medication, Member, MedTime } from './types.ts'
+import type { LateWindow, Medication, MedicationRefill, Member, MedTime } from './types.ts'
 import { Face } from './Face'
+import { RefillFields } from './Refills.tsx'
 
 const NOTICE = 'Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.'
 
@@ -73,6 +74,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
                   <button key={x.id} className="meds-set-row" onClick={() => setEditing({ med: x, member: m })} aria-label={`Edit ${x.name} for ${m.name}`}>
                     <span className="settings-row-label">{x.dose ? `${x.name} · ${x.dose}` : x.name}</span>
                     <span className="settings-row-sub">{scheduleLabel(x)}</span>
+                    {x.refillRequest && <span className="settings-row-sub">📝 Refill to request</span>}
                   </button>
                 ))}
                 <div className="settings-inline-btns">
@@ -98,7 +100,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
           <option value="delete-all">Delete all medication data</option>
         </select>
       </div>
-      {editing && <MedicationSheet med={editing.med} member={editing.member} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+      {editing && <MedicationSheet med={editing.med} member={editing.member} siblings={meds.filter(x => x.memberId === editing.member.id && x.id !== editing.med?.id)} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
     </section>
   )
 }
@@ -107,7 +109,7 @@ type DaysMode = 'every' | 'weekdays' | 'weekends' | 'some'
 const modeOf = (days: number[]): DaysMode => { const l = daysLabel(days); return l === 'Every day' ? 'every' : l === 'Weekdays' ? 'weekdays' : l === 'Weekends' ? 'weekends' : 'some' }
 const MODE_DAYS: Record<Exclude<DaysMode, 'some'>, number[]> = { every: EVERY_DAY, weekdays: [1, 2, 3, 4, 5], weekends: [0, 6] }
 
-function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | null; member: Member; onClose: () => void; onSaved: () => void }) {
+function MedicationSheet({ med, member, siblings, onClose, onSaved }: { med: Medication | null; member: Member; siblings: Medication[]; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
   const dialog = useDialog()
   const [name, setName] = useState(med?.name ?? '')
@@ -122,11 +124,12 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
   const [endDate, setEndDate] = useState(med?.endDate ?? '')
   const [totalDoses, setTotalDoses] = useState(med?.totalDoses != null ? String(med.totalDoses) : '')
   const [lateWindow, setLateWindow] = useState<LateWindow>(med?.lateWindow ?? '3h')
+  const [refill, setRefill] = useState<MedicationRefill>(med?.refill ?? { contactId: null, pharmacyContactId: null, pharmacy: '', dateOfBirth: null, callback: '', remindOn: null })
   const total = Number(totalDoses)
   const endsValid = ends === 'never' || (ends === 'date' ? /^\d{4}-\d{2}-\d{2}$/.test(endDate) : Number.isInteger(total) && total >= 1 && total <= 1000)
   const valid = name.trim() && times.length > 0 && times.every(t => (typeof t === 'string' ? t : t.latest)) && days.length > 0 && endsValid
   const save = async () => {
-    const body = { name: name.trim(), dose: dose.trim(), times, days, endDate: ends === 'date' ? endDate : null, totalDoses: ends === 'doses' ? total : null, lateWindow }
+    const body = { name: name.trim(), dose: dose.trim(), times, days, endDate: ends === 'date' ? endDate : null, totalDoses: ends === 'doses' ? total : null, lateWindow, refill: { ...refill, pharmacy: refill.pharmacy.trim(), callback: refill.callback.trim() } }
     try {
       if (med) await api.updateMedication(med.id, body)
       else await api.addMedication({ memberId: member.id, ...body })
@@ -218,6 +221,7 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
         )}
         {ends !== 'never' && <p className="field-hint">{ends === 'date' ? 'Reminders stop after this day.' : med?.dosesLeft != null ? `Reminders stop once they're all taken. ${med.dosesLeft} left now.` : 'For a course like an antibiotic: reminders stop once they\'re all taken. Skipped doses don\'t count.'}</p>}
       </div>
+      <RefillFields refill={refill} onChange={setRefill} siblings={siblings} />
     </Sheet>
   )
 }

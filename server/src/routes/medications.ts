@@ -10,7 +10,10 @@
 //   Only who (member_id) and which day (date, and updated_at holds the day too) stay plain. No key: 500, nothing stored.
 // - The bell's medicine notes (notifications, kind 'medication') are sealed too, text and exact time
 //   (notify.ts recordNotification / openNote); only kind, day and member stay plain. No key: no note.
-// - Never logged, no webhook events at all, no MCP tool, not in snapshots, profiles or share links.
+// - Refills (routes/medication-refills.ts): each medicine's refill details (which place to ask, the pharmacy,
+//   date of birth, callback number, a reminder day) and its open refill request ride in the same sealed JSON.
+// - Never logged, no webhook events at all, not in snapshots, profiles or share links. MCP tools only
+//   read and start refill requests, through these routes (so aiHealthAccess applies).
 //
 // Who sees what (see `caller`):
 // - parent devices (admin keys): everyone's medicines, the Take now cards with names, history; only
@@ -70,16 +73,32 @@ export const LATE_WINDOWS = ['3h', 'evening', 'endOfDay', 'none'] as const;
 export type LateWindow = (typeof LATE_WINDOWS)[number];
 export const LateWindowSchema = z.enum(LATE_WINDOWS).openapi({ description: "How late a dose can be taken: '3h' (default), 'evening' (until 8 PM), 'endOfDay' (until midnight), 'none' (the card stays 1 hour)." });
 
+// Refill details (routes/medication-refills.ts), sealed with the rest.
+export const RefillSchema = z
+  .object({
+    contactId: z.string().nullable().openapi({ description: 'Where to ask for refills: a refill place (GET /api/medication-refill-contacts), or null.' }),
+    pharmacyContactId: z.string().nullable().openapi({ description: 'The pharmacy from the family\'s contacts (GET /api/contacts), or null.' }),
+    pharmacy: z.string().trim().max(120).openapi({ description: 'The pharmacy by name: used when no contact is picked (or it was deleted, or this device can\'t see it).' }),
+    dateOfBirth: DateSchema.nullable().openapi({ description: 'YYYY-MM-DD, said in the refill message.' }),
+    callback: z.string().trim().max(30).regex(/^[0-9+()\-.\s]*$/, 'callback: a phone number').openapi({ description: 'A phone number the office can call back.' }),
+    remindOn: DateSchema.nullable().openapi({ description: 'A household day to open a refill request by itself (at 9 AM); cleared once it does.' }),
+  })
+  .openapi('MedicationRefill');
+export type Refill = z.infer<typeof RefillSchema>;
+export const NO_REFILL: Refill = { contactId: null, pharmacyContactId: null, pharmacy: '', dateOfBirth: null, callback: '', remindOn: null };
+export const RefillRequestSchema = z.object({ at: z.string(), by: z.string().nullable() }).openapi('MedicationRefillRequest');
 const MedicationSchema = z
   .object({
     id: z.string(), memberId: z.string(), name: z.string(), dose: z.string(), times: z.array(z.union([z.string(), WakeSchema])), days: z.array(z.number()),
     endDate: z.string().nullable(), totalDoses: z.number().nullable(), lateWindow: LateWindowSchema,
     dosesLeft: z.number().nullable().openapi({ description: 'totalDoses minus doses taken; null without totalDoses.' }),
+    refill: RefillSchema,
+    refillRequest: RefillRequestSchema.nullable().openapi({ description: 'An open "Request refill" to-do (since `at`), until someone marks it requested.' }),
     createdAt: z.string(), updatedAt: z.string(),
   })
   .openapi('Medication');
-const MedicationInputSchema = z.object({ memberId: z.string(), name: Name, dose: Dose.default(''), times: Times, days: Days.default([0, 1, 2, 3, 4, 5, 6]), endDate: EndDate.default(null), totalDoses: TotalDoses.default(null), lateWindow: LateWindowSchema.default('3h') }).openapi('MedicationInput');
-const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optional(), times: Times.optional(), days: Days.optional(), endDate: EndDate.optional(), totalDoses: TotalDoses.optional(), lateWindow: LateWindowSchema.optional() }).openapi('MedicationPatch');
+const MedicationInputSchema = z.object({ memberId: z.string(), name: Name, dose: Dose.default(''), times: Times, days: Days.default([0, 1, 2, 3, 4, 5, 6]), endDate: EndDate.default(null), totalDoses: TotalDoses.default(null), lateWindow: LateWindowSchema.default('3h'), refill: RefillSchema.partial().optional() }).openapi('MedicationInput');
+const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optional(), times: Times.optional(), days: Days.optional(), endDate: EndDate.optional(), totalDoses: TotalDoses.optional(), lateWindow: LateWindowSchema.optional(), refill: RefillSchema.partial().optional().openapi({ description: 'Only the refill fields sent change.' }) }).openapi('MedicationPatch');
 const STATUSES = ['taken', 'skipped', 'due', 'missed', 'upcoming'] as const;
 const DoseSchema = z
   .object({
@@ -115,18 +134,18 @@ export const WAKE = 'wake'; // a "When I start my day" dose's key in the log and
 /** A dose time's key: its HH:MM, or WAKE. */
 export const timeKey = (t: DoseTime) => (typeof t === 'string' ? t : WAKE);
 const wakeOf = (m: Pick<Medication, 'times'>) => m.times.find((t) => typeof t !== 'string');
-type MedRow = { id: string; member_id: string; data: string; created_at: string; updated_at: string };
+export type MedRow = { id: string; member_id: string; data: string; created_at: string; updated_at: string };
 type LogRow = { medication_id: string; date: string; log: string; updated_at: string };
 
 const dataAad = (id: string) => `${id}:data`;
 const logAad = (id: string, date: string) => `${id}:${date}:log`;
-export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'lateWindow'>>) =>
-  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times.map((t) => (typeof t === 'string' ? { at: t } : t)), days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, lateWindow: m.lateWindow ?? '3h' }), dataAad(m.id));
+export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'lateWindow' | 'refill' | 'refillRequest'>>) =>
+  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times.map((t) => (typeof t === 'string' ? { at: t } : t)), days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, lateWindow: m.lateWindow ?? '3h', refill: { ...NO_REFILL, ...m.refill }, refillRequest: m.refillRequest ?? null }), dataAad(m.id));
 export async function openMedication(env: EncryptionEnv & { DB: KinwallDb }, r: MedRow): Promise<Medication> {
   const d = JSON.parse(await unseal(env, r.data, dataAad(r.id)));
   // Times sealed before "When I start my day" are plain "HH:MM"; now { at } or { wake, latest }. Written back in the new shape.
   const times = (d.times as (string | { at: string } | { wake: true; latest: string })[]).map((t) => (typeof t === 'string' ? t : 'at' in t ? t.at : { wake: true as const, latest: t.latest }));
-  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, lateWindow: d.lateWindow ?? '3h', dosesLeft: null, createdAt: r.created_at, updatedAt: r.updated_at };
+  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, lateWindow: d.lateWindow ?? '3h', dosesLeft: null, refill: { ...NO_REFILL, ...d.refill }, refillRequest: d.refillRequest ?? null, createdAt: r.created_at, updatedAt: r.updated_at };
   return withDosesLeft(env, m);
 }
 /** dosesLeft for a medicine with totalDoses: counts every taken dose in its log. */
@@ -248,15 +267,15 @@ export const medicineLabel = (m: Pick<Medication, 'name' | 'dose'>) => (m.dose ?
 
 type Caller = { kind: 'parent' } | { kind: 'wall' } | { kind: 'own'; memberId: string };
 const APPS = { error: "Medications are private to the family's own devices. A parent can allow connected apps to see them in Settings → Connected apps." };
-const PARENTS = { error: "Medicines are added and changed from a parent's device." };
-const PRIVATE = { error: "Medications are private: they show on that person's own device and parents' devices." };
+export const PARENTS = { error: "Medicines are added and changed from a parent's device." };
+export const PRIVATE = { error: "Medications are private: they show on that person's own device and parents' devices." };
 const OFF = { error: 'Medications are turned off (Settings → General → Features, under Health)' };
 
 /** Who's asking (see the top of the file), or why they may not. */
 /** The settings these routes use (parsed as routes/settings.ts readSettings does), by key: every open
  * screen asks GET /api/medications/due each minute, and readSettings reads every settings row (hosted
  * is billed per row read). */
-async function medSettings(db: KinwallDb) {
+export async function medSettings(db: KinwallDb) {
   const { results } = await db
     .prepare("SELECT key, value FROM settings WHERE key IN ('medications', 'features', 'aiHealthAccess', 'timezone', 'medicationNamesOnWalls')")
     .all<{ key: string; value: string }>();
@@ -276,7 +295,7 @@ async function caller(c: C, settings: { aiHealthAccess: boolean }): Promise<Call
   return key.owner && key.owner !== 'shared' ? { kind: 'own', memberId: key.owner } : { kind: 'wall' };
 }
 /** Settings, the caller and the household day, or what to answer instead (feature off: 404). */
-async function gate(c: C) {
+export async function gate(c: C) {
   const settings = await medSettings(c.env.DB);
   if (!settings.medications) return { fail: OFF, status: 404 as const };
   const who = await caller(c, settings);
@@ -299,10 +318,11 @@ const err = (description: string) => ({ description, content: json(ErrorSchema) 
 const denied = { 403: err("not allowed from this device (see the Medications tag), or a connected app without aiHealthAccess"), 404: err('medications are off, or not found') };
 const TAG = ['Medications'];
 
-async function findMed(c: C, id: string) {
+export async function findMed(c: C, id: string) {
   const row = await c.env.DB.prepare('SELECT * FROM medications WHERE id = ?').bind(id).first<MedRow>();
   return row && openMedication(c.env, row);
 }
+const badPharmacy = async (c: C, id: string | null | undefined) => !!id && !(await c.env.DB.prepare('SELECT 1 FROM contacts WHERE id = ?').bind(id).first());
 async function write(c: C, m: Medication) {
   const data = await sealMedication(c.env, m); // throws without a key, before anything is written
   await c.env.DB.batch([
@@ -312,7 +332,7 @@ async function write(c: C, m: Medication) {
   ]);
 }
 // Open screens refetch on rev; no bus event (it would reach webhooks).
-const bumpRev = (db: KinwallDb) => db.prepare("INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1");
+export const bumpRev = (db: KinwallDb) => db.prepare("INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1");
 
 medicationsRoutes.openapi(
   createRoute({
@@ -344,8 +364,9 @@ medicationsRoutes.openapi(
     if (g.who.kind !== 'parent') return c.json(PARENTS, 403);
     const body = c.req.valid('json');
     if (!(await c.env.DB.prepare('SELECT 1 FROM members WHERE id = ?').bind(body.memberId).first())) return c.json({ error: 'member not found' }, 404);
+    if (await badPharmacy(c, body.refill?.pharmacyContactId)) return c.json({ error: 'pharmacy contact not found' }, 400);
     const now = new Date().toISOString();
-    const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, endDate: body.endDate, totalDoses: body.totalDoses, lateWindow: body.lateWindow, dosesLeft: body.totalDoses, createdAt: now, updatedAt: now };
+    const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, endDate: body.endDate, totalDoses: body.totalDoses, lateWindow: body.lateWindow, dosesLeft: body.totalDoses, refill: { ...NO_REFILL, ...body.refill }, refillRequest: null, createdAt: now, updatedAt: now };
     await write(c, m);
     return c.json(m, 201);
   },
@@ -367,9 +388,10 @@ medicationsRoutes.openapi(
     const found = await findMed(c, c.req.valid('param').id);
     if (!found) return c.json({ error: 'not found' }, 404);
     const body = c.req.valid('json');
+    if (await badPharmacy(c, body.refill?.pharmacyContactId)) return c.json({ error: 'pharmacy contact not found' }, 400);
     const m: Medication = {
       ...found, name: body.name ?? found.name, dose: body.dose ?? found.dose, times: body.times ?? found.times, days: body.days ?? found.days,
-      endDate: body.endDate !== undefined ? body.endDate : found.endDate, totalDoses: body.totalDoses !== undefined ? body.totalDoses : found.totalDoses, lateWindow: body.lateWindow ?? found.lateWindow, updatedAt: new Date().toISOString(),
+      endDate: body.endDate !== undefined ? body.endDate : found.endDate, totalDoses: body.totalDoses !== undefined ? body.totalDoses : found.totalDoses, lateWindow: body.lateWindow ?? found.lateWindow, refill: { ...found.refill, ...body.refill }, updatedAt: new Date().toISOString(),
     };
     await write(c, m);
     return c.json(await withDosesLeft(c.env, m), 200);
@@ -401,7 +423,7 @@ medicationsRoutes.openapi(
 medicationsRoutes.openapi(
   createRoute({
     method: 'delete', path: '/api/medications', tags: TAG, security: [{ Bearer: [] }],
-    summary: "Delete all medication data: every medicine, its log and its notifications (parent devices only; works while the feature is off).",
+    summary: "Delete all medication data: every medicine, its log, the refill places and its notifications (parent devices only; works while the feature is off).",
     responses: { 200: { description: 'deleted', content: json(z.object({ deleted: z.number() })) }, 403: denied[403] },
   }),
   async (c) => {
@@ -413,6 +435,7 @@ medicationsRoutes.openapi(
     await db.batch([
       db.prepare('DELETE FROM medication_log'),
       db.prepare('DELETE FROM medications'),
+      db.prepare('DELETE FROM medication_refill_contacts'),
       db.prepare("DELETE FROM notifications WHERE kind = 'medication'"),
       db.prepare("DELETE FROM sent_notifications WHERE key LIKE 'med:%'"),
       bumpRev(db),

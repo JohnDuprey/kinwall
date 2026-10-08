@@ -81,6 +81,12 @@ function forViewer(contact: Contact, v: Viewer): Contact {
   };
 }
 
+/** A contact as this caller may see it (as GET /api/contacts/{id}), or null: for a medicine's pharmacy. */
+export async function contactFor(c: Context<{ Bindings: Env }>, id: string) {
+  const row = await load(c.env.DB, id);
+  const contact = row && fromRow(row), v = await viewer(c);
+  return contact && canSee(contact, v) ? forViewer(contact, v) : null;
+}
 async function load(db: KinwallDb, id: string) { return db.prepare('SELECT * FROM contacts WHERE id = ?').bind(id).first<ContactRow>(); }
 async function all(db: KinwallDb) { return (await db.prepare('SELECT * FROM contacts ORDER BY name COLLATE NOCASE, id').all<ContactRow>()).results; }
 async function validateCategories(db: KinwallDb, ids: string[]): Promise<boolean> {

@@ -250,6 +250,8 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/medications\/due$/ },
   { method: 'POST', pattern: /^\/api\/medications\/[^/]+\/doses$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/medications$/ },
+  { method: 'GET', pattern: /^\/api\/medications\/[^/]+\/refill$/ }, // a person's own device, for their own medicine (routes/medication-refills.ts)
+  { method: 'POST', pattern: /^\/api\/medications\/[^/]+\/refill-request$/ },
   { method: 'POST', pattern: /^\/api\/members\/[^/]+\/day-started$/ }, // a person's own device only ("When I start my day" doses)
   { method: 'GET', pattern: /^\/api\/stickers\/packs$/ },
   { method: 'POST', pattern: /^\/api\/stickers\/packs\/[^/]+\/buy$/ },

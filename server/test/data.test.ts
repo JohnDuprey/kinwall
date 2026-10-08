@@ -49,7 +49,7 @@ test('export: seeded household has every section and no credentials', async () =
     const body = JSON.parse(text);
     assert.deepEqual(Object.keys(body), [
       'version', 'exportedAt', 'settings', 'members', 'categories', 'contactCategories', 'contacts', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
-      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'hiddenEvents', 'chores', 'choreLibrary', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'tempChecks', 'journalEntries', 'medications', 'medicationLog', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'restaurants', 'polls', 'mealShoppingSources', 'itemMemory', 'itemNames', 'libraryBooks', 'itemBarcodes', 'itemTags', 'storeAisles', 'passkeys', 'webhooks',
+      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'hiddenEvents', 'chores', 'choreLibrary', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'tempChecks', 'journalEntries', 'medications', 'medicationLog', 'medicationRefillContacts', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'restaurants', 'polls', 'mealShoppingSources', 'itemMemory', 'itemNames', 'libraryBooks', 'itemBarcodes', 'itemTags', 'storeAisles', 'passkeys', 'webhooks',
     ]);
     assert.equal(body.members[0].name, 'Ada');
     assert.equal(body.calendars.length, 2);

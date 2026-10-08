@@ -1,3 +1,4 @@
+import type { DialStep } from './dialSteps.ts'
 import type { CalendarFilter } from './calendarFilter.ts'
 import type { BoardPreset } from './boardLayout.ts'
 import type { DeviceKind } from './wallScreen.ts'
@@ -282,8 +283,19 @@ export interface Battery { memberId: string; on: boolean; today: string; days: B
 export type LateWindow = '3h' | 'evening' | 'endOfDay' | 'none'
 /** A dose time: 'HH:MM', or "When I start my day", due when their day starts (by `latest` at the latest). */
 export type MedTime = string | { wake: true; latest: string }
-export interface Medication { id: string; memberId: string; name: string; dose: string; times: MedTime[]; days: number[]; endDate: string | null; totalDoses: number | null; lateWindow: LateWindow; dosesLeft: number | null; createdAt: string; updatedAt: string }
-export type MedicationInput = { memberId: string; name: string; dose: string; times: MedTime[]; days: number[]; endDate?: string | null; totalDoses?: number | null; lateWindow?: LateWindow }
+/** Refill details (sealed with the medicine): where to ask (a refill place), and what the message says. remindOn: a day that opens a refill request by itself. */
+/** pharmacyContactId: a family contact as the pharmacy; pharmacy: its name typed, used when there's no contact. */
+export interface MedicationRefill { contactId: string | null; pharmacyContactId: string | null; pharmacy: string; dateOfBirth: string | null; callback: string; remindOn: string | null }
+/** An open "Request refill" to-do, since `at`. */
+export interface RefillRequest { at: string; by: string | null }
+export interface Medication { id: string; memberId: string; name: string; dose: string; times: MedTime[]; days: number[]; endDate: string | null; totalDoses: number | null; lateWindow: LateWindow; dosesLeft: number | null; refill: MedicationRefill; refillRequest: RefillRequest | null; createdAt: string; updatedAt: string }
+export type MedicationInput = { memberId: string; name: string; dose: string; times: MedTime[]; days: number[]; endDate?: string | null; totalDoses?: number | null; lateWindow?: LateWindow; refill?: Partial<MedicationRefill> }
+/** A refill place (parent devices): an office or pharmacy with an app, a website and/or a phone number. dialDigits run after the number ("," waits 2 s, ";" waits for a tap). script '' = the default message. */
+/** menu: the phone menu as steps; phoneSteps (words) and dialDigits come from it (dialSteps.ts). */
+export interface RefillContact { id: string; name: string; appName: string; appLink: string; website: string; phone: string; menu: DialStep[]; phoneSteps: string; dialDigits: string; script: string; createdAt: string; updatedAt: string }
+export type RefillContactInput = Omit<RefillContact, 'id' | 'createdAt' | 'updatedAt' | 'phoneSteps' | 'dialDigits'>
+/** GET /api/medications/{id}/refill: the refill card, with the message filled in. */
+export interface RefillCard { medicationId: string; memberId: string; contact: RefillContact | null; call: { number: string; steps: string; telUri: string } | null; pharmacy: { name: string; contactId: string | null; phone: string | null; telUri: string | null; address: string | null } | null; script: string; request: RefillRequest | null }
 export type DoseStatus = 'taken' | 'skipped' | 'due' | 'missed' | 'upcoming'
 /** GET /api/medications/due: the Take now cards. name/dose null on a shared wall with names off ("Meds"). */
 /** time: 'HH:MM', or 'wake' for "When I start my day" (startedAt: when their day started, null if the latest time came first). until: when its late window closes. */

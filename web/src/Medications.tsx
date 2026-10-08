@@ -11,6 +11,7 @@ import { askWhenTaken, catchUpLabel, doseTimeLabel, scheduleLabel, STATUS, statu
 import TakeNow, { WhenTakenSheet } from './TakeNow.tsx'
 import type { Medication, MedicationHistory } from './types.ts'
 import { Face } from './Face'
+import { RefillsCard } from './Refills.tsx'
 
 type Day = MedicationHistory['days'][number]
 
@@ -21,6 +22,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
+  const [refillOpen, setRefillOpen] = useState<string | null>(null) // the refill card's medicine
   const [asking, setAsking] = useState<{ date: string; d: Day['doses'][number] } | null>(null) // Taken, well after its time: when?
   useEffect(() => {
     if (!member) return
@@ -49,6 +51,8 @@ export default function Medications({ memberId }: { memberId?: string }) {
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
     finally { setBusy(null) }
   }
+  const refillsFirst = !!shown?.medications.some(m => m.refillRequest)
+  const refills = shown && <RefillsCard meds={shown.medications} member={member} onChanged={() => setReload(x => x + 1)} openId={refillOpen} setOpenId={setRefillOpen} />
   const rows = (day: Day, doses: Day['doses']) => (
     <ul className="meds-today">
       {doses.map(d => {
@@ -88,10 +92,13 @@ export default function Medications({ memberId }: { memberId?: string }) {
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {shown && shown.medications.length === 0 && <p className="snap-empty">No medicines for {member.name}.{parentDevice ? ' Add one in Trackers → Health.' : ''}</p>}
       {shown && today && shown.medications.length > 0 && <>
+        {/* An open "Request refill" to-do goes first; otherwise the card waits below Today. */}
+        {refillsFirst && refills}
         <section className="board-card" aria-labelledby="meds-today">
           <h3 id="meds-today" className="snap-heading">Today</h3>
           {today.doses.length === 0 ? <p className="snap-dim">Nothing today.</p> : rows(today, today.doses)}
         </section>
+        {!refillsFirst && refills}
         {yesterday && behind.length > 0 && <section className="board-card" aria-labelledby="meds-yesterday">
           <h3 id="meds-yesterday" className="snap-heading">Yesterday</h3>
           <p className="snap-dim">Not marked yet. If it was taken or skipped, you can still say so.</p>

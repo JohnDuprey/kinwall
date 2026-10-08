@@ -15,7 +15,8 @@ import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { newscastPrunes } from './routes/newscast.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
-import { addDays, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
+import { addDays, doseAt, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
+import { openRefillRequest } from './routes/medication-refills.ts';
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { eveningPending, LAST_NIGHT_UNTIL, lastNightSkipKey, morningAnswered } from './routes/temp-check.ts';
@@ -788,6 +789,7 @@ async function runLastNightReminders(env: Env, db: KinwallDb, now: Date, tz: str
 // go out during night hours too: a missed dose matters more than a quiet night (the family asked).
 const MED_GRACE_MS = 30 * 60_000;
 const NOTE_BEFORE_END_MS = 60 * 60_000;
+export const REFILL_REMIND_AT = '09:00';
 async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
   const meds = await loadMedications(env);
   if (!meds.length) return;
@@ -849,6 +851,19 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
     const title = medFollowup(byId.get(f.memberId)!.name, hm === '00:00' ? 'midnight' : formatTime(hm, { h12, hourOnly: hm.endsWith(':00') }), f.seed);
     const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(f.memberId).all<PushSubRow>();
     await send(subs, title, 'Tap to mark it taken.', f.meds, `/#/medications/${f.memberId}`, `med:${f.memberId}`);
+  }
+  // A refill reminder day (refill.remindOn, routes/medication-refills.ts): from 9 AM that household day,
+  // a "Request refill" to-do once (and the bell note), and a push: a grown-up's own devices, a kid's parents.
+  for (const m of meds) {
+    const on = m.refill.remindOn;
+    const member = byId.get(m.memberId);
+    if (!on || !member || on > today || (on === today && now.getTime() < doseAt(today, REFILL_REMIND_AT, tz))) continue;
+    const opened = await openRefillRequest(env, m.id, null, { clearRemindOn: true });
+    if (!opened || opened === 'open') continue;
+    const { results: subs } = member.grown_up
+      ? await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(m.memberId).all<PushSubRow>()
+      : await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
+    await send(subs, `Time to ask for a refill of ${member.name}'s medicine`, 'Tap to see how.', [m], `/#/medications/${m.memberId}`, `med-refill:${m.id}`);
   }
   if (!late.size) return;
   const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();

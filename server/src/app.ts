@@ -46,6 +46,7 @@ import { tempCheckRoutes } from './routes/temp-check.ts';
 import { journalRoutes } from './routes/journal.ts';
 import { insightsRoutes } from './routes/insights.ts';
 import { medicationsRoutes } from './routes/medications.ts';
+import { medicationRefillRoutes } from './routes/medication-refills.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { bonusPointsRoutes } from './routes/bonus-points.ts';
 import { photosRoutes, MAX_ZIP_BYTES as MAX_PHOTO_ZIP_BYTES } from './routes/photos.ts';
@@ -169,6 +170,7 @@ export function createApp() {
   app.route('/', journalRoutes);
   app.route('/', insightsRoutes);
   app.route('/', medicationsRoutes);
+  app.route('/', medicationRefillRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', bonusPointsRoutes);
   app.route('/', photosRoutes);

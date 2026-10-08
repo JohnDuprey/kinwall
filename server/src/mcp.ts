@@ -28,6 +28,7 @@ import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 import { itemKey } from './item-memory.ts';
 import { NightScreenSchema } from './routes/night-screen.ts';
+import { RefillCardSchema, RefillRequestResultSchema } from './routes/medication-refills.ts';
 import { ActivityChoreProgressSchema, PluginActionSchema, PluginActionItemSchema } from './routes/plugins.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
@@ -300,12 +301,13 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   preview_contact_import: { entries: z.array(z.object({ contact: ContactInputSchema, duplicateIds: z.array(z.string()) })) },
   import_contacts: { created: z.number(), merged: z.number(), skipped: z.number(), ids: z.array(z.string()) },
   merge_contacts: { contact: ContactSchema },
+  get_medication_refill: { refill: RefillCardSchema }, request_medication_refill: RefillRequestResultSchema.shape, set_medication_pharmacy: { pharmacy: z.object({ contactId: z.string().nullable(), name: z.string() }) },
   delete_tracker_entry: OK, delete_meal: OK, delete_recipe: OK, delete_reward: OK, delete_contact: OK, delete_contact_category: OK,
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -2019,6 +2021,83 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult('Note updated.', { note: res.json as Record<string, unknown> });
     },
   );
+  // ---- Medicine refills (routes/medication-refills.ts). The REST routes refuse every MCP call until the
+  // family turns on aiHealthAccess, as for the rest of medications, so these need no check of their own.
+  const MEDS_DOC = 'Medicines are private: this works only once a parent turned on "Let connected apps see health entries" (Settings → Connected apps).';
+  const findMedicine = async (medicine: string, member: string | undefined): Promise<string | CallToolResult> => {
+    let memberId: string | undefined;
+    try { memberId = member ? await resolveMember(app, env, auth, member) : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const res = await call(app, env, auth, 'GET', `/api/medications${memberId ? `?memberId=${encodeURIComponent(memberId)}` : ''}`);
+    if (res.status >= 400) return errorResult(res.json, 'failed to look up medicines');
+    const meds = res.json as { id: string; name: string }[];
+    const q = medicine.toLowerCase();
+    const found = meds.filter((m) => m.id === medicine || m.name.toLowerCase() === q);
+    const hits = found.length ? found : meds.filter((m) => m.name.toLowerCase().includes(q));
+    if (hits.length === 1) return hits[0].id;
+    return errorResult(null, hits.length ? `"${medicine}" matches more than one medicine; say whose (member).` : `no medicine found matching "${medicine}"`);
+  };
+  tool(
+    'get_medication_refill',
+    {
+      title: 'How to ask for a refill',
+      description: `A medicine's refill card: where to ask (the app, the website, or the phone number with the phone-menu steps and a tel: link that dials them), what to say on the message (filled in with the person, date of birth, medicine, dose, how often, pharmacy and callback number; a blank nobody entered is in [brackets]), and any open "Request refill" to-do. ${MEDS_DOC}`,
+      inputSchema: { medicine: z.string().describe('The medicine by name or id.'), member: z.string().optional().describe("Whose medicine: member name or id (needed when two people's medicines share a name).") },
+    },
+    async ({ medicine, member }) => {
+      const m = await findMedicine(medicine as string, member as string | undefined);
+      if (typeof m !== 'string') return m;
+      const res = await call(app, env, auth, 'GET', `/api/medications/${encodeURIComponent(m)}/refill`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to read the refill card');
+      return okResult('Refill card.', { refill: res.json as Record<string, unknown> });
+    },
+  );
+  tool(
+    'request_medication_refill',
+    {
+      title: 'Request a refill',
+      description: `Start a "Request refill" to-do for a medicine (it shows on the medicine's page and in the bell for parents and that person; asking again while one is open changes nothing: created false), or with done: true mark it requested. Doesn't contact anyone: use get_medication_refill for how to ask. ${MEDS_DOC}`,
+      inputSchema: { medicine: z.string().describe('The medicine by name or id.'), member: z.string().optional().describe('Whose medicine: member name or id.'), done: z.boolean().optional().describe('true: the refill was requested, so close the to-do.') },
+    },
+    async ({ medicine, member, done }) => {
+      const m = await findMedicine(medicine as string, member as string | undefined);
+      if (typeof m !== 'string') return m;
+      const res = await call(app, env, auth, 'POST', `/api/medications/${encodeURIComponent(m)}/refill-request`, { action: done ? 'done' : 'open' });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update the refill request');
+      const r = res.json as { request: unknown; created: boolean };
+      return okResult(done ? 'Marked requested.' : r.created ? 'Refill request added.' : 'A refill request was already open.', r as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'set_medication_pharmacy',
+    {
+      title: 'Set a medicine\'s pharmacy',
+      description: `Full access: where a medicine's refills go. pharmacy: a contact's name or id from the family's contacts (pharmacies first), or a pharmacy's name when it isn't a contact; '' clears it. The refill message and card use it. ${MEDS_DOC}`,
+      inputSchema: { medicine: z.string().describe('The medicine by name or id.'), member: z.string().optional().describe('Whose medicine: member name or id.'), pharmacy: z.string().describe('A contact name or id, or a pharmacy name.') },
+    },
+    async ({ medicine, member, pharmacy }) => {
+      const m = await findMedicine(medicine as string, member as string | undefined);
+      if (typeof m !== 'string') return m;
+      const ref = (pharmacy as string).trim();
+      let contact: { id: string; name: string } | undefined;
+      if (ref) {
+        const res = await call(app, env, auth, 'GET', '/api/contacts');
+        if (res.status >= 400) return errorResult(res.json, 'failed to look up contacts');
+        const all = res.json as { id: string; name: string; organization?: string | null; relationship?: string | null; kind: string }[];
+        const q = ref.toLowerCase();
+        const named = (c: (typeof all)[number]) => c.name.toLowerCase() === q || c.organization?.toLowerCase() === q;
+        const hits = all.filter((c) => c.id === ref || named(c));
+        const partial = hits.length ? hits : all.filter((c) => c.name.toLowerCase().includes(q));
+        const pharm = partial.filter((c) => /pharm/i.test(`${c.name} ${c.organization ?? ''} ${c.relationship ?? ''}`));
+        contact = (pharm.length === 1 ? pharm : partial.length === 1 ? partial : [])[0];
+      }
+      const refill = contact ? { pharmacyContactId: contact.id, pharmacy: contact.name } : { pharmacyContactId: null, pharmacy: ref };
+      const res = await call(app, env, auth, 'PATCH', `/api/medications/${encodeURIComponent(m)}`, { refill });
+      if (res.status >= 400) return errorResult(res.json, 'failed to set the pharmacy');
+      return okResult(contact ? `Pharmacy set to the contact ${contact.name}.` : ref ? `Pharmacy set to "${ref}" (not a contact).` : 'Pharmacy cleared.', { pharmacy: { contactId: refill.pharmacyContactId, name: refill.pharmacy } });
+    },
+  );
+
   // ---- Trackers: reading log, memories, health visits. Health is refused to display-scoped callers,
   // and to every MCP call until the family turns on aiHealthAccess, by the REST route (healthBlock),
   // so these tools need no check of their own.

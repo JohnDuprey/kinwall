@@ -18,7 +18,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, Pl
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
+  TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, RefillCard, RefillContact, RefillContactInput, RefillRequest, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -548,6 +548,13 @@ export const api = {
   markDose: (medicationId: string, body: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze'; at?: string }) =>
     MOCK ? mock.markDose(medicationId, body) : post<MedicationDose>(`api/medications/${encodeURIComponent(medicationId)}/doses`, body),
   dayStarted: (memberId: string) => MOCK ? Promise.resolve() : post<void>(`api/members/${encodeURIComponent(memberId)}/day-started`),
+  // Refills: the card and request on parent devices and the person's own device; refill places on parents'.
+  getRefillCard: (medicationId: string) => MOCK ? mock.getRefillCard(medicationId) : req<RefillCard>(`api/medications/${encodeURIComponent(medicationId)}/refill`),
+  refillRequest: (medicationId: string, action: 'open' | 'done') => MOCK ? mock.refillRequest(medicationId, action) : post<{ request: RefillRequest | null; created: boolean }>(`api/medications/${encodeURIComponent(medicationId)}/refill-request`, { action }),
+  getRefillContacts: () => MOCK ? mock.getRefillContacts() : req<RefillContact[]>('api/medication-refill-contacts'),
+  addRefillContact: (body: Partial<RefillContactInput> & { name: string }) => MOCK ? mock.addRefillContact(body) : post<RefillContact>('api/medication-refill-contacts', body),
+  updateRefillContact: (id: string, body: Partial<RefillContactInput>) => MOCK ? mock.updateRefillContact(id, body) : patch<RefillContact>(`api/medication-refill-contacts/${encodeURIComponent(id)}`, body),
+  deleteRefillContact: (id: string) => MOCK ? mock.deleteRefillContact(id) : del<void>(`api/medication-refill-contacts/${encodeURIComponent(id)}`),
   getMedicationHistory: (memberId: string, days = 7) => MOCK ? mock.getMedicationHistory(memberId, days) : req<MedicationHistory>(`api/members/${encodeURIComponent(memberId)}/medications?days=${days}`),
   // Daily check-in: once per household day; a second call awards nothing.
   checkIn: (memberId: string) =>

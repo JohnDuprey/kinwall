@@ -1,8 +1,9 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
+import { stepsToDial, stepsToWords, telUri, type DialStep } from './dialSteps.ts'
 import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, RefillContact, RefillContactInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -64,10 +65,29 @@ const blankInsightDay = (date: string): InsightDay => ({ date, checkedIn: false,
 // (his day started at 9:40 AM), with a week of history; Sam's vitamin wasn't marked yesterday, for the
 // catch-up buttons. The demo is a parent's device, and today's doses are due any time of day so the
 // Take now card always shows.
+const withMenu = (menu: DialStep[]) => ({ menu, phoneSteps: stepsToWords(menu), dialDigits: stepsToDial(menu) })
+const NO_REFILL: MedicationRefill = { contactId: null, pharmacyContactId: null, pharmacy: '', dateOfBirth: null, callback: '', remindOn: null }
+// Refills: Leo's allergy medicine comes from the pediatrician's office (fake 555 numbers, example.org links).
+const refillContacts: RefillContact[] = [
+  { id: 'refill1', name: 'Northside Pediatrics', appName: 'Northside patient portal', appLink: 'https://northside.example.org/refills', website: '', phone: '555-010-3300', ...withMenu([{ kind: 'wait', seconds: 4 }, { kind: 'press', digits: '2', label: 'Prescriptions' }, { kind: 'wait', seconds: 4 }, { kind: 'press', digits: '1', label: 'Refill line' }]), script: '', createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+]
+const DEFAULT_SCRIPT = 'Hi, this is a refill request for {name}, date of birth {dateOfBirth}.\nThe medicine is {medicine}, {dose}, taken {howOften}.\nPlease send it to {pharmacy}.\nYou can call me back at {callback}.\nThank you.'
+// As the server's routes/medication-refills.ts fillScript and telUri, for the demo.
+function refillCard(m: Medication): RefillCard {
+  const contact = refillContacts.find(c => c.id === m.refill.contactId) ?? null
+  const n = m.times.length
+  const dob = m.refill.dateOfBirth ? new Date(`${m.refill.dateOfBirth}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+  const pc = contacts.find(x => x.id === m.refill.pharmacyContactId)
+  const ph = pc ? { name: pc.name, contactId: pc.id, phone: pc.phones[0]?.value ?? null, telUri: pc.phones[0] ? telUri(pc.phones[0].value, '') : null, address: pc.addresses?.[0] ? [pc.addresses[0].street, [pc.addresses[0].city, pc.addresses[0].region].filter(Boolean).join(', '), pc.addresses[0].postalCode].filter(Boolean).join(', ') : null } : m.refill.pharmacy ? { name: m.refill.pharmacy, contactId: null, phone: null, telUri: null, address: null } : null
+  const v: Record<string, [string, string]> = { name: [members.find(x => x.id === m.memberId)?.name ?? '', 'name'], dateOfBirth: [dob, 'date of birth'], medicine: [m.name, 'medicine'], dose: [m.dose, 'dose'], howOften: [n === 1 ? 'once a day' : n === 2 ? 'twice a day' : `${n} times a day`, 'how often'], pharmacy: [ph?.name ?? '', 'pharmacy'], callback: [m.refill.callback, 'callback number'] }
+  const script = (contact?.script.trim() || DEFAULT_SCRIPT).replace(/\{(\w+)\}/g, (all, k: string) => (v[k] ? v[k][0] || `[${v[k][1]}]` : all))
+  const tel = contact ? telUri(contact.phone, contact.dialDigits) : null
+  return { medicationId: m.id, memberId: m.memberId, contact: contact && { ...contact }, call: contact && tel ? { number: contact.phone, steps: contact.phoneSteps, telUri: tel } : null, pharmacy: ph, script, request: m.refillRequest }
+}
 const medications: Medication[] = [
-  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'evening', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'med3', memberId: 'm2', name: 'Morning medicine', dose: '1 tablet', times: [{ wake: true, latest: '12:00' }], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: '3h', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'endOfDay', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'evening', dosesLeft: null, refill: { contactId: 'refill1', pharmacyContactId: 'contact-pharmacy', pharmacy: 'Rose City Pharmacy', dateOfBirth: '2020-05-14', callback: '555-010-4400', remindOn: null }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med3', memberId: 'm2', name: 'Morning medicine', dose: '1 tablet', times: [{ wake: true, latest: '12:00' }], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: '3h', dosesLeft: null, refill: { ...NO_REFILL }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'endOfDay', dosesLeft: null, refill: { ...NO_REFILL }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
 ]
 type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; startedAt?: string }
 const timeKey = (t: MedTime) => (typeof t === 'string' ? t : 'wake')
@@ -1035,19 +1055,39 @@ export const mock = {
   getMedications: async (memberId?: string): Promise<Medication[]> => medications.filter(m => !memberId || m.memberId === memberId).map(m => ({ ...m })),
   addMedication: async (b: MedicationInput): Promise<Medication> => {
     const now = new Date().toISOString()
-    const m: Medication = { id: uid(), endDate: null, totalDoses: null, lateWindow: '3h', ...b, dosesLeft: b.totalDoses ?? null, name: b.name.trim(), dose: b.dose.trim(), times: b.times, days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
+    const m: Medication = { id: uid(), endDate: null, totalDoses: null, lateWindow: '3h', ...b, refill: { ...NO_REFILL, ...b.refill }, refillRequest: null, dosesLeft: b.totalDoses ?? null, name: b.name.trim(), dose: b.dose.trim(), times: b.times, days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
     medications.push(m); bump(); return { ...m }
   },
   updateMedication: async (id: string, b: Partial<Omit<MedicationInput, 'memberId'>>): Promise<Medication> => {
     const m = medications.find(x => x.id === id); if (!m) throw new Error('not found')
-    Object.assign(m, Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined)), { updatedAt: new Date().toISOString() }); if (b.totalDoses !== undefined) m.dosesLeft = b.totalDoses; bump(); return { ...m } // ponytail: the demo doesn't count doses taken
+    Object.assign(m, Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined)), { refill: { ...m.refill, ...b.refill }, updatedAt: new Date().toISOString() }); if (b.totalDoses !== undefined) m.dosesLeft = b.totalDoses; bump(); return { ...m } // ponytail: the demo doesn't count doses taken
   },
   deleteMedication: async (id: string): Promise<void> => {
     const i = medications.findIndex(x => x.id === id); if (i >= 0) medications.splice(i, 1)
     for (const k of [...medLog.keys()]) if (k.startsWith(`${id}:`)) medLog.delete(k)
     bump()
   },
-  deleteAllMedications: async (): Promise<{ deleted: number }> => { const deleted = medications.length; medications.length = 0; medLog.clear(); bump(); return { deleted } },
+  deleteAllMedications: async (): Promise<{ deleted: number }> => { const deleted = medications.length; medications.length = 0; refillContacts.length = 0; medLog.clear(); bump(); return { deleted } },
+  getRefillCard: async (id: string): Promise<RefillCard> => { const m = medications.find(x => x.id === id); if (!m) throw new Error('not found'); return refillCard(m) },
+  refillRequest: async (id: string, action: 'open' | 'done') => {
+    const m = medications.find(x => x.id === id); if (!m) throw new Error('not found')
+    if (action === 'done') { m.refillRequest = null; bump(); return { request: null, created: false } }
+    if (m.refillRequest) return { request: m.refillRequest, created: false }
+    m.refillRequest = { at: new Date().toISOString(), by: 'This device' }
+    notifications.unshift({ id: uid(), at: m.refillRequest.at, kind: 'medication', title: `Request refill: ${m.name} for ${members.find(x => x.id === m.memberId)?.name ?? 'someone'}`, body: null, url: `/#/medications/${m.memberId}`, memberIds: [m.memberId], source: 'system' })
+    bump(); return { request: m.refillRequest, created: true }
+  },
+  getRefillContacts: async (): Promise<RefillContact[]> => refillContacts.map(c => ({ ...c })),
+  addRefillContact: async (b: Partial<RefillContactInput> & { name: string }): Promise<RefillContact> => {
+    const now = new Date().toISOString()
+    const c: RefillContact = { id: uid(), appName: '', appLink: '', website: '', phone: '', script: '', ...b, ...withMenu(b.menu ?? []), createdAt: now, updatedAt: now }
+    refillContacts.push(c); bump(); return { ...c }
+  },
+  updateRefillContact: async (id: string, b: Partial<RefillContactInput>): Promise<RefillContact> => {
+    const c = refillContacts.find(x => x.id === id); if (!c) throw new Error('not found')
+    Object.assign(c, b, withMenu(b.menu ?? c.menu), { updatedAt: new Date().toISOString() }); bump(); return { ...c }
+  },
+  deleteRefillContact: async (id: string): Promise<void> => { const i = refillContacts.findIndex(x => x.id === id); if (i >= 0) refillContacts.splice(i, 1); bump() },
   getMedicationsDue: async (): Promise<MedicationsDue> => {
     if (!settings.medications) throw new Error('Medications are turned off')
     const date = dateKey(new Date()), now = Date.now()

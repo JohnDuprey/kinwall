@@ -109,6 +109,7 @@ import m0105 from '../migrations/0105_plugin_reviewed.sql';
 import m0106 from '../migrations/0106_plugin_heartbeats.sql';
 import m0107 from '../migrations/0107_calendar_error_code.sql';
 import m0108 from '../migrations/0108_list_item_for.sql';
+import m0109 from '../migrations/0109_medication_refills.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -219,4 +220,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0106_plugin_heartbeats.sql', sql: m0106 },
   { name: '0107_calendar_error_code.sql', sql: m0107 },
   { name: '0108_list_item_for.sql', sql: m0108 },
+  { name: '0109_medication_refills.sql', sql: m0109 },
 ];

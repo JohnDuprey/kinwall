@@ -3499,6 +3499,37 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .field .meds-latest { display: flex; flex: 1 1 10em; align-items: center; gap: 8px; margin: 0; font-size: 1rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text-dim); }
 .meds-time-row input { min-height: 44px; }
 .meds-days { margin-top: 10px; }
+/* Refills (Refills.tsx): the medicines page's Refills card, the refill card and the medicine sheet's Refills part. */
+.refill-since { display: block; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.refill-todo { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--bg-alt); border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); font-weight: 700; }
+.refill-place { margin: 0 0 8px; font-size: 1.0625rem; font-weight: 900; }
+.refill-way { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.refill-way-label { flex: 1 1 180px; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.refill-btn { flex: none; min-height: 44px; padding: 8px 18px; text-decoration: none; }
+.refill-steps { flex-basis: 100%; margin: 0; font-weight: 700; }
+.refill-call .field-hint { flex-basis: 100%; margin: 0; }
+.refill-script-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.refill-script-head .refill-place { margin: 0; }
+/* Read aloud on a call: big, one sentence per line. */
+.refill-script { margin: 8px 0; padding: 12px 14px; border-radius: 12px; background: var(--bg-alt); font-size: 1.1875rem; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.refill-fields { align-items: stretch; }
+.refill-fields > .btn { align-self: flex-start; flex: none; }
+.refill-label { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); margin-top: 4px; }
+.refill-fields .meds-time-row select { flex: 1 1 12em; width: auto; }
+.refill-second { margin-top: 8px; }
+/* The phone-menu step editor (Refills.tsx PhoneMenuEditor): one card per step, 44px controls. */
+.dial-editor { align-items: stretch; }
+.dial-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dial-step { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--bg-alt); }
+.dial-step .btn { flex: none; min-width: 44px; min-height: 44px; padding: 8px 12px; }
+.dial-step-n { flex: none; width: 28px; text-align: center; font-weight: 900; color: var(--text-dim); }
+.dial-stepper { display: flex; align-items: center; gap: 6px; flex: none; }
+.dial-seconds { min-width: 3.5em; text-align: center; font-weight: 800; }
+.dial-step .dial-keys { flex: 1 1 6em; min-width: 0; min-height: 44px; font-size: 1.125rem; letter-spacing: 0.08em; }
+.dial-step .dial-label { flex: 1 1 10em; min-width: 0; min-height: 44px; }
+.dial-confirm { margin: 0; flex: 1 1 10em; }
+.dial-preview { margin-top: 4px; }
+.dial-string { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; color: var(--text-dim); overflow-wrap: anywhere; }
 
 /* ---------- Newscast (Home → Newscast, Newscast.tsx) ----------
    A calm feed: day sections of cards, a side column (share + this week) on wide screens. Reactions
