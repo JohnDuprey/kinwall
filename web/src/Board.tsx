@@ -42,7 +42,7 @@ function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar' | 'picture'
 /** A card's text size in a layout (boardLayout.ts), as a class. */
 const densityClass = (d: CardDensity | undefined) => d && d !== 'normal' ? ` board-density-${d}` : ''
 
-/** `foot`: something under the rows that always shows (the "in Today" slot), taking its space from them. */
+/** `foot`: something right under the rows that always shows (the "in Today" slot), taking its space from them. */
 function Card({ title, area, link, density, foot, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className={`board-card board-${area}${densityClass(density)}`} aria-label={title}>
@@ -79,11 +79,15 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
     setMore(shown < els.length ? moreLabel(info, shown) : null)
   }, [rows])
   useLayoutEffect(fit) // every render: the rows may have changed
+  // The body never stretches, so after a cut its own size can't tell it the space grew: watch the card
+  // and what shares it too (the slot under it), again each render since the slot may have just come.
   useEffect(() => {
+    const w = wrap.current, card = w?.parentElement
+    if (!w || !card) return
     const ro = new ResizeObserver(() => fit())
-    if (wrap.current) ro.observe(wrap.current)
+    for (const e of [w, card, ...card.children]) ro.observe(e)
     return () => ro.disconnect()
-  }, [fit])
+  })
   return (
     <div ref={wrap} className="board-fit">
       <div ref={body} className={bodyClass}>{children}</div>
@@ -128,12 +132,13 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
     const hs = [...unseen.children].map(c => c.getBoundingClientRect().height)
     const chips = hs.pop() ?? 0
     const sizes = Array.from({ length: hs.length / 2 }, (_, i) => ({ full: hs[2 * i], row: hs[2 * i + 1] }))
-    const space = fit.getBoundingClientRect().height + el.getBoundingClientRect().height
+    // The rows don't stretch (the slot follows them), so their space is the card's, under its heading.
+    const c = el.parentElement!, box = c.getBoundingClientRect(), padBottom = parseFloat(getComputedStyle(c).paddingBottom)
+    const space = box.bottom - padBottom * scale - fit.getBoundingClientRect().top
     const how = slotLayout({ fixed, rows, space, items: sizes, chips, keep: [keep(1), keep(2)] })
     setWhole(how.chips ? 'chips' : how.whole.map(b => b ? '1' : '0').join(''))
     // Never too short for that: the card's rows grow (a grid row grows to a minimum only as a length).
-    const c = el.parentElement!, box = c.getBoundingClientRect()
-    c.style.minHeight = `${Math.ceil((top - box.top + how.need) / scale + parseFloat(getComputedStyle(c).paddingBottom))}px`
+    c.style.minHeight = `${Math.ceil((top - box.top + how.need) / scale + padBottom)}px`
   }, [fixed])
   useLayoutEffect(measure) // every render: the items or the card's rows may have changed
   useEffect(() => {

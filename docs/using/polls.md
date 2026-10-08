@@ -6,7 +6,7 @@ Ask the whole family something and let everyone vote: "Where are we eating Frida
 
 Polls don't have a tab of their own:
 
-* **The Board**: while a poll is open, it's at the bottom of the **Today** card, under today's events: the question, each choice with who voted, and who's in the lead (⭐) when there's room, or one row ("🗳 Where are we eating Friday? · 3 of 4 voted") when today is busy and on phones. Tap it to vote. With several polls open it's one row, "2 polls open", that opens the list. On a [layout](calendar.md#board-layouts) without Today it's at the bottom of Coming up, or a slim strip above the cards. It goes away when the poll closes.
+* **The Board**: while a poll is open, it's in the **Today** card, right under today's events: the question, each choice with who voted, and who's in the lead (⭐) when there's room, or one row ("🗳 Where are we eating Friday? · 3 of 4 voted") when today is busy and on phones. Tap it to vote. With several polls open it's one row, "2 polls open", that opens the list. On a [layout](calendar.md#board-layouts) without Today it's in Coming up, right under its events, or a slim strip above the cards. It goes away when the poll closes.
 * **Home → Board → 🗳 Polls**: every poll, open ones first, and **New poll** on a parent's device. On a phone it's the 🗳 button next to the layout picker.
 * **Meals**: a poll about a meal shows **🗳 Vote open** in that day's slot of the week planner. Tap it to vote.
 * **The bell**: a new poll sends everyone a notification ("🗳 New poll: Which movie tonight?") and a push to devices with notifications on. Tapping it opens the poll.

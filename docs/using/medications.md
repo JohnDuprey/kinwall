@@ -33,7 +33,7 @@ Only the person counts. A parent's phone opening a kid's day, or a parent answer
 
 ## Take now
 
-At each dose time, **💊 Take now** ("3 due", with who) shows at the bottom of the [Board](calendar.md#board-view)'s Today card (a count tile across the top on a layout without Today); tap it to open the doses in a sheet. The person's **Day** view shows their doses right there. Each dose shows who, the medicine and the time, with three buttons:
+At each dose time, **💊 Take now** ("3 due", with who) shows in the [Board](calendar.md#board-view)'s Today card, right under the events (a count tile across the top on a layout without Today); tap it to open the doses in a sheet. The person's **Day** view shows their doses right there. Each dose shows who, the medicine and the time, with three buttons:
 
 * **Taken**: logs when and on which device, with a quick cheer that changes each time ("🚀 Leo for the win!") and a little confetti. Low-stimulation mode keeps it to a calm "Nice job, Leo." with no confetti. There are no points for medicine: points would be a reason to tap Taken without taking it, and they show on the leaderboard.
 * **Skip**: logs that it was skipped on purpose.

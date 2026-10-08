@@ -2652,7 +2652,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   min-width: 0; min-height: 0; display: flex; flex-direction: column;
 }
 .board-card > .snap-heading { flex-shrink: 0; }
-.board-fit { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; } /* FitBody: gap + More = MORE_SPACE */
+.board-fit { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; } /* FitBody: gap + More = MORE_SPACE. Shrinks to the card's space but never stretches, so the slot and spare room sit under the rows */
 .board-body, .board-fit > .board-tidbit-body { flex: 1; min-height: 0; overflow: hidden; }
 .board-fit [hidden] { display: none !important; } /* rows FitBody cut; some rows set their own display */
 .board-more.btn { flex: none; align-self: flex-start; min-height: 44px; padding: 6px 18px; }
