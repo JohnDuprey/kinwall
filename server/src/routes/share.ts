@@ -58,7 +58,7 @@ const EventDraftSchema = z.object({
 }).openapi('ShareEvent');
 export const ShareInputSchema = RestaurantImportSchema.extend({
   // Shortcuts sends an unset variable as "" and a menu item as typed ("Book"): both are fine.
-  kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page, and a Maps place is a restaurant. place: a Maps place (or any place) as a contact of kind place, with its name, address, the link as its "Map" website and phone; a contact with the same name gets only its empty fields filled in. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
+  kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page, and a Maps place is a restaurant. place: a Maps place (or any place) as a contact of kind place, with its name, address, the link as its "Map" website, website (not a Maps link) and phone; a contact with the same name gets only its empty fields filled in. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
   url: z.string().max(5000).nullable().optional().describe('A shared link: a recipe or restaurant page, or an Apple or Google Maps place (a short link is followed to the place).'),
   text: z.string().max(100000).nullable().optional().describe('Text from a photo or a share: a menu (restaurant), an ISBN or a title and author (book), or a flyer or invite (event). "Title:", "Date:", "Time:", "Place:" and "Notes:" lines help an event; "Title:" and "Author:" a book. The first of each line wins, so a model\'s lines can go first, then a "---" line, then the words as read: a Place with no street takes the street from them, a bare street the "at" venue line above it, and a Time with no am/pm or end the words\' fuller time. Leftover lines worth knowing become notes.'),
   event: EventDraftSchema.partial().nullable().optional().describe('An event as the person checked it (from a previous answer\'s event); used instead of text.'),
@@ -171,18 +171,21 @@ export function shareRoutes(app: App) {
       const phone = input.phone?.trim() || found?.phone || null;
       // ponytail: a map link past the contact field's 500 characters is left out (Google long links can be); share the short link.
       const map = url && url.length <= 500 ? url : null;
+      // Its own site (from the phone, e.g. Apple Maps' vCard, or the page read): never a Maps link.
+      const site = [normalizeLink(input.website), found?.website ?? null].find((l): l is string => !!l && !mapsPlace(l) && l.length <= 500 && l !== map) ?? null;
+      const links = [map && { label: 'Map', value: map }, site && { label: 'Website', value: site }].filter((l): l is { label: string; value: string } => !!l);
       const same = await c.env.DB.prepare('SELECT * FROM contacts WHERE name = ? COLLATE NOCASE ORDER BY created_at, id LIMIT 1').bind(name).first<ContactRow>();
       const old = same ? inputOf(fromRow(same)) : null;
       const fill = {
         ...(address && !old?.addresses.length && { addresses: [{ street: address.slice(0, 500) }] }),
         ...(phone && !old?.phones.length && { phones: [{ label: 'Main', value: phone.slice(0, 500) }] }),
-        ...(map && !old?.websites.length && { websites: [{ label: 'Map', value: map }] }),
+        ...(links.length && !old?.websites.length && { websites: links }),
       };
-      const filled = [fill.addresses && 'address', fill.phones && 'phone', fill.websites && 'map link'].filter((x): x is string => !!x);
+      const filled = [fill.addresses && 'address', fill.phones && 'phone', fill.websites && (map ? (site ? 'map link and website' : 'map link') : 'website')].filter((x): x is string => !!x);
       const path = same ? `contacts?contact=${encodeURIComponent(same.id)}` : 'contacts';
       if (input.preview) {
         const already = !old ? null : filled.length ? `Already in Contacts: its ${andList(filled)} will be filled in.` : 'Already in Contacts and up to date.';
-        return shown('place', path, { title: same?.name ?? name, imageUrl: null, exists: !!same, lines: [address, phone].filter((l): l is string => !!l), already, token: null });
+        return shown('place', path, { title: same?.name ?? name, imageUrl: null, exists: !!same, lines: [address, phone, site && `Website: ${shortLink(site)}`].filter((l): l is string => !!l), already, token: null });
       }
       const parsed = ContactInputSchema.safeParse(old ? { ...old, ...fill } : { kind: 'place', name, ...fill });
       if (!parsed.success) return fail("Kinwall couldn't read this place. Check its details and try again.", 400);

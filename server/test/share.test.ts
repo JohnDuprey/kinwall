@@ -411,11 +411,18 @@ test('share: a place needs a name; a Google short link finds it through its redi
   assert.deepEqual(fetched, ['https://maps.app.goo.gl/AbCd']);
   const [contact] = (await call('GET', '/api/contacts')).json;
   assert.deepEqual([contact.name, contact.addresses[0].street, contact.websites[0].value], ['Maple Park', '20 Lake Rd, Springfield', 'https://maps.app.goo.gl/AbCd']);
+  // What Apple Maps' vCard gives: phone, address and the place's own site (a Maps link there is skipped).
+  const full = await share({ url: 'https://maps.apple.com/place?name=Pond', kind: 'place', phone: '555-0123', address: '1 Pond Ln, Springfield', website: 'https://pond.example/', preview: true });
+  assert.deepEqual(full.json.preview.lines, ['1 Pond Ln, Springfield', '555-0123', 'Website: pond.example']);
+  await share({ url: 'https://maps.apple.com/place?name=Pond', kind: 'place', phone: '555-0123', website: 'https://pond.example/' });
+  const pond = (await call('GET', '/api/contacts')).json.find((c: any) => c.name === 'Pond');
+  assert.deepEqual([pond.phones[0].value, pond.websites.map((w: any) => w.label)], ['555-0123', ['Map', 'Website']]);
+  assert.equal((await share({ url: 'https://maps.apple.com/place?name=Lake2', kind: 'place', website: 'https://maps.apple.com/place?name=Lake2', preview: true })).json.preview.lines.length, 0);
   // The name the phone sends wins over the link's.
   await share({ url: 'https://maps.apple.com/place?name=Lake', kind: 'place', name: 'Lakeside beach' });
   assert.ok((await call('GET', '/api/contacts')).json.some((c: any) => c.name === 'Lakeside beach'));
   // Contacts turned off: nothing is added.
   const s = (await call('GET', '/api/settings')).json;
   await call('PATCH', '/api/settings', { features: { ...s.features, contacts: false } });
-  assert.equal((await share({ url: 'https://maps.apple.com/place?name=Pond', kind: 'place' })).status, 403);
+  assert.equal((await share({ url: 'https://maps.apple.com/place?name=Pond2', kind: 'place' })).status, 403);
 });
