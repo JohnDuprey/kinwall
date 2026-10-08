@@ -32,6 +32,7 @@ type CalendarRow = {
   last_synced_at: string | null;
   last_error: string | null;
   sync_failures?: number;
+  last_error_code?: string | null;
   filter?: string | null;
 };
 
@@ -56,6 +57,7 @@ function toApi(row: CalendarRow, canEditEvents = true, isDefault = false) {
     default: isDefault,
     lastSyncedAt: row.last_synced_at,
     lastError: row.last_error,
+    lastErrorCode: row.last_error_code ?? null,
     syncFailures: row.sync_failures ?? 0,
     needsReconnect: row.kind !== 'local' && row.config === '',
     filter: parseFilter(row.filter),
@@ -146,7 +148,7 @@ calendarsRoutes.openapi(
           return c.json({ error: setupMessage(err) }, 500);
         }
         await c.env.DB.prepare(
-          'UPDATE calendars SET account_id = ?, config = ?, writable = ?, last_error = NULL, sync_failures = 0, last_synced_at = NULL, sync_cursor = NULL WHERE id = ?',
+          'UPDATE calendars SET account_id = ?, config = ?, writable = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL, last_synced_at = NULL, sync_cursor = NULL WHERE id = ?',
         )
           .bind(body.accountId, config, writable, placeholder.id)
           .run();
@@ -246,7 +248,7 @@ calendarsRoutes.openapi(
       existing.last_synced_at = null;
       // New feed: drop the old one's conditional-fetch state so the first sync fetches in full.
       await c.env.DB.prepare(
-        'UPDATE calendars SET config = ?, last_error = NULL, sync_failures = 0, last_synced_at = NULL, etag = NULL, last_modified = NULL, content_hash = NULL WHERE id = ?',
+        'UPDATE calendars SET config = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL, last_synced_at = NULL, etag = NULL, last_modified = NULL, content_hash = NULL WHERE id = ?',
       )
         .bind(existing.config, id)
         .run();

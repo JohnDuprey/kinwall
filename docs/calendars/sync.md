@@ -26,6 +26,18 @@ Calendars sync **stalest first**, so a newly added calendar (never synced) goes 
 
 Each calendar row in **Settings → Calendars** shows "Synced *time*", "Never synced", "Local calendar", or the **last error** (with secrets redacted). A failed sync keeps the previous events. A sync that changed something fires a `calendar.synced` [webhook](../integrations/webhooks.md) (with `error` on failure), and `events.changed` when any event was added, changed or removed. The automatic background sync stays quiet when nothing changed: no webhook, and a failure that repeats the error already shown isn't sent again. **Sync now** always fires `calendar.synced`.
 
+## When a calendar stops syncing
+
+Most failures pass on their own (Google or Microsoft having a bad minute, a network blip): the next sync tries again, and the Board warns parents only after two failures in a row ("The Work calendar isn't syncing. Repair the connection").
+
+A **revoked sign-in** is different: Google or Microsoft answers the token refresh with `invalid_grant`, meaning Kinwall's access was taken away or expired. Common causes are a parent removing Kinwall in **Family Link** (on a supervised kid's Google account), a password change, removing Kinwall under the account's third-party access, or a Google Cloud app still in Testing (see [Google](google.md#if-every-google-calendar-stops-about-weekly)). Only reconnecting fixes it, so:
+
+* The calendar's row in **Settings → Calendars** says what happened, names the account, and has a **Reconnect** button. A kid's Google calendar also gets the Family Link hint.
+* The Board's warning shows at once.
+* The grown-ups get one notification, "Maya's calendar stopped syncing. Tap to reconnect it.", in the bell and as a push to parents' phones, never on kids' devices. It waits for the [night hours](../using/night.md) to end. It isn't repeated while the calendar keeps failing; after the calendar syncs again, a new revoked sign-in sends a new one.
+
+Through the API, `GET /api/calendars` gives such a calendar `lastErrorCode: "revoked"` beside `lastError`.
+
 Turn **Enabled** off in the calendar's **Edit calendar** sheet to stop syncing and hide its events without removing it.
 
 ## Live updates in the UI

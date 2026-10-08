@@ -1,5 +1,6 @@
 // Google Calendar provider: OAuth2 auth-code flow + Calendar v3 REST (plain fetch, no SDK).
 import { notesText } from './notes.ts';
+import { SignInRevoked, refreshFailure } from './types.ts';
 import type {
   EventInput,
   NormalizedEvent,
@@ -98,12 +99,7 @@ async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx): Pr
       grant_type: 'refresh_token',
     }),
   });
-  if (!res.ok) {
-    if (res.status === 400 || res.status === 401) {
-      throw new Error('Google token revoked — reconnect the account');
-    }
-    throw new Error(`Google token refresh failed (HTTP ${res.status})`);
-  }
+  if (!res.ok) throw await refreshFailure(res, 'google', 'Google');
   const tok = (await res.json()) as { access_token: string; expires_in: number };
   const next: GoogleConfig = {
     access_token: tok.access_token,
@@ -124,7 +120,7 @@ async function api(
     ...init,
     headers: { ...init.headers, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
   });
-  if (res.status === 401) throw new Error('Google token revoked — reconnect the account');
+  if (res.status === 401) throw new SignInRevoked('google'); // a fresh token turned away: access was withdrawn
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Google API error (HTTP ${res.status}): ${body.slice(0, 200)}`);

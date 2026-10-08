@@ -107,6 +107,7 @@ import m0103 from '../migrations/0103_library_shelf.sql';
 import m0104 from '../migrations/0104_meal_status_cooked.sql';
 import m0105 from '../migrations/0105_plugin_reviewed.sql';
 import m0106 from '../migrations/0106_plugin_heartbeats.sql';
+import m0107 from '../migrations/0107_calendar_error_code.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -215,4 +216,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0104_meal_status_cooked.sql', sql: m0104 },
   { name: '0105_plugin_reviewed.sql', sql: m0105 },
   { name: '0106_plugin_heartbeats.sql', sql: m0106 },
+  { name: '0107_calendar_error_code.sql', sql: m0107 },
 ];

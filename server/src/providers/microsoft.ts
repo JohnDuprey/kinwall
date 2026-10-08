@@ -1,5 +1,6 @@
 // Microsoft 365 / Outlook.com provider: OAuth2 auth-code flow + Graph v1.0 REST (plain fetch).
 import { notesText } from './notes.ts';
+import { SignInRevoked, refreshFailure } from './types.ts';
 import type {
   EventInput,
   NormalizedEvent,
@@ -86,12 +87,7 @@ async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx): Pr
       scope: SCOPES,
     }),
   });
-  if (!res.ok) {
-    if (res.status === 400 || res.status === 401) {
-      throw new Error('Microsoft token revoked — reconnect the account');
-    }
-    throw new Error(`Microsoft token refresh failed (HTTP ${res.status})`);
-  }
+  if (!res.ok) throw await refreshFailure(res, 'microsoft', 'Microsoft');
   const tok = (await res.json()) as { access_token: string; refresh_token?: string; expires_in: number };
   const next: MsConfig = {
     access_token: tok.access_token,
@@ -117,7 +113,7 @@ async function api(
       prefer: 'outlook.timezone="UTC", outlook.body-content-type="text"',
     },
   });
-  if (res.status === 401) throw new Error('Microsoft token revoked — reconnect the account');
+  if (res.status === 401) throw new SignInRevoked('microsoft'); // a fresh token turned away: access was withdrawn
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Microsoft Graph error (HTTP ${res.status}): ${body.slice(0, 200)}`);

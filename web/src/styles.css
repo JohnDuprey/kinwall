@@ -1238,7 +1238,9 @@ button.month-cell .month-daynum { flex: none; }
 .cal-kind-badge { font-size: 0.6875rem; font-weight: 800; color: var(--text-dim); background: var(--bg-alt); padding: 3px 8px; border-radius: 999px; text-transform: uppercase; }
 .cal-sub { font-size: 0.78125rem; color: var(--text-dim); margin-top: 4px; padding-left: 22px; }
 .cal-sub.error { color: var(--danger); }
-.cal-actions { display: flex; gap: 16px; margin-top: 4px; padding-left: 22px; }
+.cal-actions { display: flex; align-items: center; gap: 16px; margin-top: 4px; padding-left: 22px; }
+.cal-hint { padding-left: 22px; margin-top: 4px; }
+.cal-actions .cal-reconnect { flex: none; min-height: 44px; padding: 8px 20px; }
 .form-actions { display: flex; align-items: center; gap: 16px; margin: 4px 0 18px; }
 .text-link { color: var(--accent-text); font-weight: 800; text-decoration: none; }
 .link-btn { background: none; border: none; color: var(--accent-text); font-weight: 800; font-size: 0.8125rem; padding: 6px 2px; min-height: 44px; }

@@ -317,6 +317,7 @@ export interface CalendarEntry {
   default?: boolean // new events go here unless another is picked (settings.defaultCalendarId, or the server's fallback)
   lastSyncedAt: string | null
   lastError: string | null
+  lastErrorCode?: string | null // 'revoked': Google or Microsoft turned down the sign-in; only reconnecting fixes it
   syncFailures?: number // failed syncs in a row; 0 after a good one
   needsReconnect?: boolean // imported placeholder: settings kept, not syncing until reconnected
   filter?: CalendarFilter // which events the family sees (calendarFilter.ts); absent = all

@@ -16,6 +16,7 @@ Each calendar row shows its color, name, kind and status: "Synced *time*", "Neve
 
 * **Sync now**: synced calendars only.
 * **Reconnect**: for an imported ICS calendar that has no URL. See [Reconnecting after import](../calendars/reconnecting-after-import.md).
+* **Reconnect**: for a Google or Outlook calendar whose sign-in was turned down. The row says so in plain words, for example "Google stopped letting Kinwall see Maya's calendar. Reconnect it to start syncing again.", with the account to sign in as. On a kid's Google calendar it adds "If Maya's Google account is supervised with Family Link, a parent may need to approve Kinwall there too." **Reconnect** starts the same sign-in as **Connect Google**; sign in as that account and its calendars sync again right away, with their settings kept. See [When a calendar stops syncing](../calendars/sync.md#when-a-calendar-stops-syncing).
 * **Remove**: "Remove this calendar and its events from Kinwall?" Nothing is deleted from the original calendar.
 * Tap the row to open **Edit calendar**:
   * **Name** and **Color**.

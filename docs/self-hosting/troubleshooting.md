@@ -44,7 +44,8 @@ The calendar's row in **Settings → Calendars** shows the last error.
 |---|---|
 | "Calendar URL must be a public http(s) address…" | The feed or CalDAV server is on your LAN. See [Private / LAN feeds](../calendars/private-feeds.md). |
 | "Reconnect this calendar to resume syncing" | It came from an import. See [Reconnecting after import](../calendars/reconnecting-after-import.md). |
-| 401 / invalid grant from Google or Microsoft | The token was revoked or expired. Remove the account and **Connect** it again. |
+| "Google (or Microsoft) stopped letting Kinwall see … calendar" | The sign-in was revoked or expired (`invalid_grant`). Tap **Reconnect** on the calendar and sign in as the account shown; its calendars and their settings are kept. A kid's supervised Google account may also need a parent's OK in Family Link. If every Google calendar does this about weekly, your Google Cloud consent screen is still in Testing: publish it. See [When a calendar stops syncing](../calendars/sync.md#when-a-calendar-stops-syncing). |
+| "Kinwall couldn't renew the Google sign-in (HTTP 503)…" | A passing problem on Google's or Microsoft's side; the next sync tries again. A 400 with `invalid_client` means the client ID or secret is wrong. |
 | CalDAV authentication failed | For iCloud, use an app-specific password, not your Apple Account password. |
 | Worker CPU limit exceeded | The ICS feed is very large. See [Cloudflare specifics](cloudflare.md). |
 

@@ -1047,7 +1047,8 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
  * doesn't count, or an imported one never reconnected), so someone repairs the connection before
  * the board quietly goes stale. Several make one warning. */
 function SyncAlert({ calendars }: { calendars: CalendarEntry[] }) {
-  const broken = calendars.filter(c => c.enabled && c.kind !== 'local' && ((c.lastError && (c.syncFailures ?? 0) >= 2) || c.needsReconnect))
+  // Two failures in a row, so one blip doesn't cry wolf; a revoked sign-in at once (it won't fix itself).
+  const broken = calendars.filter(c => c.enabled && c.kind !== 'local' && ((c.lastError && ((c.syncFailures ?? 0) >= 2 || c.lastErrorCode === 'revoked')) || c.needsReconnect))
   if (!broken.length) return null
   const names = broken.map(c => c.name)
   return (

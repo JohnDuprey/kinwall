@@ -43,7 +43,7 @@ test('createKinwall: a failing part of the scheduled tick is logged and the rest
   await kinwall.scheduled(new Date()); // migrates
   await db.prepare("INSERT INTO sent_notifications (key, sent_at) VALUES ('old', '2020-01-01T00:00:00.000Z')").run();
   await db.prepare("DELETE FROM settings WHERE key = 'notifyLastTick'").run();
-  // Event reminders and calendar sync both read calendars first: make that read fail.
+  // Event reminders, the reconnect note and calendar sync all read calendars first: make that read fail.
   const prepare = db.prepare.bind(db);
   db.prepare = ((sql: string) => {
     if (/FROM calendars WHERE/.test(sql)) throw new Error('disk I/O error');
@@ -57,7 +57,7 @@ test('createKinwall: a failing part of the scheduled tick is logged and the rest
   } finally {
     console.error = realError;
   }
-  assert.deepEqual(logged.sort(), ['calendar sync tick failed: Error', 'event reminders skipped: Error']);
+  assert.deepEqual(logged.sort(), ['calendar reconnect skipped: Error', 'calendar sync tick failed: Error', 'event reminders skipped: Error']);
   assert.equal(await db.prepare("SELECT 1 FROM sent_notifications WHERE key = 'old'").first(), null, 'the prune after it ran');
   assert.ok(await db.prepare("SELECT 1 FROM settings WHERE key = 'notifyLastTick'").first(), 'and the window moved (event reminders keep their own lookback)');
 });

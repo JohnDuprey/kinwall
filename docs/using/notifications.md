@@ -28,6 +28,10 @@ On the device that should get notifications, go to **Settings → General → No
 
 For someone with the [energy battery](battery.md) on, their own phones and tablets get one calm push from 7:00 PM the evening before a day that looks likely to run them low: **🔋 Heads-up for tomorrow** with "Tomorrow looks full: 5 events and a late evening. Maybe plan a rest or move something?". Held at [night](night.md#reminders-at-night) (it waits until the night hours end, and goes out that morning), never about sleep or feelings, and not in the family's feed. At their evening time, on a day without a goal to check on, they also get **How drained do you feel? 🔋** (see [How drained do you feel?](battery.md#how-drained-do-you-feel)); on a day with one, it's part of the goal check's push.
 
+## A calendar stopped syncing
+
+When Google or Microsoft takes away Kinwall's access to a calendar (for example a parent removed Kinwall in Family Link), the grown-ups get one note: **Maya's calendar stopped syncing**, "Tap to reconnect it.", which opens **Settings → Calendars** with a **Reconnect** button. It's in the bell for grown-ups and pushed to parents' phones, never to kids' devices, and waits for the [night hours](night.md) to end. One per outage: no repeat until the calendar has synced again and then stops again. See [When a calendar stops syncing](../calendars/sync.md#when-a-calendar-stops-syncing).
+
 ## Last night's check-in
 
 When someone's evening check (the goal check or **How drained do you feel?**) is still unanswered in the morning, their own phones and tablets get one push from 7:00 AM: **Last night's check-in is still open 🌙**, "Finish it or skip it." It waits for the [night hours](night.md) to end, stops at noon, never says what they answered or their goal, and isn't in the family's feed. None once they finished it, skipped it or answered their morning Temp check. See [Last night's check-in](snapshot.md#last-nights-check-in).

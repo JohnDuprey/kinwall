@@ -60,3 +60,28 @@ export interface Provider {
 //   exchangeCode(env: ProviderEnv, code: string, redirectUri: string, codeVerifier: string): Promise<{ name: string; config: any }>
 // caldav.ts additionally exports:
 //   verifyAccount(serverUrl, username, password): Promise<{ name: string; config: any }>
+
+/** Google or Microsoft turned down Kinwall's sign-in for good (revoked or expired: a parent removed
+ * Kinwall in Family Link, a password change, an app still in Testing): only reconnecting the
+ * account fixes it. sync.ts words it for the family and records last_error_code 'revoked'. */
+export class SignInRevoked extends Error {
+  readonly provider: 'google' | 'microsoft';
+  constructor(provider: 'google' | 'microsoft') {
+    super(`${provider} sign-in revoked`);
+    this.provider = provider;
+    this.name = 'SignInRevoked';
+  }
+}
+
+/** A refused token refresh: OAuth's invalid_grant (RFC 6749 §5.2) is a revoked sign-in; any other
+ * answer (another 400, a 5xx) is a passing failure the next sync tries again. */
+export async function refreshFailure(res: Response, provider: 'google' | 'microsoft', label: string): Promise<Error> {
+  let code = '';
+  try {
+    code = String(((await res.json()) as { error?: unknown }).error ?? '');
+  } catch {
+    // not JSON: not invalid_grant
+  }
+  if (code === 'invalid_grant' && res.status < 500) return new SignInRevoked(provider);
+  return new Error(`Kinwall couldn't renew the ${label} sign-in (HTTP ${res.status}${code ? `, ${code.slice(0, 40)}` : ''}). It tries again on the next sync.`);
+}

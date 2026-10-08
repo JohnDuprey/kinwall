@@ -7,7 +7,7 @@ import path from 'node:path';
 import { expandICS, provider as icsProvider } from '../src/providers/ics.ts';
 import { provider as googleProvider } from '../src/providers/google.ts';
 import { provider as msProvider } from '../src/providers/microsoft.ts';
-import type { ProviderCtx } from '../src/providers/types.ts';
+import { SignInRevoked, type ProviderCtx } from '../src/providers/types.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = readFileSync(path.join(__dirname, 'fixtures/sample.ics'), 'utf-8');
@@ -150,23 +150,6 @@ test('google: refreshes an expired token, saves it, and maps events (timed + all
   }
 });
 
-test('google: a revoked refresh token produces a human-readable error', async () => {
-  const { restore } = stubFetch({
-    'oauth2.googleapis.com/token': () => new Response('{"error":"invalid_grant"}', { status: 400 }),
-  });
-  try {
-    const ctx = {
-      env: {},
-      account: { id: 'a1', config: { access_token: 'old', refresh_token: 'r1', expires_at: 0 } },
-      calendar: { id: 'c1', remoteId: 'primary', config: {} },
-      saveAccountConfig: async () => {},
-    } as ProviderCtx;
-    await assert.rejects(() => googleProvider.listEvents(ctx, FROM, TO), /Google token revoked/);
-  } finally {
-    restore();
-  }
-});
-
 test('microsoft: refreshes an expired token and maps events, converting all-day midnight dates', async () => {
   const { calls, restore } = stubFetch({
     'login.microsoftonline.com': () =>
@@ -218,22 +201,37 @@ test('microsoft: refreshes an expired token and maps events, converting all-day 
   }
 });
 
-test('microsoft: a revoked refresh token produces a human-readable error', async () => {
-  const { restore } = stubFetch({
-    'login.microsoftonline.com': () => new Response('{"error":"invalid_grant"}', { status: 401 }),
-  });
-  try {
-    const ctx = {
-      env: {},
-      account: { id: 'a1', config: { access_token: 'old', refresh_token: 'r1', expires_at: 0 } },
-      calendar: { id: 'c1', remoteId: 'cal1', config: {} },
-      saveAccountConfig: async () => {},
-    } as ProviderCtx;
-    await assert.rejects(() => msProvider.listEvents(ctx, FROM, TO), /Microsoft token revoked/);
-  } finally {
-    restore();
+// A refused token refresh: only OAuth's invalid_grant (the sign-in was revoked or expired, e.g. a
+// parent removed Kinwall in Family Link) means "reconnect"; any other 400, and 5xx, is a passing
+// failure the next sync retries.
+for (const [label, provider, host] of [['google', googleProvider, 'oauth2.googleapis.com/token'], ['microsoft', msProvider, 'login.microsoftonline.com']] as const) {
+  for (const [status, body, revoked] of [
+    [400, '{"error":"invalid_grant","error_description":"Token has been expired or revoked."}', true],
+    [401, '{"error":"invalid_grant"}', true],
+    [400, '{"error":"invalid_client"}', false],
+    [400, 'not json', false],
+    [503, '{"error":"invalid_grant"}', false],
+    [500, '', false],
+  ] as const) {
+    test(`${label}: a token refresh answering ${status} ${body || '(empty)'} is ${revoked ? 'a revoked sign-in' : 'a passing failure'}`, async () => {
+      const { restore } = stubFetch({ [host]: () => new Response(body, { status }) });
+      try {
+        const ctx = {
+          env: {},
+          account: { id: 'a1', config: { access_token: 'old', refresh_token: 'r1', expires_at: 0 } },
+          calendar: { id: 'c1', remoteId: 'cal1', config: {} },
+          saveAccountConfig: async () => {},
+        } as ProviderCtx;
+        const err = await provider.listEvents(ctx, FROM, TO).then(() => null, (e: unknown) => e);
+        assert.ok(err instanceof Error);
+        assert.equal(err instanceof SignInRevoked, revoked, err.message);
+        if (!revoked) assert.match(err.message, new RegExp(`HTTP ${status}`), 'the status, for troubleshooting');
+      } finally {
+        restore();
+      }
+    });
   }
-});
+}
 
 test('microsoft: isReminderOn + reminderMinutesBeforeStart map to reminders; off means none', async () => {
   const { restore } = stubFetch({

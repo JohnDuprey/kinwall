@@ -10,6 +10,7 @@ import { expand, zonedTimeToUtc } from './recurrence.ts';
 import { dueOnDate, type ChoreRow } from './routes/chores.ts';
 import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
+import { calendarWho } from './sync.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { newscastPrunes } from './routes/newscast.ts';
@@ -917,6 +918,29 @@ async function runLibraryDue(env: Env, db: KinwallDb, now: Date, tz: string, win
   }
 }
 
+// A calendar whose sign-in Google or Microsoft revoked (sync.ts records last_error_code 'revoked'):
+// one note to the grown-ups, "Leo's calendar stopped syncing", in the feed (for grown-ups only, so
+// not on kids' devices) and pushed to parent devices (full-access keys not owned by a kid), opening
+// Settings → Calendars where its Reconnect button is. Once per outage: claimed in
+// reconnect_notified_at, which only a good sync (or reconnecting) clears. Held through night hours.
+async function runCalendarReconnect(env: Env, db: KinwallDb, now: Date): Promise<void> {
+  const { results } = await db.prepare("SELECT id, name, member_ids FROM calendars WHERE last_error_code = 'revoked' AND reconnect_notified_at IS NULL AND enabled = 1 ORDER BY name")
+    .all<{ id: string; name: string; member_ids: string }>();
+  const fresh: typeof results = [];
+  for (const cal of results) {
+    const claimed = await db.prepare("UPDATE calendars SET reconnect_notified_at = ? WHERE id = ? AND reconnect_notified_at IS NULL AND last_error_code = 'revoked'").bind(now.toISOString(), cal.id).run();
+    if (claimed.meta.changes) fresh.push(cal);
+  }
+  if (!fresh.length) return;
+  const who = fresh.length === 1 ? await calendarWho(db, fresh[0]) : '';
+  const title = fresh.length === 1 ? `${who[0].toUpperCase()}${who.slice(1)} stopped syncing` : `${fresh.length} calendars stopped syncing`;
+  const payload = { title, body: fresh.length === 1 ? 'Tap to reconnect it.' : 'Tap to reconnect them.', url: '/#/settings?tab=calendars', tag: 'calendar-reconnect' };
+  const grownUps = (await db.prepare('SELECT id FROM members WHERE grown_up = 1').all<{ id: string }>()).results.map((m) => m.id);
+  await recordNotification(db, { kind: 'reminder', ...payload, memberIds: grownUps, source: 'system', at: now });
+  const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin' AND (k.owner IS NULL OR k.owner NOT IN (SELECT id FROM members WHERE grown_up = 0))").all<PushSubRow>();
+  for (const sub of parents) await sendToSub(env, db, sub, payload);
+}
+
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
@@ -965,6 +989,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     await part('medication reminders', () => runMedicationReminders(env, env.DB, now, tz, h12));
   }
+  if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile
   await part('prune', () => pruneSentNotifications(env.DB, now));
   if (!retry) await setTickWindowEnd(env.DB, now);
 }

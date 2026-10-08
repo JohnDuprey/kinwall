@@ -3,12 +3,13 @@ import type { Env, WaitCtx } from './env.ts';
 import { syncIntervalMinutes, hostTimezone } from './env.ts';
 import { publish } from './bus.ts';
 import { getProvider, type ProviderKind } from './providers/index.ts';
-import type { ProviderCtx, NormalizedEvent } from './providers/types.ts';
+import { SignInRevoked, type ProviderCtx, type NormalizedEvent } from './providers/types.ts';
 import { parseIcsEvents, fetchIcsConditional, icsFingerprint } from './providers/ics.ts';
 import { decryptConfig, encryptConfig } from './crypto.ts';
 import { providerEnv } from './providers/config.ts';
 import { redact } from './redact.ts';
 import { deterministicEventIds } from './event-id.ts';
+import { parseMemberIds } from './calendar-members.ts';
 
 // Calendars imported from an export arrive as placeholders: no account, config = '' (the column is
 // NOT NULL). They keep their settings and per-event overrides but aren't synced until reconnected
@@ -43,11 +44,31 @@ type CalendarRow = {
   last_synced_at: string | null;
   last_error: string | null;
   sync_failures?: number;
+  member_ids?: string;
   sync_cursor: string | null;
   etag: string | null;
   last_modified: string | null;
   content_hash: string | null;
 };
+
+/** Whose calendar, in the family's words: "Leo's calendar" when it's one person's, else "the
+ * Soccer calendar". Shared with notify.ts (the note to the grown-ups). */
+export async function calendarWho(db: KinwallDb, cal: { name: string; member_ids?: string | null }): Promise<string> {
+  const ids = parseMemberIds(cal.member_ids);
+  const one = ids.length === 1 ? await db.prepare('SELECT name FROM members WHERE id = ?').bind(ids[0]).first<{ name: string }>() : null;
+  return one ? `${one.name}'s calendar` : `the ${cal.name} calendar`;
+}
+
+const PROVIDER_NAME = { google: 'Google', microsoft: 'Microsoft' } as const;
+
+/** What a failed sync records: a revoked sign-in in plain words with code 'revoked' (only
+ * reconnecting fixes it; the grown-ups get one note, notify.ts), anything else as it came. */
+async function failure(db: KinwallDb, cal: CalendarRow, err: unknown): Promise<{ message: string; code: string | null }> {
+  if (err instanceof SignInRevoked) {
+    return { message: `${PROVIDER_NAME[err.provider]} stopped letting Kinwall see ${await calendarWho(db, cal)}. Reconnect it to start syncing again.`, code: 'revoked' };
+  }
+  return { message: redact(err instanceof Error ? err.message : String(err)), code: null };
+}
 
 type AccountRow = { id: string; kind: string; name: string; config: string; created_at: string };
 
@@ -181,15 +202,15 @@ export async function syncCalendar(env: Env, calendarId: string, execCtx?: WaitC
     const { stmts, changed } = await diffEventStmts(env, cal.id, events, null);
     await env.DB.batch([
       ...stmts,
-      env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0 WHERE id = ?').bind(now.toISOString(), cal.id),
+      env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL WHERE id = ?').bind(now.toISOString(), cal.id),
     ]);
 
     publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: events.length }, cal.last_error !== null); // rev only moves to clear a shown error
     if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
     return { ok: true, count: events.length };
   } catch (err) {
-    const message = redact(err instanceof Error ? err.message : String(err));
-    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = ?, sync_failures = sync_failures + 1 WHERE id = ?').bind(now.toISOString(), message, cal.id).run();
+    const { message, code } = await failure(env.DB, cal, err);
+    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = ?, last_error_code = ?, sync_failures = sync_failures + 1 WHERE id = ?').bind(now.toISOString(), message, code, cal.id).run();
     publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, error: message });
     return { ok: false, error: message };
   }
@@ -280,7 +301,7 @@ async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: Wa
     nextCursor = { farIndex: (index + 1) % totalSlices, farSyncedAt: now.toISOString() };
   }
 
-  await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, sync_cursor = ? WHERE id = ?')
+  await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL, sync_cursor = ? WHERE id = ?')
     .bind(now.toISOString(), JSON.stringify(nextCursor), cal.id)
     .run();
   tickSynced(env, execCtx, cal, { calendarId: cal.id, count }, changed);
@@ -294,7 +315,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
 
   const result = await fetchIcsConditional(env, url, cal.etag, cal.last_modified);
   if (result.notModified) {
-    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0 WHERE id = ?').bind(now.toISOString(), cal.id).run();
+    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL WHERE id = ?').bind(now.toISOString(), cal.id).run();
     tickSynced(env, execCtx, cal, { calendarId: cal.id, count: 0, notModified: true }, false);
     return { ok: true };
   }
@@ -306,7 +327,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
   // calendar shows as freshly checked.
   const fingerprint = await icsFingerprint(result.text);
   if (fingerprint === cal.content_hash) {
-    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, etag = ?, last_modified = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL, etag = ?, last_modified = ? WHERE id = ?')
       .bind(now.toISOString(), result.etag, result.lastModified, cal.id)
       .run();
     tickSynced(env, execCtx, cal, { calendarId: cal.id, count: 0, notModified: true }, false);
@@ -320,7 +341,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
   const { stmts, changed } = await diffEventStmts(env, cal.id, events, null);
   await env.DB.batch([
     ...stmts,
-    env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, etag = ?, last_modified = ?, content_hash = ? WHERE id = ?').bind(
+    env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_failures = 0, last_error_code = NULL, reconnect_notified_at = NULL, etag = ?, last_modified = ?, content_hash = ? WHERE id = ?').bind(
       now.toISOString(),
       result.etag,
       result.lastModified,
@@ -342,13 +363,20 @@ export async function syncCalendarTick(env: Env, calendarId: string, execCtx?: W
   try {
     return cal.kind === 'ics' ? await syncIcsTick(env, cal, now, execCtx) : await syncRemoteTick(env, cal, now, execCtx);
   } catch (err) {
-    const message = redact(err instanceof Error ? err.message : String(err));
-    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = ?, sync_failures = sync_failures + 1 WHERE id = ?').bind(now.toISOString(), message, cal.id).run();
+    const { message, code } = await failure(env.DB, cal, err);
+    await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = ?, last_error_code = ?, sync_failures = sync_failures + 1 WHERE id = ?').bind(now.toISOString(), message, code, cal.id).run();
     if (message !== cal.last_error) publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, error: message }); // a repeat of the shown error is news to no one
     // ...but the second failure in a row is when parents' Home warns (Calendar.tsx SyncAlert): screens refresh, no webhook.
     else if ((cal.sync_failures ?? 0) + 1 === 2) await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1").run();
     return { ok: false, error: message };
   }
+}
+
+/** After an account is connected again (routes/oauth.ts): sync its calendars right away, so a
+ * "stopped syncing" message clears without waiting for the next tick. */
+export async function syncAccountCalendars(env: Env, accountId: string, execCtx?: WaitCtx): Promise<void> {
+  const { results } = await env.DB.prepare("SELECT id FROM calendars WHERE account_id = ? AND enabled = 1 AND config != ''").bind(accountId).all<{ id: string }>();
+  for (const row of results) await syncCalendarTick(env, row.id, execCtx);
 }
 
 // Syncs enabled non-local calendars whose last_synced_at is stalest first, one chunked tick

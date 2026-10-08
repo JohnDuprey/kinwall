@@ -15,6 +15,14 @@ You can do this entirely in the UI, with no restart. On an admin device, open **
    5. If the consent screen is in Testing, add yourself as a test user.
 3. Paste the **Client ID** and **Client secret**, then **Save**. **Test sign-in** tries the flow.
 
+### If every Google calendar stops about weekly
+
+Google expires sign-ins after 7 days while an OAuth app's consent screen is in **Testing**. If every Google calendar stops syncing about once a week with "Google stopped letting Kinwall see…", open the consent screen (Google Auth Platform → **Audience**) and **Publish app** to move it to production. Self-hosters set up their own app, so this is on your Google Cloud project.
+
+### A kid's supervised account (Family Link)
+
+A kid's Google account managed with Family Link can have Kinwall's access removed by a parent in Family Link, or need a parent's approval before Kinwall can see the calendar. When a kid's Google calendar stops syncing, check the kid's third-party app access in Family Link (or approve the request there), then tap **Reconnect** on the calendar in **Settings → Calendars**.
+
 Or set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` as environment variables. A client configured in the UI wins over the variables. When only the variables configure it, the card shows "Provided by your host" and is read-only.
 
 **Google requires HTTPS or `localhost` redirect URIs.** A bare LAN IP like `http://192.168.1.10:8080` won't work. Use Workers, a domain with HTTPS, or finish sign-in from `http://localhost:8080` on the server itself.

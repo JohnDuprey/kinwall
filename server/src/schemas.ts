@@ -469,6 +469,7 @@ export const CalendarSchema = z
     default: z.boolean().openapi({ description: "New events go here when no calendar is named: the family's pick (settings.defaultCalendarId), or Kinwall's while that's unset or can't take events. At most one is true." }),
     lastSyncedAt: z.string().nullable(),
     lastError: z.string().nullable(),
+    lastErrorCode: z.string().nullable().openapi({ description: "Why the last sync failed, when it's known: 'revoked' means Google or Microsoft turned down the sign-in and only reconnecting the account fixes it. null otherwise." }),
     syncFailures: z.number().int().openapi({ description: 'Failed syncs in a row; 0 after a good one.' }),
     needsReconnect: z.boolean(), // imported placeholder: settings kept, not syncing until reconnected
     filter: CalendarFilterSchema,

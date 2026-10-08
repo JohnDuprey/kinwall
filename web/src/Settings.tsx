@@ -6,6 +6,7 @@ import { securityHint } from './securityActivity.ts'
 import SecurityActivitySheet from './SecurityActivitySheet.tsx'
 import type { Account, ApiKey, CalendarEntry, List, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, SecurityEvent, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { connectCalendar, ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
+import { familyLinkHint, revoked, signInHint } from './calendarReconnect.ts'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
@@ -2366,6 +2367,7 @@ function DefaultCalendarRow({ calendars, onSaved, toast }: { calendars: Calendar
 
 function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccountId: string | null; onOpenedAccount: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
+  const { members } = useApp()
   const [calendars, setCalendars] = useState<CalendarEntry[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [localSheet, setLocalSheet] = useState(false)
@@ -2416,7 +2418,11 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
           {c.needsReconnect && c.kind !== 'ics' && (
             <div className="settings-row-sub">Reconnect via {PROVIDER_LABEL[c.kind]}: connect the account below and add this calendar again. Its settings are kept.</div>
           )}
+          {revoked(c) && [signInHint(accounts.find(a => a.id === c.accountId)?.name), familyLinkHint(c, members)].filter(Boolean).map(h => (
+            <div key={h} className="settings-row-sub cal-hint">{h}</div>
+          ))}
           <div className="cal-actions" onClick={e => e.stopPropagation()}>
+            {revoked(c) && <button className="btn btn-primary cal-reconnect" disabled={!oauth[c.kind]} onClick={() => connectCalendar(c.kind, m => toast(m, true))}>Reconnect</button>}
             {c.needsReconnect && c.kind === 'ics' && <button className="link-btn" onClick={() => reconnectIcs(c)}>Reconnect</button>}
             {c.kind !== 'local' && !c.needsReconnect && <button className="link-btn" onClick={() => sync(c.id)}>Sync now</button>}
             <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)}>Remove</button>

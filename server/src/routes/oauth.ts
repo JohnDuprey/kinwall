@@ -2,7 +2,8 @@ import { errorMessage, setupMessage } from '../redact.ts';
 import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
-import type { Env } from '../env.ts';
+import { waitUntil, type Env, type WaitCtx } from '../env.ts';
+import { syncAccountCalendars } from '../sync.ts';
 import { emit } from '../bus.ts';
 import { encryptConfig } from '../crypto.ts';
 import * as google from '../providers/google.ts';
@@ -208,6 +209,9 @@ oauthRoutes.openapi(
       return back(setupMessage(err), 500);
     }
     emit(c, 'calendar.changed', { accountId: id });
+    let execCtx: WaitCtx | undefined;
+    try { execCtx = c.executionCtx; } catch { /* Node: none */ }
+    waitUntil(execCtx, syncAccountCalendars(c.env, id, execCtx)); // reconnected: its calendars sync now
     return c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?account=${id}`, 302);
   },
 );
