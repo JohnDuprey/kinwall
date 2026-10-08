@@ -10,6 +10,8 @@ on:
     tags: ['v*']
   workflow_dispatch:
   workflow_call: # from release-please.yml, on the release commit
+permissions:
+  contents: read
 jobs:
   deploy:
     runs-on: ubuntu-latest
