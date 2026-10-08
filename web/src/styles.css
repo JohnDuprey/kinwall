@@ -2487,7 +2487,7 @@ button.notif-item:active { transform: scale(0.99); }
 .lib-every { display: flex; gap: 8px; }
 .lib-every input { flex: 0 0 5.5em; }
 .lib-every select { flex: 1; }
-.chore-col-spend { font-size: 0.75rem; font-weight: 800; color: var(--accent-text); text-decoration: none; min-height: 24px; display: inline-flex; align-items: center; }
+.chore-col-spend { font-size: 0.75rem; font-weight: 800; color: var(--accent-text); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
 .board-card-link { float: right; text-transform: none; letter-spacing: 0; color: var(--accent-text); text-decoration: none; }
 .reward-card.goal { box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
 .reward-meta { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
@@ -3632,6 +3632,15 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .poll-add { flex-wrap: wrap; }
 .poll-add .btn { flex: none; }
 
+/* ---------- Touch targets ----------
+   Every control takes at least a 44px tap. Where a control is drawn smaller to fit a tight row (the
+   header's faces, the phone calendar toolbar), an invisible 44px ::after centered on it takes the
+   tap instead, so the layout doesn't grow. Add a small control's selector to both lists. */
+:where(.header .member-avatar, .calendar-toolbar .icon-btn, .rewards-how a) { position: relative; }
+:where(.header .member-avatar, .calendar-toolbar .icon-btn, .rewards-how a)::after {
+  content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
+}
+
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */
@@ -3662,7 +3671,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :root[data-theme="dark"] .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--text-dim), 0 0 0 3px var(--accent-soft); }
   /* Events carry an inline background, so the wash is an inset shadow over it instead. */
   :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }
-  :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
+  :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, .chore-col-spend, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 /* The Android app already lays the page out between the status and navigation bars (its SafeAreaView),
