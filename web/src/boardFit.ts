@@ -115,15 +115,18 @@ export function slotLayout({ fixed, rows, space, items, chips = 0, keep = [0, 0]
 export const tileChips = (tiles: string[], toolbar: boolean) =>
   toolbar && tiles.length > 0 && tiles.length <= 2 && tiles.every(t => !['meds', 'chores', 'due'].includes(t))
 
-/** How the toolbar chips fit their spot (`room`, px): with their whole names (`full`: each chip's
- *  width) when all fit, else each just its icon and count (`short`; never "G… 14"), else 'tight': short
- *  chips, and the toolbar's Family wall and Polls buttons down to their icons, which frees `freed` px.
- *  Measured while tight (`tight`), the spot is that much wider than with the words back, and it takes
- *  a few px to spare to bring them back, so it can't flip back and forth at the edge. */
-export function chipFit(full: number[], short: number[], room: number, freed: number, tight = false, gap = 8): 'names' | 'short' | 'tight' {
-  const fits = (w: number[]) => w.reduce((n, x) => n + x, 0) + gap * (w.length - 1) <= room - (tight ? freed + gap : 0) + 0.5
-  return fits(full) ? 'names' : fits(short) ? 'short' : 'tight'
+/** How the toolbar chips fit their spot (`room`, px, with the buttons' words showing): with their whole
+ *  names (`full`: each chip's width) when all fit, else each just its icon and count (`short`; never
+ *  "G… 14"), else 'tight': short chips, and the toolbar's Family wall and Polls buttons down to their
+ *  icons, which frees `freed` px, else 'wrap': the chips on a row of their own (a portrait tablet).
+ *  `was` is the current fit: measured while tight the spot is `freed` wider, and it takes a few px to
+ *  spare to step back, so it can't flip back and forth at an edge. */
+export function chipFit(full: number[], short: number[], room: number, freed: number, was: ChipFit = 'names', gap = 8): ChipFit {
+  const r = was === 'tight' ? room - freed - gap : room
+  const fits = (w: number[], n: number) => w.reduce((t, x) => t + x, 0) + gap * (w.length - 1) <= n + 0.5
+  return fits(full, r) ? 'names' : fits(short, r) ? 'short' : fits(short, r + freed - (was === 'wrap' ? gap : 0)) ? 'tight' : 'wrap'
 }
+export type ChipFit = 'names' | 'short' | 'tight' | 'wrap'
 
 /** Today's events on the Board, for a glance late in the day: what's on now (all-day ones too), then
  *  what's next, in start order; the ones already over go to `earlier`, which the card folds into one

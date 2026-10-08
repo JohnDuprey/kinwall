@@ -122,9 +122,15 @@ test('chipFit: names when every chip fits whole, else icon and count, else the t
 
 test('chipFit: room is the toolbar with Family wall and Polls showing their words', () => {
   // Measured while tight, the spot is `freed` wider than it would be with the words back.
-  assert.equal(chipFit([153], [70], 60 + 150, 150, true), 'tight', 'the words back would leave 60: stay tight')
-  assert.equal(chipFit([153], [70], 90 + 150, 150, true), 'short', 'room for icon and count with the words back')
-  assert.equal(chipFit([153], [70], 72 + 150, 150, true), 'tight', 'a few px short of leaving: no flip-flopping at the edge')
+  assert.equal(chipFit([153], [70], 60 + 150, 150, 'tight'), 'tight', 'the words back would leave 60: stay tight')
+  assert.equal(chipFit([153], [70], 90 + 150, 150, 'tight'), 'short', 'room for icon and count with the words back')
+  assert.equal(chipFit([153], [70], 72 + 150, 150, 'tight'), 'tight', 'a few px short of leaving: no flip-flopping at the edge')
+})
+
+test('chipFit: not even tight: the chips take a row of their own, and come back with room to spare', () => {
+  assert.equal(chipFit([153, 188], [70, 72], 20, 100), 'wrap', 'icons and counts need 150, the row has 120')
+  assert.equal(chipFit([153, 188], [70, 72], 140, 100, 'wrap'), 'tight', 'measured from the toolbar row: room again')
+  assert.equal(chipFit([153, 188], [70, 72], 52, 100, 'wrap'), 'wrap', 'a few px short of leaving: no flip-flopping at the edge')
 })
 
 test('todayOrder: on now first, then upcoming, then the finished ones folded away', () => {

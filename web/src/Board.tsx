@@ -23,7 +23,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -173,9 +173,10 @@ type CountTile = { key: string; href: string; icon: React.ReactNode; name: strin
 
 /** The Board's one or two count tiles as chips on the toolbar (`host`, boardFit.ts tileChips): with
  *  their names when they all fit whole, else each its icon and count, else (a phone on its side at a
- *  large text size) the toolbar's Family wall and Polls buttons drop to their icons too (boardFit.ts chipFit). */
+ *  large text size) the toolbar's Family wall and Polls buttons drop to their icons too, else (a narrow
+ *  portrait tablet) the chips take a row of their own (boardFit.ts chipFit). */
 function ToolbarChips({ host, tiles }: { host: HTMLElement | null | undefined; tiles: CountTile[] }) {
-  const [fit, setFit] = useState<'names' | 'short' | 'tight'>('names')
+  const [fit, setFit] = useState<ChipFit>('names')
   const text = tiles.map(t => t.name + t.count).join()
   useLayoutEffect(() => {
     const bar = host?.parentElement
@@ -189,10 +190,14 @@ function ToolbarChips({ host, tiles }: { host: HTMLElement | null | undefined; t
         return { full: c.offsetWidth + (n && !named ? n.scrollWidth + 6 : 0), short: c.offsetWidth - (n && named ? n.clientWidth + 6 : 0) }
       })
       const words = [...bar.querySelectorAll<HTMLElement>('.board-layout-pick > span, .polls-btn-label')]
-      const tight = bar.dataset.chips === 'tight'
-      const next = chipFit(chips.map(c => c.full), chips.map(c => c.short), host.clientWidth, words.reduce((n, w) => n + w.scrollWidth + 8, 0), tight)
-      if (next === 'tight') bar.dataset.chips = 'tight'; else delete bar.dataset.chips
-      setFit(next)
+      const was = (bar.dataset.chips ?? 'names') as ChipFit
+      // On their own row, the room is what the toolbar row's other items leave.
+      const gap = parseFloat(getComputedStyle(bar).columnGap) || 8
+      const others = [...bar.children].filter(c => c !== host && (c as HTMLElement).offsetWidth > 0) as HTMLElement[]
+      const row = was === 'wrap' ? bar.clientWidth - parseFloat(getComputedStyle(bar).paddingLeft) * 2 - others.reduce((n, c) => n + c.offsetWidth + gap, 0) : host.clientWidth
+      const next = chipFit(chips.map(c => c.full), chips.map(c => c.short), row, words.reduce((n, w) => n + w.scrollWidth + 8, 0), was)
+      if (next === 'tight' || next === 'wrap') bar.dataset.chips = next; else delete bar.dataset.chips
+      setFit(next === 'wrap' ? chipFit(chips.map(c => c.full), chips.map(c => c.short), host.clientWidth, 0) : next)
     }
     check()
     const ro = new ResizeObserver(check)
