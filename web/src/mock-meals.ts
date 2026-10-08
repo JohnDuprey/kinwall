@@ -158,10 +158,72 @@ const seedPlace = (id: string, name: string, cuisine: string, phone: string, add
   createdAt: stamp, updatedAt: stamp,
 })
 let restaurants: Restaurant[] = [
+  // A full takeout menu, the way a photographed one reads in: sizes and counts in the description
+  // ("12\" $12.99 · 16\" $16.99"), and an Add-ons section saying what each goes with.
   seedPlace('corner-slice', 'Corner Slice', 'Pizza', '555-0142', '12 Elm Street, Springfield', 'Ask for the crust well done. Pickup is around the back.', [
-    ['Pizza', 'Large cheese pizza', 14.99, true, '16 inch, hand-tossed'], ['Pizza', 'Large pepperoni pizza', 16.99, true], ['Pizza', 'Veggie pizza', 17.49, false, 'Peppers, onions, olives, mushrooms'], ['Pizza', 'Personal cheese pizza', 7.99],
-    ['Sides', 'Garlic knots (6)', 5.5, true], ['Sides', 'Caesar salad', 8.25], ['Sides', 'Chicken tenders', 9.99, false, 'With honey mustard'],
-    ['Drinks', 'Lemonade', 2.75], ['Drinks', '2-liter soda', 3.5],
+    ['Pizza', 'Cheese pizza', 12.99, true, '12" $12.99 · 16" $16.99 — Hand-tossed, our red sauce and whole-milk mozzarella'],
+    ['Pizza', 'Pepperoni pizza', 14.49, true, '12" $14.49 · 16" $18.99 — Cup pepperoni that crisps at the edges'],
+    ['Pizza', 'Veggie pizza', 15.49, false, '12" $15.49 · 16" $19.99 — Peppers, onions, black olives, mushrooms and tomatoes'],
+    ['Pizza', 'Margherita', 14.99, false, '12" $14.99 · 16" $18.99 — Fresh mozzarella, basil and olive oil'],
+    ['Pizza', 'Personal cheese pizza', 7.99, false, '8 inch, just right for one'],
+    ['Specialty pizza', 'Elm Street Special', 17.99, false, '12" $17.99 · 16" $22.99 — Pepperoni, sausage, meatball, peppers, onions, mushrooms and black olives'],
+    ['Specialty pizza', 'BBQ chicken', 16.99, false, '12" $16.99 · 16" $21.99 — Grilled chicken, red onion, smoked gouda and a sweet BBQ sauce base'],
+    ['Specialty pizza', 'Buffalo chicken', 16.99, false, '12" $16.99 · 16" $21.99 — Crispy chicken tossed in buffalo sauce, blue cheese drizzle and celery'],
+    ['Specialty pizza', 'Meat lover’s', 17.99, false, '12" $17.99 · 16" $22.99 — Pepperoni, sausage, ham, bacon and ground beef'],
+    ['Specialty pizza', 'White garden', 16.49, false, '12" $16.49 · 16" $20.99 — Ricotta and garlic base, spinach, roasted tomatoes, zucchini and parmesan'],
+    ['Specialty pizza', 'Hawaiian', 15.99, false, '12" $15.99 · 16" $20.49 — Ham, pineapple and a little bacon'],
+    ['Specialty pizza', 'Spinach and feta', 15.99, false, '12" $15.99 · 16" $20.49 — Spinach, feta, red onion, garlic and oregano'],
+    ['Appetizers', 'Garlic knots', 5.5, true, '(6) $5.50 · (12) $9.75 — With marinara'],
+    ['Appetizers', 'Mozzarella sticks', 8.49, false, 'With marinara'],
+    ['Appetizers', 'Chicken wings', 8.99, false, '(6) $8.99 · (12) $15.99 — Flavors: Buffalo | BBQ | Garlic parm | Honey hot'],
+    ['Appetizers', 'Chicken tenders', 8.99, true, '(4) $8.99 · (8) $14.99 — With honey mustard'],
+    ['Appetizers', 'French fries', 3.99, false, 'Small $3.99 · Large $5.99'],
+    ['Appetizers', 'Curly fries', 5.49],
+    ['Appetizers', 'Onion rings', 5.99],
+    ['Appetizers', 'Loaded potato skins', 8.99, false, 'Cheddar, bacon and sour cream'],
+    ['Appetizers', 'Fried pickles', 6.99, false, 'With ranch'],
+    ['Salads', 'Garden salad', 5.99, false, 'Small $5.99 · Large $8.99 — Greens, tomato, cucumber, red onion and croutons'],
+    ['Salads', 'Caesar salad', 8.99, false, 'Romaine, parmesan, croutons and Caesar dressing'],
+    ['Salads', 'Greek salad', 9.49, false, 'Greens, feta, black olives, tomato, cucumber, red onion and pepperoncini'],
+    ['Salads', 'Antipasto', 12.99, false, 'Greens, ham, salami, provolone, olives, roasted red peppers and tomatoes with Italian dressing'],
+    ['Salads', 'Chicken Caesar wrap', 10.99, false, 'Grilled chicken, romaine, parmesan and Caesar dressing in a flour wrap'],
+    ['Burgers', 'Classic burger', 8.99, false, 'Single $8.99 · Double $11.99 — Lettuce, tomato, pickles and American cheese'],
+    ['Burgers', 'Bacon cheddar burger', 10.49, false, 'Single $10.49 · Double $13.49 — Bacon, sharp cheddar and BBQ sauce'],
+    ['Burgers', 'Mushroom Swiss burger', 11.99, false, 'Sautéed mushrooms, Swiss cheese and garlic mayo'],
+    ['Burgers', 'Veggie burger', 10.99, false, 'Black bean patty, lettuce, tomato and chipotle mayo'],
+    ['Subs and sandwiches', 'Meatball sub', 7.99, false, 'Half $7.99 · Whole $11.99 — Homemade meatballs, marinara and provolone'],
+    ['Subs and sandwiches', 'Eggplant or chicken parm', 10.99, false, 'Eggplant $10.99 · Chicken $12.49 — Breaded, with marinara and provolone on a toasted roll'],
+    ['Subs and sandwiches', 'Italian sub', 7.99, false, 'Half $7.99 · Whole $11.99 — Ham, salami, capicola, provolone, lettuce, tomato, onion, oil and vinegar'],
+    ['Subs and sandwiches', 'Steak and cheese', 8.99, false, 'Half $8.99 · Whole $12.99 — Shaved steak, grilled onions and American cheese'],
+    ['Subs and sandwiches', 'Turkey club', 10.99, false, 'Turkey, bacon, lettuce, tomato and mayo on toasted white'],
+    ['Subs and sandwiches', 'Grilled chicken wrap', 10.49, false, 'Grilled chicken, lettuce, tomato, cheddar and ranch'],
+    ['Subs and sandwiches', 'BLT', 8.99],
+    ['Subs and sandwiches', 'Tuna melt', 9.99, false, 'Tuna salad and American cheese on grilled rye'],
+    ['Pasta', 'Spaghetti and meatballs', 12.99],
+    ['Pasta', 'Baked ziti', 11.99, false, 'Ricotta, marinara and melted mozzarella'],
+    ['Pasta', 'Chicken alfredo', 14.49, false, 'Fettuccine, grilled chicken and a creamy parmesan sauce'],
+    ['Kids', 'Kids’ cheese pizza', 6.49, false, 'A small cheese pizza with a juice box'],
+    ['Kids', 'Kids’ chicken nuggets', 6.49, false, 'With fries'],
+    ['Kids', 'Kids’ mac and cheese', 5.99, true],
+    ['Kids', 'Kids’ grilled cheese', 5.99, false, 'With fries'],
+    ['Desserts', 'Chocolate chip cookie', 1.99],
+    ['Desserts', 'Cannoli', 3.99],
+    ['Desserts', 'Brownie', 3.49],
+    ['Desserts', 'Cinnamon knots', 4.99, false, '(6) with icing'],
+    ['Drinks', 'Lemonade', 2.75],
+    ['Drinks', 'Fountain soda', 1.99, false, 'Small $1.99 · Large $2.99'],
+    ['Drinks', '2-liter soda', 3.5],
+    ['Drinks', 'Bottled water', 1.75],
+    ['Drinks', 'Chocolate milk', 1.99],
+    ['Add-ons', 'Extra topping', 1.5, false, '12" $1.50 · 16" $2.25 — Pepperoni, sausage, mushrooms, onions, peppers, olives or bacon — For Pizza and Specialty pizza'],
+    ['Add-ons', 'Extra cheese', 1.5, false, '12" $1.50 · 16" $2.25 — For Pizza and Specialty pizza'],
+    ['Add-ons', 'Stuffed crust', 2.99, false, 'For Pizza and Specialty pizza'],
+    ['Add-ons', 'Gluten-free crust', 3, false, 'For Pizza'],
+    ['Add-ons', 'Bacon', 1.5, false, 'For Burgers and Subs and sandwiches'],
+    ['Add-ons', 'Avocado', 1.75, false, 'For Burgers, Salads and Subs and sandwiches'],
+    ['Add-ons', 'Sub fries', 1.75, false, 'For Burgers and Subs and sandwiches'],
+    ['Add-ons', 'Grilled chicken', 4, false, 'For Salads and Pasta'],
+    ['Add-ons', 'Side of ranch', 0.75, false, 'For Appetizers and Salads'],
   ]),
   seedPlace('golden-bowl', 'Golden Bowl', 'Chinese', '555-0178', '480 Market Avenue, Springfield', 'Cash or card. Mild unless you ask.', [
     ['Starters', 'Egg rolls (2)', 4.5, true], ['Starters', 'Crab rangoon (6)', 6.95], ['Starters', 'Wonton soup', 4.25],
@@ -175,12 +237,13 @@ let restaurants: Restaurant[] = [
 ]
 
 // Friday's pizza night: three orders in, Maya's still to come. Last Friday's (already ordered) is everyone's usual.
-const pick = (placeId: string, n: number, qty = 1, note: string | null = null) => { const i = restaurants.find(r => r.id === placeId)!.menu[n]; return { menuItemId: i.id, name: i.name, qty, note } }
+const pick = (placeId: string, name: string, qty = 1, note: string | null = null, option?: string) => { const i = restaurants.find(r => r.id === placeId)!.menu.find(x => x.name === name)!; return { menuItemId: i.id, name: option ? `${i.name} (${option})` : i.name, qty, note } }
 const placed = (memberId: string, items: ReturnType<typeof pick>[], note: string | null = null) => ({ memberId, items, note, updatedAt: stamp })
 const friday = meals.find(m => m.restaurantId === 'demo-corner-slice')!
-friday.orders = [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5), pick('demo-corner-slice', 4)], 'Extra ranch, please'), placed('m4', [pick('demo-corner-slice', 6, 1, 'Honey mustard on the side')])]
+const slice = (name: string, qty = 1, note: string | null = null, option?: string) => pick('demo-corner-slice', name, qty, note, option)
+friday.orders = [placed('m1', [slice('Pepperoni pizza', 1, null, '16"')]), placed('m2', [slice('Caesar salad', 1, '+ Grilled chicken'), slice('Garlic knots', 1, null, '6')], 'Extra ranch, please'), placed('m4', [slice('Chicken tenders', 1, 'Honey mustard on the side', '4')])]
 meals.push({ ...friday, id: 'demo-meal-last-friday', date: dateKey(new Date(Date.parse(`${friday.date}T12:00:00`) - 7 * 86400000)), status: 'prepared', notes: null,
-  orders: [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5)]), placed('m3', [pick('demo-corner-slice', 3, 1, 'Extra cheese')]), placed('m4', [pick('demo-corner-slice', 6)])] })
+  orders: [placed('m1', [slice('Pepperoni pizza', 1, null, '16"')]), placed('m2', [slice('Caesar salad')]), placed('m3', [slice('Kids’ mac and cheese')]), placed('m4', [slice('Chicken tenders', 1, null, '4')])] })
 // On the calendar (mock.ts's demo-meal-ev-* events): Sunday's dinner (cooked), Tuesday Tacos, Wednesday's leftovers (cooked),
 // Friday's pizza night (3 of 4 orders in) and last Friday's (ordered).
 for (const [mealId, eventId] of [['demo-meal-0-dinner', 'demo-meal-ev-0'], ['demo-meal-2-dinner', 'demo-meal-ev-2'], ['demo-meal-3-lunch', 'demo-meal-ev-3'], [friday.id, 'demo-meal-ev-5'], ['demo-meal-last-friday', 'demo-meal-ev-last']]) {

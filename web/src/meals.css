@@ -237,15 +237,22 @@
 span.menu-star { width: 44px; text-align: center; }
 .menu-star.icon-btn { background: none; box-shadow: none; }
 .menu-who { flex: none; }
+/* A long menu's sections, a tap to jump to each: one row that scrolls sideways. */
+.menu-jump { flex-wrap: nowrap; overflow-x: auto; margin: 12px 0 0; padding-bottom: 4px; }
+.menu-jump .chip { flex: none; white-space: nowrap; }
+.menu-options { margin-top: 6px; }
+.menu-option { gap: 6px; }
+.menu-option .menu-price { font-weight: 700; }
+.menu-count { align-self: flex-start; color: var(--accent-text); font-weight: 800; font-size: 0.875rem; }
 
 /* Order nights (Orders.tsx): the summary the caller reads from, and everyone's orders. */
 .order-summary { margin: 20px 0; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-alt); border: 1px solid var(--border); }
 .order-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .order-head h3 { margin: 0 8px 0 0; font-size: 1.125rem; }
 .order-lines, .order-notes, .order-people, .order-items { list-style: none; margin: 8px 0; padding: 0; }
-.order-tick { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 6px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; font-size: 1.125rem; text-align: left; }
-.order-tick > span:last-child { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-.order-tick small { color: var(--text-dim); font-size: 0.875rem; font-weight: 600; }
+.order-tick, .order-static { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 6px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; font-size: 1.125rem; text-align: left; }
+.order-tick > span:last-child, .order-static > span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.order-tick small, .order-static small { color: var(--text-dim); font-size: 0.875rem; font-weight: 600; }
 .order-box { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--text-dim); }
 .order-tick[aria-pressed="true"] .order-box { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-ink); }
 .order-tick[aria-pressed="true"] strong { text-decoration: line-through; text-decoration-thickness: 2px; }
@@ -256,9 +263,21 @@ span.menu-star { width: 44px; text-align: center; }
 .order-row small { color: var(--text-dim); font-weight: 600; overflow-wrap: anywhere; }
 .order-add { flex: none; font-weight: 800; color: var(--accent-text); }
 .order-usual { align-self: flex-start; margin-left: 52px; max-width: calc(100% - 52px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.order-items li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
-.order-item-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.order-item-name input { min-height: 40px; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text); font: inherit; font-size: 0.875rem; }
+.order-items li { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.order-item-row { display: flex; align-items: center; gap: 8px; }
+.order-item-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.order-item-note { min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text); font: inherit; font-size: max(0.875rem, 16px); }
+.order-addons summary { display: flex; align-items: center; min-height: 44px; font-weight: 700; color: var(--accent-text); cursor: pointer; }
+.order-addons .chip-row { padding-bottom: 4px; }
+.order-empty { margin: 4px 0 12px; font-size: 1rem; }
+/* The picker's search stays on top of the sheet as the menu scrolls under it (over .sheet-body's 4px top padding). */
+.order-search { position: sticky; top: -4px; z-index: 2; margin-top: 16px; padding: 6px 0 8px; background: var(--card); }
+.sheet-body:has(.order-search) .restaurant-section { scroll-margin-top: 110px; }
+@media (max-height: 500px) { /* phone landscape: the box alone, its label for screen readers (as .sr-only) */
+  .order-search label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .order-search { padding-top: 4px; }
+  .sheet-body:has(.order-search) .restaurant-section { scroll-margin-top: 70px; }
+}
 .order-qty { flex: none; display: flex; align-items: center; gap: 4px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .order-qty > span { min-width: 2ch; text-align: center; }
 .order-other { display: flex; align-items: flex-end; gap: 8px; margin-top: 16px; }
@@ -277,3 +296,6 @@ span.menu-star { width: 44px; text-align: center; }
 /* Plan a meal's first step: Something else and Eating out under the recipe search. */
 .meal-choose-other { margin: 4px 0 16px; }
 .meal-choose-other .btn { flex: none; min-height: 48px; }
+/* Keyboard up on a phone on its side (the whole sheet scrolls): the search scrolls with the menu, so
+   the few rows of room show results instead of a pinned box. */
+@container sheet (max-height: 300px) { .order-search { position: static; } }

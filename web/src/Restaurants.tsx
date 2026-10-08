@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -8,7 +8,8 @@ import { EaterAvatars } from './MealSheet.tsx'
 import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ORDER_TYPE_LABEL, ordersInLabel } from './orders.ts'
-import { mapHref, menuSections, parsePrice, priceLabel, telHref } from './restaurants.ts'
+import { mapHref, menuOptions, menuSections, optionName, parsePrice, priceLabel, telHref } from './restaurants.ts'
+import { reducedMotion } from './a11y.tsx'
 import type { MenuItem, MenuItemInput, Restaurant, RestaurantInput } from './meal-types.ts'
 
 /** The Restaurants tab in Meals: the binder, searchable, read-only for walls and kids. */
@@ -99,21 +100,52 @@ export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved, o
   </Sheet>
 }
 
-/** The menu by section, favorites first. With onStar (parents) each item's star is a button. */
-export function MenuList({ menu, onStar, onPick, lastBy }: { menu: MenuItem[]; onStar?: (item: MenuItem) => void; onPick?: (item: MenuItem) => void; lastBy?: Map<string, string[]> }) {
+/** The menu by section, favorites first, with a row of section buttons to jump to on a long menu.
+ * With onStar (parents) each item's star is a button. With onPick (the order picker) each item adds
+ * to the order, an item with sizes or choices one button per option, and `counts` (by order item
+ * name) shows what's in the order already. */
+export function MenuList({ menu, onStar, onPick, lastBy, counts }: {
+  menu: MenuItem[]; onStar?: (item: MenuItem) => void; onPick?: (item: MenuItem, option?: string) => void; lastBy?: Map<string, string[]>; counts?: Map<string, number>
+}) {
   const { members } = useApp()
-  return <>{menuSections(menu).map(section => <section key={section.favorites ? '★' : section.title ?? ''} className="restaurant-section">
-    {(section.title || menuSections(menu).length > 1) && <h3>{section.favorites ? '★ Favorites' : section.title ?? 'More'}</h3>}
-    <ul className="menu-list">{section.items.map(item => <li key={item.id} className="menu-item">
-      {onPick ? <button type="button" className="menu-pick" onClick={() => onPick(item)}><MenuText item={item} /></button> : <MenuText item={item} />}
-      {section.favorites && !!lastBy?.get(item.id)?.length && <span className="menu-who"><EaterAvatars ids={lastBy.get(item.id)!} members={members} label="Had it last time" /></span>}
-      {onStar ? <button type="button" className="icon-btn menu-star" aria-pressed={item.favorite} aria-label={`Favorite: ${item.name}`} onClick={() => onStar(item)}>{item.favorite ? '★' : '☆'}</button>
-        : item.favorite && !section.favorites && <span className="menu-star" role="img" aria-label="Favorite">★</span>}
-    </li>)}</ul>
-  </section>)}</>
+  const id = useId()
+  const sections = menuSections(menu)
+  const anchor = (i: number) => `${id}-s${i}`
+  const added = (n: number | undefined) => n ? <span className="menu-count">✓ {n} added</span> : null
+  return <>
+    {sections.length > 4 && <nav className="chip-row menu-jump" aria-label="Menu sections">{sections.map((section, i) =>
+      <button key={i} type="button" className="chip" onClick={() => document.getElementById(anchor(i))?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })}>{section.favorites ? '★ Favorites' : section.title ?? 'More'}</button>)}
+    </nav>}
+    {sections.map((section, i) => <section key={section.favorites ? '★' : section.title ?? ''} id={anchor(i)} className="restaurant-section">
+      {(section.title || sections.length > 1) && <h3>{section.favorites ? '★ Favorites' : section.title ?? 'More'}</h3>}
+      <ul className="menu-list">{section.items.map(item => {
+        const { options, rest } = menuOptions(item.description)
+        return <li key={item.id} className="menu-item">
+          {onPick && options.length ? <div className="menu-text">
+            <span className="menu-name"><strong>{item.name}</strong></span>
+            {rest && <small>{rest}</small>}
+            <span className="chip-row menu-options">{options.map(o => {
+              const n = counts?.get(optionName(item.name, o.label))
+              return <button key={o.label} type="button" className="chip menu-option" aria-label={`Add ${optionName(item.name, o.label)}, ${priceLabel(o.cents)}${n ? `, ${n} added` : ''}`} onClick={() => onPick(item, o.label)}>
+                <PlusIcon width={16} height={16} aria-hidden="true" />{o.label} <span className="menu-price">{priceLabel(o.cents)}</span>{n ? <span className="menu-count">✓ {n}</span> : null}
+              </button>
+            })}</span>
+          </div>
+            : onPick ? <button type="button" className="menu-pick" aria-label={`Add ${item.name}${item.priceCents !== null ? `, ${priceLabel(item.priceCents)}` : ''}${counts?.get(item.name) ? `, ${counts.get(item.name)} added` : ''}`} onClick={() => onPick(item)}><MenuText item={item} extra={added(counts?.get(item.name))} /></button>
+            : <MenuText item={item} options={options.length > 0} />}
+          {section.favorites && !!lastBy?.get(item.id)?.length && <span className="menu-who"><EaterAvatars ids={lastBy.get(item.id)!} members={members} label="Had it last time" /></span>}
+          {onStar ? <button type="button" className="icon-btn menu-star" aria-pressed={item.favorite} aria-label={`Favorite: ${item.name}`} onClick={() => onStar(item)}>{item.favorite ? '★' : '☆'}</button>
+            : item.favorite && !section.favorites && <span className="menu-star" role="img" aria-label="Favorite">★</span>}
+        </li>
+      })}</ul>
+    </section>)}
+  </>
 }
-function MenuText({ item }: { item: MenuItem }) {
-  return <span className="menu-text"><span className="menu-name"><strong>{item.name}</strong>{priceLabel(item.priceCents) && <span className="menu-price">{priceLabel(item.priceCents)}</span>}</span>{item.description && <small>{item.description}</small>}</span>
+/** An item as it reads on the menu. With options its one price is only the first option's, so it's
+ * left off: the description starts with all of them. */
+function MenuText({ item, options = false, extra }: { item: MenuItem; options?: boolean; extra?: ReactNode }) {
+  const price = options ? null : priceLabel(item.priceCents)
+  return <span className="menu-text"><span className="menu-name"><strong>{item.name}</strong>{price && <span className="menu-price">{price}</span>}</span>{item.description && <small>{item.description}</small>}{extra}</span>
 }
 
 type Row = { key: string; id?: string; section: string; name: string; price: string; description: string; favorite: boolean }

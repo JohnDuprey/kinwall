@@ -5,8 +5,9 @@ import Sheet from './Sheet.tsx'
 import { Face } from './Face'
 import { CartIcon, CheckIcon, EditIcon, MinusIcon, PhoneIcon, PlusIcon } from './icons.tsx'
 import { MenuList } from './Restaurants.tsx'
-import { itemsLabel, orderLines, orderPeople, ordersLabel, orderText, ORDER_TYPE_LABEL, ORDER_TYPE_ICON, ownOrderer, usualFor } from './orders.ts'
-import { telHref } from './restaurants.ts'
+import { hasAddon, itemsLabel, orderLines, orderPeople, ordersLabel, orderText, ORDER_TYPE_LABEL, ORDER_TYPE_ICON, ownOrderer, toggleAddon, usualFor, waitingOn } from './orders.ts'
+import { addonsFor, optionName, telHref } from './restaurants.ts'
+import { useDialog } from './dialog.tsx'
 import type { Meal, MenuItem, OrderItem, Restaurant } from './meal-types.ts'
 import type { Me } from './types.ts'
 import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
@@ -35,11 +36,13 @@ export function OrderSummary({ meal, restaurant, me, onChanged, onOrder }: {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const admin = me?.scope === 'admin'
+  const own = ownOrderer(me) // a kid's own device: their order, not the grown-ups' calling tools
   const orders = meal.orders ?? []
   const lines = orderLines(orders, members)
   const notes = orders.filter(o => o.note)
   const tel = telHref(restaurant?.phone ?? null)
   const ordered = meal.status !== 'planned'
+  const waiting = ordered ? [] : waitingOn(meal, members)
   const run = async (work: () => Promise<Meal | void>, done: string) => {
     setBusy(true)
     try { const saved = await work(); toast(done); if (saved) onChanged(saved) } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
@@ -47,29 +50,36 @@ export function OrderSummary({ meal, restaurant, me, onChanged, onOrder }: {
   const copy = async () => {
     try { await navigator.clipboard.writeText(orderText(meal, members)); toast('Order copied') } catch { toast('Could not copy the order.', true) }
   }
+  const actions = <div className="meal-actions">
+    {(!locked(meal, me) || admin) && <button type="button" className={own && !ordered ? 'btn btn-primary' : 'btn btn-secondary'} disabled={busy} onClick={onOrder}>{own ? (orders.some(o => o.memberId === own) ? 'Change my order' : 'Add my order') : lines.length ? 'Change orders' : 'Add orders'}</button>}
+    {admin && !ordered && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(async () => { await api.askForOrders(meal.id) }, 'Asked for orders')}>Ask for orders</button>}
+    {admin && <button type="button" className={ordered ? 'btn btn-secondary' : 'btn btn-primary'} disabled={busy} onClick={() => void run(() => api.updateMeal(meal.id, { status: ordered ? 'planned' : 'prepared' }), ordered ? 'Orders open again' : 'Marked ordered')}>{ordered ? 'Open orders again' : 'Mark ordered'}</button>}
+  </div>
   return <section className="order-summary" aria-label="Orders">
     <div className="order-head">
       <h3>Orders</h3>
       <span className="chip chip-static">{ordered ? '✓ Ordered' : ordersLabel(meal)}</span>
     </div>
-    {(tel || lines.length > 0 || restaurant?.orderUrl) && <div className="restaurant-actions">
+    {waiting.length > 0 && <p className="field-hint">Still waiting on {new Intl.ListFormat('en-US').format(waiting.map(m => m.name))}.</p>}
+    {/* A kid's own device: their button first, then everyone's order to look at. */}
+    {own && actions}
+    {!own && (tel || lines.length > 0 || restaurant?.orderUrl) && <div className="restaurant-actions">
       {tel && <a className="btn btn-primary" href={tel}><PhoneIcon /> Call {restaurant!.name}</a>}
       {restaurant?.orderUrl && <a className="btn btn-secondary" href={restaurant.orderUrl} target="_blank" rel="noopener noreferrer"><CartIcon /> Order online</a>}
       {lines.length > 0 && <button type="button" className="btn btn-secondary" onClick={() => void copy()}>Copy order</button>}
     </div>}
+    {lines.length > 0 && !own && <p className="field-hint">Tick each one off as you order it.</p>}
     {lines.length ? <ul className="order-lines">{lines.map(l => {
       const on = ticked.has(l.key)
+      const text = <span><strong>{l.qty} × {l.name}</strong>{l.note && <span className="order-line-note">{l.note}</span>}<small>{l.who.join(', ')}</small></span>
+      if (own) return <li key={l.key} className="order-static">{text}</li>
       return <li key={l.key}><button type="button" className="order-tick" aria-pressed={on} onClick={() => setTicked(t => { const next = new Set(t); if (!next.delete(l.key)) next.add(l.key); return next })}>
         <span className="order-box" aria-hidden="true">{on && <CheckIcon width={18} height={18} />}</span>
-        <span><strong>{l.qty} × {l.name}</strong>{l.note && <span className="order-line-note">{l.note}</span>}<small>{l.who.join(', ')}</small></span>
+        {text}
       </button></li>
     })}</ul> : <p className="field-hint">No orders yet.</p>}
     {notes.length > 0 && <ul className="order-notes">{notes.map(o => <li key={o.memberId}><strong>{members.find(m => m.id === o.memberId)?.name ?? 'Someone'}:</strong> {o.note}</li>)}</ul>}
-    <div className="meal-actions">
-      {(!locked(meal, me) || admin) && <button type="button" className="btn btn-secondary" disabled={busy} onClick={onOrder}>{ownOrderer(me) ? (orders.some(o => o.memberId === ownOrderer(me)) ? 'Change my order' : 'Add my order') : lines.length ? 'Change orders' : 'Add orders'}</button>}
-      {admin && !ordered && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(async () => { await api.askForOrders(meal.id) }, 'Asked for orders')}>Ask for orders</button>}
-      {admin && <button type="button" className={ordered ? 'btn btn-secondary' : 'btn btn-primary'} disabled={busy} onClick={() => void run(() => api.updateMeal(meal.id, { status: ordered ? 'planned' : 'prepared' }), ordered ? 'Orders open again' : 'Marked ordered')}>{ordered ? 'Open orders again' : 'Mark ordered'}</button>}
-    </div>
+    {!own && actions}
     {ordered && !admin && <p className="field-hint">It’s ordered. Ask a grown-up to change an order.</p>}
   </section>
 }
@@ -100,56 +110,87 @@ export function OrderSheet({ meal: initial, restaurant, me, onClose, onSaved }: 
       return <li key={m.id} className="order-person">
         <button type="button" className="order-row" disabled={readOnly} aria-label={`${m.name}’s order: ${order?.items.length ? itemsLabel(order.items) : 'nothing yet'}`} onClick={() => setPicking(m.id)}>
           <Face m={m} className="member-avatar-sm" aria-hidden="true" />
-          <span><strong>{m.name}</strong><small>{order?.items.length ? itemsLabel(order.items) : 'Nothing yet'}{order?.note ? ` · ${order.note}` : ''}</small></span>
+          <span><strong>{m.name}</strong><small>{order?.items.length ? itemsLabel(order.items) : 'Nothing yet'}</small>{order?.note && <small>Note: {order.note}</small>}</span>
           {!readOnly && <span className="order-add" aria-hidden="true">{order?.items.length ? 'Change' : 'Add'}</span>}
         </button>
         {usual && <button type="button" className="chip order-usual" onClick={() => void save(m.id, usual, order?.note ?? null)}>↺ Usual: {itemsLabel(usual)}</button>}
       </li>
     })}</ul>
+    {/* A kid's own device came for their order only: closing it goes straight back to the night. */}
     {picking && person && <OrderPicker key={picking} name={person.name} restaurant={restaurant} current={meal.orders?.find(o => o.memberId === picking) ?? null} usual={usualFor(restaurant, picking, meal)}
-      onClose={() => setPicking(null)} onSave={async (items, note) => { if (await save(picking, items, note)) setPicking(null) }} />}
+      onClose={() => own ? onClose() : setPicking(null)} onSave={async (items, note) => { if (await save(picking, items, note)) { if (own) onClose(); else setPicking(null) } }} />}
   </Sheet>
 }
 
-/** One person's order: tap menu items to add them (favorites first), − / + for how many, something
- * that isn't on the menu, and a note. */
+/** One person's order: what's in it so far (− / + for how many, a note and add-ons for each), the
+ * whole order's note, then the menu to tap (favorites first, a jump row, sizes as their own buttons,
+ * a search that stays on top) and something that isn't on the menu. Leaving with changes asks first. */
 function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
   name: string; restaurant: Restaurant | null; current: { items: OrderItem[]; note: string | null } | null; usual: OrderItem[] | null
   onClose: () => void; onSave: (items: OrderItem[], note: string | null) => Promise<void>
 }) {
+  const { toast } = useApp()
+  const dialog = useDialog()
   const [items, setItems] = useState<OrderItem[]>(current?.items ?? [])
   const [note, setNote] = useState(current?.note ?? '')
   const [query, setQuery] = useState('')
   const [other, setOther] = useState('')
   const [busy, setBusy] = useState(false)
+  const fullMenu = restaurant?.menu ?? []
   const q = query.trim().toLocaleLowerCase()
-  const menu = (restaurant?.menu ?? []).filter(i => !q || `${i.name} ${i.section ?? ''} ${i.description ?? ''}`.toLocaleLowerCase().includes(q))
-  const add = (item: Pick<OrderItem, 'menuItemId' | 'name'>) => setItems(list => {
-    const i = list.findIndex(x => x.name === item.name && !x.note)
-    return i >= 0 ? list.map((x, n) => n === i ? { ...x, qty: Math.min(99, x.qty + 1) } : x) : [...list, { ...item, qty: 1, note: null }]
-  })
+  const menu = fullMenu.filter(i => !q || `${i.name} ${i.section ?? ''} ${i.description ?? ''}`.toLocaleLowerCase().includes(q))
+  const counts = new Map<string, number>()
+  for (const i of items) counts.set(i.name, (counts.get(i.name) ?? 0) + i.qty)
+  const add = (item: Pick<OrderItem, 'menuItemId' | 'name'>) => {
+    setItems(list => {
+      const i = list.findIndex(x => x.name === item.name && !x.note)
+      return i >= 0 ? list.map((x, n) => n === i ? { ...x, qty: Math.min(99, x.qty + 1) } : x) : [...list, { ...item, qty: 1, note: null }]
+    })
+    toast(`Added: ${item.name}`)
+  }
   const set = (index: number, patch: Partial<OrderItem>) => setItems(list => list.map((x, n) => n === index ? { ...x, ...patch } : x).filter(x => x.qty > 0))
   const save = async () => { setBusy(true); await onSave(items, note.trim() || null); setBusy(false) }
-  return <Sheet title={`${name}’s order`} onClose={onClose} dismissable={!busy} actions={<>
-    <button className="btn btn-secondary" disabled={busy} onClick={onClose}>Cancel</button>
+  const changed = JSON.stringify([items, note.trim()]) !== JSON.stringify([current?.items ?? [], current?.note ?? ''])
+  const close = async () => {
+    if (busy) return
+    if (changed && !await dialog.confirm({ title: `Leave without saving ${name}’s order?`, body: 'What you changed here won’t be kept.', confirmLabel: 'Leave without saving', cancelLabel: 'Keep editing' })) return
+    onClose()
+  }
+  const addOther = (text: string) => { if (text.trim()) add({ menuItemId: null, name: text.trim() }) }
+  return <Sheet title={`${name}’s order`} onClose={() => void close()} dismissable={!busy} actions={<>
+    <button className="btn btn-secondary" disabled={busy} onClick={() => void close()}>Cancel</button>
     <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save order'}</button>
   </>}>
-    {items.length ? <ul className="order-items">{items.map((item, i) => <li key={`${item.name}:${i}`}>
-      <span className="order-item-name"><strong>{item.name}</strong>
-        <input type="text" aria-label={`Note for ${item.name}`} placeholder="No onions…" maxLength={200} value={item.note ?? ''} onChange={e => set(i, { note: e.target.value || null })} /></span>
-      <span className="order-qty" role="group" aria-label={`How many ${item.name}`}>
-        <button type="button" className="icon-btn" aria-label={item.qty === 1 ? `Remove ${item.name}` : `One less ${item.name}`} onClick={() => set(i, { qty: item.qty - 1 })}><MinusIcon width={18} height={18} /></button>
-        <span aria-live="polite">{item.qty}</span>
-        <button type="button" className="icon-btn" aria-label={`One more ${item.name}`} disabled={item.qty >= 99} onClick={() => set(i, { qty: item.qty + 1 })}><PlusIcon width={18} height={18} /></button>
-      </span>
-    </li>)}</ul> : <p className="state-card">Nothing in {name}’s order yet. {restaurant?.menu.length ? 'Pick from the menu below, or add something else.' : 'Add what they’d like below.'}</p>}
+    {items.length ? <ul className="order-items" aria-label={`In ${name}’s order`}>{items.map((item, i) => {
+      const extras = addonsFor(fullMenu, fullMenu.find(m => m.id === item.menuItemId))
+      return <li key={`${item.name}:${i}`}>
+        <div className="order-item-row">
+          <strong className="order-item-name">{item.name}</strong>
+          <span className="order-qty" role="group" aria-label={`How many ${item.name}`}>
+            <button type="button" className="icon-btn" aria-label={item.qty === 1 ? `Remove ${item.name}` : `One less ${item.name}`} onClick={() => set(i, { qty: item.qty - 1 })}><MinusIcon width={18} height={18} /></button>
+            <span aria-live="polite">{item.qty}</span>
+            <button type="button" className="icon-btn" aria-label={`One more ${item.name}`} disabled={item.qty >= 99} onClick={() => set(i, { qty: item.qty + 1 })}><PlusIcon width={18} height={18} /></button>
+          </span>
+        </div>
+        <input type="text" className="order-item-note" aria-label={`Note for ${item.name}`} placeholder="Note for this item: no onions…" maxLength={200} value={item.note ?? ''} onChange={e => set(i, { note: e.target.value || null })} />
+        {extras.length > 0 && <details className="order-addons">
+          <summary>Add-ons for {item.name}</summary>
+          <div className="chip-row">{extras.map(a => <button key={a.id} type="button" className={`chip${hasAddon(item.note, a.name) ? ' active' : ''}`} aria-pressed={hasAddon(item.note, a.name)} onClick={() => set(i, { note: toggleAddon(item.note, a.name) })}>+ {a.name}</button>)}</div>
+        </details>}
+      </li>
+    })}</ul> : <p className="field-hint order-empty">Nothing in {name}’s order yet. {fullMenu.length ? 'Pick from the menu below, or add something else.' : 'Add what they’d like below.'}</p>}
     {usual && <button type="button" className="chip order-usual-pick" onClick={() => setItems(usual)}>↺ Same as last time: {itemsLabel(usual)}</button>}
-    <div className="field"><label htmlFor="order-note">Note</label><input id="order-note" type="text" maxLength={1000} placeholder="I’ll share with Leo…" value={note} onChange={e => setNote(e.target.value)} /></div>
-    {restaurant?.menu.length ? <>
-      <div className="field"><label htmlFor="order-search">Find on the menu</label><input id="order-search" type="search" placeholder="Pizza, fries…" value={query} onChange={e => setQuery(e.target.value)} /></div>
-      <MenuList menu={menu} onPick={(item: MenuItem) => add({ menuItemId: item.id, name: item.name })} />
+    <div className="field"><label htmlFor="order-note">Note for the whole order</label><input id="order-note" type="text" maxLength={1000} placeholder="I’ll share with Leo…" value={note} onChange={e => setNote(e.target.value)} /></div>
+    {fullMenu.length ? <>
+      {/* Typing brings the box to the top so the matches show under it (a phone on its side has room for little else). */}
+      <div className="field order-search"><label htmlFor="order-search">Find on the menu</label><input id="order-search" type="search" placeholder="Pizza, fries…" value={query} onChange={e => { setQuery(e.target.value); e.target.parentElement!.scrollIntoView({ block: 'start' }) }} /></div>
+      {q && !menu.length && <div className="state-card">
+        <p>Nothing on the menu matches “{query.trim()}”.</p>
+        <button type="button" className="btn btn-secondary" onClick={() => { addOther(query); setQuery('') }}><PlusIcon /> Add “{query.trim()}” anyway</button>
+      </div>}
+      <MenuList menu={menu} counts={counts} onPick={(item: MenuItem, option?: string) => add({ menuItemId: item.id, name: option ? optionName(item.name, option) : item.name })} />
     </> : null}
-    <form className="order-other" onSubmit={e => { e.preventDefault(); if (other.trim()) { add({ menuItemId: null, name: other.trim() }); setOther('') } }}>
+    <form className="order-other" onSubmit={e => { e.preventDefault(); addOther(other); setOther('') }}>
       <div className="field"><label htmlFor="order-other">Something else</label><input id="order-other" type="text" maxLength={200} placeholder={restaurant ? 'Not on the menu…' : 'What do you want?'} value={other} onChange={e => setOther(e.target.value)} /></div>
       <button type="submit" className="btn btn-secondary" disabled={!other.trim()}><PlusIcon /> Add</button>
     </form>

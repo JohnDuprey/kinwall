@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { itemsLabel, orderLines, orderPeople, ordersLabel, orderText, ownOrderer, usualFor } from '../src/orders.ts'
+import { itemsLabel, orderLines, orderPeople, ordersLabel, orderText, ownOrderer, toggleAddon, hasAddon, usualFor, waitingOn } from '../src/orders.ts'
 import type { MealOrder } from '../src/meal-types.ts'
 
 const members = [{ id: 'm1', name: 'Alex' }, { id: 'm2', name: 'Sam' }, { id: 'm3', name: 'Maya' }, { id: 'm4', name: 'Leo' }]
@@ -39,4 +39,18 @@ test("orders: only a kid's own device is limited to its owner", () => {
   assert.equal(ownOrderer({ scope: 'display', owner: 'shared' }), null)
   assert.equal(ownOrderer({ scope: 'admin', owner: 'm1' }), null)
   assert.equal(ownOrderer(null), null)
+})
+
+test('orders: who is eating and still has to order', () => {
+  const orders = [order('m1', [item('Pizza')]), order('m2', [], 'Not hungry?')]
+  assert.deepEqual(waitingOn({ eaterIds: ['m4', 'm1', 'm2'], orders }, members).map(m => m.name), ['Sam', 'Leo'], 'a note alone is not an order')
+  assert.deepEqual(waitingOn({ eaterIds: [], orders }, members), [], 'nobody picked as eating')
+})
+
+test('orders: an add-on goes in the item note and comes back out', () => {
+  assert.equal(toggleAddon(null, 'Bacon'), '+ Bacon')
+  assert.equal(toggleAddon('No onions', 'Bacon'), 'No onions, + Bacon')
+  assert.equal(toggleAddon('No onions, + Bacon, + Avocado', 'Bacon'), 'No onions, + Avocado')
+  assert.equal(toggleAddon('+ Bacon', 'Bacon'), null)
+  assert.ok(hasAddon('No onions, + Bacon', 'Bacon')); assert.ok(!hasAddon('Bacon please', 'Bacon')); assert.ok(!hasAddon(null, 'Bacon'))
 })

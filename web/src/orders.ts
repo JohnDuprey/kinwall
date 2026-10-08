@@ -59,3 +59,15 @@ export const itemsLabel = (items: OrderItem[]) => items.map(i => `${i.qty > 1 ? 
 
 /** A kid's own device orders only for them; parents' devices and shared walls for anyone. */
 export const ownOrderer = (me: Pick<Me, 'scope' | 'owner'> | null) => me && me.scope !== 'admin' && me.owner && me.owner !== 'shared' ? me.owner : null
+
+/** Who's eating but hasn't ordered yet, in family order (nobody when no one is picked as eating). */
+export const waitingOn = <P extends Person>(meal: Pick<Meal, 'eaterIds' | 'orders'>, members: P[]): P[] =>
+  members.filter(m => meal.eaterIds.includes(m.id) && !meal.orders?.some(o => o.memberId === m.id && o.items.length))
+
+/** An add-on on an order item lives in its note as "+ Bacon", so the caller reads it with the item. */
+export const hasAddon = (note: string | null, name: string) => (note ?? '').split(', ').includes(`+ ${name}`)
+export function toggleAddon(note: string | null, name: string): string | null {
+  const parts = (note ?? '').split(', ').filter(Boolean)
+  const tag = `+ ${name}`
+  return (parts.includes(tag) ? parts.filter(p => p !== tag) : [...parts, tag]).join(', ') || null
+}
