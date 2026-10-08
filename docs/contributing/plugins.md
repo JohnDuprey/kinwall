@@ -72,6 +72,6 @@ To ask for a review, [open an issue](https://github.com/JohnDuprey/kinwall/issue
 ## Updates
 
 - **Publish a new version:** bump `version` in `kinwall-plugin.json` and publish a release tagged exactly `v<version>` (e.g. `v1.3.0`, not `1.3.0`): reviews and installs look the release up by that tag. The workflow attaches the package and checks the tag matches.
-- **Reviewed plugins:** a new release changes nothing for families until it's reviewed too. The admin console checks each plugin's repository for new releases, and an admin approves each version (comparing it with the last one on GitHub). Families then see **Update to v…** under **Get more activities**. Kinwall refuses a package whose hash doesn't match the approved one, so a release replaced after review is never installed.
+- **Reviewed plugins:** a new release changes nothing for families until it's reviewed too. The admin console checks each plugin's repository for new releases, and an admin approves each version (comparing it with the last one on GitHub). Families then see **Update to v…** under **Get more activities**. Kinwall refuses a package whose hash doesn't match the approved one, so a release replaced after review is never installed. A plugin installed while it was reviewed never falls back to its latest release: once it leaves the catalog, self-hosted servers refuse to update it.
 - **Unreviewed plugins (self-hosted only):** **Update** installs your latest release.
 - **Saved data is kept** across updates. Never change your plugin's `id`: updates and saved data find your plugin by it.

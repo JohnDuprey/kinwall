@@ -1018,6 +1018,7 @@ export interface Plugin {
   actions?: Record<string, { description: string; input: { type: 'object'; properties: Record<string, { type: string; description?: string }>; required: string[] } }>
   source: string | null // 'owner/repo' on GitHub, or null for an uploaded package
   enabled: boolean
+  reviewed?: boolean // from the reviewed catalog: updates only to its versions, never once taken off it
   installedAt: string
   updatedAt: string
   url: string // /plugins/<id>/<entry>

@@ -180,7 +180,7 @@ test('plugins: GitHub links resolve to owner/repo', () => {
 });
 
 test('plugins: install from a GitHub release package', async () => {
-  const { json } = setup();
+  const { json } = setup({ PLUGIN_CATALOG: async () => [] });
   const pkg = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': '<h1>Hi</h1>' });
   const realFetch = globalThis.fetch;
   const calls: string[] = [];
@@ -250,6 +250,64 @@ test('plugins: the catalog pins reviewed versions, and catalog-only hosts allow 
     const any = await open.json('/api/plugins', 'POST', { url: 'https://github.com/someone/kinwall-plugin-else' });
     assert.equal(any.status, 201);
     assert.equal(((await any.json()) as any).version, '2.0.0');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('plugins: a reviewed plugin taken off the catalog is never updated from its latest release (self-hosted)', async () => {
+  const v1 = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': 'v1' });
+  const evil = await zip({ 'kinwall-plugin.json': JSON.stringify({ ...MANIFEST, version: '9.0.0' }), 'index.html': 'evil' });
+  const realFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = (async (url: unknown) => {
+    const u = String(url);
+    fetched.push(u);
+    if (u.endsWith('/download/v1.0.0/kinwall-plugin.zip')) return new Response(v1);
+    if (u.endsWith('/latest/download/kinwall-plugin.zip')) return new Response(evil);
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+  let catalog: unknown[] = [{ id: 'sight-words', repo: 'OurFamily/kinwall-plugin-words', version: '1.0.0', sha256: await sha256(v1), name: 'Sight words', emoji: '🔤' }];
+  try {
+    const { req, json } = setup({ PLUGIN_CATALOG: async () => catalog });
+    const res = await json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/kinwall-plugin-words' });
+    assert.equal(res.status, 201);
+    assert.equal(((await res.json()) as any).reviewed, true);
+    catalog = []; // John took it off the list (say its repo was compromised)
+    const update = await json('/api/plugins/sight-words/update', 'POST', {});
+    assert.equal(update.status, 400);
+    assert.match(((await update.json()) as any).error, /Sight words was taken off the list of reviewed activities, so it can't be updated/);
+    const again = await json('/api/plugins', 'POST', { url: 'https://github.com/OurFamily/kinwall-plugin-words' });
+    assert.equal(again.status, 400, 'not by pasting its link again either');
+    assert.ok(!fetched.some((u) => u.includes('/latest/')), 'its latest release is never downloaded');
+    assert.equal(await (await req('/plugins/sight-words/index.html', { key: '' })).text(), 'v1', 'the reviewed version keeps working');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('plugins: an installed plugin whose repo the catalog lists becomes reviewed, and nothing installs while the catalog cannot load', async () => {
+  const v1 = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': 'v1' });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: unknown) => (String(url).endsWith('kinwall-plugin.zip') ? new Response(v1) : new Response('down', { status: 503 }))) as typeof fetch;
+  try {
+    // No catalog yet (its first fetch failed): a GitHub link is refused rather than installed unpinned.
+    const offline = setup();
+    const refused = await offline.json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/kinwall-plugin-words' });
+    assert.equal(refused.status, 400);
+    assert.match(((await refused.json()) as any).error, /couldn't be loaded, so nothing was installed/);
+    assert.equal((await upload(offline.req, v1)).status, 201, 'an uploaded package still installs');
+
+    // Installed unreviewed, then listed: from then on it is pinned to the catalog.
+    let catalog: unknown[] = [];
+    const { req, json, db } = setup({ PLUGIN_CATALOG: async () => catalog });
+    assert.equal((await json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/kinwall-plugin-words' })).status, 201);
+    assert.equal((await db.prepare('SELECT reviewed FROM plugins').first<{ reviewed: number }>())?.reviewed, 0);
+    catalog = [{ id: 'sight-words', repo: 'OurFamily/kinwall-plugin-words', version: '1.0.0', sha256: await sha256(v1), name: 'Sight words', emoji: '🔤' }];
+    await req('/api/plugins/catalog');
+    assert.equal((await db.prepare('SELECT reviewed FROM plugins').first<{ reviewed: number }>())?.reviewed, 1);
+    catalog = [];
+    assert.equal((await json('/api/plugins/sight-words/update', 'POST', {})).status, 400);
   } finally {
     globalThis.fetch = realFetch;
   }

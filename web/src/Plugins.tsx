@@ -415,6 +415,8 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
                   // A reviewed plugin updates only to the catalog's version; others to their latest release.
                   const e = reviewed(p)
                   if (e) return e.version !== p.version && <button className="btn btn-primary" disabled={!!busy} onClick={() => run(p.id, () => api.updatePlugin(p.id), `${p.name} updated to v${e.version}`)}>Update to v{e.version}</button>
+                  // Reviewed once, now off the list: it never falls back to an unreviewed release.
+                  if (p.reviewed && catalog) return <p className="settings-row-sub">Taken off the list of reviewed activities, so it can't be updated. It keeps working as it is.</p>
                   return p.source && !catalog?.catalogOnly && <button className="btn btn-secondary" disabled={!!busy} onClick={() => run(p.id, () => api.updatePlugin(p.id), `${p.name} is up to date`)}>Update</button>
                 })()}
                 <button className="btn btn-danger" disabled={!!busy} onClick={async () => {

@@ -1852,7 +1852,7 @@ const pluginData = new Map<string, Record<string, unknown>>() // `${id}:${member
 const catalog = () => (pluginCatalog ??= fetch('plugins/catalog.json').then(r => (r.ok ? r.json() : { plugins: [] })).then(c => c.plugins as DemoPlugin[]).catch(() => []))
 const asPlugin = (e: DemoPlugin, enabled: boolean): Plugin => ({
   id: e.id, name: e.name, version: e.version, description: e.description, entry: e.entry, emoji: e.emoji, color: e.color, categories: e.categories, ages: e.ages,
-  source: e.repo, enabled, installedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), url: `/plugins/${e.id}/${e.entry}`,
+  source: e.repo, enabled, reviewed: true, installedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), url: `/plugins/${e.id}/${e.entry}`,
 })
 async function installedPlugins() {
   const list = await catalog()

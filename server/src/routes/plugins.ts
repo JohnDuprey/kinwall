@@ -117,6 +117,7 @@ type Manifest = z.infer<typeof PluginManifestSchema>;
 const PluginSchema = PluginManifestSchema.extend({
   source: z.string().nullable(), // 'owner/repo' on GitHub, or null for an uploaded package
   enabled: z.boolean(),
+  reviewed: z.boolean().openapi({ description: 'Installed from the reviewed catalog: it only ever updates to a catalog version, and not at all once taken off the catalog.' }),
   installedAt: z.string(),
   updatedAt: z.string(),
   url: z.string(), // where the web app loads it: /plugins/<id>/<entry>
@@ -142,8 +143,9 @@ const parseEntries = (list: unknown[]) => list.flatMap((p) => { // a bad entry i
   return e.success ? [e.data] : [];
 });
 
-/** The trusted list: from the host, or fetched and cached for an hour (the last good copy is used while the source is unreachable). */
-async function loadCatalog(env: Env): Promise<CatalogEntry[]> {
+/** The trusted list: from the host, or fetched and cached for an hour (the last good copy is used
+ * while the source is unreachable). Null when it has never loaded: nothing to check a repo against. */
+async function loadCatalog(env: Env): Promise<CatalogEntry[] | null> {
   if (env.PLUGIN_CATALOG) return parseEntries(await env.PLUGIN_CATALOG());
   const db = env.DB;
   const key = 'plugins:catalog';
@@ -159,7 +161,7 @@ async function loadCatalog(env: Env): Promise<CatalogEntry[]> {
     console.error('plugin catalog fetch failed', err instanceof Error ? err.message : err);
     // Keep the last good copy and try again in an hour; with none yet, store nothing and retry next time.
     if (row) await db.prepare('UPDATE weather_cache SET fetched_at = ? WHERE key = ?').bind(new Date().toISOString(), key).run();
-    return cached;
+    return row ? cached : null;
   }
   await db
     .prepare('INSERT INTO weather_cache (key, fetched_at, body) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET fetched_at = excluded.fetched_at, body = excluded.body')
@@ -176,11 +178,24 @@ export async function sha256(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** The package for a repo: a catalog plugin's pinned release (checked against its hash), else the latest. */
+/** Marks installed plugins whose repo the catalog lists: from then on they only take catalog versions. */
+async function markReviewed(db: KinwallDb, catalog: CatalogEntry[] | null): Promise<void> {
+  const repos = (catalog ?? []).map((e) => e.repo.toLowerCase());
+  if (repos.length) await db.prepare(`UPDATE plugins SET reviewed = 1 WHERE reviewed = 0 AND lower(source) IN (${repos.map(() => '?').join(',')})`).bind(...repos).run();
+}
+
+/** The package for a repo: a catalog plugin's pinned release (checked against its hash), else the
+ * latest. Never the latest for a plugin that was reviewed, or while the catalog can't be loaded (a
+ * catalog repo can't be told from any other then). */
 async function packageFor(env: Env, repo: string): Promise<{ zip: Uint8Array; entry?: CatalogEntry }> {
-  const entry = inCatalog(await loadCatalog(env), repo);
+  const catalog = await loadCatalog(env);
+  await markReviewed(env.DB, catalog);
+  const entry = catalog ? inCatalog(catalog, repo) : undefined;
   if (!entry) {
     if (catalogOnly(env)) throw new NotInCatalogError();
+    if (!catalog) throw new PackageError("The list of reviewed activities couldn't be loaded, so nothing was installed. Try again in a few minutes.");
+    const was = await env.DB.prepare('SELECT name FROM plugins WHERE reviewed = 1 AND lower(source) = lower(?)').bind(repo).first<{ name: string }>();
+    if (was) throw new PackageError(`${was.name} was taken off the list of reviewed activities, so it can't be updated or installed again. It keeps working as it is, or you can remove it.`);
     return { zip: await fetchPackage(repo) };
   }
   const zip = await fetchPackage(entry.repo, `v${entry.version}`);
@@ -188,10 +203,10 @@ async function packageFor(env: Env, repo: string): Promise<{ zip: Uint8Array; en
   return { zip, entry };
 }
 
-type Row = { id: string; manifest: string; source: string | null; enabled: number; installed_at: string; updated_at: string };
+type Row = { id: string; manifest: string; source: string | null; enabled: number; reviewed: number; installed_at: string; updated_at: string };
 const toApi = (r: Row): z.infer<typeof PluginSchema> => {
   const m = JSON.parse(r.manifest) as Manifest;
-  return { ...m, source: r.source, enabled: !!r.enabled, installedAt: r.installed_at, updatedAt: r.updated_at, url: `/plugins/${r.id}/${m.entry}` };
+  return { ...m, source: r.source, enabled: !!r.enabled, reviewed: !!r.reviewed, installedAt: r.installed_at, updatedAt: r.updated_at, url: `/plugins/${r.id}/${m.entry}` };
 };
 
 export class PackageError extends Error {}
@@ -260,10 +275,10 @@ async function install(db: KinwallDb, zip: Uint8Array, source: string | null, en
   await db.batch([
     db
       .prepare(
-        `INSERT INTO plugins (id, name, version, manifest, source, enabled, installed_at, updated_at) VALUES (?,?,?,?,?,1,?,?)
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, version = excluded.version, manifest = excluded.manifest, source = COALESCE(excluded.source, plugins.source), updated_at = excluded.updated_at`,
+        `INSERT INTO plugins (id, name, version, manifest, source, enabled, reviewed, installed_at, updated_at) VALUES (?,?,?,?,?,1,?,?,?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, version = excluded.version, manifest = excluded.manifest, source = COALESCE(excluded.source, plugins.source), reviewed = MAX(plugins.reviewed, excluded.reviewed), updated_at = excluded.updated_at`,
       )
-      .bind(manifest.id, manifest.name, manifest.version, JSON.stringify(manifest), source, now, now),
+      .bind(manifest.id, manifest.name, manifest.version, JSON.stringify(manifest), source, entry ? 1 : 0, now, now),
     db.prepare('DELETE FROM plugin_files WHERE plugin_id = ?').bind(manifest.id),
     ...files.map((f) => db.prepare('INSERT INTO plugin_files (plugin_id, path, mime, data) VALUES (?,?,?,?)').bind(manifest.id, f.path, f.mime, f.data)),
   ]);
@@ -312,7 +327,11 @@ pluginsRoutes.openapi(
     summary: 'The trusted plugins this server offers, each pinned to a reviewed version, and whether only these can be installed. Admin only.',
     responses: { 200: { description: 'ok', content: json(z.object({ catalogOnly: z.boolean(), plugins: z.array(CatalogEntrySchema) })) } },
   }),
-  async (c) => c.json({ catalogOnly: catalogOnly(c.env), plugins: await loadCatalog(c.env) }, 200),
+  async (c) => {
+    const plugins = await loadCatalog(c.env);
+    await markReviewed(c.env.DB, plugins);
+    return c.json({ catalogOnly: catalogOnly(c.env), plugins: plugins ?? [] }, 200);
+  },
 );
 
 pluginsRoutes.openapi(
