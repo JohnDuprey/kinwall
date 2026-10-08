@@ -21,7 +21,7 @@
     "hono": "^4.13.13",
     "ical.js": "^2.2.1",
     "rrule": "^2.8.1",
-    "tsdav": "^2.3.4",
+    "tsdav": "^2.3.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
