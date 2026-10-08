@@ -191,11 +191,15 @@ async function main() {
     put('ENCRYPTION_KEY', key);
   }
 
-  let adminKey;
+  // Only a key generated here is ever printed (once, so its owner can store it); one passed in
+  // KINWALL_ADMIN_API_KEY is already the caller's and never echoed.
+  let adminKeySet = false;
+  let generated;
   if (existing.has('ADMIN_API_KEY') && !(await confirm('ADMIN_API_KEY is set. Replace it?', false))) say('ADMIN_API_KEY: keeping the existing one.');
   else if (await confirm('Create an ADMIN_API_KEY? It is a permanent admin key and also works as the first-run setup code', true)) {
-    adminKey = process.env.KINWALL_ADMIN_API_KEY || `kw_${randomBytes(16).toString('hex')}`;
-    put('ADMIN_API_KEY', adminKey);
+    if (!process.env.KINWALL_ADMIN_API_KEY) generated = `kw_${randomBytes(16).toString('hex')}`;
+    put('ADMIN_API_KEY', process.env.KINWALL_ADMIN_API_KEY || generated);
+    adminKeySet = true;
   }
 
   // A secret rather than [vars]: it's still env.PUBLIC_URL to the app, and survives later deploys and
@@ -213,9 +217,10 @@ async function main() {
   if (!DRY) say(healthy ? 'Kinwall is up and its database is migrated.' : `No healthy answer from ${url} yet. A new custom domain can take a few minutes; the Worker migrates on the first request that gets through.`);
 
   say(`\nDone. Kinwall is at ${url}`);
-  if (adminKey) say(`\nADMIN_API_KEY (shown once, not saved anywhere; store it in a password manager):\n  ${adminKey}`);
+  if (generated) say(`\nADMIN_API_KEY (shown once, not saved anywhere; store it in a password manager):\n  ${generated}`);
+  else if (adminKeySet) say('\nADMIN_API_KEY: set to the value of KINWALL_ADMIN_API_KEY.');
   say('\nNext:');
-  say(adminKey || existing.has('ADMIN_API_KEY')
+  say(adminKeySet || existing.has('ADMIN_API_KEY')
     ? `  1. Open ${url} and enter the ADMIN_API_KEY as the setup code.`
     : `  1. Run \`npx --prefix server wrangler tail\`, then open ${url}: the setup code is printed in the tail on the first visit.`);
   say('  2. Add a passkey when prompted, so you can sign in without the key.');

@@ -23,7 +23,7 @@ It's safe to re-run, for example to add a custom domain later or after pulling u
    * `ENCRYPTION_KEY`: paste one or let the script generate one.
    * `ADMIN_API_KEY`: a permanent admin key that also works as the setup code. It's printed once and not saved anywhere.
    * `PUBLIC_URL`
-5. Calls `/api/health`, which makes the Worker apply its database migrations, then prints your URL and admin key.
+5. Calls `/api/health`, which makes the Worker apply its database migrations, then prints your URL and the admin key it generated (one you passed in `KINWALL_ADMIN_API_KEY` is never printed).
 
 Existing secrets are kept unless you choose to replace them. **Keep a copy of `ENCRYPTION_KEY`.** If you lose it, you have to reconnect every calendar account.
 
