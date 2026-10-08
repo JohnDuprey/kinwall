@@ -388,7 +388,7 @@ const chores: Chore[] = [
   // An activity chore: tapping the card plays Spelling practice as Maya, and 10 minutes of it ticks it.
   { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
-const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
+const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean }>() // key `${choreId}:${date}`
 // Activity chores' play today, like the server's plugin_playtime: `${date}:${member}:${plugin}` -> seconds.
 const playtime = new Map<string, number>([[`${dateKey(new Date())}:m3:spelling`, 3 * 60]])
 
@@ -1203,7 +1203,7 @@ export const mock = {
       const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
       const p = c.pluginId ? plugins.find(x => x.id === c.pluginId) : undefined
       const activity = c.pluginId ? { pluginId: c.pluginId, name: p?.name ?? null, emoji: p?.emoji ?? null, available: !!p?.enabled, needSeconds: (c.pluginMinutes ?? 5) * 60, doneSeconds: playtime.get(`${date}:${c.memberId}:${c.pluginId}`) ?? 0 } : null
-      return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
+      return { ...c, completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
     })
   },
   createChore: async (body: Partial<Chore>) => {
@@ -1244,7 +1244,9 @@ export const mock = {
       if (open.length) throw new Error(`Checklist not finished (${open.length} left)`)
       if (lists.find(l => l.id === c.listId)?.kind === 'reusable') listItems = listItems.map(i => mine(i) ? { ...i, done: false, doneAt: null, doneBy: null } : i)
     }
-    completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null }); bump()
+    // Like the server: off a parent's device, an activity chore whose activity is gone waits for an OK.
+    const gone = !!c?.pluginId && !(await installedPlugins()).some(p => p.id === c.pluginId && p.enabled)
+    completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null, pending: gone && !!mock.demoKid() }); bump()
   },
   uncompleteChore: async (id: string, date: string) => { completions.delete(`${id}:${date}`); bump() },
 
@@ -1258,7 +1260,7 @@ export const mock = {
       let points = 0, completed = 0, streak = 0
       for (const [k, v] of completions) {
         const [choreId, date] = k.split(':')
-        if (v.memberId !== m.id) continue
+        if (v.memberId !== m.id || v.pending) continue
         if (new Date(date) < cutoff) continue
         const chore = chores.find(c => c.id === choreId)
         if (!chore) continue

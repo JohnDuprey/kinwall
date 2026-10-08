@@ -13,7 +13,7 @@ import { isSingleEmoji } from './emoji.ts'
 import { CheckIcon, PlusIcon } from './icons.tsx'
 import { ActivityRing } from './ActivityRing.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
-import { announce, Segmented } from './a11y.tsx'
+import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { ChoreLibrarySheet, type RepeatDraft } from './ChoreLibrary.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
@@ -35,13 +35,13 @@ function saveLbPeriod(p: LeaderboardPeriod) {
   try { localStorage.setItem(LB_PERIOD_STORAGE, p) } catch { /* ignore */ }
 }
 
-function PeriodControl({ period, onChange, className = '' }: { period: LeaderboardPeriod; onChange: (p: LeaderboardPeriod) => void; className?: string }) {
-  return <Segmented className={`leaderboard-segmented ${className}`} label="Leaderboard period" value={period} onChange={onChange}
-    options={LB_PERIODS.map(p => ({ key: p, label: p[0].toUpperCase() + p.slice(1) }))} />
-}
+const LB_PERIOD_LABEL: Record<LeaderboardPeriod, string> = { today: 'Today', week: 'This week', month: 'This month' }
 
-/** The pills only: the Today/Week/Month switch sits in the Chores header row. */
-function Leaderboard({ period }: { period: LeaderboardPeriod }) {
+/** The pills, led by the period they count (Today / This week / This month). The period only
+ * changes the leaderboard, so it lives here rather than above the chores. */
+function Leaderboard() {
+  const [period, setPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
+  useEffect(() => { saveLbPeriod(period) }, [period])
   const { refreshTick, members } = useApp()
   // Spendable balance (all-time earned minus what's been spent) next to the period's earned points.
   const spendable = (id: string) => members.find(m => m.id === id)?.balance ?? null
@@ -66,6 +66,9 @@ function Leaderboard({ period }: { period: LeaderboardPeriod }) {
 
   return (
     <div className="leaderboard-strip">
+      <select className="settings-select lb-period" aria-label="Leaderboard period" value={period} onChange={e => setPeriod(e.target.value as LeaderboardPeriod)}>
+        {LB_PERIODS.map(p => <option key={p} value={p}>{LB_PERIOD_LABEL[p]}</option>)}
+      </select>
       <div className="leaderboard-pills" role="list" aria-label="Leaderboard">
         {board.map(e => (
           <div key={e.memberId} role="listitem" className="leaderboard-item">
@@ -86,7 +89,7 @@ function Leaderboard({ period }: { period: LeaderboardPeriod }) {
               <div className="lb-bar-track"><div className="lb-bar-fill" style={{ width: `${(e.points / maxPoints) * 100}%`, background: e.color }} /></div>
               {spendable(e.memberId) !== null && <div className="lb-spend" aria-hidden="true">{spendable(e.memberId)} to spend</div>}
             </div>
-            <div className="lb-points">{e.points}</div>
+            <div className="lb-points">{e.points} pts</div>
           </a>
           </div>
         ))}
@@ -184,7 +187,7 @@ function scheduleLabel(rrule: string | null): string {
 }
 
 function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () => void; onEdit: () => void }) {
-  const { members, selectedMemberId } = useApp()
+  const { members, selectedMemberId, parentDevice } = useApp()
   const schedule = scheduleLabel(chore.rrule)
   // An Anyone chore says who got the points once it's done.
   const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? 'nobody in particular') : null
@@ -197,7 +200,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   // A linked activity: tapping the card plays it (as the chore's person), the check still ticks it.
   // Removed or turned off, it's a plain chore that says so.
   const act = chore.activity?.available ? chore.activity : null
-  const actLabel = act ? `${act.emoji ?? ''} ${act.needSeconds / 60} min of ${act.name}`.trim() : chore.activity ? 'Activity not available' : ''
+  const actLabel = act ? `${act.emoji ?? ''} ${act.needSeconds / 60} min of ${act.name}`.trim() : chore.activity ? activityGoneText(chore.activity, parentDevice) : ''
   const actProgress = act && !chore.completed && act.doneSeconds > 0 ? `${Math.floor(act.doneSeconds / 60)} of ${act.needSeconds / 60} min` : ''
   const player = chore.memberId ?? selectedMemberId
   const play = () => { location.hash = `#/activities/plugin/${act!.pluginId}${player ? `?member=${player}` : ''}` }
@@ -268,8 +271,16 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
         {burst && <Confetti />}
       </div>
       <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
+      {chore.activity && !act && parentDevice && <a className="chore-activity-fix" href="#/activities?more=1">{chore.activity.name ? 'Turn it on in Get more activities' : 'Install it from Get more activities'}</a>}
     </>
   )
+}
+
+/** What an activity chore says when its activity was removed or turned off. A parent gets a link
+ * to fix it; anyone else can still do it and tick it, and a parent okays it (the server holds it). */
+function activityGoneText(a: NonNullable<ChoreDay['activity']>, parentDevice: boolean): string {
+  if (parentDevice) return a.name ? `${a.name} is turned off.` : "This chore's activity isn't installed."
+  return `${a.name ? `${a.name} isn't` : "This chore's activity isn't"} here right now. Do it with a grown-up, and a parent will okay it.`
 }
 
 /** Parent devices: chores ticked on a wall screen or kid's device that wait for an OK. Approve
@@ -410,9 +421,6 @@ export default function Chores() {
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [repeatDraft, setRepeatDraft] = useState<RepeatDraft | null>(null) // the library's "Make it repeat", in the chore editor
 
-  const [lbPeriod, setLbPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
-  useEffect(() => { saveLbPeriod(lbPeriod) }, [lbPeriod])
-
   const key = dateKey(selectedDate)
   // Loading only while a new day's chores are on their way. A refresh of the same day (a sheet
   // saved, the rev moved) keeps what's on screen, so the columns don't collapse and jump back.
@@ -477,7 +485,9 @@ export default function Chores() {
     }
     const creditTo = c.memberId ?? doneBy ?? undefined
     // Off a parent's device it's approved at once; otherwise the chore (or the person's default) says.
-    const waits = !ticked && !parentDevice && !!(c.needsApproval ?? members.find(m => m.id === creditTo)?.needsApproval)
+    // An activity chore whose activity is gone always waits off a parent's device (as on the server).
+    const activityGone = !!c.activity && !c.activity.available
+    const waits = !ticked && !parentDevice && (activityGone || !!(c.needsApproval ?? members.find(m => m.id === creditTo)?.needsApproval))
     setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !ticked && key < dateKey(new Date())
@@ -532,7 +542,7 @@ export default function Chores() {
   const idle = !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
   const active = visibleColumns.filter(m => !idle.includes(m))
   const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, 480px))` }
-  const leaderboard = settings.leaderboardEnabled && <Leaderboard period={lbPeriod} />
+  const leaderboard = settings.leaderboardEnabled && <Leaderboard />
   const rewardsShown = rewardsOn(settings)
 
   return (
@@ -540,10 +550,9 @@ export default function Chores() {
       {/* display: contents, except on a phone on its side, where it scrolls the whole view as one. */}
       <div className="chores-scroll">
       <div className="chores-header">
-        {/* Date, period switch and Rewards share one row (a phone: short date, icon-only Rewards).
+        {/* Date and Rewards share one row (a phone: short date, icon-only Rewards).
             Off a phone the leaderboard joins that row when it fits, else takes the next one. */}
         <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
-        {settings.leaderboardEnabled && <PeriodControl className="chores-period" period={lbPeriod} onChange={setLbPeriod} />}
         {!isPhone && leaderboard}
         {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label="Give points"><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">Give points</span></GivePoints>}
         {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span></button>}

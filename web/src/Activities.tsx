@@ -4,6 +4,7 @@ import Photos from './Photos.tsx'
 import { useEffect, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api } from './api.ts'
+import { hashPath, hashQuery } from './hashQuery.ts'
 import { PluginPlayer, PluginsSheet } from './Plugins.tsx'
 import type { Plugin } from './types.ts'
 import type { Settings } from './types.ts'
@@ -32,7 +33,12 @@ export default function Activities({ sub, rest }: { sub?: string; rest?: string 
   const [managing, setManaging] = useState(false)
   const loadPlugins = () => { api.getPlugins().then(setPlugins).catch(() => {}) }
   useEffect(loadPlugins, [refreshTick])
-  useEffect(() => { api.meStrict().then(me => setIsAdmin(me.scope === 'admin')).catch(() => {}) }, [])
+  useEffect(() => {
+    // #/activities?more=1 (a chore whose activity isn't installed links here) opens Get more activities.
+    const more = hashQuery(location.hash).get('more') === '1'
+    if (more) history.replaceState(null, '', hashPath(location.hash))
+    api.meStrict().then(me => { setIsAdmin(me.scope === 'admin'); if (more && me.scope === 'admin') setManaging(true) }).catch(() => {})
+  }, [])
   if (sub === 'plugin' && rest) return <PluginPlayer id={rest} />
   // A sub-page that's turned off renders nothing while App.tsx redirects away from it.
   if (sub) return !shown.some(a => a.key === sub) ? null : sub === 'paint' ? <Paint /> : sub === 'stickers' ? <Stickers /> : sub === 'photos' ? <Photos /> : null

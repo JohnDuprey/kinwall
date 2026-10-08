@@ -980,10 +980,8 @@ button.month-cell .month-daynum { flex: none; }
 /* ---------- Chores ---------- */
 .chores-scroll { display: contents; }
 .chores-header { padding: 14px 20px 6px; display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; gap: 10px; container: chores-header / inline-size; }
-/* Off a phone the leaderboard lives in the header: its own slim row, or inline between the period
-   switch and Rewards once the row is wide enough for them all. */
-.chores-period { padding: 3px; }
-.chores-period button { min-height: 44px; padding: 6px 14px; }
+/* Off a phone the leaderboard lives in the header: its own slim row, or inline between the date
+   and Rewards once the row is wide enough for them all. */
 .chores-header .leaderboard-strip { order: 1; flex: 1 0 100%; min-width: 0; padding: 0; }
 .chores-header .leaderboard-pill { min-width: 170px; padding-top: 4px; padding-bottom: 4px; }
 .chores-header .lb-avatar { width: 32px; height: 32px; font-size: 1rem; }
@@ -1090,6 +1088,7 @@ button.month-cell .month-daynum { flex: none; }
 .chore-play { flex: 1; min-width: 0; }
 .chore-check-btn { flex-shrink: 0; min-width: 44px; min-height: 44px; justify-content: center; margin: -5px; }
 .chore-activity { color: var(--text); white-space: normal; }
+.chore-activity-fix { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; margin: -6px 4px -4px; padding: 0 2px; font-size: 0.8125rem; font-weight: 800; color: var(--accent-text); }
 .chore-minutes { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .chore-minutes input { width: 90px; }
 .chore-activity-progress { display: flex; align-items: center; gap: 6px; }
@@ -1126,8 +1125,10 @@ button.month-cell .month-daynum { flex: none; }
 }
 
 /* ---------- Chore leaderboard ---------- */
-.leaderboard-strip { padding: 4px var(--pad) 2px; display: flex; flex-direction: column; gap: calc(var(--gap) * 0.8); flex-shrink: 0; }
-.leaderboard-pills { display: flex; gap: var(--gap); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
+.leaderboard-strip { padding: 4px var(--pad) 2px; display: flex; align-items: center; gap: calc(var(--gap) * 0.8); flex-shrink: 0; }
+/* The period (Today / This week / This month) leads the pills; it changes only the leaderboard. */
+.leaderboard-strip .lb-period { flex: none; width: auto; padding-top: 6px; padding-bottom: 6px; }
+.leaderboard-pills { flex: 1; min-width: 0; display: flex; gap: var(--gap); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
 .leaderboard-item { display: contents; }
 .leaderboard-pill {
   color: var(--text); text-decoration: none; min-height: 44px; /* a link: opens their profile */
@@ -1171,6 +1172,7 @@ button.month-cell .month-daynum { flex: none; }
   .lb-bar-track { display: none; }
   .lb-spend { font-size: 0.625rem; margin-top: 0; line-height: 1.2; }
   .lb-points { font-size: 0.875rem; }
+  .leaderboard-strip .lb-period { font-size: 0.75rem; padding-left: 8px; padding-right: 30px; background-position: right 8px center; }
 }
 
 /* ---------- Settings ---------- */
@@ -1785,7 +1787,7 @@ button.month-cell .month-daynum { flex: none; }
   }
 
   /* ---------- Chores: stack member sections instead of side-scrolling columns ---------- */
-  .chore-columns { display: flex; flex-direction: column; overflow-x: hidden; padding-top: 4px; padding-left: 10px; padding-right: 10px; }
+  .chore-columns { display: flex; flex-direction: column; justify-content: flex-start; overflow-x: hidden; padding-top: 4px; padding-left: 10px; padding-right: 10px; }
   .chore-column { width: 100%; padding: 8px; gap: 6px; }
   .chore-col-head { display: flex; align-items: center; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; column-gap: 8px; row-gap: 0; padding-left: 2px; }
   .chore-col-head .progress-ring-wrap { width: 36px; height: 36px; }
@@ -1800,8 +1802,6 @@ button.month-cell .month-daynum { flex: none; }
   /* Date, period switch and Rewards share one row; the day strip is slimmer. */
   .chores-header { padding: 4px 14px 2px; flex-wrap: nowrap; gap: 8px; }
   .chores-header .period-label { flex: 1; }
-  .chores-period { padding: 3px; gap: 1px; flex-shrink: 0; }
-  .chores-period button { padding: 4px 9px; font-size: 0.75rem; min-height: 38px; }
   .chores-header .chores-rewards-btn { flex: none; width: 44px; height: 44px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; font-size: 1.25rem; }
   .chores-rewards-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .date-strip { padding: 2px 14px 6px; gap: 6px; }

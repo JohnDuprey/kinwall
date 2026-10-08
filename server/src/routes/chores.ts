@@ -367,11 +367,11 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      'SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days FROM chores c WHERE c.id = ? AND c.archived = 0',
+      'SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days, (SELECT enabled FROM plugins WHERE id = c.plugin_id) AS plugin_enabled FROM chores c WHERE c.id = ? AND c.archived = 0',
     ).bind(memberId ?? null, date, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);
-  const chore = choreRes.results[0] as (ChoreRow & { approve_timed_play: number; member_needs_approval: number | null; done_by: string | null; other_days: number }) | undefined;
+  const chore = choreRes.results[0] as (ChoreRow & { approve_timed_play: number; member_needs_approval: number | null; done_by: string | null; other_days: number; plugin_enabled: number | null }) | undefined;
   if (!chore) return 'not found';
   const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
   if (blocked) return { blocked };
@@ -402,7 +402,10 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   }
   // Parent devices (admin keys) are approved straight away. Timed play follows the chore's own
   // "even for timed play" switch; a tick follows the chore, else the person's default.
-  const needsOk = timedPlay ? !!chore.approve_timed_play : !!(chore.needs_approval ?? chore.member_needs_approval);
+  // An activity chore whose activity was removed or turned off can't be played, so a tick off a
+  // parent's device always waits for an OK rather than earning the points unseen.
+  const activityGone = !!chore.plugin_id && !Number(chore.plugin_enabled);
+  const needsOk = timedPlay ? !!chore.approve_timed_play : activityGone || !!(chore.needs_approval ?? chore.member_needs_approval);
   const pending = needsOk && display;
   const pointsAwarded = pending ? 0 : lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
   const who = memberId ?? chore.member_id;

@@ -200,6 +200,29 @@ test('approval: activity chores auto-approve timed play unless the chore says ot
   }
 });
 
+test("approval: an activity chore whose activity is removed or turned off waits for a parent's OK off a parent's device", async () => {
+  const t = await setup();
+  try {
+    const now = new Date().toISOString();
+    for (const id of ['gone', 'off']) t.db.prepare("INSERT INTO plugins (id, name, version, manifest, enabled, installed_at, updated_at) VALUES (?, ?, '1.0.0', '{}', 1, ?, ?)").bind(id, id, now, now).run();
+    const gone = await t.chore({ title: 'Spelling', pluginId: 'gone', pluginMinutes: 1 });
+    const off = await t.chore({ title: 'Math', pluginId: 'off', pluginMinutes: 1 });
+    const parent = await t.chore({ title: 'Reading', pluginId: 'gone', pluginMinutes: 1 });
+    t.db.prepare("DELETE FROM plugins WHERE id = 'gone'").run();
+    t.db.prepare("UPDATE plugins SET enabled = 0 WHERE id = 'off'").run();
+    assert.equal((await t.day(gone.id)).activity.available, false);
+    // A kid's device: no free points for an activity that isn't there; a parent okays it.
+    assert.equal((await t.tick(gone.id, t.leoKey)).json.pending, true);
+    assert.equal((await t.tick(off.id, t.leoKey)).json.pending, true);
+    assert.deepEqual([(await t.day(gone.id)).completed, (await t.day(off.id)).completed], [false, false]);
+    // A parent's device ticks it off as usual.
+    assert.equal((await t.tick(parent.id, 'kw_test_admin')).json.pending, false);
+    assert.equal((await t.day(parent.id)).completed, true);
+  } finally {
+    await t.restore();
+  }
+});
+
 test('approval: settings and completion status survive export -> import', async () => {
   const t = await setup();
   try {
