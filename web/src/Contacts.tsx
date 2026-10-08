@@ -137,6 +137,7 @@ function Methods({ kind, methods, onChange }: { kind: keyof typeof METHODS; meth
 export function ContactForm({ initial, categories, members, onClose, onSaved }: { initial: Contact | null; categories: ContactCategory[]; members: Member[]; onClose: () => void; onSaved: (contact: Contact) => void }) {
   const { toast } = useApp()
   const id = useId()
+  const [template, setTemplate] = useState('')
   const [form, setForm] = useState<ContactInput>(() => {
     if (!initial) return emptyContact()
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...draft } = initial
@@ -168,7 +169,11 @@ export function ContactForm({ initial, categories, members, onClose, onSaved }: 
   }
   return <Sheet title={initial ? 'Edit contact' : 'New contact'} onClose={onClose} dismissable={!saving}
     actions={<><button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save contact'}</button></>}>
-    {!initial && <div className="contact-template"><span>Start with a blank service template</span><div className="chip-row">{TEMPLATES.map(t => <button type="button" key={t.label} className="chip" onClick={() => setForm(f => ({ ...f, name: f.name || t.label, kind: t.kind, relationship: t.relationship, emergency: !!t.emergency }))}>{t.label}</button>)}</div></div>}
+    {!initial && <div className="field"><label htmlFor={`${id}-template`}>Start from a template (optional)</label>
+      <select id={`${id}-template`} value={template} onChange={e => { setTemplate(e.target.value); const t = TEMPLATES.find(x => x.label === e.target.value); if (t) setForm(f => ({ ...f, name: f.name || t.label, kind: t.kind, relationship: t.relationship, emergency: !!t.emergency })) }}>
+        <option value="">Blank contact</option>
+        {TEMPLATES.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+      </select></div>}
     <div className="field"><label htmlFor={`${id}-name`}>Name *</label><input id={`${id}-name`} type="text" value={form.name} onChange={e => change('name', e.target.value)} maxLength={160} autoComplete="name" /></div>
     <div className="field"><label htmlFor={`${id}-kind`}>Contact kind</label><select id={`${id}-kind`} value={form.kind ?? 'person'} onChange={e => change('kind', e.target.value as ContactInput['kind'])}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></div>
     <div className="row-2"><div className="field"><label htmlFor={`${id}-relationship`}>Relationship</label><input id={`${id}-relationship`} type="text" value={form.relationship ?? ''} onChange={e => change('relationship', e.target.value)} placeholder="School, doctor, neighbor…" maxLength={100} /></div>
