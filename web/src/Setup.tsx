@@ -7,7 +7,7 @@ import { CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.ts
 import TimezoneField from './TimezoneField.tsx'
 import { announce } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
-import type { Member, Settings } from './types.ts'
+import type { Features, Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
 import { setDeviceAppearance, useTheme } from './useTheme.ts'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
@@ -17,13 +17,12 @@ import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { connectCalendar, ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
-import { defaultGrownUp, freshHandoff, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
+import { cardOn, defaultGrownUp, FEATURE_CARDS, freshHandoff, landOn, nextStep, ownerChoices, prevStep, progressSteps, resumeFor, setupErrorText, suggestedFeatures, toggleCard } from './setupSteps.ts'
+import { FEATURE_ROWS } from './featureConfig.ts'
 import type { SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
 import { Brand } from './Brand.tsx'
 import { ChipFace } from './Face'
-
-const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
 // Persisted across the OAuth start->callback round trip (Google/Outlook connect from the
 // Calendars step), which reloads the page. Only the step and role are stored, never a key.
@@ -75,12 +74,13 @@ const CHORE_TEMPLATES = [
   { emoji: '🪴', title: 'Water plants', points: 1, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH' },
 ]
 
-function Progress({ step }: { step: Step }) {
-  const at = PROGRESS_STEPS.indexOf(step === 'owner' ? 'members' : step)
+function Progress({ step, features }: { step: Step; features: Features | null }) {
+  const steps = progressSteps(features)
+  const at = steps.indexOf(step === 'owner' ? 'members' : step)
   if (at < 0) return null
   return (
-    <div className="setup-progress" role="img" aria-label={`Step ${at + 1} of ${PROGRESS_STEPS.length}`}>
-      {PROGRESS_STEPS.map((s, i) => <div key={s} className={`setup-dot ${i < at ? 'done' : ''} ${i === at ? 'active' : ''}`} />)}
+    <div className="setup-progress" role="img" aria-label={`Step ${at + 1} of ${steps.length}`}>
+      {steps.map((s, i) => <div key={s} className={`setup-dot ${i < at ? 'done' : ''} ${i === at ? 'active' : ''}`} />)}
     </div>
   )
 }
@@ -656,6 +656,60 @@ function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () 
   )
 }
 
+/** What the family wants Kinwall for: cards in plain words, each standing for one or more feature
+ * switches (FEATURE_CARDS), and every switch under "Show all features". Skip keeps the defaults. */
+function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: (s?: Settings) => void; onBack: () => void }) {
+  const [features, setFeatures] = useState<Features | null>(null)
+  const [all, setAll] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (!members.length) return // a resumed setup is still loading them (the members step needs at least one)
+    api.getSettings().then(s => setFeatures(f => f ?? suggestedFeatures(s.features, members))).catch(e => setError(oops(e, 'Could not load the features. Skip for now and pick them later in Settings.')))
+  }, [members])
+  const save = async () => {
+    if (!features) return
+    setBusy(true); setError('')
+    try { onNext(await api.updateSettings({ features })) } catch (e) { setError(oops(e, 'Could not save. Try again.')) } finally { setBusy(false) }
+  }
+  return (
+    <div className="setup-step">
+      <h1>What do you want Kinwall for?</h1>
+      <p className="setup-sub">Pick everything your family will use. The calendar is always there.</p>
+      {features && <>
+        <div className="setup-chore-grid">
+          {FEATURE_CARDS.map(c => {
+            const on = cardOn(features, c)
+            return (
+              <div key={c.id} className={`setup-chore-card ${on ? 'active' : ''}`}>
+                <button className="setup-chore-tap" onClick={() => setFeatures(f => f && toggleCard(f, c))} aria-pressed={on}>
+                  <span className="setup-chore-emoji" aria-hidden="true">{c.emoji}</span>
+                  <span className="setup-feature-text"><span>{c.title}</span><span className="setup-feature-sub">{c.sub}</span></span>
+                  {on && <CheckIcon width={16} height={16} />}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <button className="link-btn setup-hint-toggle" onClick={() => setAll(a => !a)} aria-expanded={all}>{all ? 'Hide all features' : 'Show all features'}</button>
+        {all && FEATURE_ROWS.map(f => (
+          <div key={f.key} className="toggle-row">
+            <div>
+              <label id={`setup-feature-${f.key}`}>{f.group ? `${f.label} tracker` : f.label}</label>
+              <div className="settings-row-sub">{f.sub}</div>
+            </div>
+            <button className={`switch ${features[f.key] ? 'on' : ''}`} role="switch" aria-checked={features[f.key]} aria-labelledby={`setup-feature-${f.key}`}
+              onClick={() => setFeatures(x => x && { ...x, [f.key]: !x[f.key] })}><span className="knob" /></button>
+          </div>
+        ))}
+      </>}
+      <p className="setup-note">You can change any of these later in Settings → General → Features.</p>
+      {error && <p className="setup-error" role="alert">{error}</p>}
+      <StepNav sticky onBack={onBack} onSkip={() => onNext()} onNext={save} nextDisabled={busy || !features} nextLabel={busy ? 'Saving…' : 'Next'} />
+    </div>
+  )
+}
+
 function DoneStep({ onGoToCalendar }: { onGoToCalendar: () => void }) {
   return (
     <div className="setup-step">
@@ -675,7 +729,7 @@ function DoneStep({ onGoToCalendar }: { onGoToCalendar: () => void }) {
 /** `setupCode` (handed over as `#key=…` by a hosting provider, or the wall screen's QR) fills in the code. */
 export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { oauth: { google: boolean; microsoft: boolean }; setupCode?: string; passkeyRequired?: boolean; onDone: () => void }) {
   const resume = useMemo(readSetupResume, [])
-  const [step, setStep] = useState<Step>(resume?.step ?? 'welcome')
+  const [rawStep, setStep] = useState<Step>(resume?.step ?? 'welcome')
   const [claimed, setClaimed] = useState(!!resume)
   const [adminKeyId, setAdminKeyId] = useState<string | null>(null)
   // No passkey on this device (none possible, or the browser couldn't make one): recovery codes required.
@@ -688,8 +742,13 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   // Once this device has a key (just claimed, or mid-wizard resume), pick up household theming
   // so the rest of the wizard - and the app it hands off to - looks consistent from the start.
   const [themeSettings, setThemeSettings] = useState<Settings | null>(null)
+  const features = themeSettings?.features ?? null
+  // A step for a feature that's off (a resumed chores step after chores were turned off) moves on.
+  const step = landOn(rawStep, features)
   useTheme(themeSettings)
-  useEffect(() => { if (claimed) api.getSettings().then(setThemeSettings).catch(() => {}) }, [claimed, step])
+  useEffect(() => { if (claimed) api.getSettings().then(setThemeSettings).catch(() => {}) }, [claimed, rawStep])
+  const go = (from: Step, f = features) => setStep(nextStep(from, f))
+  const back = (from: Step) => setStep(prevStep(from, features))
 
   useEffect(() => { saveResume(resumeFor(step, claimed ? 'admin' : null)) }, [step, claimed])
 
@@ -734,7 +793,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
       <div className="setup-card" ref={cardRef}>
         <HelpButton className="help-float" />
         <Brand />
-        <Progress step={step} />
+        <Progress step={step} features={features} />
         {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} busy={claimBusy} error={claimError} onNext={claim} />}
         {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onNoPasskey={passkeyRequired ? undefined : () => { setNoPasskey(true); setStep('recovery') }} />}
         {step === 'recovery' && <RecoveryStep required={noPasskey} onNext={() => setStep('household')} />}
@@ -742,11 +801,12 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
         {step === 'members' && (
           <MembersStep onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('owner') }} />
         )}
-        {step === 'owner' && <OwnerStep members={members} onBack={() => setStep('members')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('calendars') }} />}
+        {step === 'owner' && <OwnerStep members={members} onBack={() => back('owner')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); go('owner') }} />}
+        {step === 'features' && <FeaturesStep members={members} onBack={() => back('features')} onNext={s => { if (s) setThemeSettings(s); go('features', s?.features ?? features) }} />}
         {step === 'calendars' && (
-          <CalendarsStep members={members} oauth={oauth} onBack={() => setStep('owner')} onNext={() => setStep('chores')} onOAuthStart={startOAuth} />
+          <CalendarsStep members={members} oauth={oauth} onBack={() => back('calendars')} onNext={() => go('calendars')} onOAuthStart={startOAuth} />
         )}
-        {step === 'chores' && <ChoresStep members={members} onBack={() => setStep('calendars')} onNext={() => setStep('done')} />}
+        {step === 'chores' && <ChoresStep members={members} onBack={() => back('chores')} onNext={() => go('chores')} />}
         {step === 'done' && <DoneStep onGoToCalendar={() => { saveResume(null); onDone() }} />}
       </div>
     </main>

@@ -52,7 +52,7 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 
 ### Features
 
-*Admin only.* The card shows how many are on ("All 14 on", or "11 of 14 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
+*Admin only.* The card shows how many are on ("All 14 on", or "11 of 14 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default; the setup wizard's **What do you want Kinwall for?** step lets a new family pick them first.
 
 | Switch | When it's off |
 |---|---|

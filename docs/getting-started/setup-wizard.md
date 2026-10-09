@@ -15,9 +15,23 @@ A new instance is *unclaimed*. The first browser to open it gets the setup wizar
 4. **Your household**: family name, timezone (this device's, unless you pick another; search by city), and whether the week starts on Sunday or Monday. This step has no **Back**: the device is already claimed.
 5. **Who's in the family?** Add each person with a name, **🧑 Grown-up** or **🧒 Kid**, a color and an avatar (an emoji or 1–2 letter initial). The first person starts as a grown-up and everyone after as a kid; tap the other choice before **Add** to change it, or change someone already added with the select next to their name. Grown-ups' chores never wait for a parent's OK and their journals are private. Everyone added shows above the form, and **Back** and **Next** stay at the bottom while you scroll. You need at least one member.
 6. **Whose device is this?** Pick yourself if it's your own phone or tablet, or **Shared (the whole family)** for a wall screen or a family tablet. Only grown-ups are listed, since a parent's device can only belong to one; picking never changes who's a grown-up. If no one is marked a grown-up, go **Back** and mark yourself. Grown-ups' journals are [private](../using/journal.md#private-journals), and this phone then opens yours right away, private entries too. It's saved on this device's passkey (or key), so later sign-ins with it are yours too, and [Security activity](../using/sign-in-and-security.md#security-activity) says so ("My phone now belongs to Alex"). **Shared (the whole family)** leaves it belonging to no one; you can change it later under [Settings → Access → This device](../settings/access.md#this-device).
-7. **Connect a calendar** (optional): 📆 Google, 📧 Outlook, 🍎 iCloud (CalDAV) or 🔗 Subscribe to a link. If Google or Outlook isn't configured yet, the wizard shows the provider form inline. **Continue without calendars** skips the step.
-8. **Set up some chores**: tap starter chores and pick who does each one, or **Anyone**.
-9. **All set! 🎉**
+7. **What do you want Kinwall for?** Tap the cards for what your family will use. Each card turns on one or more [features](../settings/general.md#features):
+   * 🧹 **Chores and rewards for the kids**: Chores & points (with rewards and the sticker book)
+   * 🍽️ **Meal planning and recipes**: Meals (recipes, cooking mode, restaurant nights)
+   * 🛒 **Shopping and to-do lists**: Lists
+   * 🩺 **Doctor visits and health**: the Health tracker
+   * 📚 **Reading log and library**: the Reading tracker
+   * 🎨 **Painting and coloring**: Paint
+   * 🗳️ **Family polls**: Family polls
+   * 📸 **Photos and memories**: Photos and the Memories tracker
+   * 📰 **Family news and messages**: Newscast, Family messages and Notes
+   * 💭 **Check-ins and journals**: Check-ins & journal
+   * 📇 **Family contacts**: Contacts
+
+   Everything starts picked, except that with no kids in the family the chores and painting cards start off. **Show all features** lists every switch on its own. **Skip** keeps everything on. You can change any of it later in **Settings → General → Features**. Medication reminders aren't in the wizard; turn them on there once the Health tracker is on.
+8. **Connect a calendar** (optional): 📆 Google, 📧 Outlook, 🍎 iCloud (CalDAV) or 🔗 Subscribe to a link. If Google or Outlook isn't configured yet, the wizard shows the provider form inline. **Skip** skips the step.
+9. **Set up some chores**: tap starter chores and pick who does each one, or **Anyone**. This step is left out when chores are off.
+10. **All set! 🎉**
 
 ## If you started on the wall display
 
