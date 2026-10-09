@@ -45,8 +45,8 @@ const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add task…"
 
 /** Row height for the density actually applied on this device (household, device override, low-stim). */
 function useHourPx() {
-  const { settings } = useApp()
-  return hourPx(effectiveDensity(settings.density, useDeviceAppearance()), useMediaQuery(SHORT_LANDSCAPE), useMediaQuery(SHORT_TABLET))
+  const { settings, parentPhone } = useApp()
+  return hourPx(effectiveDensity(settings, useDeviceAppearance(), parentPhone), useMediaQuery(SHORT_LANDSCAPE), useMediaQuery(SHORT_TABLET))
 }
 
 function isAllDayOnDate(ev: EventInstance, key: string) {

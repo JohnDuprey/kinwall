@@ -29,7 +29,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { CALENDAR_VIEWS, viewLabel } from './calendarViews.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
-import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
+import { DEFAULT_ACCENT, effectiveDensity, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { autoScale, SCREEN_SCALES } from './screenScale.ts'
 import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
@@ -545,7 +545,7 @@ const TIME_FORMATS: { key: TimeFormat; label: string }[] = [
 ]
 
 /** This device's look as chips: its own choices, and the family's (marked) for the rest. */
-function deviceChips(settings: Settings, d: DeviceAppearance): Chip[] {
+function deviceChips(settings: Settings, d: DeviceAppearance, parentPhone: boolean): Chip[] {
   const scheme = d.skin ?? settings.colorScheme
   const skin = scheme === 'seasonal' ? { emoji: '🗓️', name: 'Seasonal' } : findSkin(scheme, settings.customSchemes ?? [])
   return appearanceChips({
@@ -553,16 +553,16 @@ function deviceChips(settings: Settings, d: DeviceAppearance): Chip[] {
     custom: !!d.custom && Object.keys(d.custom).length > 0,
     mode: d.themeMode,
     textScale: TEXT_SCALE_NAMES[d.textScale ?? settings.textScale],
-    density: DEVICE_DENSITIES.find(o => o.key === (d.density ?? settings.density))?.label ?? '',
+    density: DEVICE_DENSITIES.find(o => o.key === effectiveDensity(settings, d, parentPhone))?.label ?? '',
     typeface: fontName(d.font ?? settings.typeface ?? 'default') ?? 'Default',
     timeFormat: resolveHour12(settings.timeFormat, d.timeFormat) ? '12-hour' : '24-hour',
     lowStim: d.lowStim,
-  }, { scheme: !!d.skin, mode: !!d.themeMode, textScale: !!d.textScale, density: !!d.density, typeface: !!d.font, timeFormat: !!d.timeFormat })
+  }, { scheme: !!d.skin, mode: !!d.themeMode, textScale: !!d.textScale, density: !!d.density || effectiveDensity(settings, d, parentPhone) !== effectiveDensity(settings, d), typeface: !!d.font, timeFormat: !!d.timeFormat })
 }
 
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const device = useDeviceAppearance()
-  const overridden = deviceChips(settings, device).filter(c => !c.family)
+  const overridden = deviceChips(settings, device, useApp().parentPhone).filter(c => !c.family)
   const save = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
@@ -1225,8 +1225,8 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
 }
 
 function DeviceAppearanceSection() {
-  const { settings } = useApp()
-  const summary = deviceChips(settings, useDeviceAppearance())
+  const { settings, parentPhone } = useApp()
+  const summary = deviceChips(settings, useDeviceAppearance(), parentPhone)
   return (
     <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}
       keywords={['Mode', 'Color scheme', 'Typeface', 'Text size', 'Density', 'Time format', 'Clock time zone', 'Low-stimulation mode']}>
@@ -1237,7 +1237,7 @@ function DeviceAppearanceSection() {
 
 /** "On this device" overrides of the household appearance - each defaults to the household value. */
 function DeviceAppearanceRows() {
-  const { settings, reloadCore, toast } = useApp()
+  const { settings, reloadCore, toast, parentPhone } = useApp()
   const saveHousehold = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
@@ -1276,11 +1276,13 @@ function DeviceAppearanceRows() {
 
       {rows.slice(1).map(r => {
         const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
+        // A parent's phone is compact unless it picks a density (density.ts), so its default says so.
+        const phoneDensity = r.key === 'density' && effectiveDensity(settings, { ...device, density: undefined }, parentPhone) !== effectiveDensity(settings, { ...device, density: undefined })
         return (
           <div key={r.key} className="device-pref-row">
             <span>{r.label}</span>
             <select className="settings-select" aria-label={`${r.label} on this device`} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">Household ({household})</option>
+              <option value="">{phoneDensity ? 'Phone default (Compact)' : `Household (${household})`}</option>
               {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </div>

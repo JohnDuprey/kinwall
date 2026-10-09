@@ -21,7 +21,7 @@ import Rewards from './Rewards.tsx'
 import SettingsView, { DeviceKindSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
-import { useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
+import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme } from './useTheme.ts'
 import { isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
@@ -1123,6 +1123,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const { stale: updateAvailable, scope } = useUpdateAvailable(hasKey)
   const device = useDeviceAppearance()
   const wall = isWallScreen(scope, device)
+  // A parent's own phone (not a wall screen or a kid's device) runs compact by default (density.ts).
+  const shortLandscape = useMediaQuery(SHORT_LANDSCAPE)
+  const parentPhone = parentDevice && !wall && (isPhone || shortLandscape)
   // Wall screens poll faster while a remote Night screen is on, so they wake soon after someone's home.
   const { tick: pollTick, areaTicks, unauthorized, nightScreen } = usePoll(30000, wall ? NIGHT_POLL_MS : 30000, wall)
   const [manualTick, setManualTick] = useState(0)
@@ -1171,7 +1174,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     setHasKey(false)
   }, [unauthorized])
 
-  useTheme(settings)
+  useTheme(settings, parentPhone)
 
   // A display pinned to one member: that member is always the selected one and the header shows
   // only them. On an everyday-access device an admin-set owner wins and locks it ('shared' =
@@ -1312,7 +1315,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
-      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: ownerLocks, meMemberId, parentDevice,
+      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: ownerLocks, meMemberId, parentDevice, parentPhone,
       refreshTick: pollTick + manualTick,
       reloadCore: () => setManualTick(t => t + 1),
       toast: (msg, persist = false, action) => setToastMsg({ msg, persist, action }),

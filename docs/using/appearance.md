@@ -20,7 +20,7 @@ The night hours (walls resting, reminders held) are a separate card, right after
 | **Color scheme** | Seasonal, one of eighteen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peacock (families set up before keep the look they had: Peach, Sage or Eucalyptus) |
 | **Typeface** | Default (Nunito), Hyperlegible, Dyslexia-friendly, Modern, Playful, Storybook or Handwritten. See [Typeface](#typeface). | Default (Nunito) |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
-| **Density** | Comfortable, Compact (shorter hour rows in the time grid). A tablet on its side that's shorter than an iPad (under about 760 pixels tall, like a 10" Android tablet) and a phone on its side always use compact sizes, so the header leaves the screen to the calendar, chores and lists. | Comfortable |
+| **Density** | Comfortable, Compact (shorter hour rows in the time grid). A tablet on its side that's shorter than an iPad (under about 760 pixels tall, like a 10" Android tablet) and a phone on its side always use compact sizes, so the header leaves the screen to the calendar, chores and lists. A parent's own phone is compact (and a step tighter than compact) unless its text size is Large or Extra large; pick **Comfortable** under Density on that phone for more room. Wall screens and kids' devices follow the family. | Comfortable |
 
 Changes save as you make them, and other devices pick them up within about 30 seconds.
 
@@ -32,7 +32,7 @@ Changes save as you make them, and other devices pick them up within about 30 se
 
 Under **Appearance on this device** (tap **Change**):
 
-* **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
+* **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting. On a parent's phone, Density's first option is **Phone default (Compact)** instead.
 * **Color scheme** opens the same sheet as the household setting, with **Use the family's scheme** first, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
 * **Typeface** opens the same sheet as the household setting, with **Use the family's typeface** first, which follows the family setting. While it does, the row reads **🏠 Household (*typeface*)**. See [Typeface](#typeface).
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.

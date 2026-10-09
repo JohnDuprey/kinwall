@@ -9,6 +9,7 @@ import { api, getKey } from './api.ts'
 import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts'
 import { surfaces, tellAppAppearance } from './native.ts'
 import { inTimeWindow } from './wallScreen.ts'
+import { effectiveDensity } from './density.ts'
 export { inTimeWindow } // callers import it from here
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
@@ -129,11 +130,7 @@ export function useDeviceAppearance(): DeviceAppearance {
   return v
 }
 
-/** Density actually in effect: low-stimulation mode never runs compact (it wants more room). */
-export function effectiveDensity(household: Appearance['density'], device: DeviceAppearance): DeviceDensity {
-  const d = device.density ?? household
-  return device.lowStim && d === 'compact' ? 'comfortable' : d
-}
+export { effectiveDensity } // callers import it from here
 
 // CSS families for the typeface choice. All are bundled (src/fonts/fonts.css); a browser fetches a
 // face's files only once text uses it (it's picked, or the Typeface sheet shows them all).
@@ -154,8 +151,8 @@ function applyFont(font: Typeface) {
   else document.documentElement.style.removeProperty('--font')
 }
 
-function applyAppearance(household: Appearance, device: DeviceAppearance) {
-  const a = { ...household, ...device, density: effectiveDensity(household.density, device) }
+function applyAppearance(household: Appearance, device: DeviceAppearance, parentPhone = false) {
+  const a = { ...household, ...device, density: effectiveDensity(household, device, parentPhone) }
   const root = document.documentElement
   root.toggleAttribute('data-lowstim', !!a.lowStim)
   applyFont(resolveTypeface(household.typeface, device.font))
@@ -170,6 +167,8 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     root.setAttribute('data-theme', dark ? 'dark' : 'light')
     root.removeAttribute('data-bg') // old background presets: replaced by color schemes (see Settings' earlier-version note)
     root.setAttribute('data-density', a.density)
+    // A parent's phone in compact goes a step tighter still (the [data-parent-phone] rules in styles.css).
+    root.toggleAttribute('data-parent-phone', parentPhone && a.density === 'compact')
 
     // Color scheme (skins.ts) and custom colors, household or this device's (resolveColors).
     // Every scheme sets its tokens, the default included, so a screen always looks like its chip. Custom
@@ -236,14 +235,14 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
  * wizard, no key stored yet) it falls back to GET /api/appearance, the same no-auth subset of
  * fields, so the wall doesn't show default colors until paired. Once a key exists (mid-wizard, or
  * a display key with no local settings yet), it no-ops and leaves styles.css's defaults. */
-export function useTheme(settings: Settings | null) {
+export function useTheme(settings: Settings | null, parentPhone = false) {
   const device = useDeviceAppearance()
   useEffect(() => {
-    if (settings) return applyAppearance(settings, device)
+    if (settings) return applyAppearance(settings, device, parentPhone)
     if (getKey()) return undefined
 
     let canceled = false
     api.getAppearance().then(a => { if (!canceled) applyAppearance(a, device) }).catch(() => {})
     return () => { canceled = true }
-  }, [settings, device])
+  }, [settings, device, parentPhone])
 }
