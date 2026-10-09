@@ -164,7 +164,10 @@
 .cook-step-num:focus { outline: none; } /* focused on open so it's announced; not a control */
 .cook-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px; }
 .cook-step-title { margin: 0; font-size: clamp(1.125rem, 0.9rem + 1vw, 1.75rem); font-weight: 800; color: var(--accent-text); }
-.cook-step-text { margin: 8px 0 0; font-size: clamp(1.5rem, 1rem + 2.2vw, 3rem); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+/* Sized to the step's own column (beside the photo on a wall), and a step past ~200 characters a size down. */
+.cook-step-body { container-type: inline-size; min-width: 0; }
+.cook-step-text { margin: 8px 0 0; font-size: clamp(1.375rem, 0.75rem + 3.6cqi, 2.5rem); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.cook-step-text.long { font-size: clamp(1.25rem, 0.6rem + 3cqi, 2rem); }
 .cook-bullets { margin: 12px 0 0; padding-left: 1.2em; font-size: clamp(1.25rem, 0.9rem + 1.4vw, 2.25rem); line-height: 1.4; }
 .cook-bullets li { margin: 6px 0; overflow-wrap: anywhere; }
 .cook-timers { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -202,7 +205,7 @@
   .cook-step { padding-top: 12px; }
   .cook-nav { padding-top: 6px; padding-bottom: calc(var(--safe-b) + 6px); }
   .cook-nav .btn { min-height: 52px; }
-  .cook-step-text { font-size: clamp(1.25rem, 0.8rem + 2vw, 2rem); }
+  .cook-step-text, .cook-step-text.long { font-size: clamp(1.25rem, 0.8rem + 2vw, 2rem); }
   .cook-step-side .cook-photo { max-height: 30vh; } /* leaves room for the step's ingredients under it */
 }
 @media (prefers-reduced-motion: reduce) { .cook-progress > div { transition: none; } }

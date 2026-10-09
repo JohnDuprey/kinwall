@@ -122,7 +122,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
               })}</div>}
             </div>}
             {!step.imageUrl && ingredients}
-            {step.text && <p className="cook-step-text">{step.text}</p>}
+            {step.text && <p className={`cook-step-text ${step.text.length > 200 ? 'long' : ''}`}>{step.text}</p>}
             {step.bullets.length > 0 && <ul className="cook-bullets">{step.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
           </div>
         </div>
