@@ -208,10 +208,11 @@ export function createApp() {
       "API key, e.g. kw_xxxxx. An <img src> can't send a header: the image routes (GET /api/photos/{id}/image, /api/recipes/{id}/image, /api/recipes/{id}/steps/{n}/image, /api/meals/{id}/image, /api/trackers/{id}/cover, /api/books/covers/{coverId}) take ?key= with a media token from GET /api/media-token, and GET /api/photos/export.zip takes ?ticket= from POST /api/photos/export-link. A key is never accepted in a URL.",
   });
 
-  app.doc('/openapi.json', {
+  app.doc('/openapi.json', (c) => ({
     openapi: '3.0.0',
     info: { title: 'Kinwall API', version: '1' }, // API contract version, not the build (docs are public)
-  });
+    servers: [{ url: new URL(c.env.PUBLIC_URL || c.req.url).origin }], // importers (Rewst, Postman) need a server to build request URLs
+  }));
 
   app.get('/docs', swaggerUI({ url: '/openapi.json', version: SWAGGER_UI_VERSION, validatorUrl: 'none' })); // no badge from swagger.io's validator
 

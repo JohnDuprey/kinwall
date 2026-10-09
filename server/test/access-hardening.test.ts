@@ -150,6 +150,13 @@ test('/docs loads one pinned Swagger UI release, and only from that CDN', async 
   assert.doesNotMatch(csp, /https:[; ]|https:$/, 'no scheme-wide https: source');
 });
 
+test('/openapi.json names its own server so importers can build request URLs', async () => {
+  const t = setup();
+  assert.deepEqual((await t.send('GET', '/openapi.json', undefined, null)).body.servers, [{ url: 'https://kinwall.example' }]);
+  const bare = setup({ ADMIN_API_KEY: ADMIN_KEY, PUBLIC_URL: undefined });
+  assert.deepEqual((await bare.send('GET', '/openapi.json', undefined, null)).body.servers, [{ url: 'http://localhost' }]);
+});
+
 test('passkeys: expired challenges are pruned when a new one is stored', async () => {
   const t = setup();
   const insert = (subject: string, expires: number) => t.env.DB.prepare('INSERT INTO webauthn_challenges (id, kind, subject, data, created_at, expires_at) VALUES (?,?,?,?,?,?)')
