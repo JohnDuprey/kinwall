@@ -21,7 +21,7 @@ import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.ts
 import NotesThread from './NotesThread.tsx'
 import { actorName, byLine, nowrap, whenLabel } from './addedBy.ts'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, placeNeeds, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
-import { hashPath, hashQuery } from './hashQuery.ts'
+import { hashPath, hashQuery, useHashParam } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
 import GetStuffDone from './GetStuffDone.tsx'
 import { shoppingActivity } from './liveActivity.ts'
@@ -1523,7 +1523,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [scanned, setScanned] = useState<{ code: string; found: BarcodeLookup | null } | null>(null) // a new product's scan sheet
-  const [doing, setDoing] = useState(false) // Get stuff done (GetStuffDone.tsx), over the list
+  const [gsd, setGsd] = useHashParam('gsd') // Get stuff done (GetStuffDone.tsx), over the list; in the link, so a reload reopens it
+  const doing = gsd === listId
   const inputRef = useRef<HTMLInputElement>(null)
   const { upcoming, byId } = useEventWindow(refreshTick)
 
@@ -2018,10 +2019,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop). */}
       {list.kind !== 'shopping' && items.length > 0 && (
         <div className="list-actions">
-          <button className="btn btn-secondary list-do-btn" onClick={() => setDoing(true)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />Get stuff done</button>
+          <button className="btn btn-secondary list-do-btn" onClick={() => setGsd(listId)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />Get stuff done</button>
         </div>
       )}
-      {doing && <GetStuffDone listId={listId} onClose={() => { setDoing(false); load() }} />}
+      {doing && <GetStuffDone listId={listId} onClose={() => { setGsd(null); load() }} />}
       {!activeTrip && viewSummary && items.length > 0 && (
         <button className="filter-summary list-view-summary" onClick={() => setViewing(true)} aria-label={`View: ${viewSummary}. Change view`}>{viewSummary}</button>
       )}
@@ -2210,7 +2211,7 @@ export default function Lists() {
   // #/lists/<id>/shop: that list in shopping mode.
   const shopParam = () => /^#\/lists\/([^/?]+)\/shop/.exec(location.hash)?.[1] ?? null
   const [shopId, setShopId] = useState<string | null>(shopParam)
-  const [selectedId, setSelectedId] = useState<string | null>(() => listParam() ?? shopParam())
+  const [selectedId, setSelectedId] = useState<string | null>(() => listParam() ?? shopParam() ?? hashQuery(location.hash).get('gsd')) // gsd: Get stuff done open on it before a reload
   const [editList, setEditList] = useState<List | 'new' | null>(null)
   useEffect(() => {
     const read = () => {

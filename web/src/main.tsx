@@ -5,7 +5,7 @@ import './fonts/fonts.css'
 import './styles.css'
 import { IMPORT_CONTACTS_EVENT, markNativeApp, receiveSharedContacts } from './native.ts'
 import { resumeShoppingHash } from './trip.ts'
-import { homeAlias } from './hashQuery.ts'
+import { hashQuery, homeAlias, withHashParam } from './hashQuery.ts'
 import { retryBoot } from './appUpdate.ts'
 import { applyScreenScale } from './screenScale.ts'
 import { watchKeyboard } from './keyboard.ts'
@@ -85,6 +85,11 @@ if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assert
 const toHome = () => { const h = homeAlias(location.hash); if (h) history.replaceState(null, '', h) }
 toHome()
 window.addEventListener('hashchange', toHome)
+
+// Reloaded in cooking mode started from a meal on Home: only Meals opens a recipe from a link, so
+// the recipe (and cooking mode, its cook param) comes back there.
+const cook = hashQuery(location.hash).get('cook')
+if (cook && !location.hash.startsWith('#/meals')) history.replaceState(null, '', withHashParam('#/meals', 'cook', cook))
 
 // Relaunched mid-shop (the app or tab was closed in the store): straight back into shopping mode.
 const shopHash = resumeShoppingHash(location.hash)

@@ -234,7 +234,7 @@ Get stuff done is one checklist, full screen, for working through a routine like
 * When everything's ticked: **All done! 🎉**. On a reusable list, **Reset for next time** unticks it (the same as **Reset list**) and closes; **Finish** just closes, back where you started. **Look over the list** shows the list again.
 * Ticks made on other screens show up within a few seconds, and each screen stays on its own item, so two kids on two screens don't move each other along.
 * What you can tick is the same as on the list: a kid's own device works through their items and nobody's; a wall screen can tick anything (but not rename or delete). A screen set to **Show only** one person shows that person's items and nobody's.
-* The screen stays on, and a wall screen doesn't go back to Home after two idle minutes while it's open (two minutes of brushing teeth isn't idle). The [Night screen](night.md) still comes on over it during night hours.
+* The screen stays on, and a wall screen doesn't go back to Home after two idle minutes while it's open (two minutes of brushing teeth isn't idle). If the page reloads (an update, or the app restarting after the screen slept), it opens again where it was. The [Night screen](night.md) still comes on over it during night hours.
 * **✕** (or Escape on a keyboard) closes it. Each move is announced to screen readers, and with reduced motion or low-stimulation mode on nothing animates.
 
 ## Offline shopping

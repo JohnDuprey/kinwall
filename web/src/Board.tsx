@@ -3,6 +3,7 @@
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
 import { boardListTiles } from './listSections.ts'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useHashParam } from './hashQuery.ts'
 import { createPortal } from 'react-dom'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -242,7 +243,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const rewards = rewardsOn(settings)
   const [lists, setLists] = useState<List[]>([])
   const [earlierOpen, setEarlierOpen] = useState(false) // Today's events that are over, in a sheet
-  const [doing, setDoing] = useState<string | null>(null) // the Checklist card's list, in Get stuff done
+  const [doing, setDoing] = useHashParam('gsd') // the Checklist card's list, in Get stuff done (in the link: back after a reload)
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   useEffect(() => {
     let canceled = false

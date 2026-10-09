@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { withHashParam } from './hashQuery.ts'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
@@ -75,7 +76,10 @@ export default function Meals() {
       if (query.get('meal')) { setPendingMeal(query.get('meal')); setPendingOrders(query.get('orders') === '1'); setView('week') }
       if (query.get('recipe')) setPendingRecipe(query.get('recipe'))
       if (query.get('restaurant')) setPendingPlace(query.get('restaurant'))
-      if (query.toString()) history.replaceState(null, '', '#/meals')
+      // cook=<id>: cooking mode was open before a reload. Its recipe opens, and the param stays for RecipeSheet to reopen it.
+      const cook = query.get('cook')
+      if (cook) setPendingRecipe(cook)
+      if (query.toString()) history.replaceState(null, '', withHashParam('#/meals', 'cook', cook))
     }
     read(); window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)

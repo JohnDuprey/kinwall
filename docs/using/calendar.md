@@ -157,7 +157,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 * Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button. **+** adds to the day you're looking at: in Day view, that day; in Week, 3 Day and Month, today if it's on screen, else the first day shown; on the Board, today. On today it starts at the next half hour, on another day at 9 AM. On the Board, the cards keep their rows out from under **+** (what would sit there moves into **+N more**), and a Board that scrolls leaves room to scroll past it. Newscast has no **+**.
 * Tap an **event** to open its detail sheet. See [Events](events.md).
 * Keyboard: arrow keys move between day headers, and Enter opens the day.
-* After 2 minutes idle, a wall screen or kid's device goes back to Home, on the Board (or the locked view) on today and closes any open sheet, except while an activity is open. Parents' phones and computers don't, unless you turn on **Back to Home when idle** on that device ([Settings → General → This display](../settings/this-display.md#this-display)). It can be turned off on a wall screen the same way.
+* After 2 minutes idle, a wall screen or kid's device goes back to Home, on the Board (or the locked view) on today and closes any open sheet, except while an activity, [Get stuff done](lists.md#get-stuff-done), [cooking mode](meals.md#start-cooking) or [shopping mode](lists.md#shopping-mode) is open. Parents' phones and computers don't, unless you turn on **Back to Home when idle** on that device ([Settings → General → This display](../settings/this-display.md#this-display)). It can be turned off on a wall screen the same way.
 
 ## Filters
 

@@ -1,5 +1,6 @@
 import { holdAwake } from './wakeLock.ts'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
@@ -224,7 +225,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
     events.forEach(ev => window.addEventListener(ev, touch))
     const stopTick = onMinute(() => setNow(new Date()))
     const onPreview = () => { setManual('preview'); announce('Previewing the Night screen for 20 seconds. Tap or press Escape to end.') }
-    const onStart = () => { setManual('hold'); location.hash = '#/calendar'; announce('Night screen on. Tap or press any key to end.') }
+    const onStart = () => { setManual('hold'); if (hashPath(location.hash) !== '#/calendar') location.hash = '#/calendar'; announce('Night screen on. Tap or press any key to end.') }
     window.addEventListener(SAVER_PREVIEW_EVENT, onPreview)
     window.addEventListener(SAVER_START_EVENT, onStart)
     return () => { stopTick(); events.forEach(ev => window.removeEventListener(ev, touch)); window.removeEventListener(SAVER_PREVIEW_EVENT, onPreview); window.removeEventListener(SAVER_START_EVENT, onStart) }
@@ -1202,12 +1203,14 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
         if (document.activeElement?.matches('input:not([type="checkbox"]), textarea, select, [contenteditable]')) { reset(); return }
         // Never out of an open activity (Paint, the sticker book, an added game): a kid mid-picture
         // pauses, and taps inside an added activity's frame never reach this window anyway.
-        // Nor out of shopping mode (the list is on screen in a store aisle, not on the wall) or Get
-        // stuff done (a routine takes a while: two minutes of brushing teeth isn't idle).
-        if (location.hash.startsWith('#/activities/') || /^#\/lists\/[^/]+\/shop/.test(location.hash) || document.querySelector('.gsd-mode')) { reset(); return }
+        // Nor out of shopping mode (the list is on screen in a store aisle, not on the wall), Get
+        // stuff done (a routine takes a while: two minutes of brushing teeth isn't idle) or cooking
+        // mode (hands in the dough). .cook-mode is both of the last two (GetStuffDone, CookingMode).
+        if (location.hash.startsWith('#/activities/') || /^#\/lists\/[^/]+\/shop/.test(location.hash) || document.querySelector('.cook-mode, .shop-mode')) { reset(); return }
         window.dispatchEvent(new CustomEvent(IDLE_RESET_EVENT))
         // Idle wall display drifts back to the calendar - but never away from an OAuth consent screen.
-        if (location.hash !== '#/calendar' && location.hash !== '' && !location.hash.startsWith('#/authorize')) location.hash = '#/calendar'
+        // Already on it: left as is, query and all (an open mode's ?gsd= is Home's own).
+        if (hashPath(location.hash) !== '#/calendar' && location.hash !== '' && !location.hash.startsWith('#/authorize')) location.hash = '#/calendar'
       }, IDLE_MS)
     }
     reset()

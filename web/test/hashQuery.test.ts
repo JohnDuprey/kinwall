@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Links into the app: #/<path>?<query>.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hashPath, hashQuery, homeAlias } from '../src/hashQuery.ts'
+import { hashPath, hashQuery, homeAlias, withHashParam } from '../src/hashQuery.ts'
 
 test('hashQuery: the query after the path, decoded; none is empty', () => {
   assert.equal(hashQuery('#/lists/abc/shop?store=Trader%20Joe%27s').get('store'), "Trader Joe's")
@@ -23,4 +23,13 @@ test('homeAlias: #/home opens the Home screen at #/calendar, query and all; noth
   assert.equal(homeAlias('#/calendar'), null)
   assert.equal(homeAlias('#/homework'), null)
   assert.equal(homeAlias(''), null)
+})
+
+test('withHashParam: sets or takes out one param, keeping the path and the others', () => {
+  assert.equal(withHashParam('#/lists', 'gsd', 'L1'), '#/lists?gsd=L1')
+  assert.equal(withHashParam('#/meals?cook=r1', 'cook', 'r2'), '#/meals?cook=r2')
+  assert.equal(withHashParam('#/calendar?view=x&gsd=L1', 'gsd', null), '#/calendar?view=x')
+  assert.equal(withHashParam('#/lists?gsd=L1', 'gsd', null), '#/lists')
+  assert.equal(withHashParam('', 'gsd', 'a b'), '#/calendar?gsd=a+b')
+  assert.equal(hashQuery(withHashParam('#/chores', 'checklist', 'c&1')).get('checklist'), 'c&1')
 })

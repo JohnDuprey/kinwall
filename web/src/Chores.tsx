@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useHashParam } from './hashQuery.ts'
 import { addDays, format, isSameDay } from 'date-fns'
 import { GivePoints } from './GivePoints.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -424,7 +425,9 @@ export default function Chores() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null) // the day `chores` holds
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
-  const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null) // the chore whose checklist sheet is open
+  // The chore whose checklist is open in Get stuff done, by id in the link (#/chores?checklist=<id>) so a reload reopens it.
+  const [checklistId, setChecklistId] = useHashParam('checklist')
+  const checklistFor = chores.find(c => c.id === checklistId) ?? null
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [repeatDraft, setRepeatDraft] = useState<RepeatDraft | null>(null) // the library's "Make it repeat", in the chore editor
 
@@ -445,7 +448,7 @@ export default function Chores() {
   useEffect(load, [key, refreshTick])
 
   useEffect(() => {
-    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistFor(null); setLibraryOpen(false); setRepeatDraft(null) }
+    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -483,7 +486,7 @@ export default function Chores() {
       confirmLabel: 'Mark not done',
     })) return
     // A checklist with open items gates completion: open it here to tick off instead.
-    if (!ticked && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
+    if (!ticked && c.checklist && c.checklist.done < c.checklist.total) { setChecklistId(c.id); return }
     // An Anyone chore credits the filtered (or pinned) person; otherwise ask who did it.
     // `doneBy` null = "Nobody in particular" was picked.
     if (!ticked && !c.memberId && doneBy === undefined) {
@@ -644,7 +647,7 @@ export default function Chores() {
       )}
       {/* A chore's checklist opens straight into Get stuff done; all ticked, it completes the chore here. */}
       {checklistFor?.checklist && (
-        <GetStuffDone listId={checklistFor.checklist.listId} onClose={() => { setChecklistFor(null); load() }}
+        <GetStuffDone listId={checklistFor.checklist.listId} onClose={() => { setChecklistId(null); load() }}
           chore={{ memberId: checklistFor.memberId, title: checklistFor.title, onComplete: () => { const c = checklistFor; void toggle({ ...c, checklist: null }) } }} />
       )}
       {libraryOpen && parentDevice && (

@@ -71,7 +71,7 @@ A step's title shows above its text. When a step comes with its own timers (an i
 
 In the Kinwall app for iPhone, a running timer is also a Live Activity on the Lock Screen and in the Dynamic Island: the recipe, the timer's name and step, and a countdown ("+1 more" when several are running). When it's up it says "Done: Rice", and it goes away when you tap **OK**. A paused timer isn't on the Lock Screen until you resume it.
 
-The screen stays on while you cook. Kinwall remembers which step you were on for each recipe on this device, so the button says **Resume cooking · step 4** next time; **Start over** goes back to step 1, and **Done** forgets it.
+The screen stays on while you cook. Kinwall remembers which step you were on for each recipe on this device, so the button says **Resume cooking · step 4** next time; **Start over** goes back to step 1, and **Done** forgets it. A wall screen doesn't go back to Home after two idle minutes while you cook, and if the page reloads (an update, or the app restarting after the screen slept), cooking mode opens again on your step.
 
 In the recipe editor, a recipe with structured steps edits them as a list: each step has its text and its bullets (one per line), **Move up**, **Move down** and **Remove step**, and **Add step** adds one at the end. **Remove photo** drops a step's photo. A recipe with plain instructions keeps the one **Instructions** box.
 

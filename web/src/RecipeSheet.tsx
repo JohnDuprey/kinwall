@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react'
+import { useHashParam } from './hashQuery.ts'
 import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -142,7 +143,9 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
   const reading = !editing && !!recipe
   useEffect(() => { holdAwake('cooking', reading); return () => holdAwake('cooking', false) }, [reading])
   const [servings, setServings] = useState(recipe?.defaultServings ?? 4)
-  const [cooking, setCooking] = useState(false)
+  // Cooking mode, in the link (#/meals?cook=<id>) so a reload reopens it; its step is saved on its own (savedStep).
+  const [cook, setCook] = useHashParam('cook')
+  const cooking = !!recipe && cook === recipe.id
   // A linked basic, opened over this recipe; closing it comes back here.
   const [basic, setBasic] = useState<Recipe | null>(null)
   if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
@@ -161,7 +164,7 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
     {(time || recipe.archived || isBasic || recipe.makes) && <p className="recipe-time">{isBasic && <span className="kit-tag recipe-kind-tag">Basic</span>}{[recipe.makes && `Makes ${recipe.makes}`, time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
-    {cookSteps.length > 0 && <button type="button" className="btn btn-primary cook-start" onClick={() => setCooking(true)}>
+    {cookSteps.length > 0 && <button type="button" className="btn btn-primary cook-start" onClick={() => setCook(recipe.id)}>
       🍳 {resumeAt > 0 && resumeAt < cookSteps.length ? `Resume cooking · step ${resumeAt + 1}` : 'Start cooking'}
     </button>}
     <Ratings key={`rating:${recipe.id}`} recipe={recipe} owner={owner} onRated={onRated} />
@@ -181,7 +184,7 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
     {admin && <RecipeShare key={`share:${recipe.id}`} recipe={recipe} />}
   </Sheet>
-  {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} library={library} onClose={() => setCooking(false)} />}
+  {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} library={library} onClose={() => setCook(null)} />}
   </>
 }
 
