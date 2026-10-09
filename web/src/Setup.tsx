@@ -109,7 +109,9 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
   const [wallFirst, setWallFirst] = useState(false)
   // The setup code is 6 digits; the server also accepts the ADMIN_API_KEY secret, which is long.
   const [useKey, setUseKey] = useState(false)
-  const ready = useKey ? code.length >= 6 : code.length === 6
+  // A hosting provider's setup link (#key=kw_…) fills in a key, not 6 digits: it's ready as it is.
+  const linked = /\D/.test(code)
+  const ready = useKey || linked ? code.length >= 6 : code.length === 6
   const switchMode = () => { setUseKey(k => !k); setCode('') }
   useEffect(() => {
     if (!wallFirst) return
@@ -140,7 +142,7 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
     <div className="setup-step">
       <h1>Welcome to Kinwall 👋</h1>
       <p className="setup-sub">
-        {useKey ? 'Enter the ADMIN_API_KEY you set on the server.' : "Let's get your family wall set up. Enter the setup code from your server log to begin."}
+        {useKey ? 'Enter the ADMIN_API_KEY you set on the server.' : linked ? "Let's get your family wall set up. Your setup link filled in the code, so tap Continue to begin." : "Let's get your family wall set up. Enter the setup code from your server log to begin."}
       </p>
       <label className="setup-input-label" htmlFor="setup-code">{useKey ? 'Admin API key' : 'Setup code'}</label>
       {useKey ? (
@@ -165,7 +167,7 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
       <button className="link-btn setup-hint-toggle" onClick={switchMode}>
         {useKey ? 'Use a 6-digit setup code instead' : 'Use your ADMIN_API_KEY instead'}
       </button>
-      {!useKey && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)} aria-expanded={hint}>Where do I find this?</button>}
+      {!useKey && !linked && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)} aria-expanded={hint}>Where do I find this?</button>}
       {hint && !useKey && (
         <div className="setup-hint-box">
           <p><strong>Docker:</strong> <code>docker logs kinwall</code></p>
