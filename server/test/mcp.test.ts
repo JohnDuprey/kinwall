@@ -137,6 +137,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_restaurant',
     'get_snapshot',
     'import_contacts',
+    'import_outing',
     'import_recipe',
     'import_recipe_from_url',
     'import_restaurant',
@@ -616,6 +617,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.ok((await call('add_outing_to_calendar', { outing: 'Maple Grove Fall Fest', calendarId: cal.id })).outing.calendarEventId);
   assert.equal((await call('get_outing', { outing: fest.id })).outing.title, 'Maple Grove Fall Fest');
   assert.ok(Array.isArray((await call('suggest_outings', { for: ['ava'], when: 'this_weekend' })).ideas));
+  const flyer = `Pumpkin carving\n${today}, 2pm\n$5 a pumpkin\nAges 6-12`;
+  const check = await call('import_outing', { text: flyer });
+  assert.deepEqual([check.review, check.preview.outing.priceCents, check.preview.outing.ageMin], [true, 500, 6]);
+  assert.equal((await call('import_outing', { text: flyer, preview: false })).summary, 'Added Pumpkin carving to Outings');
   assert.equal((await call('delete_outing', { outing: fest.id })).outing.archived, true);
   assert.equal((await call('delete_outing', { outing: fest.id, hard: true })).ok, true);
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;

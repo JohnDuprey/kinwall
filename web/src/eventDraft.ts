@@ -23,3 +23,14 @@ export function eventDraft(q: URLSearchParams, today: string): Partial<EventInst
   const day = date ?? today
   return { ...base, allDay: false, start: `${day}T${time}`, ...(end && end > time && { end: `${day}T${end}` }) }
 }
+
+/** What the share link adds for Save to Outings (the server read it off the flyer): the cost in cents,
+ * the buy-by day, when tickets go on sale, ages and a run's last day. Anything malformed is left out. */
+export type OutingExtras = { priceCents?: number; buyBy?: string; ticketsOnSaleAt?: string; ageMin?: number; ageMax?: number; endsOn?: string }
+export function outingExtras(q: URLSearchParams): OutingExtras {
+  const n = (k: string, max: number) => { const v = q.get(k); return v !== null && /^\d+$/.test(v) && +v <= max ? +v : undefined }
+  const d = (k: string) => { const v = q.get(k); return v && DAY.test(v) ? v : undefined }
+  const sale = q.get('onSale')
+  const out: OutingExtras = { priceCents: n('cost', 10_000_000), buyBy: d('buyBy'), ticketsOnSaleAt: sale && !Number.isNaN(Date.parse(sale)) && /T.*(Z|[+-]\d\d:\d\d)$/.test(sale) ? sale : undefined, ageMin: n('ageMin', 120), ageMax: n('ageMax', 120), endsOn: d('endsOn') }
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
+}

@@ -2,7 +2,7 @@
 // #/calendar?draft=event&title=…&date=…&time=…&end=…&place=… opens the event sheet filled in.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { eventDraft } from '../src/eventDraft.ts'
+import { eventDraft, outingExtras } from '../src/eventDraft.ts'
 
 const q = (s: string) => new URLSearchParams(s)
 
@@ -30,4 +30,11 @@ test('eventDraft: not a draft, or junk values, are ignored', () => {
 test('eventDraft: notes (what to bring, how to RSVP) become the event notes', () => {
   assert.deepEqual(eventDraft(q('draft=event&title=Swim&notes=Bring+a+towel%0ARSVP+to+Sam'), '2026-10-07'),
     { title: 'Swim', location: null, description: 'Bring a towel\nRSVP to Sam', allDay: false })
+})
+
+test('outingExtras: the cost, ticket dates, ages and last day Save to Outings adds; junk is left out', () => {
+  assert.deepEqual(outingExtras(q('draft=event&title=Fair&cost=1500&buyBy=2027-05-01&onSale=2027-04-01T14%3A00%3A00.000Z&ageMin=7&ageMax=10&endsOn=2027-05-10')),
+    { priceCents: 1500, buyBy: '2027-05-01', ticketsOnSaleAt: '2027-04-01T14:00:00.000Z', ageMin: 7, ageMax: 10, endsOn: '2027-05-10' })
+  assert.deepEqual(outingExtras(q('draft=event&cost=0')), { priceCents: 0 })
+  assert.deepEqual(outingExtras(q('draft=event&cost=-5&buyBy=soon&onSale=tomorrow&ageMin=999')), {})
 })

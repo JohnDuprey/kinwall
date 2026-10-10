@@ -63,6 +63,7 @@ import { securityEventsRoutes } from './routes/security-events.ts';
 import { newscastRoutes } from './routes/newscast.ts';
 import { pollsRoutes } from './routes/polls.ts';
 import { outingsRoutes } from './routes/outings.ts';
+import { outingFeedsRoutes } from './routes/outing-feeds.ts';
 import { mediaRoutes } from './routes/media.ts';
 import { shareRoutes } from './routes/share.ts';
 import { handleMcp } from './mcp.ts';
@@ -185,6 +186,7 @@ export function createApp() {
   app.route('/', newscastRoutes);
   app.route('/', pollsRoutes);
   app.route('/', outingsRoutes);
+  app.route('/', outingFeedsRoutes);
   app.route('/', pluginsRoutes);
   app.get('/plugins/*', servePluginFile); // public: a sandboxed iframe can't send a key
   app.route('/', keysRoutes);

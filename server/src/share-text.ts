@@ -122,6 +122,7 @@ const STREET = /\b\d+[a-z]?[ \t]+(?:[\p{L}.'’-]+[ \t]+){0,4}?(street|st|avenue
 const GENERIC = /^(you('|’)?re invited|you are invited|save the date|(please )?join us( to celebrate| for)?|come celebrate|all are welcome|come one,? come all)\W*$/i;
 // The header labels this file reads; their lines aren't part of the words as read.
 const LABELS = /^[-•*\s]*(title|event|what|name|date|time|when|place|location|where|address|venue|notes?|details)\s*:/i;
+const OUTING_LABELS = /^[-•*\s]*(cost|price|ends|tickets?|ages?)\s*:/i;
 const AMPM_WORD = /\d[ \t]*[ap]\.?[ \t]?m\b|\b(noon|midnight)\b/i;
 const mins = (hm: string) => +hm.slice(0, 2) * 60 + +hm.slice(3);
 // Worth a note whatever its length: how to RSVP, a phone number, what to bring or wear, a cost, a link.
@@ -141,11 +142,13 @@ const bounded = (text: string) => text.slice(0, TEXT_MAX).split('\n').map((l) =>
 /** An event's title, date, time (and end) and place, for the person to check. Anything not found is
  * null; nothing is invented. `today` (YYYY-MM-DD, the household's) places a date without a year. */
 export function parseEventText(text: string, today: string): EventDraft {
-  const clean = bounded(text).replace(/\r/g, '').replace(/\*\*/g, '');
+  const all = bounded(text).replace(/\r/g, '').replace(/\*\*/g, '');
+  // The Outings lines (Cost:, Ends:, Tickets:, Ages:) aren't the event's date, time, title or place.
+  const clean = all.split('\n').filter((l) => !OUTING_LABELS.test(l)).join('\n');
   const h = headerLines(clean);
   // The words as read: under a "---" line, or (no such line) every line that isn't a header line.
-  const sep = /^[ \t]*-{3,}[ \t]*$/m.exec(clean);
-  const words = (sep ? clean.slice(sep.index + sep[0].length) : clean).split('\n').filter((l) => !LABELS.test(l)).join('\n');
+  const sep = /^[ \t]*-{3,}[ \t]*$/m.exec(all);
+  const words = (sep ? all.slice(sep.index + sep[0].length) : all).split('\n').filter((l) => !LABELS.test(l)).join('\n');
   const whenLine = header(h, 'when');
   const dateLine = header(h, 'date') ?? whenLine;
   const timeLine = header(h, 'time') ?? whenLine;
@@ -257,4 +260,95 @@ function eventNotes(words: string, given: string | undefined, title: string | nu
     out += out ? `\n${l}` : l;
   }
   return out || null;
+}
+
+// --- Outings -------------------------------------------------------------------------------------
+
+/** An event off a flyer as an outing to check: parseEventText's fields plus a few cheap rules. */
+export type OutingText = EventDraft & {
+  /** A run's last day ("Oct 3–5", "through Oct 31", an "Ends:" line). */
+  endsOn: string | null;
+  /** The lowest "$" amount in cents, 0 when it says free, null when it doesn't say. */
+  priceCents: number | null;
+  priceNote: string | null;
+  /** When tickets go on sale ("Tickets on sale Fri, Oct 2 at 10am"): a household day and maybe a time. */
+  onSale: { date: string; time: string | null } | null;
+  /** The last day to get tickets or sign up ("Register by Oct 10"). */
+  buyBy: string | null;
+  ageMin: number | null;
+  ageMax: number | null;
+  /** "21+", "adults only". */
+  grownUps: boolean;
+};
+
+const FREE = /(?<![-\w])free\b(?![ \t]+(?:parking|wi-?fi|refills?|shuttles?|t-?shirts?|gifts?|snacks?|raffles?|swag|giveaways?|samples?|popcorn|drinks?))|\bno[ \t]+(?:charge|cost)\b/i;
+const DOLLARS = /\$[ \t]?(\d{1,5}(?:\.\d{2})?)\b/g;
+// "Tickets go on sale…", "Registration on sale…", or a Tickets: line's "On sale…" (not a book sale).
+const ON_SALE = /(?:\b(?:tickets?|passes|seats|registration)\b.*?|^[ \t]*)\bon[ \t]+sale\b(?![ \t]+now)(.*)$/i;
+const BUY_BY = /\b(?:register|registration|sign[ \t-]?ups?|rsvp|buy|get[ \t]+tickets|order|reserve)\b.*?\b(?:by|before|closes|ends|deadline)\b:?(.*)$/i;
+const DEADLINE = /\bdeadline\b:?(.*)$/i;
+const AGE_RANGE = /\bages?[ \t]*:?[ \t]*(\d{1,2})[ \t]*(?:-|–|—|to|through|thru)[ \t]*(\d{1,2})\b/i;
+const AGE_PLUS = /\bages?[ \t]*:?[ \t]*(\d{1,2})[ \t]*(?:\+|and[ \t]+(?:up|older|over))/i;
+const ADULTS = /\b(18|21)[ \t]*\+|\b(18|21)[ \t]+and[ \t]+(?:over|older|up)\b|\badults?[ \t]+only\b/i;
+
+/** The first date in a line, for the ticket rules (no weekday-only guesses: "Friday" alone counts). */
+const dateIn = (s: string, today: string) => findDate(s, today)?.date ?? null;
+
+/** An outing off a flyer or invite (the event sheet's "Save to Outings", share kind outing): the
+ * event's fields, plus its cost ("$15", "free"), ticket dates ("tickets on sale…", "register by…"),
+ * ages ("ages 7–10", "21+") and a run's last day ("Oct 3–5", "through Oct 31"). A model's "Cost:",
+ * "Ends:", "Tickets:" and "Ages:" lines come first. Nothing is invented: what isn't found is null. */
+export function parseOutingText(text: string, today: string): OutingText {
+  const all = bounded(text).replace(/\r/g, '').replace(/\*\*/g, '');
+  const h = headerLines(all);
+  const lines = all.split('\n');
+  // Ticket lines say when to buy, not when it is: they're read here and left out of the event's date.
+  let onSale: OutingText['onSale'] = null;
+  let buyBy: string | null = null;
+  const ticketLine = (line: string) => {
+    const sale = ON_SALE.exec(line);
+    const d = sale && dateIn(sale[1], today);
+    if (sale && d) { onSale ??= { date: d, time: findTime(sale[1].replace(findDate(sale[1], today)!.match, ' '), false)?.time ?? null }; return true; }
+    const by = BUY_BY.exec(line) ?? DEADLINE.exec(line);
+    const b = by && dateIn(by[1], today);
+    if (by && b) { buyBy ??= b; return true; }
+    return false;
+  };
+  const tickets = header(h, 'tickets', 'ticket');
+  if (tickets && !ticketLine(tickets)) { const d = dateIn(tickets, today); if (d) onSale = { date: d, time: findTime(tickets, false)?.time ?? null }; }
+  const kept = lines.filter((l) => OUTING_LABELS.test(l) || !ticketLine(l));
+  const e = parseEventText(kept.join('\n'), today);
+
+  // Cost: a "Cost:" line, else the words. The lowest "$" amount, else free when it says so.
+  const costLine = header(h, 'cost', 'price');
+  const costFrom = costLine ?? lines.filter((l) => !OUTING_LABELS.test(l)).join('\n');
+  const amounts = [...costFrom.matchAll(DOLLARS)].map((m) => Math.round(Number(m[1]) * 100));
+  const priceCents = amounts.length ? Math.min(...amounts) : FREE.test(costFrom) ? 0 : null;
+  const priceNote = costLine && !/^\s*(free|\$\s?\d+(\.\d\d)?)\s*$/i.test(costLine) ? costLine.slice(0, 200) : null;
+
+  // Ages: an "Ages:" line ("7-10", "21+"), else the words.
+  const agesLine = header(h, 'ages', 'age');
+  const ageFrom = agesLine !== undefined ? `ages ${agesLine}` : all;
+  const range = AGE_RANGE.exec(ageFrom), plus = AGE_PLUS.exec(ageFrom), adults = ADULTS.exec(agesLine ?? all);
+  let ageMin: number | null = null, ageMax: number | null = null;
+  if (range && +range[1] <= +range[2]) { ageMin = +range[1]; ageMax = +range[2]; } else if (plus) ageMin = +plus[1];
+  if (adults && ageMin === null) ageMin = Number(adults[1] ?? adults[2] ?? 18);
+
+  // A run's last day: an "Ends:" line, "Oct 3–5" / "Oct 3 – Nov 1", or "through Oct 31".
+  let endsOn: string | null = null;
+  const ends = header(h, 'ends');
+  if (ends) endsOn = dateIn(ends, today);
+  if (!endsOn && e.date) {
+    const r = new RegExp(`\\b${MONTH}[ \\t]+(\\d{1,2})(?:st|nd|rd|th)?[ \\t]*(?:-|–|—|to|through|thru)[ \\t]*(?:${MONTH}[ \\t]+)?(\\d{1,2})\\b(?![ \\t]*(?:[ap]\\.?m\\b|:))`, 'i').exec(kept.join('\n'));
+    if (r) {
+      const [y, m] = e.date.split('-').map(Number);
+      const em = r[3] ? monthOf(r[3]) : m;
+      const ey = em < m ? y + 1 : y;
+      if (real(ey, em, +r[4])) endsOn = iso(ey, em, +r[4]);
+    }
+    const through = /\b(?:through|thru|until|till)\b(.*)$/im.exec(kept.join('\n'));
+    if (!endsOn && through) endsOn = dateIn(through[1], e.date);
+  }
+  if (endsOn && (!e.date || endsOn <= e.date)) endsOn = null;
+  return { ...e, endsOn, priceCents, priceNote, onSale, buyBy, ageMin, ageMax, grownUps: !!adults };
 }

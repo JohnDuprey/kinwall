@@ -21,7 +21,7 @@ import { mapHref, parsePrice } from './restaurants.ts'
 import { hashQuery, withHashParam } from './hashQuery.ts'
 import { FOR_BOXES, interestOf, type ForBox } from './outing-rules.ts'
 import { audienceLabel, boxLabel, filterChips, placeSections, priceLabel, reallyCount, shownOutings, startFilters, trayRows, upcomingSections, whenLabel, type Cost, type Filters, type When } from './outings.ts'
-import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingIdeas, OutingInput } from './types.ts'
+import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingFeed, OutingIdeas, OutingInput, OutingPile } from './types.ts'
 import './meals.css'
 import './outings.css'
 
@@ -122,6 +122,7 @@ function OutingRow({ o, categories, onOpen, today, compact = false }: { o: Outin
     <span className="outing-row-main">
       <strong>{o.title}</strong>
       <span className="outing-row-meta">{[whenLabel(o, today), o.placeName].filter(Boolean).join(' · ')}</span>
+      {o.canceled && <span className="outing-canceled">Canceled</span>}
       {!compact && (price || who || ticket || o.calendarEventId) && <span className="outing-tags">
         {price && <span className="chip chip-static">{price}</span>}
         {who && <span className="chip chip-static">{who}</span>}
@@ -132,6 +133,51 @@ function OutingRow({ o, categories, onOpen, today, compact = false }: { o: Outin
     <Marks o={o} members={members} />
     <ChevronRight />
   </button>
+}
+
+/** New items from the community calendars (grown-ups' devices only): "New from <calendar> (N)", folded
+ * until opened, each with Keep (it joins the list) and Not for us (hidden for good). */
+function Pile({ categories, today, onOpen }: { categories: OutingCategory[]; today: string; onOpen: (o: Outing) => void }) {
+  const { refreshTick, toast } = useApp()
+  const [pile, setPile] = useState<OutingPile>([])
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState<string | null>(null)
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const bump = () => setTick(t => t + 1)
+    window.addEventListener(CHANGED, bump)
+    return () => window.removeEventListener(CHANGED, bump)
+  }, [])
+  useEffect(() => {
+    let canceled = false
+    api.getOutingPile().then(p => { if (!canceled) setPile(p) }).catch(() => { /* no pile shown */ })
+    return () => { canceled = true }
+  }, [refreshTick, tick])
+  const decide = async (o: Outing, keep: boolean) => {
+    setBusy(o.id)
+    try { await api.decidePileItem(o.id, keep); changed(); toast(keep ? `Kept: ${o.title}` : `Not for us: ${o.title}`) } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(null) }
+  }
+  const toggle = (id: string) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  return <>{pile.map(({ feed, outings }) => {
+    const shown = open.has(feed.id)
+    return <section key={feed.id} className="outing-pile" aria-labelledby={`pile-${feed.id}`}>
+      <button type="button" id={`pile-${feed.id}`} className="outing-pile-head" aria-expanded={shown} aria-controls={`pile-list-${feed.id}`} onClick={() => toggle(feed.id)}>
+        <span aria-hidden="true">📥</span><span className="outing-pile-title">New from {feed.name} ({outings.length})</span><ChevronRight className={shown ? 'outing-pile-open' : ''} />
+      </button>
+      {shown && <ul className="outing-pile-list" id={`pile-list-${feed.id}`}>
+        {outings.map(o => <li key={o.id} className="outing-pile-row">
+          <button type="button" className="outing-pile-item" aria-haspopup="dialog" onClick={() => onOpen(o)}>
+            <span className="outing-emoji" aria-hidden="true">{emojiOf(o, categories)}</span>
+            <span className="outing-row-main"><strong>{o.title}</strong><span className="outing-row-meta">{[whenLabel(o, today), o.placeName].filter(Boolean).join(' · ')}</span></span>
+          </button>
+          <span className="outing-pile-btns">
+            <button type="button" className="btn btn-primary" disabled={busy === o.id} aria-label={`Keep ${o.title}`} onClick={() => void decide(o, true)}>Keep</button>
+            <button type="button" className="btn btn-secondary" disabled={busy === o.id} aria-label={`${o.title}: not for us`} onClick={() => void decide(o, false)}>Not for us</button>
+          </span>
+        </li>)}
+      </ul>}
+    </section>
+  })}</>
 }
 
 /** The Outings tab. */
@@ -175,6 +221,7 @@ export default function Outings() {
         {chips.map(c => <button key={c.label} type="button" className="btn btn-secondary outing-chip" aria-label={`Remove filter: ${c.label}`} onClick={() => setFilters(c.without)}>{c.label} <span aria-hidden="true">✕</span></button>)}
         <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> Filters{chips.length ? ` (${chips.length})` : ''}</button>
       </div>
+      {who.parent && view === 'upcoming' && <Pile categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
       {error && <div role="alert" className="state-card">Could not load outings: {error} <button className="btn btn-secondary" onClick={retry}>Retry</button></div>}
       {!loaded && !error ? <p role="status">Loading outings…</p> : <>
         <p className="field-hint" role="status">{shown.length} {view === 'place' ? `place${shown.length === 1 ? '' : 's'}` : `outing${shown.length === 1 ? '' : 's'}`}</p>
@@ -309,7 +356,8 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
     ...(o.kind === 'place' && o.visitStatus ? [['🏡', o.visitStatus === 'been' ? `Been there${o.lastVisitedOn ? `, last on ${longDay(o.lastVisitedOn)}` : ''}` : 'Want to go'] as [string, ReactNode]] : []),
   ]
   return <Sheet title={`${emojiOf(o, categories)} ${o.title}`} onClose={onClose} actions={actions}>
-    <p className="outing-meta">{[category?.name, audienceLabel(o, members), o.addedBy && `Added by ${name(o.addedBy)}`, o.archived && 'Not for us'].filter(Boolean).join(' · ')}</p>
+    {o.canceled && <p className="state-card outing-canceled-note" role="note">❌ Canceled: its community calendar called it off.</p>}
+    <p className="outing-meta">{[category?.name, audienceLabel(o, members), o.addedBy && `Added by ${name(o.addedBy)}`, o.feedId && !o.addedBy && 'From a community calendar', o.archived && 'Not for us'].filter(Boolean).join(' · ')}</p>
     <ul className="outing-facts">{facts.map(([icon, text], i) => <li key={i}><span aria-hidden="true">{icon}</span><span>{text}</span></li>)}</ul>
     <section className="outing-interest" aria-label="Who wants to go">
       {lockedTo ? <p className="poll-voting-as"><Face m={members.find(m => m.id === lockedTo) ?? { name: '?', color: 'var(--bg-alt)' }} /> Marking for {name(lockedTo)}</p>
@@ -581,3 +629,77 @@ export function EventOuting({ eventId }: { eventId: string }) {
   </section>
 }
 
+
+/** Settings → Outings → Community calendars (parents' devices): a town, library or school calendar's
+ * iCal link. Its items wait in the pile at the top of Upcoming, never on the family calendar. */
+export function CommunityCalendars() {
+  const { toast, refreshTick } = useApp()
+  const [feeds, setFeeds] = useState<OutingFeed[] | null>(null)
+  const [categories, setCategories] = useState<OutingCategory[]>([])
+  const [editing, setEditing] = useState<OutingFeed | 'new' | null>(null)
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const bump = () => setTick(t => t + 1)
+    window.addEventListener(CHANGED, bump)
+    return () => window.removeEventListener(CHANGED, bump)
+  }, [])
+  useEffect(() => {
+    let canceled = false
+    Promise.all([api.getOutingFeeds(), api.getOutingCategories()]).then(([f, c]) => { if (!canceled) { setFeeds(f); setCategories(c) } }).catch(e => { if (!canceled) toast(e instanceof Error ? e.message : 'Could not load the community calendars.', true) })
+    return () => { canceled = true }
+  }, [refreshTick, tick, toast])
+  const read = (f: OutingFeed) => f.lastError ? <span className="feed-error">{f.lastError}</span>
+    : f.lastFetchedAt ? `${f.waiting ? `${f.waiting} new waiting in Outings` : 'Nothing new waiting'} · Read ${new Date(f.lastFetchedAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : 'Not read yet'
+  return <>
+    <h3 className="settings-row-label">Community calendars</h3>
+    <p className="settings-row-sub">A town, library or school calendar’s iCal link (.ics). Kinwall reads it once a day, and its events wait at the top of Outings → Upcoming for a grown-up to keep or skip. They never go on the family calendar.</p>
+    {feeds?.map(f => <div key={f.id} className="settings-row feed-row">
+      <div className="feed-row-main"><div className="settings-row-label">{f.name}</div><div className="settings-row-sub">{read(f)}</div></div>
+      <button type="button" className="btn btn-secondary" style={{ flex: 'none' }} aria-label={`Change ${f.name}`} onClick={() => setEditing(f)}>Change</button>
+    </div>)}
+    <div className="settings-row"><button type="button" className="btn btn-secondary" style={{ flex: 'none' }} onClick={() => setEditing('new')}><PlusIcon /> Add a calendar link</button></div>
+    {editing && <FeedSheet feed={editing === 'new' ? null : editing} categories={categories} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); changed() }} />}
+  </>
+}
+
+function FeedSheet({ feed, categories, onClose, onSaved }: { feed: OutingFeed | null; categories: OutingCategory[]; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useApp()
+  const dialog = useDialog()
+  const id = useId()
+  const [name, setName] = useState(feed?.name ?? '')
+  const [url, setUrl] = useState(feed?.url ?? '')
+  const [categoryId, setCategoryId] = useState<string | null>(feed?.categoryId ?? null)
+  const [audience, setAudience] = useState<OutingAudience | ''>(feed?.audience[0] ?? '')
+  const [skipWords, setSkipWords] = useState(feed?.skipWords ?? 'meeting, committee, board, hearing')
+  const [busy, setBusy] = useState(false)
+  const run = async (work: () => Promise<unknown>, done: string) => {
+    setBusy(true)
+    try { await work(); toast(done); onSaved() } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
+  }
+  const body = { name: name.trim(), url: url.trim(), categoryId, audience: audience ? [audience] : [], skipWords }
+  const save = () => void run(async () => {
+    const saved = feed ? await api.updateOutingFeed(feed.id, body) : await api.createOutingFeed(body)
+    if (saved.lastError) toast(saved.lastError, true)
+  }, feed ? `Saved ${body.name}` : `Added ${body.name}. New events wait in Outings → Upcoming.`)
+  const remove = async () => {
+    if (!feed || !await dialog.confirm({ title: `Remove “${feed.name}”?`, body: 'Its new events waiting in Outings go away. Outings you kept stay.', confirmLabel: 'Remove calendar', danger: true })) return
+    void run(() => api.deleteOutingFeed(feed.id), `Removed ${feed.name}`)
+  }
+  return <Sheet title={feed ? feed.name : 'Add a community calendar'} onClose={onClose} dismissable={!busy}
+    actions={<button className="btn btn-primary" disabled={busy || !name.trim() || !/^(https?|webcal):\/\/\S+$/i.test(url.trim())} onClick={save}>{feed ? 'Save' : 'Add calendar'}</button>}>
+    <div className="field"><label htmlFor={`${id}-name`}>Name</label><input id={`${id}-name`} type="text" value={name} maxLength={80} placeholder="Town calendar" onChange={e => setName(e.target.value)} /></div>
+    <div className="field"><label htmlFor={`${id}-url`}>Calendar link</label><input id={`${id}-url`} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} placeholder="https://… .ics or webcal://…" onChange={e => setUrl(e.target.value)} aria-describedby={`${id}-url-hint`} />
+      <p className="field-hint" id={`${id}-url-hint`}>Look for “Subscribe”, “iCal” or “Add to calendar” on the calendar’s page and copy that link.</p></div>
+    <LabeledPick label="Category for its events" none="None" value={categoryId ? [categoryId] : []} onChange={v => setCategoryId(v[0] || null)} options={[{ value: '', label: 'None' }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
+    <div className="field"><label htmlFor={`${id}-aud`}>Who its events are for</label>
+      <select id={`${id}-aud`} className="settings-select" value={audience} onChange={e => setAudience(e.target.value as OutingAudience | '')}>
+        <option value="">Not set</option><option value="family">The whole family</option><option value="kids">Kids</option><option value="grownups">Grown-ups</option>
+      </select></div>
+    <div className="field"><label htmlFor={`${id}-skip`}>Skip events named with</label><input id={`${id}-skip`} type="text" value={skipWords} maxLength={500} onChange={e => setSkipWords(e.target.value)} aria-describedby={`${id}-skip-hint`} />
+      <p className="field-hint" id={`${id}-skip-hint`}>Words separated by commas. Events with one of these words in the name never show up, like a town’s public meetings.</p></div>
+    {feed && <div className="feed-sheet-actions">
+      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.refreshOutingFeed(feed.id), `Read ${feed.name} again`)}>Read it again now</button>
+      <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove()}>Remove calendar…</button>
+    </div>}
+  </Sheet>
+}

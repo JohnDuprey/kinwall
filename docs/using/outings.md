@@ -100,10 +100,34 @@ From 9 AM (household time), each sent once, held through [quiet hours](notificat
 
 They're in the bell, and pushed to people's own devices and parents' devices where **Outing reminders** is on (**Settings → Notifications**, per device, on by default). Kinwall only knows ticket dates someone entered; it doesn't check ticket pages.
 
+## Adding from a link, a flyer or a map
+
+With the [Kinwall app](share-to-kinwall.md#with-the-kinwall-app) on a grown-up's phone, share it to **Kinwall**:
+
+* **A web page about an event or a place** (a concert, a fair, a movie showing, a park, a museum, a zoo) becomes an outing to check first. Kinwall reads what the page publishes for search engines: the name, the day or days (a fair over a weekend becomes a run), the times, the place and address, the lowest price (or **Free**), when tickets go on sale, the last day to buy them, the ticket page, and the ages it's for. A recipe page is still a recipe and a restaurant's page still a restaurant.
+* **A flyer, an invite or a screenshot** shows the event sheet; next to **Add to calendar** there's **Save to Outings**. Kinwall also reads the cost ("$15", the lowest one; "Free"), the ticket dates ("Tickets on sale Oct 1 at 10am", "Register by Oct 3" or "Sign up by…" for **Get tickets by**), the ages ("Ages 7–10", "21+"), and a run's last day ("Oct 3–5", "through Oct 31").
+* **A place in Apple Maps or Google Maps**: **Restaurant or place?** has **Place to visit**, which adds it to **Places** with its address and the map link. (**Place** still adds it to Contacts.)
+
+Kinwall never looks anything up on a ticket site; it only reads what was shared. Sharing the same outing again (the same name on the same day, or a place with the same name) fills in only what's still empty, and brings it back if it was **Not for us**.
+
+## Community calendars
+
+Many towns, libraries, schools and recreation departments publish their calendar as an iCal link (it ends in `.ics` or starts with `webcal://`; look for **Subscribe** or **iCal** on their calendar page). On a parent's device, add one under **Settings → Family → Outings → Community calendars → Add a calendar link**:
+
+* **Name** and **Calendar link**.
+* **Category for its events** and **Who its events are for**, given to everything new from it.
+* **Skip events named with**: words, separated by commas. An event with one of them in its name never shows up. It starts as "meeting, committee, board, hearing", so a town's public meetings stay out.
+
+Kinwall reads each calendar once a day, 90 days ahead. Its events never go on the family calendar. New ones wait at the top of **Upcoming**, on parents' devices only, under **New from Town calendar (12)**: tap to open it, then **Keep** (it joins the list) or **Not for us** (it's hidden and stays hidden). Tap an event's name to see it first.
+
+When the calendar changes, Kinwall follows it: an event that moved moves, and one that's gone or past leaves the pile. One you kept keeps your changes (its name, notes, who's interested) but follows the calendar's day, time and place, and shows **Canceled** if the calendar calls it off. A repeating event (weekly story time) is one outing, at its next time.
+
+**Change** on a calendar edits it, reads it again now, or removes it (its waiting events go; outings you kept stay). If a link stops working, the calendar shows why in plain words, and Kinwall tries again the next day. RSS feeds aren't supported.
+
 ## Turning it off
 
-Outings has its own switch in [Settings → Features](../settings/general.md#features). Off, the tab, the Board's 🎟 button, the event link and the reminders are gone (earlier notes leave the bell), and `/api/outings` answers 404. Nothing is deleted.
+Outings has its own switch in [Settings → Features](../settings/general.md#features). Off, the tab, the Board's 🎟 button, the event link, the reminders, sharing to Outings and the community calendars are gone (earlier notes leave the bell; calendars aren't read), and `/api/outings` and `/api/outing-feeds` answer 404. Nothing is deleted.
 
 ## For developers
 
-REST: [`/api/outings`](../integrations/rest-api.md). MCP: `list_outings`, `get_outing`, `create_outing`, `update_outing`, `delete_outing`, `mark_outing_interest`, `add_outing_to_calendar`, `list_outing_categories`, `suggest_outings` ([MCP](../integrations/mcp.md)). Webhook: `outing.changed`. Outings are in the family's export and import.
+REST: [`/api/outings`, `/api/outing-feeds`](../integrations/rest-api.md), and `POST /api/share` with `kind: outing` ([Add to Kinwall](share-to-kinwall.md#the-request)). MCP: `list_outings`, `get_outing`, `create_outing`, `update_outing`, `delete_outing`, `mark_outing_interest`, `add_outing_to_calendar`, `list_outing_categories`, `suggest_outings`, `import_outing` ([MCP](../integrations/mcp.md)); community calendars are managed in the app or over REST only. Webhook: `outing.changed`. Kept outings are in the family's export and import (community calendars and their waiting events aren't).

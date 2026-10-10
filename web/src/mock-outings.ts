@@ -4,7 +4,7 @@
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { addDays, hiddenFromKid, openStretches, outingIdeas, rainy, weekendOf, type BusyStretch } from './outing-rules.ts'
-import type { Outing, OutingCategory } from './types.ts'
+import type { Outing, OutingCategory, OutingFeed } from './types.ts'
 
 const today = dateKey(new Date())
 const [sat, sun] = weekendOf(today)
@@ -20,7 +20,7 @@ let categories: OutingCategory[] = [
 const base: Omit<Outing, 'id' | 'title'> = {
   kind: 'upcoming', categoryId: null, startsOn: null, endsOn: null, startTime: null, endTime: null, hours: null, placeName: null, address: null, priceCents: null, priceNote: null,
   audience: [], memberIds: [], ageMin: null, ageMax: null, url: null, ticketsUrl: null, ticketsOnSaleAt: null, buyBy: null, gotTickets: false, visitStatus: null, lastVisitedOn: null,
-  notes: null, calendarEventId: null, calendarEventStart: null, source: 'manual', addedBy: 'm1', archived: false, createdAt: `${addDays(today, -10)}T18:00:00.000Z`, updatedAt: `${addDays(today, -10)}T18:00:00.000Z`, interest: [],
+  notes: null, calendarEventId: null, calendarEventStart: null, source: 'manual', addedBy: 'm1', archived: false, feedId: null, canceled: false, createdAt: `${addDays(today, -10)}T18:00:00.000Z`, updatedAt: `${addDays(today, -10)}T18:00:00.000Z`, interest: [],
 }
 const make = (id: string, title: string, p: Partial<Outing>): Outing => ({ ...base, id, title, ...p })
 const really = (...ids: string[]) => ids.map(memberId => ({ memberId, level: 'really' as const }))
@@ -40,6 +40,48 @@ let outings: Outing[] = [
   make('demo-beach', 'Lakeside Beach', { kind: 'place', categoryId: 'oc-water', priceCents: 0, audience: ['family'], visitStatus: 'been', lastVisitedOn: addDays(today, -40) }),
 ]
 
+// A community calendar and its pile of new items (server: routes/outing-feeds.ts), all made up.
+let feeds: OutingFeed[] = [{ id: 'demo-town-feed', name: 'Maple Grove town calendar', url: 'https://example.com/maple-grove/events.ics', categoryId: null, audience: ['family'], skipWords: 'meeting, committee, board, hearing', lastFetchedAt: `${today}T06:00:00.000Z`, lastError: null, waiting: 0 }]
+const fromFeed = (id: string, title: string, p: Partial<Outing>): Outing => make(id, title, { source: 'feed', feedId: 'demo-town-feed', addedBy: null, audience: ['family'], ...p })
+let pile: Outing[] = [
+  fromFeed('demo-feed-movie', 'Movie night on the green', { startsOn: addDays(sat, 7), startTime: '19:00', placeName: 'Town Green', notes: 'Bring a blanket. Free popcorn.' }),
+  fromFeed('demo-feed-tree', 'Tree lighting', { startsOn: addDays(today, 40), startTime: '17:30', placeName: 'Maple Grove Common' }),
+  fromFeed('demo-feed-craft', 'Holiday craft fair', { startsOn: addDays(today, 33), endsOn: addDays(today, 34), placeName: 'Maple Grove Community Center' }),
+]
+const waiting = () => feeds.map(f => ({ ...f, waiting: pile.filter(o => o.feedId === f.id && !o.archived).length }))
+
+/** The community calendars, the pile, and Save to Outings (POST /api/share kind outing). */
+function mockFeeds(parts: string[], method: string, body: Record<string, unknown>): unknown {
+  if (kid()) throw new Error('Only a grown-up can do that.')
+  if (parts[1] === 'share') {
+    const o = body.outing as Partial<Outing> & { title: string }
+    const same = outings.find(x => x.title.toLowerCase() === o.title.toLowerCase() && x.startsOn === (o.startsOn ?? null))
+    if (same) { const old = same as unknown as Record<string, unknown>; for (const [k, v] of Object.entries(o)) if (v != null && old[k] == null) old[k] = v; return { kind: 'outing', summary: `Filled in ${same.title} in Outings`, link: `#/outings?outing=${same.id}`, review: false } }
+    const made = make(crypto.randomUUID(), o.title, { ...o, source: 'share' })
+    outings.push(made)
+    return { kind: 'outing', summary: `Added ${made.title} to Outings`, link: `#/outings?outing=${made.id}`, review: false }
+  }
+  const id = parts[2] && decodeURIComponent(parts[2])
+  if (id === 'pile') {
+    if (method === 'GET') return waiting().map(f => ({ feed: { id: f.id, name: f.name }, outings: copy(pile.filter(o => o.feedId === f.id && !o.archived)) })).filter(p => p.outings.length)
+    const o = pile.find(x => x.id === decodeURIComponent(parts[3]))
+    if (!o) throw new Error('That item is no longer waiting.')
+    if (body.keep) { pile = pile.filter(x => x !== o); outings.push(o) } else o.archived = true
+    return copy(o)
+  }
+  if (!id) {
+    if (method === 'GET') return copy(waiting())
+    const f: OutingFeed = { id: crypto.randomUUID(), name: String(body.name), url: String(body.url), categoryId: (body.categoryId as string) ?? null, audience: (body.audience as OutingFeed['audience']) ?? [], skipWords: (body.skipWords as string) ?? 'meeting, committee, board, hearing', lastFetchedAt: new Date().toISOString(), lastError: null, waiting: 0 }
+    feeds.push(f); return copy(f)
+  }
+  const f = feeds.find(x => x.id === id)
+  if (!f) throw new Error('calendar not found')
+  if (method === 'DELETE') { feeds = feeds.filter(x => x !== f); pile = pile.filter(o => o.feedId !== id); return { ok: true } }
+  if (parts[3] === 'refresh') f.lastFetchedAt = new Date().toISOString()
+  else Object.assign(f, body)
+  return copy(waiting().find(x => x.id === id))
+}
+
 const copy = <T,>(x: T): T => structuredClone(x)
 const kid = () => mock.demoKid()
 let outingCategoryId: string | null = null
@@ -53,6 +95,7 @@ export async function mockOutingRequest(path: string, options: RequestInit): Pro
     const o = outings.find(x => x.calendarEventId === decodeURIComponent(parts[2]))
     return { outing: o && !(kid() && hiddenFromKid(o, kid()!)) ? copy(o) : null }
   }
+  if (parts[1] === 'outing-feeds' || parts[1] === 'share') return mockFeeds(parts, method, body)
   if (parts[1] === 'outing-categories') {
     const id = parts[2] && decodeURIComponent(parts[2])
     if (method === 'GET') return copy(categories)

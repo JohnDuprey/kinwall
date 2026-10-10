@@ -57,7 +57,30 @@
 .event-outing { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .event-outing .btn { flex: none; align-self: flex-start; gap: 8px; }
 
+/* The pile of new items from community calendars (grown-ups' devices): folded under its heading. */
+.outing-pile { margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); box-shadow: var(--shadow); }
+.outing-pile-head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 14px; border: 0; background: none; color: var(--text); font: inherit; font-weight: 800; text-align: left; }
+.outing-pile-title { flex: 1; }
+.outing-pile-head svg { flex: none; width: 20px; height: 20px; color: var(--text-dim); transition: transform 0.15s; }
+.outing-pile-head svg.outing-pile-open { transform: rotate(90deg); }
+.outing-pile-list { list-style: none; margin: 0; padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.outing-pile-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.outing-pile-item { flex: 1 1 240px; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; }
+.outing-pile-item .outing-emoji { background: var(--card); }
+.outing-pile-btns { flex: none; display: flex; gap: 8px; margin-left: auto; }
+.outing-pile-btns .btn { flex: none; min-height: 44px; padding: 6px 14px; }
+.outing-canceled { align-self: flex-start; padding: 1px 8px; border: 2px solid var(--danger); border-radius: 999px; font-size: 0.8125rem; font-weight: 800; }
+.outing-canceled-note { margin: 0 0 12px; font-weight: 700; }
+.feed-row { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.feed-row-main { flex: 1; min-width: 0; }
+.feed-row-main .settings-row-sub { overflow-wrap: anywhere; }
+.feed-error { color: var(--danger); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) { .outing-pile-head svg { transition: none; } }
+
 @media (max-width: 600px) {
   .outing-row { gap: 10px; padding: 10px 12px; }
   .outing-emoji { width: 40px; height: 40px; font-size: 1.3rem; }
 }
+.feed-sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.feed-sheet-actions .btn { flex: none; }

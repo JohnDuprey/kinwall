@@ -100,3 +100,7 @@ See [Chores](../using/chores.md) for how these play out day to day.
 ## Meals
 
 When the Meals feature is on, this tab has the family's usual meal times: **Breakfast** 7:30 AM, **Lunch** 12:00 PM, **Dinner** 6:00 PM and **Snack** 3:00 PM unless you change them. A meal without its own time goes on the calendar at its usual time, and the meal sheet shows it under the **Time** field. Changing a usual time doesn't move events already on the calendar. API: `mealTimes` in `GET` / `PATCH /api/settings`, as `{ "breakfast": "07:30", "lunch": "12:00", "dinner": "18:00", "snack": "15:00" }` (send all four). See [Meals](../using/meals.md#the-calendar).
+
+## Outings
+
+**Community calendars** (parents' devices, while [Outings](../using/outings.md) is on): a town, library or school calendar's iCal link, read once a day. Its events wait at the top of **Outings → Upcoming** to **Keep** or mark **Not for us**, and never go on the family calendar. Each one has a name, a category and "who it's for" for its events, and words to skip ("meeting, committee, board, hearing" to start). See [Community calendars](../using/outings.md#community-calendars).

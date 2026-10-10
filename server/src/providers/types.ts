@@ -19,6 +19,8 @@ export type NormalizedEvent = {
   // Free/busy ("Show as"). false = free (Google transparency 'transparent', Outlook showAs 'free',
   // ICS TRANSP:TRANSPARENT); true or undefined = busy, the default everywhere.
   busy?: boolean;
+  // STATUS:CANCELLED, only when expandICS was asked to keep those (Outings' community calendars).
+  cancelled?: boolean;
 };
 
 export type EventInput = Omit<NormalizedEvent, 'externalId'>;

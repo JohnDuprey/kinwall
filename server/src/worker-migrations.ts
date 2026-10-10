@@ -112,6 +112,7 @@ import m0108 from '../migrations/0108_list_item_for.sql';
 import m0109 from '../migrations/0109_medication_refills.sql';
 import m0110 from '../migrations/0110_chore_timer.sql';
 import m0111 from '../migrations/0111_outings.sql';
+import m0112 from '../migrations/0112_outing_feeds.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -225,4 +226,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0109_medication_refills.sql', sql: m0109 },
   { name: '0110_chore_timer.sql', sql: m0110 },
   { name: '0111_outings.sql', sql: m0111 },
+  { name: '0112_outing_feeds.sql', sql: m0112 },
 ];

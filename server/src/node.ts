@@ -14,6 +14,7 @@ import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
 import { runNotifications } from './notify.ts';
 import { lookUpSome } from './book-details.ts';
+import { refreshDueFeeds } from './routes/outing-feeds.ts';
 import { http2Send } from './apns-node.ts';
 import { guardedLookup, nodeFetch } from './outbound-node.ts';
 import { nodeClientIp } from './ratelimit.ts';
@@ -195,6 +196,8 @@ serve({
 const intervalMs = syncIntervalMinutes(env) * 60 * 1000;
 setInterval(() => {
   syncDue(env).catch((err) => console.error('sync loop failed', err));
+  // Outings' community calendars, each once a day (routes/outing-feeds.ts).
+  refreshDueFeeds(env).catch((err) => console.error('community calendars loop failed', err instanceof Error ? err.name : 'error'));
 }, intervalMs);
 
 // Notifications run on their own short cadence (independent of the sync interval, which can be

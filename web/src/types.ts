@@ -1098,9 +1098,15 @@ export interface Outing {
   url: string | null; ticketsUrl: string | null; ticketsOnSaleAt: string | null; buyBy: string | null; gotTickets: boolean
   visitStatus: 'want' | 'been' | null; lastVisitedOn: string | null; notes: string | null
   calendarEventId: string | null; calendarEventStart: string | null; source: string; addedBy: string | null; archived: boolean
+  /** The community calendar it came from; canceled: that calendar called it off. */
+  feedId: string | null; canceled: boolean
   createdAt: string; updatedAt: string; interest: { memberId: string; level: 'interested' | 'really' }[]
 }
-export type OutingInput = Partial<Omit<Outing, 'id' | 'calendarEventId' | 'calendarEventStart' | 'source' | 'addedBy' | 'createdAt' | 'updatedAt' | 'interest'>>
+export type OutingInput = Partial<Omit<Outing, 'id' | 'calendarEventId' | 'calendarEventStart' | 'source' | 'addedBy' | 'createdAt' | 'updatedAt' | 'interest' | 'feedId' | 'canceled'>>
+/** A community calendar (server: routes/outing-feeds.ts): an .ics link whose items wait in a pile. */
+export interface OutingFeed { id: string; name: string; url: string; categoryId: string | null; audience: OutingAudience[]; skipWords: string; lastFetchedAt: string | null; lastError: string | null; waiting: number }
+export type OutingFeedInput = { name: string; url: string; categoryId?: string | null; audience?: OutingAudience[]; skipWords?: string }
+export type OutingPile = { feed: { id: string; name: string }; outings: Outing[] }[]
 export interface OutingIdea { key: string; emoji: string; title: string; note: string | null; outingIds: string[] }
 export interface OutingIdeas { ideas: OutingIdea[]; outings: Outing[]; openTime: { day: string; from: string; to: string }[]; forecast: { date: string; text: string; rainy: boolean }[] }
 export interface OutingCategory { id: string; name: string; emoji: string | null; sort: number }

@@ -2,6 +2,11 @@
 // is shared goes where it belongs, through what each area already does:
 // - a link with no kind is read once and sent by its JSON-LD: Recipe → the recipe import (saved),
 //   Restaurant/FoodEstablishment/LocalBusiness → the restaurant import; an Apple Maps place → restaurant
+//   and, with Outings on, an Event (MusicEvent, Festival…) or a place to visit (Park, Museum, Zoo…) → an
+//   outing to check (kind outing); a page with a restaurant on it stays a restaurant
+// - kind outing: a link's Event or place (a Maps place: a place to visit), a flyer's text (parseOutingText:
+//   cost, ticket dates, ages), or the outing as checked (outing, or event with the flyer's text). Saving
+//   one with the same name on the same day (a place: the same name) fills only its empty fields
 // - kind place: a Maps place (or a page's place) as a contact of kind place; one with the same name
 //   (case ignored, as convertRefillPlaces matches) gets only its empty address, phone and websites filled
 // - a photo or text comes with kind from the Shortcut's "What is this?" menu (Kinwall never guesses):
@@ -23,8 +28,10 @@ import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import { fetchRecipePage } from '../outbound.ts';
 import { parseRecipeHtml } from '../recipe-web.ts';
-import { linkDetails, mapsPlace, nameKey, normalizeLink, parseRestaurantHtml } from '../restaurant-import.ts';
-import { bookQuery, findIsbn, parseEventText } from '../share-text.ts';
+import { hasFoodPlace, linkDetails, mapsPlace, nameKey, normalizeLink, parseRestaurantHtml } from '../restaurant-import.ts';
+import { bookQuery, findIsbn, parseEventText, parseOutingText } from '../share-text.ts';
+import { outingFromHtml, outingFromText, type OutingDraft } from '../outing-import.ts';
+import { OutingPatchSchema, readOutings } from './outings.ts';
 import { autoShelf, sameBook } from '../shelve.ts';
 import { checkRate } from '../ratelimit.ts';
 import { formatTime, hour12For } from '../timeFormat.ts';
@@ -43,7 +50,7 @@ type C = Context<{ Bindings: Env }>;
 /** The app, to add a book through POST /api/library itself (as the MCP tools do). */
 type App = { request: (path: string, init: RequestInit, env: Env) => Response | Promise<Response> };
 
-const KINDS = ['recipe', 'restaurant', 'book', 'event', 'place'] as const;
+const KINDS = ['recipe', 'restaurant', 'book', 'event', 'place', 'outing'] as const;
 /** A link to show on a card: its host and path, shortened ("cornerslice.example/order…"). */
 export const shortLink = (u: string) => { const l = u.replace(/^https?:\/\/(?:www\.)?/i, '').replace(/\/$/, ''); return l.length > 40 ? `${l.slice(0, 39)}…` : l; };
 // Shortcuts sends an unset variable as "" and a switch as text.
@@ -58,16 +65,17 @@ const EventDraftSchema = z.object({
 }).openapi('ShareEvent');
 export const ShareInputSchema = RestaurantImportSchema.extend({
   // Shortcuts sends an unset variable as "" and a menu item as typed ("Book"): both are fine.
-  kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page, and a Maps place is a restaurant. place: a Maps place (or any place) as a contact of kind place, with its name, address, the link as its "Map" website, website (not a Maps link) and phone; a contact with the same name gets only its empty fields filled in. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
+  kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page (a recipe, a restaurant, or with Outings on an event or a place to visit), and a Maps place is a restaurant. outing: an outing to check first (preview), from a link, a flyer\'s text or the outing as checked; with a Maps link, a place to visit. place: a Maps place (or any place) as a contact of kind place, with its name, address, the link as its "Map" website, website (not a Maps link) and phone; a contact with the same name gets only its empty fields filled in. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
   url: z.string().max(5000).nullable().optional().describe('A shared link: a recipe or restaurant page, or an Apple or Google Maps place (a short link is followed to the place).'),
   text: z.string().max(100000).nullable().optional().describe('Text from a photo or a share: a menu (restaurant), an ISBN or a title and author (book), or a flyer or invite (event). "Title:", "Date:", "Time:", "Place:" and "Notes:" lines help an event; "Title:" and "Author:" a book. The first of each line wins, so a model\'s lines can go first, then a "---" line, then the words as read: a Place with no street takes the street from them, a bare street the "at" venue line above it, and a Time with no am/pm or end the words\' fuller time. Leftover lines worth knowing become notes.'),
-  event: EventDraftSchema.partial().nullable().optional().describe('An event as the person checked it (from a previous answer\'s event); used instead of text.'),
+  event: EventDraftSchema.partial().nullable().optional().describe('An event as the person checked it (from a previous answer\'s event); used instead of text. kind outing: its fields win over what text says, and text still gives the cost, ticket dates and ages.'),
+  outing: OutingPatchSchema.nullable().optional().describe('kind outing: the outing as the person checked it (a previous answer\'s preview.outing, changed); used instead of url and text.'),
   save: z.preprocess(blankOff, z.boolean().optional()).describe('kind event only: add it to calendarId now instead of answering with a link to check it.'),
   calendarId: z.preprocess(blankOff, z.string().optional()).describe('With save: the calendar to add the event to (GET /api/calendars, one that is writable). Left out: the default calendar (default: true).'),
-  preview: z.preprocess(blankOff, z.boolean().optional()).describe('A recipe, restaurant or book: answer with what would be saved (preview, review: true) and save nothing. Share it again without preview to save it. An event or a book to pick answers as it does without it.'),
+  preview: z.preprocess(blankOff, z.boolean().optional()).describe('A recipe, restaurant, book or outing: answer with what would be saved (preview, review: true) and save nothing. Share it again without preview to save it. An event or a book to pick answers as it does without it.'),
   token: z.preprocess(blankOff, z.string().max(100).optional()).describe("With the save after a link's preview: its preview.token, so the page it read is used instead of reading it again (for 10 minutes, once)."),
 }).openapi('ShareInput');
-const ShareResultSchema = z.object({
+export const ShareResultSchema = z.object({
   kind: z.enum(KINDS),
   summary: z.string().describe('One line for a notification, e.g. "Added Wool to the library" or "Check the event: Spring fair, Sat May 9".'),
   link: z.string().describe('A Kinwall address that opens what was added, or the thing to check.'),
@@ -83,12 +91,13 @@ const ShareResultSchema = z.object({
     restaurant: z.object({ cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(), items: z.number().int(), sections: z.number().int(),
       added: z.number().int().describe('Menu items saving adds.'), alreadyThere: z.number().int().describe('Menu items already on its menu.') }).optional(),
     book: z.object({ author: z.string().nullable(), format: z.enum(['book', 'audiobook']), shelf: z.enum(['kids', 'grownups', 'everyone']).describe('The shelf it lands on (Auto, unless a parent picked one for a book already there).') }).optional(),
+    outing: OutingPatchSchema.optional().describe('The outing that saving adds: send it back as outing (changed or not) to save it.'),
   }).optional().describe('With preview: what would be saved. Nothing is saved yet (review is true).'),
 }).openapi('ShareResult');
 const ShareErrorSchema = z.object({ error: z.string(), summary: z.string().describe('The same as error, for the notification.') });
 const err = { content: { 'application/json': { schema: ShareErrorSchema } } };
 
-type Page = { db: unknown; url: string; at: number; recipe: ReturnType<typeof parseRecipeHtml>; place: ReturnType<typeof parseRestaurantHtml> };
+type Page = { db: unknown; url: string; at: number; recipe: ReturnType<typeof parseRecipeHtml>; place: ReturnType<typeof parseRestaurantHtml>; food: boolean; outing: OutingDraft | null };
 // Pages read for a preview, by token, for the save that follows: 10 minutes, used once, at most 50.
 // db: only the family that read it gets it back (hosted families can share one process).
 const pages = new Map<string, Page>();
@@ -113,6 +122,11 @@ type Preview = NonNullable<z.infer<typeof ShareResultSchema>['preview']>;
 const origin = (c: C) => (c.env.PUBLIC_URL ? new URL(c.env.PUBLIC_URL).origin : new URL(c.req.url).origin);
 const MEALS_OFF = 'Meals is turned off in Settings → General → Features';
 const CONTACTS_OFF = 'Contacts is turned off in Settings → General → Features';
+const OUTINGS_OFF = 'Outings are turned off in Settings → General → Features';
+const dayLine = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const money = (cents: number) => (cents === 0 ? 'Free' : `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`);
+// What saving fills in on an outing already there, by field, in plain words.
+const OUTING_WORDS: [keyof OutingDraft, string][] = [['startsOn', 'date'], ['endsOn', 'last day'], ['startTime', 'time'], ['placeName', 'place'], ['address', 'address'], ['priceCents', 'price'], ['url', 'link'], ['ticketsUrl', 'ticket link'], ['ticketsOnSaleAt', 'on-sale date'], ['buyBy', 'buy-by date'], ['ageMin', 'ages'], ['notes', 'notes']];
 
 export function shareRoutes(app: App) {
   const routes = createRouter();
@@ -162,6 +176,84 @@ export function shareRoutes(app: App) {
       return typeof result === 'string' ? fail(result, 400) : ok('restaurant', result.summary, `meals?restaurant=${encodeURIComponent(result.restaurant.id)}`);
     };
 
+    const tz = settings.timezone || hostTimezone();
+    const today = todayInTz(tz);
+    const h12 = hour12For(settings.timeFormat, settings.location?.countryCode);
+
+    // An outing to check (preview) or save: one already there with the same name on the same day (a
+    // place: the same name) gets only its empty fields filled in, and comes back from "Not for us".
+    const outing = async (draft: Partial<OutingDraft>, token: string | null = null) => {
+      if (!settings.features.outings) return fail(OUTINGS_OFF, 403);
+      const title = draft.title?.trim();
+      if (!title) return fail("Add the outing's name, then try again.", 400);
+      const kindOf = draft.kind ?? 'upcoming';
+      const d = { ...draft, title, kind: kindOf, startsOn: kindOf === 'place' ? null : draft.startsOn ?? null };
+      // A category the family deleted is left out.
+      if (d.categoryId && !(await c.env.DB.prepare('SELECT id FROM outing_categories WHERE id = ?').bind(d.categoryId).first())) d.categoryId = null;
+      const same = await c.env.DB.prepare('SELECT id FROM outings WHERE inbox = 0 AND kind = ? AND title = ? COLLATE NOCASE AND starts_on IS ? ORDER BY archived, created_at, id LIMIT 1')
+        .bind(kindOf, title, d.startsOn ?? null).first<{ id: string }>();
+      const old = same ? (await readOutings(c.env.DB, { id: same.id }))[0] : null;
+      const blank = (v: unknown) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length);
+      const fill = old
+        ? Object.fromEntries(Object.entries(d).filter(([k, v]) => !blank(v) && k in old && blank(old[k as keyof typeof old])))
+        : Object.fromEntries(Object.entries(d).filter(([, v]) => !blank(v)));
+      const path = old ? `outings?outing=${encodeURIComponent(old.id)}` : 'outings';
+      if (input.preview) {
+        const v = { ...d, ...(old && Object.fromEntries(Object.entries(old).filter(([k, x]) => k in d && !blank(x)))) } as Partial<OutingDraft>;
+        const clock = (t: string | null | undefined) => (t ? formatTime(t, { h12, hourOnly: h12 && t.endsWith(':00') }) : null);
+        const when = v.kind === 'place' ? 'Place to visit, any time'
+          : !v.startsOn ? 'Date not announced yet'
+          : v.endsOn ? `${dayLine(v.startsOn)} to ${dayLine(v.endsOn)}`
+          : [dayLine(v.startsOn), [clock(v.startTime), clock(v.endTime)].filter(Boolean).join(' to ')].filter(Boolean).join(', ');
+        const sale = v.ticketsOnSaleAt ? new Date(v.ticketsOnSaleAt) : null;
+        const ages = v.ageMin != null && v.ageMax != null ? `Ages ${v.ageMin} to ${v.ageMax}` : v.ageMin != null ? `Ages ${v.ageMin} and up` : v.audience?.includes('grownups') ? 'For grown-ups' : v.audience?.includes('kids') ? 'For kids' : null;
+        const cat = v.categoryId ? await c.env.DB.prepare('SELECT name, emoji FROM outing_categories WHERE id = ?').bind(v.categoryId).first<{ name: string; emoji: string | null }>() : null;
+        const lines = [
+          when, [v.placeName, v.address].filter(Boolean).join(', '),
+          v.priceCents != null && (v.priceCents === 0 ? 'Free' : `From ${money(v.priceCents)}`), v.priceNote,
+          sale && `Tickets on sale ${dayLine(todayInTz(tz, sale))} at ${formatTime(sale, { h12, tz })}`, v.buyBy && `Get tickets by ${dayLine(v.buyBy)}`,
+          ages, cat && [cat.emoji, cat.name].filter(Boolean).join(' '), v.ticketsUrl && `Tickets: ${shortLink(v.ticketsUrl)}`,
+        ].filter((l): l is string => !!l);
+        const filled = OUTING_WORDS.filter(([k]) => k in fill).map(([, w]) => w);
+        const already = !old ? null : filled.length ? `Already in Outings: its ${andList(filled)} will be filled in.` : 'Already in Outings and up to date.';
+        return shown('outing', path, { title: old?.title ?? title, imageUrl: null, exists: !!old, lines, already, token, outing: Object.fromEntries(Object.entries(d).filter(([, x]) => x !== undefined)) as z.infer<typeof OutingPatchSchema> });
+      }
+      const headers = { Authorization: c.req.header('Authorization') ?? '', 'Content-Type': 'application/json', 'X-Kinwall-Source': 'share' };
+      const res = old
+        ? await app.request(`/api/outings/${encodeURIComponent(old.id)}`, { method: 'PATCH', headers, body: JSON.stringify({ ...fill, ...(old.archived && { archived: false }) }) }, c.env)
+        : await app.request('/api/outings', { method: 'POST', headers, body: JSON.stringify(fill) }, c.env);
+      const json = (await res.json()) as { id?: string; title?: string; error?: string };
+      if (!res.ok || !json.id) return fail(json.error ?? "Couldn't save the outing", 400);
+      return ok('outing', old ? `Filled in ${json.title} in Outings` : `Added ${json.title} to Outings`, `outings?outing=${encodeURIComponent(json.id)}`);
+    };
+
+    if (kind === 'outing') {
+      if (!settings.features.outings) return fail(OUTINGS_OFF, 403);
+      if (input.outing) return outing(input.outing);
+      if (url && mapsPlace(url)) {
+        // A Maps place: a place to visit, with the map link and its address.
+        const found = await linkDetails(c.env, url);
+        const site = [normalizeLink(input.website), found?.website ?? null].find((l): l is string => !!l && !mapsPlace(l)) ?? null;
+        return outing({ kind: 'place', title: (input.name?.trim() || found?.name || '').slice(0, 200), address: input.address?.trim() || found?.address || null, url: url.length <= 2000 ? url : null, notes: site ? `Website: ${site}` : null });
+      }
+      if (url) {
+        let read = takePage(input.token, c.env.DB, url);
+        if (!read) {
+          const page = await fetchRecipePage(c.env, c.env.ALLOW_PRIVATE_FEED_URLS === '1' ? url : url.replace(/^http:/i, 'https:'));
+          if ('error' in page) return fail(`${page.error[0].toUpperCase()}${page.error.slice(1)}.`, page.status);
+          read = { db: c.env.DB, url, at: 0, recipe: null, place: null, food: false, outing: outingFromHtml(page.html, page.url, tz, today) };
+        }
+        if (!read.outing) return fail('This page has no event or place Kinwall can read. Add it in Outings instead.', 422);
+        return outing(read.outing, input.preview ? keepPage(read) : null);
+      }
+      if (!text && !input.event) return fail("Send the flyer's text, or a link.", 400);
+      const t = outingFromText(parseOutingText(text, today), tz);
+      const e = input.event;
+      // The event as the person checked it wins; the words still give its cost, tickets and ages.
+      const checked = e ? Object.fromEntries(Object.entries({ title: e.title?.trim() || null, startsOn: e.date, startTime: e.time, endTime: e.end, notes: e.notes?.trim() || null, ...(e.place !== undefined && { placeName: e.place && !/\d/.test(e.place) ? e.place.trim() : null, address: e.place && /\d/.test(e.place) ? e.place.trim() : null }) }).filter(([, v]) => v !== undefined)) : {};
+      return outing({ ...t, ...checked, ...(e?.time === null && { endTime: null }) } as Partial<OutingDraft>);
+    }
+
     if (kind === 'place') {
       if (!settings.features.contacts) return fail(CONTACTS_OFF, 403);
       const found = url ? await linkDetails(c.env, url) : null;
@@ -204,7 +296,7 @@ export function shareRoutes(app: App) {
         const page = await fetchRecipePage(c.env, c.env.ALLOW_PRIVATE_FEED_URLS === '1' ? url : url.replace(/^http:/i, 'https:'));
         if ('error' in page) return fail(`${page.error[0].toUpperCase()}${page.error.slice(1)}.`, page.status);
         const recipe = parseRecipeHtml(page.html, page.url);
-        read = { db: c.env.DB, url, at: 0, recipe, place: recipe ? null : parseRestaurantHtml(page.html, page.url) };
+        read = { db: c.env.DB, url, at: 0, recipe, place: recipe ? null : parseRestaurantHtml(page.html, page.url), food: !recipe && hasFoodPlace(page.html), outing: recipe ? null : outingFromHtml(page.html, page.url, tz, today) };
       }
       const { recipe, place } = read;
       const token = input.preview ? keepPage(read) : null;
@@ -225,6 +317,10 @@ export function shareRoutes(app: App) {
         const saved = await saveWebRecipe(c, { ...recipe, name: recipe.name });
         return ok('recipe', `${saved.created ? 'Imported' : 'Updated'} ${saved.recipe.name}`, `meals?recipe=${encodeURIComponent(saved.recipe.id)}`);
       }
+      // A restaurant stays a restaurant; an event or a place to visit is an outing (Outings on); any
+      // other business is a restaurant, as before.
+      if (place && read.food) return restaurant(place, token);
+      if (read.outing && settings.features.outings) return outing(read.outing, token);
       if (place) return restaurant(place, token);
       return fail("Kinwall can't tell what this link is. Pick what it is (Recipe or Restaurant) and share it again.", 400);
     }
@@ -292,7 +388,6 @@ export function shareRoutes(app: App) {
     }
 
     if (kind === 'event') {
-      const today = todayInTz(settings.timezone || hostTimezone());
       const given = input.event;
       const e = given ? { title: given.title?.trim() || null, date: given.date ?? null, time: given.time ?? null, end: given.end ?? null, place: given.place?.trim() || null, notes: given.notes?.trim() || null } : text ? parseEventText(text, today) : null;
       if (!e) return fail("Send the flyer's or invite's text.", 400);
@@ -316,9 +411,11 @@ export function shareRoutes(app: App) {
         if ('error' in created) return fail(created.error, created.status);
         return ok('event', `Added ${created.row.title} to ${created.cal.name}, ${day}`, `calendar?${new URLSearchParams({ event: created.row.id, at: created.row.start })}`);
       }
-      const h12 = hour12For(settings.timeFormat, settings.location?.countryCode);
       const at = e.time ? ` at ${formatTime(e.time, { h12, hourOnly: h12 && e.time.endsWith(':00') })}` : '';
-      const draft = new URLSearchParams({ draft: 'event', ...Object.fromEntries(Object.entries(e).filter(([, v]) => v)) });
+      // With Outings on, what Save to Outings adds on the event sheet: the cost, ticket dates, ages and a run's last day.
+      const o = settings.features.outings && text && !given ? outingFromText(parseOutingText(text, today), tz) : null;
+      const extra = o ? { cost: o.priceCents, buyBy: o.buyBy, onSale: o.ticketsOnSaleAt, ageMin: o.ageMin, ageMax: o.ageMax, endsOn: o.endsOn } : {};
+      const draft = new URLSearchParams({ draft: 'event', ...Object.fromEntries(Object.entries({ ...e, ...extra }).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)])) });
       return c.json({ kind: 'event' as const, summary: `Check the event: ${e.title ?? 'New event'}${day ? `, ${day}${at}` : `${at}, no date found`}`, link: `${origin(c)}/#/calendar?${draft}`, review: true, event: e }, 200);
     }
     return fail('Nothing to add. Share a link, or pick what it is and send its text.', 400);

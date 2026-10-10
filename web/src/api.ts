@@ -11,7 +11,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
-import type { Outing, OutingCategory, OutingIdeas, OutingInput, Poll, PollInput } from './types.ts'
+import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -176,7 +176,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = "You're offline. This will work when you're back online."
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|outings|outing-categories|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|outings|outing-categories|outing-feeds|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -256,7 +256,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
   }
-  if (MOCK && /^api\/(outings|outing-categories|events\/[^/]+\/outing)([/?]|$)/.test(path)) {
+  if (MOCK && /^api\/(outings|outing-categories|outing-feeds|share|events\/[^/]+\/outing)([/?]|$)/.test(path)) {
     const { mockOutingRequest } = await import('./mock-outings.ts')
     return mockOutingRequest(path, opts) as Promise<T>
   }
@@ -358,6 +358,15 @@ export const api = {
   createOutingCategory: (body: { name: string; emoji?: string | null }) => post<OutingCategory>('api/outing-categories', body),
   updateOutingCategory: (id: string, body: { name?: string; emoji?: string | null; sort?: number }) => patch<OutingCategory>(`api/outing-categories/${encodeURIComponent(id)}`, body),
   deleteOutingCategory: (id: string) => del<{ ok: boolean }>(`api/outing-categories/${encodeURIComponent(id)}`),
+  getOutingFeeds: () => get<OutingFeed[]>('api/outing-feeds'),
+  createOutingFeed: (body: OutingFeedInput) => post<OutingFeed>('api/outing-feeds', body),
+  updateOutingFeed: (id: string, body: Partial<OutingFeedInput>) => patch<OutingFeed>(`api/outing-feeds/${encodeURIComponent(id)}`, body),
+  refreshOutingFeed: (id: string) => post<OutingFeed>(`api/outing-feeds/${encodeURIComponent(id)}/refresh`),
+  deleteOutingFeed: (id: string) => del<{ ok: boolean }>(`api/outing-feeds/${encodeURIComponent(id)}`),
+  getOutingPile: () => get<OutingPile>('api/outing-feeds/pile'),
+  decidePileItem: (id: string, keep: boolean) => post<Outing>(`api/outing-feeds/pile/${encodeURIComponent(id)}`, { keep }),
+  /** Save to Outings (POST /api/share kind outing): adds it, or fills in the one with the same name that day. */
+  saveToOutings: (outing: OutingInput & { title: string }) => post<{ summary: string; link: string }>('api/share', { kind: 'outing', outing }),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),

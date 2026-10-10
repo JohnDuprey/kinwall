@@ -55,6 +55,7 @@ import { filterSettings, matchesAll, queryWords, readOpen, writeOpen } from './s
 import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
+import { CommunityCalendars } from './Outings.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
@@ -202,6 +203,8 @@ export default function SettingsView() {
           {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
           {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
+          {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}
+          {!isDisplay && settings.features.outings !== false && <Section id="outings" title="Outings"><CommunityCalendars /></Section>}
         </>}
         {current === 'calendars' && <>
           <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />

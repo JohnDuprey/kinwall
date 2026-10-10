@@ -12,12 +12,16 @@ const FOOD = ['Restaurant', 'FastFoodRestaurant', 'CafeOrCoffeeShop', 'Bakery', 
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
 const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null);
 
-function address(v: unknown): string | null {
+/** A schema.org address (PostalAddress or text) on one line. */
+export function postalAddress(v: unknown): string | null {
   const first = list(v)[0];
   const a = obj(first);
   const text = a ? [clean(a.streetAddress), clean(a.addressLocality), [clean(a.addressRegion), clean(a.postalCode)].filter(Boolean).join(' ')].filter(Boolean).join(', ') : clean(first);
   return text.slice(0, 500) || null;
 }
+
+/** Whether the page's JSON-LD names a restaurant, café, bar… (not just any business). */
+export const hasFoodPlace = (html: string) => jsonLdNodes(html).some((x) => FOOD.some((t) => isType(x, t)));
 
 /** The restaurant a page describes in its JSON-LD (a FoodEstablishment type first, else a
  * LocalBusiness), or null when there's none. */
@@ -30,7 +34,7 @@ export function parseRestaurantHtml(html: string, pageUrl: string): PlaceDetails
     name: clean(n.name).slice(0, 200) || null,
     cuisine: list(n.servesCuisine).map((c) => clean(c)).filter(Boolean).join(', ').slice(0, 200) || null,
     phone: clean(list(n.telephone)[0]).slice(0, 50) || null,
-    address: address(n.address),
+    address: postalAddress(n.address),
     website: httpUrl(n.url, pageUrl),
     menuUrl: menu,
   };

@@ -24,7 +24,7 @@ import Board from './Board.tsx'
 import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 import { hashQuery } from './hashQuery.ts'
-import { eventDraft } from './eventDraft.ts'
+import { eventDraft, outingExtras, type OutingExtras } from './eventDraft.ts'
 import { addMinutes, endAfterStartMove } from './eventEnd.ts'
 import { PollSheet, PollsButton } from './Polls.tsx'
 import { EventOuting, OutingsButton } from './Outings.tsx'
@@ -124,7 +124,7 @@ export default function CalendarView() {
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0) // bumped by "Try again" to refetch the range
   const [detail, setDetail] = useState<EventInstance | null>(null)
-  const [editState, setEditState] = useState<{ event: EventInstance | null; prefill?: Partial<EventInstance> } | null>(null)
+  const [editState, setEditState] = useState<{ event: EventInstance | null; prefill?: Partial<EventInstance>; shared?: OutingExtras } | null>(null)
 
   const [calendarsLoaded, setCalendarsLoaded] = useState(false)
   useEffect(() => { api.getCalendars().then(setCalendars).catch(() => {}).finally(() => setCalendarsLoaded(true)) }, [refreshTick]) // refreshed, so a repaired calendar's warning goes away
@@ -210,12 +210,13 @@ export default function CalendarView() {
   }, [])
   // #/calendar?draft=event&… (the "Add to Kinwall" Shortcut, eventDraft.ts): the new event sheet, filled
   // in for a parent to check and save, once the calendars are in (the sheet picks one as it opens).
-  const [draft, setDraft] = useState<Partial<EventInstance> | null>(null)
+  const [draft, setDraft] = useState<{ prefill: Partial<EventInstance>; shared: OutingExtras } | null>(null)
   useEffect(() => {
     const read = () => {
-      const found = location.hash.startsWith('#/calendar') ? eventDraft(hashQuery(location.hash), format(new Date(), 'yyyy-MM-dd')) : null
+      const q = hashQuery(location.hash)
+      const found = location.hash.startsWith('#/calendar') ? eventDraft(q, format(new Date(), 'yyyy-MM-dd')) : null
       if (!found) return
-      setDraft(found)
+      setDraft({ prefill: found, shared: outingExtras(q) })
       history.replaceState(null, '', '#/calendar')
     }
     read()
@@ -225,7 +226,7 @@ export default function CalendarView() {
   useEffect(() => {
     if (!draft || !calendarsLoaded) return
     setDraft(null)
-    if (parentDevice && canAdd) setEditState({ event: null, prefill: draft })
+    if (parentDevice && canAdd) setEditState({ event: null, ...draft })
     else toast("Open this link on a parent's phone to add the event", true)
   }, [draft, calendarsLoaded, parentDevice, canAdd, toast])
   // #/calendar?checkin=<member> (the check-in widget): their day, at the check-in. Only for someone this
@@ -545,6 +546,7 @@ export default function CalendarView() {
         <EventEditSheet
           event={editState.event}
           prefill={editState.prefill}
+          shared={editState.shared}
           calendars={editableCalendars}
           offerNewLocal={offerNewLocal}
           members={members}
@@ -1212,8 +1214,10 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
   )
 }
 
-function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, categories, onClose, onSave }: {
+function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, members, categories, onClose, onSave }: {
   event: EventInstance | null; prefill?: Partial<EventInstance>; calendars: CalendarEntry[]; offerNewLocal: boolean
+  /** Opened from a share (a flyer or invite): Save to Outings sits beside Add event, with what the flyer said. */
+  shared?: OutingExtras
   members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]
   onClose: () => void
   onSave: (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => void
@@ -1282,6 +1286,25 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
 
   const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
 
+  // Save to Outings (a shared flyer): the sheet's fields plus what the flyer said about cost, tickets and ages.
+  const { settings: appSettings, toast } = useApp()
+  const outingsOn = appSettings.features.outings !== false
+  const [savingOuting, setSavingOuting] = useState(false)
+  const saveToOutings = async () => {
+    const place = location.trim()
+    setSavingOuting(true)
+    try {
+      const res = await api.saveToOutings({
+        title: title.trim(), kind: 'upcoming', startsOn: startDate, endsOn: shared?.endsOn ?? (allDay && endDate > startDate ? endDate : null),
+        startTime: allDay ? null : startTime, endTime: allDay ? null : endTime, placeName: place && !/\d/.test(place) ? place : null, address: /\d/.test(place) ? place : null,
+        notes: notes.trim() || null, priceCents: shared?.priceCents ?? null, buyBy: shared?.buyBy ?? null, ticketsOnSaleAt: shared?.ticketsOnSaleAt ?? null, ageMin: shared?.ageMin ?? null, ageMax: shared?.ageMax ?? null,
+        ...(shared?.ageMax != null && shared.ageMax <= 17 ? { audience: ['kids' as const] } : {}),
+      })
+      toast(res.summary)
+      onClose()
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save to Outings.', true) } finally { setSavingOuting(false) }
+  }
+
   const submit = () => {
     if (!title.trim() || !calendarId) return
     // The menu only knows plain daily/weekly/monthly: an untouched menu keeps the real rule
@@ -1330,7 +1353,10 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
 
   return (
     <Sheet title={event ? 'Edit event' : 'New event'} onClose={onClose}
-      actions={<button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save changes' : 'Add event'}</button>}>
+      actions={<>
+        {shared && outingsOn && <button className="btn btn-secondary" onClick={() => void saveToOutings()} disabled={endBeforeStart || !title.trim() || savingOuting}>🎟 Save to Outings</button>}
+        <button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save changes' : 'Add event'}</button>
+      </>}>
       <div className="field">
         <label>Title</label>
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" autoFocus={!event} /* new events only: on a phone, opening Edit shouldn't throw up the keyboard */ />

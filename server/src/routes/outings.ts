@@ -67,7 +67,9 @@ export const OutingSchema = z
     notes: z.string().nullable(),
     calendarEventId: z.string().nullable().openapi({ description: 'The family event made by "Add to our calendar".' }),
     calendarEventStart: z.string().nullable().openapi({ description: "That event's start." }),
-    source: z.string(),
+    source: z.string().openapi({ description: "Where it came from: manual, mcp, share (the share sheet) or feed (a community calendar)." }),
+    feedId: z.string().nullable().default(null).openapi({ description: 'The community calendar it came from (GET /api/outing-feeds).' }),
+    canceled: z.boolean().default(false).openapi({ description: 'Its community calendar called it off.' }),
     addedBy: z.string().nullable(),
     archived: z.boolean().openapi({ description: '"Not for us": hidden from the list, kept.' }),
     createdAt: z.string(),
@@ -136,17 +138,17 @@ type Row = {
   id: string; title: string; kind: Outing['kind']; category_id: string | null; starts_on: string | null; ends_on: string | null; start_time: string | null; end_time: string | null; hours: string | null;
   place_name: string | null; address: string | null; price_cents: number | null; price_note: string | null; audience: string; member_ids: string; age_min: number | null; age_max: number | null;
   url: string | null; tickets_url: string | null; tickets_on_sale_at: string | null; buy_by: string | null; got_tickets: number; visit_status: Outing['visitStatus']; last_visited_on: string | null;
-  notes: string | null; calendar_event_id: string | null; event_start: string | null; source: string; added_by: string | null; archived: number; created_at: string; updated_at: string;
+  notes: string | null; calendar_event_id: string | null; event_start: string | null; source: string; feed_id: string | null; canceled: number; added_by: string | null; archived: number; created_at: string; updated_at: string;
 };
 const json = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) as T; } catch { return fallback; } };
 
 /** Outings with who marked them, soonest first (undated and places after). Inbox items (imports
- * waiting to be kept) are left out. */
-export async function readOutings(db: KinwallDb, opts: { id?: string } = {}): Promise<Outing[]> {
-  const where = opts.id ? 'WHERE o.id = ?1' : 'WHERE o.inbox = 0';
+ * waiting to be kept) are left out; `inbox` reads only those (not the "Not for us" ones). */
+export async function readOutings(db: KinwallDb, opts: { id?: string; inbox?: boolean } = {}): Promise<Outing[]> {
+  const where = opts.id ? 'WHERE o.id = ?1' : opts.inbox ? 'WHERE o.inbox = 1 AND o.archived = 0' : 'WHERE o.inbox = 0';
   const [rows, marks] = await db.batch<unknown>([
     db.prepare(`SELECT o.*, e.start AS event_start FROM outings o LEFT JOIN events e ON e.id = o.calendar_event_id ${where} ORDER BY o.starts_on IS NULL, o.starts_on, o.start_time, o.title COLLATE NOCASE`).bind(...(opts.id ? [opts.id] : [])),
-    db.prepare(`SELECT i.outing_id, i.member_id, i.level FROM outing_interest i JOIN members m ON m.id = i.member_id ${opts.id ? 'WHERE i.outing_id = ?1' : ''} ORDER BY m.sort, m.created_at`).bind(...(opts.id ? [opts.id] : [])),
+    db.prepare(`SELECT i.outing_id, i.member_id, i.level FROM outing_interest i JOIN members m ON m.id = i.member_id ${opts.id ? 'WHERE i.outing_id = ?1' : opts.inbox ? 'WHERE 0' : ''} ORDER BY m.sort, m.created_at`).bind(...(opts.id ? [opts.id] : [])),
   ]);
   const byOuting = new Map<string, Outing['interest']>();
   for (const m of marks.results as { outing_id: string; member_id: string; level: Outing['interest'][number]['level'] }[]) byOuting.set(m.outing_id, [...(byOuting.get(m.outing_id) ?? []), { memberId: m.member_id, level: m.level }]);
@@ -154,7 +156,7 @@ export async function readOutings(db: KinwallDb, opts: { id?: string } = {}): Pr
     id: r.id, title: r.title, kind: r.kind, categoryId: r.category_id, startsOn: r.starts_on, endsOn: r.ends_on, startTime: r.start_time, endTime: r.end_time, hours: r.hours,
     placeName: r.place_name, address: r.address, priceCents: r.price_cents, priceNote: r.price_note, audience: json(r.audience, []), memberIds: json(r.member_ids, []), ageMin: r.age_min, ageMax: r.age_max,
     url: r.url, ticketsUrl: r.tickets_url, ticketsOnSaleAt: r.tickets_on_sale_at, buyBy: r.buy_by, gotTickets: !!r.got_tickets, visitStatus: r.visit_status, lastVisitedOn: r.last_visited_on,
-    notes: r.notes, calendarEventId: r.event_start ? r.calendar_event_id : null, calendarEventStart: r.event_start, source: r.source, addedBy: r.added_by, archived: !!r.archived,
+    notes: r.notes, calendarEventId: r.event_start ? r.calendar_event_id : null, calendarEventStart: r.event_start, source: r.source, feedId: r.feed_id ?? null, canceled: !!r.canceled, addedBy: r.added_by, archived: !!r.archived,
     createdAt: r.created_at, updatedAt: r.updated_at, interest: byOuting.get(r.id) ?? [],
   }));
 }
@@ -382,7 +384,7 @@ outingsRoutes.openapi(
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const by = who.kid ?? (await actorOf(c)).memberId;
-    const cols = [...toRow({ kind: 'upcoming', audience: [], memberIds: [], ...input }), ['id', id], ['source', c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'manual'], ['added_by', by], ['created_at', now], ['updated_at', now]] as const;
+    const cols = [...toRow({ kind: 'upcoming', audience: [], memberIds: [], ...input }), ['id', id], ['source', ['mcp', 'share'].includes(c.req.header('X-Kinwall-Source') ?? '') ? c.req.header('X-Kinwall-Source')! : 'manual'], ['added_by', by], ['created_at', now], ['updated_at', now]] as const;
     await db.prepare(`INSERT INTO outings (${cols.map(([k]) => k).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...cols.map(([, v]) => v)).run();
     emit(c, 'outing.changed', { id });
     return c.json((await readOutings(db, { id }))[0], 201);

@@ -130,9 +130,11 @@ export async function expandICS(
   from: Date,
   to: Date,
   tz = 'UTC',
-  opts?: { seriesIdMode?: 'uid' | 'content' },
+  opts?: { seriesIdMode?: 'uid' | 'content'; keepCancelled?: boolean },
 ): Promise<NormalizedEvent[]> {
   const seriesIdMode = opts?.seriesIdMode ?? 'uid';
+  // Outings' community calendars (outing-feeds.ts) keep STATUS:CANCELLED ones, marked, to mark a kept outing "Canceled".
+  const keep = opts?.keepCancelled ?? false;
   let root: ICAL.Component;
   try {
     root = new ICAL.Component(ICAL.parse(icsText));
@@ -167,14 +169,14 @@ export async function expandICS(
     if (!master) {
       // Orphan overrides with no master (feed only sent the exception) - treat each as a
       // standalone one-off instance.
-      for (const comp of overrides) pushSingle(uid, new ICAL.Event(comp), results, from, to, tz);
+      for (const comp of overrides) pushSingle(uid, new ICAL.Event(comp), results, from, to, tz, keep);
       continue;
     }
 
     const event = new ICAL.Event(master, { exceptions: overrides.map((c) => new ICAL.Event(c)) });
 
     if (!event.isRecurring()) {
-      pushSingle(uid, event, results, from, to, tz);
+      pushSingle(uid, event, results, from, to, tz, keep);
       continue;
     }
 
@@ -199,7 +201,8 @@ export async function expandICS(
       if (next.toJSDate().getTime() >= to.getTime()) break;
       const details = event.getOccurrenceDetails(next);
       const item = details.item;
-      if (isCancelled(item.component)) continue;
+      const cancelled = isCancelled(item.component);
+      if (cancelled && !keep) continue;
       const startD = resolveDate(details.startDate, tz);
       const endD = resolveDate(details.endDate, tz);
       if (endD <= from) continue;
@@ -215,6 +218,7 @@ export async function expandICS(
         seriesId,
         reminders: minutesFromValarms(item.component),
         busy: !isTransparent(item.component),
+        ...(cancelled && { cancelled }),
       });
     }
   }
@@ -229,8 +233,10 @@ function pushSingle(
   from: Date,
   to: Date,
   tz: string,
+  keep = false,
 ) {
-  if (isCancelled(event.component)) return;
+  const cancelled = isCancelled(event.component);
+  if (cancelled && !keep) return;
   const startD = resolveDate(event.startDate, tz);
   const endD = resolveDate(event.endDate, tz);
   if (endD <= from || startD >= to) return;
@@ -245,6 +251,7 @@ function pushSingle(
     description: notesText(event.description),
     reminders: minutesFromValarms(event.component),
     busy: !isTransparent(event.component),
+    ...(cancelled && { cancelled }),
   });
 }
 
