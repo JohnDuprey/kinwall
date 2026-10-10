@@ -104,13 +104,16 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined, 
 }
 
 /** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. A
- * phone on its side has room for seven 44px rail buttons, so its rail does the same at seven. */
+ * phone on its side has room for seven 44px rail buttons, so its rail does the same at seven, and
+ * so does a cast screen's rail of bigger buttons. */
 const MAX_TABS = 5
 const MAX_SHORT_RAIL = 7
 
 function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: string; mode: NavMode; items: NavItem[]; toApprove?: number; rewardRequests?: number }) {
   const [more, setMore] = useState(false)
-  const shortRail = useMediaQuery('(max-height: 500px) and (orientation: landscape)')
+  // A cast screen (a Nest Hub, 600px tall) too: its rail buttons are drawn big, so seven fit, the rest under More.
+  const cast = !!useDeviceAppearance().cast
+  const shortRail = useMediaQuery('(max-height: 500px) and (orientation: landscape)') || cast
   // Parent devices: everything waiting for an OK on Chores (its To approve holds reward requests
   // too), and the reward requests alone on Rewards.
   const count = (key: string) => key === 'chores' ? toApprove : key === 'rewards' ? rewardRequests : 0
@@ -1139,7 +1142,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // Wall displays can't be zoomed: a pinch from a small hand leaves the wall stuck zoomed in, and
   // the text-size setting covers legibility there. Phones keep pinch-zoom for accessibility. The
   // viewport also carries this device's Screen scale (screenScale.ts).
-  useEffect(() => { applyScreenScale(device.screenScale, scope === 'display') }, [scope, device.screenScale])
+  useEffect(() => { applyScreenScale(device.screenScale, scope === 'display', device.cast) }, [scope, device.screenScale, device.cast])
 
   const loadCore = useCallback(async () => {
     if (!hasKey) return

@@ -8,6 +8,7 @@ import { resumeShoppingHash } from './trip.ts'
 import { hashQuery, homeAlias, withHashParam } from './hashQuery.ts'
 import { retryBoot } from './appUpdate.ts'
 import { applyScreenScale } from './screenScale.ts'
+import { castScreen, screenParam, withoutScreenParam } from './cast.ts'
 import { watchKeyboard } from './keyboard.ts'
 import { watchIsland } from './safeArea.ts'
 markNativeApp()
@@ -24,6 +25,17 @@ window.addEventListener('appinstalled', () => {
   ;(window as Window & { __kinwallInstall?: Event | null }).__kinwallInstall = null
   window.dispatchEvent(new Event('kinwall:install-changed'))
 })
+
+// ?screen=cast (a Nest Hub or other Cast smart display, cast.ts) or ?screen=normal: kept in this
+// device's own settings with everything else there (its Board layout stays), then out of the address.
+const castLink = screenParam(location.search)
+if (castLink !== undefined) {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('kinwall.deviceAppearance') || '{}')
+    localStorage.setItem('kinwall.deviceAppearance', JSON.stringify({ ...prefs, cast: castLink }))
+  } catch { /* storage blocked: the user agent still decides */ }
+  history.replaceState(null, '', withoutScreenParam(location.href))
+}
 
 // Not imported from api.ts: that would load the mock data before the demo clock below is in place.
 const MOCK = import.meta.env.VITE_MOCK === '1'
@@ -76,7 +88,12 @@ try {
 
 // This device's Screen scale (screenScale.ts) before the first render, so a scaled tablet doesn't
 // lay out at 100% first. App re-applies it with the wall-display lock once the key's scope is known.
-try { applyScreenScale(JSON.parse(localStorage.getItem('kinwall.deviceAppearance') || '{}').screenScale, false) } catch { applyScreenScale(undefined, false) }
+// A cast screen (cast.ts) is marked now too, so its first layout is already the big one.
+let firstPrefs: { screenScale?: number; cast?: boolean } = {}
+try { firstPrefs = JSON.parse(localStorage.getItem('kinwall.deviceAppearance') || '{}') ?? {} } catch { /* storage blocked */ }
+const castNow = castScreen(firstPrefs.cast ?? castLink, navigator.userAgent)
+document.documentElement.toggleAttribute('data-cast', castNow)
+applyScreenScale(firstPrefs.screenScale, false, castNow)
 
 if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assertSkinsAA())
 

@@ -69,6 +69,17 @@ export function tidbitCardsThatFit(width: number, height: number): number {
   return width < 880 || height >= 640 ? 3 : 1
 }
 
+/** Whether the Board shares out the screen's height in columns that don't scroll (styles.css, the
+ *  `data-fixed` board): a wall or a tablet on its side, 880px wide and 700 tall; shorter, it stays
+ *  two columns that scroll. A cast screen (a Nest Hub, 600px tall, nobody to scroll it) always
+ *  shares it out once there's room for two columns, in its own layout's columns. */
+export const boardFixed = (width: number, tall: boolean, cast = false) => cast ? width >= 620 : width >= 880 && tall
+
+/** A cast screen's Board drawn smaller when even its cards' smallest sizes are taller than the screen
+ *  (`client`: the Board's height, `need`: what its cards take at full size), so nothing is cut off
+ *  and nothing scrolls; never under 75%, where a long Board scrolls rather than go unreadable. */
+export const castFit = (client: number, need: number) => need > client + 0.5 ? Math.max(0.75, Math.floor(client / need * 1000) / 1000) : 1
+
 /** Columns for the Board's count tiles: one row when each gets `min` px, else as few balanced rows as
  * fit (six on a tablet: 3 + 3, not six slivers with their words cut off, nor 4 + 2). */
 export function tileColumns(width: number, count: number, min = 160, gap = 12): number {

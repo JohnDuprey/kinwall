@@ -15,9 +15,11 @@ export function autoScale(shortest: number): number {
   return shortest >= 560 && shortest < 720 ? shortest / 720 : 1
 }
 
-/** The scale in effect: this device's pick (percent), else Auto. */
-export function screenScale(pick: number | undefined, shortest: number): number {
-  return pick && (SCREEN_SCALES as readonly number[]).includes(pick) ? pick / 100 : autoScale(shortest)
+/** The scale in effect: this device's pick (percent), else Auto. A cast screen (cast.ts, a Nest Hub:
+ * 600px tall like a 10" Android tablet) is never shrunk by Auto: its browser would lay the page out
+ * at 1229×720 and draw it on the 1024×600 screen, everything small. */
+export function screenScale(pick: number | undefined, shortest: number, cast = false): number {
+  return pick && (SCREEN_SCALES as readonly number[]).includes(pick) ? pick / 100 : cast ? 1 : autoScale(shortest)
 }
 
 /** The viewport meta tag for a scale. At 100% it's exactly the tag the app always had. Scaled, it has
@@ -43,8 +45,8 @@ export const appliedScale = () => current
 
 /** Sets the viewport tag for this device's pick (percent, absent = Auto). Called before the first
  * render (main.tsx) and whenever the pick or the display lock changes (App.tsx). */
-export function applyScreenScale(pick: number | undefined, locked: boolean) {
-  current = screenScale(pick, Math.min(screen.width, screen.height))
+export function applyScreenScale(pick: number | undefined, locked: boolean, cast = false) {
+  current = screenScale(pick, Math.min(screen.width, screen.height), cast)
   const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
   const content = viewportContent(current, locked)
   if (meta && meta.content !== content) meta.content = content

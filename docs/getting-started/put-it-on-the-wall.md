@@ -84,6 +84,18 @@ Kinwall needs a connection to your server whether it's installed or not. It does
 * When a new version is deployed, a **Kinwall updated — tap to reload** banner appears.
 * **Settings** on a display shows **General** (the family cards and this device's cards) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This display](../settings/this-display.md).
 
+## Nest Hub and other smart displays (DashCast)
+
+A Google Nest Hub (7", 1024×600), Nest Hub Max (10", 1280×800) or another Cast smart display can show Kinwall too. These displays have no browser of their own: something casts the page to them through [DashCast](https://github.com/madmod/dashcast), a Cast app that opens a web address on the screen. From Home Assistant that's usually [CATT](https://github.com/skorokithakis/catt) (`catt -d "Kitchen display" cast_site <address>`) or the [Continuously Casting Dashboards](https://github.com/b0mbays/continuously_casting_dashboards) integration, which runs CATT for you. The screen stays a touch screen while it shows Kinwall.
+
+1. Cast `https://<your-kinwall>/?screen=cast`. The `?screen=cast` part turns on **cast screen** mode, which this display remembers. Kinwall also turns it on by itself when the display says it's a Cast device, so the address works without it too; `?screen=normal` turns it off again.
+2. The first time, the display shows the sign-in screen. Tap **Set up a wall screen or kid's device** on the display and approve its code from a parent's phone, as in [Pair the display](#1-pair-the-display). The display keeps its key, so the next cast opens straight on Home.
+3. If you like, pick a [Board layout](../using/calendar.md#board-layouts) with fewer cards for this screen (**Settings → General → This display → Board layout**). Cast screen mode keeps whatever layout the display has.
+
+In cast screen mode Kinwall is drawn bigger, to read from across the kitchen: a bigger clock, Board text and buttons, and a side bar of six big buttons with the rest under **More**. The Board shares out the screen in its layout's columns instead of scrolling, and is drawn a little smaller when its cards still don't fit. Everything else works as on any wall screen: going back to Home after 2 idle minutes, and the [Night screen](../using/night.md) at night.
+
+A cast page closes after a while (about 10 minutes on a Nest Hub, when nothing is playing) or when someone asks the display for something else. Keep it up with an automation that casts the address again when the display isn't showing it, every few minutes; Continuously Casting Dashboards does this on its own.
+
 ## Unpair or replace a display
 
 * On the display: **Settings → General → Troubleshooting → Unpair this display**.

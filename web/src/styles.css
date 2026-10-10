@@ -3815,6 +3815,45 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :root[data-parent-phone] .chore-columns { padding-left: 6px; padding-right: 6px; }
 }
 
+/* ---------- Cast screen ----------
+   A Nest Hub or other Cast smart display (cast.ts; ?screen=cast, or found by its user agent): a 7"
+   1024×600 touch screen read from across the kitchen. Everything is drawn bigger (useTheme.ts also
+   raises the text size), with --cast-k growing it further when the page is laid out taller than
+   600px, and the Board shares out the screen in its own layout's columns instead of scrolling
+   (Board.tsx boardFixed). Wins over the density and short-landscape sizes above. */
+html:root[data-cast] {
+  --pad: calc(10px * var(--cast-k, 1));
+  --gap: calc(8px * var(--cast-k, 1));
+  --ctl-h: calc(48px * var(--cast-k, 1));
+  --hour-h: calc(48px * var(--cast-k, 1));
+  --avatar: calc(46px * var(--cast-k, 1));
+  --header-clock: calc(30px * var(--cast-k, 1));
+  --header-h: calc(60px * var(--cast-k, 1));
+  --tab-h: calc(56px * var(--cast-k, 1));
+  --rail-w: calc(92px * var(--cast-k, 1));
+}
+:root[data-cast] .header { padding-top: calc(var(--safe-t) + 4px); padding-bottom: 4px; }
+:root[data-cast] .nav-rail { gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: 6px; }
+:root[data-cast] .nav-rail-btn { min-height: calc(var(--ctl-h) + 14px); gap: 2px; padding: 4px 2px; font-size: 0.8125rem; }
+:root[data-cast] .nav-rail-btn svg { width: calc(26px * var(--cast-k, 1)); height: calc(26px * var(--cast-k, 1)); }
+:root[data-cast] .icon-btn svg { width: calc(24px * var(--cast-k, 1)); height: calc(24px * var(--cast-k, 1)); }
+:root[data-cast] .fab { width: calc(64px * var(--cast-k, 1)); height: calc(64px * var(--cast-k, 1)); right: 14px; bottom: 14px; }
+:root[data-cast] .now-next { padding: 6px 12px; gap: 2px; }
+:root[data-cast] .calendar-toolbar { padding-block: calc(var(--gap) * 0.5); }
+/* The Board: the layout's own columns (or the default three) share out the height, like a wall's,
+   drawn a little smaller when even that doesn't fit (Board.tsx castFit). */
+:root[data-cast] .board-scroll[data-fixed] { zoom: var(--board-fit, 1); } /* height: 100% still fills the space as drawn */
+@container board (min-width: 620px) {
+  :root[data-cast] .board-scroll[data-fixed] > .board {
+    height: 100%; grid-template-columns: var(--board-cols-3, repeat(3, minmax(0, 1fr)));
+    grid-template-rows: var(--board-rows-3); grid-template-areas: var(--board-areas-3);
+  }
+  :root[data-cast] .board-scroll[data-fixed] .board-tidbit { min-height: 0; }
+  :root[data-cast] .board-scroll[data-fixed] .board-clock .board-forecast { display: none; }
+  :root[data-cast] .board-scroll[data-fixed] .board-photo { min-height: 0; }
+  :root[data-cast] .board-scroll[data-fixed] .board-polls:not(:empty) ~ .board { height: auto; flex: 1 1 0; min-height: 0; }
+}
+
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */

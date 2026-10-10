@@ -17,12 +17,12 @@ export function inTimeWindow(from: string, to: string, now = new Date()): boolea
 }
 
 /** A paired display (display key) always is one; any other device when its own "Use as a wall
- * screen" switch is on. Display purposes only: it never changes what the device may do. */
-export const isWallScreen = (scope: string, device: { wallScreen?: boolean }) => scope === 'display' || !!device.wallScreen
+ * screen" switch is on, or when it's a cast screen (a Nest Hub, cast.ts). Display purposes only: it never changes what the device may do. */
+export const isWallScreen = (scope: string, device: { wallScreen?: boolean; cast?: boolean }) => scope === 'display' || !!device.wallScreen || !!device.cast
 
 /** Default for "Keep the screen on" and "Back to the calendar when idle" when this device hasn't
  * set them: on for wall screens and kids' devices, off for a parent's own phone or computer. */
-export const wallDefaultsOn = (parentDevice: boolean, device: { wallScreen?: boolean }) => !parentDevice || !!device.wallScreen
+export const wallDefaultsOn = (parentDevice: boolean, device: { wallScreen?: boolean; cast?: boolean }) => !parentDevice || !!device.wallScreen || !!device.cast
 
 /** The family's night hours (settings quietFrom / quietTo) and what they do; each effect is on
  * unless the family turned it off (older settings don't have the switches). */

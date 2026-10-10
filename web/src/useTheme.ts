@@ -10,9 +10,12 @@ import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts
 import { surfaces, tellAppAppearance } from './native.ts'
 import { inTimeWindow } from './wallScreen.ts'
 import { effectiveDensity } from './density.ts'
+import { castScale, castScreen } from './cast.ts'
 export { inTimeWindow } // callers import it from here
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
+/** A cast screen's text on top of the text size: a 7" Hub is read from across the kitchen. */
+const CAST_TEXT = 1.15
 
 // Per-device overrides of the household appearance (a wall iPad read from across the room and a
 // phone in the hand want different sizes). Absent key = follow the household setting. Kept in
@@ -38,6 +41,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
   wallScreen?: boolean // act as a wall screen (Night screen at night, the two defaults above); paired displays always do
+  cast?: boolean // a Cast smart display, e.g. a Nest Hub (cast.ts): from ?screen=cast / ?screen=normal; absent = its user agent says (readDeviceAppearance fills it in)
   warnings?: number[] // transition warnings, minutes before an event (or its leave-by)
   warningRepeat?: WarningRepeat // ...plus every N minutes during the last M (transitions.ts)
   warningSound?: boolean
@@ -101,6 +105,9 @@ export function readDeviceAppearance(): DeviceAppearance {
     if (!v.font) delete v.font
     v.timeFormat = deviceTimeFormat(v.timeFormat)
     if (!v.timeFormat) delete v.timeFormat
+    // A Cast device (a Nest Hub) is a cast screen unless its link said ?screen=normal.
+    if (castScreen(v.cast, navigator.userAgent)) v.cast = true
+    else if (v.cast !== false) delete v.cast
     return v
   } catch { return {} }
 }
@@ -155,6 +162,10 @@ function applyAppearance(household: Appearance, device: DeviceAppearance, parent
   const a = { ...household, ...device, density: effectiveDensity(household, device, parentPhone) }
   const root = document.documentElement
   root.toggleAttribute('data-lowstim', !!a.lowStim)
+  // A cast screen (cast.ts, styles.css [data-cast]) draws everything bigger, more so when its page is laid out taller than the Hub's 600px.
+  const castK = device.cast ? castScale(window.innerHeight) : 0
+  root.toggleAttribute('data-cast', !!castK)
+  if (castK) root.style.setProperty('--cast-k', String(castK)); else root.style.removeProperty('--cast-k')
   applyFont(resolveTypeface(household.typeface, device.font))
 
   const apply = () => {
@@ -197,7 +208,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance, parent
     // the darker bg, so a light accent that reads on the card reads on it too. (Reading card-soft
     // here used to skip dark entirely, leaving the light accent behind after a switch to dark.)
     root.style.setProperty('--accent-text', readableOn(accent, dark ? custom.card || t.card : t.bgAlt))
-    root.style.setProperty('--text-scale', SCALE[a.textScale])
+    root.style.setProperty('--text-scale', castK ? String(Math.round(Number(SCALE[a.textScale]) * CAST_TEXT * castK * 1000) / 1000) : SCALE[a.textScale])
 
     try { saveIfChanged(LAST_THEME_KEY, dark ? 'dark' : 'light'); saveIfChanged(LAST_LOOK_KEY, root.style.cssText) } catch { /* private mode */ }
     // index.html has a light and a dark theme-color (by media) for before this runs; now both are the real background.

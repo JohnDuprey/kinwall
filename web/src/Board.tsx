@@ -25,7 +25,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
+import { boardAreas, boardChores, boardFixed, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -258,6 +258,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const [roomFor, setRoomFor] = useState(1) // tidbit cards
   const [boardW, setBoardW] = useState(0)
   const [fixed, setFixed] = useState(false) // the three-column board that shares out the screen's height (styles.css)
+  const cast = !!device.cast
   const loaded = !!data
   const meds = useDueDoses()
   const medsSlot = useTakeNowSlot(meds)
@@ -269,11 +270,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H)
       setRoomFor(tidbitCardsThatFit(e.contentRect.width, e.contentRect.height))
       setBoardW(e.contentRect.width)
-      setFixed(e.contentRect.width >= 880 && matchMedia('(min-height: 700px)').matches)
+      setFixed(boardFixed(e.contentRect.width, matchMedia('(min-height: 700px)').matches, cast))
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [loaded])
+  }, [loaded, cast])
   // The clock is never squeezed on the fixed board: it's as tall as the time, date and weather it
   // shows (the forecast only where styles.css has room for it), and the other cards give up the space.
   // A grid row grows to an item's minimum only when it's a length, so it's measured.
@@ -291,6 +292,23 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     for (const e of c.children) ro.observe(e)
     return () => ro.disconnect()
   }, [fixed, loaded, data?.weather, device.boardLayout, device.boardCustom])
+  // A cast screen (a Nest Hub) can't be scrolled from across the room: when the cards' smallest sizes
+  // (the clock, Today with its counts) are still taller than the screen, the whole Board is drawn a
+  // little smaller (boardFit.ts castFit, --board-fit in styles.css). Measured at full size each time.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const set = () => {
+      el.style.removeProperty('--board-fit')
+      if (!cast || !fixed) return
+      const z = castFit(el.clientHeight, el.scrollHeight)
+      if (z < 1) el.style.setProperty('--board-fit', String(z))
+    }
+    set()
+    const ro = new ResizeObserver(set)
+    for (const e of el.querySelectorAll(':scope > *, :scope > .board > *')) ro.observe(e)
+    return () => ro.disconnect()
+  })
 
   const p = zonedParts(now.toISOString(), tz)
   // Tidbit cards: the family's one (Settings → Quotes & facts) or this device's own (Settings →

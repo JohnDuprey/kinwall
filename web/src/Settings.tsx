@@ -30,7 +30,7 @@ import { CALENDAR_VIEWS, viewLabel } from './calendarViews.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
 import { DEFAULT_ACCENT, effectiveDensity, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
-import { autoScale, SCREEN_SCALES } from './screenScale.ts'
+import { screenScale, SCREEN_SCALES } from './screenScale.ts'
 import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
@@ -1894,7 +1894,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
 /** How big the whole app is drawn here (screenScale.ts): Auto fits a 10" tablet to the tablet layout. */
 function ScreenScaleRow() {
   const device = useDeviceAppearance()
-  const auto = Math.round(autoScale(Math.min(screen.width, screen.height)) * 100)
+  const auto = Math.round(screenScale(undefined, Math.min(screen.width, screen.height), device.cast) * 100)
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
       <div className="device-pref-row">

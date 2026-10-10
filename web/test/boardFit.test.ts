@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from '../src/boardFit.ts'
+import { boardChores, boardFixed, castFit, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -173,4 +173,19 @@ test('withTimedChores: chores with a start time sit among the events by time, ti
   assert.deepEqual(rows.map(r => 'event' in r ? r.event.title : `chore:${r.chore.title}`),
     ['All day fair', 'chore:Feed fish', 'Soccer', 'chore:Walk dog', 'chore:Practice piano', 'Dinner', 'chore:Read'])
   assert.deepEqual(withTimedChores([], () => 0, [ch('Read', null)]).map(r => 'chore' in r && r.chore.title), ['Read'])
+})
+
+test('boardFixed: a wall or tablet on its side shares out its height; a cast screen does from two columns up', () => {
+  assert.equal(boardFixed(1200, true), true)
+  assert.equal(boardFixed(1200, false), false, 'an Android tablet on its side scrolls')
+  assert.equal(boardFixed(860, true), false)
+  assert.equal(boardFixed(860, false, true), true, 'a Nest Hub: 1024×600 less the rail')
+  assert.equal(boardFixed(600, false, true), false, 'one column: still scrolls')
+})
+
+test('castFit: full size when the cards fit, else just small enough, never under 75%', () => {
+  assert.equal(castFit(383, 383), 1)
+  assert.equal(castFit(383, 300), 1)
+  assert.equal(castFit(380, 400), 0.95)
+  assert.equal(castFit(300, 1000), 0.75)
 })
