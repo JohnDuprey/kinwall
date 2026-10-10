@@ -1034,6 +1034,7 @@ export const PushSubscriptionPrefsSchema = z
     choreNudge: z.boolean(),
     choreNudgeTime: z.string().regex(HHMM_RE),
     listUpdates: z.boolean(),
+    outingReminders: z.boolean().default(true).openapi({ description: 'Outings: heads-ups for ⭐ outings, ticket dates and last chances.' }),
     medicationNames: z.boolean().openapi({ description: 'Medicine names and doses in medication reminders on this device (off: "Time for Leo\'s medicine" only; push text shows on lock screens).' }),
   })
   .openapi('PushSubscriptionPrefs');
@@ -1082,7 +1083,7 @@ export const NotificationSchema = z
   .object({
     id: z.string(),
     at: z.string(),
-    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy', 'meal', 'poll']),
+    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy', 'meal', 'poll', 'outing']),
     title: z.string(),
     body: z.string().nullable(),
     url: z.string().nullable(),

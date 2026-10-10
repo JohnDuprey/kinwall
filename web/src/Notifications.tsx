@@ -27,7 +27,7 @@ function writeSeen(iso: string) {
   try { localStorage.setItem(SEEN_KEY, iso) } catch { /* private mode: badge just won't persist */ }
 }
 
-const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬', goal: '🎯', medication: '💊', privacy: '🔒', meal: '🍽️', poll: '🗳' }
+const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬', goal: '🎯', medication: '💊', privacy: '🔒', meal: '🍽️', poll: '🗳', outing: '🎟' }
 
 // The server says per note whether this key may remove it; an older server doesn't, so then fall back to the old guess.
 const canRemove = (n: AppNotification, isAdmin: boolean) => n.removable ?? (isAdmin || n.kind === 'privacy')

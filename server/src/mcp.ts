@@ -21,7 +21,7 @@ import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
-import { OutingCategorySchema, OutingCalendarInputSchema, OutingPatchSchema, OutingSchema } from './routes/outings.ts';
+import { OutingCategorySchema, OutingCalendarInputSchema, OutingIdeasSchema, OutingPatchSchema, OutingSchema } from './routes/outings.ts';
 import { RestaurantImportResultSchema, RestaurantImportSchema } from './routes/restaurants.ts';
 import { MealSlotSchema } from './meal-schemas.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
@@ -283,7 +283,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_notifications: { notifications: z.array(NotificationSchema) },
   list_newscast: NewscastSchema.shape,
   list_outings: { outings: z.array(OutingSchema) }, get_outing: { outing: OutingSchema }, create_outing: { outing: OutingSchema }, update_outing: { outing: OutingSchema }, delete_outing: { ok: z.boolean(), outing: OutingSchema.optional() },
-  mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) },
+  mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) }, suggest_outings: OutingIdeasSchema.shape,
   list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
@@ -310,7 +310,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1807,6 +1807,18 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     try { id = (await findOuting(outing)).id; memberIds = members ? await resolveMemberIds(app, env, auth, members) : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'POST', `/api/outings/${encodeURIComponent(id)}/calendar`, { ...input, ...(memberIds ? { memberIds } : {}) });
     return res.status >= 400 ? errorResult(res.json, 'failed to add it to the calendar') : okResult(`On the calendar: ${(res.json as { calendarEventStart: string }).calendarEventStart}`, { outing: res.json });
+  });
+  tool('suggest_outings', { title: 'Suggest outings', description: 'Ideas from the family\'s Outings, by simple rules (no AI): this weekend (ranked by who ⭐ or 👀 it, family and free first, leaving out ones that clash with busy events), an open stretch on the weekend, rain (indoor ideas from the forecast), nothing planned next weekend, free things, next month, date night (grown-ups), places not visited in a while, and a surprise pick. Also returns the weekend\'s open time and the forecast, so you can answer asks like "something for Leo on a rainy Sunday under $20" in your own words. when: this_weekend, next_weekend or next_month narrows the cards; for: names or ids ("for me" rule); free_only.', inputSchema: { when: z.enum(['this_weekend', 'next_weekend', 'next_month']).optional(), for: jsonList(z.array(z.string())).optional(), free_only: z.boolean().optional() } }, async ({ when, for: forWho, free_only }) => {
+    const q = new URLSearchParams();
+    try { if (forWho?.length) q.set('for', (await resolveMemberIds(app, env, auth, forWho)).join(',')); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    if (free_only) q.set('free', 'true');
+    const res = await call(app, env, auth, 'GET', `/api/outings/ideas?${q}`);
+    if (res.status >= 400) return errorResult(res.json, 'failed to read ideas');
+    const data = res.json as { ideas: { key: string; title: string; note: string | null; outingIds: string[] }[]; outings: { id: string; title: string }[] } & Record<string, unknown>;
+    const keep = (k: string) => !when || (when === 'this_weekend' ? k === 'weekend' || k === 'rain' || k.startsWith('open-') : when === 'next_weekend' ? k === 'next-weekend' : k === 'next-month');
+    const ideas = data.ideas.filter((i) => keep(i.key));
+    const title = new Map(data.outings.map((o) => [o.id, o.title]));
+    return okResult(ideas.length ? ideas.map((i) => `${i.title}${i.note ? ` (${i.note})` : ''}: ${i.outingIds.map((id) => title.get(id)).join(', ')}`).join('; ') : 'No ideas right now: add some outings first.', { ...data, ideas });
   });
   tool('list_outing_categories', { title: 'List outing categories', description: "Outings' categories (Food, Music, Outdoors & nature…), for picking one by name.", inputSchema: {} }, async () => {
     const res = await call(app, env, auth, 'GET', '/api/outing-categories');

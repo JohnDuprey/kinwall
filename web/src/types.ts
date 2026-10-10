@@ -936,6 +936,7 @@ export interface PushSubscriptionPrefs {
   choreNudge: boolean
   choreNudgeTime: string
   listUpdates: boolean
+  outingReminders?: boolean // Outings: heads-ups for ⭐ outings, ticket dates and last chances (on unless turned off)
   medicationNames: boolean // medicine names in medication reminders on this device (off: generic text)
 }
 
@@ -943,7 +944,7 @@ export interface PushSubscriptionPrefs {
 export interface AppNotification {
   id: string
   at: string
-  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll'
+  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll' | 'outing'
   title: string
   body: string | null
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens
@@ -1100,4 +1101,6 @@ export interface Outing {
   createdAt: string; updatedAt: string; interest: { memberId: string; level: 'interested' | 'really' }[]
 }
 export type OutingInput = Partial<Omit<Outing, 'id' | 'calendarEventId' | 'calendarEventStart' | 'source' | 'addedBy' | 'createdAt' | 'updatedAt' | 'interest'>>
+export interface OutingIdea { key: string; emoji: string; title: string; note: string | null; outingIds: string[] }
+export interface OutingIdeas { ideas: OutingIdea[]; outings: Outing[]; openTime: { day: string; from: string; to: string }[]; forecast: { date: string; text: string; rainy: boolean }[] }
 export interface OutingCategory { id: string; name: string; emoji: string | null; sort: number }

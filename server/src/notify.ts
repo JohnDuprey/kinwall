@@ -26,6 +26,8 @@ import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns
 import { isSealed, seal, unseal, type EncryptionEnv } from './crypto.ts';
 import { formatTime, hour12For } from './timeFormat.ts';
 import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from './routes/events.ts';
+import { readOutings } from './routes/outings.ts';
+import { dueReminders, type OutingReminder } from './outing-reminders.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -34,6 +36,7 @@ export const DEFAULT_PUSH_PREFS = {
   choreNudge: false,
   choreNudgeTime: '08:00',
   listUpdates: false,
+  outingReminders: true, // Outings: heads-ups for ⭐ outings, ticket dates, last chance (notify.ts runOutings)
   medicationNames: false, // medicine names in medication reminders on this device (push text shows on lock screens)
 };
 
@@ -167,7 +170,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll' | 'outing';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // Medicine notes (kind 'medication') are health data (AGENTS.md "Health data"): the title (whose
@@ -933,6 +936,43 @@ async function runLibraryDue(env: Env, db: KinwallDb, now: Date, tz: string, win
   }
 }
 
+// Outings (routes/outings.ts, outing-reminders.ts): from OUTINGS_AT (household) on, the day's
+// heads-ups, ticket and last-chance notes, each once by its key; "on sale now" as soon as that time
+// comes. Held through quiet hours (the caller skips the tick), so a held note goes out after.
+export const OUTINGS_AT = '09:00';
+async function runOutings(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
+  const today = todayInTz(tz, now);
+  const morning = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now) >= OUTINGS_AT;
+  const [outings, people, cats] = await Promise.all([
+    readOutings(db),
+    db.prepare('SELECT id, name, grown_up FROM members ORDER BY sort, created_at').all<{ id: string; name: string; grown_up: number }>(),
+    db.prepare('SELECT id, emoji FROM outing_categories').all<{ id: string; emoji: string | null }>(),
+  ]);
+  const emoji = new Map(cats.results.map((c) => [c.id, c.emoji]));
+  const due = dueReminders(outings.map((o) => ({ ...o, emoji: (o.categoryId && emoji.get(o.categoryId)) || null })), people.results.map((m) => ({ id: m.id, name: m.name, grownUp: !!m.grown_up })), today, (o) => {
+    if (!o.ticketsOnSaleAt) return null;
+    const at = new Date(o.ticketsOnSaleAt);
+    return { saleOn: todayInTz(tz, at), saleAt: formatTime(at, { h12, tz }), saleNow: now >= at };
+  });
+  for (const r of due) if (morning || r.key.includes(':onsale0:')) await sendOutingReminder(env, db, r, now);
+}
+
+/** One outing note, once by its key: in the bell for the people it's for (and the grown-ups when
+ * `grownUps`), and pushed to their own devices and, for grown-ups, parents' devices, where
+ * "Outing reminders" is on. */
+export async function sendOutingReminder(env: Env, db: KinwallDb, r: OutingReminder, now = new Date()): Promise<void> {
+  const claimed = await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(r.key, now.toISOString()).run();
+  if (!claimed.meta.changes) return;
+  const grownUps = r.grownUps ? (await db.prepare('SELECT id FROM members WHERE grown_up = 1').all<{ id: string }>()).results.map((m) => m.id) : [];
+  const url = `/#/outings?outing=${encodeURIComponent(r.outingId)}`;
+  await recordNotification(db, { kind: 'outing', title: r.title, body: r.body, url, memberIds: [...new Set([...r.memberIds, ...grownUps])], source: 'system', at: now });
+  const { results } = await db.prepare(
+    `SELECT DISTINCT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id
+      WHERE k.owner IN (SELECT value FROM json_each(?1)) OR (?2 AND k.scope = 'admin' AND (k.owner IS NULL OR k.owner NOT IN (SELECT id FROM members WHERE grown_up = 0)))`,
+  ).bind(JSON.stringify(r.memberIds), r.grownUps ? 1 : 0).all<PushSubRow>();
+  for (const sub of results.filter((x) => subPrefs(x).outingReminders)) await sendToSub(env, db, sub, { title: r.title, body: r.body, url, tag: r.key });
+}
+
 // A calendar whose sign-in Google or Microsoft revoked (sync.ts records last_error_code 'revoked'):
 // one note to the grown-ups, "Leo's calendar stopped syncing", in the feed (for grown-ups only, so
 // not on kids' devices) and pushed to parent devices (full-access keys not owned by a kid), opening
@@ -1004,6 +1044,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     await part('medication reminders', () => runMedicationReminders(env, env.DB, now, tz, h12));
   }
+  if (features.outings && !hold) await part('outing reminders', () => runOutings(env, env.DB, now, tz, h12)); // held at night: sent once it's over
   if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile
   await part('prune', () => pruneSentNotifications(env.DB, now));
   if (!retry) await setTickWindowEnd(env.DB, now);

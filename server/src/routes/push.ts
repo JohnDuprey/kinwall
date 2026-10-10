@@ -283,7 +283,9 @@ pushRoutes.openapi(
     // Medicine rows only for parents, shared walls and that person's own devices (routes/medications.ts).
     const meds = await medicationFeedFilter(c);
     const who = await feedFilter(c);
-    if (!(await readFeatures(c.env.DB)).polls) who.sql += " AND kind != 'poll'"; // polls off: their notes go with them
+    const features = await readFeatures(c.env.DB);
+    if (!features.polls) who.sql += " AND kind != 'poll'"; // polls off: their notes go with them
+    if (!features.outings) who.sql += " AND kind != 'outing'"; // outings off: the same
     // Newest first by day, then by insertion order: a medicine note's stored `at` is only its day.
     // Rows hidden after opening (hideLate) are made up from the next batch, so a page stays full.
     // ponytail: `before` compares stored times, so paging can repeat a medicine note at a day's edge; cursor by rowid if that matters.

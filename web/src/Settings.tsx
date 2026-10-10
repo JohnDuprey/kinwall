@@ -766,7 +766,7 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, medicationNames: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, medicationNames: false }
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
@@ -917,6 +917,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
           {settings.features.lists && <div className="toggle-row">
             <label>List updates</label>
             <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label="List updates" onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+          </div>}
+          {settings.features.outings !== false && <div className="toggle-row">
+            <div>
+              <label id="push-outings-label">Outing reminders</label>
+              <div className="settings-row-sub" id="push-outings-sub">A week and a day before outings someone ⭐, ticket dates, and last chances.</div>
+            </div>
+            <button className={`switch ${prefs.outingReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.outingReminders !== false} aria-labelledby="push-outings-label" aria-describedby="push-outings-sub" onClick={() => savePrefs({ outingReminders: prefs.outingReminders === false })}><span className="knob" /></button>
           </div>}
           {settings.medications && <div className="toggle-row">
             <div>

@@ -22,9 +22,13 @@ import { actorOf, ownerBlock, requestKey } from '../auth.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { readFeatures, readSettings } from './settings.ts';
 import { todayInTz } from './members.ts';
-import { createEvent } from './events.ts';
+import { createEvent, eventInstances } from './events.ts';
+import { getWeather } from './weather.ts';
+import { dateAnnounced } from '../outing-reminders.ts';
+import { sendOutingReminder } from '../notify.ts';
+import { waitUntil } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
-import { addDays, hiddenFromKid, matchesFilter, type OutingFilter, type PersonFacts } from '../outing-rules.ts';
+import { addDays, hiddenFromKid, isForPerson, matchesFilter, openStretches, outingIdeas, rainy, weekendOf, type BusyStretch, type OutingFilter, type PersonFacts } from '../outing-rules.ts';
 
 export const outingsRoutes = createRouter();
 
@@ -168,6 +172,9 @@ async function viewer(c: Ctx): Promise<{ parent: boolean; kid: string | null }> 
   const m = await c.env.DB.prepare('SELECT grown_up FROM members WHERE id = ?').bind(owner).first<{ grown_up: number }>();
   return { parent: false, kid: m && !m.grown_up ? owner : null };
 }
+function execCtx(c: Ctx) {
+  try { return c.executionCtx; } catch { return undefined; } // Node: no ExecutionContext
+}
 const off = async (c: Ctx) => !(await readFeatures(c.env.DB)).outings;
 const todayOf = async (db: KinwallDb) => todayInTz((await readSettings(db)).timezone || hostTimezone());
 async function people(db: KinwallDb): Promise<PersonFacts[]> {
@@ -239,6 +246,60 @@ outingsRoutes.openapi(
       return q.past === 'all' ? matchesFilter(o, { ...filter, past: false }, today) || matchesFilter(o, { ...filter, past: true }, today) : matchesFilter(o, { ...filter, past: q.past === 'true' }, today);
     });
     return c.json(shown, 200);
+  },
+);
+
+export const IdeaSchema = z.object({ key: z.string(), emoji: z.string(), title: z.string(), note: z.string().nullable(), outingIds: z.array(z.string()) }).openapi('OutingIdea');
+export const OutingIdeasSchema = z
+  .object({
+    ideas: z.array(IdeaSchema).openapi({ description: 'Ready-made cards, in order: this weekend, an open stretch on the weekend, rain (indoor ideas), nothing planned next weekend, free things, next month, date night (grown-ups\' devices), haven\'t been in a while, surprise me (the same pick all day). Cards with nothing in them are left out.' }),
+    outings: z.array(OutingSchema).openapi({ description: 'The outings the cards name.' }),
+    openTime: z.array(z.object({ day: z.string(), from: z.string(), to: z.string() })).openapi({ description: "This weekend's open stretches of 3 hours or more between 9 AM and 8 PM (HH:MM), around busy events." }),
+    forecast: z.array(z.object({ date: z.string(), text: z.string(), rainy: z.boolean() })).openapi({ description: 'The next days of the forecast, when a location is set.' }),
+  })
+  .openapi('OutingIdeas');
+
+/** Busy events as stretches of household days, for the open-time rules (free events don't count). */
+function busyStretches(instances: { start: string; end: string; allDay: boolean; busy?: boolean }[], tz: string): BusyStretch[] {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const local = (iso: string) => { const p = Object.fromEntries(f.formatToParts(new Date(iso)).map((x) => [x.type, x.value])); return { day: `${p.year}-${p.month}-${p.day}`, m: Number(p.hour) * 60 + Number(p.minute) }; };
+  const out: BusyStretch[] = [];
+  for (const e of instances) {
+    if (e.busy === false) continue;
+    if (e.allDay) { for (let d = e.start.slice(0, 10); d < e.end.slice(0, 10); d = addDays(d, 1)) out.push({ day: d, from: 0, to: 1440 }); continue; }
+    const a = local(e.start), b = local(e.end);
+    for (let d = a.day; d <= b.day; d = addDays(d, 1)) out.push({ day: d, from: d === a.day ? a.m : 0, to: d === b.day ? b.m : 1440 });
+  }
+  return out;
+}
+const clock = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+outingsRoutes.openapi(
+  createRoute({
+    method: 'get', path: '/api/outings/ideas', tags: ['Outings'], security: [{ Bearer: [] }],
+    summary: "Ideas: ready-made picks from what's saved, the family calendar's busy events and the forecast (no AI). for narrows to what's for those people; free to free ones",
+    request: { query: z.object({ for: z.string().optional().openapi({ description: 'Comma-separated member ids (the "for me" rule).' }), free: z.enum(['true', 'false']).optional() }) },
+    responses: { 200: { description: 'ideas', content: { 'application/json': { schema: OutingIdeasSchema } } }, 404: errors[404] },
+  }),
+  async (c) => {
+    if (await off(c)) return c.json(OFF, 404);
+    const db = c.env.DB;
+    const q = c.req.valid('query');
+    const [all, who, settings, everyone] = await Promise.all([readOutings(db), viewer(c), readSettings(db), people(db)]);
+    const tz = settings.timezone || hostTimezone();
+    const today = todayInTz(tz);
+    const forIds = (q.for ?? '').split(',').filter(Boolean);
+    const forPeople = everyone.filter((p) => forIds.includes(p.id));
+    const mine = all.filter((o) => !(who.kid && hiddenFromKid(o, who.kid)) && (!forPeople.length || forPeople.some((p) => isForPerson(o, p, today))) && (q.free !== 'true' || o.priceCents === 0));
+    const from = new Date(`${addDays(today, -1)}T00:00:00Z`), to = new Date(`${addDays(today, 16)}T00:00:00Z`);
+    const [instances, weather] = await Promise.all([eventInstances(db, from, to), getWeather(db).catch(() => null)]);
+    const busy = busyStretches(instances, tz);
+    const forecast = (weather?.days ?? []).map((d) => ({ date: d.date, rainChance: d.rainChance, code: d.code, text: d.text }));
+    const grownUp = who.parent;
+    const ideas = outingIdeas(mine, today, busy, forecast, { grownUp });
+    const named = new Set(ideas.flatMap((i) => i.outingIds));
+    const openTime = weekendOf(today).filter((d) => d >= today).flatMap((day) => openStretches(day, busy).map((s) => ({ day, from: clock(s.from), to: clock(s.to) })));
+    return c.json({ ideas, outings: mine.filter((o) => named.has(o.id)), openTime, forecast: forecast.slice(0, 7).map((d) => ({ date: d.date, text: d.text, rainy: rainy(d) })) }, 200);
   },
 );
 
@@ -347,7 +408,13 @@ outingsRoutes.openapi(
     const cols = toRow(input);
     if (cols.length) await c.env.DB.prepare(`UPDATE outings SET ${cols.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`).bind(...cols.map(([, v]) => v), new Date().toISOString(), id).run();
     emit(c, 'outing.changed', { id });
-    return c.json((await readOutings(c.env.DB, { id }))[0], 200);
+    const saved = (await readOutings(c.env.DB, { id }))[0];
+    // A date filled in on an outing others ⭐: they hear about it (once per date).
+    if (!old.startsOn && saved.startsOn && (await readFeatures(c.env.DB)).outings) {
+      const note = dateAnnounced({ ...saved, emoji: saved.categoryId ? (await c.env.DB.prepare('SELECT emoji FROM outing_categories WHERE id = ?').bind(saved.categoryId).first<{ emoji: string | null }>())?.emoji ?? null : null }, who.kid ?? (await actorOf(c)).memberId);
+      if (note) waitUntil(execCtx(c), sendOutingReminder(c.env, c.env.DB, note));
+    }
+    return c.json(saved, 200);
   },
 );
 

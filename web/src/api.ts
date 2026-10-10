@@ -11,7 +11,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
-import type { Outing, OutingCategory, OutingInput, Poll, PollInput } from './types.ts'
+import type { Outing, OutingCategory, OutingIdeas, OutingInput, Poll, PollInput } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -346,6 +346,7 @@ export const api = {
   updatePoll: (id: string, body: { question?: string; mealId?: string | null }) => patch<Poll>(`api/polls/${encodeURIComponent(id)}`, body),
   deletePoll: (id: string) => del<{ ok: boolean }>(`api/polls/${encodeURIComponent(id)}`),
   getOutings: () => get<Outing[]>('api/outings?past=all'),
+  getOutingIdeas: () => get<OutingIdeas>('api/outings/ideas'),
   getOuting: (id: string) => get<Outing>(`api/outings/${encodeURIComponent(id)}`),
   createOuting: (body: OutingInput & { title: string }) => post<Outing>('api/outings', body),
   updateOuting: (id: string, body: OutingInput) => patch<Outing>(`api/outings/${encodeURIComponent(id)}`, body),

@@ -3,7 +3,7 @@
 // a pumpkin patch that's open all month, a concert with no date yet, and a few places to go.
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
-import { addDays, hiddenFromKid, weekendOf } from './outing-rules.ts'
+import { addDays, hiddenFromKid, openStretches, outingIdeas, rainy, weekendOf, type BusyStretch } from './outing-rules.ts'
 import type { Outing, OutingCategory } from './types.ts'
 
 const today = dateKey(new Date())
@@ -64,6 +64,7 @@ export async function mockOutingRequest(path: string, options: RequestInit): Pro
   }
   const id = parts[2] && decodeURIComponent(parts[2])
   const action = parts[3]
+  if (id === 'ideas') return mockIdeas()
   if (!id) {
     if (method === 'GET') return copy(outings.filter(o => !(kid() && hiddenFromKid(o, kid()!))))
     const now = new Date().toISOString()
@@ -100,4 +101,28 @@ export async function mockOutingRequest(path: string, options: RequestInit): Pro
   if (kid() && o.addedBy !== kid()) throw new Error('Kids can change the outings they added. Ask a grown-up to change this one.')
   Object.assign(o, body, { updatedAt: new Date().toISOString() })
   return copy(o)
+}
+
+/** GET /api/outings/ideas: the same rules as the server, over the demo's events and forecast. */
+async function mockIdeas() {
+  const mine = outings.filter(o => !(kid() && hiddenFromKid(o, kid()!)))
+  const events = await mock.getEvents(`${addDays(today, -1)}T00:00:00Z`, `${addDays(today, 16)}T00:00:00Z`)
+  const local = (iso: string) => { const d = new Date(iso); return { day: dateKey(d), m: d.getHours() * 60 + d.getMinutes() } }
+  const busy: BusyStretch[] = []
+  for (const e of events) {
+    if (e.busy === false) continue
+    if (e.allDay) { for (let d = e.start.slice(0, 10); d < e.end.slice(0, 10); d = addDays(d, 1)) busy.push({ day: d, from: 0, to: 1440 }); continue }
+    const a = local(e.start), b = local(e.end)
+    for (let d = a.day; d <= b.day; d = addDays(d, 1)) busy.push({ day: d, from: d === a.day ? a.m : 0, to: d === b.day ? b.m : 1440 })
+  }
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(today, i))
+  const forecast = (mock.forecast(dates)?.days ?? []).map(d => ({ date: d.date, rainChance: d.rainChance, code: d.code, text: d.text }))
+  const ideas = outingIdeas(mine, today, busy, forecast, { grownUp: !kid() })
+  const named = new Set(ideas.flatMap(i => i.outingIds))
+  const clock = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return {
+    ideas, outings: copy(mine.filter(o => named.has(o.id))),
+    openTime: weekendOf(today).filter(d => d >= today).flatMap(day => openStretches(day, busy).map(x => ({ day, from: clock(x.from), to: clock(x.to) }))),
+    forecast: forecast.map(d => ({ date: d.date, text: d.text, rainy: rainy(d) })),
+  }
 }

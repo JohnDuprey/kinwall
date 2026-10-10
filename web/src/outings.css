@@ -39,7 +39,16 @@
 .outing-cats input { min-width: 0; flex: 1; min-height: 44px; padding: 8px 12px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
 .outing-cats input.outing-cat-emoji { flex: none; width: 56px; text-align: center; }
 
-/* The Board's tray: two columns where there's room (three with Ideas). */
+/* Ideas: a heading per question and its outings. */
+.outing-ideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 16px; margin-top: 12px; }
+.outing-idea h3 { margin: 0 0 8px; font-size: 1rem; }
+.outing-idea h3 small { font-weight: 600; color: var(--text-dim); }
+.outing-idea .outing-list { grid-template-columns: 1fr; gap: 8px; }
+.outing-tray .outing-ideas { grid-template-columns: 1fr; margin-top: 0; gap: 12px; }
+.outing-tray .outing-idea h3 { font-size: 0.9375rem; }
+
+/* The Board's tray: wider than a sheet, so This weekend, Coming up and Ideas sit side by side on a wall. */
+.sheet:has(.outing-tray) { max-width: min(1120px, 94vw); }
 .outing-tray { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
 .outing-tray h3 { margin: 0 0 8px; font-size: 1rem; }
 .outing-tray section > div + div { margin-top: 8px; }

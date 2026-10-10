@@ -21,7 +21,7 @@ import { mapHref, parsePrice } from './restaurants.ts'
 import { hashQuery, withHashParam } from './hashQuery.ts'
 import { FOR_BOXES, interestOf, type ForBox } from './outing-rules.ts'
 import { audienceLabel, boxLabel, filterChips, placeSections, priceLabel, reallyCount, shownOutings, startFilters, trayRows, upcomingSections, whenLabel, type Cost, type Filters, type When } from './outings.ts'
-import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingInput } from './types.ts'
+import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingIdeas, OutingInput } from './types.ts'
 import './meals.css'
 import './outings.css'
 
@@ -50,6 +50,37 @@ export function useOutings() {
     return () => { canceled = true }
   }, [on, refreshTick, tick])
   return { outings: on ? data?.outings ?? [] : [], categories: data?.categories ?? [], loaded: !!data, error, retry: () => setTick(t => t + 1) }
+}
+
+/** Ideas (GET /api/outings/ideas): ready-made picks, fresh like the list. */
+function useOutingIdeas(): OutingIdeas | null {
+  const { settings, refreshTick } = useApp()
+  const on = settings.features.outings !== false
+  const [ideas, setIdeas] = useState<OutingIdeas | null>(null)
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const bump = () => setTick(t => t + 1)
+    window.addEventListener(CHANGED, bump)
+    return () => window.removeEventListener(CHANGED, bump)
+  }, [])
+  useEffect(() => {
+    if (!on) return
+    let canceled = false
+    api.getOutingIdeas().then(x => { if (!canceled) setIdeas(x) }).catch(() => { /* keep the last ones */ })
+    return () => { canceled = true }
+  }, [on, refreshTick, tick])
+  return on ? ideas : null
+}
+
+/** The idea cards: a heading per question ("Saturday is open"), and the outings that answer it. */
+function IdeaCards({ data, categories, today, onOpen, max, perCard }: { data: OutingIdeas; categories: OutingCategory[]; today: string; onOpen: (o: Outing) => void; max?: number; perCard?: number }) {
+  const byId = new Map(data.outings.map(o => [o.id, o]))
+  const cards = data.ideas.slice(0, max)
+  if (!cards.length) return <p className="state-card">No ideas yet. Add a few outings and places, and mark the ones you like.</p>
+  return <div className="outing-ideas">{cards.map(i => <section key={i.key} className="outing-idea" aria-labelledby={`idea-${i.key}`}>
+    <h3 id={`idea-${i.key}`}><span aria-hidden="true">{i.emoji}</span> {i.title}{i.note && <small> · {i.note}</small>}</h3>
+    <div className="outing-list">{i.outingIds.slice(0, perCard).map(id => byId.get(id)).filter((o): o is Outing => !!o).map(o => <OutingRow key={o.id} o={o} categories={categories} today={today} compact onOpen={onOpen} />)}</div>
+  </section>)}</div>
 }
 
 /** What this device may do: a parent everything, a kid's own device add and edit its own, a wall neither. */
@@ -108,7 +139,8 @@ export default function Outings() {
   const { members } = useApp()
   const who = useWho()
   const { outings, categories, loaded, error, retry } = useOutings()
-  const [view, setView] = useState<'upcoming' | 'place'>('upcoming')
+  const [view, setView] = useState<'upcoming' | 'place' | 'ideas'>('upcoming')
+  const ideas = useOutingIdeas()
   // A kid's own device starts on "for me" (whose device it is can arrive after the first render).
   const [picked, setFilters] = useState<Filters | null>(null)
   const filters = picked ?? startFilters(who.kidId)
@@ -124,17 +156,21 @@ export default function Outings() {
   }, [])
   const openOne = useCallback((id: string | null) => { history.replaceState(null, '', withHashParam(location.hash, 'outing', id)); setOpen(id) }, [])
   const linked = open ? outings.find(o => o.id === open) : null
-  useEffect(() => { if (linked?.kind) setView(linked.kind) }, [linked?.kind])
+  useEffect(() => { if (linked?.kind) setView(v => v === 'ideas' ? v : linked.kind) }, [linked?.kind])
 
-  const shown = shownOutings(outings, view, filters, members, who.today, who.kidId)
+  const kind = view === 'place' ? 'place' : 'upcoming'
+  const shown = shownOutings(outings, kind, filters, members, who.today, who.kidId)
   const sections = view === 'place' ? placeSections(shown) : upcomingSections(shown, who.today)
-  const chips = filterChips(view === 'place' ? { ...filters, when: 'any' } : filters, members, categories)
+  const chips = filterChips(kind === 'place' ? { ...filters, when: 'any' } : filters, members, categories)
   return <div className="meals-view outings-view scroll-y">
     <div className="meals-heading"><div><h1>Outings</h1><p className="field-hint">Things to do and places to go. Mark what you’d like to do.</p></div>
       {who.canAdd && <div className="meal-actions"><button className="btn btn-primary" onClick={() => setEditing('new')}><PlusIcon /> Add</button></div>}
     </div>
-    <Segmented tabs idBase="outings-tab" label="Outings sections" value={view} onChange={setView} options={[{ key: 'upcoming', label: 'Upcoming' }, { key: 'place', label: 'Places' }]} />
-    <section role="tabpanel" aria-labelledby={`outings-tab-${view}`}>
+    <Segmented tabs idBase="outings-tab" label="Outings sections" value={view} onChange={setView} options={[{ key: 'upcoming', label: 'Upcoming' }, { key: 'place', label: 'Places' }, { key: 'ideas', label: 'Ideas' }]} />
+    {view === 'ideas' ? <section role="tabpanel" aria-labelledby="outings-tab-ideas">
+      <p className="field-hint">Picks from what’s saved, the family calendar’s busy times and the forecast. They change as you mark things.</p>
+      {!ideas ? <p role="status">Loading ideas…</p> : <IdeaCards data={ideas} categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
+    </section> : <section role="tabpanel" aria-labelledby={`outings-tab-${view}`}>
       <div className="outing-filter-bar">
         {chips.map(c => <button key={c.label} type="button" className="btn btn-secondary outing-chip" aria-label={`Remove filter: ${c.label}`} onClick={() => setFilters(c.without)}>{c.label} <span aria-hidden="true">✕</span></button>)}
         <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> Filters{chips.length ? ` (${chips.length})` : ''}</button>
@@ -150,11 +186,11 @@ export default function Outings() {
           <div className="outing-list">{s.outings.map(o => <OutingRow key={o.id} o={o} categories={categories} today={who.today} onOpen={x => openOne(x.id)} />)}</div>
         </section>)}
       </>}
-    </section>
-    {filtering && <FiltersSheet value={filters} place={view === 'place'} categories={categories} count={(f: Filters) => shownOutings(outings, view, f, members, who.today, who.kidId).length}
+    </section>}
+    {filtering && <FiltersSheet value={filters} place={view === 'place'} categories={categories} count={(f: Filters) => shownOutings(outings, kind, f, members, who.today, who.kidId).length}
       onEditCategories={who.parent ? () => { setFiltering(false); setCats(true) } : undefined} onClose={() => setFiltering(false)} onApply={f => { setFilters(f); setFiltering(false) }} />}
     {open && <OutingSheet id={open} onClose={() => openOne(null)} onEdit={o => setEditing(o)} />}
-    {editing && <OutingEditSheet outing={editing === 'new' ? null : editing} kind={view} categories={categories} onClose={() => setEditing(null)} onSaved={o => { setEditing(null); setView(o.kind); openOne(o.id) }} />}
+    {editing && <OutingEditSheet outing={editing === 'new' ? null : editing} kind={kind} categories={categories} onClose={() => setEditing(null)} onSaved={o => { setEditing(null); if (view !== 'ideas') setView(o.kind); openOne(o.id) }} />}
     {cats && <CategoriesSheet categories={categories} onClose={() => setCats(false)} />}
   </div>
 }
@@ -251,12 +287,13 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
   const options = [
     canEdit && onEdit && <option key="edit" value="edit">Edit</option>,
     canEdit && o.kind === 'place' && <option key="been" value="been">We went today</option>,
-    who.parent && o.kind === 'upcoming' && (o.ticketsUrl || o.buyBy || o.ticketsOnSaleAt || o.gotTickets) && <option key="tickets" value="tickets">{o.gotTickets ? 'We don’t have tickets' : 'We have tickets'}</option>,
+    who.parent && o.gotTickets && <option key="tickets" value="tickets">We don’t have tickets</option>,
     canEdit && <option key="archive" value="archive">{o.archived ? 'Put it back on the list' : 'Not for us'}</option>,
     who.parent && <option key="delete" value="delete">Delete outing…</option>,
   ].filter(Boolean)
   const actions = <>
     {options.length > 0 && <select className="settings-select actions-select" aria-label="Outing actions" value="" disabled={busy} onChange={e => void more(e.target.value)}><option value="" disabled hidden>More…</option>{options}</select>}
+    {who.parent && o.kind === 'upcoming' && !o.gotTickets && (o.ticketsUrl || o.buyBy || o.ticketsOnSaleAt) && <button className="btn btn-secondary" disabled={busy} onClick={() => void more('tickets')}>🎟 We have tickets</button>}
     {who.parent && !o.calendarEventId && <button className="btn btn-primary" disabled={busy} onClick={() => setCalendar(true)}>Add to our calendar</button>}
   </>
   const facts: [string, ReactNode][] = [
@@ -498,12 +535,14 @@ export function OutingsButton() {
 
 /** The Board's Outings tray: this weekend and coming up, a tap opens an outing (marking interest
  * asks who first on a wall), See all goes to the tab. */
-export function OutingsTray({ onClose, extra }: { onClose: () => void; extra?: ReactNode }) {
+export function OutingsTray({ onClose }: { onClose: () => void }) {
   const who = useWho()
   const { outings, categories, loaded } = useOutings()
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const { weekend, coming } = trayRows(outings, who.today, who.kidId)
+  const ideas = useOutingIdeas()
+  const fromIdeas = ideas && { ...ideas, ideas: ideas.ideas.filter(i => i.key !== 'weekend') } // the tray has its own This weekend
   const row = (o: Outing, note?: string | null) => <div key={o.id + (note ?? '')}>
     <OutingRow o={o} categories={categories} today={who.today} compact onOpen={x => setOpen(x.id)} />
     {note && <p className="outing-tray-note">🎟 {note}</p>}
@@ -517,7 +556,8 @@ export function OutingsTray({ onClose, extra }: { onClose: () => void; extra?: R
         {weekend.length ? weekend.map(o => row(o)) : <p className="state-card">Nothing saved for this weekend yet.</p>}</section>
       <section aria-labelledby="tray-coming"><h3 id="tray-coming">Coming up</h3>
         {coming.length ? coming.map(c => row(c.outing, c.note)) : <p className="state-card">Mark something ⭐ and it shows here, along with ticket dates.</p>}</section>
-      {extra}
+      {fromIdeas && <section aria-labelledby="tray-ideas"><h3 id="tray-ideas">Ideas</h3>
+        <IdeaCards data={fromIdeas} categories={categories} today={who.today} onOpen={x => setOpen(x.id)} max={3} perCard={2} /></section>}
     </div>}
     {open && <OutingSheet id={open} onClose={() => setOpen(null)} />}
     {adding && <OutingEditSheet outing={null} kind="upcoming" categories={categories} onClose={() => setAdding(false)} onSaved={o => { setAdding(false); setOpen(o.id) }} />}
