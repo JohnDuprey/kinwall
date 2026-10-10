@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { tellAppHere } from './native.ts'
 // Links into the app are #/<path>?<query> (notifications, Siri, Spotlight, widgets). The helpers
 // are pure (web/test/hashQuery.test.ts), all but the useHashParam hook.
 
@@ -26,6 +27,7 @@ export function useHashParam(key: string) {
   const [value, setValue] = useState(() => hashQuery(location.hash).get(key))
   const set = useCallback((next: string | null) => {
     history.replaceState(null, '', withHashParam(location.hash, key, next))
+    tellAppHere() // replaceState fires no hashchange
     setValue(next)
   }, [key])
   return [value, set] as const

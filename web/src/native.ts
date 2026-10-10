@@ -35,6 +35,13 @@ export function tellAppSignedOut(reason: 'signOut' | 'rejected') {
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'signedOut', reason }) } catch { /* not in the app */ }
 }
 
+/** Tells the app where the page is now (any message carries the page's address), so if the app
+ * has to restart its web view it reopens here, an open cooking mode or Get stuff done included. */
+export function tellAppHere() {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'here' }) } catch { /* not in the app */ }
+}
+
 /** Shopping mode is showing: asks the app to keep the screen on (a phone otherwise sleeps). The
  * browser's own Screen Wake Lock is held by main.tsx. No-op in a browser. */
 export function tellAppKeepAwake(on: boolean) {

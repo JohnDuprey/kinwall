@@ -34,7 +34,7 @@ import { DialogProvider, useDialog } from './dialog.tsx'
 import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
-import { appPlatform, inNativeApp, tellAppLeaveDemo, tellAppNight } from './native.ts'
+import { appPlatform, inNativeApp, tellAppHere, tellAppLeaveDemo, tellAppNight } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
 import { TimerButton, TimerHost } from './Timers.tsx'
@@ -160,7 +160,7 @@ export const IDLE_RESET_EVENT = 'kinwall:idle-reset'
 function useHashTab() {
   const [tab, setTab] = useState(() => (location.hash.replace('#/', '').split('?')[0] || 'calendar'))
   useEffect(() => {
-    const onHash = () => setTab(location.hash.replace('#/', '').split('?')[0] || 'calendar')
+    const onHash = () => { setTab(location.hash.replace('#/', '').split('?')[0] || 'calendar'); tellAppHere() }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
