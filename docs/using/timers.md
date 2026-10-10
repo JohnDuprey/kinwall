@@ -24,4 +24,5 @@ A red banner flashes across the top of the screen, over whatever is showing (the
 * Timers belong to the device they were started on. A timer started on a phone doesn't show on the wall.
 * They keep running through a reload, when a wall screen goes back to the calendar after sitting idle, and after you close cooking mode.
 * Cooking mode's step timers are the same timers: they show under the header's timer button too.
+* A cooking step's range ("5–6 min") is one timer with two parts. It counts to the low end (**Check at 5 min · done by 6**), plays one short, soft chime and says **Check it**, then counts the rest (**Up to 1 min more**) and rings as usual at the high end. **Done** stops it early. On the iPhone Lock Screen it reads "Check at 5:00", then "Check now · up to 1:00 more", and with the phone locked the check is a quiet notification and the end rings like any timer. Android's timer notification does the same.
 * A chore's timer is one of these too: tap a chore that has one, or **Start** on the Board's Today card, and **Mark done** on the banner ticks it off. See [Start time and timer](chores.md#start-time-and-timer).

@@ -12,25 +12,33 @@ export function cookingSteps(recipe: { steps?: RecipeStep[] | null; instructions
   return lines.map(text => ({ text, bullets: [] }))
 }
 
-export interface Duration { label: string; seconds: number }
+/** `check`: a range's low end in seconds ("5–7 min": check at 5, done at 7); `seconds` is its high end. */
+export interface Duration { label: string; seconds: number; check?: number }
 const UNITS: Record<string, [string, number]> = { h: ['hr', 3600], m: ['min', 60], s: ['sec', 1] }
-/** "10 minutes", "5-7 min", "1 hour", "30 seconds" as timers. A range times its low end, when
- * it's time to check. */
+/** "10 minutes", "5-7 min", "1 hour", "30 seconds" as timers. A range runs to its high end and
+ * chimes at its low end, when it's time to check. */
 export function findDurations(text: string): Duration[] {
   const found = new Map<string, Duration>()
   for (const m of text.matchAll(/(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?\s*-?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/gi)) {
     const [unit, size] = UNITS[m[3][0].toLowerCase()]
-    const seconds = Math.round(Number(m[1]) * size)
+    const low = Math.round(Number(m[1]) * size), high = m[2] ? Math.round(Number(m[2]) * size) : 0
     const label = `${m[2] ? `${m[1]}–${m[2]}` : m[1]} ${unit}`
-    if (seconds > 0) found.set(label, { label, seconds })
+    if (low > 0) found.set(label, high > low ? { label, seconds: high, check: low } : { label, seconds: low })
   }
   return [...found.values()]
 }
 
-/** The step's own timers (labeled with their name), or else the durations its text mentions. */
+/** The step's own timers (labeled with their name), or else the durations its text mentions. A
+ * meal kit's timer is one number: when the text has a range starting there ("Roast 15–20 min"),
+ * it's that range. */
 export function stepTimers(step: RecipeStep): Duration[] {
-  if (!step.timers?.length) return findDurations([step.text, ...step.bullets].join('\n'))
-  return step.timers.map(t => ({ label: `${t.name ? `${t.name} · ` : ''}${t.minutes} min`, seconds: Math.round(t.minutes * 60) }))
+  const found = findDurations([step.text, ...step.bullets].join('\n'))
+  if (!step.timers?.length) return found
+  return step.timers.map(t => {
+    const name = t.name ? `${t.name} · ` : '', seconds = Math.round(t.minutes * 60)
+    const range = found.find(d => d.check === seconds)
+    return range ? { ...range, label: name + range.label } : { label: `${name}${t.minutes} min`, seconds }
+  })
 }
 
 const words = (s: string) => (s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map(itemKey)

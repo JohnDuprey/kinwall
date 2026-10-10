@@ -12,7 +12,7 @@ test('timers: the soonest running timer, +N more, then "done" once none is runni
   assert.deepEqual(two, { recipe: 'Tuesday Tacos', timer: '5 min', step: 'Step 2', endsAt: 4000, done: false, more: 1, alarms: [
     { at: 4000, title: "Time's up: 5 min", body: 'Tuesday Tacos · Step 2' },
     { at: 9000, title: "Time's up: Rice", body: 'Tuesday Tacos · Step 3 · Simmer' },
-  ] })
+  ], checks: [] })
   const rang = timerActivity([t('Rice · 15 min', 'Step 3 · Simmer', 9000), t('5 min', 'Step 2', 4000, true)])
   assert.deepEqual([rang?.timer, rang?.step, rang?.more], ['Rice', 'Step 3 · Simmer', 0], 'a rung timer waits behind a running one')
   const done = timerActivity([t('Rice · 15 min', 'Step 3', 9000, true)])
@@ -23,6 +23,23 @@ test('timers: the soonest running timer, +N more, then "done" once none is runni
   assert.equal(timerActivity([{ ...t('Rice · 15 min', 'Step 3', 9000), paused: true }]), null, 'only paused: nothing on the Lock Screen')
   const quick = timerActivity([{ label: 'Homework · 10 min', endsAt: 5000, done: false }])
   assert.deepEqual([quick?.recipe, quick?.timer, quick?.step, quick?.alarms[0].body], ['Timer', 'Homework', '', 'Timer'], 'a quick timer is for nothing in particular')
+  assert.equal(quick?.check, undefined, 'a single time has no check')
+})
+
+test('timers: a range rings twice with the app closed, a soft check and the end', () => {
+  // 5–6 min started at 0: check at 300 000, done at 360 000.
+  const range = { label: '5–6 min', title: 'Tuesday Tacos', detail: 'Step 2', endsAt: 360_000, seconds: 360, check: 300, done: false }
+  const a = timerActivity([range])
+  assert.deepEqual(a, {
+    recipe: 'Tuesday Tacos', timer: '5–6 min', step: 'Step 2', endsAt: 360_000, done: false, more: 0,
+    alarms: [{ at: 360_000, title: "Time's up: 5–6 min", body: 'Tuesday Tacos · Step 2' }],
+    checks: [{ at: 300_000, title: 'Check it: 5–6 min', body: 'Tuesday Tacos · Step 2' }],
+    check: { at: 300_000, before: 'Check at 5:00', after: 'Check now · up to 1:00 more' },
+  })
+  const long = timerActivity([{ ...range, label: 'Veggies · 25–35 min', endsAt: 2_100_000, seconds: 2100, check: 1500 }])
+  assert.deepEqual([long?.check, long?.checks[0].title], [{ at: 1_500_000, before: 'Check at 25:00', after: 'Check now · up to 10:00 more' }, 'Check it: Veggies'])
+  const rang = timerActivity([{ ...range, done: true }])
+  assert.deepEqual([rang?.check, rang?.checks], [undefined, []], 'done: nothing left to check')
 })
 
 test('shopping: what\'s left and the next items in the store\'s walking order', () => {

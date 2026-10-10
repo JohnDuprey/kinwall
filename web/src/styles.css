@@ -2295,6 +2295,15 @@ a.activity-card:active { transform: scale(0.98); }
 .timer-bar-stack .timer-bar-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .timer-clock { font-variant-numeric: tabular-nums; font-size: 1.125rem; }
 .timer-clock-paused { color: var(--text-dim); }
+/* A range past its check ("Check it"): the accent says so, with the words, and Done ends it early. */
+.timer-bar li.timer-checking { border-color: var(--accent); }
+.timer-bar .timer-more { color: var(--text); font-weight: 700; }
+.timer-bar .timer-done { flex: none; min-height: 44px; padding: 0 16px; }
+/* On a phone, Done gets its own row so the words keep their width. */
+@media (max-width: 600px) {
+  .timer-bar li.timer-checking { flex-wrap: wrap; padding-bottom: 10px; }
+  .timer-bar .timer-done { order: 1; flex: 1 1 100%; margin-right: 12px; }
+}
 .timer-presets { margin-bottom: 20px; }
 .timer-custom-row { display: flex; gap: 8px; }
 .timer-custom-row input { flex: 1; min-width: 0; }

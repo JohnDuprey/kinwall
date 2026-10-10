@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Timers on this device (timers.ts).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { added, clock, due, durationLabel, paused, remaining, resumed, wasReset, type Timer } from '../src/timers.ts'
+import { added, checksDue, clock, due, durationLabel, paused, phase, remaining, resumed, timerWords, untilNext, wasReset, type Timer } from '../src/timers.ts'
 
 test('clock and duration labels', () => {
   assert.equal(clock(65_000), '1:05')
@@ -36,4 +36,44 @@ test('start, pause, resume, reset and ring', () => {
 
   assert.deepEqual(due(ts, 901_000).map(t => t.label), ['Rice · 15 min'])
   assert.deepEqual(due(ts, 900_000), [], 'not before its end')
+})
+
+test('a range timer: counts to the check, then on to the end', () => {
+  let ts: Timer[] = added([], { label: '5–6 min', seconds: 360, check: 300, key: 'r1:2:5–6 min' }, 0)
+  const at = (ms: number) => ts[0] && { phase: phase(ts[0], ms), next: untilNext(ts[0], ms), words: timerWords(ts[0], ms) }
+  assert.deepEqual(at(60_000), { phase: 'counting', next: 240_000, words: ['Check at 5 min · done by 6'] })
+  assert.deepEqual(checksDue(ts, 299_999), [])
+  assert.deepEqual(checksDue(ts, 300_000).length, 1, 'chimes at the low end')
+  assert.deepEqual(at(300_000), { phase: 'check', next: 60_000, words: ['Check it', 'Up to 1 min more'] })
+  assert.deepEqual(due(ts, 300_000), [], 'it keeps running')
+  ts = ts.map(t => ({ ...t, checked: true }))
+  assert.deepEqual(checksDue(ts, 310_000), [], 'chimes once')
+  assert.deepEqual(due(ts, 360_000).length, 1, 'rings at the high end')
+  assert.equal(phase({ ...ts[0], done: true }, 360_000), 'done')
+
+  ts = wasReset(ts, ts[0].id, 400_000)
+  assert.equal(ts[0].checked, false, 'reset: it chimes again')
+  assert.equal(phase(ts[0], 400_000), 'counting')
+  ts = paused(ts, ts[0].id, 730_000)
+  assert.deepEqual(checksDue(ts, 999_999), [], 'a paused one never chimes')
+  assert.equal(phase(ts[0], 999_999), 'check', 'paused in the check part stays there')
+
+  const late = added([], { label: '5–6 min', seconds: 360, check: 300 }, 0)
+  assert.deepEqual(checksDue(late, 400_000), [], 'both ends passed (a reload after a while): only the end rings')
+})
+
+test('range words: named, hours and seconds, long ranges; a single time is as before', () => {
+  const t = (label: string, seconds: number, check?: number): Timer => ({ id: 1, label, seconds, check, endsAt: seconds * 1000, done: false })
+  assert.deepEqual(timerWords(t('Veggies · 15–20 min', 1200, 900), 0), ['Veggies · Check at 15 min · done by 20'])
+  assert.deepEqual(timerWords(t('Veggies · 15–20 min', 1200, 900), 900_000), ['Veggies · Check it', 'Up to 5 min more'])
+  assert.deepEqual(timerWords(t('1–1.5 hr', 5400, 3600), 0), ['Check at 1 hr · done by 1.5'])
+  assert.deepEqual(timerWords(t('1–1.5 hr', 5400, 3600), 3_600_000), ['Check it', 'Up to 30 min more'])
+  assert.deepEqual(timerWords(t('30–45 sec', 45, 30), 30_000), ['Check it', 'Up to 15 sec more'])
+  assert.deepEqual(timerWords(t('25–35 min', 2100, 1500), 0), ['Check at 25 min · done by 35'])
+  assert.deepEqual(timerWords(t('Rice · 15 min', 900), 0), ['Rice · 15 min'])
+  assert.equal(untilNext(t('Rice · 15 min', 900), 100_000), 800_000)
+  // Saved before ranges (a reload mid-cook): no check, so exactly as before.
+  const old = JSON.parse('{"id":5,"label":"5–7 min","seconds":300,"endsAt":300000,"done":false}') as Timer
+  assert.deepEqual([phase(old, 100_000), untilNext(old, 100_000), timerWords(old, 100_000)], ['counting', 200_000, ['5–7 min']])
+  assert.deepEqual(checksDue([old], 299_000), [])
 })

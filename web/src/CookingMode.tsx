@@ -9,7 +9,7 @@ import { IngredientList } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { start, TimerList, useNow, useTimers } from './Timers.tsx'
-import { clock, isRunning, remaining } from './timers.ts'
+import { clock, isRunning, phase, untilNext } from './timers.ts'
 
 /** Full-screen cooking: one step at a time in big type, its ingredients (scaled to `servings`) and
  * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
@@ -116,8 +116,9 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
               {step.title && <h4 className="cook-step-title">{step.title}</h4>}
               {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
                 const on = timers.find(t => !t.done && t.key === timerKey(d.label))
-                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start({ label: d.label, seconds: d.seconds, title: recipe.name, detail: stepLine(index), key: timerKey(d.label) })}>
-                  ⏱ {on ? <>{d.label} · {clock(remaining(on, now))} {on.left !== undefined ? 'paused' : 'left'}</> : d.label}
+                const p = on && phase(on, now)
+                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start({ label: d.label, seconds: d.seconds, check: d.check, title: recipe.name, detail: stepLine(index), key: timerKey(d.label) })}>
+                  ⏱ {on ? <>{d.label} · {p === 'check' && 'Check it · '}{clock(untilNext(on, now))} {on.left !== undefined ? 'paused' : on.check !== undefined && p === 'counting' ? 'to check' : 'left'}</> : d.label}
                 </button>
               })}</div>}
             </div>}

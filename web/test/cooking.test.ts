@@ -15,10 +15,14 @@ test('cookingSteps: structured steps win; plain text splits by line, numbering d
   assert.deepEqual(cookingSteps({ steps: [], instructions: null }), [])
 })
 
-test('findDurations: minutes, hours, seconds and ranges (low end)', () => {
+test('findDurations: minutes, hours, seconds and ranges (to the high end, checked at the low end)', () => {
   assert.deepEqual(findDurations('Simmer for 10 minutes, then rest 30 seconds.'), [{ label: '10 min', seconds: 600 }, { label: '30 sec', seconds: 30 }])
-  assert.deepEqual(findDurations('Bake 5-7 min'), [{ label: '5–7 min', seconds: 300 }])
-  assert.deepEqual(findDurations('cook 15–20 Minutes or 8 to 10 mins'), [{ label: '15–20 min', seconds: 900 }, { label: '8–10 min', seconds: 480 }])
+  assert.deepEqual(findDurations('Bake 5-7 min'), [{ label: '5–7 min', seconds: 420, check: 300 }])
+  assert.deepEqual(findDurations('cook 15–20 Minutes or 8 to 10 mins'), [{ label: '15–20 min', seconds: 1200, check: 900 }, { label: '8–10 min', seconds: 600, check: 480 }])
+  assert.deepEqual(findDurations('Sear 2–3 min per side, rise 1-1.5 hours, whisk 30-45 seconds'), [
+    { label: '2–3 min', seconds: 180, check: 120 }, { label: '1–1.5 hr', seconds: 5400, check: 3600 }, { label: '30–45 sec', seconds: 45, check: 30 },
+  ])
+  assert.deepEqual(findDurations('Rest 10-10 min, or 7-5 min'), [{ label: '10–10 min', seconds: 600 }, { label: '7–5 min', seconds: 420 }], 'not a real range: one time')
   assert.deepEqual(findDurations('Chill 1 hour. A 1.5 hr rise. A 10-minute rest.'), [{ label: '1 hr', seconds: 3600 }, { label: '1.5 hr', seconds: 5400 }, { label: '10 min', seconds: 600 }])
   assert.deepEqual(findDurations('Stir 2 minutes; stir 2 minutes more'), [{ label: '2 min', seconds: 120 }])
   assert.deepEqual(findDurations('Heat to 425°F, 2 cups, 3 mint leaves, 0 min'), [])
@@ -41,4 +45,9 @@ test('stepTimers: a step\'s own timers, named, win over durations found in its t
   ])
   assert.deepEqual(stepTimers({ text, bullets: [], timers: [] }), [{ label: '25 min', seconds: 1500 }, { label: '5 min', seconds: 300 }])
   assert.deepEqual(stepTimers({ text: 'Plate.', bullets: ['Bake 10 min'] }), [{ label: '10 min', seconds: 600 }], 'steps saved before timers')
+  // A meal kit's timer is one number; its text may give the range ("Roast 15–20 min").
+  assert.deepEqual(stepTimers({ text: 'Roast 15–20 minutes, then broil 2 min.', bullets: [], timers: [{ name: 'Veggies', minutes: 15 }, { name: null, minutes: 2 }] }), [
+    { label: 'Veggies · 15–20 min', seconds: 1200, check: 900 },
+    { label: '2 min', seconds: 120 },
+  ])
 })

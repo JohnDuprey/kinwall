@@ -59,7 +59,7 @@ let recipes: Recipe[] = [
     ]), steps: [
     { text: 'Heat the oven to 425°F and cut the broccoli into evenly sized florets.', bullets: [], title: 'Prep' },
     { text: 'Toss the chicken breast and broccoli with olive oil, lemon juice, garlic, salt and black pepper.', bullets: ['Spread everything on a sheet pan in one layer.'], imageUrl: 'https://picsum.photos/800/600' },
-    { text: 'Roast for 25 minutes, until the chicken reaches 165°F.', bullets: ['Turn the broccoli halfway through.'], title: 'Roast', imageUrl: 'https://picsum.photos/800/600', timers: [{ name: 'Chicken', minutes: 25 }, { name: 'Turn the broccoli', minutes: 12 }] },
+    { text: 'Roast for 25–30 minutes, until the chicken reaches 165°F.', bullets: ['Turn the broccoli halfway through.'], title: 'Roast', imageUrl: 'https://picsum.photos/800/600', timers: [{ name: 'Chicken', minutes: 25 }, { name: 'Turn the broccoli', minutes: 12 }] },
     { title: 'Cook the rice', imageUrl: 'https://picsum.photos/800/600', text: 'Meanwhile, bring the rice and chicken broth to a boil.', bullets: ['Cover, turn the heat to low and simmer 18-20 minutes.', 'Rest off the heat for 5 minutes, then fluff.'] },
     { text: 'Slice the chicken and serve with the rice, broccoli and pan juices.', bullets: [] },
   ] },

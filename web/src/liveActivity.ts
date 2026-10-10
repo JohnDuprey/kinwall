@@ -7,17 +7,25 @@ import { ANY_STORE, anyStoreView, tripView } from './trip.ts'
 import { warningTimes, type TransitionReminders } from './transitions.ts'
 import { cardLabel } from './medications.ts'
 import { formatTime } from './timeFormat.ts'
+import { clock } from './timers.ts'
 import type { AisleOrder, DueDose, EventInstance, ListItem } from './types.ts'
 
 const MIN = 60000
 
 // ---- Timers (timers.ts: quick timers and cooking mode's) ----
 
-export type ActivityTimer = { label: string; title?: string; detail?: string; endsAt: number; done: boolean; paused?: boolean }
+export type ActivityTimer = { label: string; title?: string; detail?: string; endsAt: number; done: boolean; paused?: boolean; seconds?: number; check?: number }
+type Alarm = { at: number; title: string; body: string }
 /** The app's "cooking" activity, whatever the timer is for: `recipe` is what it's for (a quick
  * timer's is "Timer"), `step` its detail. `alarms`: every running timer's finish, for the app to
- * ring as a notification with the phone locked. */
-export type TimerActivity = { recipe: string; timer: string; step: string; endsAt: number; done: boolean; more: number; alarms: { at: number; title: string; body: string }[] }
+ * ring as a notification with the phone locked. A range ("5–6 min") also has `checks`, its low
+ * end, for a short, soft chime, and the shown one a `check`: when, and what the Lock Screen says
+ * before and after it. `endsAt` stays the end, so an app from before ranges counts to the end,
+ * rings there and ignores the check. */
+export type TimerActivity = {
+  recipe: string; timer: string; step: string; endsAt: number; done: boolean; more: number; alarms: Alarm[]; checks: Alarm[]
+  check?: { at: number; before: string; after: string }
+}
 
 /** "Rice · 15 min" (a named timer) -> "Rice"; an unnamed "10 min" stays as it is. */
 export const timerName = (label: string) => label.split(' · ')[0]
@@ -30,8 +38,15 @@ export function timerActivity(timers: ActivityTimer[]): TimerActivity | null {
   const shown = running[0] ?? timers.filter(t => t.done).sort((a, b) => b.endsAt - a.endsAt)[0]
   if (!shown) return null
   const title = (t: ActivityTimer) => t.title ?? 'Timer'
-  const alarms = running.map(t => ({ at: t.endsAt, title: `Time's up: ${timerName(t.label)}`, body: [title(t), t.detail].filter(Boolean).join(' · ') }))
-  return { recipe: title(shown), timer: timerName(shown.label), step: shown.detail ?? '', endsAt: shown.endsAt, done: shown.done, more: running.filter(t => t !== shown).length, alarms }
+  const body = (t: ActivityTimer) => [title(t), t.detail].filter(Boolean).join(' · ')
+  const alarms = running.map(t => ({ at: t.endsAt, title: `Time's up: ${timerName(t.label)}`, body: body(t) }))
+  // A range's check, ms before its end (both from timers.ts: `check` and `seconds` in seconds).
+  const after = (t: ActivityTimer) => t.check !== undefined && t.seconds !== undefined ? (t.seconds - t.check) * 1000 : null
+  const checks = running.filter(t => after(t) !== null).map(t => ({ at: t.endsAt - after(t)!, title: `Check it: ${timerName(t.label)}`, body: body(t) }))
+  const a: TimerActivity = { recipe: title(shown), timer: timerName(shown.label), step: shown.detail ?? '', endsAt: shown.endsAt, done: shown.done, more: running.filter(t => t !== shown).length, alarms, checks }
+  const rest = after(shown)
+  if (!shown.done && rest !== null) a.check = { at: shown.endsAt - rest, before: `Check at ${clock(shown.check! * 1000)}`, after: `Check now · up to ${clock(rest)} more` }
+  return a
 }
 
 // ---- A shopping trip (Lists, shopping mode) ----

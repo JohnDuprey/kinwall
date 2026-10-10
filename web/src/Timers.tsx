@@ -7,8 +7,8 @@ import { timerActivity, timerName } from './liveActivity.ts'
 import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
 import Sheet from './Sheet.tsx'
 import {
-  choreOfTimer, clock, dismissRung, durationLabel, getTimers, isRunning, pauseTimer, remaining, resetTimer, resumeTimer, ringDue,
-  startTimer, stopTimer, subscribeTimers, type NewTimer, type Timer,
+  chimeDue, choreOfTimer, clock, dismissRung, durationLabel, getTimers, isRunning, pauseTimer, phase, resetTimer, resumeTimer, ringDue,
+  startTimer, stopTimer, subscribeTimers, timerWords, untilNext, type NewTimer, type Timer,
 } from './timers.ts'
 
 export const useTimers = () => useSyncExternalStore(subscribeTimers, getTimers)
@@ -33,13 +33,14 @@ let quiet: ReturnType<typeof setTimeout> | undefined
 function unlockSound() {
   try { audio ??= new AudioContext(); void audio.resume().then(() => { if (!quiet) return audio?.suspend() }).catch(() => {}) } catch { /* no Web Audio: banner and vibration only */ }
 }
-function beep() {
+/** Three loud beeps when a timer's up; `soft`: one quiet one when a range's time to check. */
+function beep(soft = false) {
   if (!audio) return
   void audio.resume()
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < (soft ? 1 : 3); i++) {
     const t = audio.currentTime + i * 0.35, osc = audio.createOscillator(), gain = audio.createGain()
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
+    osc.frequency.value = soft ? 660 : 880
+    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(soft ? 0.12 : 0.3, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
     osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.3)
   }
   clearTimeout(quiet)
@@ -70,6 +71,15 @@ export function TimerHost() {
     return () => window.removeEventListener('pointerdown', unlockSound, { capture: true })
   }, [any])
   useEffect(() => {
+    // A range at its low end: a short, soft chime and "Check it"; it keeps running to its end.
+    const check = chimeDue(Date.now())
+    if (check.length) {
+      beep(true); navigator.vibrate?.(150)
+      announce(`Check it: ${check.map(t => [t.label, about(t)].filter(Boolean).join(', ')).join('; ')}`)
+      if (document.hidden && !inNativeApp() && 'Notification' in window && Notification.permission === 'granted') {
+        void navigator.serviceWorker?.ready.then(reg => reg.showNotification(`Check it: ${check.map(t => timerName(t.label)).join(', ')}`, { body: about(check[0]), tag: 'kinwall-timer-check', silent: true })).catch(() => {})
+      }
+    }
     const up = ringDue(Date.now())
     if (!up.length) return
     beep(); navigator.vibrate?.([300, 150, 300])
@@ -118,9 +128,12 @@ export function TimerList({ timers, now, className = '' }: { timers: Timer[]; no
     <ul className={`timer-bar ${className}`} aria-label="Running timers">
       {timers.filter(t => !t.done).map(t => {
         const paused = t.left !== undefined, name = [t.label, t.detail].filter(Boolean).join(', ')
-        return <li key={t.id}>
-          <span className="timer-bar-label">{t.label}{about(t) && <small>{about(t)}</small>}</span>
-          <strong className={`timer-clock ${paused ? 'timer-clock-paused' : ''}`}>{clock(remaining(t, now))}{paused && <span className="sr-only">, paused</span>}</strong>
+        const [words, more] = timerWords(t, now), checking = phase(t, now) === 'check'
+        return <li key={t.id} className={checking ? 'timer-checking' : undefined}>
+          <span className="timer-bar-label">{words}{more && <small className="timer-more">{more}</small>}{about(t) && <small>{about(t)}</small>}</span>
+          <strong className={`timer-clock ${paused ? 'timer-clock-paused' : ''}`}>{clock(untilNext(t, now))}{paused && <span className="sr-only">, paused</span>}</strong>
+          {/* A range past its check: it's ready when it looks ready. */}
+          {checking && <button type="button" className="btn btn-secondary timer-done" aria-label={`Done with ${name}`} onClick={() => stopTimer(t.id)}>Done</button>}
           {paused
             ? <button type="button" className="icon-btn" aria-label={`Resume ${name} timer`} onClick={() => resumeTimer(t.id)}><PlayIcon width={18} height={18} /></button>
             : <button type="button" className="icon-btn" aria-label={`Pause ${name} timer`} onClick={() => pauseTimer(t.id)}><PauseIcon width={18} height={18} /></button>}
@@ -139,14 +152,14 @@ const PRESETS = [1, 2, 5, 10, 15, 20, 30, 60]
 export function TimerButton() {
   const timers = useTimers()
   const [open, setOpen] = useState(false)
-  const next = timers.filter(isRunning).sort((a, b) => a.endsAt - b.endsAt)[0]
-  const now = useNow(!!next)
+  const now = useNow(timers.some(isRunning))
+  const next = timers.filter(isRunning).sort((a, b) => untilNext(a, now) - untilNext(b, now))[0]
   useEffect(() => {
     const close = () => setOpen(false) // an idle wall goes back to the plain calendar; the timers keep going
     window.addEventListener(IDLE_RESET_EVENT, close)
     return () => window.removeEventListener(IDLE_RESET_EVENT, close)
   }, [])
-  const left = next && clock(remaining(next, now))
+  const left = next && clock(untilNext(next, now))
   return (
     <>
       <button className={`icon-btn header-bell ${next ? 'header-timer-on' : ''}`} onClick={() => setOpen(true)} aria-label={next ? `Timers, ${timerName(next.label)} has ${left} left` : 'Timer'}>

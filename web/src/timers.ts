@@ -6,8 +6,10 @@
 /** `left`: set while paused (ms to go); `endsAt` only counts while it's running. `seconds`: for
  * Reset. `title` and `detail`: what it's for ("Tuesday Tacos", "Step 3 · Simmer"). `key`: where it
  * was started (a recipe step), so that spot can show it. */
-export interface Timer { id: number; label: string; seconds: number; endsAt: number; done: boolean; left?: number; title?: string; detail?: string; key?: string }
-export type NewTimer = Pick<Timer, 'label' | 'seconds' | 'title' | 'detail' | 'key'>
+export interface Timer { id: number; label: string; seconds: number; endsAt: number; done: boolean; left?: number; title?: string; detail?: string; key?: string; check?: number; checked?: boolean }
+/** `check`: a range's low end ("5–6 min" checks at 5): seconds from the start when it chimes and
+ * says "Check it", then runs on to `seconds`. `checked`: it chimed. Timers saved before ranges have neither. */
+export type NewTimer = Pick<Timer, 'label' | 'seconds' | 'title' | 'detail' | 'key' | 'check'>
 
 export const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), pad = (n: number) => String(n).padStart(2, '0')
@@ -30,9 +32,36 @@ export const added = (ts: Timer[], t: NewTimer, at: number): Timer[] =>
 export const paused = (ts: Timer[], id: number, at: number) => ts.map(t => t.id === id && isRunning(t) ? { ...t, left: Math.max(0, t.endsAt - at) } : t)
 export const resumed = (ts: Timer[], id: number, at: number) => ts.map(t => t.id === id && t.left !== undefined ? { ...t, endsAt: at + t.left, left: undefined } : t)
 /** Back to the full time; a paused timer stays paused. */
-export const wasReset = (ts: Timer[], id: number, at: number) => ts.map(t => t.id !== id ? t : t.left !== undefined ? { ...t, left: t.seconds * 1000 } : { ...t, endsAt: at + t.seconds * 1000, done: false })
+export const wasReset = (ts: Timer[], id: number, at: number) => ts.map(t => t.id !== id ? t : t.left !== undefined ? { ...t, left: t.seconds * 1000, checked: false } : { ...t, endsAt: at + t.seconds * 1000, done: false, checked: false })
 /** The running timers that are up at `at`. */
 export const due = (ts: Timer[], at: number) => ts.filter(t => isRunning(t) && t.endsAt <= at)
+
+// ---- A range ("5–6 min"): counting to the check, then "Check it" until the end ----
+
+/** ms from the check to the end; 0 for a single time. */
+const checkPart = (t: Pick<Timer, 'seconds' | 'check'>) => t.check === undefined ? 0 : (t.seconds - t.check) * 1000
+/** 'counting' (a single time, or a range before its check), 'check' (a range past its check) or 'done'. */
+export function phase(t: Timer, now: number): 'counting' | 'check' | 'done' {
+  const left = remaining(t, now)
+  if (t.done || left <= 0) return 'done'
+  return t.check !== undefined && left <= checkPart(t) ? 'check' : 'counting'
+}
+/** ms to what happens next: the check, then the end. */
+export function untilNext(t: Timer, now: number) {
+  const left = remaining(t, now)
+  return t.check !== undefined && left > checkPart(t) ? left - checkPart(t) : left
+}
+/** The running ranges whose check is at or before `at`, that haven't chimed (and aren't already up). */
+export const checksDue = (ts: Timer[], at: number) => ts.filter(t => isRunning(t) && t.check !== undefined && !t.checked && t.endsAt - checkPart(t) <= at && t.endsAt > at)
+/** What a timer says: a range "Check at 5 min · done by 6", then "Check it" and "Up to 1 min more";
+ * a single time its label. A name stays in front ("Veggies · Check it"). */
+export function timerWords(t: Timer, now: number): [string, string?] {
+  if (t.check === undefined) return [t.label]
+  const parts = t.label.split(' · '), range = parts.pop() ?? '', named = (s: string) => [...parts, s].join(' · ')
+  if (phase(t, now) === 'check') return [named('Check it'), `Up to ${durationLabel(checkPart(t) / 60000)} more`]
+  const m = range.match(/^(\d+(?:\.\d+)?)–(\d+(?:\.\d+)?) (\S+)$/)
+  return [named(m ? `Check at ${m[1]} ${m[3]} · done by ${m[2]}` : `Check at ${durationLabel(t.check / 60)} · done by ${durationLabel(t.seconds / 60)}`)]
+}
 
 /** A chore's timer (ChoreTimer.tsx) is keyed to it, so the chore can show it and "Mark done" can find it. */
 export const choreTimerKey = (choreId: string) => `chore:${choreId}`
@@ -62,6 +91,12 @@ export const resetTimer = (id: number) => save(wasReset(timers, id, Date.now()))
 export const stopTimer = (id: number) => save(timers.filter(t => t.id !== id))
 /** OK on the "Time's up" banner: clears every timer that rang. */
 export const dismissRung = () => save(timers.filter(t => !t.done))
+/** Marks the ranges at their check as checked and returns them (each chimes once). */
+export function chimeDue(at: number): Timer[] {
+  const up = checksDue(timers, at)
+  if (up.length) save(timers.map(t => up.includes(t) ? { ...t, checked: true } : t))
+  return up
+}
 /** Marks the timers that are up as done and returns them (each rings once). */
 export function ringDue(at: number): Timer[] {
   const up = due(timers, at)
