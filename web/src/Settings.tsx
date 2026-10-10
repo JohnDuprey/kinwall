@@ -58,7 +58,7 @@ import { EVENT_LENGTHS } from './eventEnd.ts'
 import { CommunityCalendars } from './Outings.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'chore.suggestion.changed', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
 
 type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
 const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
@@ -720,6 +720,14 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
         <label id="leaderboard-label">Show leaderboard</label>
         <button className={`switch ${settings.leaderboardEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.leaderboardEnabled} aria-labelledby="leaderboard-label"
           onClick={() => save({ leaderboardEnabled: !settings.leaderboardEnabled })}><span className="knob" /></button>
+      </div>
+      <div className="toggle-row">
+        <div>
+          <label id="kid-suggest-label">Kids can suggest chores</label>
+          <div className="settings-row-sub" id="kid-suggest-sub">Kids add their own chore ideas and say what they think they're worth. Nothing counts until you say yes.</div>
+        </div>
+        <button className={`switch ${settings.kidChoreSuggestions ? 'on' : ''}`} role="switch" aria-checked={settings.kidChoreSuggestions} aria-labelledby="kid-suggest-label" aria-describedby="kid-suggest-sub"
+          onClick={() => save({ kidChoreSuggestions: !settings.kidChoreSuggestions })}><span className="knob" /></button>
       </div>
       <div className="toggle-row">
         <div>

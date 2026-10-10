@@ -1257,9 +1257,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const rewardsShown = !!settings && rewardsOn(settings)
   useEffect(() => {
     if (!parentDevice || !choresOn) { setToApprove(0); setRewardRequests(0); return }
-    // Chores and rewards waiting for an OK (approved rewards not given yet don't count: nothing to decide).
-    Promise.all([api.getPendingApprovals(), rewardsShown ? api.getRedemptions({ status: 'pending' }) : []])
-      .then(([c, r]) => { setToApprove(c.length + r.length); setRewardRequests(r.length) }).catch(() => { /* keep the last count */ })
+    // Chores, chores kids suggested and rewards waiting for an OK (approved rewards not given yet don't count: nothing to decide).
+    Promise.all([api.getPendingApprovals(), rewardsShown ? api.getRedemptions({ status: 'pending' }) : [], api.getChoreSuggestions()])
+      .then(([c, r, ideas]) => { setToApprove(c.length + r.length + ideas.filter(i => i.status === 'pending').length); setRewardRequests(r.length) }).catch(() => { /* keep the last count */ })
   }, [parentDevice, choresOn, rewardsShown, areaTicks.chores, manualTick])
   // With Paint, Photos and the sticker book all off, Activities stays while an added activity is on.
   const builtInActivities = !settings || shownActivities(settings).length > 0

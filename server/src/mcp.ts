@@ -25,6 +25,7 @@ import { OutingCategorySchema, OutingCalendarInputSchema, OutingIdeasSchema, Out
 import { ShareResultSchema } from './routes/share.ts';
 import { RestaurantImportResultSchema, RestaurantImportSchema } from './routes/restaurants.ts';
 import { MealSlotSchema } from './meal-schemas.ts';
+import { ChoreSuggestionSchema } from './routes/chore-suggestions.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -235,6 +236,9 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_pending_approvals: { approvals: z.array(z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), points: z.number() })) },
   approve_chore: { ok: z.boolean(), points: z.number() },
   reject_chore: OK,
+  list_chore_suggestions: { suggestions: z.array(ChoreSuggestionSchema) },
+  approve_chore_suggestion: { suggestion: ChoreSuggestionSchema },
+  reject_chore_suggestion: { suggestion: ChoreSuggestionSchema },
   list_chore_library: { library: z.array(LibraryChoreSchema) },
   assign_chore_from_library: { chore: ChoreSchema },
   list_rewards: { rewards: z.array(RewardSchema) },
@@ -316,7 +320,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
-  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
+  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_suggestions: READ, approve_chore_suggestion: WRITE, reject_chore_suggestion: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, move_list_items: SET, update_category: SET, add_note: WRITE, update_note: SET,
@@ -991,6 +995,62 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/reject`, { date: day, note });
       if (res.status >= 400) return errorResult(res.json, 'failed to reject chore');
       return okResult('Sent back with "Not yet".', { ok: true });
+    },
+  );
+
+  // ---- Chores kids suggested (routes/chore-suggestions.ts).
+  const suggestionLine = (s: { title: string; emoji: string | null; points: number; memberId: string; rrule: string | null; dueTime: string | null; timerMinutes: number | null; done: boolean; id: string }) =>
+    [`${s.emoji ? `${s.emoji} ` : ''}${s.title}`, `asks ${s.points} pts`, s.rrule && `repeats ${s.rrule}`, s.dueTime && `at ${s.dueTime}`, s.timerMinutes && `${s.timerMinutes} min timer`, s.done && 'already done', `id ${s.id}`].filter(Boolean).join(', ');
+
+  tool(
+    'list_chore_suggestions',
+    {
+      title: 'List chores kids suggested',
+      description: "Chores kids suggested that are waiting for a parent's answer, oldest first: name, the points they think it's worth, repeat, start time, timer, and whether they already did it. Optionally one person (name or id). Admin only.",
+      inputSchema: { member: z.string().optional().describe('Name or id.') },
+    },
+    async ({ member }) => {
+      const memberId = member ? await resolveMember(app, env, auth, member) : undefined;
+      const res = await call(app, env, auth, 'GET', `/api/chore-suggestions${memberId ? `?memberId=${encodeURIComponent(memberId)}` : ''}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list suggestions');
+      const waiting = (res.json as (Parameters<typeof suggestionLine>[0] & { status: string })[]).filter((s) => s.status === 'pending');
+      return okResult(waiting.length ? `${waiting.length} waiting: ${waiting.map(suggestionLine).join('; ')}.` : 'No chore suggestions waiting.', { suggestions: waiting as unknown as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'approve_chore_suggestion',
+    {
+      title: 'Approve a suggested chore',
+      description: "Say yes to a chore a kid suggested: makes it a normal chore for them, with the points they asked for or different ones, and optionally a changed repeat, start time or timer. \"Already did it\" ones are recorded as done and earn the points now. A note (praise, or why the points changed) goes to the kid. Admin only.",
+      inputSchema: {
+        id: z.string().describe('From list_chore_suggestions.'),
+        points: z.number().int().min(0).max(1000).optional().describe("Default: what the kid asked for."),
+        note: z.string().max(200).optional().describe('e.g. "Love the initiative!"'),
+        rrule: z.string().nullable().optional().describe('Change the repeat (e.g. FREQ=WEEKLY;BYDAY=MO,WE,FR); null for once.'),
+        dueTime: z.string().nullable().optional().describe('Start time HH:MM; null for none.'),
+        timerMinutes: z.number().int().min(1).max(240).nullable().optional().describe('Timer minutes; null for none.'),
+      },
+    },
+    async ({ id, ...body }) => {
+      const res = await call(app, env, auth, 'POST', `/api/chore-suggestions/${encodeURIComponent(id)}/approve`, body);
+      if (res.status >= 400) return errorResult(res.json, 'failed to approve the suggestion');
+      const s = res.json as { title: string; pointsGiven: number };
+      return okResult(`Approved "${s.title}" for ${s.pointsGiven} point${s.pointsGiven === 1 ? '' : 's'}.`, { suggestion: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'reject_chore_suggestion',
+    {
+      title: 'Not this time (suggested chore)',
+      description: "Say \"Not this time\" to a chore a kid suggested, with an optional note they see on their own device. Admin only.",
+      inputSchema: { id: z.string().describe('From list_chore_suggestions.'), note: z.string().max(200).optional().describe('e.g. "Great idea, let\'s talk about it at dinner".') },
+    },
+    async ({ id, note }) => {
+      const res = await call(app, env, auth, 'POST', `/api/chore-suggestions/${encodeURIComponent(id)}/decline`, { note });
+      if (res.status >= 400) return errorResult(res.json, 'failed to answer the suggestion');
+      return okResult(`Not this time: "${(res.json as { title: string }).title}".`, { suggestion: res.json as Record<string, unknown> });
     },
   );
 

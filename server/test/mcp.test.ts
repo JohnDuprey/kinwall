@@ -87,6 +87,7 @@ test('mcp: tools/list returns the tools', async () => {
     'add_tracker_entry',
     'apply_meal_projection',
     'approve_chore',
+    'approve_chore_suggestion',
     'approve_reward',
     'ask_for_orders',
     'assign_chore_from_library',
@@ -144,6 +145,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_activity_actions',
     'list_categories',
     'list_chore_library',
+    'list_chore_suggestions',
     'list_chores',
     'list_color_schemes',
     'list_contact_categories',
@@ -174,6 +176,7 @@ test('mcp: tools/list returns the tools', async () => {
     'redeem_reward',
     'refresh_library_book_details',
     'reject_chore',
+    'reject_chore_suggestion',
     'request_medication_refill',
     'reset_activity_time',
     'run_activity_action',
@@ -540,6 +543,12 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('update_chore', { choreId: chore.id, points: 3 });
   await call('complete_chore', { choreId: chore.id, date: today });
   await call('list_chores', { date: today });
+  const avaId = ((await (await rest('/api/members')).json()) as any[]).find((m) => m.name.toLowerCase() === 'ava').id;
+  const suggestion = async (title: string) => ((await (await rest('/api/chore-suggestions', { method: 'POST', body: JSON.stringify({ memberId: avaId, title, points: 5, timerMinutes: 20 }) })).json()) as any).id;
+  const [flute, pool] = [await suggestion('Flute practice'), await suggestion('Clean the pool')];
+  assert.equal((await call('list_chore_suggestions', { member: 'ava' })).suggestions.length, 2);
+  assert.deepEqual(Object.values((({ pointsGiven, note, status }) => ({ pointsGiven, note, status }))((await call('approve_chore_suggestion', { id: flute, points: 4, note: 'Love the initiative!' })).suggestion)), [4, 'Love the initiative!', 'approved']);
+  assert.equal((await call('reject_chore_suggestion', { id: pool, note: 'Not this summer' })).suggestion.status, 'declined');
   const libItem = await rest('/api/chore-library', { method: 'POST', body: JSON.stringify({ title: 'Wash the car', emoji: '🚗', points: 10, everyN: 1, everyUnit: 'month' }) });
   assert.equal((await call('list_chore_library')).library[0].title, 'Wash the car');
   const handed = (await call('assign_chore_from_library', { libraryId: ((await libItem.json()) as any).id, member: 'ava' })).chore;

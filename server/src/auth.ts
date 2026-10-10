@@ -234,6 +234,11 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   // chores is for parent devices.
   { method: 'POST', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
+  // Kids suggest chores (routes/chore-suggestions.ts: a member's own device only for them); a
+  // parent's device approves or declines.
+  { method: 'GET', pattern: /^\/api\/chore-suggestions$/ },
+  { method: 'POST', pattern: /^\/api\/chore-suggestions$/ },
+  { method: 'POST', pattern: /^\/api\/chore-suggestions\/[^/]+\/seen$/ },
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/points$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/stats$/ }, // profiles: the whole family sees the fun stats

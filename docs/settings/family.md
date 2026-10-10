@@ -91,6 +91,7 @@ Also on this tab, admin only:
 | **Streak grace** | 0–3 missed days per rolling week | 1 |
 | **Daily check-in points** | Off, 1, 2, 3, 5, 10 — what reading your day to the end earns, once a day ([daily check-in](../using/snapshot.md#daily-check-in)); hidden while **Check-ins & journal** is off | Off |
 | **Leaderboard** | on/off — hides the chore leaderboard and rank badges | On |
+| **Kids can suggest chores** | on/off: kids send their own chore ideas with the points they think they're worth, for you to approve ([Kids suggest chores](../using/chores.md#kids-suggest-chores), `kidChoreSuggestions`) | On |
 | **Rewards** | on/off — kids spend points on rewards you set, with your OK; off hides [Rewards](../using/rewards.md) and refuses requests (`rewardsEnabled`) | On |
 | **Sticker shop** | on/off — hides the sticker book in Activities and refuses purchases when off | On |
 | **Sticker prices** | Free, 50%, 100%, 150% — scales every pack's price | 100% |

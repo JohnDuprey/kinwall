@@ -124,6 +124,38 @@ A chore can wait for a parent's OK before it counts. Ticks from wall screens and
 * Webhooks: `chore.pending` when a tick waits, `chore.completed` only when it's approved, `chore.rejected` on **Not yet**. See [Webhooks](../integrations/webhooks.md#events).
 * MCP: `list_pending_approvals`, `approve_chore`, `reject_chore`, and `needsApproval`/`approveTimedPlay` on `create_chore` and `update_chore`.
 
+## Kids suggest chores
+
+Kids can add their own chores. Maybe flute practice isn't on the chart yet, or they want to help with something new. They send an idea, say how many points they think it's worth, and a grown-up says yes or not this time.
+
+**For kids**
+
+1. On **Chores**, tap **💡 Suggest a chore**. On a wall screen, pick who you are first.
+2. Type the chore, pick an emoji, and use **−** and **+** to say how many points you think it's worth.
+3. Check what fits:
+   * **Make it repeat**: pick the days, and if you like a start time and how long it takes ("20 min" for practicing). Tapping the chore later starts that timer.
+   * **I already did it today**: a grown-up checks it, then the points count.
+   * Neither: it's a one-time chore for today, or pick another day.
+4. Tap **Send to a grown-up**. Your idea shows under **Chore ideas** as **Waiting for a grown-up**. It isn't a chore yet, so it doesn't count and you can't tick it.
+
+When a grown-up answers, your device gets a notification and **Chore ideas** shows it: "Sam said yes! Flute practice · 4 points" with their note, or "Not this time" with their reason. Tap **Got it** to put it away. A "Not this time" shows only on your own device, never on a shared wall screen.
+
+**For parents**
+
+* New ideas wait in **To approve** at the top of Chores, counted in the **Chores** badge, and parent devices get a notification ("Maya suggests a chore: Flute practice").
+* **Say yes…** shows what they asked for. Keep their points or change them, change the days, start time or timer, add a note, and tap **Approve**. Quick notes like **Great idea!** or **Love the initiative!** fill in with one tap. Approving makes a normal chore for that kid. If they said they already did it, it's marked done today and they get the points now, once.
+* **Not this time** sends your note (optional) to the kid instead.
+* The kid sees your name when you answer from a device that's yours (**Settings → Access**, "Whose device is this?"). Otherwise it says "A grown-up".
+* Turn it off with **Kids can suggest chores** in **Settings → Family** (chore settings). It's on by default, like Rewards. Ideas already waiting can still be answered.
+* A person can have up to 10 ideas waiting at once.
+
+**API and MCP**
+
+* `GET /api/chore-suggestions?memberId=` lists ideas that are waiting and answers not yet put away. `POST /api/chore-suggestions {memberId?, title, emoji?, points (0-100), dueDate?, done?, rrule?, dueTime?, timerMinutes?}` sends one. A kid's own device sends and reads only its own. A wall screen has to name `memberId`. `POST /api/chore-suggestions/{id}/seen` puts an answer away.
+* Parent devices only: `POST /api/chore-suggestions/{id}/approve {points?, title?, emoji?, rrule?, dueTime?, timerMinutes?, note?}` (returns the suggestion with `choreId` and `pointsGiven`) and `POST /api/chore-suggestions/{id}/decline {note?}`.
+* Webhooks: `chore.suggestion.changed`, plus `chore.changed` for the new chore and `chore.completed` for an "already did it" one.
+* MCP: `list_chore_suggestions`, `approve_chore_suggestion`, `reject_chore_suggestion`.
+
 ## Chore library
 
 Some jobs don't fit a schedule: clean out the car, wash the windows, flip the mattress. The **chore library** keeps them ready to hand out. Open it with **🧰 Library** at the top of the Chores tab (parent devices only).
@@ -191,7 +223,7 @@ Sometimes a kid earns points for something that isn't a chore: carrying the groc
 
 ## Setting these options
 
-`lateCompletionCredit`, `streakGraceDays`, `leaderboardEnabled`, `rewardsEnabled`, `stickersEnabled` and `stickerPriceScale` are household settings. Change them with `PATCH /api/settings`:
+`lateCompletionCredit`, `streakGraceDays`, `leaderboardEnabled`, `rewardsEnabled`, `kidChoreSuggestions`, `stickersEnabled` and `stickerPriceScale` are household settings. Change them with `PATCH /api/settings`:
 
 ```bash
 curl -X PATCH https://kinwall.example/api/settings -H "Authorization: Bearer $KEY" \
@@ -208,8 +240,9 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 
 * `GET /api/chores/day?date=YYYY-MM-DD`, `POST /api/chores/{id}/complete {date, memberId?}`, `DELETE /api/chores/{id}/complete?date=`
 * `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}`, `POST /api/chores/{id}/reject {date, note?}` (parent devices)
+* `GET/POST /api/chore-suggestions`, `POST /api/chore-suggestions/{id}/seen`; `POST /api/chore-suggestions/{id}/approve|decline` (parent devices). See [Kids suggest chores](#kids-suggest-chores)
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
 * `POST /api/points/awards {memberId, points, note?, date?}`, `GET /api/points/awards?memberId=`, `DELETE /api/points/awards/{id}` ([bonus points](#bonus-points), parent devices)
 * `GET/POST /api/chore-library`, `PATCH/DELETE /api/chore-library/{id}`, `POST /api/chore-library/{id}/assign {date, memberId?, rrule?}` (parent devices)
-* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`, `award_points`, `delete_point_award`
+* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_suggestions`, `approve_chore_suggestion`, `reject_chore_suggestion`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`, `award_points`, `delete_point_award`

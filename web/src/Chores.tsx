@@ -5,7 +5,7 @@ import { GivePoints } from './GivePoints.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, PendingApproval, Plugin, Redemption } from './types.ts'
+import type { Chore, ChoreDay, ChoreSuggestion, LeaderboardEntry, LeaderboardPeriod, List, PendingApproval, Plugin, Redemption } from './types.ts'
 import { MEMBER_EMOJI, rewardsOn } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -23,6 +23,8 @@ import { Face, type FaceMember, ChipFace } from './Face'
 import { ChoreTimerText, startChoreTimer } from './ChoreTimer.tsx'
 import { formatTime } from './timeFormat.ts'
 import { durationLabel } from './timers.ts'
+import { SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
+import { suggestionDetails } from './choreSuggest.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -303,8 +305,11 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
   const [notYet, setNotYet] = useState<PendingApproval | null>(null)
   const [notThisTime, setNotThisTime] = useState<Redemption | null>(null)
   const [note, setNote] = useState('')
+  const [ideas, setIdeas] = useState<ChoreSuggestion[]>([]) // chores kids suggested
+  const [answer, setAnswer] = useState<{ s: ChoreSuggestion; mode: 'yes' | 'no' } | null>(null)
   const fetchItems = () => {
     if (!only) api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ })
+    if (!only) api.getChoreSuggestions().then(l => setIdeas(l.filter(s => s.status === 'pending'))).catch(() => { /* likewise */ })
     if (rewardsShown) api.getRedemptions({ status: 'pending,approved' }).then(setRewards).catch(() => { /* likewise */ })
     else setRewards([]) // Rewards turned off: requests wait, out of sight
   }
@@ -328,7 +333,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
     decide(r, 'decline', `${r.title}: points back to ${name(r)}`, note.trim() || undefined)
   }
   const whenR = (r: Redemption) => r.date === dateKey(new Date()) ? '' : format(new Date(r.requestedAt), 'EEE, MMM d')
-  const count = items.length + rewards.filter(r => r.status === 'pending').length
+  const count = items.length + ideas.length + rewards.filter(r => r.status === 'pending').length
   const when = (p: PendingApproval) => {
     if (p.date === dateKey(new Date())) return ''
     const [y, m, d] = p.date.split('-').map(Number)
@@ -354,7 +359,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
   }
   return (
     <>
-      {(items.length > 0 || rewards.length > 0) && (
+      {(items.length > 0 || ideas.length > 0 || rewards.length > 0) && (
         <section className="approve-card" aria-labelledby="approve-heading">
           <h3 id="approve-heading" className="approve-heading">{only ? 'Reward requests' : 'To approve'} {count > 0 && <span className="approve-count">{count}</span>}</h3>
           <ul className="approve-list">
@@ -368,6 +373,19 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                 <div className="approve-actions">
                   <button className="btn btn-secondary" onClick={() => { setNote(''); setNotYet(p) }} aria-label={`Not yet: ${p.title} by ${name(p)}`}>Not yet</button>
                   <button className="btn btn-primary" onClick={() => act(p, () => api.approveChore(p.choreId, p.date), `Approved: +${p.points} for ${name(p)}`)} aria-label={`Approve ${p.title} by ${name(p)}`}>Approve</button>
+                </div>
+              </li>
+            ))}
+            {ideas.map(s => (
+              <li key={s.id} className="approve-row">
+                <span className="approve-emoji" aria-hidden="true">{s.emoji ?? '💡'}</span>
+                <div className="approve-info">
+                  <div className="approve-title">{s.title}</div>
+                  <div className="approve-sub">{[`${name(s)}'s idea`, `asks ${s.points} pts`, suggestionDetails(s)].filter(Boolean).join(' · ')}</div>
+                </div>
+                <div className="approve-actions">
+                  <button className="btn btn-secondary" onClick={() => setAnswer({ s, mode: 'no' })} aria-label={`Not this time: ${s.title}, ${name(s)}'s idea`}>Not this time</button>
+                  <button className="btn btn-primary" onClick={() => setAnswer({ s, mode: 'yes' })} aria-label={`Say yes to ${s.title}, ${name(s)}'s idea`}>Say yes…</button>
                 </div>
               </li>
             ))}
@@ -391,6 +409,10 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
             ))}
           </ul>
         </section>
+      )}
+      {answer && (
+        <SuggestionAnswerSheet s={answer.s} mode={answer.mode} onClose={() => setAnswer(null)}
+          onDone={msg => { setIdeas(l => l.filter(x => x.id !== answer.s.id)); setAnswer(null); toast(msg); announce(msg); onChanged(); reloadCore() }} />
       )}
       {notThisTime && (
         <Sheet title={notThisTime.status === 'pending' ? 'Not this time' : 'Cancel reward'} onClose={() => setNotThisTime(null)} actions={<button className="btn btn-primary" onClick={sendRewardBack}>Give points back</button>}>
@@ -430,6 +452,11 @@ export default function Chores() {
   const checklistFor = chores.find(c => c.id === checklistId) ?? null
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [repeatDraft, setRepeatDraft] = useState<RepeatDraft | null>(null) // the library's "Make it repeat", in the chore editor
+  // Kids suggest chores: off a parent's device, for the person shown (else a wall asks who first).
+  const [suggestFor, setSuggestFor] = useState<string | 'who' | null>(null)
+  const canSuggest = !parentDevice && settings.features.chores && settings.kidChoreSuggestions
+  const suggester = selectedMemberId ?? focusMemberId
+  const [sentTick, setSentTick] = useState(0) // a new idea shows on its card straight away
 
   const key = dateKey(selectedDate)
   // Loading only while a new day's chores are on their way. A refresh of the same day (a sheet
@@ -448,7 +475,7 @@ export default function Chores() {
   useEffect(load, [key, refreshTick])
 
   useEffect(() => {
-    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null) }
+    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null); setSuggestFor(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -568,6 +595,7 @@ export default function Chores() {
         {!isPhone && leaderboard}
         {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label="Give points"><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">Give points</span></GivePoints>}
         {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span></button>}
+        {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">Suggest a chore</span></button>}
         {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>}
       </div>
       <div className="date-strip" role="group" aria-label="Day">
@@ -580,6 +608,7 @@ export default function Chores() {
       </div>
 
       {parentDevice && <ApprovalQueue onChanged={load} />}
+      {!parentDevice && <SuggestionCards key={sentTick} memberId={suggester} />}
 
       {isPhone && leaderboard}
 
@@ -631,6 +660,19 @@ export default function Chores() {
 
       {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>}
 
+      {suggestFor === 'who' && (
+        <Sheet title="Who has an idea?" onClose={() => setSuggestFor(null)}>
+          <div className="who-grid">
+            {(members.some(m => !m.grownUp) ? members.filter(m => !m.grownUp) : members).map(m => (
+              <button key={m.id} className="who-btn" onClick={() => setSuggestFor(m.id)}>
+                <Face m={m} className="who-avatar" aria-hidden="true" />
+                {m.name}
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+      {suggestFor && suggestFor !== 'who' && <SuggestChoreSheet memberId={suggestFor} onClose={() => setSuggestFor(null)} onSent={() => { setSuggestFor(null); setSentTick(t => t + 1) }} />}
       {whoFor && (
         <Sheet title="Who did it?" onClose={() => setWhoFor(null)}>
           <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{whoFor.emoji} {whoFor.title} · {whoFor.points} pts go to whoever you pick.</p>

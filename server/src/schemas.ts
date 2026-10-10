@@ -350,6 +350,7 @@ export const SettingsSchema = z
     leaderboardEnabled: z.boolean(), // false: clients hide the leaderboard and rank badges (the API still answers)
     stickersEnabled: z.boolean(), // false: clients hide the sticker book and the shop refuses purchases
     rewardsEnabled: z.boolean().openapi({ description: 'Kids spend points on rewards (on unless turned off; needs features.chores). Off: clients hide Rewards and reward goals, Newscast leaves rewards out, and a reward request answers 403. Rewards and past requests are kept.' }),
+    kidChoreSuggestions: z.boolean().openapi({ description: 'Kids suggest their own chores for a parent to approve (on unless turned off; needs features.chores). Off: clients hide "Suggest a chore" and a new suggestion answers 403; ones already waiting can still be answered.' }),
     stickerPriceScale: z.number(), // percent applied to every sticker pack's price; 0 = all free
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
@@ -404,6 +405,7 @@ export const SettingsPatchSchema = z
     leaderboardEnabled: z.boolean().optional(),
     stickersEnabled: z.boolean().optional(),
     rewardsEnabled: z.boolean().optional(),
+    kidChoreSuggestions: z.boolean().optional(),
     stickerPriceScale: z.number().int().min(0).max(200).optional(),
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),

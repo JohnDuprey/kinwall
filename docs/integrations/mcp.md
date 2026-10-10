@@ -137,6 +137,9 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `approve_chore` | Approves a waiting chore for a date (default today) and awards its points (admin). |
 | `award_points` | Gives a member (by name or ID) [bonus points](../using/chores.md#bonus-points) outside a chore: `points` 1-500, an optional `note` (up to 80 characters) and `date` (default today, never ahead). They count like chore points but not toward streaks; the member's own devices are told (admin). |
 | `delete_point_award` | Takes back a bonus given by mistake, by the award ID from `award_points` or a `get_points` entry with reason `bonus` (admin). |
+| `list_chore_suggestions` | Chores kids suggested that wait for an answer, with the points they asked for, repeat, start time, timer and "already did it"; optional `member` (admin). |
+| `approve_chore_suggestion` | Say yes to a suggested chore: `id`, optional `points`, `note`, `rrule`, `dueTime`, `timerMinutes`. Makes it a chore for the kid; an "already did it" one is marked done and earns the points (admin). |
+| `reject_chore_suggestion` | "Not this time" to a suggested chore, with an optional `note` the kid sees (admin). |
 | `reject_chore` | "Not yet": removes a waiting chore's tick, with an optional `note` the kid sees on the card (admin). |
 | `list_chore_library` | The [chore library](../using/chores.md#chore-library): saved chores that aren't on a schedule, with points, checklist, suggested person, the soft "about every" interval, when one was last done and by whom, and any still to do (admin). |
 | `assign_chore_from_library` | Hands out a library chore: a normal chore due on `date` (default today) for `member` (default: its suggested person; `null` for anyone), with its points, checklist and approval rule. `rrule` makes it repeat instead (admin). |

@@ -11,7 +11,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
-import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput } from './types.ts'
+import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -531,6 +531,12 @@ export const api = {
   getPendingApprovals: () => MOCK ? Promise.resolve([] as PendingApproval[]) : get<PendingApproval[]>('api/chores/pending'),
   approveChore: (id: string, date: string) => post<{ ok: boolean; points: number }>(`api/chores/${id}/approve`, { date }),
   rejectChore: (id: string, date: string, note?: string) => post<{ ok: boolean }>(`api/chores/${id}/reject`, { date, note }),
+  // Chores kids suggest: they send and dismiss answers; a parent's device says yes or not this time.
+  getChoreSuggestions: (memberId?: string) => MOCK ? mock.getChoreSuggestions(memberId) : get<ChoreSuggestion[]>(`api/chore-suggestions${memberId ? `?memberId=${encodeURIComponent(memberId)}` : ''}`),
+  suggestChore: (body: ChoreSuggestionInput) => MOCK ? mock.suggestChore(body) : post<ChoreSuggestion>('api/chore-suggestions', body),
+  approveSuggestion: (id: string, body: ChoreSuggestionAnswer) => MOCK ? mock.answerSuggestion(id, 'approve', body) : post<ChoreSuggestion>(`api/chore-suggestions/${id}/approve`, body),
+  declineSuggestion: (id: string, note?: string) => MOCK ? mock.answerSuggestion(id, 'decline', { note }) : post<ChoreSuggestion>(`api/chore-suggestions/${id}/decline`, { note }),
+  dismissSuggestion: (id: string) => MOCK ? mock.dismissSuggestion(id) : post<{ ok: boolean }>(`api/chore-suggestions/${id}/seen`),
 
   getLeaderboard: (period: LeaderboardPeriod) =>
     MOCK ? mock.getLeaderboard(period) : get<LeaderboardEntry[]>(`api/leaderboard?period=${period}`),

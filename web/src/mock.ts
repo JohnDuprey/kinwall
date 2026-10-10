@@ -5,6 +5,7 @@ import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalog
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
+import type { ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
@@ -134,6 +135,7 @@ const settings: Settings = {
   leaderboardEnabled: true,
   stickersEnabled: true,
   rewardsEnabled: true,
+  kidChoreSuggestions: true,
   stickerPriceScale: 100,
   aiHealthAccess: false,
   medications: true, // on in the demo, with samples for Leo and Sam
@@ -419,6 +421,27 @@ const chores: Chore[] = [
   { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean }>() // key `${choreId}:${date}`
+// Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
+// parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
+const SUGGESTIONS_KEY = 'kinwall.demoSuggestions'
+const suggestionSeed = (): ChoreSuggestion[] => [{
+  id: 'cs1', memberId: 'm4', title: 'Feed the fish', emoji: '🐟', points: 2, rrule: 'FREQ=DAILY', dueDate: todayISO(), dueTime: '08:00', timerMinutes: null, done: false,
+  status: 'pending', suggestedAt: new Date(Date.now() - 3_600_000).toISOString(), decidedAt: null, decidedBy: null, decidedByName: null, pointsGiven: null, note: null, choreId: null,
+}]
+const suggestions: (ChoreSuggestion & { seen?: boolean })[] = (() => {
+  try { const v = JSON.parse(sessionStorage.getItem(SUGGESTIONS_KEY) ?? 'null'); return Array.isArray(v) ? v : suggestionSeed() } catch { return suggestionSeed() }
+})()
+const saveSuggestions = () => { try { sessionStorage.setItem(SUGGESTIONS_KEY, JSON.stringify(suggestions)) } catch { /* the demo just forgets on reload */ } }
+const suggestionChore = (s: ChoreSuggestion, a: ChoreSuggestionAnswer = {}): Chore => ({
+  id: s.choreId!, title: s.title, emoji: s.emoji ?? '⭐', memberId: s.memberId, points: s.pointsGiven ?? s.points, rrule: a.rrule !== undefined ? a.rrule : s.rrule, dueDate: s.dueDate,
+  dueTime: a.dueTime !== undefined ? a.dueTime : s.dueTime, active: true, sort: chores.length, listId: null, pluginId: null, pluginMinutes: null, needsApproval: null,
+  timerMinutes: a.timerMinutes !== undefined ? a.timerMinutes : s.timerMinutes,
+})
+for (const s of suggestions) {
+  if (s.status !== 'approved' || !s.choreId || chores.some(c => c.id === s.choreId)) continue
+  chores.push(suggestionChore(s))
+  if (s.done) completions.set(`${s.choreId}:${s.dueDate}`, { completedAt: s.suggestedAt, memberId: s.memberId })
+}
 // Activity chores' play today, like the server's plugin_playtime: `${date}:${member}:${plugin}` -> seconds.
 const playtime = new Map<string, number>([[`${dateKey(new Date())}:m3:spelling`, 3 * 60]])
 
@@ -1290,6 +1313,30 @@ export const mock = {
     completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null, pending: gone && !!mock.demoKid() }); bump()
   },
   uncompleteChore: async (id: string, date: string) => { completions.delete(`${id}:${date}`); bump() },
+  getChoreSuggestions: async (memberId?: string): Promise<ChoreSuggestion[]> => {
+    const own = mock.demoKid()
+    return suggestions.filter(s => (s.status === 'pending' || !s.seen) && (!(memberId ?? own) || s.memberId === (memberId ?? own)))
+  },
+  suggestChore: async (body: ChoreSuggestionInput): Promise<ChoreSuggestion> => {
+    const today = todayISO()
+    const s: ChoreSuggestion = { ...body, emoji: body.emoji ?? null, dueDate: body.done ? today : body.dueDate ?? today, id: uid(), status: 'pending', suggestedAt: new Date().toISOString(), decidedAt: null, decidedBy: null, decidedByName: null, pointsGiven: null, note: null, choreId: null }
+    suggestions.push(s); saveSuggestions(); bump(); return s
+  },
+  answerSuggestion: async (id: string, action: 'approve' | 'decline', a: ChoreSuggestionAnswer): Promise<ChoreSuggestion> => {
+    const s = suggestions.find(x => x.id === id && x.status === 'pending'); if (!s) throw new Error('nothing waiting with that id')
+    // The demo is a parent's device with no owner set, so Sam answers unless "Whose device" says otherwise.
+    const by = members.find(m => m.id === (demoOwner ?? 'm2'))
+    Object.assign(s, { status: action === 'approve' ? 'approved' : 'declined', decidedAt: new Date().toISOString(), decidedBy: by?.id ?? null, decidedByName: by?.name ?? null, note: a.note || null })
+    if (action === 'approve') {
+      Object.assign(s, { pointsGiven: a.points ?? s.points, choreId: uid() })
+      const c = suggestionChore(s, a)
+      Object.assign(s, { rrule: c.rrule, dueTime: c.dueTime, timerMinutes: c.timerMinutes })
+      chores.push(c)
+      if (s.done) completions.set(`${c.id}:${s.dueDate}`, { completedAt: s.suggestedAt, memberId: s.memberId })
+    }
+    saveSuggestions(); bump(); return s
+  },
+  dismissSuggestion: async (id: string) => { const s = suggestions.find(x => x.id === id); if (s) s.seen = true; saveSuggestions(); bump(); return { ok: true } },
 
   // Dev fixture only - period filtering is approximate (day-count windows, no real tz/weekStart
   // math) and streak is derived from how many of the last few days have any completion for that

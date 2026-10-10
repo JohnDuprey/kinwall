@@ -31,6 +31,7 @@ const DEFAULTS: Record<string, string> = {
   leaderboardEnabled: 'true',
   stickersEnabled: 'true',
   rewardsEnabled: 'true',
+  kidChoreSuggestions: 'true',
   stickerPriceScale: '100',
 };
 
@@ -81,6 +82,7 @@ export async function readSettings(db: KinwallDb) {
     leaderboardEnabled: (map.get('leaderboardEnabled') ?? DEFAULTS.leaderboardEnabled) === 'true',
     stickersEnabled: (map.get('stickersEnabled') ?? DEFAULTS.stickersEnabled) === 'true',
     rewardsEnabled: (map.get('rewardsEnabled') ?? DEFAULTS.rewardsEnabled) === 'true',
+    kidChoreSuggestions: (map.get('kidChoreSuggestions') ?? DEFAULTS.kidChoreSuggestions) === 'true',
     stickerPriceScale: Number(map.get('stickerPriceScale') ?? DEFAULTS.stickerPriceScale),
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',

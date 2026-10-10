@@ -55,6 +55,7 @@ export interface Settings {
   checkInPoints: number // daily check-in points (0 = off; 1, 2, 3, 5 or 10)
   leaderboardEnabled: boolean // false: hide the leaderboard, crowns and rank badges
   stickersEnabled: boolean // false: hide the sticker book (and the shop refuses purchases)
+  kidChoreSuggestions: boolean // kids suggest chores for a parent to approve (ChoreSuggest.tsx); needs features.chores
   rewardsEnabled: boolean // false: hide Rewards and reward goals (requests answer 403); needs features.chores (rewardsOn)
   stickerPriceScale: number // percent applied to sticker pack prices; 0 = all free
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
@@ -459,6 +460,30 @@ export interface ChoreDay extends Chore {
 
 /** A chore ticked on a wall screen or kid's device, waiting for a parent's OK (GET /api/chores/pending). */
 export interface PendingApproval { choreId: string; title: string; emoji: string | null; date: string; memberId: string | null; completedAt: string; points: number }
+
+/** A chore a kid suggested (GET /api/chore-suggestions): waiting for a parent, or answered until the kid puts the card away. */
+export interface ChoreSuggestion {
+  id: string
+  memberId: string
+  title: string
+  emoji: string | null
+  points: number // what the kid thinks it's worth
+  rrule: string | null
+  dueDate: string
+  dueTime: string | null
+  timerMinutes: number | null
+  done: boolean // "I already did it"
+  status: 'pending' | 'approved' | 'declined'
+  suggestedAt: string
+  decidedAt: string | null
+  decidedBy: string | null
+  decidedByName: string | null
+  pointsGiven: number | null
+  note: string | null
+  choreId: string | null
+}
+export type ChoreSuggestionInput = Pick<ChoreSuggestion, 'title' | 'emoji' | 'points' | 'rrule' | 'dueTime' | 'timerMinutes' | 'done'> & { memberId: string; dueDate?: string }
+export type ChoreSuggestionAnswer = Partial<Pick<ChoreSuggestion, 'points' | 'rrule' | 'dueTime' | 'timerMinutes' | 'note'>>
 
 /** One of a player's activity chores due today (POST /api/plugins/{id}/playtime). */
 export interface ActivityChoreProgress {

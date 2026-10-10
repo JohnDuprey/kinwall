@@ -1102,6 +1102,14 @@ button.month-cell .month-daynum { flex: none; }
 .approve-sub { font-size: 0.8125rem; color: var(--text-dim); font-weight: 700; }
 .approve-actions { display: flex; gap: 8px; margin-left: auto; }
 .approve-actions .btn { flex: none; min-height: 44px; padding: 8px 14px; }
+/* Kids suggest chores (ChoreSuggest.tsx). */
+.suggest-stepper { display: flex; align-items: center; gap: 4px; font-weight: 800; }
+.suggest-stepper span { min-width: 88px; text-align: center; }
+.suggest-checks { display: flex; flex-direction: column; gap: 4px; }
+.field label.suggest-check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); text-transform: none; letter-spacing: normal; }
+.field .suggest-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent-strong); }
+.suggest-ask { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.suggest-praise { margin-bottom: 8px; }
 /* "To approve" count on the Chores nav item (parent devices). */
 .tab-btn, .nav-rail-btn, .more-row { position: relative; }
 /* Just right of the icon, but never past the button's edge: a narrow rail (phone landscape, or a
