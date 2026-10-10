@@ -377,6 +377,70 @@ test('catch-up with `at`: when a forgotten dose was really taken; not in the fut
   assert.equal((await s.req('/api/medications')).json.find((m: any) => m.id === med.id).dosesLeft, 3, 'the course counts them');
 });
 
+test('editing a marked dose: change its time or status, or unmark it; the first mark is kept sealed; "edited" shows', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('07:00', '2026-09-27') });
+  const med = (await s.add(s.leo.id, { totalDoses: 5 })).json; // 8 AM, up to 3 hours late
+  const leos = await s.key(s.leo.id);
+  const mayas = await s.key(s.maya.id);
+  const wall = await s.key();
+  const dose = (body: Record<string, unknown>, k = ADMIN) => s.req(`/api/medications/${med.id}/doses`, 'POST', { date: TODAY, time: '08:00', ...body }, k);
+  const today = async () => (await s.req(`/api/members/${s.leo.id}/medications`)).json.days.at(-1).doses[0];
+  mock.timers.setTime(at('12:30').getTime());
+  assert.equal((await dose({ action: 'taken' }, wall)).status, 200);
+  assert.deepEqual(await today().then((d) => [d.status, d.late, d.edited]), ['taken', true, false], 'marked at 12:30: taken late');
+
+  // It was really taken at 8:05: Leo's own device fixes the time; no longer late, and "edited".
+  const fixed = await dose({ action: 'taken', at: at('08:05').toISOString() }, leos);
+  assert.deepEqual([fixed.status, fixed.json.at, fixed.json.late, fixed.json.edited], [200, at('08:05').toISOString(), false, true]);
+  assert.deepEqual(await today().then((d) => [d.status, d.at, d.late, d.edited]), ['taken', at('08:05').toISOString(), false, true]);
+  // The same tap again (no time) changes nothing; the time stays 8:05.
+  assert.deepEqual(await dose({ action: 'taken' }, ADMIN).then((r) => [r.status, r.json.at]), [200, at('08:05').toISOString()]);
+
+  // The edit trail is in the sealed log: the first mark (12:30 by the wall) and who changed it.
+  const [row] = s.raw('medication_log');
+  assert.match(String(row.log), /^enc:v1:/);
+  for (const plain of ['k-', 'taken', '08:05', 'first', 'edited']) assert.equal(JSON.stringify(s.raw('medication_log')).includes(plain), false, plain);
+  const log = JSON.parse(await unseal(s.env, String(row.log), `${med.id}:${TODAY}:log`));
+  assert.deepEqual(log['08:00'].first, { status: 'taken', at: at('12:30').toISOString(), by: 'k-wall' });
+  assert.equal(log['08:00'].editedBy, 'k-' + s.leo.id);
+  assert.equal(log['08:00'].editedAt, at('12:30').toISOString());
+
+  // Status: taken → skipped (the course gives the dose back) → not marked.
+  assert.equal((await s.req('/api/medications')).json[0].dosesLeft, 4);
+  assert.equal((await dose({ action: 'skipped' })).json.status, 'skipped');
+  assert.equal((await s.req('/api/medications')).json[0].dosesLeft, 5);
+  const un = await dose({ action: 'unmark' });
+  assert.deepEqual([un.status, un.json.status, un.json.at, un.json.edited], [200, 'missed', null, true]);
+  assert.equal(JSON.parse(await unseal(s.env, String(s.raw('medication_log')[0].log), `${med.id}:${TODAY}:log`))['08:00'].first.by, 'k-wall', 'the first mark stays through later edits');
+  assert.equal((await dose({ action: 'unmark', at: at('08:05').toISOString() })).status, 400, 'no time with unmark');
+
+  // Who: Maya's device can't touch Leo's; a shared wall marks but doesn't change a marked dose.
+  assert.equal((await dose({ action: 'taken' }, wall)).status, 200, 'marking it again from the wall: fine');
+  assert.equal((await dose({ action: 'taken', at: at('08:05').toISOString() }, mayas)).status, 403);
+  assert.equal((await dose({ action: 'unmark' }, mayas)).status, 403);
+  assert.equal((await dose({ action: 'skipped' }, wall)).status, 409, 'a wall cannot change a marked dose');
+  assert.equal((await dose({ action: 'unmark' }, wall)).status, 409);
+  assert.equal((await dose({ action: 'taken', at: at('09:00').toISOString() }, wall)).status, 409);
+  assert.equal((await dose({ action: 'unmark' }, ADMIN, )).status, 200);
+  assert.equal((await dose({ action: 'unmark' }, wall)).status, 409, 'nor unmark one that is not marked');
+
+  // Times: never in the future, never before the dose's day; yesterday's dose taken after midnight is fine.
+  await dose({ action: 'taken' });
+  assert.equal((await dose({ action: 'taken', at: at('12:45').toISOString() })).status, 400, 'not in the future');
+  assert.equal((await dose({ action: 'taken', at: at('23:00', '2026-09-27').toISOString() })).status, 400, 'not before its day');
+  const y = await s.req(`/api/medications/${med.id}/doses`, 'POST', { date: '2026-09-27', time: '08:00', action: 'taken', at: at('00:30').toISOString() }, leos);
+  assert.deepEqual([y.status, y.json.late], [200, true], "yesterday's dose taken just after midnight");
+  assert.equal((await s.req(`/api/medications/${med.id}/doses`, 'POST', { date: '2026-09-26', time: '08:00', action: 'taken' }, ADMIN)).status, 400, 'only today and yesterday');
+
+  // A finished course's last dose can still be corrected.
+  const one = (await s.add(s.leo.id, { totalDoses: 1 })).json;
+  const mark1 = (body: Record<string, unknown>) => s.req(`/api/medications/${one.id}/doses`, 'POST', { date: TODAY, time: '08:00', ...body });
+  assert.equal((await mark1({ action: 'taken' })).status, 200);
+  assert.equal((await s.req('/api/medications')).json.find((m: any) => m.id === one.id).dosesLeft, 0);
+  assert.equal((await mark1({ action: 'taken', at: at('08:10').toISOString() })).json.edited, true);
+});
+
 test('history: today plus the last 6 days from each medicine\'s schedule, on its weekdays only', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, leo, add, mark } = await setup({ now: at('07:00', '2026-09-21') });
@@ -579,10 +643,11 @@ test('medications: the export has them in plain form (it is their backup); impor
   const id = source.leo.id;
   const med = (await source.add(id, { days: [1, 3], endDate: '2026-10-05', totalDoses: 4, lateWindow: 'evening' })).json;
   await source.mark(med.id, 'taken');
+  await source.req(`/api/medications/${med.id}/doses`, 'POST', { date: TODAY, time: '08:00', action: 'taken', at: at('08:01').toISOString() }); // edited
   const file = (await source.req('/api/export')).json;
   assert.equal(file.settings.medications, true);
   assert.deepEqual(file.medications.map((m: any) => [m.id, m.memberId, m.name, m.dose, m.times, m.days, m.endDate, m.totalDoses, m.lateWindow]), [[med.id, id, NAME, DOSE, ['08:00'], [1, 3], '2026-10-05', 4, 'evening']]);
-  assert.deepEqual(file.medicationLog.map((d: any) => [d.medicationId, d.date, d.time, d.status, d.by]), [[med.id, TODAY, '08:00', 'taken', 'ADMIN_API_KEY']]);
+  assert.deepEqual(file.medicationLog.map((d: any) => [d.medicationId, d.date, d.time, d.status, d.by, d.first?.at, d.editedBy]), [[med.id, TODAY, '08:00', 'taken', 'ADMIN_API_KEY', at('08:05').toISOString(), 'ADMIN_API_KEY']]);
   const hidden = (await source.req('/api/export', 'GET', undefined, ADMIN, APP)).json;
   assert.deepEqual([hidden.medications, hidden.medicationLog], [[], []], 'a connected app without aiHealthAccess gets neither');
   assert.equal(JSON.stringify(hidden).includes(NAME), false);
@@ -595,7 +660,7 @@ test('medications: the export has them in plain form (it is their backup); impor
   assert.match(String(target.raw('medication_log')[0].log), /^enc:v1:/);
   assert.equal(JSON.stringify([target.raw('medications'), target.raw('medication_log')]).includes(NAME), false);
   const back = (await target.req(`/api/members/${id}/medications`)).json;
-  assert.deepEqual([back.medications[0].name, back.medications[0].endDate, back.medications[0].dosesLeft, back.medications[0].lateWindow, back.days.at(-1).doses[0].status], [NAME, '2026-10-05', 3, 'evening', 'taken']);
+  assert.deepEqual([back.medications[0].name, back.medications[0].endDate, back.medications[0].dosesLeft, back.medications[0].lateWindow, back.days.at(-1).doses[0].status, back.days.at(-1).doses[0].edited], [NAME, '2026-10-05', 3, 'evening', 'taken', true]);
   const old = await setup({ now: at('08:05'), on: false });
   const { lateWindow: _, ...before } = file.medications[0];
   assert.equal((await old.req('/api/import', 'POST', { ...file, medications: [before] })).status, 200, 'a file from before late windows');

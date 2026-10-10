@@ -169,7 +169,8 @@ const ExportSchema = z
     // Medications (0056) and each dose marked or snoozed: opened here (the family's own backup), sealed again on
     // import; none for a connected app without aiHealthAccess.
     medications: z.array(z.object({ id: z.string(), memberId: z.string(), name: z.string().min(1), dose: z.string(), times: DoseTimesSchema, days: z.array(z.number().int().min(0).max(6)).min(1), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null), totalDoses: z.number().int().min(1).max(1000).nullable().default(null), lateWindow: LateWindowSchema.default('3h'), refill: RefillSchema.default(NO_REFILL), refillRequest: RefillRequestSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
-    medicationLog: z.array(z.object({ medicationId: z.string(), date: z.string(), time: z.string(), status: z.enum(['taken', 'skipped']).nullable(), at: z.string().nullable(), by: z.string().nullable(), snoozedUntil: z.string().nullable(), startedAt: z.string().nullable().default(null) })),
+    medicationLog: z.array(z.object({ medicationId: z.string(), date: z.string(), time: z.string(), status: z.enum(['taken', 'skipped']).nullable(), at: z.string().nullable(), by: z.string().nullable(), snoozedUntil: z.string().nullable(), startedAt: z.string().nullable().default(null),
+      first: z.object({ status: z.enum(['taken', 'skipped']), at: z.string().optional(), by: z.string().optional() }).nullable().default(null), editedAt: z.string().nullable().default(null), editedBy: z.string().nullable().default(null) })),
     scrapbook: z.array(StickerPlacementSchema),
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.
     rewards: z.array(RewardSchema.omit({ used: true })),
@@ -703,7 +704,7 @@ dataRoutes.openapi(
     const logDays = new Map<string, { medicationId: string; date: string; log: DoseLog }>();
     for (const d of medicationLog) {
       const day = logDays.get(`${d.medicationId}:${d.date}`) ?? logDays.set(`${d.medicationId}:${d.date}`, { medicationId: d.medicationId, date: d.date, log: {} }).get(`${d.medicationId}:${d.date}`)!;
-      day.log[d.time] = { ...(d.startedAt ? { startedAt: d.startedAt } : {}), ...(d.status ? { status: d.status, ...(d.at ? { at: d.at } : {}), ...(d.by ? { by: d.by } : {}) } : d.snoozedUntil ? { snoozedUntil: d.snoozedUntil } : {}) };
+      day.log[d.time] = { ...(d.startedAt ? { startedAt: d.startedAt } : {}), ...(d.first ? { first: d.first, ...(d.editedAt ? { editedAt: d.editedAt } : {}), ...(d.editedBy ? { editedBy: d.editedBy } : {}) } : {}), ...(d.status ? { status: d.status, ...(d.at ? { at: d.at } : {}), ...(d.by ? { by: d.by } : {}) } : d.snoozedUntil ? { snoozedUntil: d.snoozedUntil } : {}) };
     }
     const sealedMeds = await Promise.all(medications.map(async (m) => ({ id: m.id, member_id: m.memberId, data: await sealMedication(c.env, m), created_at: m.createdAt, updated_at: m.updatedAt })));
     const sealedContacts = await Promise.all((healthHidden ? [] : body.medicationRefillContacts).map(async ({ id, createdAt, updatedAt, ...r }) => ({ id, data: await seal(c.env, JSON.stringify(r), `${id}:refill`), created_at: createdAt, updated_at: updatedAt })));
@@ -1140,7 +1141,7 @@ async function exportMedications(env: Env) {
   const logs = await loadLogs(env, medications.map((m) => m.id), '0000-00-00', '9999-99-99');
   const medicationLog = [...logs].flatMap(([k, log]) => {
     const [medicationId, date] = [k.slice(0, k.lastIndexOf(':')), k.slice(k.lastIndexOf(':') + 1)];
-    return Object.entries(log).map(([time, e]) => ({ medicationId, date, time, status: e.status ?? null, at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null, startedAt: e.startedAt ?? null }));
+    return Object.entries(log).map(([time, e]) => ({ medicationId, date, time, status: e.status ?? null, at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null, startedAt: e.startedAt ?? null, first: e.first ?? null, editedAt: e.editedAt ?? null, editedBy: e.editedBy ?? null }));
   }).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.medicationId.localeCompare(b.medicationId));
   return { medications, medicationLog };
 }

@@ -86,7 +86,7 @@ const medications: Medication[] = [
   { id: 'med3', memberId: 'm2', name: 'Morning medicine', dose: '1 tablet', times: [{ wake: true, latest: '12:00' }], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: '3h', dosesLeft: null, refill: { ...NO_REFILL }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
   { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'endOfDay', dosesLeft: null, refill: { ...NO_REFILL }, refillRequest: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
 ]
-type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; startedAt?: string }
+type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; startedAt?: string; edited?: boolean }
 const timeKey = (t: MedTime) => (typeof t === 'string' ? t : 'wake')
 const startedAt = (daysAgo: number) => { const d = new Date(Date.now() - daysAgo * 86_400_000); d.setHours(9, 40 - daysAgo * 7, 0, 0); return d.toISOString() }
 const medLog = new Map<string, Record<string, MockDose>>() // `${medicationId}:${date}`
@@ -1090,13 +1090,14 @@ export const mock = {
     const order = (id: string) => members.findIndex(x => x.id === id)
     return { names: true, doses: doses.sort((a, b) => order(a.memberId) - order(b.memberId) || a.time.localeCompare(b.time)) }
   },
-  markDose: async (medicationId: string, b: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze'; at?: string }): Promise<MedicationDose> => {
+  markDose: async (medicationId: string, b: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' | 'unmark'; at?: string }): Promise<MedicationDose> => {
     const log = medLog.get(`${medicationId}:${b.date}`) ?? {}
-    const kept = log[b.time]?.startedAt ? { startedAt: log[b.time].startedAt } : {}
-    log[b.time] = b.action === 'snooze' ? { ...kept, snoozedUntil: new Date(Date.now() + 10 * 60_000).toISOString() } : { ...kept, status: b.action, at: b.at ?? new Date().toISOString(), by: 'This device' }
+    const prev = log[b.time]
+    const kept = { ...(prev?.startedAt ? { startedAt: prev.startedAt } : {}), ...(prev?.status || prev?.edited ? { edited: true } : {}) } // ponytail: the demo keeps only "edited", not the first mark
+    log[b.time] = b.action === 'snooze' ? { ...kept, snoozedUntil: new Date(Date.now() + 10 * 60_000).toISOString() } : b.action === 'unmark' ? kept : { ...kept, status: b.action, at: b.at ?? new Date().toISOString(), by: 'This device' }
     medLog.set(`${medicationId}:${b.date}`, log); bump()
     const e = log[b.time]
-    return { medicationId, date: b.date, time: b.time, status: doseStatus(b.date, e), startedAt: e.startedAt ?? null, at: e.at ?? null, late: false, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }
+    return { medicationId, date: b.date, time: b.time, status: doseStatus(b.date, e), startedAt: e.startedAt ?? null, at: e.at ?? null, late: false, by: e.by ?? null, edited: !!e.edited, snoozedUntil: e.snoozedUntil ?? null }
   },
   getMedicationHistory: async (memberId: string, n = 7): Promise<MedicationHistory> => {
     const mine = medications.filter(m => m.memberId === memberId)
@@ -1107,7 +1108,7 @@ export const mock = {
         const e = medLog.get(`${m.id}:${date}`)?.[time]
         const dueAt = e?.startedAt ?? new Date(`${date}T${typeof t === 'string' ? t : t.latest}:00`).toISOString()
         const late = e?.status === 'taken' && !!e.at && Date.parse(e.at) > Date.parse(dueAt) + 3 * 3_600_000 // ponytail: the demo's late window is always 3 hours
-        return { medicationId: m.id, time, dueAt, status: doseStatus(date, e), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late, by: e?.by ?? null }
+        return { medicationId: m.id, time, dueAt, status: doseStatus(date, e), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late, by: e?.by ?? null, edited: !!e?.edited }
       }) : []).sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
     }))
     return { memberId, today: dateKey(new Date()), medications: mine.map(m => ({ ...m })), days }

@@ -3494,6 +3494,10 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-status { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); }
 .meds-catch-up { margin-left: auto; }
 .meds-taken .meds-status { color: var(--success); }
+/* A marked dose: tap to change its time or status (Medications.tsx ChangeDoseSheet). */
+.meds-status-btn { min-height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; font: inherit; font-size: 0.875rem; font-weight: 800; text-align: start; }
+.meds-edited { font-weight: 600; color: var(--text-dim); }
+.meds-change { font-size: 0.8em; margin-left: 2px; }
 .meds-grid-wrap { overflow-x: auto; }
 .meds-grid { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 .meds-grid th, .meds-grid td { padding: 8px 4px; text-align: center; border-top: 1px solid var(--border); }
@@ -3867,7 +3871,7 @@ html:root[data-cast] {
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
-    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
+    .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */

@@ -76,12 +76,23 @@ Open it with **Open medicines** on their [profile](profiles.md), or **History** 
 
 * **Take now**, when something is due;
 * **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later. A dose that's due or not marked has **Taken** and **Skipped** buttons, so a dose taken without tapping the card can still be logged. Past its late window the button says **Taken late**;
-* **Yesterday**, when any of yesterday's doses weren't marked: the same buttons, for catching up the next morning;
+* **Yesterday**: yesterday's doses, with the same buttons on any that weren't marked, for catching up the next morning;
 * **Last 7 days**: a row per medicine and a column per day.
 
-Catching up asks **When did you take it?** too, and logs that time: a dose taken inside its late window shows ✅ **Taken** with its time even when it's marked hours later, and one taken after the window closed shows ✅ **Taken late**. A dose taken late counts toward a course's **doses left**. Older days can't be changed.
+Catching up asks **When did you take it?** too, and logs that time: a dose taken inside its late window shows ✅ **Taken** with its time even when it's marked hours later, and one taken after the window closed shows ✅ **Taken late**. A dose taken late counts toward a course's **doses left**.
 
-It opens on the person's own device and on parents' devices, and both can catch up there. A shared wall screen shows only the Take now card (it has no history, so no catch-up); other people's devices get "private".
+### Fixing a dose
+
+Marked it late, but it was really taken at 8:05? Tap a marked dose under **Today** or **Yesterday** to open **Change this dose**:
+
+* **What happened**: **Taken**, **Skipped**, or **Not marked** (takes the mark back, so the dose shows as due or not marked again);
+* **Taken at**: the time it was taken (a date and time for yesterday's dose). It can't be in the future or before the start of the dose's day; a late dose taken just after midnight is fine.
+
+**Save**, and the dose shows its new status and time with a small "edited". Whether it was taken late, a course's **doses left** and the 7-day grid all follow the change. Kinwall keeps the first mark and which device changed it, encrypted with the rest of the log. Older days can't be changed.
+
+Reminders and the "hasn't been marked yet" note for parents go by whether the dose is marked when they're due: changing a dose afterward doesn't send them again or take them back.
+
+It opens on the person's own device and on parents' devices, and both can catch up and fix doses there (a kid's device, their own only). A shared wall screen shows only the Take now card (it has no history, so no catch-up or fixing); other people's devices get "private".
 
 ## Refills
 
@@ -117,8 +128,8 @@ A kid's own device can request a refill for their own medicine too. Their card s
 
 | Device | Sees | Can do |
 |---|---|---|
-| Parent devices | Everyone's medicines, cards with names, today and 7-day history, refill cards | Add, change, delete; pick who to ask for refills; mark any dose; request refills |
-| A person's own device | Their own medicines, cards, history and refill cards | Mark their own doses and request their own refills (kids too) |
+| Parent devices | Everyone's medicines, cards with names, today and 7-day history, refill cards | Add, change, delete; pick who to ask for refills; mark and fix any dose; request refills |
+| A person's own device | Their own medicines, cards, history and refill cards | Mark and fix their own doses and request their own refills (kids too) |
 | Shared wall screen | Take now cards for whoever is due ("Meds" unless names are on) | Mark Taken, Skip or Snooze |
 | Another person's device | Nothing about others' medicines | Nothing |
 | Claude and other connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | With it on: read a refill card, request a refill, set the pharmacy and who to ask |
@@ -138,8 +149,9 @@ All medication routes answer 404 while the feature is off.
 * `DELETE /api/medications`: delete all medication data (parents only; works while off).
 * Each entry in `times` is `"HH:MM"`, or `{ "wake": true, "latest": "HH:MM" }` for **When I start my day** (one at most). Its doses use `time: "wake"`.
 * `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, startedAt, until, name, dose }] }`, the Take now cards. `startedAt` is when the person's day started (a `"wake"` dose), `until` when the late window closes. `name` and `dose` are `null` on a shared wall with names off.
-* `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze", at? }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device. `snooze` from a grown-up's own device (a parent device that belongs to them, or its app's widgets key) on someone else's dose snoozes it for that grown-up's devices only (`GET /api/medications/due` there leaves it out; elsewhere it stays), and a mark from such a widgets key is recorded with that grown-up's name in `by`. `at` (ISO, taken or skipped only) is when it really happened, for a dose marked after the fact; the default is now. It must be between the start of the dose's household day (midnight) and now; up to 2 minutes ahead counts as a fast clock and is stored as now, anything else answers 400.
-* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed. Their own device and parent devices only.
+* `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze" | "unmark", at? }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device. `snooze` from a grown-up's own device (a parent device that belongs to them, or its app's widgets key) on someone else's dose snoozes it for that grown-up's devices only (`GET /api/medications/due` there leaves it out; elsewhere it stays), and a mark from such a widgets key is recorded with that grown-up's name in `by`. `at` (ISO, taken or skipped only) is when it really happened, for a dose marked after the fact; the default is now. It must be between the start of the dose's household day (midnight) and now; up to 2 minutes ahead counts as a fast clock and is stored as now, anything else answers 400.
+  * On a dose that's already marked, the same action without `at` changes nothing; a different action or an `at` changes it, and `unmark` takes the mark back. The answer has `edited: true`, and the sealed log keeps the first mark and the device that changed it. Changing a marked dose (or `unmark`) is for parent devices and the person's own device: a shared wall gets 409.
+* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by, edited }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed, `edited` whether it was changed after it was first marked. Their own device and parent devices only.
 * `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: a device paired as theirs, or for a grown-up a full-access key, passkey or Kinwall app sign-in they own (`PUT /api/me/owner`). 403 for other parent devices, shared walls, connected apps and anyone else.
 * Each medicine also has `refill: { contactId, pharmacyContactId, pharmacy, dateOfBirth, callback, remindOn }` (set with POST or PATCH; PATCH changes only the refill fields sent; `contactId`, who to ask, and `pharmacyContactId` must be contacts, else 400) and `refillRequest: { at, by } | null`, the open to-do.
 * `GET /api/medications/{id}/refill`: the refill card, `{ medicationId, memberId, contact: { id, name, phones: [{ label, number, steps, telUri }], websites: [{ label, url }] }, pharmacy: { name, contactId, phone, telUri, address }, script, request }`. Parent devices and the person's own device. `contact` is the contact as that device may see it (null if it can't); `steps` is a phone's menu in words and `telUri` dials it. Phone menus are set on the contact (`phones[].menu`, see [Contacts](contacts.md#phone-menus)).

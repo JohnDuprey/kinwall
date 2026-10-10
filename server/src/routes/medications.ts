@@ -107,6 +107,7 @@ const DoseSchema = z
     at: z.string().nullable().openapi({ description: 'When it was taken or skipped: the time it was marked, or the `at` it was marked with.' }),
     late: z.boolean().openapi({ description: 'Taken after its late window closed.' }),
     by: z.string().nullable().openapi({ description: 'The device that marked it.' }),
+    edited: z.boolean().openapi({ description: 'Changed after it was first marked (its time or status). The first mark and who changed it stay in the sealed log.' }),
     snoozedUntil: z.string().nullable(),
   })
   .openapi('MedicationDose');
@@ -127,8 +128,10 @@ const HistorySchema = z
   .openapi('MedicationHistory');
 
 export type Medication = z.infer<typeof MedicationSchema>;
+// An edited dose keeps its first mark (first) and the latest change (editedAt, editedBy), sealed with the rest.
+export type FirstMark = { status: 'taken' | 'skipped'; at?: string; by?: string };
 /** snoozedFor: a grown-up's own phone snoozed someone else's dose just for itself (member id → until). */
-export type DoseEntry = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; snoozedFor?: Record<string, string>; startedAt?: string };
+export type DoseEntry = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; snoozedFor?: Record<string, string>; startedAt?: string; first?: FirstMark; editedAt?: string; editedBy?: string };
 export type DoseLog = Record<string, DoseEntry>; // by time, HH:MM, or WAKE
 export type DoseTime = Medication['times'][number];
 export const WAKE = 'wake'; // a "When I start my day" dose's key in the log and the API
@@ -481,11 +484,11 @@ medicationsRoutes.openapi(
 medicationsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/medications/{id}/doses', tags: TAG, security: [{ Bearer: [] }],
-    summary: "Mark a dose taken or skipped, or snooze it 10 minutes (today's or yesterday's). Parent devices, shared walls, and the person's own device for their own. A grown-up's own phone snoozing someone else's dose snoozes it on that phone only.",
-    request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: z.union([TimeSchema, z.literal(WAKE)]), action: z.enum(['taken', 'skipped', 'snooze']),
+    summary: "Mark a dose taken or skipped, or snooze it 10 minutes (today's or yesterday's). Parent devices, shared walls, and the person's own device for their own. A grown-up's own phone snoozing someone else's dose snoozes it on that phone only. Marking an already-marked dose again with a different status or `at` changes it (edited: true), and unmark takes the mark back: parent devices and the person's own device only (a shared wall gets 409).",
+    request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: z.union([TimeSchema, z.literal(WAKE)]), action: z.enum(['taken', 'skipped', 'snooze', 'unmark']).openapi({ description: 'unmark: back to not marked.' }),
       at: z.string().datetime({ offset: true }).optional().openapi({ description: "Taken or skipped only: when it really happened (ISO), for a dose marked after the fact. From the start of the dose's household day (midnight) until now (2 minutes ahead is taken as now). Default: now." }),
     }).openapi('MedicationDoseInput')) } },
-    responses: { 200: { description: 'saved', content: json(DoseSchema) }, 400: err('not one of its doses, nothing to snooze, or an `at` out of range'), 409: err('marked from another device at the same moment'), ...denied },
+    responses: { 200: { description: 'saved', content: json(DoseSchema) }, 400: err('not one of its doses, nothing to snooze, or an `at` out of range'), 409: err('marked from another device at the same moment, or a shared wall changing a marked dose'), ...denied },
   }),
   async (c) => {
     const g = await gate(c);
@@ -495,11 +498,11 @@ medicationsRoutes.openapi(
     if (g.who.kind === 'own' && g.who.memberId !== m.memberId) return c.json({ error: 'This device can only mark its own medicines.' }, 403);
     const { date, time, action, at: when } = c.req.valid('json');
     if (date !== g.today && date !== addDays(g.today, -1)) return c.json({ error: "Only today's and yesterday's doses can be marked" }, 400);
-    const t = m.times.find((x) => timeKey(x) === time);
-    if (!t || !scheduledOn(m, date)) return c.json({ error: "That isn't one of its doses" }, 400);
+    const scheduled = m.times.find((x) => timeKey(x) === time);
+    const t = scheduled ?? timeFor(m, time); // a marked dose whose time or course has since ended can still be corrected
     const taken = when === undefined ? null : Date.parse(when);
     if (taken !== null) {
-      if (action === 'snooze') return c.json({ error: 'A time goes with taken or skipped only' }, 400);
+      if (action === 'snooze' || action === 'unmark') return c.json({ error: 'A time goes with taken or skipped only' }, 400);
       if (taken > Date.now() + CLOCK_SKEW_MS) return c.json({ error: "That time hasn't happened yet" }, 400);
       if (taken < doseAt(date, '00:00', g.tz)) return c.json({ error: "That's before the dose's day started" }, 400);
     }
@@ -511,22 +514,39 @@ medicationsRoutes.openapi(
     // A parent's phone's widgets key is shared, but what it marks is that grown-up's doing (actorOf).
     const credited = key?.deviceKind === 'widgets' && actor.memberId ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(actor.memberId).first<{ name: string }>())?.name : null;
     const by = credited ?? key?.name ?? null;
+    let refused: { error: string; status: 400 | 409 } | null = null;
+    let same: DoseEntry | null = null; // already marked just so: nothing to change
     const done = await updateLog(c.env, m.id, date, (log, now) => {
-      const startedAt = log[time]?.startedAt ? { startedAt: log[time].startedAt } : {}; // kept through a snooze or a mark
-      if (action === 'snooze') {
-        const at = dueAt(t, date, g.tz, log[time]);
-        if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), log[time], now.getTime()) !== 'due') return false;
-        const until = new Date(now.getTime() + SNOOZE_MS).toISOString();
-        log[time] = just ? { ...log[time], snoozedFor: { ...log[time]?.snoozedFor, [just]: until } } : { ...startedAt, snoozedUntil: until };
-      } else log[time] = { ...startedAt, status: action, at: new Date(Math.min(taken ?? Infinity, now.getTime())).toISOString(), ...(by ? { by } : {}) };
-      return true;
+      const prev = log[time];
+      const startedAt = prev?.startedAt ? { startedAt: prev.startedAt } : {}; // kept through a snooze or a mark
+      const trail = prev?.first ? { first: prev.first, ...(prev.editedAt ? { editedAt: prev.editedAt } : {}), ...(prev.editedBy ? { editedBy: prev.editedBy } : {}) } : {};
+      if (!prev?.status && (!scheduled || !scheduledOn(m, date))) refused = { error: "That isn't one of its doses", status: 400 };
+      else if (prev?.status && action === prev.status && taken === null) same = prev; // the same tap twice (a wall and a phone)
+      else if (g.who.kind === 'wall' && action !== 'snooze' && (prev?.status || action === 'unmark')) refused = { error: "It's already marked. A parent's device or their own device can change it.", status: 409 };
+      else if (action === 'snooze') {
+        const at = dueAt(t, date, g.tz, prev);
+        if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), prev, now.getTime()) !== 'due') refused = { error: 'Only a dose that is due can be snoozed', status: 400 };
+        else {
+          const until = new Date(now.getTime() + SNOOZE_MS).toISOString();
+          log[time] = just ? { ...prev, snoozedFor: { ...prev?.snoozedFor, [just]: until } } : { ...startedAt, ...trail, snoozedUntil: until };
+        }
+      } else if (action === 'unmark' && !prev?.status) same = prev ?? {};
+      else {
+        // Changing a marked (or unmarked) dose: its first mark is kept once, and who changed it last.
+        const first = prev?.first ?? (prev?.status ? { status: prev.status, ...(prev.at ? { at: prev.at } : {}), ...(prev.by ? { by: prev.by } : {}) } : null);
+        const edit = first ? { first, editedAt: now.toISOString(), ...(by ? { editedBy: by } : {}) } : {};
+        log[time] = action === 'unmark' ? { ...startedAt, ...edit } : { ...startedAt, ...edit, status: action, at: new Date(Math.min(taken ?? Infinity, now.getTime())).toISOString(), ...(by ? { by } : {}) };
+      }
+      return !refused && !same;
     });
     if (done === 'conflict') return c.json({ error: 'Someone else just marked it. Try again.' }, 409);
-    if (!done) return c.json({ error: 'Only a dose that is due can be snoozed' }, 400);
-    const e = done.log[time];
+    const r = refused as { error: string; status: 400 | 409 } | null;
+    if (r) return c.json({ error: r.error }, r.status);
+    const e: DoseEntry = done ? done.log[time] : ((same as DoseEntry | null) ?? {});
+    const now = done ? done.now : new Date();
     const at = dueAt(t, date, g.tz, e);
     const end = windowEnd(m.lateWindow, date, at, g.tz);
-    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, done.now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, late: takenLate(e, end), by: e.by ?? null, snoozedUntil: (just ? e.snoozedFor?.[just] : e.snoozedUntil) ?? null }, 200);
+    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, late: takenLate(e, end), by: e.by ?? null, edited: !!e.editedAt, snoozedUntil: (just ? e.snoozedFor?.[just] : e.snoozedUntil) ?? null }, 200);
   },
 );
 
@@ -575,7 +595,7 @@ medicationsRoutes.openapi(
           const e = log[time];
           const due = dueAt(timeFor(m, time), date, g.tz, e);
           const end = windowEnd(m.lateWindow, date, due, g.tz);
-          return { medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, end, e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late: takenLate(e, end), by: e?.by ?? null };
+          return { medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, end, e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late: takenLate(e, end), by: e?.by ?? null, edited: !!e?.editedAt };
         });
       }).sort((a, b) => a.dueAt.localeCompare(b.dueAt) || a.time.localeCompare(b.time));
       days.push({ date, doses });

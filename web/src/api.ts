@@ -571,7 +571,7 @@ export const api = {
   deleteMedication: (id: string) => MOCK ? mock.deleteMedication(id) : del<void>(`api/medications/${encodeURIComponent(id)}`),
   deleteAllMedications: () => MOCK ? mock.deleteAllMedications() : del<{ deleted: number }>('api/medications'),
   getMedicationsDue: () => MOCK ? mock.getMedicationsDue() : req<MedicationsDue>('api/medications/due'),
-  markDose: (medicationId: string, body: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze'; at?: string }) =>
+  markDose: (medicationId: string, body: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' | 'unmark'; at?: string }) =>
     MOCK ? mock.markDose(medicationId, body) : post<MedicationDose>(`api/medications/${encodeURIComponent(medicationId)}/doses`, body),
   dayStarted: (memberId: string) => MOCK ? Promise.resolve() : post<void>(`api/members/${encodeURIComponent(memberId)}/day-started`),
   // Refills: the card and request on parent devices and the person's own device.
