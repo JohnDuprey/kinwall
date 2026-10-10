@@ -9,8 +9,8 @@ import { announce } from './a11y.tsx'
 import { askWhenTaken, cardLabel, cheerLine, doseTimeLabel, earlierInput, pickedTime } from './medications.ts'
 import { formatTime } from './timeFormat.ts'
 import { todayKeyInTz } from './date.ts'
-import { medicationActivity } from './liveActivity.ts'
-import { appMedicineNames, endAppActivity, MED_NAMES_EVENT, tellAppActivity } from './native.ts'
+import { activityPeople, medicationActivity } from './liveActivity.ts'
+import { appKidDoses, appMedicineNames, endAppActivity, MED_NAMES_EVENT, tellAppActivity } from './native.ts'
 import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
 import { PillIcon } from './icons.tsx'
@@ -53,16 +53,17 @@ export function useDueDoses() {
 type Due = ReturnType<typeof useDueDoses>
 
 /** Inside the phone app: this device's person's dose that's due, as a Live Activity with Taken and
- * Snooze (liveActivity.ts medicationActivity). Only the person's own doses, so it shows on their own
- * device, or a parent's device that belongs to that parent; never a kid's dose on a parent's phone
- * (parents get the "hasn't been marked yet" note) and never on a shared wall. It names the medicine
- * only when this device turned on medicine names for notifications. Snooze ends it until the snooze
- * runs out; Taken, Skip or the late window closing end it. Renders nothing. */
+ * Snooze (liveActivity.ts medicationActivity). The person's own doses, on their own device or a
+ * parent's device that belongs to that parent; on a grown-up's own full-access phone that turned on
+ * "Show the kids' doses on this phone" (appKidDoses), the kids' too, the earliest with "+1 more".
+ * Never on a shared wall. It names the medicine only when this device turned on medicine names.
+ * Snooze ends it until the snooze runs out (a kid's dose: on this phone only, server-side); Taken,
+ * Skip, the late window closing, or anyone marking it anywhere (the next refresh) end it. Renders nothing. */
 export function MedicationLiveActivity() {
-  const { members, meMemberId, refreshTick } = useApp()
+  const { members, meMemberId, parentDevice, refreshTick } = useApp()
   const { doses } = useDueDoses()
   const [names, setNames] = useState(false)
-  const [namesTick, setNamesTick] = useState(0) // the app's own "Show medicine names" changed
+  const [namesTick, setNamesTick] = useState(0) // the app's own "Show medicine names" or "Show the kids' doses" changed
   useEffect(() => {
     const on = () => setNamesTick(t => t + 1)
     window.addEventListener(MED_NAMES_EVENT, on)
@@ -77,7 +78,8 @@ export function MedicationLiveActivity() {
     api.getPushSubscriptions().then(subs => setNames(!!subs.find(s => s.id === id)?.prefs.medicationNames)).catch(() => setNames(false))
   }, [refreshTick, namesTick])
   const me = members.find(m => m.id === meMemberId)
-  const a = me ? medicationActivity(doses, me, now, names) : null
+  const kids = activityPeople(me, members, parentDevice, appKidDoses()).slice(1) // namesTick re-reads it
+  const a = me ? medicationActivity(doses, me, now, names, kids) : null
   const json = JSON.stringify(a)
   useEffect(() => { if (a) tellAppActivity('medication', a); else endAppActivity('medication') }, [json]) // eslint-disable-line react-hooks/exhaustive-deps
   return null

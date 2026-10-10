@@ -1,7 +1,7 @@
 // node --test test/ (npm test). What the iPhone app's Live Activities show (liveActivity.ts).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { leaveByActivity, medicationActivity, shoppingActivity, timerActivity, timerName } from '../src/liveActivity.ts'
+import { activityPeople, leaveByActivity, medicationActivity, shoppingActivity, timerActivity, timerName } from '../src/liveActivity.ts'
 import { rememberNudge, type NudgeSeen } from '../src/nudges.ts'
 import type { DueDose, EventInstance } from '../src/types.ts'
 
@@ -118,6 +118,36 @@ test('medicationActivity: only their own doses, the earliest first, a start-of-d
   assert.equal(medicationActivity([], MAYA, T0, false), null, 'marked: gone from the due list')
   assert.equal(medicationActivity([dose()], MAYA, Date.parse(dose().until), false), null, 'the window closed')
   assert.equal(medicationActivity([dose()], MAYA, T0 - 60_000, false), null, 'not due yet')
+})
+
+// ---- A grown-up's phone with "Show the kids' doses on this phone" ----
+const SAM = { id: 'm2', name: 'Sam', grownUp: true }, LEO = { id: 'm4', name: 'Leo', grownUp: false }
+const FAMILY = [{ id: 'm1', name: 'Alex', grownUp: true }, SAM, { ...MAYA, grownUp: false }, LEO]
+
+test('activityPeople: the kids only on a grown-up\'s full-access phone that turned it on; never a wall or a kid\'s device', () => {
+  assert.deepEqual(activityPeople(SAM, FAMILY, true, true).map(p => p.name), ['Sam', 'Maya', 'Leo'], 'not the other grown-up')
+  assert.deepEqual(activityPeople(SAM, FAMILY, true, false), [SAM], 'off by default: their own only')
+  assert.deepEqual(activityPeople(undefined, FAMILY, true, true), [], 'a wall or a parent device that is nobody\'s')
+  assert.deepEqual(activityPeople(LEO, FAMILY, false, true), [LEO], "a kid's own device: theirs only")
+  assert.deepEqual(activityPeople(SAM, FAMILY, false, true), [SAM], 'an everyday-access device')
+  assert.deepEqual(activityPeople(LEO, FAMILY, true, true), [LEO], 'a parent device set to a kid')
+})
+
+test("medicationActivity: a kid's dose on a parent's phone says whose and when, generic unless names are on; +N more", () => {
+  const kids = activityPeople(SAM, FAMILY, true, true).slice(1)
+  const leo = dose({ memberId: 'm4', medicationId: 'med4' })
+  const a = medicationActivity([leo], SAM, T0 + 60_000, false, kids)!
+  assert.deepEqual([a.medicationId, a.memberName, a.headline, a.label], ['med4', 'Leo', 'Leo · 8:00 AM medicine', "Leo's medicine"])
+  assert.doesNotMatch(JSON.stringify(a), /Allergy|tablet/)
+  assert.equal(medicationActivity([leo], SAM, T0 + 60_000, true, kids)!.headline, 'Leo · Allergy medicine · 1 tablet')
+  assert.equal(medicationActivity([leo], SAM, T0 + 60_000, false), null, 'switched off: not on the parent\'s phone')
+  const own = dose({ memberId: 'm2', medicationId: 'med2', dueAt: new Date(T0 + 30 * 60_000).toISOString() })
+  const two = medicationActivity([own, leo, dose({ memberId: 'm3', medicationId: 'med3' })], SAM, T0 + H, false, kids)!
+  assert.deepEqual([two.medicationId, two.headline], ['med4', 'Leo · 8:00 AM medicine · +2 more'], 'the earliest first, the rest counted')
+  assert.equal(medicationActivity([own], SAM, T0 + H, false, kids)!.headline, "Time for Sam's medicine", 'their own keeps working alongside')
+  assert.equal(medicationActivity([dose({ memberId: 'm1' })], SAM, T0 + H, false, kids), null, "another grown-up's dose")
+  const wake = dose({ memberId: 'm4', time: 'wake', startedAt: new Date(T0).toISOString() })
+  assert.equal(medicationActivity([wake], SAM, T0 + H, false, kids)!.headline, 'Leo · Start-of-day medicine')
 })
 
 test('shopping: a combined trip counts the other list\'s items too, each saying which list to tick it on', () => {

@@ -172,6 +172,17 @@ export function setAppMedicineNames(on: boolean) {
   window.dispatchEvent(new Event(MED_NAMES_EVENT))
 }
 
+// "Show the kids' doses on this phone" (a grown-up's own phone in the app, Settings → Notifications):
+// their kids' due doses join the medicine countdown. Off by default; sends MED_NAMES_EVENT too.
+const KID_DOSES_KEY = 'kinwall.appKidDoses'
+export function appKidDoses(): boolean {
+  try { return localStorage.getItem(KID_DOSES_KEY) === '1' } catch { return false }
+}
+export function setAppKidDoses(on: boolean) {
+  try { if (on) localStorage.setItem(KID_DOSES_KEY, '1'); else localStorage.removeItem(KID_DOSES_KEY) } catch { /* not kept */ }
+  window.dispatchEvent(new Event(MED_NAMES_EVENT))
+}
+
 const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles' | 'barcodeScanner' | 'providerReturn' | 'speech'): boolean =>
   typeof window !== 'undefined' && (window as Window & { kinwallNative?: Record<string, unknown> }).kinwallNative?.[key] === true
 

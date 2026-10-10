@@ -40,7 +40,7 @@ import { countDrawings } from './drawings-db.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { addAppTile, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppMedicineNames } from './native.ts'
+import { addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -786,6 +786,8 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   // A kid's own device follows only them (the server holds to that), so there's nobody to pick.
   const kid = !parentDevice && meMemberId ? members.find(m => m.id === meMemberId && !m.grownUp) : undefined
   const [appNames, setAppNames] = useState(appMedicineNames) // in the app: this device's own choice (no push subscription)
+  const [kidDoses, setKidDoses] = useState(appKidDoses)
+  const grownUpPhone = parentDevice && !!members.find(m => m.id === meMemberId && m.grownUp) // a grown-up's own full-access phone
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
 
@@ -866,6 +868,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             <div className="settings-row-sub" id="app-med-names-sub">Off: a due dose says “Leo’s medicine”. It shows on the lock screen.</div>
           </div>
           <button className={`switch ${appNames ? 'on' : ''}`} role="switch" aria-checked={appNames} aria-labelledby="app-med-names-label" aria-describedby="app-med-names-sub" onClick={() => { setAppMedicineNames(!appNames); setAppNames(!appNames) }}><span className="knob" /></button>
+        </div>}
+        {settings.medications && grownUpPhone && <div className="toggle-row">
+          <div>
+            <label id="app-kid-doses-label">Show the kids' doses on this phone</label>
+            <div className="settings-row-sub" id="app-kid-doses-sub">A kid's dose that's due shows on the lock screen too, like “Leo · 8:00 AM medicine”, with Taken and Snooze. Snooze is for this phone only.</div>
+          </div>
+          <button className={`switch ${kidDoses ? 'on' : ''}`} role="switch" aria-checked={kidDoses} aria-labelledby="app-kid-doses-label" aria-describedby="app-kid-doses-sub" onClick={() => { setAppKidDoses(!kidDoses); setKidDoses(!kidDoses) }}><span className="knob" /></button>
         </div>}
         {settings.medications && appNotificationSettings() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-secondary" onClick={() => openAppNotificationSettings('medicine')}>Let medicine reminders through Do Not Disturb</button>

@@ -56,7 +56,7 @@ This device's push notifications: **Turn on notifications**, **Event reminders**
 
 While the family's night hours hold reminders, the card says so at the top ("At night (10:00 PM–6:00 AM) some reminders wait until morning"): that's **Hold reminders at night**, under [Night](general.md#night).
 
-In the Kinwall phone app this section instead says how the app's own reminders work, whether countdowns are on (Live Activities on iPhone, ongoing notifications on Android), and, with medications on, **Show medicine names on this device** for the medicine countdown (off by default). In the Android app, with medications on, **Let medicine reminders through Do Not Disturb** opens Android's settings for Kinwall's Medicine notifications, where you turn on **Override Do Not Disturb** (see [Medications → Reminders](../using/medications.md#reminders)).
+In the Kinwall phone app this section instead says how the app's own reminders work, whether countdowns are on (Live Activities on iPhone, ongoing notifications on Android), and, with medications on, **Show medicine names on this device** for the medicine countdown (off by default). On a grown-up's own full-access phone, **Show the kids' doses on this phone** adds the kids' due doses to that countdown (off by default; see [Medications → On the Lock Screen](../using/medications.md#on-the-lock-screen)). In the Android app, with medications on, **Let medicine reminders through Do Not Disturb** opens Android's settings for Kinwall's Medicine notifications, where you turn on **Override Do Not Disturb** (see [Medications → Reminders](../using/medications.md#reminders)).
 
 ## Troubleshooting
 

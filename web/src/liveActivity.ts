@@ -6,6 +6,7 @@ import { mealName, pickNudge, rememberNudge, type Nudge, type NudgeSeen } from '
 import { ANY_STORE, anyStoreView, tripView } from './trip.ts'
 import { warningTimes, type TransitionReminders } from './transitions.ts'
 import { cardLabel } from './medications.ts'
+import { formatTime } from './timeFormat.ts'
 import type { AisleOrder, DueDose, EventInstance, ListItem } from './types.ts'
 
 const MIN = 60000
@@ -107,18 +108,37 @@ export type MedicationActivity = {
   dueAt: string; windowEndsAt: string; stage: 'due' | 'late'
 }
 
-/** This person's earliest dose that's due now (a "When I start my day" dose once their day started),
- * until it's marked or its late window closes. Only their own: `me` is this device's person. */
-export function medicationActivity(doses: DueDose[], me: { id: string; name: string }, now: number, names: boolean): MedicationActivity | null {
-  const d = doses.filter(x => x.memberId === me.id && Date.parse(x.dueAt) <= now && now < Date.parse(x.until)).sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]
+type Person = { id: string; name: string; grownUp?: boolean }
+
+/** Whose doses this phone's medicine Live Activity follows: its person's own, and on a grown-up's
+ * own full-access phone that turned on "Show the kids' doses on this phone", the kids' too. Nobody
+ * on a wall (no person) or on a kid's own device beyond themselves. */
+export function activityPeople(me: Person | undefined, members: Person[], parentDevice: boolean, kidsOn: boolean): Person[] {
+  if (!me) return []
+  return kidsOn && parentDevice && me.grownUp ? [me, ...members.filter(m => !m.grownUp && m.id !== me.id)] : [me]
+}
+
+/** The earliest dose that's due now (a "When I start my day" dose once their day started) for
+ * `me` or the kids in `kids` (activityPeople), until it's marked or its late window closes, with
+ * "+1 more" when others are due too. A kid's says whose and when ("Leo · 8:00 AM medicine"); names
+ * only when this device turned them on. */
+export function medicationActivity(doses: DueDose[], me: { id: string; name: string }, now: number, names: boolean, kids: Person[] = []): MedicationActivity | null {
+  const whose = (id: string) => (id === me.id ? me : kids.find(k => k.id === id))
+  const due = doses.filter(x => whose(x.memberId) && Date.parse(x.dueAt) <= now && now < Date.parse(x.until)).sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+  const d = due[0]
   if (!d) return null
-  const due = Date.parse(d.dueAt), end = Date.parse(d.until)
-  const late = end - due > FOLLOW_UP_AFTER_MS && now >= due + (end - due) / 2
-  const who = me.name.split(' ')[0]
+  const start = Date.parse(d.dueAt), end = Date.parse(d.until)
+  const late = end - start > FOLLOW_UP_AFTER_MS && now >= start + (end - start) / 2
+  const who = whose(d.memberId)!.name.split(' ')[0]
+  const named = names && !!d.name
+  const more = due.length > 1 ? ` · +${due.length - 1} more` : ''
+  const headline = d.memberId === me.id
+    ? (late ? `Still time for ${who}'s medicine` : `Time for ${who}'s medicine`)
+    : `${who} · ${named ? cardLabel(d) : d.time === 'wake' ? 'Start-of-day medicine' : `${formatTime(d.time)} medicine`}`
   return {
     medicationId: d.medicationId, date: d.date, time: d.time, memberName: who,
-    label: names && d.name ? cardLabel(d) : `${who}'s medicine`,
-    headline: late ? `Still time for ${who}'s medicine` : `Time for ${who}'s medicine`,
+    label: named ? cardLabel(d) : `${who}'s medicine`,
+    headline: headline + more,
     dueAt: d.dueAt, windowEndsAt: d.until, stage: late ? 'late' : 'due',
   }
 }

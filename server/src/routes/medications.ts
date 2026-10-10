@@ -29,7 +29,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
-import { ownDevice, requestKey } from '../auth.ts';
+import { actorOf, ownDevice, requestKey } from '../auth.ts';
 import { seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -127,7 +127,8 @@ const HistorySchema = z
   .openapi('MedicationHistory');
 
 export type Medication = z.infer<typeof MedicationSchema>;
-export type DoseEntry = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; startedAt?: string };
+/** snoozedFor: a grown-up's own phone snoozed someone else's dose just for itself (member id → until). */
+export type DoseEntry = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; snoozedFor?: Record<string, string>; startedAt?: string };
 export type DoseLog = Record<string, DoseEntry>; // by time, HH:MM, or WAKE
 export type DoseTime = Medication['times'][number];
 export const WAKE = 'wake'; // a "When I start my day" dose's key in the log and the API
@@ -457,6 +458,7 @@ medicationsRoutes.openapi(
     const g = await gate(c);
     if ('fail' in g) return c.json(g.fail, g.status);
     const names = g.who.kind !== 'wall' || g.settings.medicationNamesOnWalls;
+    const viewer = (await actorOf(c)).memberId; // whose phone: what it snoozed for itself stays hidden here
     const meds = (await loadMedications(c.env, g.who.kind === 'own' ? g.who.memberId : undefined));
     const yesterday = addDays(g.today, -1);
     const logs = await loadLogs(c.env, meds.map((m) => m.id), yesterday, g.today);
@@ -466,7 +468,8 @@ medicationsRoutes.openapi(
       const e = logs.get(`${m.id}:${date}`)?.[time];
       const at = dueAt(t, date, g.tz, e);
       const end = windowEnd(m.lateWindow, date, at, g.tz);
-      if (doseStatus(at, end, e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return [];
+      const mine = viewer ? e?.snoozedFor?.[viewer] : undefined;
+      if (doseStatus(at, end, e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now) || (mine && Date.parse(mine) > now)) return [];
       return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date(at).toISOString(), startedAt: e?.startedAt ?? null, until: new Date(end).toISOString(), name: names ? m.name : null, dose: names ? m.dose : null }];
     })));
     const order = new Map((await c.env.DB.prepare('SELECT id FROM members ORDER BY sort, created_at').all<{ id: string }>()).results.map((r, i) => [r.id, i]));
@@ -478,7 +481,7 @@ medicationsRoutes.openapi(
 medicationsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/medications/{id}/doses', tags: TAG, security: [{ Bearer: [] }],
-    summary: "Mark a dose taken or skipped, or snooze it 10 minutes (today's or yesterday's). Parent devices, shared walls, and the person's own device for their own.",
+    summary: "Mark a dose taken or skipped, or snooze it 10 minutes (today's or yesterday's). Parent devices, shared walls, and the person's own device for their own. A grown-up's own phone snoozing someone else's dose snoozes it on that phone only.",
     request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: z.union([TimeSchema, z.literal(WAKE)]), action: z.enum(['taken', 'skipped', 'snooze']),
       at: z.string().datetime({ offset: true }).optional().openapi({ description: "Taken or skipped only: when it really happened (ISO), for a dose marked after the fact. From the start of the dose's household day (midnight) until now (2 minutes ahead is taken as now). Default: now." }),
     }).openapi('MedicationDoseInput')) } },
@@ -500,13 +503,21 @@ medicationsRoutes.openapi(
       if (taken > Date.now() + CLOCK_SKEW_MS) return c.json({ error: "That time hasn't happened yet" }, 400);
       if (taken < doseAt(date, '00:00', g.tz)) return c.json({ error: "That's before the dose's day started" }, 400);
     }
-    const by = (await requestKey(c))?.name ?? null;
+    const key = await requestKey(c);
+    const actor = await actorOf(c);
+    // A grown-up's own phone (its page, or its widgets' key on the Live Activity) snoozing someone
+    // else's dose snoozes it there only: the kid's device and the wall keep it. Elsewhere it's for everyone.
+    const just = actor.memberId && actor.memberId !== m.memberId ? actor.memberId : null;
+    // A parent's phone's widgets key is shared, but what it marks is that grown-up's doing (actorOf).
+    const credited = key?.deviceKind === 'widgets' && actor.memberId ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(actor.memberId).first<{ name: string }>())?.name : null;
+    const by = credited ?? key?.name ?? null;
     const done = await updateLog(c.env, m.id, date, (log, now) => {
       const startedAt = log[time]?.startedAt ? { startedAt: log[time].startedAt } : {}; // kept through a snooze or a mark
       if (action === 'snooze') {
         const at = dueAt(t, date, g.tz, log[time]);
         if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), log[time], now.getTime()) !== 'due') return false;
-        log[time] = { ...startedAt, snoozedUntil: new Date(now.getTime() + SNOOZE_MS).toISOString() };
+        const until = new Date(now.getTime() + SNOOZE_MS).toISOString();
+        log[time] = just ? { ...log[time], snoozedFor: { ...log[time]?.snoozedFor, [just]: until } } : { ...startedAt, snoozedUntil: until };
       } else log[time] = { ...startedAt, status: action, at: new Date(Math.min(taken ?? Infinity, now.getTime())).toISOString(), ...(by ? { by } : {}) };
       return true;
     });
@@ -515,7 +526,7 @@ medicationsRoutes.openapi(
     const e = done.log[time];
     const at = dueAt(t, date, g.tz, e);
     const end = windowEnd(m.lateWindow, date, at, g.tz);
-    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, done.now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, late: takenLate(e, end), by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
+    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, done.now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, late: takenLate(e, end), by: e.by ?? null, snoozedUntil: (just ? e.snoozedFor?.[just] : e.snoozedUntil) ?? null }, 200);
   },
 );
 

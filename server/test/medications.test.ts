@@ -782,3 +782,33 @@ test('start of day: times are checked (one start-of-day dose at most, a valid la
   }
   assert.equal((await s.add(s.sam.id, { times: [WAKE] })).status, 201);
 });
+
+test("a grown-up's own phone: Snooze on a kid's dose hides it there only; Taken from its widgets key counts as that grown-up's", async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('08:10') });
+  const leoMed = (await s.add(s.leo.id)).json;
+  const mayaMed = (await s.add(s.maya.id)).json;
+  const phone = await createApiKey(s.db as never, "Sam's iPhone", 'admin', { owner: s.sam.id });
+  const widgets = (await createApiKey(s.db as never, 'Widgets on iPhone', 'display', { owner: 'shared', deviceKind: 'widgets', parentKeyId: phone.id })).key;
+  const wall = await s.key();
+  const leos = await s.key(s.leo.id);
+  const due = async (k: string) => ((await s.req('/api/medications/due', 'GET', undefined, k)).json.doses as { memberId: string }[]).map((d) => d.memberId);
+
+  const snoozed = await s.mark(leoMed.id, 'snooze', widgets); // the Live Activity's Snooze on Sam's phone
+  assert.deepEqual([snoozed.status, snoozed.json.snoozedUntil], [200, at('08:20').toISOString()]);
+  assert.deepEqual(await due(phone.key), [s.maya.id], "gone from Sam's phone for 10 minutes");
+  assert.deepEqual(await due(leos), [s.leo.id], "still on Leo's own device");
+  assert.deepEqual(await due(wall), [s.maya.id, s.leo.id], 'and on the wall');
+  assert.equal((await s.mark(mayaMed.id, 'snooze', phone.key)).status, 200, 'the page on the same phone: the same, just for Sam');
+  assert.deepEqual(await due(phone.key), []);
+  assert.deepEqual(await due(ADMIN), [s.maya.id, s.leo.id], "a parent device that isn't anyone's isn't affected");
+  mock.timers.setTime(at('08:21').getTime());
+  assert.deepEqual(await due(phone.key), [s.maya.id, s.leo.id], 'back after 10 minutes');
+
+  const taken = await s.mark(leoMed.id, 'taken', widgets);
+  assert.deepEqual([taken.json.status, taken.json.by], ['taken', 'Sam'], 'credited to the grown-up whose phone it is');
+  assert.deepEqual(await due(leos), [], 'marked: gone everywhere');
+  assert.deepEqual(await due(phone.key), [s.maya.id]);
+  assert.equal((await s.mark(mayaMed.id, 'snooze', ADMIN)).status, 200);
+  assert.deepEqual(await due(wall), [], 'a snooze from a device that is nobody\'s is for everyone, as before');
+});
