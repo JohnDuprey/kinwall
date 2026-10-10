@@ -2250,6 +2250,15 @@ a.activity-card:active { transform: scale(0.98); }
   .paint-toolbar > .paint-group { order: 2; }
   .paint-toolbar > .paint-group:first-child { order: 0; }
 }
+/* A short landscape screen (a Nest Hub, a tablet on its side): one row, so the canvas keeps its
+   height. Slightly smaller buttons (still 44px) and the drawing's name shrinks first; anything left
+   over scrolls sideways. */
+@media (orientation: landscape) and (min-width: 601px) and (max-height: 760px) {
+  .paint-toolbar { flex-wrap: nowrap; overflow-x: auto; gap: 4px 10px; padding-block: 4px 6px; }
+  .paint-btn { width: 44px; height: 44px; border-radius: 12px; }
+  .paint-toolbar > .paint-group:last-child { flex-shrink: 1; min-width: 0; }
+  .paint-name { flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0 6px; }
+}
 @media (prefers-contrast: more) { .paint-btn { border-color: var(--border); } .paint-btn.active { border-color: var(--text); } }
 
 /* Print: only the picture (Paint → Print portals .paint-print into <body>). */
