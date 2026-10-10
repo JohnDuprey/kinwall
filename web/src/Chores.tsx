@@ -553,7 +553,7 @@ export default function Chores() {
   const hasChores = (id: string) => chores.some(c => id === '__anyone' ? !c.memberId : c.memberId === id)
   const idle = !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
   const active = visibleColumns.filter(m => !idle.includes(m))
-  const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, 480px))` }
+  const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, calc(480px * var(--screen-k))))` }
   const leaderboard = settings.leaderboardEnabled && <Leaderboard />
   const rewardsShown = rewardsOn(settings)
 

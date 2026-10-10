@@ -157,7 +157,7 @@
 .cook-progress { flex-shrink: 0; height: 6px; background: var(--border); }
 .cook-progress > div { height: 100%; background: var(--accent-strong); transition: width 0.2s ease; }
 .cook-main { flex: 1; min-height: 0; touch-action: pan-y; }
-.cook-step { width: 100%; max-width: 1100px; margin: 0 auto; padding: 20px 20px 28px; display: grid; gap: 20px; }
+.cook-step { width: 100%; max-width: calc(1100px * var(--screen-k)); margin: 0 auto; padding: 20px 20px 28px; display: grid; gap: 20px; }
 .cook-photo { width: 100%; max-height: 40vh; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--card); }
 .cook-step-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cook-step-num { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }

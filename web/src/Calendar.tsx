@@ -11,7 +11,8 @@ import Sheet from './Sheet.tsx'
 import { BoardViewIcon, NewscastIcon, CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
 import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
-import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery } from './useIsPhone.ts'
+import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery, useScreenK } from './useIsPhone.ts'
+import { castScale } from './cast.ts'
 import { announce, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
@@ -47,7 +48,9 @@ const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add task…"
 /** Row height for the density actually applied on this device (household, device override, low-stim). */
 function useHourPx() {
   const { settings, parentPhone } = useApp()
-  return hourPx(effectiveDensity(settings, useDeviceAppearance(), parentPhone), useMediaQuery(SHORT_LANDSCAPE), useMediaQuery(SHORT_TABLET))
+  const device = useDeviceAppearance()
+  const screenK = useScreenK(!!device.cast)
+  return hourPx(effectiveDensity(settings, device, parentPhone), useMediaQuery(SHORT_LANDSCAPE), useMediaQuery(SHORT_TABLET), device.cast ? castScale(window.innerHeight) : 0, screenK)
 }
 
 function isAllDayOnDate(ev: EventInstance, key: string) {

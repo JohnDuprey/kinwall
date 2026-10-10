@@ -44,18 +44,19 @@
      Comfortable values here match the pre-density defaults; compact overrides below tighten
      spacing/control sizes while keeping touch targets >= 44px. Combines with --text-scale since
      rem sizes multiply through the root font-size independently of these px vars. */
-  --pad: 20px;       /* header/toolbar/card/section outer padding */
-  --gap: 12px;        /* row/column gaps */
-  --ctl-h: 56px;      /* segmented control, toolbar icon/Today buttons, tab bar / nav rail items */
-  --hour-h: 60px;      /* time-grid hour row height (also read by Calendar.tsx as HOUR_PX) */
-  --avatar: 56px;      /* header member-avatar diameter */
-  --header-clock: 40px; /* header clock font-size (family name/date derive from this) */
-  --rail-w: 88px;      /* nav rail width */
+  --screen-k: 1;      /* big screens draw everything bigger: the "Big screens" block below */
+  --pad: calc(20px * var(--screen-k));       /* header/toolbar/card/section outer padding */
+  --gap: calc(12px * var(--screen-k));        /* row/column gaps */
+  --ctl-h: calc(56px * var(--screen-k));      /* segmented control, toolbar icon/Today buttons, tab bar / nav rail items */
+  --hour-h: calc(60px * var(--screen-k));      /* time-grid hour row height (mirrored by dayLayout.ts hourPx) */
+  --avatar: calc(56px * var(--screen-k));      /* header member-avatar diameter */
+  --header-clock: calc(40px * var(--screen-k)); /* header clock font-size (family name/date derive from this) */
+  --rail-w: calc(88px * var(--screen-k));      /* nav rail width */
   --font: 'Nunito';    /* per-device typeface: useTheme.ts swaps in the one picked in Settings (FONTS there) */
 }
 
 /* rem is relative to this, so every text/spacing value expressed in rem scales with it. */
-html { font-size: calc(16px * var(--text-scale)); }
+html { font-size: calc(16px * var(--text-scale) * var(--screen-k)); }
 
 /* A tablet on its side that's short of a wall iPad (an Android tablet's 960×552 web view, or about
    1152×662 at its Auto screen scale; a small laptop window): compact sizes whatever the density, so
@@ -73,22 +74,35 @@ html { font-size: calc(16px * var(--text-scale)); }
     --tab-h: 52px;
     --rail-w: 64px;
   }
-  .nav-rail { gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); }
-  .nav-rail-btn { gap: 2px; padding: 4px 2px; font-size: 0.6875rem; }
-  .nav-rail-btn svg { width: 22px; height: 22px; }
+  /* :root: these come before the rail's own rules further down, which would win otherwise (and did:
+     at 600px tall the rail's ten buttons shrank their icons to dots). */
+  :root .nav-rail { gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); }
+  :root .nav-rail-btn { gap: 2px; padding: 4px 2px; font-size: 0.6875rem; }
+  :root .nav-rail-btn svg { flex: none; width: 22px; height: 22px; }
 }
 
 :root[data-density="compact"] {
-  --pad: 12px;
-  --gap: 8px;
-  --ctl-h: 44px;
-  --hour-h: 40px;
-  --avatar: 40px;
-  --header-clock: 28px;
+  --pad: calc(12px * var(--screen-k));
+  --gap: calc(8px * var(--screen-k));
+  --ctl-h: calc(44px * var(--screen-k));
+  --hour-h: calc(40px * var(--screen-k));
+  --avatar: calc(40px * var(--screen-k));
+  --header-clock: calc(28px * var(--screen-k));
   --header-h: 64px;
   --tab-h: 52px;
-  --rail-w: 64px;
+  --rail-w: calc(64px * var(--screen-k));
 }
+
+/* ---------- Big screens ----------
+   A TV or a big monitor on the wall (1920×1080 and up at 100%), read from across the room: the
+   iPad-sized layout drawn bigger instead of spread thin. --screen-k grows the rem size (so all text)
+   and the size tokens above (dayLayout.ts hourPx mirrors the hour rows, useIsPhone.ts BIG_SCREENS
+   these queries). A cast screen has its own sizes (the "Cast screen" block). */
+@media (min-width: 1700px) and (min-height: 950px) { :root:not([data-cast]) { --screen-k: 1.125; } }
+@media (min-width: 2300px) and (min-height: 1250px) { :root:not([data-cast]) { --screen-k: 1.5; } }
+@media (min-width: 3200px) and (min-height: 1800px) { :root:not([data-cast]) { --screen-k: 2; } }
+/* Icons are sized in px by their components: grown with the buttons around them. */
+@media (min-width: 1700px) and (min-height: 950px) { :root:not([data-cast]) :is(.nav-rail-btn, .icon-btn, .btn, .fab) > svg { zoom: var(--screen-k); } }
 
 /* Before main.tsx sets data-theme (the first paint, no JS yet): the page background follows the
    system, since the default mode is Auto. */
@@ -443,7 +457,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   position: absolute;
   right: 22px;
   bottom: 22px;
-  width: 60px; height: 60px;
+  width: calc(60px * var(--screen-k)); height: calc(60px * var(--screen-k));
   border-radius: 50%;
   background: var(--accent-strong);
   color: var(--accent-ink);
@@ -616,7 +630,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 .month-cell.dim .month-daynum { color: var(--text-dim); font-weight: 600; }
 .month-daynum {
   font-size: 0.8125rem; font-weight: 800;
-  width: 26px; height: 26px;
+  width: calc(26px * var(--screen-k)); height: calc(26px * var(--screen-k));
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
 }
@@ -718,7 +732,7 @@ button.month-cell .month-daynum { flex: none; }
 .sheet {
   background: var(--card);
   width: 100%;
-  max-width: 560px;
+  max-width: calc(560px * var(--screen-k));
   max-height: 86%; /* of the backdrop, which Sheet.tsx pins to the visible viewport (keyboard-aware) */
   border-radius: 26px 26px 0 0;
   box-shadow: var(--shadow-lg);
@@ -1185,7 +1199,7 @@ button.month-cell .month-daynum { flex: none; }
 }
 
 /* ---------- Settings ---------- */
-.settings-scroll { padding: 16px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); max-width: 720px; margin: 0 auto; width: 100%; }
+.settings-scroll { padding: 16px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); max-width: calc(720px * var(--screen-k)); margin: 0 auto; width: 100%; }
 .settings-tabs { position: sticky; top: 0; z-index: 3; background: var(--bg); margin: -16px calc(var(--pad) * -1) 0; padding: 16px var(--pad) 4px; }
 /* A section scrolled to (a Manage layouts link, the Settings jump links) stops below the sticky tabs, not under them. */
 .settings-panel [id] { scroll-margin-top: 96px; }
@@ -1315,7 +1329,7 @@ button.month-cell .month-daynum { flex: none; }
   .app-shell-rail .chores-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
   .app-shell-rail .chores-scroll > .chore-columns { flex: none; }
 }
-.lists-col { width: min(320px, 40%); flex-shrink: 0; /* 40%: 200% zoom / XL text on a narrow tablet */ display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.lists-col { width: min(calc(320px * var(--screen-k)), 40%); flex-shrink: 0; /* 40%: 200% zoom / XL text on a narrow tablet */ display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .lists-shell-phone .lists-col { width: 100%; }
 
 .list-card {
@@ -1527,7 +1541,7 @@ button.month-cell .month-daynum { flex: none; }
   .gsd-toggle button { flex: 1; }
 }
 .gsd-main { flex: 1; min-height: 0; }
-.gsd-step, .gsd-list, .gsd-celebrate { width: 100%; max-width: 900px; margin: 0 auto; padding: 20px 20px 28px; }
+.gsd-step, .gsd-list, .gsd-celebrate { width: 100%; max-width: calc(900px * var(--screen-k)); margin: 0 auto; padding: 20px 20px 28px; }
 .gsd-step { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
 .gsd-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 /* Done is filled, to do is a ring, here is bigger: shape as well as color. */
@@ -1585,7 +1599,7 @@ button.month-cell .month-daynum { flex: none; }
 .shop-left { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
 .shop-done { flex: none; padding-inline: 22px; }
 .shop-mode > .state-card { margin: 24px 16px; }
-.shop-items { flex: 1; min-height: 0; width: 100%; max-width: 760px; margin: 0 auto; padding: 4px 16px 16px; }
+.shop-items { flex: 1; min-height: 0; width: 100%; max-width: calc(760px * var(--screen-k)); margin: 0 auto; padding: 4px 16px 16px; }
 .shop-group { margin-top: 6px; }
 .shop-row {
   display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 10px 6px;
@@ -1601,7 +1615,7 @@ button.month-cell .month-daynum { flex: none; }
 .shop-row.done .shop-row-title { text-decoration: line-through; color: var(--text-dim); }
 .shop-row.done .shop-row-body, .shop-row.done .list-item-chip { opacity: 0.55; }
 .shop-dock { position: relative; z-index: 1; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px calc(var(--safe-b) + 10px); background: var(--card); border-top: 1px solid var(--border); }
-.shop-dock > * { width: 100%; max-width: 728px; margin: 0 auto; }
+.shop-dock > * { width: 100%; max-width: calc(728px * var(--screen-k)); margin: 0 auto; }
 .shop-add { position: static; }
 .shop-dock-row { display: flex; gap: 10px; }
 .shop-add-btn { flex: none; min-height: 52px; gap: 8px; padding-inline: 18px; }
@@ -2972,7 +2986,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trackers-head .segmented { max-width: 100%; }
 .trackers-head .segmented button { white-space: nowrap; }
 .trackers-body { flex: 1; min-height: 0; padding: 6px var(--pad) 100px; }
-.trk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--gap); align-items: start; }
+.trk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(320px * var(--screen-k))), 1fr)); gap: var(--gap); align-items: start; }
 /* One row of the view picker (compact in the library on phones) and the view's tools, the library's
    search, Filters and 📷 (Library.tsx portals them into .trackers-tools), so the shelves keep the
    height, which matters most on a landscape tablet. Phones space it with an even --gap. */
@@ -3190,7 +3204,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trk-stars { color: #F5B301; letter-spacing: 2px; }
 .trk-stars-off { color: var(--border); }
 .trk-stars-edit { display: flex; }
-.trk-stars-edit button { width: 44px; height: 44px; border: 0; background: none; font-size: 1.625rem; line-height: 1; color: var(--border); padding: 0; }
+.trk-stars-edit button { width: calc(44px * var(--screen-k)); height: calc(44px * var(--screen-k)); border: 0; background: none; font-size: 1.625rem; line-height: 1; color: var(--border); padding: 0; }
 .trk-stars-edit button.on { color: #F5B301; }
 .trk-journal { display: flex; flex-direction: column; gap: var(--gap); max-width: 760px; margin: 0 auto; }
 .btn.trk-today-btn { flex: none; }
@@ -3571,7 +3585,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
    are pills with the reactors' faces, never counts. Posts carry the poster's color as a left edge,
    always with their name and face (color is never the only signal). */
 .newscast { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); align-items: start; align-content: start; padding: 4px var(--pad) calc(var(--pad) * 2); }
-@media (min-width: 900px) { .newscast { grid-template-columns: minmax(0, 820px) minmax(260px, 340px); justify-content: center; } }
+@media (min-width: 900px) { .newscast { grid-template-columns: minmax(0, calc(820px * var(--screen-k))) minmax(calc(260px * var(--screen-k)), calc(340px * var(--screen-k))); justify-content: center; } }
 .news-feed { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .news-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--gap); }
 .news-loading { height: 100%; }
@@ -3686,12 +3700,45 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 /* A portrait tablet's toolbar holds the view tabs, Family wall, Polls, Outings and the filter only with
    Polls and Outings as their icons (their names stay as aria-labels). */
 @media (min-width: 601px) and (max-width: 960px) and (orientation: portrait) { .calendar-toolbar:has(.outings-btn) .polls-btn-label { display: none; } .calendar-toolbar:has(.outings-btn) .polls-btn.btn { padding: 6px 12px; } }
+/* The narrowest of those (a foldable's inner screen, about 600-720px wide): Family wall shows its icon
+   too, and the view tabs tighten, or the filter fell off the end of the row. */
+@media (min-width: 601px) and (max-width: 719px) and (orientation: portrait) {
+  .calendar-toolbar .polls-btn-label { display: none; }
+  .calendar-toolbar .polls-btn.btn { padding: 6px 12px; }
+  .calendar-toolbar .board-layout-pick.btn { gap: 0; padding-inline: 12px; }
+  .calendar-toolbar .board-layout-pick > span { max-width: 0; }
+  .calendar-toolbar .segmented button { padding-inline: 10px; }
+  /* With Calendar open, the tabs take the first row to themselves; Show hidden and the filter go to
+     the start of the second, beside paging. */
+  .calendar-toolbar.cal-open .segmented { grid-column: 1 / -1; }
+  .cal-open .toolbar-end { grid-column: 1; grid-row: 2; justify-self: start; }
+  .cal-open .toolbar-nav { grid-column: 2; grid-row: 2; }
+}
 /* The Outings button (🎟) shares the Polls button's look and fit rules (.polls-btn, .polls-btn-label); on a phone it takes its own column before the filter. */
 @media (max-width: 600px) {
   .calendar-toolbar:has(.outings-btn) { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
   .calendar-toolbar .outings-btn.btn { grid-column: 4; }
   .calendar-toolbar:has(.outings-btn) .filter-btn { grid-column: 5; }
   .calendar-toolbar .board-layout-pick.btn { max-width: 100%; } /* its column, not its own 16rem cap, so the buttons beside it never overlap */
+}
+/* The narrowest phones (an iPhone SE's 320px): the Board's layout button keeps its icon, its words go,
+   and the toolbar's gaps tighten so the view, layout, Polls, Outings and filter buttons all fit whole. */
+@media (max-width: 340px) {
+  .calendar-toolbar { gap: 4px; }
+  .calendar-toolbar .view-pick.btn { padding-inline: 10px; }
+  .calendar-toolbar .board-layout-pick.btn { gap: 0; padding-inline: 11px; }
+  .calendar-toolbar .board-layout-pick > span { max-width: 0; } /* kept at no width, like data-chips="tight", so Board.tsx still measures it */
+}
+/* A phone on its side under ~820px: the view tabs plus Family wall, Polls and Outings with their
+   words don't fit beside the rail, and the tabs were cut off. Polls and Outings show their icons (their
+   names stay as aria-labels), and under ~720px Family wall does too. */
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 819px) {
+  .calendar-toolbar .polls-btn-label { display: none; }
+  .calendar-toolbar .polls-btn.btn { padding: 6px 12px; }
+}
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 719px) {
+  .calendar-toolbar .board-layout-pick.btn { gap: 0; padding-inline: 12px; }
+  .calendar-toolbar .board-layout-pick > span { max-width: 0; } /* kept at no width, like data-chips="tight", so Board.tsx still measures it */
 }
 .sheet-link > .poll-row-emoji { flex: none; font-size: 1.25rem; }
 .poll-meta { margin: 0 0 12px; color: var(--text-dim); font-weight: 700; }
@@ -3723,8 +3770,11 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
    Every control takes at least a 44px tap. Where a control is drawn smaller to fit a tight row (the
    header's faces, the phone calendar toolbar), an invisible 44px ::after centered on it takes the
    tap instead, so the layout doesn't grow. Add a small control's selector to both lists. */
-:where(.header .member-avatar, .calendar-toolbar .icon-btn, .rewards-how a) { position: relative; }
-:where(.header .member-avatar, .calendar-toolbar .icon-btn, .rewards-how a)::after {
+/* Also a phone on its side's view tabs and Today, the chores day strip, a list's Done
+   toggle and a kid's family button. (Not the week's day headers: their margin would take taps from the
+   all-day events under them.) */
+:where(.header .member-avatar, .calendar-toolbar .icon-btn, .rewards-how a, .calendar-toolbar .segmented button, .today-btn, .list-done-toggle, .date-chip, .family-btn) { position: relative; }
+:where(.header .member-avatar, .calendar-toolbar .icon-btn, .rewards-how a, .calendar-toolbar .segmented button, .today-btn, .list-done-toggle, .date-chip, .family-btn)::after {
   content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
 }
 

@@ -35,3 +35,15 @@ export const SHORT_LANDSCAPE = '(max-height: 500px) and (orientation: landscape)
 /** A tablet on its side that's short of a wall iPad (a 10" tablet at its Auto screen scale): compact
  * sizes whatever the density. Mirrors the 501-760px landscape block at the top of styles.css. */
 export const SHORT_TABLET = '(orientation: landscape) and (min-width: 601px) and (min-height: 501px) and (max-height: 760px)'
+
+/** Big screens (a TV or big monitor on the wall): how much bigger styles.css draws everything
+ * (--screen-k in its "Big screens" block, whose media queries these mirror). Never on a cast screen. */
+export const BIG_SCREENS: [string, number][] = [
+  ['(min-width: 3200px) and (min-height: 1800px)', 2],
+  ['(min-width: 2300px) and (min-height: 1250px)', 1.5],
+  ['(min-width: 1700px) and (min-height: 950px)', 1.125],
+]
+export function useScreenK(cast = false): number {
+  const on = [useMediaQuery(BIG_SCREENS[0][0]), useMediaQuery(BIG_SCREENS[1][0]), useMediaQuery(BIG_SCREENS[2][0])]
+  return cast ? 1 : BIG_SCREENS.find((_, i) => on[i])?.[1] ?? 1
+}

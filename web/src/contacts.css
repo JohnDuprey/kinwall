@@ -1,5 +1,5 @@
 .contacts-page { flex: 1; min-height: 0; padding: 22px 18px 40px; }
-.contacts-inner { max-width: 1060px; margin: 0 auto; }
+.contacts-inner { max-width: calc(1060px * var(--screen-k)); margin: 0 auto; }
 .contacts-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
 .contacts-heading > div:first-child { min-width: 0; }
 .contacts-heading h2 { font-size: clamp(1.55rem, 3vw, 2rem); margin: 0 0 4px; }
@@ -10,7 +10,7 @@
 .contacts-tools input[type="search"] { flex: 1; min-width: 0; min-height: 52px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: 700 max(1rem, 16px) inherit; }
 .contacts-tools + .contacts-grid, .contacts-tools + .empty-card { margin-top: 16px; }
 .contacts-filter-summary + .contacts-grid, .contacts-filter-summary + .empty-card { margin-top: 4px; }
-.contacts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(265px, 1fr)); gap: 12px; }
+.contacts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(265px * var(--screen-k))), 1fr)); gap: 12px; }
 .contact-card { width: 100%; display: flex; align-items: center; gap: 13px; min-height: 104px; text-align: left; padding: 15px; border: 2px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); cursor: pointer; font: inherit; }
 .contact-card:focus-visible { border-color: var(--accent-strong); }
 .contact-avatar { width: 52px; height: 52px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-soft); color: var(--accent-text); font-size: 1.15rem; font-weight: 900; }

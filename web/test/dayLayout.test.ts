@@ -85,3 +85,10 @@ test('hourPx: matches the CSS hour rows, including a phone on its side', () => {
   assert.equal(hourPx('comfortable', false, true), 40, 'styles.css compacts a short landscape tablet to --hour-h: 40px')
   assert.equal(hourPx('compact', false, true), 40)
 })
+
+test('hourPx: a cast screen and a big screen draw their hour rows bigger, like styles.css', () => {
+  assert.equal(hourPx('comfortable', false, true, 1), 48, 'a Nest Hub: --hour-h is 48px times --cast-k, whatever else matches')
+  assert.equal(hourPx('compact', false, false, 1.2), 48 * 1.2)
+  assert.equal(hourPx('comfortable', false, false, 0, 1.5), 90, 'a big screen: 60px times --screen-k')
+  assert.equal(hourPx('compact', false, false, 0, 2), 80)
+})

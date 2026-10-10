@@ -3,10 +3,13 @@
 import { minutesSinceMidnight } from './date.ts'
 import type { EventInstance } from './types.ts'
 
-/** Matches --hour-h in styles.css (comfortable/compact, 44px on a phone on its side, and compact's
- * 40px on a short landscape tablet) so pixel offsets in the time grid line up with the CSS hour rows. */
-export function hourPx(density: string, shortLandscape = false, shortTablet = false): number {
-  return shortLandscape ? 44 : density === 'compact' || shortTablet ? 40 : 60
+/** Matches --hour-h in styles.css (comfortable/compact, 44px on a phone on its side, compact's
+ * 40px on a short landscape tablet, 48px times --cast-k on a cast screen (`castK`, 0 when it isn't one)
+ * and the comfortable/compact sizes times --screen-k on a big screen) so pixel offsets in the time
+ * grid line up with the CSS hour rows. */
+export function hourPx(density: string, shortLandscape = false, shortTablet = false, castK = 0, screenK = 1): number {
+  if (castK) return 48 * castK
+  return shortLandscape ? 44 : (density === 'compact' || shortTablet ? 40 : 60) * screenK
 }
 
 /** Greedy column packing for overlapping timed events on one day. Simple, not cluster-optimal.
