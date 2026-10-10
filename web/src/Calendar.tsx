@@ -27,6 +27,7 @@ import { hashQuery } from './hashQuery.ts'
 import { eventDraft } from './eventDraft.ts'
 import { addMinutes, endAfterStartMove } from './eventEnd.ts'
 import { PollSheet, PollsButton } from './Polls.tsx'
+import { EventOuting, OutingsButton } from './Outings.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
@@ -441,6 +442,7 @@ export default function CalendarView() {
           {/* The Board's layout, off to the side like the filter; not on a screen whose view is locked. */}
           {viewMode === 'board' && !device.lockView && <BoardLayoutPicker />}
           {viewMode === 'board' && !device.lockView && settings.features.polls !== false && <PollsButton />}
+          {viewMode === 'board' && !device.lockView && settings.features.outings !== false && <OutingsButton />}
           {isPhone && viewMode === 'day' && dayFrom && !device.lockView && (
             <button type="button" className="btn btn-secondary day-back" aria-label={`Back to ${viewLabel(dayFrom, true)}`} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>
               <ChevronLeft width={18} height={18} />{viewLabel(dayFrom, true)}
@@ -1024,6 +1026,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
           </section>
         )}
         {settings.features.meals !== false && <EventOrders eventId={event.id} />}
+        {settings.features.outings !== false && <EventOuting eventId={event.id} />}
         {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}
         {/* The family's back-and-forth, kept apart from the event's own Notes above. */}
         {settings.features.notes && <NotesThread target={`event:${event.id}`} title="Discussion" />}

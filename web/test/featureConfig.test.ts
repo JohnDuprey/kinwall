@@ -4,7 +4,8 @@ import { FEATURE_ROWS } from '../src/featureConfig.ts'
 
 test('feature settings include every household feature', () => {
   assert.deepEqual(FEATURE_ROWS.map(feature => feature.key), [
-    'chores', 'lists', 'contacts', 'paint', 'photos', 'notes', 'meals', 'polls', 'messages', 'newscast', 'checkIns',
-    'trackersReading', 'trackersMemories', 'trackersHealth',
+    'chores', 'lists', 'notes', 'messages', 'polls', 'checkIns',
+    'meals', 'outings', 'trackersReading', 'trackersMemories', 'trackersHealth', 'paint', 'photos', 'contacts', 'newscast',
   ])
+  assert.deepEqual([...new Set(FEATURE_ROWS.map(feature => feature.section))], ['Everyday', 'Nooks'], 'two headings, each once')
 })

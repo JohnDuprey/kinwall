@@ -1,0 +1,103 @@
+// In-memory Outings for VITE_MOCK only (the server: routes/outings.ts). The demo family's things to
+// do around Maple Grove (all made up): a fall fest this weekend, story time, a sewing class for Maya,
+// a pumpkin patch that's open all month, a concert with no date yet, and a few places to go.
+import { mock } from './mock.ts'
+import { dateKey } from './date.ts'
+import { addDays, hiddenFromKid, weekendOf } from './outing-rules.ts'
+import type { Outing, OutingCategory } from './types.ts'
+
+const today = dateKey(new Date())
+const [sat, sun] = weekendOf(today)
+const monthEnd = dateKey(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0))
+const nextWeekSat = addDays(sat, 7)
+
+let categories: OutingCategory[] = [
+  ['oc-food', 'Food', '🍔'], ['oc-drinks', 'Drinks', '🍺'], ['oc-music', 'Music', '🎵'], ['oc-movies', 'Movies', '🎬'], ['oc-shows', 'Shows & theater', '🎭'],
+  ['oc-art', 'Art & museums', '🎨'], ['oc-fairs', 'Fairs & festivals', '🎪'], ['oc-markets', 'Markets', '🧺'], ['oc-outdoors', 'Outdoors & nature', '🌲'], ['oc-water', 'Beaches & water', '🏖'],
+  ['oc-sports', 'Sports', '🏟'], ['oc-classes', 'Classes & workshops', '🧵'], ['oc-library', 'Library & story time', '📚'], ['oc-seasonal', 'Holidays & seasonal', '🎃'],
+].map(([id, name, emoji], sort) => ({ id, name, emoji, sort }))
+
+const base: Omit<Outing, 'id' | 'title'> = {
+  kind: 'upcoming', categoryId: null, startsOn: null, endsOn: null, startTime: null, endTime: null, hours: null, placeName: null, address: null, priceCents: null, priceNote: null,
+  audience: [], memberIds: [], ageMin: null, ageMax: null, url: null, ticketsUrl: null, ticketsOnSaleAt: null, buyBy: null, gotTickets: false, visitStatus: null, lastVisitedOn: null,
+  notes: null, calendarEventId: null, calendarEventStart: null, source: 'manual', addedBy: 'm1', archived: false, createdAt: `${addDays(today, -10)}T18:00:00.000Z`, updatedAt: `${addDays(today, -10)}T18:00:00.000Z`, interest: [],
+}
+const make = (id: string, title: string, p: Partial<Outing>): Outing => ({ ...base, id, title, ...p })
+const really = (...ids: string[]) => ids.map(memberId => ({ memberId, level: 'really' as const }))
+const looking = (...ids: string[]) => ids.map(memberId => ({ memberId, level: 'interested' as const }))
+
+let outings: Outing[] = [
+  make('demo-fall-fest', 'Maple Grove Fall Fest', { categoryId: 'oc-fairs', startsOn: sat, startTime: '10:00', endTime: '16:00', placeName: 'Town Green', address: 'Main St, Maple Grove', priceCents: 0, priceNote: 'Hayrides $3', audience: ['family'], notes: 'Bring cash for the bake sale.', interest: [...really('m3', 'm4'), ...looking('m1')] }),
+  make('demo-story-time', 'Library story time', { categoryId: 'oc-library', startsOn: sun, startTime: '10:30', endTime: '11:15', placeName: 'Maple Grove Library', priceCents: 0, audience: ['kids'], ageMin: 3, ageMax: 7, interest: looking('m4') }),
+  make('demo-sewing', 'Kids’ sewing class', { categoryId: 'oc-classes', startsOn: addDays(nextWeekSat, 7), startTime: '13:00', endTime: '14:30', placeName: 'Maple Grove Community Center', priceCents: 2000, audience: ['kids'], ageMin: 7, ageMax: 10, memberIds: ['m3'], buyBy: addDays(nextWeekSat, 3), notes: 'Bring a pillowcase to decorate.', addedBy: 'm3', interest: really('m3') }),
+  make('demo-pumpkins', 'Cedar Hollow pumpkin patch', { categoryId: 'oc-seasonal', startsOn: addDays(today, -6), endsOn: monthEnd > addDays(today, 6) ? monthEnd : addDays(today, 20), hours: 'Fri–Sun, 9 AM to 5 PM', placeName: 'Cedar Hollow Farm', priceCents: 800, audience: ['family'], interest: looking('m1') }),
+  make('demo-space-pups', 'Space Pups opens in theaters', { categoryId: 'oc-movies', startsOn: addDays(nextWeekSat, -1), placeName: 'Maple Grove Cinema', audience: ['family'], interest: [...really('m4'), ...looking('m3')] }),
+  make('demo-lanterns', 'The Lanterns, summer tour', { categoryId: 'oc-music', placeName: 'Harbor Amphitheater', priceCents: 4500, priceNote: 'Lawn seats $30', audience: ['grownups'], ticketsOnSaleAt: `${addDays(today, 8)}T14:00:00.000Z`, ticketsUrl: 'https://example.com/lanterns', addedBy: 'm2', interest: really('m2') }),
+  make('demo-beer-garden', 'Riverside pop-up beer garden', { categoryId: 'oc-drinks', startsOn: addDays(today, -20), endsOn: addDays(today, 24), hours: 'Thu–Sun, noon to 9 PM', placeName: 'Riverside Park', audience: ['grownups'] }),
+  make('demo-apples', 'Apple picking at Orchard Hill', { categoryId: 'oc-outdoors', startsOn: addDays(today, -5), priceCents: 1500, audience: ['family'], interest: really('m3') }),
+  make('demo-willow', 'Willow Creek Nature Preserve', { kind: 'place', categoryId: 'oc-outdoors', placeName: 'Willow Creek Rd', priceCents: 0, audience: ['family'], visitStatus: 'want', notes: 'The loop trail is stroller-friendly.', interest: [...really('m3'), ...looking('m2')] }),
+  make('demo-science', 'Harbor Science Museum', { kind: 'place', categoryId: 'oc-art', priceCents: 1200, priceNote: 'Kids under 4 free', audience: ['family'], visitStatus: 'been', lastVisitedOn: addDays(today, -240), interest: looking('m4') }),
+  make('demo-beach', 'Lakeside Beach', { kind: 'place', categoryId: 'oc-water', priceCents: 0, audience: ['family'], visitStatus: 'been', lastVisitedOn: addDays(today, -40) }),
+]
+
+const copy = <T,>(x: T): T => structuredClone(x)
+const kid = () => mock.demoKid()
+let outingCategoryId: string | null = null
+
+export async function mockOutingRequest(path: string, options: RequestInit): Promise<unknown> {
+  const url = new URL(path, 'https://demo.invalid/')
+  const parts = url.pathname.slice(1).split('/') // api, outings, id, action
+  const method = options.method ?? 'GET'
+  const body = options.body ? JSON.parse(String(options.body)) : {}
+  if (parts[1] === 'events') {
+    const o = outings.find(x => x.calendarEventId === decodeURIComponent(parts[2]))
+    return { outing: o && !(kid() && hiddenFromKid(o, kid()!)) ? copy(o) : null }
+  }
+  if (parts[1] === 'outing-categories') {
+    const id = parts[2] && decodeURIComponent(parts[2])
+    if (method === 'GET') return copy(categories)
+    if (kid()) throw new Error('Only a grown-up can change the categories.')
+    if (method === 'POST') { const c = { id: crypto.randomUUID(), name: body.name, emoji: body.emoji ?? null, sort: categories.length }; categories.push(c); return copy(c) }
+    if (method === 'DELETE') { categories = categories.filter(c => c.id !== id); outings.forEach(o => { if (o.categoryId === id) o.categoryId = null }); return { ok: true } }
+    const c = categories.find(x => x.id === id)!
+    Object.assign(c, body); categories.sort((a, b) => a.sort - b.sort); return copy(c)
+  }
+  const id = parts[2] && decodeURIComponent(parts[2])
+  const action = parts[3]
+  if (!id) {
+    if (method === 'GET') return copy(outings.filter(o => !(kid() && hiddenFromKid(o, kid()!))))
+    const now = new Date().toISOString()
+    const o: Outing = { ...base, ...body, id: crypto.randomUUID(), addedBy: kid() ?? mock.myOwner() ?? 'm1', createdAt: now, updatedAt: now, interest: [] }
+    outings.push(o); return copy(o)
+  }
+  const o = outings.find(x => x.id === id)
+  if (!o || (kid() && hiddenFromKid(o, kid()!))) throw new Error('outing not found')
+  if (method === 'GET') return copy(o)
+  if (method === 'DELETE') { if (kid()) throw new Error('Only a grown-up can delete an outing.'); outings = outings.filter(x => x.id !== id); return { ok: true } }
+  if (action === 'interest') {
+    if (kid() && body.memberId !== kid()) throw new Error('This device can only do that for its owner.')
+    o.interest = o.interest.filter(i => i.memberId !== body.memberId)
+    if (body.level) o.interest.push({ memberId: body.memberId, level: body.level })
+    return copy(o)
+  }
+  if (action === 'calendar') {
+    const date = body.date ?? o.startsOn
+    const cals = await mock.getCalendars()
+    const cal = cals.find(c => c.id === body.calendarId) ?? cals.find(c => c.writable && c.kind === 'local') ?? cals[0]
+    if (!outingCategoryId) outingCategoryId = (await mock.createCategory({ name: 'Outing', emoji: '🎟', color: '#7c3aed' })).id
+    const startTime = body.startTime === undefined ? o.startTime : body.startTime
+    const endTime = body.endTime === undefined ? o.endTime : body.endTime
+    const at = (t: string) => new Date(`${date}T${t}:00`).toISOString()
+    const ev = await mock.createEvent({
+      calendarId: cal.id, title: o.title, allDay: !startTime, categoryId: outingCategoryId,
+      start: startTime ? at(startTime) : date, end: startTime ? (endTime ? at(endTime) : new Date(Date.parse(at(startTime)) + 3600_000).toISOString()) : addDays(date, 1),
+      location: [o.placeName, o.address].filter(Boolean).join(', ') || null, description: [o.notes, 'From Kinwall Outings'].filter(Boolean).join('\n\n'),
+      memberIds: body.memberIds ?? [...new Set([...o.interest.filter(i => i.level === 'really').map(i => i.memberId), ...o.memberIds])],
+    })
+    o.calendarEventId = ev.id; o.calendarEventStart = ev.start
+    return copy(o)
+  }
+  if (kid() && o.addedBy !== kid()) throw new Error('Kids can change the outings they added. Ask a grown-up to change this one.')
+  Object.assign(o, body, { updatedAt: new Date().toISOString() })
+  return copy(o)
+}

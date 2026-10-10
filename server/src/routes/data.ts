@@ -37,6 +37,7 @@ import { DoseTimesSchema, LateWindowSchema, loadLogs, loadMedications, NO_REFILL
 import { convertRefillPlaces } from './medication-refills.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
 import { PollSchema, readPolls } from './polls.ts';
+import { OutingCategorySchema, OutingSchema, readOutingCategories, readOutings } from './outings.ts';
 import {
   CalendarSchema,
   CalendarFilterSchema,
@@ -180,6 +181,9 @@ const ExportSchema = z
     restaurants: z.array(RestaurantSchema),
     // Family polls (0102), each with its choices and who voted for what.
     polls: z.array(PollSchema),
+    // Outings (0111): things to do and places to go, with who marked them, and their categories.
+    outings: z.array(OutingSchema),
+    outingCategories: z.array(OutingCategorySchema),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
@@ -386,6 +390,8 @@ dataRoutes.openapi(
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         restaurants: await readRestaurants(db, { archived: true }),
         polls: await readPolls(db),
+        outings: await readOutings(db),
+        outingCategories: await readOutingCategories(db),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
@@ -446,6 +452,8 @@ const ImportSchema = ExportSchema.extend({
   meals: ExportSchema.shape.meals.default([]),
   restaurants: ExportSchema.shape.restaurants.default([]),
   polls: ExportSchema.shape.polls.default([]),
+  outings: ExportSchema.shape.outings.default([]),
+  outingCategories: ExportSchema.shape.outingCategories.default([]),
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
@@ -492,6 +500,7 @@ const ImportResultSchema = z
       meals: z.number(),
       restaurants: z.number(),
       polls: z.number(),
+      outings: z.number(),
       mealShoppingSources: z.number(),
       itemMemory: z.number(),
       storeAisles: z.number(),
@@ -996,6 +1005,12 @@ dataRoutes.openapi(
       db.prepare("INSERT INTO meal_orders (meal_id, member_id, items, note, updated_at) SELECT j.value->>'meal_id', j.value->>'member_id', j.value->>'items', j.value->>'note', j.value->>'updated_at' FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(meal_id, member_id) DO NOTHING")
         // ponytail: one JSON param for every order (a family's takeout fits easily); chunk like upserts() if it ever nears D1's 2 MB.
         .bind(JSON.stringify(body.meals.flatMap((m) => m.orders.map((o) => ({ meal_id: m.id, member_id: o.memberId, items: JSON.stringify(o.items), note: o.note, updated_at: o.updatedAt }))))),
+      // Outings: categories first; an outing's interest marks in the file replace its marks here (marks by members not on this instance are dropped).
+      ...upserts(db, 'outing_categories', 'id', body.outingCategories.map((k) => ({ id: k.id, name: k.name, emoji: k.emoji, sort: k.sort, created_at: new Date().toISOString() })), keepCreated),
+      ...upserts(db, 'outings', 'id', body.outings.map((o) => ({ id: o.id, title: o.title, kind: o.kind, category_id: o.categoryId, starts_on: o.startsOn, ends_on: o.endsOn, start_time: o.startTime, end_time: o.endTime, hours: o.hours, place_name: o.placeName, address: o.address, price_cents: o.priceCents, price_note: o.priceNote, audience: JSON.stringify(o.audience), member_ids: JSON.stringify(o.memberIds), age_min: o.ageMin, age_max: o.ageMax, url: o.url, tickets_url: o.ticketsUrl, tickets_on_sale_at: o.ticketsOnSaleAt, buy_by: o.buyBy, got_tickets: o.gotTickets ? 1 : 0, visit_status: o.visitStatus, last_visited_on: o.lastVisitedOn, notes: o.notes, calendar_event_id: o.calendarEventId, source: o.source, added_by: o.addedBy, archived: o.archived ? 1 : 0, created_at: o.createdAt, updated_at: o.updatedAt })), { ...keepCreated, expr: { category_id: "(SELECT id FROM outing_categories WHERE id = j.value->>'category_id')", calendar_event_id: "(SELECT id FROM events WHERE id = j.value->>'calendar_event_id')", added_by: memberRef('added_by') } }),
+      db.prepare('DELETE FROM outing_interest WHERE outing_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.outings.map((o) => o.id))),
+      db.prepare("INSERT INTO outing_interest (outing_id, member_id, level, updated_at) SELECT j.value->>'outing_id', j.value->>'member_id', j.value->>'level', ? FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(outing_id, member_id) DO UPDATE SET level = excluded.level")
+        .bind(new Date().toISOString(), JSON.stringify(body.outings.flatMap((o) => o.interest.map((i) => ({ outing_id: o.id, member_id: i.memberId, level: i.level }))))),
       // A poll's choices in the file replace its choices here; votes by members or for choices not here are dropped.
       ...upserts(db, 'polls', 'id', body.polls.map((p) => ({ id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winner_option_id: p.winnerOptionId, meal_id: p.mealId, created_by: p.createdBy, created_at: p.createdAt, closed_at: p.closedAt })), { ...keepCreated, expr: { meal_id: "(SELECT id FROM meals WHERE id = j.value->>'meal_id')", created_by: memberRef('created_by') } }),
       db.prepare('DELETE FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.polls.map((p) => p.id))),
@@ -1040,6 +1055,7 @@ dataRoutes.openapi(
       ['meal.changed', body.meals.length],
       ['restaurant.changed', body.restaurants.length],
       ['poll.changed', body.polls.length],
+      ['outing.changed', body.outings.length + body.outingCategories.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1080,6 +1096,7 @@ dataRoutes.openapi(
           meals: body.meals.length,
           restaurants: body.restaurants.length,
           polls: body.polls.length,
+          outings: body.outings.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

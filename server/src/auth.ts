@@ -207,6 +207,13 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   // Family polls: everyone reads and votes (routes/polls.ts keeps a member's own device to that member); starting, closing and deleting: parents.
   { method: 'GET', pattern: /^\/api\/polls(\/[^/]+)?$/ },
   { method: 'PUT', pattern: /^\/api\/polls\/[^/]+\/vote$/ },
+  // Outings: everyone reads and marks interest (routes/outings.ts keeps a member's own device to that
+  // member); a kid's own device adds outings and edits the ones it added (the route refuses a wall).
+  // Adding to the calendar, deleting and categories: parents.
+  { method: 'GET', pattern: /^\/api\/(outings(\/[^/]+)?|outing-categories|events\/[^/]+\/outing)$/ },
+  { method: 'POST', pattern: /^\/api\/outings$/ },
+  { method: 'PATCH', pattern: /^\/api\/outings\/[^/]+$/ },
+  { method: 'PUT', pattern: /^\/api\/outings\/[^/]+\/interest$/ },
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },

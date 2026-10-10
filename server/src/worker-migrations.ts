@@ -111,6 +111,7 @@ import m0107 from '../migrations/0107_calendar_error_code.sql';
 import m0108 from '../migrations/0108_list_item_for.sql';
 import m0109 from '../migrations/0109_medication_refills.sql';
 import m0110 from '../migrations/0110_chore_timer.sql';
+import m0111 from '../migrations/0111_outings.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -223,4 +224,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0108_list_item_for.sql', sql: m0108 },
   { name: '0109_medication_refills.sql', sql: m0109 },
   { name: '0110_chore_timer.sql', sql: m0110 },
+  { name: '0111_outings.sql', sql: m0111 },
 ];

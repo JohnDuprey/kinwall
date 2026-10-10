@@ -57,7 +57,7 @@ import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
 
 type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
 const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
@@ -369,12 +369,13 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
   const set = async (key: keyof Features) => {
     try { await api.updateSettings({ features: { ...settings.features, [key]: !settings.features[key] } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
-  const { summary, detail } = featuresSummary(FEATURE_ROWS.map(f => ({ label: f.group ? `${f.label} tracker` : f.label, on: settings.features[f.key] })))
+  const { summary, detail } = featuresSummary(FEATURE_ROWS.map(f => ({ label: f.group === 'Trackers' ? `${f.label} tracker` : f.label, on: settings.features[f.key] })))
   return (
-    <SummarySection title="Features" summary={summary} detail={detail ?? 'Turn off what your family doesn\'t use.'} keywords={FEATURE_ROWS.map(f => f.group ? `${f.label} tracker` : f.label)}>
+    <SummarySection title="Features" summary={summary} detail={detail ?? 'Turn off what your family doesn\'t use.'} keywords={FEATURE_ROWS.map(f => f.group === 'Trackers' ? `${f.label} tracker` : f.label)}>
       <p className="settings-row-sub">Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.</p>
       {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
-        {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h3 className="features-group">{f.group}</h3>}
+        {FEATURE_ROWS[i - 1]?.section !== f.section && <h3 className="features-section">{f.section}</h3>}
+        {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h4 className="features-group">{f.group}</h4>}
         <div className={`toggle-row ${f.group ? 'features-grouped' : ''}`}>
           <div>
             <label id={`feature-${f.key}-label`}>{f.group && <span className="sr-only">{f.group}: </span>}{f.label}</label>

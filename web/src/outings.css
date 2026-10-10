@@ -1,0 +1,54 @@
+/* Outings (Outings.tsx): the shared card, field and sheet styles, plus rows with an emoji, a few
+   read-only chips and who marked them. */
+.outing-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0 8px; }
+.outing-filter-bar .btn { flex: none; min-height: 44px; padding: 6px 14px; gap: 6px; }
+.outing-section h2 { margin: 20px 0 10px; font-size: 1.0625rem; }
+.outing-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 10px; }
+.outing-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); box-shadow: var(--shadow); color: var(--text); font: inherit; text-align: left; }
+.outing-row > svg:last-child { flex: none; width: 20px; height: 20px; color: var(--text-dim); }
+.outing-emoji { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--bg-alt); font-size: 1.5rem; }
+.outing-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.outing-row-main strong { font-size: 1rem; overflow-wrap: anywhere; }
+.outing-row-meta { color: var(--text-dim); font-size: 0.875rem; font-weight: 600; }
+.outing-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.outing-tags .chip-static { padding: 3px 10px; }
+.outing-ticket { border-color: var(--accent); }
+.outing-marks { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.outing-faces { display: inline-flex; }
+.outing-faces .member-avatar-sm { width: 24px; height: 24px; font-size: 0.8125rem; box-shadow: 0 0 0 2px var(--card); }
+.outing-faces .member-avatar-sm + .member-avatar-sm { margin-left: -6px; }
+.outing-marks-n { font-size: 0.8125rem; font-weight: 800; white-space: nowrap; }
+.outing-row-compact { min-height: 56px; padding: 8px 12px; box-shadow: none; background: var(--bg-alt); }
+.outing-row-compact .outing-emoji { width: 38px; height: 38px; font-size: 1.25rem; background: var(--card); }
+
+.outing-meta { margin: 0 0 12px; color: var(--text-dim); font-weight: 700; }
+.outing-facts { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.outing-facts li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; }
+.outing-facts li > span:first-child { flex: none; width: 24px; text-align: center; }
+.outing-interest { margin: 0 0 16px; padding: 14px; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.outing-interest-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.outing-level.btn { min-height: 52px; gap: 8px; }
+.outing-level.btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-tint); color: var(--text); }
+.outing-marked { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.outing-marked li { display: flex; align-items: center; gap: 8px; }
+.outing-link.btn { flex: none; display: inline-flex; gap: 8px; }
+.outing-boxes { margin: -4px 0 8px; }
+
+.outing-cats { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.outing-cats li { display: flex; align-items: center; gap: 6px; }
+.outing-cats input { min-width: 0; flex: 1; min-height: 44px; padding: 8px 12px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
+.outing-cats input.outing-cat-emoji { flex: none; width: 56px; text-align: center; }
+
+/* The Board's tray: two columns where there's room (three with Ideas). */
+.outing-tray { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.outing-tray h3 { margin: 0 0 8px; font-size: 1rem; }
+.outing-tray section > div + div { margin-top: 8px; }
+.outing-tray-note { margin: 4px 0 0 4px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+
+.event-outing { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.event-outing .btn { flex: none; align-self: flex-start; gap: 8px; }
+
+@media (max-width: 600px) {
+  .outing-row { gap: 10px; padding: 10px 12px; }
+  .outing-emoji { width: 40px; height: 40px; font-size: 1.3rem; }
+}

@@ -11,7 +11,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
-import type { Poll, PollInput } from './types.ts'
+import type { Outing, OutingCategory, OutingInput, Poll, PollInput } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -176,7 +176,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = "You're offline. This will work when you're back online."
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|outings|outing-categories|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -255,6 +255,10 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   if (MOCK && /^api\/(meals|recipes|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
+  }
+  if (MOCK && /^api\/(outings|outing-categories|events\/[^/]+\/outing)([/?]|$)/.test(path)) {
+    const { mockOutingRequest } = await import('./mock-outings.ts')
+    return mockOutingRequest(path, opts) as Promise<T>
   }
   if (MOCK && /^api\/polls([/?]|$)/.test(path)) {
     const { mockPollRequest } = await import('./mock-polls.ts')
@@ -341,6 +345,18 @@ export const api = {
   closePoll: (id: string, optionId?: string) => post<Poll>(`api/polls/${encodeURIComponent(id)}/close`, { optionId }),
   updatePoll: (id: string, body: { question?: string; mealId?: string | null }) => patch<Poll>(`api/polls/${encodeURIComponent(id)}`, body),
   deletePoll: (id: string) => del<{ ok: boolean }>(`api/polls/${encodeURIComponent(id)}`),
+  getOutings: () => get<Outing[]>('api/outings?past=all'),
+  getOuting: (id: string) => get<Outing>(`api/outings/${encodeURIComponent(id)}`),
+  createOuting: (body: OutingInput & { title: string }) => post<Outing>('api/outings', body),
+  updateOuting: (id: string, body: OutingInput) => patch<Outing>(`api/outings/${encodeURIComponent(id)}`, body),
+  deleteOuting: (id: string) => del<{ ok: boolean }>(`api/outings/${encodeURIComponent(id)}`),
+  markOuting: (id: string, memberId: string, level: 'interested' | 'really' | null) => put<Outing>(`api/outings/${encodeURIComponent(id)}/interest`, { memberId, level }),
+  addOutingToCalendar: (id: string, body: { date?: string; startTime?: string | null; endTime?: string | null; calendarId?: string; memberIds?: string[] }) => post<Outing>(`api/outings/${encodeURIComponent(id)}/calendar`, body),
+  getEventOuting: (eventId: string) => get<{ outing: Outing | null }>(`api/events/${encodeURIComponent(eventId)}/outing`),
+  getOutingCategories: () => get<OutingCategory[]>('api/outing-categories'),
+  createOutingCategory: (body: { name: string; emoji?: string | null }) => post<OutingCategory>('api/outing-categories', body),
+  updateOutingCategory: (id: string, body: { name?: string; emoji?: string | null; sort?: number }) => patch<OutingCategory>(`api/outing-categories/${encodeURIComponent(id)}`, body),
+  deleteOutingCategory: (id: string) => del<{ ok: boolean }>(`api/outing-categories/${encodeURIComponent(id)}`),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),

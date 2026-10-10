@@ -82,6 +82,7 @@ test('mcp: tools/list returns the tools', async () => {
     'add_list_items',
     'add_member',
     'add_note',
+    'add_outing_to_calendar',
     'add_to_library',
     'add_tracker_entry',
     'apply_meal_projection',
@@ -98,6 +99,7 @@ test('mcp: tools/list returns the tools', async () => {
     'create_event',
     'create_list',
     'create_meal',
+    'create_outing',
     'create_poll',
     'create_recipe',
     'create_restaurant',
@@ -113,6 +115,7 @@ test('mcp: tools/list returns the tools', async () => {
     'delete_list_step',
     'delete_meal',
     'delete_note',
+    'delete_outing',
     'delete_point_award',
     'delete_recipe',
     'delete_reward',
@@ -128,6 +131,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_meal_projection',
     'get_medication_refill',
     'get_member_profile',
+    'get_outing',
     'get_points',
     'get_recipe',
     'get_restaurant',
@@ -150,6 +154,8 @@ test('mcp: tools/list returns the tools', async () => {
     'list_newscast',
     'list_notes',
     'list_notifications',
+    'list_outing_categories',
+    'list_outings',
     'list_pending_approvals',
     'list_polls',
     'list_recipes',
@@ -158,6 +164,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_reward_requests',
     'list_rewards',
     'list_tracker_entries',
+    'mark_outing_interest',
     'mark_reward_given',
     'merge_contacts',
     'move_list_items',
@@ -193,6 +200,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_meal',
     'update_member',
     'update_note',
+    'update_outing',
     'update_recipe',
     'update_remembered_item',
     'update_restaurant',
@@ -597,6 +605,17 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('vote_poll', { member: 'ava', option: 'cars' })).poll.options[1].votes.length, 1);
   assert.equal((await call('list_polls', { status: 'open' })).polls[0].id, poll.id);
   assert.equal((await call('close_poll', {})).poll.winnerOptionId, poll.options[1].id);
+  // Outings
+  assert.ok((await call('list_outing_categories')).categories.some((c: any) => c.name === 'Fairs & festivals'));
+  const fest = (await call('create_outing', { title: 'Maple Grove Fall Fest', startsOn: today, startTime: '10:00', priceCents: 0, audience: ['family'], category: 'fairs & festivals', members: ['ava'] })).outing;
+  assert.deepEqual([fest.categoryId, fest.memberIds.length, fest.source], ['oc-fairs', 1, 'mcp']);
+  assert.equal((await call('mark_outing_interest', { outing: 'fall fest', member: 'ava', level: 'really' })).outing.interest[0].level, 'really');
+  assert.equal((await call('list_outings', { for: ['ava'], free: true, really_only: true, interested_by: ['any'] })).outings.length, 1);
+  assert.equal((await call('update_outing', { outing: fest.id, priceNote: 'Rides extra' })).outing.priceNote, 'Rides extra');
+  assert.ok((await call('add_outing_to_calendar', { outing: 'Maple Grove Fall Fest', calendarId: cal.id })).outing.calendarEventId);
+  assert.equal((await call('get_outing', { outing: fest.id })).outing.title, 'Maple Grove Fall Fest');
+  assert.equal((await call('delete_outing', { outing: fest.id })).outing.archived, true);
+  assert.equal((await call('delete_outing', { outing: fest.id, hard: true })).ok, true);
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });

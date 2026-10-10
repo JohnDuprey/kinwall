@@ -1116,6 +1116,7 @@ export async function deleteEvent(c: Ctx, id: string): Promise<Fail<400 | 403 | 
     c.env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id),
     c.env.DB.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(id),
     c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, calendar_event_start = NULL, updated_at = ? WHERE calendar_event_id = ?').bind(new Date().toISOString(), id),
+    c.env.DB.prepare('UPDATE outings SET calendar_event_id = NULL, updated_at = ? WHERE calendar_event_id = ?').bind(new Date().toISOString(), id),
     // A deleted Kinwall event's hides go too (a synced one's stay, in case it comes back).
     c.env.DB.prepare('DELETE FROM event_hidden WHERE calendar_id = ? AND (key = ? OR substr(key, 1, ?) = ?)').bind(cal.id, cal.kind === 'local' ? id : '', id.length + 1, cal.kind === 'local' ? `${id}@` : ''),
   ]);

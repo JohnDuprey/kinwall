@@ -3219,6 +3219,8 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
   .trk-grid { grid-template-columns: 1fr; }
   .trk-measure { grid-template-columns: 6.5rem 1fr 4.5rem; }
 }
+.features-section { margin: 22px 0 2px; font-size: 1rem; font-weight: 800; }
+.features-section + .toggle-row, .features-section + .features-group { margin-top: 0; }
 .features-group { margin: 14px 0 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
 .features-grouped { padding-left: 14px; }
 /* A switch that belongs to the one above it (Medication reminders under Health): a step further in, with a guide line. */
@@ -3230,6 +3232,10 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .more-row { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 10px 16px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-weight: 800; font-size: 1.0625rem; text-decoration: none; }
 .more-row svg { width: 26px; height: 26px; }
 .more-row.active { color: var(--accent-text); box-shadow: inset 3px 0 0 var(--accent-text); }
+/* "Nooks" (App.tsx NOOKS): a small heading over Meals, Outings, Trackers and Activities, and a gap after them. */
+.more-heading { margin: 8px 0 -2px 4px; font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); }
+.more-heading:first-child { margin-top: 0; }
+.more-row.more-after-group { margin-top: 10px; }
 button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: pointer; }
 
 /* ---------- Phone on its side (short landscape) ----------
@@ -3664,6 +3670,16 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .calendar-toolbar[data-chips="tight"] :is(.board-layout-pick > span, .polls-btn-label) { max-width: 0; overflow: hidden; white-space: nowrap; }
 .calendar-toolbar[data-chips="wrap"] .board-chips { grid-column: 1 / -1; grid-row: 2; }
 @media (max-width: 600px) { .calendar-toolbar .polls-btn.btn { grid-column: 3; grid-row: 1; padding: 6px 10px; } .polls-btn-label { display: none; } } /* a phone's toolbar is full: the 🗳 alone */
+/* A portrait tablet's toolbar holds the view tabs, Family wall, Polls, Outings and the filter only with
+   Polls and Outings as their icons (their names stay as aria-labels). */
+@media (min-width: 601px) and (max-width: 960px) and (orientation: portrait) { .calendar-toolbar:has(.outings-btn) .polls-btn-label { display: none; } .calendar-toolbar:has(.outings-btn) .polls-btn.btn { padding: 6px 12px; } }
+/* The Outings button (🎟) shares the Polls button's look and fit rules (.polls-btn, .polls-btn-label); on a phone it takes its own column before the filter. */
+@media (max-width: 600px) {
+  .calendar-toolbar:has(.outings-btn) { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+  .calendar-toolbar .outings-btn.btn { grid-column: 4; }
+  .calendar-toolbar:has(.outings-btn) .filter-btn { grid-column: 5; }
+  .calendar-toolbar .board-layout-pick.btn { max-width: 100%; } /* its column, not its own 16rem cap, so the buttons beside it never overlap */
+}
 .sheet-link > .poll-row-emoji { flex: none; font-size: 1.25rem; }
 .poll-meta { margin: 0 0 12px; color: var(--text-dim); font-weight: 700; }
 .poll-who { margin-bottom: 14px; }
@@ -3812,7 +3828,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
-    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll,
+    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */

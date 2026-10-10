@@ -21,6 +21,7 @@ import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
+import { OutingCategorySchema, OutingCalendarInputSchema, OutingPatchSchema, OutingSchema } from './routes/outings.ts';
 import { RestaurantImportResultSchema, RestaurantImportSchema } from './routes/restaurants.ts';
 import { MealSlotSchema } from './meal-schemas.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
@@ -281,6 +282,8 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   set_night_screen: NightScreenSchema.shape,
   list_notifications: { notifications: z.array(NotificationSchema) },
   list_newscast: NewscastSchema.shape,
+  list_outings: { outings: z.array(OutingSchema) }, get_outing: { outing: OutingSchema }, create_outing: { outing: OutingSchema }, update_outing: { outing: OutingSchema }, delete_outing: { ok: z.boolean(), outing: OutingSchema.optional() },
+  mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) },
   list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
@@ -307,7 +310,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1722,6 +1725,93 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(`Voting ended. Winner: ${p.options.find((o) => o.id === p.winnerOptionId)?.label ?? 'none'}. ${tally(p)}`, { poll: p });
     },
   );
+
+  // Outings: an outing by id or its exact title (or the one title containing it); a category by id or name.
+  type OutingOut = { id: string; title: string; kind: string; startsOn: string | null; endsOn: string | null; startTime: string | null; priceCents: number | null; interest: { memberId: string; level: string }[]; calendarEventId: string | null };
+  const findOuting = async (ref: string): Promise<OutingOut> => {
+    const res = await call(app, env, auth, 'GET', '/api/outings?past=all&archived=all');
+    if (res.status >= 400) throw new MemberResolutionError(String((res.json as { error?: string })?.error ?? 'failed to read outings'));
+    const all = res.json as OutingOut[];
+    const q = ref.trim().toLowerCase();
+    const byId = all.filter((o) => o.id === ref);
+    const exact = all.filter((o) => o.title.toLowerCase() === q);
+    const some = all.filter((o) => o.title.toLowerCase().includes(q));
+    const hits = byId.length ? byId : exact.length ? exact : some;
+    if (hits.length === 1) return hits[0];
+    throw new MemberResolutionError(hits.length ? `"${ref}" matches ${hits.length} outings (${hits.slice(0, 5).map((o) => `"${o.title}"`).join(', ')}); use the id` : `no outing with id or title "${ref}"`);
+  };
+  const outingCategory = async (ref: string | null | undefined): Promise<string | null | undefined> => {
+    if (ref === undefined || ref === null || ref === '') return ref === undefined ? undefined : null;
+    return (await resolveExact(app, env, auth, '/api/outing-categories', ref, 'outing category')).id;
+  };
+  const when = (o: OutingOut) => (o.kind === 'place' ? 'any time' : !o.startsOn ? 'date not announced' : o.endsOn ? `${o.startsOn} to ${o.endsOn}` : `${o.startsOn}${o.startTime ? ` ${o.startTime}` : ''}`);
+  const line = (o: OutingOut) => `${o.title} (${when(o)}${o.priceCents === 0 ? ', free' : ''}${o.interest.length ? `, ${o.interest.filter((i) => i.level === 'really').length} ⭐ ${o.interest.filter((i) => i.level === 'interested').length} 👀` : ''})`;
+  const OutingFields = {
+    ...OutingPatchSchema.omit({ categoryId: true, memberIds: true, audience: true }).shape,
+    category: z.string().nullable().optional().describe('Category id or name (see list_outing_categories); null for none.'),
+    audience: jsonList(z.array(z.enum(['kids', 'family', 'grownups']))).optional().describe('Who it is for: kids (with ageMin/ageMax), family, grownups.'),
+    members: jsonList(z.array(z.string())).optional().describe('Specific people it is for, by name or id (not who is interested).'),
+  };
+  const outingBody = async ({ category, members, ...rest }: { category?: string | null; members?: string[] } & Record<string, unknown>) => ({
+    ...rest, ...(category !== undefined ? { categoryId: await outingCategory(category) } : {}), ...(members ? { memberIds: await resolveMemberIds(app, env, auth, members) } : {}),
+  });
+  tool(
+    'list_outings',
+    { title: 'List outings', description: 'The family\'s Outings: things to do (kind upcoming: a date, a run like "open all October", or a date not announced yet) and places to go any time (kind place), soonest first, each with who marked interest (interested 👀 or really ⭐, member ids; see get_household) and its calendar event once added. Filters: from/to (on in that window), for (member names or ids, by the "for me" rule: named, kids by age range, family, grown-ups; or kids/family/grownups), interested_by (names or ids, or "any"), really_only, free, max_price (dollars), category (names or ids), past (true: only past ones), include_archived ("Not for us"). A kid\'s own device never sees grown-ups-only outings.', inputSchema: { kind: z.enum(['upcoming', 'place']).optional(), from: z.string().optional(), to: z.string().optional(), for: jsonList(z.array(z.string())).optional(), interested_by: jsonList(z.array(z.string())).optional(), really_only: z.boolean().optional(), free: z.boolean().optional(), max_price: z.number().min(0).optional(), category: jsonList(z.array(z.string())).optional(), past: z.boolean().optional(), include_archived: z.boolean().optional() } },
+    async (a) => {
+      const q = new URLSearchParams();
+      try {
+        if (a.kind) q.set('kind', a.kind); if (a.from) q.set('from', a.from); if (a.to) q.set('to', a.to);
+        if (a.for?.length) q.set('for', (await Promise.all(a.for.map((f) => (['kids', 'family', 'grownups'].includes(f) ? f : resolveMember(app, env, auth, f))))).join(','));
+        if (a.interested_by?.length) q.set('interestedBy', (await Promise.all(a.interested_by.map((f) => (f === 'any' ? f : resolveMember(app, env, auth, f))))).join(','));
+        if (a.category?.length) q.set('category', (await Promise.all(a.category.map((c) => outingCategory(c)))).join(','));
+      } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+      if (a.really_only) q.set('reallyOnly', 'true'); if (a.free) q.set('free', 'true'); if (a.max_price !== undefined) q.set('maxPrice', String(Math.round(a.max_price * 100)));
+      if (a.past) q.set('past', 'true'); if (a.include_archived) q.set('archived', 'all');
+      const res = await call(app, env, auth, 'GET', `/api/outings?${q}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to read outings');
+      const list = res.json as OutingOut[];
+      return okResult(list.length ? list.slice(0, 15).map(line).join('; ') + (list.length > 15 ? `; and ${list.length - 15} more` : '') : 'No outings match.', { outings: list as unknown as Record<string, unknown>[] });
+    },
+  );
+  tool('get_outing', { title: 'Get an outing', description: 'One outing or place (id or title), with who marked it, its tickets and buy-by dates, and its calendar event.', inputSchema: { outing: z.string() } }, async ({ outing }) => {
+    try { const o = await findOuting(outing); const res = await call(app, env, auth, 'GET', `/api/outings/${encodeURIComponent(o.id)}`); return res.status >= 400 ? errorResult(res.json, 'outing not found') : okResult(line(res.json as OutingOut), { outing: res.json }); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+  });
+  tool('create_outing', { title: 'Add an outing', description: 'Add something to do (kind upcoming, the default: startsOn YYYY-MM-DD, or left out when the date is not announced; endsOn for a run) or a place to go any time (kind place). priceCents 0 = free. ticketsOnSaleAt (ISO time) and buyBy (YYYY-MM-DD) are shown on the outing.', inputSchema: { ...OutingFields, title: z.string().min(1).max(200) } }, async (input) => {
+    let b: Record<string, unknown>;
+    try { b = await outingBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'POST', '/api/outings', b);
+    return res.status >= 400 ? errorResult(res.json, 'failed to add the outing') : okResult(`Added: ${line(res.json as OutingOut)}`, { outing: res.json });
+  });
+  tool('update_outing', { title: 'Change an outing', description: 'Change an outing or place (id or title): any field of create_outing; visitStatus been and lastVisitedOn for a place you went to; gotTickets; archived true is "Not for us".', inputSchema: { outing: z.string(), ...OutingFields } }, async ({ outing, ...input }) => {
+    let id: string, b: Record<string, unknown>;
+    try { id = (await findOuting(outing)).id; b = await outingBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'PATCH', `/api/outings/${encodeURIComponent(id)}`, b);
+    return res.status >= 400 ? errorResult(res.json, 'failed to change the outing') : okResult(`Saved: ${line(res.json as OutingOut)}`, { outing: res.json });
+  });
+  tool('delete_outing', { title: 'Remove an outing', description: 'Admin: mark an outing "Not for us" (archived, kept), or with hard: true delete it and its interest marks for good. Its calendar event stays either way.', inputSchema: { outing: z.string(), hard: z.boolean().optional() } }, async ({ outing, hard }) => {
+    let id: string;
+    try { id = (await findOuting(outing)).id; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    if (hard) { const res = await call(app, env, auth, 'DELETE', `/api/outings/${encodeURIComponent(id)}`); return res.status >= 400 ? errorResult(res.json, 'failed to delete the outing') : okResult('Deleted.', { ok: true }); }
+    const res = await call(app, env, auth, 'PATCH', `/api/outings/${encodeURIComponent(id)}`, { archived: true });
+    return res.status >= 400 ? errorResult(res.json, 'failed to remove the outing') : okResult('Marked "Not for us". It\'s kept; update_outing with archived false brings it back.', { ok: true, outing: res.json });
+  });
+  tool('mark_outing_interest', { title: 'Mark interest in an outing', description: "Set how much a family member wants to go: interested (👀), really (⭐ really want to go, which gets reminders) or none to clear.", inputSchema: { outing: z.string(), member: z.string().describe('Member name (case-insensitive) or id.'), level: z.enum(['none', 'interested', 'really']) } }, async ({ outing, member, level }) => {
+    let id: string, memberId: string;
+    try { id = (await findOuting(outing)).id; memberId = await resolveMember(app, env, auth, member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'PUT', `/api/outings/${encodeURIComponent(id)}/interest`, { memberId, level: level === 'none' ? null : level });
+    return res.status >= 400 ? errorResult(res.json, 'failed to mark interest') : okResult(`Marked. ${line(res.json as OutingOut)}`, { outing: res.json });
+  });
+  tool('add_outing_to_calendar', { title: 'Add an outing to the calendar', description: 'Admin: put an outing on the family calendar as a normal event in the "🎟 Outing" category, linked both ways. date: which day (needed for a run or an undated outing); startTime/endTime HH:MM (null for all day; left out: the outing\'s); calendarId (left out: the default calendar); members going (names or ids; left out: who ⭐ it and who it\'s for).', inputSchema: { outing: z.string(), ...OutingCalendarInputSchema.omit({ memberIds: true }).shape, members: jsonList(z.array(z.string())).optional() } }, async ({ outing, members, ...input }) => {
+    let id: string, memberIds: string[] | undefined;
+    try { id = (await findOuting(outing)).id; memberIds = members ? await resolveMemberIds(app, env, auth, members) : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'POST', `/api/outings/${encodeURIComponent(id)}/calendar`, { ...input, ...(memberIds ? { memberIds } : {}) });
+    return res.status >= 400 ? errorResult(res.json, 'failed to add it to the calendar') : okResult(`On the calendar: ${(res.json as { calendarEventStart: string }).calendarEventStart}`, { outing: res.json });
+  });
+  tool('list_outing_categories', { title: 'List outing categories', description: "Outings' categories (Food, Music, Outdoors & nature…), for picking one by name.", inputSchema: {} }, async () => {
+    const res = await call(app, env, auth, 'GET', '/api/outing-categories');
+    return res.status >= 400 ? errorResult(res.json, 'failed to read categories') : okResult((res.json as { name: string; emoji: string | null }[]).map((c) => `${c.emoji ?? ''} ${c.name}`.trim()).join(', '), { categories: res.json as Record<string, unknown>[] });
+  });
 
   tool(
     'list_newscast',

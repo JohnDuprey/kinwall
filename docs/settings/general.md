@@ -52,7 +52,7 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 
 ### Features
 
-*Admin only.* The card shows how many are on ("All 14 on", or "11 of 14 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default; the setup wizard's **What do you want Kinwall for?** step lets a new family pick them first.
+*Admin only.* The card shows how many are on ("All 15 on", or "12 of 15 on" with the ones that are off); tap **Change** under **Features** for the switches, grouped under **Everyday** (chores, lists, notes, messages, polls, check-ins) and **Nooks** (Meals, Outings, Trackers, Activities, Contacts, Newscast: spaces of their own with several parts inside). Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default; the setup wizard's **What do you want Kinwall for?** step lets a new family pick them first.
 
 | Switch | When it's off |
 |---|---|
@@ -69,6 +69,7 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 | **Medication reminders** (under Health, off by default) | Medicines in Trackers → Health, their reminders and Take now cards. Turning it on first shows what Kinwall keeps and who sees it. Off hides them everywhere; what's saved is kept. |
 | **Newscast** | No **Newscast** tab on Home (a screen locked to it shows the Board), and `/api/newscast` answers 404. Posts and reactions are kept until they're 30 days old. See [Newscast](../using/newscast.md). |
 | **Family polls** | No poll card on the Board, no **🗳 Polls** button on Home, no polls in the Meals planner, and no poll notifications (earlier ones leave the bell). `/api/polls` and its routes answer 404, so the MCP poll tools answer that polls are off. Polls are kept. See [Family polls](../using/polls.md). |
+| **Outings** | No **Outings** tab, no **🎟 Outings** button on Home, and no **From Outings** link on events. `/api/outings` and its routes answer 404, so the MCP outing tools answer that outings are off. Outings, places and their categories are kept. See [Outings](../using/outings.md). |
 | **Check-ins & journal** | No [Temp check](../using/snapshot.md#temp-check), evening goal check, [energy battery](../using/battery.md), [journal](../using/journal.md) or [Insights](../using/insights.md): no **Journal** in the menu, no journal or insights cards on profiles, no Temp check settings in Settings → Family, no goals on the Board or calendar, and no check-in, goal or battery notifications. [Daily check-ins](../using/snapshot.md#daily-check-in) earn no points. Answers, journals and settings are kept, and their API keeps answering. Who gets Temp check is still set per person in **Settings → Family**. |
 | **Family messages** | No **Send a message** in the bell or in Settings → Access → Notifications. Messages already sent stay in the bell. `POST /api/notify` (and the MCP tool `send_notification`) answers 403. |
 
@@ -76,7 +77,7 @@ When every activity is off (Paint, Photos, and the Sticker book, which is off wh
 
 Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working. The Board and a member's day (`GET /api/board`, `GET /api/snapshot`, and the MCP tools `get_board` and `get_snapshot`) are the exception: they answer in the same shape with what's off left empty, so `chores` is `[]` while **Chores & points** is off and `items` is `[]` while **Lists** is off (and `meals` while **Meals** is off, `booksDue` while **Reading** is off).
 
-API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals, newscast, polls, checkIns }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out the contacts, tracker, meals, newscast, polls and checkIns switches; they then read as on). Display keys can't change it (403).
+API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals, newscast, polls, outings, checkIns }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out the contacts, tracker, meals, newscast, polls, outings and checkIns switches; they then read as on). Display keys can't change it (403).
 
 ### Appearance
 

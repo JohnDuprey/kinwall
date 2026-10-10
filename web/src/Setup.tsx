@@ -695,7 +695,7 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
         {all && FEATURE_ROWS.map(f => (
           <div key={f.key} className="toggle-row">
             <div>
-              <label id={`setup-feature-${f.key}`}>{f.group ? `${f.label} tracker` : f.label}</label>
+              <label id={`setup-feature-${f.key}`}>{f.group === 'Trackers' ? `${f.label} tracker` : f.label}</label>
               <div className="settings-row-sub">{f.sub}</div>
             </div>
             <button className={`switch ${features[f.key] ? 'on' : ''}`} role="switch" aria-checked={features[f.key]} aria-labelledby={`setup-feature-${f.key}`}

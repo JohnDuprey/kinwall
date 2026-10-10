@@ -76,6 +76,7 @@ export const FEATURE_CARDS: readonly FeatureCard[] = [
   { id: 'health', emoji: '🩺', title: 'Doctor visits and health', sub: 'Checkups, vaccines and growth. Only on phones and computers, never the wall.', keys: ['trackersHealth'] },
   { id: 'reading', emoji: '📚', title: 'Reading log and library', sub: "Who's reading what, and the books you own or borrowed.", keys: ['trackersReading'] },
   { id: 'paint', emoji: '🎨', title: 'Painting and coloring', sub: 'Drawing and coloring pages in Activities.', keys: ['paint'], kids: true },
+  { id: 'outings', emoji: '🎟️', title: 'Outings and places to go', sub: 'Things to do nearby, who wants to go and ticket dates.', keys: ['outings'] },
   { id: 'polls', emoji: '🗳️', title: 'Family polls', sub: 'Everyone votes, like "Which movie tonight?"', keys: ['polls'] },
   { id: 'photos', emoji: '📸', title: 'Photos and memories', sub: 'Family photos on the wall and moments worth keeping.', keys: ['photos', 'trackersMemories'] },
   { id: 'news', emoji: '📰', title: 'Family news and messages', sub: "Newscast, messages and notes on events and lists.", keys: ['newscast', 'messages', 'notes'] },

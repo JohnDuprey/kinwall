@@ -176,7 +176,7 @@ type CountTile = { key: string; href: string; icon: React.ReactNode; name: strin
 
 /** The Board's one or two count tiles as chips on the toolbar (`host`, boardFit.ts tileChips): with
  *  their names when they all fit whole, else each its icon and count, else (a phone on its side at a
- *  large text size) the toolbar's Family wall and Polls buttons drop to their icons too, else (a narrow
+ *  large text size) the toolbar's Family wall, Polls and Outings buttons drop to their icons too, else (a narrow
  *  portrait tablet) the chips take a row of their own (boardFit.ts chipFit). */
 function ToolbarChips({ host, tiles }: { host: HTMLElement | null | undefined; tiles: CountTile[] }) {
   const [fit, setFit] = useState<ChipFit>('names')
@@ -192,6 +192,7 @@ function ToolbarChips({ host, tiles }: { host: HTMLElement | null | undefined; t
         const named = !!n && n.clientWidth > 0
         return { full: c.offsetWidth + (n && !named ? n.scrollWidth + 6 : 0), short: c.offsetWidth - (n && named ? n.clientWidth + 6 : 0) }
       })
+      // The toolbar buttons' words: Family wall's, and Polls' and Outings' (both .polls-btn-label).
       const words = [...bar.querySelectorAll<HTMLElement>('.board-layout-pick > span, .polls-btn-label')]
       const was = (bar.dataset.chips ?? 'names') as ChipFit
       // On their own row, the room is what the toolbar row's other items leave.

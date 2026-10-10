@@ -1,5 +1,5 @@
 import { holdAwake } from './wakeLock.ts'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
@@ -7,12 +7,13 @@ import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { rewardsOn, trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon, TicketIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
 import Contacts from './Contacts.tsx'
 import Meals from './Meals.tsx'
+import Outings from './Outings.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { pinnedNow } from './getStuffDone.ts'
 import Trackers from './Trackers.tsx'
@@ -62,12 +63,16 @@ const NAV_ITEMS = [
   { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
   { key: 'contacts', href: '#/contacts', label: 'Contacts', Icon: PersonIcon },
   { key: 'meals', href: '#/meals', label: 'Meals', Icon: MealIcon },
+  { key: 'outings', href: '#/outings', label: 'Outings', Icon: TicketIcon },
   { key: 'trackers', href: '#/trackers', label: 'Trackers', Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: 'Activities', Icon: BrushIcon },
   // After the everyday views, so a phone's bottom bar keeps its four and Rewards sits under More.
   { key: 'rewards', href: '#/rewards', label: 'Rewards', Icon: GiftIcon },
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
+
+/** The nav's "nooks": spaces of their own with several parts inside. Only a heading in the phone's More list. */
+const NOOKS = new Set(['meals', 'outings', 'trackers', 'activities'])
 
 type NavItem = { key: string; href: string; label: string; Icon: (p: object) => ReactNode }
 
@@ -76,7 +81,7 @@ type NavItem = { key: string; href: string; label: string; Icon: (p: object) => 
  * and points. A member's own device gets "Me" (their profile) after Chores, so it stays on a
  * phone's bottom bar, and "Journal" while check-ins are on. */
 function navItems(s: Settings, me?: Member | null, plugins = false): NavItem[] {
-  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
+  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'outings' ? s.features.outings !== false : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
   if (me) items.splice((items.findIndex(i => i.key === 'chores') + 1) || 1, 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => me.picture ? <Face m={me} className="nav-me nav-me-pic" aria-hidden="true" /> : <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
   if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: 'Journal', Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
@@ -90,7 +95,7 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined, 
   if (section === 'medications' && !s.medications) return '#/calendar'
   if ((section === 'journal' || section === 'insights') && !s.features.checkIns) return '#/calendar'
   if (section === 'activities' && sub === 'plugin') return null // an activity chore's play link works whatever else is on
-  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'trackers' || section === 'activities') {
+  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'outings' || section === 'trackers' || section === 'activities') {
     if (!navItems(s, null, plugins !== false).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) && !(sub === 'library' && on.includes('reading')) ? `#/trackers/${on[0]}` : null } // the library comes with Reading
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
@@ -134,12 +139,14 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
       {more && (
         <Sheet title="More" onClose={() => setMore(false)}>
           <div className="more-list">
-            {rest.map(item => (
-              <a key={item.key} href={item.href} className={`more-row ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}
+            {rest.map((item, i) => (<Fragment key={item.key}>
+              {/* "Nooks": the spaces with several parts inside (Meals, Outings, Trackers, Activities) get a heading. */}
+              {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">Nooks</h3>}
+              <a className={`more-row ${tab === item.key ? 'active' : ''} ${!NOOKS.has(item.key) && NOOKS.has(rest[i - 1]?.key ?? '') ? 'more-after-group' : ''}`} href={item.href} aria-current={tab === item.key ? 'page' : undefined}
                 onClick={() => setMore(false)}>
                 <item.Icon /> <span>{item.label}</span>{badge(item.key)}
               </a>
-            ))}
+            </Fragment>))}
           </div>
         </Sheet>
       )}
@@ -1328,7 +1335,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} wall={wall} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
           {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>

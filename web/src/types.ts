@@ -97,6 +97,7 @@ export interface Features {
   meals: boolean // Meals tab, the Board's meals card, meals in the daily summary
   newscast: boolean // Home's Newscast tab (with its routes)
   polls: boolean // Family polls: the Board card, the Polls sheet, poll notifications (their routes answer 404 while off)
+  outings: boolean // Outings: the tab, the Board's Outings button and its reminders (their routes answer 404 while off)
   checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
 
@@ -1084,3 +1085,19 @@ export interface Poll {
   createdBy: string | null; createdAt: string; closedAt: string | null; options: PollOption[]
 }
 export interface PollInput { question: string; date?: string | null; slot?: Poll['slot']; options: { label?: string; recipeId?: string; restaurantId?: string }[] }
+
+// Outings (server: routes/outings.ts). kind 'upcoming' has a date (startsOn empty: not announced yet;
+// endsOn: a run), 'place' is any time. interest: who marked it, 👀 interested or ⭐ really.
+export type OutingAudience = 'kids' | 'family' | 'grownups'
+export interface Outing {
+  id: string; title: string; kind: 'upcoming' | 'place'; categoryId: string | null
+  startsOn: string | null; endsOn: string | null; startTime: string | null; endTime: string | null; hours: string | null
+  placeName: string | null; address: string | null; priceCents: number | null; priceNote: string | null
+  audience: OutingAudience[]; memberIds: string[]; ageMin: number | null; ageMax: number | null
+  url: string | null; ticketsUrl: string | null; ticketsOnSaleAt: string | null; buyBy: string | null; gotTickets: boolean
+  visitStatus: 'want' | 'been' | null; lastVisitedOn: string | null; notes: string | null
+  calendarEventId: string | null; calendarEventStart: string | null; source: string; addedBy: string | null; archived: boolean
+  createdAt: string; updatedAt: string; interest: { memberId: string; level: 'interested' | 'really' }[]
+}
+export type OutingInput = Partial<Omit<Outing, 'id' | 'calendarEventId' | 'calendarEventStart' | 'source' | 'addedBy' | 'createdAt' | 'updatedAt' | 'interest'>>
+export interface OutingCategory { id: string; name: string; emoji: string | null; sort: number }

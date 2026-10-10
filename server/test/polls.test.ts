@@ -11,7 +11,7 @@ import type { Env } from '../src/env.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
-const ALL_ON = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, polls: true, checkIns: true };
+const ALL_ON = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, polls: true, outings: true, checkIns: true };
 
 async function setup() {
   const db = openDb(':memory:');
