@@ -1161,7 +1161,7 @@ export const HealthDataSchema = z
     weight: Measure(['lb', 'kg']).nullable().optional(),
     temperature: Measure(['F', 'C']).nullable().optional(),
     followUp: DateOnly.nullable().optional(),
-    eventId: z.string().nullable().optional(), // the calendar event made by "Add to calendar"
+    eventId: z.string().nullable().optional(), // the linked calendar event: made by "Add to calendar", or the one made into this visit
   })
   .strict()
   .openapi('HealthData');

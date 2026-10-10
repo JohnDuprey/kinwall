@@ -32,6 +32,7 @@ import { itemKey } from './item-memory.ts';
 import { NightScreenSchema } from './routes/night-screen.ts';
 import { RefillCardSchema, RefillRequestResultSchema } from './routes/medication-refills.ts';
 import { ActivityChoreProgressSchema, PluginActionSchema, PluginActionItemSchema } from './routes/plugins.ts';
+import { visitFromEvent, type EventFacts } from './visit-from-event.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
 
@@ -2238,7 +2239,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'The kind\'s fields. reading: {format: book|audiobook (default book), author, status: want|reading|finished, pagesRead, totalPages (books), ' +
     'narrator, minutesListened, totalMinutes (audiobooks, whole minutes: 4h 30m = 270), finishedOn (YYYY-MM-DD), rating 1-5, notes, coverUrl (public https image), log (read-only: [{date, amount}] pages or minutes read each day)}. ' +
     'memory: {text, mood (one emoji)}. health: {type: checkup|dentist|specialist|vaccine|sick|other, time (HH:MM), provider, notes, ' +
-    'height {value, unit: in|cm}, weight {value, unit: lb|kg}, temperature {value, unit: F|C}, followUp (YYYY-MM-DD)}.';
+    'height {value, unit: in|cm}, weight {value, unit: lb|kg}, temperature {value, unit: F|C}, followUp (YYYY-MM-DD), eventId (the linked calendar event)}.';
   const trackerMember = async (member: string | undefined) => (member ? await resolveMember(app, env, auth, member) : undefined);
 
   tool(
@@ -2276,11 +2277,23 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         date: z.string().optional().describe('YYYY-MM-DD: a book\'s start, a memory\'s day, a visit\'s day. Default: today.'),
         title: z.string().optional(),
         data: z.record(z.string(), z.unknown()).optional().describe(TRACKER_DATA_DOC),
+        eventId: z.string().optional().describe('Health only: make this calendar event (id from list_events) a visit, linked to it (data.eventId). Its day and time, title (the reason), location (doctor or office), notes, its one member, and a type guessed from the title fill whatever you leave out. Nothing is written to the event.'),
       },
     },
-    async ({ kind, member, date, title, data }) => {
+    async ({ kind, member, date, title, data, eventId }) => {
       let memberId: string | undefined;
       try { memberId = await trackerMember(member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+      if (eventId) {
+        if (kind !== 'health') return errorResult(null, 'eventId: only a health visit can come from a calendar event');
+        const ev = await call(app, env, auth, 'GET', `/api/events/${encodeURIComponent(eventId)}`);
+        if (ev.status >= 400) return errorResult(ev.json, 'event not found');
+        const tz = (await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value || hostTimezone();
+        const v = visitFromEvent(ev.json as EventFacts, tz);
+        memberId ??= v.memberId;
+        date ??= v.date;
+        title ??= v.title;
+        data = { type: v.type, time: v.time, provider: v.provider, notes: v.notes, ...data, eventId };
+      }
       const res = await call(app, env, auth, 'POST', '/api/trackers', { kind, memberId, date, title, data: data ?? {} });
       if (res.status >= 400) return errorResult(res.json, 'failed to add tracker entry');
       return okResult('Entry added.', { entry: res.json as Record<string, unknown> });

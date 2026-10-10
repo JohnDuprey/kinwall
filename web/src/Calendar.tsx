@@ -3,7 +3,7 @@ import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, i
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
-import { REMINDER_OPTIONS, reminderLabel } from './types.ts'
+import { REMINDER_OPTIONS, reminderLabel, trackerKinds } from './types.ts'
 import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
@@ -29,6 +29,7 @@ import { eventDraft, outingExtras, type OutingExtras } from './eventDraft.ts'
 import { addMinutes, endAfterStartMove } from './eventEnd.ts'
 import { PollSheet, PollsButton } from './Polls.tsx'
 import { EventOuting, OutingsButton } from './Outings.tsx'
+import { EventHealthVisit } from './Trackers.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
@@ -1032,6 +1033,8 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
         )}
         {settings.features.meals !== false && <EventOrders eventId={event.id} />}
         {settings.features.outings !== false && <EventOuting eventId={event.id} />}
+        {/* Health never on a wall or a kid's device: parents' and grown-ups' own devices only (the server refuses the rest). */}
+        {parent && trackerKinds(settings).includes('health') && <EventHealthVisit event={event} />}
         {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}
         {/* The family's back-and-forth, kept apart from the event's own Notes above. */}
         {settings.features.notes && <NotesThread target={`event:${event.id}`} title="Discussion" />}

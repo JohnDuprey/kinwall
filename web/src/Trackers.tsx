@@ -12,17 +12,19 @@ import Library, { AddBookSheet } from './Library.tsx'
 import { addDayKeys } from './library.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
-import { CheckIcon, ChevronDown, PlusIcon } from './icons.tsx'
+import { CheckIcon, ChevronDown, ChevronRight, PlusIcon } from './icons.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
-import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
+import type { EventInstance, HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
 import { dayAmount, FINISHED_SHOWN, STATUS_EMOJI, STATUS_WORDS, hoursMinutes, shelfBooks, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
 import PickField from './PickField.tsx'
 import { forPerson, HEALTH_PERSON_KEY, personIn, startPerson } from './trackerPerson.ts'
 import { Face, ChipFace } from './Face'
+import { hashPath, hashQuery } from './hashQuery.ts'
+import { looksMedical, visitFromEvent, type VisitDraft } from './visit-from-event.ts'
 import BookCover from './BookCover.tsx'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
@@ -45,6 +47,7 @@ const HEALTH_TYPES: { key: HealthType; label: string; emoji: string }[] = [
 const MOODS = ['😊', '😂', '🥰', '🎉', '😴', '😢', '😮', '🌟']
 const FAMILY = { id: null as string | null, name: 'Family', color: '#C7B8A8', avatar: '🏠' }
 const FORMER = '__former' // the form's "who" for an entry that belonged to a removed member
+const ASK = '__ask' // the form's "who" for a visit from an event with no one, or several people, on it: pick one
 type Who = { id: string | null; name: string; color: string; avatar: string; former?: string }
 /** A removed member's entries keep their name: "Leo (removed)", in gray. */
 const formerWho = (name: string): Who => ({ id: null, name: `${name} (removed)`, color: '#B8B2AB', avatar: name[0] ?? '?', former: name })
@@ -127,6 +130,17 @@ export default function Trackers({ sub }: { sub?: string }) {
   const formers = [...new Set(shown.filter(e => e.formerMember && !e.memberId).map(e => e.formerMember!))].map(formerWho)
   const people: Who[] = [...members.filter(m => !personId || m.id === personId), FAMILY, ...formers]
 
+  // #/trackers/health?visit=<id> (an event sheet's "Open the health visit"): that visit's sheet once loaded.
+  useEffect(() => {
+    const id = hashQuery(location.hash).get('visit')
+    if (!entries || !id || kind !== 'health' || entries.some(e => e.kind !== 'health')) return // the Health list, not one still loading for another view
+    history.replaceState(null, '', hashPath(location.hash))
+    const e = entries.find(x => x.id === id)
+    if (e) setEditing(e)
+  }, [entries, kind])
+  const [fromCal, setFromCal] = useState(false) // Health's "Add from the calendar"
+  const [prefill, setPrefill] = useState<VisitPrefill | null>(null)
+
   const save = async (e: TrackerEntry, body: TrackerInput, msg?: string) => {
     setEntries(list => list && list.map(x => x.id === e.id ? { ...x, ...body, data: { ...x.data, ...body.data } as never } : x)) // optimistic
     try { await api.updateTracker(e.id, body); if (msg) announce(msg); load() } catch (err) { toast(errMsg(err, 'Could not save'), true); load() }
@@ -145,7 +159,7 @@ export default function Trackers({ sub }: { sub?: string }) {
           : library ? <Library bar={tools} adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
           : kind === 'reading' ? <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
-          : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={healthPerson} switcher={
+          : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} onFromCalendar={() => setFromCal(true)} meds={settings.medications} memberId={healthPerson} switcher={
             <div className="field">
               <label htmlFor="trk-person">Whose health</label>
               <PickField id="trk-person" label="Whose health" title="Whose health?" value={[healthPerson ?? '']} onChange={([v]) => pickHealthPerson(v || null)}
@@ -158,6 +172,10 @@ export default function Trackers({ sub }: { sub?: string }) {
           admin={admin} kid={kid} photos={photos} memberId={personId}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />
       )}
+      {fromCal && <PickEventSheet linked={new Set((entries ?? []).map(e => (e.data as HealthData).eventId).filter((x): x is string => !!x))} tz={tz}
+        onClose={() => setFromCal(false)} onPick={ev => { setFromCal(false); setPrefill({ draft: visitFromEvent(ev, tz), eventId: ev.id }) }} />}
+      {prefill && <EntrySheet kind="health" entry={null} admin={admin} kid={null} photos={[]} memberId={null} prefill={prefill}
+        onClose={() => setPrefill(null)} onSaved={() => { setPrefill(null); load() }} />}
     </div>
   )
 }
@@ -397,7 +415,7 @@ function measureText(d: HealthData) {
 }
 
 // Health visits and, when medication reminders are on, each person's medicines (parent devices only).
-function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void; meds: boolean; memberId: string | null; switcher: ReactNode }) {
+function Health({ entries, today, onEdit, onSave, onFromCalendar, meds, memberId, switcher }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void; onFromCalendar: () => void; meds: boolean; memberId: string | null; switcher: ReactNode }) {
   const who = useWho()
   const { toast, settings } = useApp()
   const upcoming = entries.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
@@ -424,9 +442,9 @@ function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { 
           <Avatar m={m} />
           <span className="sr-only">{m.name}, {t.label}. Edit</span>
         </button>
-        {future && (d.eventId
-          ? <span className="trk-sub trk-on-cal">📅 On the calendar</span>
-          : <button className="btn btn-secondary trk-small-btn" onClick={() => addToCalendar(e)}>📅 Add to calendar</button>)}
+        {d.eventId
+          ? <a className="btn btn-secondary trk-small-btn" href={eventHref(d.eventId, e.date)}>📅 Open on the calendar</a>
+          : future && <button className="btn btn-secondary trk-small-btn" onClick={() => addToCalendar(e)}>📅 Add to calendar</button>}
       </li>
     )
   }
@@ -434,6 +452,7 @@ function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { 
     <div className="trk-journal">
       {switcher}
       <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>
+      <button className="btn btn-secondary trk-small-btn" style={{ alignSelf: 'flex-start' }} onClick={onFromCalendar}>📅 Add from the calendar</button>
       {meds && <MedicineList memberId={memberId} />}
       {entries.length === 0 && <div className="empty-card"><span className="emoji">🩺</span>No visits yet. Tap + to log a checkup or a dentist visit.</div>}
       {upcoming.length > 0 && <section aria-label="Upcoming"><h3 className="trk-heading">Upcoming</h3><ul className="trk-visits">{upcoming.map(row)}</ul></section>}
@@ -472,9 +491,10 @@ type Form = {
   height: string; heightUnit: 'in' | 'cm'; weight: string; weightUnit: 'lb' | 'kg'; temperature: string; temperatureUnit: 'F' | 'C'
 }
 
-function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, onSaved }: {
+function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, onClose, onSaved }: {
   kind: TrackerKind; entry: TrackerEntry | null; date?: string; admin: boolean; photos: Photo[]; memberId: string | null; onClose: () => void; onSaved: () => void
   kid: string | null // a kid's own device: their entries (and the family's) only; someone else's opens read-only
+  prefill?: VisitPrefill // a new health visit from a calendar event, linked to it
 }) {
   const { members: everyone, settings, toast } = useApp()
   const members = kid ? everyone.filter(m => m.id === kid) : everyone
@@ -483,14 +503,15 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
   const imperial = settings.temperatureUnit === 'fahrenheit'
   const d = (entry?.data ?? {}) as Partial<ReadingData & MemoryData & HealthData>
   const num = (v?: number) => v === undefined ? '' : String(v)
+  const p = prefill?.draft
   const [f, setF] = useState<Form>(() => ({
-    memberId: entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : kid ?? memberId, date: entry?.date ?? date ?? '', title: entry?.title ?? '',
+    memberId: p ? p.memberId ?? ASK : entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : kid ?? memberId, date: p?.date ?? entry?.date ?? date ?? '', title: p?.title ?? entry?.title ?? '',
     photoId: entry?.photoId ?? null, photoOwned: !!entry?.photoOwned, photoFamily: !!entry?.photoFamily, pending: null,
     format: d.format ?? 'book', author: d.author ?? '', narrator: d.narrator ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages),
-    listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: d.notes ?? '',
+    listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: p?.notes ?? d.notes ?? '',
     coverUrl: d.coverUrl ?? '', coverThumb: entry && d.coverUrl ? api.trackerCoverUrl(entry) : null,
     text: d.text ?? '', mood: d.mood ?? null,
-    type: d.type ?? 'checkup', time: d.time ?? '', provider: d.provider ?? '', followUp: d.followUp ?? '',
+    type: p?.type ?? d.type ?? 'checkup', time: p?.time ?? d.time ?? '', provider: p?.provider ?? d.provider ?? '', followUp: d.followUp ?? '',
     height: num(d.height?.value), heightUnit: d.height?.unit ?? (imperial ? 'in' : 'cm'),
     weight: num(d.weight?.value), weightUnit: d.weight?.unit ?? (imperial ? 'lb' : 'kg'),
     temperature: num(d.temperature?.value), temperatureUnit: d.temperature?.unit ?? (imperial ? 'F' : 'C'),
@@ -523,8 +544,9 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
     : kind === 'memory'
       ? { text: f.text.trim(), mood: f.mood }
       : { type: f.type, time: f.time || null, provider: f.provider.trim() || null, notes: f.notes.trim() || null, followUp: f.followUp || null,
-        height: measure(f.height, f.heightUnit), weight: measure(f.weight, f.weightUnit), temperature: measure(f.temperature, f.temperatureUnit) }
-  const ready = kind === 'reading' ? !!f.title.trim() : kind === 'memory' ? !!(f.text.trim() || f.photoId || f.pending) : true
+        height: measure(f.height, f.heightUnit), weight: measure(f.weight, f.weightUnit), temperature: measure(f.temperature, f.temperatureUnit),
+        ...(prefill ? { eventId: prefill.eventId } : {}) }
+  const ready = kind === 'reading' ? !!f.title.trim() : kind === 'memory' ? !!(f.text.trim() || f.photoId || f.pending) : f.memberId !== ASK
 
   const submit = async () => {
     if (!ready) return
@@ -558,6 +580,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
       {/* Read-only: every field inside is disabled. */}
       <fieldset className="item-sheet-fields" disabled={readOnly}>
       {kind === 'health' && <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>}
+      {prefill && <p className="field-hint item-read-only">From the calendar. It stays linked to the event, and keeps its own date if the event moves. Nothing about the visit goes on the calendar.</p>}
       <div className="field">
         <label id="trk-who">Whose {noun}?</label>
         <div className="chip-row" role="group" aria-labelledby="trk-who">
@@ -569,6 +592,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
             <button key={m.id} type="button" className={`chip ${f.memberId === m.id ? 'active' : ''}`} aria-pressed={f.memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => set({ memberId: m.id })}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
+        {f.memberId === ASK && <p className="field-hint">Pick whose visit it is.</p>}
       </div>
 
       {kind === 'reading' && <>
@@ -656,6 +680,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
         </fieldset>
         <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="What the doctor said, medicine, next steps…" /></div>
         <div className="field"><label htmlFor="trk-follow">Follow-up</label><input id="trk-follow" type="date" value={f.followUp} onChange={e => set({ followUp: e.target.value })} /></div>
+        {entry && d.eventId && <a className="btn btn-secondary" href={eventHref(d.eventId, entry.date)} onClick={onClose}>📅 Open on the calendar</a>}
       </>}
       </fieldset>
       {shelving && entry && <AddBookSheet places={shelving.places} sources={shelving.sources} today={todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}
@@ -730,4 +755,62 @@ function PhotoField({ f, set, photos }: { f: Form; set: (patch: Partial<Form>) =
       )}
     </div>
   )
+}
+
+// ---------- Visits from the calendar ----------
+// A visit made from a calendar event keeps the link on its own sealed data (data.eventId, the same
+// field "Add to calendar" sets); nothing about the visit is written to the event, which may sync back.
+type VisitPrefill = { draft: VisitDraft; eventId: string }
+const eventHref = (eventId: string, date: string) => `#/calendar?event=${encodeURIComponent(eventId)}&at=${date}`
+const eventWhen = (ev: EventInstance, tz: string) => ev.allDay ? niceDate(ev.start.slice(0, 10)) : `${niceDate(visitFromEvent(ev, tz).date)} · ${formatTime(ev.start, tz)}`
+
+/** Health's "Add from the calendar": the last month's and the next three months' events that look
+ * like a doctor's or dentist's visit, not yet made into one. */
+function PickEventSheet({ linked, tz, onClose, onPick }: { linked: Set<string>; tz: string; onClose: () => void; onPick: (ev: EventInstance) => void }) {
+  const [events, setEvents] = useState<EventInstance[] | null>(null)
+  useEffect(() => {
+    const now = Date.now(), day = 86_400_000
+    api.getEvents(new Date(now - 31 * day).toISOString(), new Date(now + 92 * day).toISOString())
+      .then(list => setEvents(list.filter(e => looksMedical(e.title) && !linked.has(e.id)).sort((a, z) => a.start.localeCompare(z.start))))
+      .catch(() => setEvents([]))
+  }, [linked])
+  return (
+    <Sheet title="Add from the calendar" onClose={onClose}>
+      <p className="field-hint">Events from the last month and the next three that look like a doctor's or dentist's visit.</p>
+      {events === null ? <div className="state-card">Loading…</div>
+        : events.length === 0 ? <div className="empty-card"><span className="emoji">📅</span>No events look like a visit. Open one on the calendar and tap "Make it a health visit".</div>
+        : <div className="sheet-links">{events.map(ev => (
+          <button key={`${ev.id}:${ev.start}`} type="button" className="sheet-link" onClick={() => onPick(ev)}>
+            <span className="lib-emoji" aria-hidden="true">🩺</span><span>{ev.title}<small>{eventWhen(ev, tz)}{ev.location ? ` · ${ev.location}` : ''}</small></span>
+          </button>
+        ))}</div>}
+    </Sheet>
+  )
+}
+
+/** On a calendar event's sheet (parents' and grown-ups' own devices, Health on): its health visit,
+ * or "Make it a health visit". A repeating event's visit is the one on that day. */
+export function EventHealthVisit({ event }: { event: EventInstance }) {
+  const { settings, members } = useApp()
+  const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  const [visits, setVisits] = useState<TrackerEntry[] | null>(null)
+  const [making, setMaking] = useState(false)
+  const load = () => api.getTrackers('health').then(setVisits).catch(() => setVisits(null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [event.id])
+  if (!visits) return null
+  const day = visitFromEvent(event, tz).date
+  const repeats = !!(event.rrule || event.seriesId)
+  const visit = visits.find(v => (v.data as HealthData).eventId === event.id && (!repeats || v.date === day))
+  if (visit) {
+    const t = HEALTH_TYPES.find(x => x.key === (visit.data as HealthData).type) ?? HEALTH_TYPES[5]
+    const who = members.find(m => m.id === visit.memberId)?.name ?? visit.formerMember ?? 'Family'
+    return <a className="sheet-link" href={`#/trackers/health?visit=${encodeURIComponent(visit.id)}`}><span className="lib-emoji" aria-hidden="true">{t.emoji}</span>
+      <span>Health visit: {t.label} · {who}<small>Open the health visit</small></span><ChevronRight /></a>
+  }
+  return <>
+    <button type="button" className="btn btn-secondary trk-small-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setMaking(true)}>🩺 Make it a health visit</button>
+    {making && <EntrySheet kind="health" entry={null} admin kid={null} photos={[]} memberId={null} prefill={{ draft: visitFromEvent(event, tz), eventId: event.id }}
+      onClose={() => setMaking(false)} onSaved={() => { setMaking(false); announce('Saved as a health visit'); load() }} />}
+  </>
 }

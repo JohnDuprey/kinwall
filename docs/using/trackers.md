@@ -86,6 +86,17 @@ Doctor, dentist and other visits: the date and time, the type (checkup, dentist,
 
 **Add to calendar** on an upcoming visit adds a normal calendar event, like "🦷 Dentist · Maya", at the visit's time with the office as its location. Only the type and the person go on the calendar; the reason, notes and measurements stay in Trackers.
 
+**Make it a health visit** goes the other way: on a calendar event's sheet (parents' devices and a grown-up's own device, with Health on), it opens the Health visit form filled in from the event. The event can come from Google, Outlook, an iCal link or a Kinwall calendar, even one Kinwall can't change.
+
+* **Date and time**: the event's. An all-day event gives a visit with no time.
+* **Whose visit**: the event's person when it has exactly one; otherwise pick one (or Family).
+* **Type**: guessed from the title. "Dentist" or "dental" is Dentist; "vaccine", "shot" or "flu" is Vaccine; "checkup", "physical" or "well visit" is Checkup; "sick" or "urgent care" is Sick visit; "Dr." or a specialist ("dermatologist", "allergy", "therapy"…) is Specialist; anything else is Other. Change it before you save.
+* **Reason**: the event's title. **Doctor or office**: its location. **Notes**: its notes.
+
+The visit and the event stay linked. The event's sheet then shows **Health visit: Checkup · Maya**, which opens the visit, and the visit shows **Open on the calendar**. The link is kept with the visit, encrypted like the rest of it; nothing about the visit is written to the event, so nothing syncs back to Google or Outlook. If the event moves later, the visit keeps its own date.
+
+**Add from the calendar**, near the top of the Health tab, lists the last month's and the next three months' events that look like a visit (the same words as above) and aren't one yet. Pick one to open the same filled-in form. For an event with any other title, open it on the calendar and tap **Make it a health visit**.
+
 When [medication reminders](medications.md) are on, the Health tab also has **💊 Medicines**: each person's medicines, where parents add and change them, **Show medicine names on shared screens**, and **More… → Delete all medication data**.
 
 ### Health stays off the wall

@@ -3230,7 +3230,6 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trk-visit { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .trk-visit-main { flex-direction: row; align-items: flex-start; gap: 12px; }
 .trk-visit-emoji { font-size: 1.75rem; line-height: 1.2; }
-.trk-on-cal { padding-left: 42px; }
 .trk-visit .trk-small-btn { align-self: flex-start; margin-left: 40px; }
 .trk-field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 /* Hours and minutes (audiobooks): two number fields with their unit after each. */
