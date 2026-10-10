@@ -178,8 +178,6 @@ function applyAppearance(household: Appearance, device: DeviceAppearance, parent
     root.setAttribute('data-theme', dark ? 'dark' : 'light')
     root.removeAttribute('data-bg') // old background presets: replaced by color schemes (see Settings' earlier-version note)
     root.setAttribute('data-density', a.density)
-    // A parent's phone in compact goes a step tighter still (the [data-parent-phone] rules in styles.css).
-    root.toggleAttribute('data-parent-phone', parentPhone && a.density === 'compact')
 
     // Color scheme (skins.ts) and custom colors, household or this device's (resolveColors).
     // Every scheme sets its tokens, the default included, so a screen always looks like its chip. Custom

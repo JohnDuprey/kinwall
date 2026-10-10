@@ -623,7 +623,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
             {DENSITIES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </div>
-        <div className="settings-row-sub">Compact tightens spacing and fits more on screen, handy for a smaller display. Icon-first is set per device, under Appearance on this device.</div>
+        <div className="settings-row-sub">Comfortable is roomy, made to read across the room. Compact fits more on every screen: tighter spacing, smaller choice buttons and shorter forms. A parent's phone is compact unless it picks otherwise. Icon-first is set per device, under Appearance on this device.</div>
       </div>
     </Section>
   )
