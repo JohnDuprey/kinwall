@@ -35,6 +35,15 @@ export function nextPhoto<P extends { id: string }>(queue: string[], list: P[]):
   return null
 }
 
+/** The Met's search for its highlighted paintings that have images. v1/search
+ * was retired on 2026-10-01 (410 Gone, so Art showed nothing and its captions with it); v1.1 pages
+ * its results, 100 by default, so the limit asks for them all (~420). */
+export const MET_SEARCH = 'https://collectionapi.metmuseum.org/public/collection/v1.1/search?hasImages=true&isHighlight=true&medium=Paintings&q=painting&limit=1000'
+
+/** An artwork's caption: "Title · Artist · Date", leaving out what the Met doesn't have. */
+export const artCaption = (o: { title?: string; artistDisplayName?: string; objectDate?: string }) =>
+  [o.title, o.artistDisplayName, o.objectDate].map(s => s?.trim()).filter(Boolean).join(' · ') || undefined
+
 /** A Night screen's choices, in this device's own shape (useTheme.ts). */
 export type NightFields = Pick<DeviceAppearance, 'saverSources' | 'saverEvery' | 'saverBright' | 'saverClock' | 'clockPos'>
 

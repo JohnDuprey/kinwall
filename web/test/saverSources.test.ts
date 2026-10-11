@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which picture sources the Night screen and the Board's picture use.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardSources, familyNightFields, nextPhoto, nightFieldsFor, nightSources, ownsNight, toNightLook, type NightLook } from '../src/saverSources.ts'
+import { artCaption, boardSources, familyNightFields, MET_SEARCH, nextPhoto, nightFieldsFor, nightSources, ownsNight, toNightLook, type NightLook } from '../src/saverSources.ts'
 
 const ready = { photos: true, googlePhotos: 'ready' as const }
 
@@ -77,4 +77,16 @@ test('nextPhoto: skips photos deleted since the pass began; null when the pass i
   const queue = ['a', 'gone']
   assert.deepEqual(nextPhoto(queue, [{ id: 'a', caption: 'River trip' }]), { id: 'a', caption: 'River trip' })
   assert.equal(nextPhoto(queue, [{ id: 'a', caption: 'River trip' }]), null)
+})
+
+test('Art: the Met search is the v1.1 endpoint (v1 is gone) and asks for every result, not a page', () => {
+  const u = new URL(MET_SEARCH)
+  assert.match(u.pathname, /\/v1\.1\/search$/)
+  assert.ok(Number(u.searchParams.get('limit')) >= 500)
+})
+
+test('artCaption: title, artist and date, skipping blanks', () => {
+  assert.equal(artCaption({ title: 'The Harvesters', artistDisplayName: 'Pieter Bruegel the Elder', objectDate: '1565' }), 'The Harvesters · Pieter Bruegel the Elder · 1565')
+  assert.equal(artCaption({ title: 'Untitled', artistDisplayName: ' ', objectDate: '' }), 'Untitled')
+  assert.equal(artCaption({}), undefined)
 })

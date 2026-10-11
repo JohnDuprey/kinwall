@@ -6,7 +6,7 @@ import { drawingIds, getDrawing } from './drawings-db.ts'
 import { api, ApiError } from './api.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
 import { spotStyle, type Spot } from './nightClock.ts'
-import { nextPhoto } from './saverSources.ts'
+import { artCaption, MET_SEARCH, nextPhoto } from './saverSources.ts'
 
 interface Pic { key: number; src: string; caption?: string; revoke?: boolean }
 type Source = () => Promise<Omit<Pic, 'key'> | null> // null = nothing to show (no drawings)
@@ -35,7 +35,7 @@ function photosSource(): Source {
   }
 }
 
-// The Met open-access API (CC0, no key): one search per night for the ~950 highlighted paintings
+// The Met open-access API (CC0, no key): one search per night for the ~420 highlighted paintings
 // with images, shuffled; then one object lookup + one image per change. Objects that aren't public
 // domain or have no web image are skipped (a few tries, then the clock until the next change).
 const MET = 'https://collectionapi.metmuseum.org/public/collection/v1'
@@ -43,7 +43,7 @@ let metIds: { at: number; ids: number[] } | null = null
 async function artNext(): Promise<Omit<Pic, 'key'>> {
   for (let tries = 0; tries < 5; tries++) {
     if (!metIds?.ids.length || Date.now() - metIds.at > 12 * 3600_000) {
-      const res = await fetch(`${MET}/search?hasImages=true&isHighlight=true&medium=Paintings&q=painting`, { referrerPolicy: 'no-referrer' })
+      const res = await fetch(MET_SEARCH, { referrerPolicy: 'no-referrer' })
       if (!res.ok) throw new Error(`Met search ${res.status}`)
       metIds = { at: Date.now(), ids: shuffle(((await res.json()).objectIDs ?? []) as number[]) }
       if (!metIds.ids.length) throw new Error('Met: no results')
@@ -52,7 +52,7 @@ async function artNext(): Promise<Omit<Pic, 'key'>> {
     if (!res.ok) continue
     const o = await res.json() as { isPublicDomain?: boolean; primaryImageSmall?: string; title?: string; artistDisplayName?: string; objectDate?: string }
     if (o.isPublicDomain !== true || !o.primaryImageSmall) continue
-    return { src: o.primaryImageSmall, caption: [o.title, o.artistDisplayName, o.objectDate].filter(Boolean).join(' · ') }
+    return { src: o.primaryImageSmall, caption: artCaption(o) }
   }
   throw new Error('Met: no public-domain image in 5 tries')
 }
