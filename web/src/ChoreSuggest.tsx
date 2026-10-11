@@ -106,7 +106,7 @@ export function SuggestChoreSheet({ memberId, onClose, onSent }: { memberId: str
       {who && <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>An idea from {who.name}. A grown-up says yes or not this time.</p>}
       <div className="field">
         <label htmlFor="suggest-title">What's the chore?</label>
-        <input id="suggest-title" type="text" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} placeholder="Flute practice" autoComplete="off" autoFocus />
+        <input id="suggest-title" type="text" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} placeholder="Piano practice" autoComplete="off" autoFocus />
       </div>
       <div className="field">
         <label>Pick an emoji</label>

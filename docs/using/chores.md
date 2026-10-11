@@ -126,7 +126,7 @@ A chore can wait for a parent's OK before it counts. Ticks from wall screens and
 
 ## Kids suggest chores
 
-Kids can add their own chores. Maybe flute practice isn't on the chart yet, or they want to help with something new. They send an idea, say how many points they think it's worth, and a grown-up says yes or not this time.
+Kids can add their own chores. Maybe piano practice isn't on the chart yet, or they want to help with something new. They send an idea, say how many points they think it's worth, and a grown-up says yes or not this time.
 
 **For kids**
 
@@ -138,11 +138,11 @@ Kids can add their own chores. Maybe flute practice isn't on the chart yet, or t
    * Neither: it's a one-time chore for today, or pick another day.
 4. Tap **Send to a grown-up**. Your idea shows under **Chore ideas** as **Waiting for a grown-up**. It isn't a chore yet, so it doesn't count and you can't tick it.
 
-When a grown-up answers, your device gets a notification and **Chore ideas** shows it: "Sam said yes! Flute practice · 4 points" with their note, or "Not this time" with their reason. Tap **Got it** to put it away. A "Not this time" shows only on your own device, never on a shared wall screen.
+When a grown-up answers, your device gets a notification and **Chore ideas** shows it: "Sam said yes! Piano practice · 4 points" with their note, or "Not this time" with their reason. Tap **Got it** to put it away. A "Not this time" shows only on your own device, never on a shared wall screen.
 
 **For parents**
 
-* New ideas wait in **To approve** at the top of Chores, counted in the **Chores** badge, and parent devices get a notification ("Maya suggests a chore: Flute practice").
+* New ideas wait in **To approve** at the top of Chores, counted in the **Chores** badge, and parent devices get a notification ("Maya suggests a chore: Piano practice").
 * **Say yes…** shows what they asked for. Keep their points or change them, change the days, start time or timer, add a note, and tap **Approve**. Quick notes like **Great idea!** or **Love the initiative!** fill in with one tap. Approving makes a normal chore for that kid. If they said they already did it, it's marked done today and they get the points now, once.
 * **Not this time** sends your note (optional) to the kid instead.
 * The kid sees your name when you answer from a device that's yours (**Settings → Access**, "Whose device is this?"). Otherwise it says "A grown-up".

@@ -37,7 +37,7 @@ async function setup() {
   const wallKey = await key('kitchen-wall', 'display', 'shared');
   const alexKey = await key('alex-phone', 'admin', alex.id);
   const today = new Date().toISOString().slice(0, 10);
-  const suggest = (body: Record<string, unknown>, k = mayaKey) => req('/api/chore-suggestions', 'POST', { title: 'Flute practice', emoji: '🎵', points: 5, ...body }, k);
+  const suggest = (body: Record<string, unknown>, k = mayaKey) => req('/api/chore-suggestions', 'POST', { title: 'Piano practice', emoji: '🎹', points: 5, ...body }, k);
   const balance = async (id: string) => (await req('/api/members')).json.find((m: any) => m.id === id).balance;
   return { db, req, flush, maya, leo, alex, mayaKey, wallKey, alexKey, today, suggest, balance };
 }
@@ -57,11 +57,11 @@ test('suggest: a kid\'s own device only for them, a wall names who, and nothing 
   // Not a chore yet: no chore, no points.
   assert.equal((await t.req('/api/chores')).json.length, 0);
   // Maya's device sees only hers; a parent sees both.
-  assert.deepEqual((await t.req('/api/chore-suggestions', 'GET', undefined, t.mayaKey)).json.map((s: any) => s.title), ['Flute practice']);
+  assert.deepEqual((await t.req('/api/chore-suggestions', 'GET', undefined, t.mayaKey)).json.map((s: any) => s.title), ['Piano practice']);
   assert.equal((await t.req(`/api/chore-suggestions?memberId=${t.leo.id}`, 'GET', undefined, t.mayaKey)).status, 403);
   assert.equal((await t.req('/api/chore-suggestions')).json.length, 2);
   await t.flush();
-  const bell = (await t.req('/api/notifications')).json.find((n: any) => n.title === 'Maya suggests a chore: Flute practice');
+  const bell = (await t.req('/api/notifications')).json.find((n: any) => n.title === 'Maya suggests a chore: Piano practice');
   assert.ok(bell, 'parents are told');
 });
 
@@ -96,12 +96,12 @@ test('approve as asked: a repeating chore with its start time and timer, the par
   assert.equal(r.json.pointsGiven, 5);
   assert.equal(r.json.decidedByName, 'Alex');
   const chore = (await t.req('/api/chores')).json.find((c: any) => c.id === r.json.choreId);
-  assert.deepEqual([chore.title, chore.emoji, chore.memberId, chore.points, chore.rrule, chore.dueTime, chore.timerMinutes], ['Flute practice', '🎵', t.maya.id, 5, 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', '16:00', 20]);
+  assert.deepEqual([chore.title, chore.emoji, chore.memberId, chore.points, chore.rrule, chore.dueTime, chore.timerMinutes], ['Piano practice', '🎹', t.maya.id, 5, 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', '16:00', 20]);
   assert.equal(await t.balance(t.maya.id), 0); // not done yet: nothing earned
   // Twice is once.
   assert.equal((await t.req(`/api/chore-suggestions/${s.id}/approve`, 'POST', {})).status, 404);
   await t.flush();
-  const kidBell = (await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.find((n: any) => n.title === 'Alex said yes: Flute practice');
+  const kidBell = (await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.find((n: any) => n.title === 'Alex said yes: Piano practice');
   assert.ok(kidBell);
   assert.match(kidBell.body, /Proud of you for practicing/);
   // The answer stays on Maya's list until she puts it away.
@@ -122,7 +122,7 @@ test('approve with changes: other points and schedule', async () => {
   const chore = (await t.req('/api/chores')).json[0];
   assert.deepEqual([chore.points, chore.rrule, chore.timerMinutes], [4, 'FREQ=WEEKLY;BYDAY=MO,WE,FR', 15]);
   await t.flush();
-  assert.ok((await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.some((n: any) => n.title === 'A grown-up said yes: Flute practice'));
+  assert.ok((await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.some((n: any) => n.title === 'A grown-up said yes: Piano practice'));
 });
 
 test('"I already did it": done today on approval, points once', async () => {
@@ -149,5 +149,5 @@ test('not this time: a note for the kid, no chore, and a shared wall never shows
   assert.equal((await t.req('/api/chore-suggestions', 'GET', undefined, t.wallKey)).json.length, 0);
   assert.equal((await t.req(`/api/chore-suggestions/${s.id}/approve`, 'POST', {})).status, 404);
   await t.flush();
-  assert.ok((await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.some((n: any) => n.title === 'Not this time: Flute practice' && n.body === "Let's talk about it at dinner"));
+  assert.ok((await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.some((n: any) => n.title === 'Not this time: Piano practice' && n.body === "Let's talk about it at dinner"));
 });

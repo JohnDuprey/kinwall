@@ -1,4 +1,4 @@
-// Kids suggest chores (migration 0113): "🎵 Flute practice, Mon–Fri at 4 PM for 20 min, I think it's
+// Kids suggest chores (migration 0113): "🎹 Piano practice, Mon–Fri at 4 PM for 20 min, I think it's
 // worth 5 points". It waits for a parent, who approves it (as asked, or with other points or schedule)
 // or says "Not this time", with a note either way. Approving makes a normal chore for that kid; "I
 // already did it" also records it as done that day, so the points count once, on approval.
