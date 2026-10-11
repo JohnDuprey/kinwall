@@ -168,17 +168,14 @@ export function useSlideshowPictures(sources: SaverSource[], everySeconds: numbe
 }
 
 export default function Slideshow({ sources, device, clock, spot }: { sources: SaverSource[]; device: DeviceAppearance; clock: (small: boolean) => ReactNode; spot: Spot }) {
-  const { pics, failed, n } = useSlideshowPictures(sources, (device.saverEvery ?? 5) * 60)
-  const [drift, setDrift] = useState({ x: 0, y: 0 })
-  const reduced = useRef(matchMedia('(prefers-reduced-motion: reduce)').matches).current
-  useEffect(() => { if (n && !reduced) setDrift({ x: (Math.random() - 0.5) * 3, y: (Math.random() - 0.5) * 3 }) }, [n, reduced])
+  const { pics, failed } = useSlideshowPictures(sources, (device.saverEvery ?? 5) * 60)
 
   if (failed || !pics.length) return <>{clock(false)}</>
   const current = pics[pics.length - 1]
   const brightness = device.saverBright === 'medium' ? 0.7 : 0.45
   return (
     <>
-      <div className="saver-stage" style={{ transform: `translate(${drift.x}%, ${drift.y}%)` }}>
+      <div className="saver-stage">
         {pics.map(p => <img key={p.key} className="saver-img" src={p.src} alt="" style={{ filter: `brightness(${brightness})` }} />)}
       </div>
       {(device.saverClock !== false || current.caption) && (
