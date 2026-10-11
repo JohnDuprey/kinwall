@@ -8,14 +8,14 @@
 
 Don't use lists? An admin can turn off **Lists** in **Settings → General** (tap **Change** under **Features**). It's hidden on every screen; nothing is deleted. See [Features](../settings/general.md#features).
 
-The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one. **New list** or **+** creates a list. Press and hold a list card to edit it (on a parent's device).
+The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one. **New list** or **+** creates a list. To edit a list (on a parent's device), open it and tap **Edit**, or tap **Edit lists** under the lists and then the list. On a computer you can also right-click a list card.
 
 ## Organizing lists
 
 The Lists tab groups your lists by type under **Groceries**, **Shopping**, **To-dos** and **Reusable**, in that order, each with how many lists it has. A type with no lists doesn't show. On the wall display and tablets the same sections fill the column beside the open list.
 
 * **Fold a section**: tap its heading. This device remembers which sections are folded; other screens keep their own.
-* **Reorder**: tap **Reorder** under the lists (it shows once a section has two or more, on a parent's device). Drag a list by its grip, or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
+* **Edit lists**: tap **Edit lists** under the lists (on a parent's device). Tap a list to edit it, or drag it by its grip or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
 * The order is the family's: every phone, the wall and the assistant see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its type moves it to that section.
 * New lists go to the end of their section. A restored list comes back where it was.
 
@@ -96,7 +96,7 @@ A kid's own device (a tablet set up as theirs under **Whose device is this?**) w
 
 ## Wall screens and kids' devices
 
-A list itself (its name, emoji, color, type, owners, archiving, deleting and the order of the lists) is changed from a parent's device. On a wall screen or a kid's device, **Edit**, **Reorder** and the **Archived** section don't show, and the server refuses those changes ("Ask a grown-up to change this list."). Everyone can still make a **New list** and use **View** to sort and group a list.
+A list itself (its name, emoji, color, type, owners, archiving, deleting and the order of the lists) is changed from a parent's device. On a wall screen or a kid's device, **Edit**, **Edit lists** and the **Archived** section don't show, and the server refuses those changes ("Ask a grown-up to change this list."). Everyone can still make a **New list** and use **View** to sort and group a list.
 
 ## Moving items to another list
 

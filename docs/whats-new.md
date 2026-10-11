@@ -9,6 +9,10 @@ The full list of changes in every version is in the [changelog](https://github.c
   layouts moved into **Layout and filter** (the sliders on its toolbar), together with the category
   filter. On a phone the bottom bar is Home, Calendar, Chores and Lists, and Contacts is first under
   More. Reminders open Calendar on the event's day. See [Home & calendar](using/calendar.md#views).
+* **Editing without press and hold**: on a parent's device, tap **✏️ Edit chores** on Chores or
+  **Edit lists** under the lists, then tap what you want to change. Tap **Done** to go back to
+  ticking. Right-click still works on a computer. See [Chores](using/chores.md) and
+  [Lists](using/lists.md).
 
 ## 1.1.0
 

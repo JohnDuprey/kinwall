@@ -13,7 +13,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon, XIcon } from './icons.tsx'
+import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon, XIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -106,26 +106,13 @@ function ownersOf(list: List, members: Member[]) {
 function ListCard({ list, active, members, onSelect, onEdit }: {
   list: List; active: boolean; members: Member[]; onSelect: () => void; onEdit?: () => void
 }) {
-  // Long-press to edit (parent devices only: no onEdit elsewhere), short tap to open - same interaction as ChoreCard.
-  const pressTimer = useRef<ReturnType<typeof setTimeout>>()
-  const longPressed = useRef(false)
-  const handleDown = () => {
-    longPressed.current = false
-    if (onEdit) pressTimer.current = setTimeout(() => { longPressed.current = true; onEdit() }, 500)
-  }
-  const handleUp = () => {
-    clearTimeout(pressTimer.current)
-    if (!longPressed.current) onSelect()
-  }
+  // A tap opens it. Editing is Edit lists mode, the open list's Edit button, or right-click (parent devices only: no onEdit elsewhere).
   const owners = ownersOf(list, members)
-  // Keyboard: Enter/Space opens it (pointer taps go through handleUp); the open list's Edit button edits.
-  const { role, tabIndex, onKeyDown } = pressable(onSelect)
   return (
-    <div className={`list-card ${active ? 'active' : ''}`} role={role} tabIndex={tabIndex} onKeyDown={onKeyDown}
+    <div className={`list-card ${active ? 'active' : ''}`} {...pressable(onSelect)}
       aria-current={active || undefined} onContextMenu={onEdit && (e => { e.preventDefault(); onEdit() })}
       aria-label={[list.name, countLabel(list), list.isDefault ? `default ${TYPE_LABEL[listType(list)]} list` : '', owners.length ? `for ${owners.map(m => m.name).join(' and ')}` : ''].filter(Boolean).join(', ')}
-      style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}
-      onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
+      style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}>
       <div className="list-card-accent" />
       <div className="list-card-emoji">{list.emoji || '📝'}</div>
       <div className="list-card-body">
@@ -143,14 +130,17 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
   )
 }
 
-/** A list card in Reorder mode: drag it by the grip, or Move up / Move down. */
-function ReorderCard({ list, handle, first, last, onMove }: { list: List; handle: React.ReactNode; first: boolean; last: boolean; onMove: (dir: -1 | 1) => void }) {
+/** A list card in Edit lists mode: tap it to edit, drag it by the grip, or Move up / Move down. */
+function ReorderCard({ list, handle, first, last, onMove, onEdit }: { list: List; handle: React.ReactNode; first: boolean; last: boolean; onMove: (dir: -1 | 1) => void; onEdit: () => void }) {
   return (
     <div className="list-card list-card-reorder" style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}>
       <div className="list-card-accent" />
       {handle}
-      <div className="list-card-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
-      <div className="list-card-body"><div className="list-card-name">{list.name}</div></div>
+      <button type="button" className="list-card-edit" aria-haspopup="dialog" aria-label={`Edit ${list.name}`} onClick={onEdit}>
+        <span className="list-card-emoji" aria-hidden="true">{list.emoji || '📝'}</span>
+        <span className="list-card-body"><span className="list-card-name">{list.name}</span></span>
+        <EditIcon width={18} height={18} aria-hidden="true" />
+      </button>
       <button className="icon-btn" onClick={() => onMove(-1)} disabled={first} aria-label={`Move ${list.name} up`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
       <button className="icon-btn" onClick={() => onMove(1)} disabled={last} aria-label={`Move ${list.name} down`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
     </div>
@@ -2188,7 +2178,7 @@ export default function Lists() {
     setCollapsed(next)
     try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)) } catch { /* private mode */ }
   }
-  const [reordering, setReordering] = useState(false)
+  const [reordering, setReordering] = useState(false) // Edit lists mode: tap a list to edit it, drag or move it to reorder
   // A section's new order (ids): saved for the whole family; everything else keeps its place.
   const reorder = async (ids: string[]) => {
     const order = reorderWithin(allLists, ids)
@@ -2259,6 +2249,12 @@ export default function Lists() {
 
   const cards = (
     <div className="lists-col">
+      {reordering && (
+        <div className="edit-mode-bar" role="status">
+          <span>Tap a list to edit it, or drag to reorder.</span>
+          <button type="button" className="btn btn-primary" onClick={() => setReordering(false)}>Done</button>
+        </div>
+      )}
       {sections.map(s => {
         const open = reordering || !collapsed.includes(s.type)
         const ids = s.lists.map(l => l.id)
@@ -2271,21 +2267,19 @@ export default function Lists() {
             </button>
             {open && (reordering
               ? <DragList items={s.lists.map(l => ({ ...l, title: l.name }))} onReorder={reorder}
-                  renderRow={(l, handle) => <ReorderCard list={l} handle={handle} first={ids[0] === l.id} last={ids[ids.length - 1] === l.id} onMove={dir => nudge(ids, l, dir)} />} />
+                  renderRow={(l, handle) => <ReorderCard list={l} handle={handle} first={ids[0] === l.id} last={ids[ids.length - 1] === l.id} onMove={dir => nudge(ids, l, dir)} onEdit={() => setEditList(l)} />} />
               : s.lists.map(l => (
                 <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => setSelectedId(l.id)} onEdit={parentDevice ? () => setEditList(l) : undefined} />
               )))}
           </section>
         )
       })}
-      {reordering
-        ? <button className="btn btn-primary btn-block list-new-btn" onClick={() => setReordering(false)}>Done</button>
-        : (
-          <div className="lists-col-actions">
-            <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> New list</button>
-            {parentDevice && sections.some(s => s.lists.length > 1) && <button className="btn btn-secondary" onClick={() => setReordering(true)}>Reorder</button>}
-          </div>
-        )}
+      {!reordering && (
+        <div className="lists-col-actions">
+          <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> New list</button>
+          {parentDevice && <button className="btn btn-secondary" onClick={() => setReordering(true)}><EditIcon width={18} height={18} aria-hidden="true" /> Edit lists</button>}
+        </div>
+      )}
       {!reordering && parentDevice && <ArchivedLists lists={archived} onChanged={load} />}
     </div>
   )

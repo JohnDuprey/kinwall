@@ -1354,8 +1354,10 @@ button.month-cell .month-daynum { flex: none; }
 .list-card-reorder .list-card-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .list-card-reorder:active { transform: none; }
 .list-card-reorder .list-item-grip { margin-right: 0; }
-.list-card-reorder .icon-btn { box-shadow: none; background: var(--bg-alt); }
+.list-card-reorder .icon-btn { box-shadow: none; background: var(--bg-alt); width: 44px; height: 44px; min-width: 44px; flex: none; } /* 44px, not the tablet's larger icon button, so the name has room */
 .list-card-reorder .icon-btn:disabled { opacity: 0.35; }
+.list-card-reorder .list-card-edit { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 2px; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; text-align: left; }
+.list-card-reorder .list-card-edit svg { flex: none; margin-left: auto; color: var(--accent-text); }
 .lists-archived { flex: none; }
 .lists-archived summary { min-height: 44px; box-sizing: border-box; padding: 12px 4px; font-weight: 800; font-size: 0.875rem; color: var(--text-dim); cursor: pointer; }
 .lists-archived-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--border); }
@@ -1897,7 +1899,14 @@ button.month-cell .month-daynum { flex: none; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
 :root[data-saving] .btn-primary, :root[data-saving] .btn-danger { pointer-events: none; opacity: 0.7; }
 
-.chores-hint { text-align: center; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); margin: 0; padding: 4px var(--pad) 8px; }
+/* Edit chores / Edit lists mode: a bar saying what a tap does now, and each card a button with a pencil where the check was. */
+.edit-mode-bar { display: flex; align-items: center; gap: 12px; flex: none; padding: 8px 8px 8px 14px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--text); font-weight: 800; }
+.edit-mode-bar span { flex: 1; }
+.edit-mode-bar .btn { flex: none; min-height: 44px; }
+.chores-edit-bar { margin: 0 var(--pad) 12px; }
+.chore-card-edit { width: 100%; border: 0; color: inherit; font: inherit; text-align: left; box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
+.chore-edit-mark { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent-text); }
+@container chore-col (max-width: 170px) { .chore-edit-mark { margin-left: auto; } }
 .gate-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
 .filter-btn { position: relative; flex-shrink: 0; margin-left: auto; }
 .filter-btn.active, .hidden-toggle.active { background: var(--accent-strong); color: var(--accent-ink); }
@@ -3977,7 +3986,7 @@ html:root[data-cast] {
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
+    .activity-card, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */

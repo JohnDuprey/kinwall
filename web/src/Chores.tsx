@@ -12,7 +12,7 @@ import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
-import { CheckIcon, PlusIcon } from './icons.tsx'
+import { CheckIcon, EditIcon, PlusIcon } from './icons.tsx'
 import { ActivityRing } from './ActivityRing.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { announce } from './a11y.tsx'
@@ -193,7 +193,7 @@ function scheduleLabel(rrule: string | null): string {
   return `${what} · until ${format(new Date(y, m - 1, d), 'MMM d')}`
 }
 
-function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () => void; onEdit: () => void }) {
+function ChoreCard({ chore, editing, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; onToggle: () => void; onEdit: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
   const schedule = scheduleLabel(chore.rrule)
   // An Anyone chore says who got the points once it's done.
@@ -215,18 +215,9 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   const timer = !act && !ticked && chore.timerMinutes ? chore.timerMinutes : 0
   const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? formatTime(chore.dueTime) : ''
   const [burst, setBurst] = useState(false)
-  const pressTimer = useRef<ReturnType<typeof setTimeout>>()
-  const longPressed = useRef(false)
-
-  const handleDown = () => {
-    longPressed.current = false
-    pressTimer.current = setTimeout(() => { longPressed.current = true; onEdit() }, 500)
-  }
-  const handleUp = () => clearTimeout(pressTimer.current)
   // Toggle on click, not pointerup: a sheet the toggle opens (Who did it?, a checklist) would
   // otherwise catch the click a touch sends right after lifting the finger.
   const handleClick = () => {
-    if (longPressed.current) { longPressed.current = false; return }
     if (!ticked) setBurst(true)
     onToggle()
   }
@@ -246,14 +237,23 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   )
   const check = <div className={`chore-check ${chore.completed ? 'done' : pending ? 'pending' : ''}`}>{chore.completed ? <CheckIcon width={18} height={18} /> : pending && <span aria-hidden="true">⏳</span>}</div>
   const said = [pending && "waiting for a parent's OK", notYet].filter(Boolean)
+  const editOnRightClick = (e: React.MouseEvent) => { e.preventDefault(); onEdit() }
+  // Edit chores mode (parent devices): the whole card opens the editor, a pencil where the check was.
+  if (editing) {
+    return (
+      <button type="button" className="chore-card chore-card-edit" aria-haspopup="dialog" aria-label={`Edit ${chore.title}`} onClick={onEdit}>
+        {info}
+        <span className="chore-edit-mark" aria-hidden="true"><EditIcon width={18} height={18} /></span>
+      </button>
+    )
+  }
   if (act || timer) {
-    // Two controls: play or start the timer (the card) and done (the check). Long-press/right-click still edits.
+    // Two controls: play or start the timer (the card) and done (the check). Right-click still edits.
     return (
       <>
-        <div className={`chore-card ${chore.completed ? 'done' : ''}`} onContextMenu={e => { e.preventDefault(); onEdit() }}
-          onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
+        <div className={`chore-card ${chore.completed ? 'done' : ''}`} onContextMenu={editOnRightClick}>
           <button className="chore-play" aria-label={act ? [`Play ${act.name} for ${chore.title}`, actLabel, actProgress && `${actProgress} played`].filter(Boolean).join(', ') : [`Start a ${durationLabel(timer)} timer for ${chore.title}`, startsAt && `starts at ${startsAt}`].filter(Boolean).join(', ')}
-            onClick={() => { if (longPressed.current) { longPressed.current = false; return } if (act) play(); else startChoreTimer(chore, members.find(m => m.id === player)?.name) }}>{info}</button>
+            onClick={() => { if (act) play(); else startChoreTimer(chore, members.find(m => m.id === player)?.name) }}>{info}</button>
           <button className="chore-check-btn" role="checkbox" aria-checked={pending ? 'mixed' : chore.completed}
             aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`, ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
@@ -263,8 +263,8 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
     )
   }
 
-  // Tap/Space/Enter toggles it (a checkbox to assistive tech); long-press, right-click/Menu key or
-  // the Edit button that appears when tabbed to opens the editor.
+  // Tap/Space/Enter toggles it (a checkbox to assistive tech); Edit chores mode, right-click/Menu key
+  // or the Edit button that appears when tabbed to opens the editor.
   const toggleByKey = (e: React.KeyboardEvent) => {
     if (e.key !== ' ' && e.key !== 'Enter') return
     e.preventDefault()
@@ -275,8 +275,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={pending ? 'mixed' : chore.completed} tabIndex={0}
         aria-label={[chore.title, startsAt && `starts at ${startsAt}`, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel, ...said].filter(Boolean).join(', ')}
-        onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
-        onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)} onClick={handleClick}>
+        onKeyDown={toggleByKey} onContextMenu={editOnRightClick} onClick={handleClick}>
         {info}
         {check}
         {burst && <Confetti />}
@@ -448,6 +447,7 @@ export default function Chores() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null) // the day `chores` holds
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
+  const [editing, setEditing] = useState(false) // Edit chores mode: a tap opens a chore's editor instead of ticking it
   // The chore whose checklist is open in Get stuff done, by id in the link (#/chores?checklist=<id>) so a reload reopens it.
   const [checklistId, setChecklistId] = useHashParam('checklist')
   const checklistFor = chores.find(c => c.id === checklistId) ?? null
@@ -477,7 +477,7 @@ export default function Chores() {
   useEffect(load, [key, refreshTick])
 
   useEffect(() => {
-    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null); setSuggestFor(null) }
+    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setEditing(false); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null); setSuggestFor(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -599,6 +599,7 @@ export default function Chores() {
         <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
         {!isPhone && leaderboard}
         {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label="Give points"><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">Give points</span></GivePoints>}
+        {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label="Edit chores" onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">Edit chores</span></button>}
         {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span></button>}
         {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">Suggest a chore</span></button>}
         {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>}
@@ -616,6 +617,13 @@ export default function Chores() {
       {!parentDevice && <SuggestionCards key={sentTick} memberId={suggester} />}
 
       {isPhone && leaderboard}
+
+      {editing && (
+        <div className="edit-mode-bar chores-edit-bar" role="status">
+          <span>Tap a chore to edit it.</span>
+          <button type="button" className="btn btn-primary" onClick={() => setEditing(false)}>Done</button>
+        </div>
+      )}
 
       {error ? (
         <div className="state-card">Couldn't load chores.</div>
@@ -638,7 +646,7 @@ export default function Chores() {
                   )}
                 </div>
                 {list.map(c => (
-                  <ChoreCard key={c.id} chore={c} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />
+                  <ChoreCard key={c.id} chore={c} editing={editing && parentDevice} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />
                 ))}
               </div>
             )
@@ -656,9 +664,6 @@ export default function Chores() {
               ))}
             </ul>
           )}
-          {/* Tap toggles done (kid-friendly), so editing is a long press - say so on phones,
-              where an admin is the one looking. */}
-          {isPhone && parentDevice && <p className="chores-hint">Press and hold a chore to edit it.</p>}
         </div>
       )}
       </div>
