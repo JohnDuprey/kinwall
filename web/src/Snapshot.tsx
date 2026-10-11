@@ -131,6 +131,11 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
         </div>
         <a className="btn btn-secondary snap-profile" href={`#/profile/${member.id}`} onClick={onClose}>Profile</a>
       </div>
+      {!focusMemberId && (
+        <button className="btn btn-secondary snap-filter" aria-pressed={filtered} onClick={toggleFilter}>
+          {filtered ? 'Show everyone on the calendar' : `Show only ${member.name} on the calendar`}
+        </button>
+      )}
       <Segmented label="Show" value={range} onChange={setRange} className="snap-range"
         options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
@@ -144,12 +149,6 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
       {shown?.range === 'day' && settings.features.checkIns && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}
       {shown?.range === 'day' && settings.features.checkIns && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} />}
-      {!focusMemberId && (
-        <div className="toggle-row snap-filter">
-          <label id={`snap-filter-${member.id}`}>Show only {member.name} on the calendar</label>
-          <button className={`switch ${filtered ? 'on' : ''}`} role="switch" aria-checked={filtered} aria-labelledby={`snap-filter-${member.id}`} onClick={toggleFilter}><span className="knob" /></button>
-        </div>
-      )}
       {checklistFor?.checklist && (
         <GetStuffDone listId={checklistFor.checklist.listId} onClose={() => setChecklistFor(null)}
           chore={{ memberId: checklistFor.memberId, title: checklistFor.title, onComplete: () => {
