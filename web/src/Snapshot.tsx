@@ -78,7 +78,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
   const filtered = selectedMemberId === member.id
   const toggleFilter = () => {
     setSelectedMemberId(filtered ? null : member.id)
-    announce(filtered ? 'Calendar shows everyone' : `Calendar shows only ${member.name}`)
+    announce(filtered ? 'Showing everyone' : `Showing only ${member.name}`)
   }
   // The books they're in the middle of (Trackers), for "Reading: Charlotte's Web — 45%".
   const [books, setBooks] = useState<TrackerEntry<ReadingData>[]>([])
@@ -133,7 +133,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
       </div>
       {!focusMemberId && (
         <button className="btn btn-secondary snap-filter" aria-pressed={filtered} onClick={toggleFilter}>
-          {filtered ? 'Show everyone on the calendar' : `Show only ${member.name} on the calendar`}
+          {filtered ? 'Show everyone' : `Show only ${member.name}`}
         </button>
       )}
       <Segmented label="Show" value={range} onChange={setRange} className="snap-range"

@@ -850,7 +850,7 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
           className={`member-avatar ${selectedMemberId && selectedMemberId !== m.id ? 'dim' : ''} ${selectedMemberId === m.id ? 'selected' : ''}${m.picture ? ' face-has-pic' : ''}`}
           style={{ background: m.color, color: inkFor(m.color) }}
           onClick={() => setOpen(m)}
-          aria-label={`${m.name}'s day${selectedMemberId === m.id ? ' (calendar shows only them)' : ''}`}
+          aria-label={`${m.name}'s day${selectedMemberId === m.id ? ' (showing only them)' : ''}`}
         >
           {m.avatar || m.name[0]}
           <FacePic m={m} />
@@ -862,7 +862,7 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
 }
 
 /** Phone header: the family name and a pile of faces as one button. It opens the family sheet:
- * tap a person for their day (their snapshot, where chores tick off); the round button on the right shows only them on the calendar. Same size for a family of three or nine, and the name is never squeezed. */
+ * tap a person for their day (their snapshot, where chores tick off); the round button on the right shows only them. Same size for a family of three or nine, and the name is never squeezed. */
 function FamilyButton({ name, members, selectedMemberId }: { name: string; members: Member[]; selectedMemberId: string | null }) {
   const { setSelectedMemberId } = useApp()
   const [open, setOpen] = useState(false)
@@ -881,7 +881,7 @@ function FamilyButton({ name, members, selectedMemberId }: { name: string; membe
   return (
     <>
       <button className="family-btn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
-        aria-label={`${name}: ${members.length} people${selected ? `, calendar shows only ${selected.name}` : ''}`}>
+        aria-label={`${name}: ${members.length} people${selected ? `, showing only ${selected.name}` : ''}`}>
         <span className="family-pile" aria-hidden="true">
           {shown.map(m => <Face key={m.id} m={m} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} />)}
           {more > 0 && <span className="member-avatar-sm family-more">+{more}</span>}
@@ -908,10 +908,10 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
             <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-haspopup="dialog" onClick={() => onSnapshot(m)}>
               <Face m={m} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} aria-hidden="true" />
               <span className="family-row-name">{m.name}</span>
-              {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>}
+              {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Showing only them' : `${m.pointsToday} pts today`}</span>}
             </button>
             <button className={`family-pick ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}
-              aria-label={`Show only ${m.name} on the calendar`} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" /></button>
+              aria-label={`Show only ${m.name}`} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" /></button>
           </div>
         ))}
       </div>

@@ -167,7 +167,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 
 ### By family member
 
-Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only … on the calendar** switch shows only their events; the other avatars dim. Turn it off to clear the filter.
+Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only …** button at the top shows only their things across Kinwall: events, chores, lists and the rest; the other avatars dim. Tap **Show everyone** to clear the filter.
 
 While the filter is on, every view shows only that person's events, on the same grid. An event they share with others still shows everyone's avatars. The filter also applies to the Board and the Chores tab.
 
@@ -180,7 +180,7 @@ Tap the family button at the top left. The family sheet lists everyone, with how
 <img src="../screenshots/phone-family.png" width="300" alt="The family sheet on a phone: each person with today's points and a round button to show only them" />
 
 * **Tap a person** to open [their day](snapshot.md), where you can also tick off their chores.
-* **The round button** on the right shows only them on the calendar: it fills in, the row says "Calendar shows only them", and their face moves to the front of the pile on the family button. Tap it again to show the whole family.
+* **The round button** on the right shows only them: it fills in, the row says "Showing only them", and their face moves to the front of the pile on the family button. Tap it again to show the whole family.
 
 On phones, Home's toolbar is one row: **Board | Newscast**, then **Polls**, **Outings** and **Layout and filter**. Calendar's is two: **Day | 3 Day | Month | Schedule** across the first, then ◀ **Today** ▶, the dates shown, **Show hidden** and the filter. (With big text the view button takes the first row, beside **Show hidden** and the filter.)
 
