@@ -125,7 +125,7 @@ async function seed(request: ReturnType<typeof makeApp>) {
   await request.post('/api/chores', { title: 'Bins', points: 1 });
   await request.post(`/api/chores/${dishes.id}/complete`, { date: '2026-09-25', memberId: ada.id });
   const list = await request.post('/api/lists', { name: 'Groceries', kind: 'shopping', memberIds: [bob.id], sortBy: 'alpha' });
-  const [milk, bread] = await request.post(`/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Aldi', category: 'Dairy', aisle: 'Aisle 9', memberId: bob.id, priority: 'low' }, { title: 'Bread', priority: 'urgent', steps: ['Slice', 'Wrap'] }]);
+  const [milk, bread] = await request.post(`/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Aldi', category: 'Dairy', aisle: 'Aisle 9', memberId: bob.id, priority: 'low', onSale: true }, { title: 'Bread', priority: 'urgent', steps: ['Slice', 'Wrap'] }]);
   await request(`/api/lists/${list.id}/items/${bread.id}/steps/${bread.steps[0].id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) });
   await request(`/api/lists/${list.id}/groups`, { method: 'PUT', body: JSON.stringify({ groups: [{ kind: 'category', name: 'Dairy' }, { kind: 'store', name: 'Aldi' }] }) });
   await request('/api/lists/aisles', { method: 'PUT', body: JSON.stringify({ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }) });
@@ -170,7 +170,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.deepEqual([bread.priority, bread.steps.map((st: any) => [st.title, st.done]), bread.stepsDone], ['urgent', [['Slice', true], ['Wrap', false]], 1]);
   assert.deepEqual([file.lists[0].sortBy, file.lists[0].items.find((i: any) => i.title === 'Milk').priority], ['alpha', 'low']);
   // Aisles, the remembered place and the store's aisle order travel too.
-  assert.deepEqual([file.lists[0].keepChecked, file.lists[0].items.find((i: any) => i.title === 'Milk').aisle], [true, 'Aisle 9']);
+  assert.deepEqual([file.lists[0].keepChecked, file.lists[0].items.find((i: any) => i.title === 'Milk').aisle, file.lists[0].items.find((i: any) => i.title === 'Milk').onSale], [true, 'Aisle 9', true]);
   assert.deepEqual(file.itemMemory.map((m: any) => [m.nameKey, m.store, m.category, m.aisle]), [['milk', 'Aldi', 'Dairy', 'Aisle 9']]);
   assert.deepEqual(file.storeAisles, [{ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }]);
   assert.deepEqual(file.itemTags, [{ catalog: 'groceries', nameKey: 'milk', tag: 'Breakfast' }, { catalog: 'groceries', nameKey: 'milk', tag: 'Staples' }]);

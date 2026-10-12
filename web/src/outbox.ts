@@ -175,6 +175,7 @@ export function applyListOps<I extends ItemLike, D extends DetailLike<I>>(detail
       items = items.map(i => i.id !== itemId ? i : {
         ...i, ...body, pending: true,
         ...(body.done !== undefined && body.done !== i.done ? { doneAt: body.done ? new Date().toISOString() : null } : {}),
+        ...(body.done ? { onSale: false } : {}), // a sale ends at check-off (as on the server)
       })
     } else if (op.method === 'DELETE') {
       items = items.filter(i => i.id !== itemId)

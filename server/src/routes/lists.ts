@@ -73,6 +73,7 @@ export type ListItemRow = {
   aisle: string | null;
   member_id: string | null;
   for_member_ids?: string; // 0108: JSON array of who it's for, [] = everyone
+  on_sale?: number; // 0116
   due_date: string | null;
   event_id: string | null;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -132,6 +133,7 @@ export function toItemApi(row: ListItemRow, steps: ListItemStepRow[] = []) {
     aisle: row.aisle ?? null,
     memberId: row.member_id,
     forMemberIds: parseMemberIds(row.for_member_ids),
+    onSale: !!row.on_sale,
     dueDate: row.due_date,
     eventId: row.event_id,
     priority: row.priority,
@@ -265,7 +267,7 @@ function syncItemFromSteps(db: KinwallDb, itemId: string, now: string, by: Actor
   return db
     .prepare(
       `UPDATE list_items SET done = 1 - done, done_at = CASE WHEN done = 0 THEN ?1 ELSE NULL END,
-         done_by = CASE WHEN done = 0 THEN ?3 END, done_by_label = CASE WHEN done = 0 THEN ?4 END, updated_at = ?1
+         done_by = CASE WHEN done = 0 THEN ?3 END, done_by_label = CASE WHEN done = 0 THEN ?4 END, on_sale = on_sale * done, updated_at = ?1
        WHERE id = ?2 AND EXISTS (SELECT 1 FROM list_item_steps WHERE item_id = ?2)
          AND done = EXISTS (SELECT 1 FROM list_item_steps WHERE item_id = ?2 AND done = 0)`,
     )
@@ -860,6 +862,7 @@ listsRoutes.openapi(
         aisle,
         member_id: input.memberId && validMemberIds.has(input.memberId) ? input.memberId : null,
         for_member_ids: JSON.stringify([...new Set(input.forMemberIds ?? [])]),
+        on_sale: input.onSale ? 1 : 0,
         due_date: input.dueDate ?? null,
         event_id: input.eventId ?? null,
         priority: input.priority ?? 'normal',
@@ -884,7 +887,7 @@ listsRoutes.openapi(
         ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL WHERE item_id = ? AND done = 1').bind(rid)),
         ...rows.map((r) =>
           c.env.DB.prepare(
-            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, for_member_ids, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, for_member_ids, on_sale, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).bind(
             r.id,
             r.list_id,
@@ -897,6 +900,7 @@ listsRoutes.openapi(
             r.aisle,
             r.member_id,
             r.for_member_ids,
+            r.on_sale,
             r.due_date,
             r.event_id,
             r.priority,
@@ -1062,6 +1066,7 @@ listsRoutes.openapi(
       aisle: body.aisle === undefined ? existing.aisle : body.aisleStore === undefined ? body.aisle : null, // trip: set below
       member_id: memberId,
       for_member_ids: forIds ? JSON.stringify(forIds) : existing.for_member_ids,
+      on_sale: done ? 0 : body.onSale !== undefined ? +body.onSale : existing.on_sale ?? 0, // a sale ends at check-off
       due_date: body.dueDate !== undefined ? body.dueDate : existing.due_date,
       event_id: body.eventId !== undefined ? body.eventId : existing.event_id,
       priority: body.priority ?? existing.priority,
@@ -1077,7 +1082,7 @@ listsRoutes.openapi(
     if (trip) updated.aisle = !updated.store || updated.store === trip.store ? trip.aisle : existing.aisle;
     await c.env.DB.batch([
       c.env.DB.prepare(
-        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, for_member_ids=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, done_by_label=?, updated_at=? WHERE id=?',
+        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, for_member_ids=?, on_sale=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, done_by_label=?, updated_at=? WHERE id=?',
       ).bind(
         updated.title,
         itemKey(updated.title),
@@ -1088,6 +1093,7 @@ listsRoutes.openapi(
         updated.aisle,
         updated.member_id,
         updated.for_member_ids,
+        updated.on_sale,
         updated.due_date,
         updated.event_id,
         updated.priority,

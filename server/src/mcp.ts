@@ -1487,7 +1487,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_list_items',
     {
       title: 'Add list items',
-      description: `Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, aisle, member, forMembers, dueDate, eventId, priority, steps). ${REMEMBER_DOC}`,
+      description: `Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, aisle, onSale, member, forMembers, dueDate, eventId, priority, steps). ${REMEMBER_DOC}`,
       inputSchema: {
         listId: z.string().optional().describe('List id (use this or listName).'),
         listName: z.string().optional().describe("List name, case-insensitive (use this or listId). Neither: the family's default Groceries list (else the first Groceries list)."),
@@ -1501,6 +1501,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
               store: z.string().optional(),
               category: z.string().optional().describe(CATEGORY_DOC),
               aisle: z.string().optional().describe(AISLE_DOC),
+              onSale: z.boolean().optional().describe('Shopping lists: true when it is on sale. Cleared when it is checked off.'),
               member: z.string().optional().describe('Member name or id to assign this item to.'),
               forMembers: jsonList(z.array(z.string())).optional().describe('Who it is for: member names or ids, e.g. ["Maya"] for a watch band for Maya. Left out = for everyone. Use this instead of writing the name in the title.'),
               dueDate: z.string().optional().describe('YYYY-MM-DD.'),
@@ -2064,7 +2065,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_list_item',
     {
       title: 'Update list item',
-      description: 'Edit a list item: title, notes, quantity, store, category, aisle, assignee, who it is for, due date, linked event, priority. Only provided fields change; pass member: null to unassign, forMembers: [] for everyone. A shopping item\'s store/category/aisle is remembered for next time.',
+      description: 'Edit a list item: title, notes, quantity, store, category, aisle, on sale, assignee, who it is for, due date, linked event, priority. Only provided fields change; pass member: null to unassign, forMembers: [] for everyone. A shopping item\'s store/category/aisle is remembered for next time.',
       inputSchema: {
         list: z.string().describe('List id or name.'),
         itemId: z.string(),
@@ -2074,6 +2075,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         store: z.string().nullable().optional(),
         category: z.string().nullable().optional().describe(CATEGORY_DOC),
         aisle: z.string().nullable().optional().describe(`${AISLE_DOC} null to clear.`),
+        onSale: z.boolean().optional().describe('Shopping lists: on sale or not. Checking the item off clears it.'),
         member: z.string().nullable().optional().describe('Member name or id to assign; null to unassign.'),
         forMembers: jsonList(z.array(z.string())).optional().describe('Who it is for: member names or ids; replaces the whole set. [] = for everyone.'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear.'),

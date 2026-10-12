@@ -506,7 +506,7 @@ let listItems: ListItem[] = ([
   { id: 'li1', listId: 'l1', title: 'Milk', notes: null, quantity: '1 gal', store: 'Neighborhood market', aisle: 'Dairy', category: 'Dairy', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), priority: 'urgent', updatedAt: new Date().toISOString() },
   { id: 'li2', listId: 'l1', title: 'Eggs', notes: null, quantity: '1 dozen', store: 'Neighborhood market', aisle: 'Dairy', category: 'Dairy', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li3', listId: 'l1', title: 'Bread', notes: null, quantity: null, store: 'Neighborhood market', aisle: 'Bakery', category: 'Bakery', memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', store: 'Neighborhood market', aisle: 'Produce', category: 'Produce', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), priority: 'low', updatedAt: new Date().toISOString() },
+  { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', onSale: true, store: 'Neighborhood market', aisle: 'Produce', category: 'Produce', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), priority: 'low', updatedAt: new Date().toISOString() },
   { id: 'li5', listId: 'l1', title: 'Paper towels', notes: null, quantity: '12 rolls', store: 'Warehouse club', aisle: 'Aisle 14', category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
   { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: todayISO(), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(-3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
@@ -1597,7 +1597,7 @@ export const mock = {
         store,
         category: input.category !== undefined ? input.category : (known[0]?.category ?? null),
         aisle: input.aisle !== undefined ? input.aisle : (known.find(i => i.store === store)?.aisle ?? null),
-        memberId: input.memberId ?? null, forMemberIds: input.forMemberIds ?? [], dueDate: input.dueDate ?? null, eventId: input.eventId ?? null,
+        memberId: input.memberId ?? null, forMemberIds: input.forMemberIds ?? [], onSale: !!input.onSale, dueDate: input.dueDate ?? null, eventId: input.eventId ?? null,
         priority: input.priority ?? 'normal',
         done: false, doneAt: null, doneBy: null, sort: maxSort + 1 + idx,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -1621,6 +1621,7 @@ export const mock = {
       i.checkedBy = patch.done && patch.doneBy ? { memberId: patch.doneBy } : null // the demo doesn't know whose device this is
     }
     Object.assign(i, patch, { updatedAt: new Date().toISOString() })
+    if (i.done) i.onSale = false // a sale ends at check-off
     if (patch.done !== undefined) { i.steps.forEach(st => { st.done = !!patch.done }); withStepCounts(i) }
     recomputeListCounts(listId); bump(); return i
   },

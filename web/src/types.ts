@@ -781,6 +781,7 @@ export interface ListItem {
   aisle: string | null // per store: "Aisle 4", "Produce", "Back wall"
   memberId: string | null // assignee
   forMemberIds?: string[] // who it's for (a gift, a watch band); [] = everyone. Optional: cached items from before 0108 lack it
+  onSale?: boolean // shopping lists; cleared when checked off (0116)
   dueDate: string | null // YYYY-MM-DD
   eventId: string | null // linked calendar event (series id for a recurring local event)
   priority: ListItemPriority // open urgent/high items sort first, low last (see compareItems)
@@ -925,6 +926,7 @@ export interface ListItemInput {
   aisle?: string | null
   memberId?: string | null
   forMemberIds?: string[] // who it's for; [] = everyone
+  onSale?: boolean
   dueDate?: string | null
   eventId?: string | null
   priority?: ListItemPriority

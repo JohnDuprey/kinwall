@@ -133,7 +133,7 @@ test('outbox: queued changes survive a reload (IndexedDB) and are cleared on sig
 })
 
 test('applyListOps: shows adds, edits and deletes on top of the last copy, marked pending', () => {
-  const item = (id: string, sort: number) => ({ id, listId: 'L', title: id, done: false, doneAt: null, sort })
+  const item = (id: string, sort: number) => ({ id, listId: 'L', title: id, done: false, doneAt: null, sort, onSale: true })
   const detail = { list: { id: 'L', itemCount: 2, openCount: 2 }, items: [item('a', 0), item('b', 1)] }
   const ops: Op[] = [
     { tag: TAG, method: 'PATCH', path: 'api/lists/L/items/a', body: { done: true } },
@@ -144,6 +144,7 @@ test('applyListOps: shows adds, edits and deletes on top of the last copy, marke
   const out = outbox.applyListOps(detail, ops)
   assert.deepEqual(out.items.map(i => [i.id, i.done, !!i.pending]), [['a', true, true], ['c', false, true]])
   assert.ok(out.items[0].doneAt)
+  assert.equal(out.items[0].onSale, false, 'a sale ends at check-off')
   assert.equal(out.items[1].sort, 2, 'after the last item')
   assert.deepEqual([out.list.itemCount, out.list.openCount], [2, 1])
   assert.equal(outbox.applyListOps(out, ops.slice(1, 2)).items.length, 2, 'an add already shown is not shown twice')

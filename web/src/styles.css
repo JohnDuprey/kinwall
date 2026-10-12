@@ -1386,10 +1386,11 @@ button.month-cell .month-daynum { flex: none; }
   position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; flex-shrink: 0;
   background: var(--card); padding: 2px 0 4px;
 }
-.list-add-bar input {
+.list-add-bar input, .list-add-open {
   flex: 1; min-width: 0; min-height: var(--ctl-h); padding: 0 14px; border-radius: var(--radius-sm);
   border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: 0.9375rem;
 }
+.list-add-open { color: var(--text-dim); text-align: left; cursor: pointer; }
 .list-add-bar .icon-btn { width: var(--ctl-h); height: var(--ctl-h); background: var(--accent-strong); color: var(--accent-ink); flex-shrink: 0; }
 /* In a sheet, stick to the very top of the scroll area (over .sheet-body's 4px top padding) so rows
    scrolling underneath don't peek out between the sheet's title and the bar. */
@@ -1493,6 +1494,7 @@ button.month-cell .month-daynum { flex: none; }
 .step-focus-btn { min-height: 56px; min-width: 200px; font-size: 1.125rem; }
 .list-item-meta { font-size: 0.75rem; color: var(--text-dim); font-weight: 600; margin-top: 1px; }
 .list-item-chip { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); background: var(--bg-alt); padding: 4px 9px; border-radius: 999px; flex-shrink: 0; }
+.list-item-sale { color: var(--accent-text); background: var(--accent-tint); }
 .list-item-due { color: var(--accent-text); }
 .list-item-due.overdue { color: var(--danger); font-weight: 800; }
 .list-overdue { color: var(--danger); font-weight: 800; white-space: nowrap; }

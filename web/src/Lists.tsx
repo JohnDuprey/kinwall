@@ -4,7 +4,7 @@ import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { applyListOps, type Op } from './outbox.ts'
-import type { EventInstance, ItemSuggestion, List, ListCatalog, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member, RememberedItem, BarcodeLookup } from './types.ts'
+import type { EventInstance, ItemSuggestion, List, ListCatalog, ListDetail, ListItemInput, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member, RememberedItem, BarcodeLookup } from './types.ts'
 import { aisleOrderMap, compareAisles, compareItems, LIST_EMOJI, MEMBER_PALETTE, type AisleOrder } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -13,7 +13,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon, XIcon } from './icons.tsx'
+import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -291,6 +291,48 @@ function storeAisles(suggestions: ListDetail['suggestions'], store: string | nul
   return suggestions.aisles.filter(a => a.store === store).map(a => a.aisle).sort((a, b) => compareAisles(store, a, b, order))
 }
 
+/** Quantity and, on a shopping list, Store and Aisle (with their hints): the Add item and Edit item sheets' fields. */
+function ItemPlaceFields({ shopping, quantity, onQuantity, store, onStore, aisle, onAisle, aisleStore, category, lastStore, suggestions, aisleOrder }: {
+  shopping: boolean; quantity: string; onQuantity: (v: string) => void; store: string; onStore: (v: string) => void; aisle: string; onAisle: (v: string) => void
+  aisleStore: string | null // whose aisles the picker offers
+  category: string // its department: may stand in for an aisle (shown, not saved)
+  lastStore?: string | null // suggested, never applied for you
+  suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+}) {
+  const deptAisle = departmentAisle(category, storeAisles(suggestions, aisleStore, aisleOrder))
+  return (
+    <>
+      <div className="field">
+        <label htmlFor="item-quantity">Quantity</label>
+        <input id="item-quantity" type="text" value={quantity} onChange={e => onQuantity(e.target.value)} placeholder="e.g. 2, 1 lb, x3" />
+      </div>
+      {shopping && (
+        <>
+          <ValuePicker id="item-store" label="Store" value={store} options={suggestions.stores} newLabel="New store…" placeholder="Store name" onChange={onStore} />
+          {!store.trim() && lastStore && (
+            <p className="field-hint item-last-store">Last bought at {lastStore}. <button type="button" className="link-btn" onClick={() => onStore(lastStore)}>Plan to buy it there</button></p>
+          )}
+          <ValuePicker id="item-aisle" label={aisleStore ? `Aisle at ${aisleStore}` : 'Aisle'} value={aisle}
+            options={storeAisles(suggestions, aisleStore, aisleOrder)} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={onAisle} />
+          {!aisle.trim() && deptAisle && <p className="field-hint item-dept-aisle">{deptAisle}, from its department</p>}
+        </>
+      )}
+    </>
+  )
+}
+
+/** The On sale switch (shopping lists). Checking the item off clears it. */
+function SaleField({ id, on, onChange }: { id: string; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <div className="field">
+      <div className="steps-head">
+        <label id={id}>On sale</label>
+        <button type="button" className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby={id} onClick={() => onChange(!on)}><span className="knob" /></button>
+      </div>
+    </div>
+  )
+}
+
 function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, moveTargets, readOnly, onClose, onSaved }: {
   listId: string; item: ListItem; kind: ListKind; manual: boolean; members: Member[]
   readOnly?: boolean // a kid's device, someone else's item: shown, not changed (the server refuses it too)
@@ -317,7 +359,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const [aisle, setAisle] = useState(initialAisle)
   const aisleStore = trip ?? (store.trim() || null) // whose aisles the picker offers
   const lastStore = item.places?.find(p => p.store)?.store // suggested, never applied for you
-  const deptAisle = departmentAisle(category, storeAisles(suggestions, aisleStore, aisleOrder)) // shown, not saved
+  const [onSale, setOnSale] = useState(!!item.onSale)
   const [memberId, setMemberId] = useState<string | null>(item.memberId)
   const [forIds, setForIds] = useState<string[]>(item.forMemberIds ?? [])
   const showFor = kind === 'shopping' || !!item.forMemberIds?.length // shopping; set elsewhere (API, MCP) stays editable
@@ -333,7 +375,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
     if (!title.trim()) return
     const body = {
       title: title.replace(/\s+/g, ' ').trim(), quantity: quantity.trim() || null, notes: notes.trim() || null, priority,
-      ...(kind === 'shopping' ? { store: store.trim() || null, category: category.trim() || null } : {}),
+      ...(kind === 'shopping' ? { store: store.trim() || null, category: category.trim() || null, onSale } : {}),
       // On a trip the aisle is the trip store's (sent only when changed, so an untouched one isn't remembered).
       ...(kind === 'shopping' && !trip ? { aisle: aisle.trim() || null } : {}),
       ...(kind === 'shopping' && trip && aisle.trim() !== initialAisle ? { aisle: aisle.trim() || null, aisleStore: trip } : {}),
@@ -363,28 +405,13 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   }
 
   const quantityAndPlace = (
-    <>
-      <div className="field">
-        <label>Quantity</label>
-        <input type="text" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="e.g. 2, 1 lb, x3" />
-      </div>
-      {kind === 'shopping' && (
-        <>
-          <ValuePicker id="item-store" label="Store" value={store} options={suggestions.stores} newLabel="New store…" placeholder="Store name"
-            onChange={v => {
-              setStore(v)
-              // An aisle belongs to a store: keep it only if the new store has it too (a trip's stays the trip store's).
-              if (!trip && aisle && !storeAisles(suggestions, v.trim() || null, aisleOrder).includes(aisle)) setAisle('')
-            }} />
-          {!store.trim() && lastStore && (
-            <p className="field-hint item-last-store">Last bought at {lastStore}. <button type="button" className="link-btn" onClick={() => setStore(lastStore)}>Plan to buy it there</button></p>
-          )}
-          <ValuePicker id="item-aisle" label={aisleStore ? `Aisle at ${aisleStore}` : 'Aisle'} value={aisle}
-            options={storeAisles(suggestions, aisleStore, aisleOrder)} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} />
-          {!aisle.trim() && deptAisle && <p className="field-hint item-dept-aisle">{deptAisle}, from its department</p>}
-        </>
-      )}
-    </>
+    <ItemPlaceFields shopping={kind === 'shopping'} quantity={quantity} onQuantity={setQuantity} store={store} aisle={aisle} onAisle={setAisle}
+      aisleStore={aisleStore} category={category} lastStore={lastStore} suggestions={suggestions} aisleOrder={aisleOrder}
+      onStore={v => {
+        setStore(v)
+        // An aisle belongs to a store: keep it only if the new store has it too (a trip's stays the trip store's).
+        if (!trip && aisle && !storeAisles(suggestions, v.trim() || null, aisleOrder).includes(aisle)) setAisle('')
+      }} />
   )
 
   const priorityField = (
@@ -440,6 +467,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       </div>
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
       {showFor && <MemberPicker members={members} selected={forIds} onChange={setForIds} label="For" noneLabel="Everyone" />}
+      {kind === 'shopping' && <SaleField id="item-sale" on={onSale} onChange={setOnSale} />}
       {kind !== 'shopping' && priorityField}
       <StepsEditor listId={listId} item={live} onChange={setLive} />
       {kind !== 'shopping' && quantityAndPlace}
@@ -790,6 +818,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
         {!!item.meals?.length && <div className="list-item-meta list-item-meals"><span aria-hidden="true">🍽️ </span>For {item.meals.join(', ')}</div>}
         {event && <div className="list-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon width={12} height={12} style={{ flexShrink: 0 }} />{eventLabel(event)}</div>}
       </div>
+      {item.onSale && <div className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>Sale</div>}
       {item.quantity && <div className="list-item-chip">{item.quantity}</div>}
       {assignee && <Face m={assignee} className="member-avatar-sm" role="img" aria-label={`For ${assignee.name}`} />}
       {handle}
@@ -881,6 +910,7 @@ function ShopRow({ item, meta, onToggle, from, readOnly }: { item: ListItem; met
         {from}
         {sub && <span className="shop-row-note">{sub}</span>}
       </span>
+      {item.onSale && <span className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>Sale</span>}
       {item.quantity && <span className="list-item-chip">{item.quantity}</span>}
     </button>
   )
@@ -1432,9 +1462,10 @@ function LeftoversSheet({ items, trip, stores, onDone }: {
 /** The add field. On a shopping list it autocompletes (a combobox): up to 6 remembered names as you
  * type, with where each goes; ↑/↓ and Enter or a tap adds one straight away, Enter with none
  * highlighted adds what's typed, Escape closes the list. `above` opens it above the field (Shopping
- * mode's bottom dock, clear of the on-screen keyboard), where an empty field also offers "Buy again". */
-function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRef, above, buyAgain, label, placeholder, autoFocus, onEscape }: {
-  id: string; value: string; onChange: (v: string) => void; onAdd: (title: string) => void
+ * mode's bottom dock, clear of the on-screen keyboard), where an empty field also offers "Buy again".
+ * With onPick (the Add item sheet), a tapped suggestion fills the name instead of adding it. */
+function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList, inputRef, above, buyAgain, label, placeholder, autoFocus, onEscape }: {
+  id: string; value: string; onChange: (v: string) => void; onAdd: (title: string) => void; onPick?: (title: string) => void
   suggestions?: ItemSuggestion[]; onList: Set<string> // keys of the open items, not suggested
   inputRef: React.RefObject<HTMLInputElement>; above?: boolean; buyAgain?: boolean
   label: string; placeholder: string; autoFocus?: boolean; onEscape?: (e: React.KeyboardEvent) => void
@@ -1445,7 +1476,7 @@ function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRe
   const matches = open && suggestions ? matchItems(value, suggestions, onList) : []
   const again = buyAgain && focused && !value.trim() && suggestions ? suggestions.filter(s => s.uses > 0 && !onList.has(s.key)).slice(0, 6) : []
   const listId = `${id}-suggest`
-  const pick = (title: string) => { setOpen(false); setActive(-1); onAdd(title) }
+  const pick = (title: string, tapped = false) => { setOpen(false); setActive(-1); (tapped && onPick ? onPick : onAdd)(title) }
   const hint = (s: ItemSuggestion) => [s.category ?? s.place?.aisle, s.place?.store].filter(Boolean).join(' · ')
   const keepFocus = (e: React.MouseEvent) => e.preventDefault() // a tap doesn't close the keyboard
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1463,7 +1494,7 @@ function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRe
   }
   return (
     <div className={`item-add${above ? ' above' : ''}`}>
-      <input ref={inputRef} id={id} type="text" value={value} placeholder={placeholder} aria-label={label} enterKeyHint="done" autoFocus={autoFocus}
+      <input ref={inputRef} id={id} type="text" value={value} placeholder={placeholder} aria-label={label} enterKeyHint="done" autoFocus={autoFocus} data-autofocus={autoFocus || undefined}
         // The browser's autofill stays off (the item suggestions below replace it); the keyboard's
         // spell check and autocorrect stay on, so a new item doesn't go in with a typo.
         autoComplete="off" autoCorrect="on" autoCapitalize="sentences" spellCheck
@@ -1477,7 +1508,7 @@ function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRe
         <ul id={listId} role="listbox" aria-label="Suggestions" className="item-suggest">
           {matches.map((s, i) => (
             <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === active} className={i === active ? 'active' : undefined}
-              onMouseDown={keepFocus} onClick={() => pick(s.title)}>
+              onMouseDown={keepFocus} onClick={() => pick(s.title, true)}>
               <span className="item-suggest-name">{s.title}</span>
               {hint(s) && <span className="item-suggest-hint">{hint(s)}</span>}
             </li>
@@ -1487,10 +1518,71 @@ function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRe
       {again.length > 0 && (
         <div className="item-again" role="group" aria-label="Buy again">
           <span className="item-again-label" aria-hidden="true">Buy again</span>
-          {again.map(s => <button key={s.key} type="button" className="chip" onMouseDown={keepFocus} onClick={() => pick(s.title)} aria-label={`Add ${s.title}`}>{s.title}</button>)}
+          {again.map(s => <button key={s.key} type="button" className="chip" onMouseDown={keepFocus} onClick={() => pick(s.title, true)} aria-label={onPick ? s.title : `Add ${s.title}`}>{s.title}</button>)}
         </div>
       )}
     </div>
+  )
+}
+
+/** Add item (shopping lists): the name with its suggestions, then where it goes and the rest. A
+ * place left alone is filled in by the server from what the catalog remembers for the name (shown
+ * here as a preview); on a trip the item is planned for the trip's store. Enter in the name is Add
+ * another, so several items still go in quickly. Adds are queued, so they work offline too. */
+function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onList, trip, onAdded, onClose }: {
+  listId: string; listName: string; members: Member[]; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+  onList: Set<string>; trip: string | null; onAdded: (op: Op | null) => void; onClose: () => void
+}) {
+  const { toast } = useApp()
+  const nameRef = useRef<HTMLInputElement>(null)
+  const [title, setTitle] = useState('')
+  const [quantity, setQuantity] = useState('')
+  const [place, setPlace] = useState<{ store: string; aisle: string | null } | null>(null) // null: from the catalog; aisle null: the same
+  const [forIds, setForIds] = useState<string[]>([])
+  const [onSale, setOnSale] = useState(false)
+  const [notes, setNotes] = useState('')
+  const known = suggestions.items?.find(s => s.key === itemKey(title))
+  const store = place?.store ?? trip ?? known?.place?.store ?? ''
+  const aisle = place?.aisle ?? (known?.place?.store === store.trim() ? known.place.aisle ?? '' : '')
+
+  const add = async (name: string, another: boolean) => {
+    const t = name.replace(/\s+/g, ' ').trim()
+    if (!t) return
+    const body: ListItemInput = {
+      id: crypto.randomUUID(), title: t, quantity: quantity.trim() || null, notes: notes.trim() || null,
+      ...(place ? { store: place.store.trim() || null } : trip ? { store: trip } : {}),
+      ...(place?.aisle != null ? { aisle: place.aisle.trim() || null } : {}),
+      ...(forIds.length ? { forMemberIds: forIds } : {}), ...(onSale ? { onSale } : {}),
+    }
+    try { onAdded(await api.queueAddListItem(listId, body)) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true); return }
+    announce(`Added ${t} to ${listName}`)
+    if (!another) return onClose()
+    setTitle(''); setQuantity(''); setForIds([]); setOnSale(false); setNotes('')
+    setPlace(p => p && { store: p.store, aisle: null }) // a store picked stays for the next one
+    nameRef.current?.focus()
+  }
+
+  return (
+    <Sheet title="Add item" onClose={onClose} actions={<>
+      <button className="btn btn-secondary" onClick={() => add(title, true)} disabled={!title.trim()}>Add another</button>
+      <button className="btn btn-primary" onClick={() => add(title, false)} disabled={!title.trim()}>Add</button>
+    </>}>
+      <div className="field">
+        <label htmlFor={`add-name-${listId}`}>Name</label>
+        <ItemAddField id={`add-name-${listId}`} value={title} onChange={setTitle} onAdd={t => add(t, true)} onPick={setTitle} suggestions={suggestions.items} onList={onList}
+          inputRef={nameRef} buyAgain autoFocus label="Name" placeholder="e.g. Milk" />
+      </div>
+      <ItemPlaceFields shopping quantity={quantity} onQuantity={setQuantity} store={store} aisle={aisle} aisleStore={store.trim() || null}
+        category={known?.category ?? ''} suggestions={suggestions} aisleOrder={aisleOrder}
+        onStore={v => setPlace({ store: v, aisle: null })} onAisle={v => setPlace({ store, aisle: v })} />
+      <MemberPicker members={members} selected={forIds} onChange={setForIds} label="For" noneLabel="Everyone" />
+      <SaleField id={`add-sale-${listId}`} on={onSale} onChange={setOnSale} />
+      <div className="field">
+        <label htmlFor={`add-notes-${listId}`}>Notes</label>
+        <textarea id={`add-notes-${listId}`} className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
+      </div>
+    </Sheet>
   )
 }
 
@@ -1561,7 +1653,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const enterShop = () => { location.hash = `#/lists/${listId}/shop` }
   const exitShop = () => { location.hash = '#/lists' }
   const [picking, setPicking] = useState(false) // the store step
-  const [adding, setAdding] = useState(false) // its "Add an item" field
+  const [adding, setAdding] = useState(false) // the Add item sheet (shopping lists)
   const [leftovers, setLeftovers] = useState<ListItem[] | null>(null) // Checkout's "Didn't find these?" step
   const shopScroll = useRef(0) // where the aisles were, for going back to the trip
   const shopList = useRef<HTMLDivElement>(null)
@@ -1831,6 +1923,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const tripAt = activeTrip === ANY_STORE ? null : activeTrip // one store: its aisles, in its order
   const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
+  const addSheet = adding && (
+    <ItemAddSheet listId={listId} listName={list.name} members={members} suggestions={suggestions} aisleOrder={aisleOrder} onList={onList} trip={tripAt}
+      onAdded={showQueued} onClose={() => setAdding(false)} />
+  )
   // A one-store trip also walks the other list type's items for that store, tagged with their list.
   const also = !tripAt ? [] : (detail.alsoAtStore ?? []).filter(i => !(checkout && !checkout.reset && checkout.ids.includes(i.id)))
   const fromTag = (item: ListItem) => {
@@ -1921,17 +2017,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           {!!view?.other.length && group('At other stores', view.other.map(i => row(i, true)), 'list-trip-other')}
         </div>
         <div className="shop-dock">
-          {adding && (
-            <div className="list-add-bar shop-add">
-              <ItemAddField id={`shop-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
-                above buyAgain autoFocus label={`Add to ${list.name}`} placeholder="Add an item…" onEscape={e => { e.stopPropagation(); setAdding(false) }} />
-              <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
-            </div>
-          )}
           <div className="shop-dock-row">
             {scanBtn /* scan to check off (or add) without opening Add an item */}
-            <button className="btn btn-secondary shop-add-btn" onClick={() => setAdding(a => !a)} aria-expanded={adding} aria-label={adding ? 'Close Add an item' : 'Add an item'}>
-              {adding ? <XIcon width={18} height={18} /> : <PlusIcon width={18} height={18} />}{!tripChecked.length && <span aria-hidden="true">{adding ? 'Close' : 'Add an item'}</span>}
+            <button className="btn btn-secondary shop-add-btn" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label="Add an item">
+              <PlusIcon width={18} height={18} />{!tripChecked.length && <span aria-hidden="true">Add an item</span>}
             </button>
             {tripChecked.length > 0 && (
               <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
@@ -1944,6 +2033,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         {leftoversSheet}
         {scanSheet}
         {placeSheet}
+        {addSheet}
       </div>,
       document.body)
   }
@@ -1982,9 +2072,14 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       </div>
 
       <div className="list-add-bar">
-        <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
-          label={`Add to ${list.name}`} placeholder={list.kind === 'shopping' ? 'Add an item…' : 'Add something…'} />
-        <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+        {list.kind === 'shopping' ? <>
+          <button className="list-add-open" onClick={() => setAdding(true)} aria-haspopup="dialog">Add an item…</button>
+          <button className="icon-btn" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label="Add an item"><PlusIcon width={20} height={20} /></button>
+        </> : <>
+          <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
+            label={`Add to ${list.name}`} placeholder="Add something…" />
+          <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+        </>}
         {scanBtn}
         {list.kind !== 'shopping' && items.length > 0 && viewButton /* no Shop button to share a row with */}
       </div>
@@ -2106,6 +2201,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       )}
 
 
+      {addSheet}
       {editItem && (
         <ItemEditSheet listId={listId} item={editItem} kind={list.kind} readOnly={!mine(editItem)} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
           moveTargets={lists.filter(l => !l.archived && l.id !== listId && listType(l) === listType(list))}

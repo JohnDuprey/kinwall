@@ -738,6 +738,7 @@ export const ListItemSchema = z
     aisle: z.string().nullable().openapi({ description: 'Where in the store, e.g. "Aisle 4" or "Back wall".' }),
     memberId: z.string().nullable(),
     forMemberIds: z.array(z.string()).openapi({ description: 'Who the item is for (member ids), e.g. a gift or a watch band for Maya; [] = for everyone. Separate from memberId, who it is assigned to.' }),
+    onSale: z.boolean().openapi({ description: 'On sale this trip (shopping lists). Cleared when the item is checked off.' }),
     dueDate: z.string().nullable(),
     eventId: z.string().nullable(), // linked calendar event (series id for a recurring local event)
     priority: ListItemPrioritySchema, // open urgent/high items sort first, low last (see ListSortBySchema)
@@ -774,6 +775,7 @@ const ListItemInputSchema = z.object({
   aisle: z.string().max(60).nullable().optional(),
   memberId: z.string().nullable().optional(),
   forMemberIds: z.array(z.string()).max(50).optional().openapi({ description: 'Who the item is for (member ids); [] or left out = for everyone. An unknown id is a 400.' }),
+  onSale: z.boolean().optional().openapi({ description: 'On sale (shopping lists); left out = not on sale.' }),
   dueDate: z.string().nullable().optional(),
   eventId: z.string().nullable().optional(),
   priority: ListItemPrioritySchema.optional(),
@@ -803,6 +805,7 @@ export const ListItemPatchSchema = z
     }),
     memberId: z.string().nullable().optional(),
     forMemberIds: z.array(z.string()).max(50).optional().openapi({ description: 'Who the item is for (member ids); [] = for everyone. Replaces the whole set. An unknown id is a 400.' }),
+    onSale: z.boolean().optional().openapi({ description: 'On sale. Checking the item off clears it.' }),
     dueDate: z.string().nullable().optional(),
     eventId: z.string().nullable().optional(),
     priority: ListItemPrioritySchema.optional(),

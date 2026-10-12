@@ -55,3 +55,20 @@ test('list items: who an item is for (forMemberIds)', async () => {
   const cleared = await json(await request(`${items}/${band.id}`, { method: 'PATCH', body: JSON.stringify({ forMemberIds: [] }) }));
   assert.deepEqual(cleared.forMemberIds, []);
 });
+
+test('list items: on sale, cleared when checked off', async () => {
+  const request = makeApp(makeEnv());
+  const list = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) }));
+  const items = `/api/lists/${list.id}/items`;
+  const [plain, berries] = await json(await request(items, { method: 'POST', body: JSON.stringify([{ title: 'Milk' }, { title: 'Berries', onSale: true }]) }));
+  assert.equal(plain.onSale, false);
+  assert.equal(berries.onSale, true);
+  assert.equal((await json(await request(`${items}/${plain.id}`, { method: 'PATCH', body: JSON.stringify({ onSale: true }) }))).onSale, true);
+  assert.equal((await json(await request(`${items}/${berries.id}`, { method: 'PATCH', body: JSON.stringify({ quantity: '2' }) }))).onSale, true, 'left alone when not sent');
+  const detail = await json(await request(`/api/lists/${list.id}`));
+  assert.equal(detail.items.find((i: any) => i.id === berries.id).onSale, true);
+  const bought = await json(await request(`${items}/${berries.id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) }));
+  assert.equal(bought.onSale, false, 'a sale ends at check-off');
+  const again = await json(await request(`${items}/${berries.id}`, { method: 'PATCH', body: JSON.stringify({ done: false }) }));
+  assert.equal(again.onSale, false, 'buy-again starts without it');
+});
