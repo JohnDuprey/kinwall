@@ -529,6 +529,7 @@ export interface PointAward { id: string; memberId: string; points: number; note
 /** One points-ledger row (GET /api/members/{id}/points): a bonus, a check-in, a sticker pack or reward (negative). */
 export interface PointEntry { id: string; memberId: string; amount: number; reason: string; ref: string | null; at: string; note?: string | null }
 
+export interface RewardShare { memberId: string; points: number }
 export type RedemptionStatus = 'pending' | 'approved' | 'declined' | 'given'
 export interface Redemption {
   id: string
@@ -537,6 +538,8 @@ export interface Redemption {
   title: string
   emoji: string | null
   cost: number
+  /** A split: who chips in how many points (memberId first). null/absent = memberId pays it all. */
+  shares?: RewardShare[] | null
   status: RedemptionStatus
   note: string | null
   date: string

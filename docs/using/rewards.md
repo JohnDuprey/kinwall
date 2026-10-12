@@ -52,6 +52,18 @@ Each reward card shows its cost and, for a limited one, how much is used ("1 of 
 * A redeem from a parent's device is approved straight away.
 * A device that belongs to one person can only redeem for that person. A shared wall screen can redeem for anyone.
 
+## Splitting a reward
+
+A bigger reward can be shared: Sam and Leo can put their points together for a 300-point family movie night, Sam chipping in 200 and Leo 100. It's optional each time; **Get it** still spends one person's points as before.
+
+* **Split it** shows on a reward card when someone else it's for has points and, together, there are enough.
+* Pick **who's chipping in**. Each person's points start as an even split (whoever has fewer gives what they have, the rest cover the difference), and you can change any of them. The sheet says when it adds up ("Adds up to 300 points"), how many more are needed, or how many too many. Nobody can give more than they have.
+* On a **parent's device**, **Get it** takes everyone's points at once and it's approved straight away.
+* Anywhere else (a wall screen or a kid's device), **Ask a grown-up** takes only the asker's points now. The request always waits for a parent, even for a reward that doesn't need an OK, because the others haven't agreed yet. When a parent approves, everyone else's share comes off. If someone has spent their points meanwhile, approving says so ("Leo has only 40 points now, not 100") and nothing changes: say not this time, or wait until they've earned more.
+* Everyone chipping in sees the request in their own **Waiting for a grown-up** and **Recent**, with who's paying what ("300 points: Sam 200 + Leo 100"). Only the person who asked can cancel it while it waits.
+* **Not this time** (or **Cancel** on an approved one) gives every share back that was taken, and each person's own devices are told what came back to them.
+* Each share is its own line in that person's points ledger. A reward's daily or weekly limit counts for the person who asked.
+
 Requests show under **Waiting for a grown-up** (**Waiting for OK**, or **Approved! Coming soon**) until they're handled, then under **Recent**.
 
 Changed your mind? On your own device, tap **Cancel request** on a request still **Waiting for OK**, then **Cancel request** again to confirm. The points come back at once, the request is gone (it doesn't count toward the reward's limit), and the grown-ups have nothing to decide. Once a parent has said yes, only a parent can call it off (**Not this time**). Wall screens and other people's devices can't cancel someone's request.
@@ -60,7 +72,7 @@ A decline is private to the person it's about. **Not this time** and the parent'
 
 ## Approving
 
-Parent devices get a notification and a feed entry: "Leo wants 🍦 Ice cream trip (50 points). Approve?" Tapping it opens Rewards.
+Parent devices get a notification and a feed entry: "Leo wants 🍦 Ice cream trip (50 points). Approve?" (for a split, "Sam wants 🍿 Family movie night (300 points), split with Leo. Approve?"). Tapping it opens Rewards. A split's row shows who's paying what ("Split: Sam 200 + Leo 100").
 
 Requests wait in two places, and deciding in either one is enough:
 
@@ -83,8 +95,8 @@ The Rewards screen shows the goal at the top with a progress bar. The **Board**'
 
 * Rewards, every request with its status and note, and each person's goal are part of [export & import](../your-data/export-import.md). The points they took are in the points ledger.
 * REST: `GET /api/rewards` (`?memberId=` adds `used`, how much of each limit that person has used; `?archived=true` includes archived), `POST /api/rewards`, `PATCH/DELETE /api/rewards/{id}` (admin). A reward is `{ id, title, emoji, cost, memberIds, needsApproval, limit, active, sort, createdAt }`, where `limit` is `{ count, period: "day" | "week" }` or `null`.
-* `POST /api/rewards/{id}/redeem {memberId}` answers `201 { redemption, balance }`, `402 { error, balance, cost }` when short, `409` when the limit is used up, and `403` when chores are off, the reward isn't for that person, or the device belongs to someone else.
-* `GET /api/rewards/redemptions?memberId=&status=pending,approved&limit=` (a member's own device gets only that member's requests, with any decline note; asking for someone else's is `403`. A shared wall sees everyone's except declined ones, which it never gets, note or not. Parents see everything); `POST /api/rewards/redemptions/{id}/cancel` (a pending one, from the member's own device or a parent's; refunds and removes it, `{ ok, balance }`); parents only: `POST /api/rewards/redemptions/{id}/approve`, `/decline {note?}` (from waiting or approved, refunds) and `/given` (from approved).
+* `POST /api/rewards/{id}/redeem {memberId, shares?}` answers `201 { redemption, balance }`, `402 { error, balance, cost }` when short, `409` when the limit is used up, and `403` when chores are off, the reward isn't for that person, or the device belongs to someone else. `shares` splits it: `[{ memberId, points }]`, 2 to 20 people with `memberId` among them, adding up to the cost (`400` otherwise); `402`'s `cost` is then that person's share. A redemption has `shares` (who paid what, the asker first) or `null` when one person paid it all.
+* `GET /api/rewards/redemptions?memberId=&status=pending,approved&limit=` (`memberId` includes splits they chip in to; a member's own device gets only that member's requests, with any decline note; asking for someone else's is `403`. A shared wall sees everyone's except declined ones, which it never gets, note or not. Parents see everything); `POST /api/rewards/redemptions/{id}/cancel` (a pending one, from the member's own device or a parent's; refunds and removes it, `{ ok, balance }`); parents only: `POST /api/rewards/redemptions/{id}/approve` (for a split, takes the shares not taken yet; `402` when someone no longer has theirs), `/decline {note?}` (from waiting or approved, refunds) and `/given` (from approved).
 * `PUT /api/members/{id}/reward-goal {rewardId}` (`null` clears it). `GET /api/members` includes `rewardGoal`.
-* Webhooks: `reward.redeemed` (with `status`), `reward.approved`, `reward.declined`, `reward.given` and `reward.changed`. See [Webhooks](../integrations/webhooks.md#events).
+* Webhooks: `reward.redeemed` (with `status`, and `shares` for a split), `reward.approved`, `reward.declined`, `reward.given` and `reward.changed`. See [Webhooks](../integrations/webhooks.md#events).
 * MCP: `list_rewards`, `create_reward`, `update_reward`, `redeem_reward`, `list_reward_requests`, `approve_reward`, `decline_reward`, `mark_reward_given`. See [MCP server](../integrations/mcp.md).

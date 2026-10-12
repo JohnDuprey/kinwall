@@ -146,10 +146,10 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_rewards` | [Rewards](../using/rewards.md); `member` (name or ID) narrows to the ones for them, `archived` includes archived ones. |
 | `create_reward` | Adds a reward: `title`, `emoji`, `cost`, `members` (names or IDs; empty for everyone), `needsApproval` (default true) and `limit` (`{ count: 1-20, period: "day" \| "week" }` or `null`). Admin. |
 | `update_reward` | Changes a reward's fields; `active: false` archives it. Admin. |
-| `redeem_reward` | Spends a member's points on a reward. From a display key, a reward that needs a parent's OK waits for approval. Refused when short of points or over its limit. |
-| `list_reward_requests` | Requests a parent still has to act on (waiting, or approved and not given), oldest first; `status` and `member` filter. |
-| `approve_reward` | Approves a waiting request (admin). |
-| `decline_reward` | "Not this time": declines a waiting request, or cancels an approved one, and gives the points back, with an optional `note` the kid sees (admin). |
+| `redeem_reward` | Spends a member's points on a reward. From a display key, a reward that needs a parent's OK waits for approval. Refused when short of points or over its limit. `shares` (`[{ member, points }]`, names or IDs) splits it between several people, adding up to the cost; from a display key only `member`'s share comes off now and the request waits for a parent, whose OK takes the rest. |
+| `list_reward_requests` | Requests a parent still has to act on (waiting, or approved and not given), oldest first; `status` and `member` filter (`member` includes splits they chip in to). A split shows who pays what. |
+| `approve_reward` | Approves a waiting request (admin). For a split, takes the shares not taken yet; refused if someone no longer has theirs. |
+| `decline_reward` | "Not this time": declines a waiting request, or cancels an approved one, and gives the points back (every share of a split), with an optional `note` the kids see (admin). |
 | `mark_reward_given` | Marks an approved request as given (admin). |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year) and `grownUp` (a parent or other adult; default false). |
 | `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `needsApproval` (their chores need a parent's OK by default; ignored for a grown-up) or `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)). Admin. It can't change `grownUp`: who is a grown-up decides who reads their [private journal](../using/journal.md#private-journals), so a parent sets it on their own device. |

@@ -1,7 +1,7 @@
 // Rewards: things a parent sets up ("🍿 Movie night, 100 points") that a member spends chore points
 // on (server: routes/rewards.ts). Points are earned on Chores and spent here: the screen shows one
 // member's balance, their goal, what they can get now and what they're saving for, requests
-// waiting for a grown-up, and a way into the sticker shop. Parents also decide on requests (the
+// waiting for a grown-up, and a way into the sticker shop. Several people can split one reward. Parents also decide on requests (the
 // same queue as Chores' "To approve") and add, edit and archive rewards here.
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
@@ -15,6 +15,7 @@ import { isSingleEmoji } from './emoji.ts'
 import { ApprovalQueue } from './Chores.tsx'
 import type { Member, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
 import { Face, ChipFace } from './Face'
+import { evenSplit, shareText } from './rewardSplit.ts'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const rewardLabel = (r: { emoji: string | null; title: string }) => (r.emoji ? `${r.emoji} ${r.title}` : r.title)
@@ -59,13 +60,14 @@ export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
 
 /** One member's balance, goal, rewards (ready now / keep saving / used up), requests and history. */
 function RewardsPanel({ member }: { member: Member }) {
-  const { refreshTick, reloadCore, toast, parentDevice, settings, meMemberId } = useApp()
+  const { refreshTick, reloadCore, toast, parentDevice, settings, meMemberId, members } = useApp()
   const dialog = useDialog()
   const [rewards, setRewards] = useState<Reward[] | null>(null)
   const [history, setHistory] = useState<Redemption[]>([])
   const [balance, setBalance] = useState(member.balance)
   const [managing, setManaging] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [splitting, setSplitting] = useState<Reward | null>(null)
   useEffect(() => { setBalance(member.balance) }, [member.balance])
 
   const load = () => {
@@ -111,16 +113,17 @@ function RewardsPanel({ member }: { member: Member }) {
   // A kid's own device cancels a request still waiting for a grown-up; the points come back.
   const ownDevice = !parentDevice && meMemberId === member.id
   const cancelRequest = async (h: Redemption) => {
+    const mine = h.shares?.[0].points ?? h.cost // a waiting split has only taken the asker's share
     if (!await dialog.confirm({
       title: `Cancel the request for ${rewardLabel(h)}?`,
-      body: `${member.name} gets the ${plural(h.cost, 'point')} back.`,
+      body: `${member.name} gets the ${plural(mine, 'point')} back.`,
       confirmLabel: 'Cancel request',
       cancelLabel: 'Keep it',
     })) return
     try {
       const res = await api.cancelRedemption(h.id)
       setBalance(res.balance)
-      const msg = `Canceled: ${h.title}. ${plural(h.cost, 'point')} back.`
+      const msg = `Canceled: ${h.title}. ${plural(mine, 'point')} back.`
       toast(msg)
       announce(msg)
     } catch (e) { toast(e instanceof ApiError ? e.message : `Couldn't cancel ${h.title}.`, true) }
@@ -147,6 +150,9 @@ function RewardsPanel({ member }: { member: Member }) {
   const waiting = parentDevice ? [] : history.filter(h => h.status === 'pending' || h.status === 'approved')
   const past = history.filter(h => h.status === 'given' || (h.status === 'declined' && (parentDevice || ownDevice)))
 
+  // Others this reward is for, who could chip in.
+  const helpers = (r: Reward) => members.filter(m => m.id !== member.id && m.balance > 0 && (!r.memberIds.length || r.memberIds.includes(m.id)))
+  const canSplit = (r: Reward) => balance > 0 && helpers(r).length > 0 && helpers(r).reduce((n, m) => n + m.balance, balance) >= r.cost
   const card = (r: Reward) => {
     const short = r.cost - balance
     const isGoal = goalId === r.id
@@ -167,6 +173,7 @@ function RewardsPanel({ member }: { member: Member }) {
           : short > 0
             ? <span className="reward-state">{plural(short, 'more point')}</span>
             : <button className="btn btn-primary" onClick={() => redeem(r)} aria-label={`Get ${r.title} for ${plural(r.cost, 'point')}`}>Get it</button>}
+        {!usedUp(r) && canSplit(r) && <button className="reward-goal-btn" onClick={() => setSplitting(r)} aria-label={`Split ${r.title} with others`}>Split it</button>}
       </li>
     )
   }
@@ -194,7 +201,7 @@ function RewardsPanel({ member }: { member: Member }) {
       {waiting.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-waiting-heading">
           <h3 id="reward-waiting-heading" className="snap-heading">Waiting for a grown-up</h3>
-          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} onCancel={ownDevice && h.status === 'pending' ? () => cancelRequest(h) : undefined} />)}</ul>
+          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} onCancel={ownDevice && h.status === 'pending' && h.memberId === member.id ? () => cancelRequest(h) : undefined} />)}</ul>
         </section>
       )}
 
@@ -238,6 +245,8 @@ function RewardsPanel({ member }: { member: Member }) {
       )}
       {parentDevice && <button className="btn btn-secondary reward-manage" onClick={() => setManaging(true)}>Manage rewards</button>}
       {managing && <RewardsManageSheet onClose={() => { setManaging(false); load(); reloadCore() }} />}
+      {splitting && <SplitSheet reward={splitting} member={{ ...member, balance }} onClose={() => setSplitting(null)}
+        onDone={res => { setSplitting(null); setBalance(res.balance); load(); reloadCore() }} />}
       {adding && <RewardEditSheet reward={null} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load() }} />}
     </div>
   )
@@ -248,16 +257,81 @@ function Meter({ have, need, color }: { have: number; need: number; color: strin
 }
 
 function HistoryRow({ h, onCancel }: { h: Redemption; onCancel?: () => void }) {
+  const { members } = useApp()
+  const cost = h.shares ? `${plural(h.cost, 'point')}: ${shareText(h.shares, id => members.find(m => m.id === id)?.name ?? 'Someone')}` : plural(h.cost, 'point')
   return (
     <li className="reward-history-row">
       <span className="approve-emoji" aria-hidden="true">{h.emoji ?? '🎁'}</span>
       <span className="snap-main">
         <span className="snap-title">{h.title}</span>
-        <span className="snap-meta">{format(new Date(h.requestedAt), 'EEE, MMM d')} · {plural(h.cost, 'point')}</span>
+        <span className="snap-meta">{format(new Date(h.requestedAt), 'EEE, MMM d')} · {cost}</span>
       </span>
       <span className={`reward-status ${h.status}`}>{STATUS_TEXT[h.status]}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
       {onCancel && <button className="btn btn-secondary reward-cancel" onClick={onCancel} aria-label={`Cancel the request for ${h.title}`}>Cancel request</button>}
     </li>
+  )
+}
+
+/** Split a reward: pick who chips in and how many points each (an even split to start), adding up
+ * to the cost and nobody past their balance. Anywhere but a parent's device it waits for a grown-up,
+ * who takes the others' shares when saying yes. */
+function SplitSheet({ reward: r, member, onClose, onDone }: { reward: Reward; member: Member; onClose: () => void; onDone: (res: { redemption: Redemption; balance: number }) => void }) {
+  const { members, parentDevice, toast } = useApp()
+  const others = members.filter(m => m.id !== member.id && (!r.memberIds.length || r.memberIds.includes(m.id)))
+  const [ids, setIds] = useState(() => [member.id, ...others.filter(m => !m.grownUp && m.balance > 0).map(m => m.id)])
+  const people = ids.map(id => id === member.id ? member : members.find(m => m.id === id)!)
+  const [points, setPoints] = useState(() => evenSplit(r.cost, people))
+  const [busy, setBusy] = useState(false)
+  const pick = (id: string) => {
+    const next = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+    setIds(next)
+    setPoints(evenSplit(r.cost, next.map(x => x === member.id ? member : members.find(m => m.id === x)!)))
+  }
+  const sum = ids.reduce((n, id) => n + (points[id] ?? 0), 0)
+  const valid = ids.length > 1 && sum === r.cost && people.every(p => (points[p.id] ?? 0) >= 1 && points[p.id] <= p.balance)
+  const status = sum === r.cost ? `Adds up to ${plural(r.cost, 'point')}.` : sum < r.cost ? `${plural(r.cost - sum, 'more point')} to go.` : `${plural(sum - r.cost, 'point')} too many.`
+  const submit = async () => {
+    setBusy(true)
+    try {
+      const res = await api.redeemReward(r.id, member.id, ids.map(id => ({ memberId: id, points: points[id] })))
+      const msg = res.redemption.status === 'pending' ? `Asked for ${r.title}. Waiting for a grown-up.` : `${r.title}: enjoy!`
+      toast(msg)
+      announce(msg)
+      onDone(res)
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : `Couldn't get ${r.title}.`, true)
+      setBusy(false)
+    }
+  }
+  return (
+    <Sheet title={`Split ${rewardLabel(r)}`} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={submit} disabled={!valid || busy}>{parentDevice ? 'Get it' : 'Ask a grown-up'}</button>}>
+      <div className="field">
+        <label id="split-who-label">Who's chipping in?</label>
+        <div className="chip-row" role="group" aria-labelledby="split-who-label">
+          {others.map(m => (
+            <button key={m.id} className={`chip ${ids.includes(m.id) ? 'active' : ''}`} aria-pressed={ids.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => pick(m.id)}><ChipFace m={m} /> {m.name}</button>
+          ))}
+        </div>
+      </div>
+      <ul className="snap-list field">
+        {people.map(p => (
+          <li key={p.id} className="reward-history-row">
+            <Face m={p} className="stickers-avatar" aria-hidden="true" />
+            <span className="snap-main">
+              <span className="snap-title">{p.name}</span>
+              <span className="snap-meta">{(points[p.id] ?? 0) > p.balance ? `Only has ${plural(p.balance, 'point')}` : `Has ${plural(p.balance, 'point')}`}</span>
+            </span>
+            <input className="reward-split-points" aria-label={`${p.name}'s points`} type="text" inputMode="numeric" value={points[p.id] ?? 0}
+              onChange={e => setPoints(v => ({ ...v, [p.id]: Number(e.target.value.replace(/\D/g, '')) || 0 }))} />
+          </li>
+        ))}
+      </ul>
+      <p className="field-hint" aria-live="polite">{status}</p>
+      <p className="field-hint">{parentDevice
+        ? "Everyone's points come off now."
+        : `A grown-up will OK it first. ${member.name}'s points come off now, everyone else's when a grown-up says yes.`}</p>
+    </Sheet>
   )
 }
 

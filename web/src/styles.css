@@ -2564,6 +2564,7 @@ button.notif-item:active { transform: scale(0.99); }
 .reward-manage-row.archived { opacity: 0.7; }
 .reward-limit-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; }
 .reward-limit-row input { width: 4.5em; }
+.field input.reward-split-points { flex: none; width: 5.5em; text-align: right; }
 .board-goal { display: block; margin-top: 2px; }
 @media (max-width: 600px) {
   .stickers-head { padding: 6px 12px; }

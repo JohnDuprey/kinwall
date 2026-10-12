@@ -14,7 +14,7 @@ import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, 
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
@@ -604,8 +604,8 @@ export const api = {
   createReward: (body: Partial<Reward>) => MOCK ? mock.createReward(body) : post<Reward>('api/rewards', body),
   updateReward: (id: string, body: Partial<Reward>) => MOCK ? mock.updateReward(id, body) : patch<Reward>(`api/rewards/${id}`, body),
   deleteReward: (id: string) => MOCK ? mock.deleteReward(id) : del(`api/rewards/${id}`),
-  redeemReward: (id: string, memberId: string) =>
-    MOCK ? mock.redeemReward(id, memberId) : post<{ redemption: Redemption; balance: number }>(`api/rewards/${id}/redeem`, { memberId }),
+  redeemReward: (id: string, memberId: string, shares?: RewardShare[]) =>
+    MOCK ? mock.redeemReward(id, memberId, shares) : post<{ redemption: Redemption; balance: number }>(`api/rewards/${id}/redeem`, { memberId, shares }),
   getRedemptions: (opts: { memberId?: string; status?: string; limit?: number } = {}) => MOCK ? mock.getRedemptions(opts)
     : get<Redemption[]>(`api/rewards/redemptions?${new URLSearchParams(Object.entries(opts).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`),
   decideRedemption: (id: string, action: 'approve' | 'decline' | 'given', note?: string) =>

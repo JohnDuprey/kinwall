@@ -115,6 +115,7 @@ import m0111 from '../migrations/0111_outings.sql';
 import m0112 from '../migrations/0112_outing_feeds.sql';
 import m0113 from '../migrations/0113_chore_suggestions.sql';
 import m0114 from '../migrations/0114_recipe_favorites.sql';
+import m0115 from '../migrations/0115_reward_shares.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -231,4 +232,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0112_outing_feeds.sql', sql: m0112 },
   { name: '0113_chore_suggestions.sql', sql: m0113 },
   { name: '0114_recipe_favorites.sql', sql: m0114 },
+  { name: '0115_reward_shares.sql', sql: m0115 },
 ];

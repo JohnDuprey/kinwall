@@ -1294,6 +1294,8 @@ export const RewardInputSchema = z
   })
   .openapi('RewardInput');
 
+export const RewardShareSchema = z.object({ memberId: z.string(), points: z.number().int().min(1) }).openapi('RewardShare');
+
 export const RedemptionSchema = z
   .object({
     id: z.string(),
@@ -1302,6 +1304,11 @@ export const RedemptionSchema = z
     title: z.string(),
     emoji: z.string().nullable(),
     cost: z.number(),
+    shares: z
+      .array(RewardShareSchema)
+      .nullable()
+      .optional()
+      .openapi({ description: 'When several people split it: who chips in how many points, adding up to cost, memberId (who asked) first. null = memberId pays it all.' }),
     status: z.enum(REDEMPTION_STATUSES),
     note: z.string().nullable().openapi({ description: "A parent's note when declining." }),
     date: z.string().openapi({ description: 'Household day it was redeemed (YYYY-MM-DD).' }),

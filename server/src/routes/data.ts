@@ -273,7 +273,7 @@ dataRoutes.openapi(
       db.prepare('SELECT id, member_id, date, text, mood, private, created_at, updated_at FROM journal_entries ORDER BY date, created_at, id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
       db.prepare('SELECT id, title, emoji, cost, member_ids, needs_approval, limit_period, limit_count, active, sort, created_at FROM rewards ORDER BY sort, created_at'),
-      db.prepare('SELECT id, reward_id, member_id, title, emoji, cost, status, note, date, requested_at, decided_at, given_at FROM reward_redemptions ORDER BY requested_at, id'),
+      db.prepare('SELECT id, reward_id, member_id, title, emoji, cost, status, note, date, requested_at, decided_at, given_at, shares FROM reward_redemptions ORDER BY requested_at, id'),
       db.prepare('SELECT t.*, p.family AS photo_family FROM tracker_entries t LEFT JOIN photos p ON p.id = t.photo_id ORDER BY t.date, t.created_at'),
       db.prepare('SELECT name, created_at FROM passkeys ORDER BY created_at'),
       db.prepare('SELECT id, url, events, enabled, created_at FROM webhooks ORDER BY created_at'),
@@ -977,7 +977,7 @@ dataRoutes.openapi(
         db,
         'reward_redemptions',
         'id',
-        redemptions.map((r) => ({ id: r.id, reward_id: r.rewardId, member_id: r.memberId, title: r.title, emoji: r.emoji, cost: r.cost, status: r.status, note: r.note, date: r.date, requested_at: r.requestedAt, decided_at: r.decidedAt, given_at: r.givenAt })),
+        redemptions.map((r) => ({ id: r.id, reward_id: r.rewardId, member_id: r.memberId, title: r.title, emoji: r.emoji, cost: r.cost, status: r.status, note: r.note, date: r.date, requested_at: r.requestedAt, decided_at: r.decidedAt, given_at: r.givenAt, shares: r.shares ? JSON.stringify(r.shares) : null })),
         { keep: ['member_id'], expr: { reward_id: "(SELECT id FROM rewards WHERE id = j.value->>'reward_id')" } },
       ),
       ...upserts(

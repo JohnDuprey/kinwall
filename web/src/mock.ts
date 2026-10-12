@@ -3,7 +3,7 @@ import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
 import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, RewardShare, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import type { ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -203,6 +203,7 @@ const redemption = (r: Reward, memberId: string, status: Redemption['status'], d
 }
 const redemptions: Redemption[] = [
   redemption(rewards[2], 'm4', 'pending', 0),
+  { ...redemption(rewards[0], 'm4', 'pending', 0), shares: [{ memberId: 'm4', points: 60 }, { memberId: 'm3', points: 40 }] },
   redemption(rewards[2], 'm3', 'given', 1),
   redemption(rewards[1], 'm3', 'given', 6),
 ]
@@ -1384,28 +1385,33 @@ export const mock = {
     Object.assign(r, patch); bump(); return { ...r }
   },
   deleteReward: async (id: string) => { rewards.splice(rewards.findIndex(r => r.id === id), 1); bump() },
-  redeemReward: async (id: string, memberId: string) => {
+  redeemReward: async (id: string, memberId: string, shares?: RewardShare[]) => {
     const r = rewards.find(x => x.id === id), m = members.find(x => x.id === memberId)
     if (!r || !m) throw new Error('not found')
-    if (m.balance < r.cost) throw new Error('Not enough points')
+    const pay = shares ?? [{ memberId, points: r.cost }]
+    if (pay.some(s => members.find(x => x.id === s.memberId)!.balance < s.points)) throw new Error('Not enough points')
     if (r.limit && usedOf(r, memberId) >= r.limit.count) throw new Error(`That's all for ${r.limit.period === 'day' ? 'today' : 'this week'}`)
-    m.balance -= r.cost
-    const red = redemption(r, memberId, r.needsApproval ? 'pending' : 'approved', 0)
+    for (const s of pay) members.find(x => x.id === s.memberId)!.balance -= s.points
+    const red = { ...redemption(r, memberId, r.needsApproval ? 'pending' : 'approved', 0), shares: shares ?? null }
     redemptions.unshift(red); bump()
     return { redemption: red, balance: m.balance }
   },
   getRedemptions: async ({ memberId, status }: { memberId?: string; status?: string } = {}) =>
-    redemptions.filter(r => (!memberId || r.memberId === memberId) && (!status || status.split(',').includes(r.status))),
+    redemptions.filter(r => (!memberId || r.memberId === memberId || !!r.shares?.some(s => s.memberId === memberId)) && (!status || status.split(',').includes(r.status))),
   decideRedemption: async (id: string, action: 'approve' | 'decline' | 'given', note?: string) => {
     const r = redemptions.find(x => x.id === id); if (!r) throw new Error('not found')
-    if (action === 'decline') { members.find(m => m.id === r.memberId)!.balance += r.cost; Object.assign(r, { status: 'declined', note: note ?? null }) }
+    if (action === 'decline') {
+      for (const s of r.shares ?? [{ memberId: r.memberId, points: r.cost }]) members.find(m => m.id === s.memberId)!.balance += s.points
+      Object.assign(r, { status: 'declined', note: note ?? null })
+    }
     else Object.assign(r, { status: action === 'approve' ? 'approved' : 'given' })
     bump(); return { ...r }
   },
   cancelRedemption: async (id: string) => {
     const i = redemptions.findIndex(x => x.id === id && x.status === 'pending'); if (i < 0) throw new Error('Not waiting any more')
     const m = members.find(x => x.id === redemptions[i].memberId)!
-    m.balance += redemptions[i].cost; redemptions.splice(i, 1); bump()
+    for (const s of redemptions[i].shares ?? [{ memberId: m.id, points: redemptions[i].cost }]) members.find(x => x.id === s.memberId)!.balance += s.points
+    redemptions.splice(i, 1); bump()
     return { ok: true, balance: m.balance }
   },
   setRewardGoal: async (memberId: string, rewardId: string | null) => { goals.set(memberId, rewardId); bump(); return { rewardId } },

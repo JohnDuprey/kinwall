@@ -68,7 +68,7 @@ async function setup() {
     return r.json;
   };
   const redeem = (rewardId: string, memberId: string, key = leoKey) => req(`/api/rewards/${rewardId}/redeem`, 'POST', { memberId }, key);
-  return { db, app, env, req, flush, restore, events, pushes, leo, maya, leoKey, wallKey, today, earn, balance, reward, redeem };
+  return { db, app, env, req, flush, restore, events, pushes, leo, maya, leoKey, wallKey, today, earn, balance, reward, redeem, deviceKey };
 }
 
 test('rewards: parents create and edit; display keys cannot', async () => {
@@ -291,6 +291,95 @@ test("rewards: a member's own device only redeems for them; limits per day and w
   }
 });
 
+test('rewards: split math; a parent splits it and everyone pays at once; declining refunds each share once', async () => {
+  const t = await setup();
+  try {
+    const r = await t.reward({ title: 'Family movie night', emoji: '🍿', cost: 300 });
+    await t.earn(t.leo.id, 200);
+    await t.earn(t.maya.id, 150);
+    const split = (shares: [string, number][], memberId = t.leo.id, key = ADMIN) =>
+      t.req(`/api/rewards/${r.id}/redeem`, 'POST', { memberId, shares: shares.map(([m, points]) => ({ memberId: m, points })) }, key);
+    assert.deepEqual([(await split([[t.leo.id, 200], [t.maya.id, 50]])).status, (await split([[t.leo.id, 200], [t.maya.id, 50]])).json.error], [400, 'The shares add up to 250 points, not 300']);
+    assert.equal((await split([[t.leo.id, 150], [t.leo.id, 150]])).status, 400, 'each person once');
+    assert.equal((await split([[t.maya.id, 150], [t.maya.id, 150]], t.leo.id)).status, 400, 'the asker chips in');
+    const short = await split([[t.leo.id, 100], [t.maya.id, 200]]);
+    assert.deepEqual([short.status, short.json.error, short.json.balance], [402, "Maya doesn't have 200 points", 150]);
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [200, 150], 'nothing taken on a refusal');
+
+    // Maya listed first: the asker (Leo) goes first in the stored shares.
+    const ok = await split([[t.maya.id, 100], [t.leo.id, 200]]);
+    assert.equal(ok.status, 201, JSON.stringify(ok.json));
+    const red = ok.json.redemption;
+    assert.deepEqual([red.status, red.cost, red.shares, ok.json.balance], ['approved', 300, [{ memberId: t.leo.id, points: 200 }, { memberId: t.maya.id, points: 100 }], 0]);
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [0, 50]);
+    const ledger = async (id: string) => (await t.req(`/api/members/${id}/points`)).json.entries.filter((e: any) => e.ref === red.id).map((e: any) => [e.reason, e.amount]);
+    assert.deepEqual(await ledger(t.maya.id), [['reward', -100]], 'each share is in its own ledger');
+    // Both see it in their requests.
+    assert.deepEqual((await t.req(`/api/rewards/redemptions?memberId=${t.maya.id}`)).json.map((x: any) => x.id), [red.id]);
+
+    assert.equal((await t.req(`/api/rewards/redemptions/${red.id}/decline`, 'POST', { note: 'Next week' })).status, 200);
+    assert.equal((await t.req(`/api/rewards/redemptions/${red.id}/decline`, 'POST', {})).status, 409);
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [200, 150], 'everyone back, once');
+    assert.deepEqual(await ledger(t.maya.id), [['reward_refund', 100], ['reward', -100]]);
+    const pts = (await t.req(`/api/members/${t.maya.id}/points`)).json;
+    assert.deepEqual([pts.earnedTotal, pts.spentTotal], [150, 0]);
+  } finally {
+    await t.restore();
+  }
+});
+
+test("rewards: a split from a kid's device takes only their share and waits; a parent's OK takes the rest (or says who's short)", async () => {
+  const t = await setup();
+  try {
+    const r = await t.reward({ title: 'Family movie night', emoji: '🍿', cost: 300, needsApproval: false });
+    await t.earn(t.leo.id, 200);
+    await t.earn(t.maya.id, 150);
+    const mayaKey = { key: await t.deviceKey('maya-tablet', 'display', t.maya.id) };
+    const body = { memberId: t.leo.id, shares: [{ memberId: t.leo.id, points: 150 }, { memberId: t.maya.id, points: 150 }] };
+    assert.equal((await t.req(`/api/rewards/${r.id}/redeem`, 'POST', { ...body, memberId: t.maya.id }, t.leoKey)).status, 403, 'not as Maya from Leo’s device');
+    const ok = await t.req(`/api/rewards/${r.id}/redeem`, 'POST', body, t.leoKey);
+    assert.equal(ok.status, 201);
+    const red = ok.json.redemption;
+    assert.equal(red.status, 'pending', 'waits even though the reward needs no OK');
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [50, 150], "Maya's share isn't taken yet");
+    assert.deepEqual((await t.req(`/api/rewards/redemptions?memberId=${t.maya.id}`, 'GET', undefined, mayaKey.key)).json.map((x: any) => x.id), [red.id], 'Maya sees it on her device');
+    await t.flush();
+    assert.equal(t.pushes('parent-phone'), 1);
+    assert.equal((await t.req(`/api/rewards/redemptions/${red.id}/approve`, 'POST', undefined, mayaKey.key)).status, 403, 'Maya agreeing is a parent’s call here');
+
+    // Maya spends some meanwhile: the OK can't take her share, and nothing changes.
+    const snack = await t.reward({ title: 'Snack', cost: 100, needsApproval: false });
+    assert.equal((await t.redeem(snack.id, t.maya.id, mayaKey.key)).status, 201);
+    const no = await t.req(`/api/rewards/redemptions/${red.id}/approve`, 'POST');
+    assert.deepEqual([no.status, no.json.error], [402, 'Maya has only 50 points now, not 150']);
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [50, 50]);
+
+    await t.earn(t.maya.id, 100);
+    const yes = await t.req(`/api/rewards/redemptions/${red.id}/approve`, 'POST');
+    assert.equal(yes.json.status, 'approved');
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [50, 0]);
+    assert.equal((await t.req(`/api/rewards/redemptions/${red.id}/approve`, 'POST')).status, 409, 'and only once');
+
+    // Another one, declined while waiting: Leo's share back, Maya's never taken; both told.
+    await t.earn(t.maya.id, 150);
+    await t.earn(t.leo.id, 100);
+    const again = (await t.req(`/api/rewards/${r.id}/redeem`, 'POST', body, t.leoKey)).json.redemption;
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [0, 150]);
+    await t.req(`/api/rewards/redemptions/${again.id}/decline`, 'POST', {});
+    assert.deepEqual([await t.balance(t.leo.id), await t.balance(t.maya.id)], [150, 150]);
+    await t.flush();
+    assert.equal(t.pushes('maya-tablet'), 1);
+    assert.equal(t.pushes('leo-tablet'), 1);
+    // Leo takes back a waiting split: only his share was taken, and it comes back.
+    const third = (await t.req(`/api/rewards/${r.id}/redeem`, 'POST', body, t.leoKey)).json.redemption;
+    assert.equal((await t.req(`/api/rewards/redemptions/${third.id}/cancel`, 'POST', undefined, mayaKey.key)).status, 403, 'only the asker takes it back');
+    assert.equal((await t.req(`/api/rewards/redemptions/${third.id}/cancel`, 'POST', undefined, t.leoKey)).json.balance, 150);
+    assert.equal(await t.balance(t.maya.id), 150);
+  } finally {
+    await t.restore();
+  }
+});
+
 test('rewards: two redeems at once cannot overspend', async () => {
   const t = await setup();
   try {
@@ -408,6 +497,10 @@ test('rewards: MCP tools wrap the routes', async () => {
     const third = await tool('redeem_reward', { rewardId, member: 'Leo' });
     assert.equal(third.structuredContent.redemption.status, 'approved');
     assert.equal((await tool('decline_reward', { redemptionId: third.structuredContent.redemption.id, note: 'Not tonight' })).structuredContent.redemption.note, 'Not tonight');
+    await t.earn(t.maya.id, 20);
+    const shared = await tool('redeem_reward', { rewardId: (await t.reward({ cost: 30 })).id, member: 'Leo', shares: [{ member: 'Leo', points: 10 }, { member: 'Maya', points: 20 }] });
+    assert.deepEqual(shared.structuredContent.redemption.shares, [{ memberId: t.leo.id, points: 10 }, { memberId: t.maya.id, points: 20 }]);
+    assert.match(shared.content[0].text, /Leo 10, Maya 20/);
     const short = await tool('redeem_reward', { rewardId: (await t.reward({ cost: 999 })).id, member: 'Leo' });
     assert.ok(short.isError);
     assert.match(short.content[0].text, /Not enough points/);

@@ -26,6 +26,7 @@ import { formatTime } from './timeFormat.ts'
 import { durationLabel } from './timers.ts'
 import { SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
 import { suggestionDetails } from './choreSuggest.ts'
+import { shareText } from './rewardSplit.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -330,7 +331,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
   const sendRewardBack = () => {
     const r = notThisTime!
     setNotThisTime(null)
-    decide(r, 'decline', `${r.title}: points back to ${name(r)}`, note.trim() || undefined)
+    decide(r, 'decline', `${r.title}: points back to ${r.shares ? 'everyone' : name(r)}`, note.trim() || undefined)
   }
   const whenR = (r: Redemption) => r.date === dateKey(new Date()) ? '' : format(new Date(r.requestedAt), 'EEE, MMM d')
   const count = items.length + ideas.length + rewards.filter(r => r.status === 'pending').length
@@ -394,7 +395,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                 <span className="approve-emoji" aria-hidden="true">{r.emoji ?? '🎁'}</span>
                 <div className="approve-info">
                   <div className="approve-title">{r.title}</div>
-                  <div className="approve-sub">{[name(r), whenR(r), `${r.cost} pts`, r.status === 'approved' && 'approved, not given yet'].filter(Boolean).join(' · ')}</div>
+                  <div className="approve-sub">{[r.shares ? `Split: ${shareText(r.shares, id => name({ memberId: id }))}` : name(r), whenR(r), `${r.cost} pts`, r.status === 'approved' && 'approved, not given yet'].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div className="approve-actions">
                   {r.status === 'pending' ? <>
@@ -416,7 +417,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
       )}
       {notThisTime && (
         <Sheet title={notThisTime.status === 'pending' ? 'Not this time' : 'Cancel reward'} onClose={() => setNotThisTime(null)} actions={<button className="btn btn-primary" onClick={sendRewardBack}>Give points back</button>}>
-          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.title}: {name(notThisTime)} gets their {notThisTime.cost} points back. They'll see your note.</p>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.title}: {notThisTime.shares ? 'everyone chipping in gets their points back' : `${name(notThisTime)} gets their ${notThisTime.cost} points back`}. They'll see your note.</p>
           <div className="field">
             <label htmlFor="notthistime-note">Note (optional)</label>
             <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Let's do it on Saturday" autoComplete="off"

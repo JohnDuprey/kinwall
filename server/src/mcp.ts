@@ -1067,7 +1067,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     return memberIds;
   };
   const who = async (ids: string[] | undefined) => (ids ? resolveMemberIds(app, env, auth, ids) : undefined);
-  const redemptionLine = (r: { title: string; emoji: string | null; cost: number; status: string }) => `${r.emoji ? `${r.emoji} ` : ''}${r.title} (${r.cost} pts, ${r.status})`;
+  type Shares = { memberId: string; points: number }[] | null | undefined;
+  const memberNames = async () => new Map(((await call(app, env, auth, 'GET', '/api/members')).json as { id: string; name: string }[]).map((m) => [m.id, m.name]));
+  const splitText = (shares: Shares, names: Map<string, string>) => (shares ? `split ${shares.map((x) => `${names.get(x.memberId) ?? 'someone'} ${x.points}`).join(', ')}` : '');
+  const redemptionLine = (r: { title: string; emoji: string | null; cost: number; status: string; shares?: Shares }, names: Map<string, string>) =>
+    `${r.emoji ? `${r.emoji} ` : ''}${r.title} (${[`${r.cost} pts`, splitText(r.shares, names), r.status].filter(Boolean).join(', ')})`;
 
   tool(
     'list_rewards',
@@ -1144,24 +1148,34 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'redeem_reward',
     {
       title: 'Redeem reward',
-      description: "Spend a member's points on a reward. The points come off at once; it waits for a parent's OK if the reward needs one (a parent's own key approves at once). Refused when short of points or over the reward's daily/weekly limit.",
-      inputSchema: { rewardId: z.string(), member: z.string().describe('Member name or id.') },
+      description:
+        "Spend a member's points on a reward. The points come off at once; it waits for a parent's OK if the reward needs one (a parent's own key approves at once). Refused when short of points or over the reward's daily/weekly limit. shares splits it between several people (member included), adding up to the cost; from a non-admin key only member's share comes off now and the rest when a parent approves.",
+      inputSchema: {
+        rewardId: z.string(),
+        member: z.string().describe('Member name or id: who asks (and pays it all without shares).'),
+        shares: jsonList(z.array(z.object({ member: z.string().describe('Member name or id.'), points: z.number().int().min(1) })))
+          .optional()
+          .describe('Split it, e.g. [{ member: "Sam", points: 200 }, { member: "Leo", points: 100 }] for a 300-point reward.'),
+      },
     },
-    async ({ rewardId, member }) => {
+    async ({ rewardId, member, shares }) => {
       let memberId: string;
+      let split: { memberId: string; points: number }[] | undefined;
       try {
         memberId = await resolveMember(app, env, auth, member);
+        if (shares) split = await Promise.all(shares.map(async (x) => ({ memberId: await resolveMember(app, env, auth, x.member), points: x.points })));
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', `/api/rewards/${encodeURIComponent(rewardId)}/redeem`, { memberId });
+      const res = await call(app, env, auth, 'POST', `/api/rewards/${encodeURIComponent(rewardId)}/redeem`, { memberId, ...(split ? { shares: split } : {}) });
       if (res.status === 402) {
-        const { balance, cost } = res.json as { balance: number; cost: number };
-        return errorResult(null, `Not enough points: ${cost - balance} more needed (has ${balance}, costs ${cost}).`);
+        const { error, balance, cost } = res.json as { error: string; balance: number; cost: number };
+        return errorResult(null, `${error}: ${cost - balance} more needed (has ${balance}, needs ${cost}).`);
       }
       if (res.status >= 400) return errorResult(res.json, 'failed to redeem reward');
-      const { redemption, balance } = res.json as { redemption: { status: string; title: string }; balance: number };
-      return okResult(`${redemption.title}: ${redemption.status === 'pending' ? "waiting for a parent's OK" : 'approved'}. ${balance} points left.`, res.json as Record<string, unknown>);
+      const { redemption, balance } = res.json as { redemption: { status: string; title: string; shares?: Shares }; balance: number };
+      const how = redemption.shares ? ` (${splitText(redemption.shares, await memberNames())})` : '';
+      return okResult(`${redemption.title}${how}: ${redemption.status === 'pending' ? "waiting for a parent's OK" : 'approved'}. ${balance} points left.`, res.json as Record<string, unknown>);
     },
   );
 
@@ -1169,7 +1183,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_reward_requests',
     {
       title: 'List reward requests',
-      description: "Redeemed rewards. Default: the ones a parent still has to act on (pending = waiting for OK, approved = not given yet), oldest first. status filters (comma-separated: pending, approved, declined, given); member narrows to one person.",
+      description: "Redeemed rewards. Default: the ones a parent still has to act on (pending = waiting for OK, approved = not given yet), oldest first. status filters (comma-separated: pending, approved, declined, given); member narrows to one person (and splits they chip in to). A split lists who pays what.",
       inputSchema: { status: z.string().optional(), member: z.string().optional().describe('Member name or id.') },
     },
     async ({ status, member }) => {
@@ -1183,8 +1197,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (memberIds[0]) q.set('memberId', memberIds[0]);
       const res = await call(app, env, auth, 'GET', `/api/rewards/redemptions?${q}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list reward requests');
-      const requests = res.json as { title: string; emoji: string | null; cost: number; status: string }[];
-      return okResult(requests.length ? requests.map(redemptionLine).join(', ') : 'No reward requests.', { requests });
+      const requests = res.json as { title: string; emoji: string | null; cost: number; status: string; shares?: Shares }[];
+      const names = await memberNames();
+      return okResult(requests.length ? requests.map((r) => redemptionLine(r, names)).join(', ') : 'No reward requests.', { requests });
     },
   );
 
@@ -1194,11 +1209,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, `failed to ${action} reward`);
       return okResult(done(res.json as { title: string }), { redemption: res.json as Record<string, unknown> });
     });
-  decide('approve_reward', 'Approve reward', "Admin: approve a redeemed reward waiting for a parent's OK.", 'approve', (r) => `Approved ${r.title}.`);
+  decide('approve_reward', 'Approve reward', "Admin: approve a redeemed reward waiting for a parent's OK. For a split, this takes the shares not taken yet; refused if someone no longer has theirs.", 'approve', (r) => `Approved ${r.title}.`);
   decide(
     'decline_reward',
     'Not this time (decline reward)',
-    "Admin: decline a redeemed reward waiting for OK, or cancel an approved one not given yet. The points go back and the member's devices are told, with the optional note.",
+    "Admin: decline a redeemed reward waiting for OK, or cancel an approved one not given yet. The points go back (every share of a split) and the members' devices are told, with the optional note.",
     'decline',
     (r) => `Declined ${r.title}; the points are back.`,
     { note: z.string().max(200).optional().describe('e.g. "Let\'s do it at the weekend".') },
