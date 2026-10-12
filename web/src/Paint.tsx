@@ -276,6 +276,14 @@ export default function Paint() {
     setHistTick(t => t + 1)
   }
 
+  // Full screen like an added activity: Kinwall's header, tabs and rail hide (styles.css,
+  // data-activity-open); the toolbar's back button leaves.
+  useEffect(() => {
+    const root = document.documentElement
+    root.setAttribute('data-activity-open', '')
+    return () => root.removeAttribute('data-activity-open')
+  }, [])
+
   // Size the canvas to its box; rescale the drawing from `base` rather than clearing it.
   useEffect(() => {
     const wrap = wrapRef.current!, cv = canvasRef.current!
