@@ -121,6 +121,7 @@ test('mcp: tools/list returns the tools', async () => {
     'delete_recipe',
     'delete_reward',
     'delete_tracker_entry',
+    'favorite_recipe',
     'get_activity_data',
     'get_board',
     'get_contact',
@@ -682,6 +683,10 @@ test('mcp: meal planning recipes, weekly retrieval, assignment, and reviewed sho
   await call('delete_meal', { mealId: imported.mealId }); await call('delete_recipe', { recipe: imported.recipeId });
   assert.deepEqual((await call('list_recipes', { search: 'RICE', category: 'grains' })).recipes.map((r: any) => r.id), [recipe.id]);
   assert.deepEqual((await call('list_recipes', { category: 'Dairy' })).recipes, []);
+  assert.deepEqual((await call('favorite_recipe', { recipeId: recipe.id, memberId: 'ava' })).recipe.favoritedBy, [member.id]);
+  assert.deepEqual((await call('list_recipes', { favoriteOf: 'AVA' })).recipes.map((r: any) => r.id), [recipe.id]);
+  assert.deepEqual((await call('favorite_recipe', { recipeId: recipe.id, memberId: 'Ava', favorite: false })).recipe.favoritedBy, []);
+  assert.deepEqual((await call('list_recipes', { favoriteOf: 'Ava' })).recipes, []);
   const meal = (await call('create_meal', { date: '2026-09-21', slot: 'dinner', recipeId: recipe.id, servings: 4, member: 'aV' })).meal;
   assert.equal(meal.assigneeMemberId, member.id);
   assert.equal(meal.calendarEventId, null);

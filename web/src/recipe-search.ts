@@ -1,5 +1,5 @@
 // Finding a recipe: the Recipe library's search box and the meal sheet's recipe picker.
-type Searchable = { id: string; name: string; description?: string | null; archived: boolean; kind?: 'meal' | 'basic'; ingredients: { name: string }[] }
+type Searchable = { id: string; name: string; description?: string | null; archived: boolean; kind?: 'meal' | 'basic'; ingredients: { name: string }[]; favoritedBy?: string[] }
 
 /** Name, description or an ingredient contains the text (any case); blank matches every recipe. */
 export function recipeMatches(recipe: Searchable, query: string): boolean {
@@ -7,11 +7,11 @@ export function recipeMatches(recipe: Searchable, query: string): boolean {
   return !needle || `${recipe.name} ${recipe.description ?? ''} ${recipe.ingredients.map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle)
 }
 
-/** What the meal sheet's picker lists: matching recipes by name; archived ones, and basics unless
- * `basics`, only when already chosen. */
+/** What the meal sheet's picker lists: matching recipes, anyone's favorites first, then by name; archived
+ * ones, and basics unless `basics`, only when already chosen. */
 export function pickerRecipes<R extends Searchable>(recipes: R[], query: string, currentId?: string | null, basics = false): R[] {
   return recipes.filter(r => ((!r.archived && (basics || r.kind !== 'basic')) || r.id === currentId) && recipeMatches(r, query))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    .sort((a, b) => Number(!!b.favoritedBy?.length) - Number(!!a.favoritedBy?.length) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 }
 
 // Words an ingredient line adds to a basic's name without meaning another thing ("Taco seasoning blend").

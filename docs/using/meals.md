@@ -10,7 +10,7 @@ Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with **Wh
 
 * **What are we eating?**: **A recipe** (from the library), **Something else** (just a name) or **Eating out** (like "Pizza place"). Change it here if you picked the wrong one.
 * For eating out, **Restaurant** picks a place from the [binder](#restaurants) (its name becomes the meal's name) or **Somewhere else**, and **How** is **Eating there**, **Pickup** or **Delivery**. A night from the binder gets everyone's [orders](#ordering-together).
-* **Recipe**: tap it to choose one. The picker opens with a search box (recipe name or ingredient; arrow keys and Enter work too) and lists recipes A to Z with their photo, time and family rating ("★ 4.5"). Archived recipes stay out unless the meal already uses one. Choosing a recipe fills in the meal's name and servings. The meal's sheet doesn't list the ingredients: **Open recipe** shows them, scaled to any number of servings.
+* **Recipe**: tap it to choose one. The picker opens with a search box (recipe name or ingredient; arrow keys and Enter work too) and lists the family's favorites first ("♥ Favorite"), then the rest, each A to Z, with their photo, time and family rating ("★ 4.5"). Archived recipes stay out unless the meal already uses one. Choosing a recipe fills in the meal's name and servings. The meal's sheet doesn't list the ingredients: **Open recipe** shows them, scaled to any number of servings.
 * **Meal name**, then **Date** and **Meal** (breakfast, lunch, dinner or snack, filled in from the slot you tapped).
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field) and **Cooking** (who's making it). Eating out has only the time: who's eating is who gets asked for their order, and a place that isn't in the binder can have an optional website.
 * **Who's eating**: tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
@@ -28,7 +28,7 @@ When the header is filtered to one person, the planner and the Board's **Today's
 
 ## Recipes
 
-The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category, or show archived ones. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
+The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category or [favorites](#favorites), or show archived ones. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
 
 Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where **More…** next to **Save recipe** also archives or deletes it) and **Plan this meal**, which opens a new meal with the recipe chosen. A kid's device doesn't get **Plan this meal**: a grown-up plans the meals. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
 
@@ -51,9 +51,17 @@ A **basic** is a recipe for something you make to use in other recipes: a season
 
 ### Ratings
 
-Everyone in the family can rate a recipe: the recipe's view shows a one-line summary ("★ 4.3 · 3 ratings", or **Rate this recipe** with none yet) that expands to a row for each person with five big stars. On a kid's own device it starts open as **How did you like it?**, with their own row first. Tap a star to rate, tap the same star again to clear it. The family average also shows on the recipe's card in the library (with how many have rated it) and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the family's favorites first.
+Everyone in the family can rate a recipe: the recipe's view shows a one-line summary ("★ 4.3 · 3 ratings", or **Rate this recipe** with none yet) that expands to a row for each person with five big stars. On a kid's own device it starts open as **How did you like it?**, with their own row first. Tap a star to rate, tap the same star again to clear it. The family average also shows on the recipe's card in the library (with how many have rated it) and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the best-rated recipes first.
 
 Rating is an everyday action like ticking off a chore: a wall display rates for anyone, and so does a grown-up's own phone. A kid's own device, or a wall screen set to one person, rates only for that person. Deleting a recipe or a person removes their ratings. The API's `PUT /api/recipes/{id}/rating` (`{ "memberId": "…", "stars": 1-5 }`, `null` or `0` clears it) and the MCP tool `rate_recipe` do the same.
+
+### Favorites
+
+Each person can also mark a recipe as one of their favorites: the heart at the end of their row of stars (open the ratings summary in the recipe's view). Tap it again to take the heart off. A favorite is separate from stars: Leo can love pancakes without rating them. The summary counts them ("★ 4.7 · 3 ratings · ♥ 2 favorites"), and the recipe's card in the library shows a heart with the faces of everyone who loves it.
+
+In the library, **Favorites** shows only **Anyone's favorites** or one person's ("Sam's favorites"). When you plan a meal, favorites come first in the recipe list.
+
+Who can set a heart follows the same rule as rating: a wall display or a grown-up's phone for anyone, a kid's own device only for that kid. Deleting a recipe or a person removes their hearts, and favorites travel with your data export. The API's `PUT /api/recipes/{id}/favorite` (`{ "memberId": "…", "favorite": true }`, `false` takes it off), `GET /api/recipes?favoriteOf=<member id>` and the MCP tool `favorite_recipe` do the same.
 
 ### Steps and cooking along
 

@@ -66,12 +66,16 @@ export const RecipeSchema = z.object({
     average: z.number().nullable().describe('Family average, 1-5 (null: no ratings yet).'), count: z.number().int(),
     byMember: z.record(z.string(), z.number().int().min(1).max(5)).describe('Stars by member id.'),
   }).optional(),
+  favoritedBy: z.array(z.string()).optional().describe('Member ids who marked it a favorite (a heart).'),
   share: z.object({ url: z.string(), createdAt: z.string() }).nullable().optional().describe('Admin keys only: the public link (POST /api/recipes/{id}/share), or null when not shared.'),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Recipe');
 export const RecipeRatingInputSchema = z.object({
   memberId: z.string(), stars: z.number().int().min(0).max(5).nullable().describe('1-5 stars; 0 or null clears the rating.'),
 }).strict().openapi('RecipeRatingInput');
+export const RecipeFavoriteInputSchema = z.object({
+  memberId: z.string(), favorite: z.boolean().describe('true marks it a favorite, false takes the heart off.'),
+}).strict().openapi('RecipeFavoriteInput');
 /** An ingredient on a meal-kit recipe that ships in the box: grocery lists skip it unless asked. */
 export const KIT_QUALIFIER = 'in the kit';
 /** A meal's calendar event starts at the meal time, or when cooking starts (ending at the meal time). */

@@ -102,20 +102,24 @@ const snapshotApi = (s: NonNullable<Meal['recipeSnapshot']>) => ({ ...s, ingredi
 export function mealApi(r: MealRow): Meal {
   return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? snapshotApi(JSON.parse(r.recipe_snapshot)) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, eaterIds: r.eater_ids ? JSON.parse(r.eater_ids) : [], notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, calendarEventStart: r.calendar_event_start ?? null, status: r.status, sourceUrl: r.source_url, restaurantId: r.restaurant_id ?? null, orderType: r.order_type ?? null, orders: r.orders_json ? JSON.parse(r.orders_json) : [], createdAt: r.created_at, updatedAt: r.updated_at };
 }
-export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string; kind?: Recipe['kind'] } = {}): Promise<Recipe[]> {
-  const [recipes, ingredients, ratings] = await db.batch<unknown>([
+export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string; kind?: Recipe['kind']; favoriteOf?: string } = {}): Promise<Recipe[]> {
+  const [recipes, ingredients, ratings, favorites] = await db.batch<unknown>([
     db.prepare('SELECT * FROM recipes WHERE (? IS NULL OR id = ?) AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, \'\')), lower(?)) > 0) ORDER BY name, id').bind(opts.id ?? null, opts.id ?? null, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
     db.prepare('SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id WHERE (? IS NULL OR i.recipe_id = ?) ORDER BY i.sort, i.id').bind(opts.id ?? null, opts.id ?? null),
     db.prepare('SELECT recipe_id, member_id, stars FROM recipe_ratings WHERE (? IS NULL OR recipe_id = ?)').bind(opts.id ?? null, opts.id ?? null),
+    db.prepare('SELECT recipe_id, member_id FROM recipe_favorites WHERE (? IS NULL OR recipe_id = ?) ORDER BY member_id').bind(opts.id ?? null, opts.id ?? null),
   ]);
   const starsBy = new Map<string, Record<string, number>>();
   for (const r of ratings.results as { recipe_id: string; member_id: string; stars: number }[]) starsBy.set(r.recipe_id, { ...starsBy.get(r.recipe_id), [r.member_id]: r.stars });
+  const lovedBy = new Map<string, string[]>();
+  for (const f of favorites.results as { recipe_id: string; member_id: string }[]) lovedBy.set(f.recipe_id, [...lovedBy.get(f.recipe_id) ?? [], f.member_id]);
   const byRecipe = new Map<string, Ingredient[]>();
   for (const row of ingredients.results as IngredientRow[]) {
     const values = byRecipe.get(row.recipe_id) ?? [];
     values.push(ingredientApi(row)); byRecipe.set(row.recipe_id, values);
   }
-  return (recipes.results as RecipeRow[]).map((r) => ({ ...recipeApi(r, byRecipe.get(r.id) ?? []), rating: ratingApi(starsBy.get(r.id) ?? {}) })).filter((r) => !opts.category || r.ingredients.some((i) => normalizeIngredient(i.category ?? '') === normalizeIngredient(opts.category!)));
+  return (recipes.results as RecipeRow[]).map((r) => ({ ...recipeApi(r, byRecipe.get(r.id) ?? []), rating: ratingApi(starsBy.get(r.id) ?? {}), favoritedBy: lovedBy.get(r.id) ?? [] }))
+    .filter((r) => (!opts.category || r.ingredients.some((i) => normalizeIngredient(i.category ?? '') === normalizeIngredient(opts.category!))) && (!opts.favoriteOf || r.favoritedBy.includes(opts.favoriteOf)));
 }
 // Each meal's orders ride along as JSON, so reading meals stays one query.
 const MEAL_COLUMNS = "meals.*, (SELECT json_group_array(json_object('memberId', o.member_id, 'items', json(o.items), 'note', o.note, 'updatedAt', o.updated_at)) FROM meal_orders o WHERE o.meal_id = meals.id) AS orders_json";

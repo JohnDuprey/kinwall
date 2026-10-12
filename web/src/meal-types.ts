@@ -43,6 +43,7 @@ export interface Recipe extends Omit<RecipeInput, 'ingredients'> {
   id: string
   ingredients: RecipeIngredient[]
   rating?: RecipeRating
+  favoritedBy?: string[] // member ids who hearted it
   share?: RecipeShare | null
   createdAt: string
   updatedAt: string

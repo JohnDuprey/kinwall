@@ -327,6 +327,7 @@ export const api = {
   unshareRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}/share`),
   // null clears the member's rating.
   rateRecipe: (id: string, memberId: string, stars: number | null) => put<Recipe>(`api/recipes/${encodeURIComponent(id)}/rating`, { memberId, stars }),
+  favoriteRecipe: (id: string, memberId: string, favorite: boolean) => put<Recipe>(`api/recipes/${encodeURIComponent(id)}/favorite`, { memberId, favorite }),
   getRestaurants: (archived = false) => get<Restaurant[]>(`api/restaurants?archived=${archived}`),
   createRestaurant: (body: RestaurantInput) => post<Restaurant>('api/restaurants', body),
   updateRestaurant: (id: string, body: Partial<RestaurantInput>) => patch<Restaurant>(`api/restaurants/${encodeURIComponent(id)}`, body),

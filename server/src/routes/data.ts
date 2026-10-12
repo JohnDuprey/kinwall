@@ -996,6 +996,8 @@ dataRoutes.openapi(
       // Ratings by a member not on this instance are dropped, not an FK error.
       db.prepare("INSERT INTO recipe_ratings (recipe_id, member_id, stars) SELECT j.value->>'recipe_id', j.value->>'member_id', j.value->>'stars' FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(recipe_id, member_id) DO UPDATE SET stars = excluded.stars")
         .bind(JSON.stringify(body.recipes.flatMap((r) => Object.entries(r.rating?.byMember ?? {}).map(([member_id, stars]) => ({ recipe_id: r.id, member_id, stars }))))),
+      db.prepare("INSERT OR IGNORE INTO recipe_favorites (recipe_id, member_id) SELECT j.value->>'recipe_id', j.value->>'member_id' FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members)")
+        .bind(JSON.stringify(body.recipes.flatMap((r) => (r.favoritedBy ?? []).map((member_id) => ({ recipe_id: r.id, member_id }))))),
       ...upserts(db, 'restaurants', 'id', body.restaurants.map((r) => ({ id: r.id, name: r.name, cuisine: r.cuisine, phone: r.phone, address: r.address, website: r.website, order_url: r.orderUrl, menu_url: r.menuUrl, notes: r.notes, archived: r.archived ? 1 : 0, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
       // Each imported restaurant's menu is replaced by the file's, like a recipe's ingredients.
       db.prepare('DELETE FROM restaurant_menu_items WHERE restaurant_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.restaurants.map((r) => r.id))),

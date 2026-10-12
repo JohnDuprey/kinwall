@@ -217,7 +217,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable', explicit
   return { kind };
 }
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
-  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
+  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, favorite_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
@@ -315,7 +315,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
@@ -345,9 +345,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     return server.registerTool(name, { ...config, inputSchema, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } } as typeof config, cb);
   };
 
-  tool('list_recipes', { title: 'Find recipes', description: 'Search the recipe library; archived=true includes archived recipes. kind: basic lists only basics (seasoning blends, sauces, doughs used inside other recipes), meal only meals.', inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional(), kind: RecipeKindSchema.optional() } }, async ({ search, category, archived, kind }) => {
+  tool('list_recipes', { title: 'Find recipes', description: "Search the recipe library; archived=true includes archived recipes. kind: basic lists only basics (seasoning blends, sauces, doughs used inside other recipes), meal only meals. favoriteOf: only that person's favorites (\"Sam's favorites\"); each recipe's favoritedBy lists who loves it.", inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional(), kind: RecipeKindSchema.optional(), favoriteOf: z.string().optional().describe('Member name (case-insensitive) or id.') } }, async ({ search, category, archived, kind, favoriteOf }) => {
     const query = new URLSearchParams();
     if (search) query.set('search', search); if (category) query.set('category', category); if (archived) query.set('archived', 'true'); if (kind) query.set('kind', kind);
+    if (favoriteOf) { try { query.set('favoriteOf', await resolveMember(app, env, auth, favoriteOf)); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); } }
     const result = await call(app, env, auth, 'GET', `/api/recipes?${query}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to find recipes') : okResult('Recipes', { recipes: result.json });
   });
@@ -492,6 +493,12 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     try { member = await resolveMember(app, env, auth, memberId); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
     const result = await call(app, env, auth, 'PUT', `/api/recipes/${encodeURIComponent(recipeId)}/rating`, { memberId: member, stars });
     return result.status >= 400 ? errorResult(result.json, 'failed to rate recipe') : okResult(stars ? `Rated ${stars} star${stars === 1 ? '' : 's'}` : 'Rating cleared', { recipe: result.json });
+  });
+  tool('favorite_recipe', { title: 'Favorite recipe', description: "Mark a recipe as a family member's favorite (a heart), or take it off with favorite: false. Recipes carry favoritedBy: member ids.", inputSchema: { recipeId: z.string(), memberId: z.string().describe('Member name (case-insensitive) or id.'), favorite: z.boolean().default(true) } }, async ({ recipeId, memberId, favorite }) => {
+    let member: string;
+    try { member = await resolveMember(app, env, auth, memberId); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const result = await call(app, env, auth, 'PUT', `/api/recipes/${encodeURIComponent(recipeId)}/favorite`, { memberId: member, favorite });
+    return result.status >= 400 ? errorResult(result.json, 'failed to save the favorite') : okResult(favorite ? 'Marked as a favorite' : 'Favorite removed', { recipe: result.json });
   });
   // The restaurant binder: a restaurant by id or exact name (case-insensitive), archived ones included.
   const findRestaurant = async (ref: string) => {

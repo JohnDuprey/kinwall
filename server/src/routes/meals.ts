@@ -6,7 +6,7 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, importIngredient, matchBasic, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
@@ -33,7 +33,7 @@ const recipeResponse = { description: 'recipe', content: { 'application/json': {
 const mealResponse = { description: 'meal', content: { 'application/json': { schema: MealSchema } } };
 const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
 
-mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional(), kind: RecipeKindSchema.optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } } } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes; favoriteOf=<member id> only their favorites)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional(), kind: RecipeKindSchema.optional(), favoriteOf: z.string().optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } } } }), async (c) => {
   const query = c.req.valid('query');
   return c.json(await withShares(c, await readRecipes(c.env.DB, { ...query, archived: query.archived === 'true' })), 200);
 });
@@ -207,6 +207,22 @@ mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/rating
   await (stars
     ? c.env.DB.prepare('INSERT INTO recipe_ratings (recipe_id, member_id, stars) VALUES (?, ?, ?) ON CONFLICT(recipe_id, member_id) DO UPDATE SET stars = excluded.stars').bind(id, memberId, stars)
     : c.env.DB.prepare('DELETE FROM recipe_ratings WHERE recipe_id = ? AND member_id = ?').bind(id, memberId)).run();
+  emit(c, 'recipe.changed', { id });
+  return c.json((await readRecipes(c.env.DB, { id, archived: true }))[0], 200);
+});
+// A favorite (heart) is a family action like rating, with the same rule: a member's own device only for them.
+mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/favorite', tags: ['Meals'], summary: "Mark or unmark a recipe as a family member's favorite", security: [{ Bearer: [] }], request: { params, body: body(RecipeFavoriteInputSchema) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
+  const { id } = c.req.valid('param');
+  const { memberId, favorite } = c.req.valid('json');
+  const blocked = await ownerBlock(c, memberId);
+  if (blocked) return c.json({ error: blocked }, 403);
+  const [recipe, member] = await c.env.DB.batch([
+    c.env.DB.prepare('SELECT id FROM recipes WHERE id = ?').bind(id),
+    c.env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(memberId),
+  ]);
+  if (!recipe.results.length) return c.json({ error: 'recipe not found' }, 404);
+  if (!member.results.length) return c.json({ error: 'member not found' }, 404);
+  await c.env.DB.prepare(favorite ? 'INSERT OR IGNORE INTO recipe_favorites (recipe_id, member_id) VALUES (?, ?)' : 'DELETE FROM recipe_favorites WHERE recipe_id = ? AND member_id = ?').bind(id, memberId).run();
   emit(c, 'recipe.changed', { id });
   return c.json((await readRecipes(c.env.DB, { id, archived: true }))[0], 200);
 });

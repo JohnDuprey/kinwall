@@ -273,6 +273,38 @@ test('meals: family ratings set, overwrite, clear, average, and go with their re
   assert.equal((await db.prepare('SELECT count(*) AS n FROM recipe_ratings').first<{ n: number }>())!.n, 0);
 });
 
+test('meals: favorites per member: heart, unheart, filter, travel in exports, and go with their recipe or member', async () => {
+  const { db, json, request } = fixture();
+  const ada = await json('/api/members', 'POST', { name: 'Ada', color: '#112233' });
+  const bo = await json('/api/members', 'POST', { name: 'Bo', color: '#445566' });
+  const tacos = await json('/api/recipes', 'POST', { name: 'Tacos' });
+  const soup = await json('/api/recipes', 'POST', { name: 'Soup' });
+  assert.deepEqual(tacos.favoritedBy, []);
+  const love = (id: string, memberId: string, favorite: boolean, key?: string) => request(`/api/recipes/${id}/favorite`, 'PUT', { memberId, favorite }, key);
+  assert.equal((await love(tacos.id, ada.id, true)).status, 200);
+  assert.equal((await love(tacos.id, ada.id, true)).status, 200); // twice is still once
+  assert.deepEqual(((await (await love(tacos.id, bo.id, true)).json()) as any).favoritedBy.sort(), [ada.id, bo.id].sort());
+  await love(soup.id, bo.id, true);
+  assert.deepEqual((await json(`/api/recipes?favoriteOf=${ada.id}`)).map((r: any) => r.name), ['Tacos']);
+  assert.deepEqual((await json(`/api/recipes?favoriteOf=${bo.id}`)).map((r: any) => r.name), ['Soup', 'Tacos']);
+  assert.deepEqual(((await (await love(tacos.id, ada.id, false)).json()) as any).favoritedBy, [bo.id]);
+  assert.equal((await love(tacos.id, 'nobody', true)).status, 404);
+  assert.equal((await request('/api/recipes/nope/favorite', 'PUT', { memberId: ada.id, favorite: true })).status, 404);
+  // Same rule as ratings: a wall hearts for anyone, a member's own device only for them.
+  const wall = await createApiKey(db, 'Wall', 'display', { owner: 'shared' });
+  const adaPhone = await createApiKey(db, 'Ada phone', 'display', { owner: ada.id });
+  assert.equal((await love(soup.id, ada.id, true, wall.key)).status, 200);
+  assert.equal((await love(soup.id, bo.id, false, adaPhone.key)).status, 403);
+  const file = await json('/api/export');
+  const target = fixture();
+  await target.json('/api/import', 'POST', file);
+  assert.deepEqual((await target.json(`/api/recipes/${soup.id}`)).favoritedBy.sort(), [ada.id, bo.id].sort());
+  await json(`/api/members/${bo.id}`, 'DELETE');
+  assert.deepEqual((await json(`/api/recipes/${soup.id}`)).favoritedBy, [ada.id]);
+  await json(`/api/recipes/${soup.id}`, 'DELETE');
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM recipe_favorites').first<{ n: number }>())!.n, 0);
+});
+
 test('meals: handled is gone; an old export saying handled imports as cooked (prepared)', async () => {
   const { MealSchema } = await import('../src/meal-schemas.ts');
   const parsed = MealSchema.shape.status.parse('handled');

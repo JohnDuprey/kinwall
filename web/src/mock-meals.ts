@@ -105,7 +105,9 @@ const seedRatings: Record<string, Record<string, number>> = {
   tacos: { m1: 5, m2: 4, m3: 5, m4: 5 }, pizza: { m1: 4, m2: 4, m3: 5, m4: 5 }, pancakes: { m2: 5, m3: 4, m4: 5 },
   pasta: { m1: 4, m2: 3, m4: 4 }, salmon: { m1: 5, m2: 4, m3: 2, m4: 1 }, 'stir-fry': { m1: 4, m3: 3 },
 }
-recipes = recipes.map(r => ({ ...r, rating: rated(seedRatings[r.id.slice(5)] ?? {}) }))
+// Demo favorites (hearts), member ids in order as the server sends them.
+const seedFavorites: Record<string, string[]> = { tacos: ['m1', 'm3', 'm4'], pizza: ['m4'], pancakes: ['m2', 'm3'] }
+recipes = recipes.map(r => ({ ...r, rating: rated(seedRatings[r.id.slice(5)] ?? {}), favoritedBy: seedFavorites[r.id.slice(5)] ?? [] }))
 // Basics: made ahead and used inside other recipes. Tuesday Tacos' seasoning and the pizza's dough link to them.
 const seedBasic = (id: string, name: string, description: string, instructions: string, makes: string, ingredients: SeedIngredient[], steps: Recipe['steps']): Recipe =>
   ({ ...seedRecipe(id, name, description, instructions, '', ingredients), preparationNotes: null, kind: 'basic', makes, steps, rating: rated({}) })
@@ -347,6 +349,10 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
       let linked = 0
       recipes = recipes.map(r => r.id === id ? r : { ...r, ingredients: r.ingredients.map(i => !i.basicId && matchBasic(i.name, basics)?.id === id ? (linked++, { ...i, basicId: id, basicName: old!.name }) : i) })
       return { linked }
+    }
+    if (action === 'favorite') {
+      const saved = { ...old!, favoritedBy: [...(old!.favoritedBy ?? []).filter(m => m !== body.memberId), ...(body.favorite ? [body.memberId] : [])].sort() }
+      recipes = recipes.map(r => r.id === saved.id ? saved : r); return saved
     }
     if (action === 'rating') {
       const byMember = { ...old!.rating?.byMember }

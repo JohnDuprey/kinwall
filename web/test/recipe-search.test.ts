@@ -23,6 +23,11 @@ test('pickerRecipes: matches by name, skips archived unless it is the current on
   assert.deepEqual(pickerRecipes(all, 'zzz'), [])
 })
 
+test('pickerRecipes: anyone\'s favorites come first, each group by name', () => {
+  const all = [recipe('1', 'Apple pie'), { ...recipe('2', 'Tacos'), favoritedBy: ['m2'] }, { ...recipe('3', 'Banana bread'), favoritedBy: [] }, { ...recipe('4', 'Pancakes'), favoritedBy: ['m3', 'm4'] }]
+  assert.deepEqual(pickerRecipes(all, '').map(r => r.id), ['4', '2', '1', '3'])
+})
+
 test('pickerRecipes: basics stay out unless asked for, or already chosen', () => {
   const all = [recipe('1', 'Tacos'), { ...recipe('2', 'Taco seasoning'), kind: 'basic' as const }, { ...recipe('3', 'Pizza dough'), kind: 'basic' as const }]
   assert.deepEqual(pickerRecipes(all, '').map(r => r.id), ['1'])

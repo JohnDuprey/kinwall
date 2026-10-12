@@ -102,10 +102,11 @@ export function Stars({ average, count }: { average: number; count: number }) {
  * person rates only for them (the server's ownerBlock); a grown-up's own phone rates for anyone. */
 export const ratingOwner = (me: { scope: string; owner?: string | null } | null | undefined) => me?.scope === 'display' ? me.owner ?? null : null
 
-/** Collapsed to the family average (open on a kid's own device, their row first); open it for each member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
+/** Collapsed to the family average (open on a kid's own device, their row first); open it for each member's stars, tappable (tap the same star again to clear), and a heart to mark it their favorite. A member's own device rates only for them. */
 function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | null; onRated?: () => void }) {
   const { members, toast, actingMemberId } = useApp()
   const [rating, setRating] = useState<RecipeRating>(recipe.rating ?? { average: null, count: 0, byMember: {} })
+  const [loved, setLoved] = useState(recipe.favoritedBy ?? [])
   const [busy, setBusy] = useState('')
   if (!members.length) return null
   const rate = async (memberId: string, stars: number | null) => {
@@ -114,20 +115,27 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
     catch (e) { toast(e instanceof Error ? e.message : 'Could not save the rating.', true) }
     finally { setBusy('') }
   }
+  const love = async (memberId: string, favorite: boolean) => {
+    setBusy(memberId)
+    try { const saved = await api.favoriteRecipe(recipe.id, memberId, favorite); setLoved(saved.favoritedBy ?? []); onRated?.() }
+    catch (e) { toast(e instanceof Error ? e.message : 'Could not save the favorite.', true) }
+    finally { setBusy('') }
+  }
   // A kid's own device: rating dinner is the main thing they do here, so the stars start open with their row first.
   const kid = !!owner && owner !== 'shared'
   // A wall with someone picked in its header opens the same way, their row first.
   const first = kid ? owner : actingMember(actingMemberId, members)?.id
   const people = first ? [...members].sort((a, b) => Number(b.id === first) - Number(a.id === first)) : members
   return <details className="settings-disclosure recipe-ratings-box" open={!!first || undefined}>
-    <summary>{kid ? 'How did you like it?' : rating.average !== null ? `★ ${rating.average} · ${rating.count} rating${rating.count === 1 ? '' : 's'}` : 'Rate this recipe'}</summary>
+    <summary>{kid ? 'How did you like it?' : rating.average !== null ? `★ ${rating.average} · ${rating.count} rating${rating.count === 1 ? '' : 's'}` : 'Rate this recipe'}{!kid && loved.length > 0 && ` · ♥ ${loved.length} favorite${loved.length === 1 ? '' : 's'}`}</summary>
     <ul className="recipe-ratings">{people.map(m => {
-      const mine = rating.byMember[m.id] ?? 0
+      const mine = rating.byMember[m.id] ?? 0, hearted = loved.includes(m.id)
       const locked = !!owner && owner !== 'shared' && owner !== m.id
       return <li key={m.id}>
         <span className="recipe-rating-who"><Face m={m} className="member-avatar-sm" aria-hidden="true" />{m.name}</span>
         <span className="recipe-rating-stars" role="group" aria-label={`${m.name}'s rating`}>{[1, 2, 3, 4, 5].map(n =>
           <button key={n} type="button" className={n <= mine ? 'on' : ''} aria-pressed={n === mine} aria-label={`${n} star${n === 1 ? '' : 's'}`} disabled={locked || busy === m.id} onClick={() => void rate(m.id, n === mine ? null : n)}>★</button>)}
+          <button type="button" className={`recipe-heart${hearted ? ' on' : ''}`} aria-pressed={hearted} aria-label={`${m.name}'s favorite`} disabled={locked || busy === m.id} onClick={() => void love(m.id, !hearted)}>{hearted ? '♥' : '♡'}</button>
         </span>
       </li>
     })}</ul>

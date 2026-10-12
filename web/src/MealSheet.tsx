@@ -216,7 +216,7 @@ function MealChooser({ recipes, slot, onRecipe, onOther }: {
     </div>
     {shown.length ? <div className="sheet-links">{shown.map(r => <button key={r.id} type="button" className="sheet-link" onClick={() => onRecipe(r)}>
       {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
-      <span>{r.name}{(!!r.totalMinutes || r.rating?.average != null) && <small>{[r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+      <span>{r.name}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? '♥ Favorite' : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
     </button>)}</div>
       : <p className="state-card">{recipes.some(r => !r.archived) ? 'No recipes match. Tap Something else to plan it by name.' : 'No recipes yet. Tap Something else to plan a meal by name.'}</p>}
   </div>
@@ -248,7 +248,7 @@ export function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
         {saved && !query.trim() && <button type="button" className="sheet-link" aria-current={currentId === saved.id || undefined} onClick={() => onPick(null)}><BookIcon /><span>{saved.name} (saved recipe)<small>Kept with this meal</small></span></button>}
         {shown.map(r => <button key={r.id} type="button" className="sheet-link" aria-current={r.id === currentId || undefined} onClick={() => onPick(r)}>
           {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
-          <span>{r.name}{r.archived ? ' (archived)' : ''}{r.kind === 'basic' && <span className="kit-tag">Basic</span>}{(!!r.totalMinutes || r.rating?.average != null) && <small>{[r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+          <span>{r.name}{r.archived ? ' (archived)' : ''}{r.kind === 'basic' && <span className="kit-tag">Basic</span>}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? '♥ Favorite' : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
         </button>)}
       </div>
       {!shown.length && <p className="state-card">No recipes match</p>}
