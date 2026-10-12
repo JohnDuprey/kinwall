@@ -19,9 +19,12 @@ export function aisleAt(item: TripItem, store: string, storeAisles: string[] = [
 }
 
 /** After a scan while shopping (Lists.tsx): what to ask about the item, only what's missing. Its aisle
- * at the trip's store (none to ask at Any store), and its department. */
+ * at the trip's store (none to ask at Any store), and its department, but not once its aisle here
+ * is known: that's what the trip walks by, so a department alone isn't worth a question. */
 export function placeNeeds(item: TripItem, trip: string | null, storeAisles: string[]): { aisle: boolean; department: boolean } {
-  return { aisle: !!trip && trip !== ANY_STORE && !aisleAt(item, trip, storeAisles), department: !item.category?.trim() }
+  const atStore = !!trip && trip !== ANY_STORE
+  const aisle = atStore && !aisleAt(item, trip, storeAisles)
+  return { aisle, department: !item.category?.trim() && (aisle || !atStore) }
 }
 
 /** Items planned for this store or for anywhere, grouped by their aisle there (see aisleAt) in walking order

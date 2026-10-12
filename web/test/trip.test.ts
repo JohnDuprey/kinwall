@@ -160,6 +160,7 @@ test('placeNeeds: after a scan while shopping, ask only for what is missing at t
   assert.deepEqual(placeNeeds(item({ category: 'Pantry', places: [{ store: 'Market', aisle: 'Aisle 4' }] }), 'Market', []), { aisle: false, department: false }, 'known here: nothing')
   assert.deepEqual(placeNeeds(item({ category: 'Pantry', places: [{ store: 'Club', aisle: 'Aisle 9' }] }), 'Market', []), { aisle: true, department: false }, 'known at another store only')
   assert.deepEqual(placeNeeds(item({ category: 'Produce' }), 'Market', ['Produce', 'Aisle 1']), { aisle: false, department: false }, 'its department is an aisle here')
+  assert.deepEqual(placeNeeds(item({ places: [{ store: 'Market', aisle: 'Aisle 18' }] }), 'Market', []), { aisle: false, department: false }, 'aisle known here, no department: nothing to ask')
   assert.deepEqual(placeNeeds(item({}), ANY_STORE, []), { aisle: false, department: true }, 'any store: no aisle to ask for')
   assert.deepEqual(placeNeeds(item({}), null, []), { aisle: false, department: true })
 })
