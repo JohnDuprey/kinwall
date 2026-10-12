@@ -571,7 +571,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 /* Multi-member striped events: title/time text is set with EventTitle so truncation and the
    avatar row work the same in every view (week/day timed blocks, all-day chips, month chips,
    schedule rows). eventVisual() in Calendar.tsx computes the stripe/solid background. */
-.event-title-row { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.event-title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .event-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: min(100%, 3.5em); flex: 1 1 auto; }
 /* Stripes mix several member colors, so contrast against --chip-ink isn't guaranteed the way a
    single pastel color is — give the title a translucent backing pill to keep it readable. */
@@ -580,6 +580,10 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 .event-title-pill { background: rgba(255,255,255,0.6); color: #241a10; border-radius: 5px; padding: 0 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 :root[data-theme="dark"] .event-title-pill { background: rgba(0,0,0,0.4); color: #ffffff; }
 .event-avatars { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 0.8125rem; line-height: 1; letter-spacing: 1px; }
+/* An emoji face takes the same round box as a picture, so a row of both lines up. */
+.event-avatars { display: inline-flex; align-items: center; gap: 2px; }
+.event-avatars > * { flex: none; }
+.event-avatars .inline-emoji { display: inline-flex; align-items: center; justify-content: center; width: 1.28em; height: 1.28em; }
 .schedule-avatars { margin-left: 6px; font-size: 0.875rem; }
 /* A narrow block (side by side with another event on a phone) overlaps its faces so all of them fit. */
 .event-title-row { container-type: inline-size; }
