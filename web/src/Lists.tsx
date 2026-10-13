@@ -2071,22 +2071,20 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         {parentDevice && <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>} {/* a list's settings, archive and delete are for parent devices; View stays */}
       </div>
 
-      <div className="list-add-bar">
-        {list.kind === 'shopping' ? <>
-          <button className="list-add-open" onClick={() => setAdding(true)} aria-haspopup="dialog">Add an item…</button>
-          <button className="icon-btn" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label="Add an item"><PlusIcon width={20} height={20} /></button>
-        </> : <>
+      {list.kind !== 'shopping' && (
+        <div className="list-add-bar">
           <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
             label={`Add to ${list.name}`} placeholder="Add something…" />
           <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
-        </>}
-        {scanBtn}
-        {list.kind !== 'shopping' && items.length > 0 && viewButton /* no Shop button to share a row with */}
-      </div>
+          {items.length > 0 && viewButton /* no Shop button to share a row with */}
+        </div>
+      )}
 
-      {/* Shopping lists: Shop (or the trip and End), and View once there's something to view. */}
+      {/* Shopping lists: Add (the Add item sheet), scan, Shop (or the trip and End), and View once there's something to view. */}
       {list.kind === 'shopping' && (
         <div className="list-actions">
+          <button className={`btn ${activeTrip ? 'btn-secondary' : 'btn-primary'} list-add-btn`} onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label="Add an item"><PlusIcon width={18} height={18} />Add</button>
+          {scanBtn}
           {activeTrip ? <>
             <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={`Shopping at ${storeLabel}, ${tripLeft} left. Resume shopping`}>
               <CartIcon width={18} height={18} /><span className="list-shop-label">Shopping at {storeLabel}<span className="list-shop-sub"> · {tripLeft} left</span></span>

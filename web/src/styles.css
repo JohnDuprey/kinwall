@@ -1386,11 +1386,10 @@ button.month-cell .month-daynum { flex: none; }
   position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; flex-shrink: 0;
   background: var(--card); padding: 2px 0 4px;
 }
-.list-add-bar input, .list-add-open {
+.list-add-bar input {
   flex: 1; min-width: 0; min-height: var(--ctl-h); padding: 0 14px; border-radius: var(--radius-sm);
   border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: 0.9375rem;
 }
-.list-add-open { color: var(--text-dim); text-align: left; cursor: pointer; }
 .list-add-bar .icon-btn { width: var(--ctl-h); height: var(--ctl-h); background: var(--accent-strong); color: var(--accent-ink); flex-shrink: 0; }
 /* In a sheet, stick to the very top of the scroll area (over .sheet-body's 4px top padding) so rows
    scrolling underneath don't peek out between the sheet's title and the bar. */
@@ -1634,6 +1633,11 @@ button.month-cell .month-daynum { flex: none; }
 .manage-row .btn { flex: none; width: auto; min-height: 44px; }
 .manage-row .icon-btn { background: none; box-shadow: none; width: 44px; height: 44px; flex-shrink: 0; }
 .list-actions .list-catalog-btn { padding: 8px 14px; }
+.list-actions .list-add-btn { gap: 6px; padding-inline: 16px; }
+.list-actions .list-scan-btn { width: 44px; height: 44px; flex: none; }
+/* With the app's 📷 there are five in a row: tighter, so a phone fits them. */
+.list-actions:has(.list-scan-btn) { gap: 6px; }
+.list-actions:has(.list-scan-btn) .btn { padding-inline: 12px; }
 /* The grocery catalog: search, Filter & sort and New, a one-line summary of the filters, then a row per
    item (tap to edit, + to add to the list). */
 .catalog-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }

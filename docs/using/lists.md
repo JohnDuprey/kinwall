@@ -55,7 +55,7 @@ With no default set, the first list of that type in your list order is used, as 
 ## Adding and ticking items
 
 * Type in the add bar and press Enter. The keyboard stays open for the next item.
-* **Shopping lists** open an **Add item** sheet instead: tap **Add an item…** (or **+**). Type the **Name** first, then fill in what you like: **Quantity**, **Store**, **Aisle**, **For**, **On sale** and **Notes**.
+* **Shopping lists** open an **Add item** sheet instead: tap **+ Add**, next to **Shop** and **Catalog** (and **📷** in the phone app). Type the **Name** first, then fill in what you like: **Quantity**, **Store**, **Aisle**, **For**, **On sale** and **Notes**.
   * Pick a name your family has added before and its store and aisle fill in from last time; change them if this time is different.
   * **Add** adds it and closes the sheet. **Add another** (or Enter in the name) adds it and clears the sheet for the next one, keeping the store you picked, so several items still go in quickly.
   * In [Shopping mode](#shopping-mode) the item is planned for the store you're shopping at, and **Aisle** offers that store's aisles.
@@ -181,7 +181,7 @@ Each shopping list type has its own catalog: the **Grocery catalog** for Groceri
 
 ## Shopping at a store
 
-Under **Add an item**, **Shop** starts a trip and opens [shopping mode](#shopping-mode). It asks **Where are you shopping?** with your stores and **Any store**; if your family has only one store (or none yet), it starts right away there (or at any store). The trip is kept on this device only (the wall and other phones aren't affected) and ends at **Done shopping**, or when you tap **End**.
+Next to **+ Add**, **Shop** starts a trip and opens [shopping mode](#shopping-mode). It asks **Where are you shopping?** with your stores and **Any store**; if your family has only one store (or none yet), it starts right away there (or at any store). The trip is kept on this device only (the wall and other phones aren't affected) and ends at **Done shopping**, or when you tap **End**.
 
 While a trip is on, the list shows **Shopping at** the store and how many items are left in place of **Shop**. Tap it to go back to shopping mode, or tap **End** next to it to stop shopping without taking anything off the list.
 
