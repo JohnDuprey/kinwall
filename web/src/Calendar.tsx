@@ -1145,7 +1145,7 @@ function HideSection({ event, calendar, onHide, onUnhide, onHideLike }: {
   const recurring = !!(event.seriesId || event.rrule)
   return (
     <div className="hide-choices" role="group" aria-label={`Hide ${event.title}`}>
-      <p className="settings-row-sub">Hidden events are gone for the whole family: the calendar, the Board, reminders and the assistant. Show them again any time from Settings → Calendars → {name}.</p>
+      <p className="settings-row-sub">Hidden events are gone for the whole family: the calendar, the Board, reminders and connected apps. Show them again any time from Settings → Calendars → {name}.</p>
       {recurring ? <>
         <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>Just this one</button>
         <button type="button" className="btn btn-secondary" onClick={() => onHide('series')}>Every one in the series</button>

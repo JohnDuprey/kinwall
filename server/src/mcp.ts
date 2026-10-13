@@ -334,7 +334,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
 };
 
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
-  // Every tool gets its MCP annotations from TOOL_HINTS, so clients (e.g. Claude's connector
+  // Every tool gets its MCP annotations from TOOL_HINTS, so clients (e.g. their connector
   // settings) can group them into read-only / write / delete for permissions.
   const tool: typeof server.registerTool = (name, config, cb) => {
     const hints = TOOL_HINTS[name];
@@ -2792,7 +2792,7 @@ export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promis
   const resolved = await resolveKey(c);
   const auth = c.req.header('Authorization') ?? '';
   if (!resolved || !auth) {
-    // resource_metadata is how an OAuth-capable client (e.g. a Claude connector) discovers where to
+    // resource_metadata is how an OAuth-capable MCP client discovers where to
     // sign in (MCP authorization spec / RFC 9728). Header-based API keys keep working as before.
     const base = ((await effectivePublicUrl(c.env, c.env.DB)).value || new URL(c.req.url).origin).replace(/\/$/, '');
     return c.body(JSON.stringify({ error: 'unauthorized' }), 401, {

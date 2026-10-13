@@ -207,7 +207,7 @@ Or paste the whole menu in **Paste a menu** and tap **Add these items**:
 * Add-ons and sides to swap (`Sub French Fries $1.75`, `Add Ons: Bacon $2.00`, an "Add Protein" box) go together in an **Add-ons** section at the end, each saying what it goes with ("For Burgers and Wraps").
 * Coupons and deals, opening hours, phone numbers, web addresses and mailing labels are left out.
 
-The items are added below the ones you have, so you can check and fix them before **Save restaurant**. For a paper menu, take a photo and copy its text (Live Text on an iPhone or iPad, Google Lens on Android), then paste it. Or send the photo to your family assistant: through [MCP](../integrations/mcp.md) it can read the menu off the photo and add it with `import_restaurant`. Or add it from your phone with a [shortcut](#add-restaurants-from-your-phone).
+The items are added below the ones you have, so you can check and fix them before **Save restaurant**. For a paper menu, take a photo and copy its text (Live Text on an iPhone or iPad, Google Lens on Android), then paste it. Or, if you've connected an app over [MCP](../integrations/mcp.md) that can read photos, it can add the menu with `import_restaurant`. Or add it from your phone with a [shortcut](#add-restaurants-from-your-phone).
 
 ### Fill in from website
 

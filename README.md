@@ -59,7 +59,7 @@ Designed with neurodivergent family members in mind, and aiming for WCAG 2.2 AA 
 
 - **On your own server**: your calendar, chores and photos live in a database you own. No ads, no tracking, no one else's cloud.
 - **No accounts, no passwords**: parents sign in with a passkey. Wall screens and kids' tablets pair with a code and never see settings.
-- **Health stays locked**: medicines and checkups are always encrypted, and stay out of webhooks and AI assistants unless you turn each one on.
+- **Health stays locked**: medicines and checkups are always encrypted, and stay out of webhooks and connected apps unless you turn each one on.
 - **Nothing held back**: every feature is in the open-source app. What you see in the demo is all of it.
 
 ## Deploy
@@ -85,7 +85,7 @@ The setup wizard, putting it on the wall, connecting calendars, every setting an
 
 - **REST API**: everything the UI does, with [Swagger UI](https://github.com/swagger-api/swagger-ui) docs at `/docs` and the spec at `/openapi.json`. See [docs](docs/integrations/rest-api.md).
 - **Webhooks**: HMAC-signed event types for automations. See [docs](docs/integrations/webhooks.md).
-- **MCP server**: connect Claude or any MCP client at `/mcp` with OAuth sign-in or a bearer key. See [docs](docs/integrations/mcp.md).
+- **MCP server**: connect any MCP-compatible client at `/mcp` with OAuth sign-in or a bearer key. See [docs](docs/integrations/mcp.md).
 - **Home Assistant**: calendars, to-do lists, points sensors and a binary sensor per chore, plus an add-on to run Kinwall itself, in [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant). See [docs](docs/integrations/home-assistant.md).
 - **[n8n](https://n8n.io)**: example workflows with n8n's built-in HTTP Request and Webhook nodes. See [docs](docs/integrations/n8n.md).
 

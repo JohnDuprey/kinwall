@@ -14,7 +14,7 @@ An activity plugin is a small web page that shows up under **Activities** on a f
 - **Leaving asks first; closing doesn't.** While an activity is open, Kinwall hides its own header, tabs and menu, and its back button, the browser's back and Android's back button ask "Leave …?" first. `Kinwall.close()` leaves right away, so call it when your activity is truly finished.
 - **No zooming.** Activities don't pinch- or double-tap-zoom (a child zooms in and gets lost). Keep `maximum-scale=1, user-scalable=no` in your page's viewport and `touch-action: pan-x pan-y` on `html` (the template has both; `kinwall.js` also stops Safari's pinch gesture). Size text from Kinwall's text size (`ctx.textScale`) instead.
 - **Slow down guessing.** After a wrong answer, disable the answer controls for about 1.5 seconds with a gentle look, and keep a 🔊 replay button disabled until the speech ends plus about 1.5 seconds. Use `aria-disabled` (not `disabled`) so focus stays put. The template shows the pattern.
-- **Other apps can ask it to do things.** A plugin can declare **actions** in its manifest, like Spelling practice's `addList`, so a parent can say "add Maya's spelling list for this week" to an AI assistant, or a Home Assistant or n8n automation can send one. See [Actions](#actions).
+- **Other apps can ask it to do things.** A plugin can declare **actions** in its manifest, like Spelling practice's `addList`, so a parent can add Maya's spelling list for this week from a connected app, or a Home Assistant or n8n automation can send one. See [Actions](#actions).
 - **It's one page.** If the page loads another page (a link, `location`, a reload), Kinwall stops the plugin. Switch screens in JavaScript.
 
 ## Actions

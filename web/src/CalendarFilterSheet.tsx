@@ -57,7 +57,7 @@ export default function CalendarFilterSheet({ calendar, onClose, onSaved }: { ca
 
   return (
     <Sheet title={`Filter: ${calendar.name}`} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={saving}>Save</button>}>
-      <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>Decide which events the family sees from this calendar, everywhere: the calendar, the Board, reminders and the assistant. Nothing is deleted, and you can change it any time.</p>
+      <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>Decide which events the family sees from this calendar, everywhere: the calendar, the Board, reminders and connected apps. Nothing is deleted, and you can change it any time.</p>
       <div className="field">
         <label htmlFor="filter-preset">Start from a preset</label>
         <select id="filter-preset" value={preset} onChange={e => pickPreset(e.target.value)}>

@@ -7,7 +7,7 @@
 // - computed on request from the sealed rows and never stored (no table, no cache); journal text is
 //   never read, only each entry's mood;
 // - their own device (a display key they own) and parents' devices; never a shared wall screen or
-//   another member's device; connected apps (MCP, AI connectors) only with aiHealthAccess;
+//   another member's device; connected apps (MCP, OAuth connections) only with aiHealthAccess;
 // - never logged, never in a webhook, a snapshot, a profile or the export (it's derived data).
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';

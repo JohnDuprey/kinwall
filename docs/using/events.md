@@ -151,7 +151,7 @@ Where it comes from:
 | **CalDAV / iCloud** | `TRANSP:TRANSPARENT` | Yes (`TRANSP`) |
 | **ICS feeds** | `TRANSP:TRANSPARENT`; with no `TRANSP`, busy | Read-only |
 
-In the API and the assistant it's `busy` (`true` or `false`) on `POST/PATCH /api/events`, `PUT /api/calendars/{id}/events/sync` and the MCP `create_event` / `update_event` tools.
+In the API and over MCP it's `busy` (`true` or `false`) on `POST/PATCH /api/events`, `PUT /api/calendars/{id}/events/sync` and the MCP `create_event` / `update_event` tools.
 
 ## Kinwall-only vs synced fields
 

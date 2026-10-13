@@ -1,6 +1,6 @@
 # MCP server
 
-Kinwall has a built-in [Model Context Protocol](https://modelcontextprotocol.io) server. An AI assistant can answer "what's on Saturday?", add an event, tick off a chore, add milk to the groceries or check the leaderboard.
+Kinwall has a built-in [Model Context Protocol](https://modelcontextprotocol.io) server: a standard API that any MCP-compatible client you choose to connect can use, with your permission. A connected app can look up what's on Saturday, add an event, tick off a chore, add milk to the groceries or check the leaderboard.
 
 * **Endpoint**: `https://<your-kinwall>/mcp`, using the **Streamable HTTP** transport (`POST`/`DELETE`). It's stateless, with no sessions, and offers no SSE stream (`GET` answers 405), so clients never hold a connection open.
 * **Same rules as REST**: every tool calls the REST routes internally with your credentials, so scopes, validation, webhooks and `rev` bumps behave exactly as they do for the [REST API](rest-api.md). A REST error becomes a tool result with `isError: true` and the route's error text.
@@ -24,7 +24,7 @@ This applies to every MCP call, whichever key it uses, and to a connected app's 
 
 The sign-in flow: no key to copy, and each app gets its own revocable grant. Kinwall is its own authorization server:
 
-1. Add `https://<your-kinwall>/mcp` as a custom connector in your client.
+1. Add `https://<your-kinwall>/mcp` as a remote MCP server in your client.
 2. The client discovers Kinwall's OAuth metadata (`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`) and registers itself automatically.
 3. Your browser opens Kinwall's consent screen: "*App* wants to use Kinwall". Sign in as an admin with a passkey, or with an admin API key, then choose:
    * **Full access**: "Everything you can do as an admin, including members and settings."
@@ -42,19 +42,13 @@ Details: authorization code with **PKCE S256 only**, public clients, and redirec
 
 ### Bearer key
 
-Any API key in an `Authorization` header. Use a **display** key for an everyday assistant. It can add and complete events, chores and lists, but not manage members, accounts, keys or webhooks. Use an **admin** key only if the assistant needs `add_member`, `update_member`, `send_notification`, `set_night_screen` or the chore library tools.
+Any API key in an `Authorization` header. Use a **display** key for everyday use. It can add and complete events, chores and lists, but not manage members, accounts, keys or webhooks. Use an **admin** key only if the app needs `add_member`, `update_member`, `send_notification`, `set_night_screen` or the chore library tools.
 
 ## Connecting clients
 
-**Claude (web, desktop, mobile)**: **Settings → Connectors → Add custom connector**, URL `https://<your-kinwall>/mcp`. This uses OAuth.
+Any client that supports remote MCP servers over Streamable HTTP works. In an MCP-compatible client, add a remote MCP server (some clients call it a custom connector) with the URL `https://<your-kinwall>/mcp`, then either sign in with OAuth when the client asks, or use an API key by configuring an `Authorization: Bearer <key>` header, depending on what the client supports.
 
-**Claude Code**:
-
-```bash
-claude mcp add --transport http kinwall https://<your-kinwall>/mcp --header "Authorization: Bearer <key>"
-```
-
-**Clients that take a JSON config** (Claude Desktop's `claude_desktop_config.json` and similar):
+Clients that take a JSON config usually look like this:
 
 ```json
 {
@@ -67,13 +61,13 @@ claude mcp add --transport http kinwall https://<your-kinwall>/mcp --header "Aut
 }
 ```
 
-**ChatGPT, Gemini and others**: any client that supports remote MCP servers over Streamable HTTP works. Give it the URL `https://<your-kinwall>/mcp`, and either let it sign in with OAuth or configure an `Authorization: Bearer <key>` header, depending on what the client supports. Where each client keeps that setting changes often, so check its own documentation.
+Where each client keeps these settings changes often, so check its own documentation.
 
 Kinwall shows its own icon in clients that display server icons.
 
 ## Tools
 
-Every tool carries MCP annotations (read-only / destructive / idempotent / open-world). Clients such as Claude can use them to group permissions as read, write and delete.
+Every tool carries MCP annotations (read-only / destructive / idempotent / open-world). Clients can use them to group permissions as read, write and delete.
 
 ### Read
 
@@ -170,9 +164,9 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `rate_recipe` | Sets a family member's 1-5 star rating of a recipe (`recipeId`, `memberId` as name or ID, `stars`; `0` or `null` clears it). Recipes read by `list_recipes` / `get_recipe` include `rating: { average, count, byMember }`. |
 | `favorite_recipe` | Marks a recipe as a family member's favorite (`recipeId`, `memberId` as name or ID; `favorite: false` takes the heart off). Same rule as `rate_recipe`: a member's own device only for them. |
 | `import_recipe` | Imports a recipe from another app, such as a meal kit (admin): ingredient lines like "1.5 tablespoon Sour Cream" are parsed, and importing the same `source` + `externalId` again updates it. With `plan` it's also planned on that date and slot unless the slot is taken (`planned: false` with the `reason`); `plan.calendarId` also puts it on that calendar (any writable one) and `plan.eventStart: "cooking"` starts the event when cooking starts. |
-| `import_recipe_from_url` | Reads the recipe on a web page (admin): name, photo, servings, times, ingredients and steps. It only previews unless `save: true`, which saves it keyed by the page's address, so importing the same page again updates it; a preview of a page already imported names that recipe (`updates`). A page without recipe data fails, so the assistant can ask for the recipe text and use `create_recipe`. |
+| `import_recipe_from_url` | Reads the recipe on a web page (admin): name, photo, servings, times, ingredients and steps. It only previews unless `save: true`, which saves it keyed by the page's address, so importing the same page again updates it; a preview of a page already imported names that recipe (`updates`). A page without recipe data fails, so the client can ask for the recipe text and use `create_recipe`. |
 | `create_restaurant` | Adds a restaurant to the binder, optionally with its `menu` (admin). |
-| `update_restaurant` | Edits a restaurant (by ID or exact name), archives it (`archived: true`), or replaces its `menu` (admin). Keeping an item's `id` keeps its star. Good for a photo of a paper menu: the assistant reads the items off it and sends them here. |
+| `update_restaurant` | Edits a restaurant (by ID or exact name), archives it (`archived: true`), or replaces its `menu` (admin). Keeping an item's `id` keeps its star. Good for a paper menu: a client that can read a photo of it can send the items here. |
 | `import_restaurant` | Adds a restaurant, or adds to one already in the binder matched by name (admin), like the [restaurant shortcut](../using/meals.md#add-restaurants-from-your-phone): fills only empty fields and adds `menu` and `menuText` items not already on the menu (same name in the same section), so a menu can come in page by page and stars are never touched. `url` is the restaurant's web page (its details are read) or an Apple Maps link. Answers with a one-line `summary`. Good for a photo of a paper menu. |
 | `set_meal_order` | Sets a family member's order (`member` as name or ID) for a dining-out meal: `items` (`[{ menuItemId, name, qty, note }]`, menu item IDs from `get_restaurant`) and a `note`. No items and no note clears it. Once a parent marks the meal ordered, only full access can change it. `list_meals` returns each meal's `orders`. |
 | `ask_for_orders` | Asks who's eating a dining-out meal what they want: a notification in the bell and on their phones (admin). |
@@ -197,7 +191,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 
 ### Delete
 
-Deleting is permanent: nothing here can be undone. Events, lists, list items, steps and notes can be deleted with **Everyday access** (or a display key), as in the app. Everything else needs **Full access** (or an admin key). Where there's a gentler option, the tool's description points the assistant to it: archive a list, recipe or reward, or turn a chore off with `active: false`. Lists, recipes and rewards are matched by ID or exact name only, never part of a name.
+Deleting is permanent: nothing here can be undone. Events, lists, list items, steps and notes can be deleted with **Everyday access** (or a display key), as in the app. Everything else needs **Full access** (or an admin key). Where there's a gentler option, the tool's description points the client to it: archive a list, recipe or reward, or turn a chore off with `active: false`. Lists, recipes and rewards are matched by ID or exact name only, never part of a name.
 
 | Tool | Does |
 |---|---|

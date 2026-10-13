@@ -25,7 +25,7 @@ Tap **+ New entry**, write what happened (up to 2,000 characters), pick a mood i
 * **The person's own device** (a phone or tablet that belongs to them).
 * **Parents' devices** (full access). For kids the page says "parents can see it too". A **private** journal opens there too, but shows only the mood of each entry (see below).
 * **Never a shared wall screen** or another person's device: they get "This journal is private".
-* **Claude and other connected apps** can't read or change it unless a parent turns on **Let connected apps see health entries**. Even then they never get the words of a private entry. There's no MCP tool for the journal.
+* **Connected apps** can't read or change it unless a parent turns on **Let connected apps see health entries**. Even then they never get the words of a private entry. There's no MCP tool for the journal.
 
 Entries (the words and the mood) and goal check answers are encrypted on the server, never written to the logs, and never sent in webhooks or push text. Their profile shows **Goals met this week: 3 of 5** only on their own device and parents' devices. See [Privacy](../your-data/privacy.md#journal).
 

@@ -141,7 +141,7 @@ export async function ownDevice(c: Context<{ Bindings: Env }>): Promise<string |
 }
 
 /** Who is doing this, for "Added by" / "Checked off by" on lists: a person (their own device,
- * ownDevice) as a member id; an AI connector as "Assistant"; a device that is nobody's (a wall
+ * ownDevice) as a member id; a connected app (OAuth) as "Assistant"; a device that is nobody's (a wall
  * screen, a named automation key like Home Assistant's) by its name. Null when there's nothing
  * worth showing (the server's ADMIN_API_KEY, an unclaimed passkey or recovery sign-in). */
 export type Actor = { memberId: string | null; label: string | null };
@@ -410,7 +410,7 @@ export async function deviceAppGrant(db: KinwallDb, keyId: string | undefined): 
   return row?.id ?? null;
 }
 
-/** A connected app (Claude and other AI connectors, automations), not one of the family's own
+/** A connected app (an OAuth-connected app, automations), not one of the family's own
  * devices: every MCP tool call (mcp.ts marks its in-process requests), whatever key it uses, and
  * an OAuth token on REST unless Kinwall's own app signed in with it. The family's own API keys,
  * passkey sessions and pairings on REST are the family's. Health stays away from these unless the

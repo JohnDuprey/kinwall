@@ -13,7 +13,7 @@
 // - a shared wall screen: it can answer (today only), and it sees their feelings list so they can pick,
 //   but never what they picked: `answered` flags only, so the answers don't sit on the wall;
 // - another member's own device: the flags and the goal; it can't answer for them;
-// - connected apps (MCP, AI connectors): the flags and the goal, unless the family turned on aiHealthAccess.
+// - connected apps (MCP, OAuth connections): the flags and the goal, unless the family turned on aiHealthAccess.
 // The goal is family content: everyone sees it (and the Board, via Member.todayGoal).
 //
 // Goal follow-up (settings.evening): from eveningTime until midnight on a day they set a goal,

@@ -649,8 +649,8 @@ export const ListCatalogSchema = z.enum(['groceries', 'shopping']).openapi({
 });
 
 /** Who did something on a list: a family member (memberId), or a device or app that is nobody's
- * (label: a wall screen's name such as "Kitchen wall", an automation key's name, or "Assistant" for an
- * AI connector). Exactly one of the two is set; the field is null when nobody is known. */
+ * (label: a wall screen's name such as "Kitchen wall", an automation key's name, or "Assistant" for a
+ * connected app). Exactly one of the two is set; the field is null when nobody is known. */
 export const ActorSchema = z
   .object({ memberId: z.string().optional(), label: z.string().optional() })
   .openapi('Actor', { description: 'Who did it: a family member (memberId) or a named device or app (label, e.g. "Kitchen wall", "Assistant"). Exactly one is set.' });

@@ -22,7 +22,7 @@
 // - a shared wall: Take now cards for whoever is due ("Meds" unless settings.medicationNamesOnWalls),
 //   and marks Taken / Skip / Snooze for them; no list, no history.
 // - another member's device: nothing about anyone else's medicines.
-// - connected apps (MCP, AI connectors): refused unless the family turned on aiHealthAccess.
+// - connected apps (MCP, OAuth connections): refused unless the family turned on aiHealthAccess.
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';

@@ -16,7 +16,7 @@ The Lists tab groups your lists by type under **Groceries**, **Shopping**, **To-
 
 * **Fold a section**: tap its heading. This device remembers which sections are folded; other screens keep their own.
 * **Edit lists**: tap **Edit lists** under the lists (on a parent's device). Tap a list to edit it, or drag it by its grip or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
-* The order is the family's: every phone, the wall and the assistant see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its type moves it to that section.
+* The order is the family's: every phone, the wall and connected apps see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its type moves it to that section.
 * New lists go to the end of their section. A restored list comes back where it was.
 
 ## List types
@@ -32,7 +32,7 @@ You can change a list's type later, in **Edit** → **Type**.
 
 Groceries and Shopping lists work the same way (stores, aisles, shopping mode, Done shopping). What differs is what they remember: each type has its own [catalog](#catalogs), so a hammer from the hardware store isn't suggested on the grocery list, and milk isn't suggested at the hardware store. Stores and their aisle orders are shared by both, since a store is the same store whichever list you shop it from.
 
-**Before list types**, every shopping list was one kind with one catalog. When your Kinwall updated, a shopping list became **Groceries** when its name looks like groceries (it has "grocer", "food", "market", "produce" or "pantry" in it, in any case, so "Groceries", "Supermarket" and "Farmers market" all count), when meals were added to it, or when it was your only shopping list; the others became **Shopping**. Everything remembered went to the Grocery catalog, except names that were only on Shopping lists, which went to the Shopping catalog (a name on both kinds of list went to both). Change a list's type in **Edit** if it guessed wrong. A new shopping list made by the assistant or an older app without a type follows the same name rule, and your first shopping list is always Groceries.
+**Before list types**, every shopping list was one kind with one catalog. When your Kinwall updated, a shopping list became **Groceries** when its name looks like groceries (it has "grocer", "food", "market", "produce" or "pantry" in it, in any case, so "Groceries", "Supermarket" and "Farmers market" all count), when meals were added to it, or when it was your only shopping list; the others became **Shopping**. Everything remembered went to the Grocery catalog, except names that were only on Shopping lists, which went to the Shopping catalog (a name on both kinds of list went to both). Change a list's type in **Edit** if it guessed wrong. A new shopping list made by a connected app or an older app without a type follows the same name rule, and your first shopping list is always Groceries.
 
 A list can also be a chore's **checklist**, so a routine like "Bedtime" has to be ticked off before the chore counts. A reusable checklist resets itself each time the chore is completed. See [Chores → Checklists](chores.md#checklists).
 
@@ -85,7 +85,7 @@ Kinwall notes who adds each item and who ticks it off, so when "candy" shows up 
 * A person's own device (a kid's tablet, a grown-up's phone that knows **Whose device is this?**) shows their avatar and name.
 * A grown-up's phone's widgets, Siri and Apple Watch (the Kinwall app's widgets key) show that grown-up, when their phone knows **Whose device is this?**. The widgets still show the whole family.
 * A wall screen shows its name ("Kitchen wall"), and an automation key its own name (for example "Home Assistant").
-* An AI connector (Claude and other MCP apps) shows as **Assistant**.
+* An app connected over MCP or OAuth sign-in shows as **Assistant**.
 * A browser that hasn't said whose it is, and items from before this was kept, show nothing.
 * Steps keep their own: ticking the last step ticks the item, by whoever ticked that step. Unticking clears it, and so does **Reset**. Moving an item to another list keeps it.
 * If someone is removed from the family, the lines that named them go away.
@@ -113,7 +113,7 @@ On a shopping list, the item sheet puts **Quantity**, **Store**, **Aisle** and *
 
 * **Store** is where you plan to buy the item. **None** means anywhere.
 * **Aisle** belongs to a store: "Aisle 4", "Produce", "Back wall". The dropdown offers the chosen store's aisles in the order you walk them, and changing the store clears an aisle that store doesn't have.
-* **Department** is the kind of thing it is: "Produce", "Dairy", "Frozen". It's the same for every store. (On the API and to the assistant it's the item's `category`.)
+* **Department** is the kind of thing it is: "Produce", "Dairy", "Frozen". It's the same for every store. (On the API and over MCP it's the item's `category`.)
 * If an item has no store, the sheet suggests the store it was last bought at ("Last bought at Neighborhood market. **Plan to buy it there**"). It's only a suggestion; nothing changes unless you tap it.
 
 ### Departments fill in aisles
@@ -124,7 +124,7 @@ This is only how the item is shown. The aisle isn't saved, so if the store's ais
 
 ### Remembered places
 
-When you save a shopping item with a store, department or aisle, Kinwall remembers it for that item name in the list type's [catalog](#catalogs), on the server, so every phone, the wall and the assistant share it. Next time anyone adds "milk" to a Groceries list (typed, from Meals, or through the assistant), it gets the same store, department and aisle. Anything you set yourself wins, including choosing **None**.
+When you save a shopping item with a store, department or aisle, Kinwall remembers it for that item name in the list type's [catalog](#catalogs), on the server, so every phone, the wall and connected apps share it. Next time anyone adds "milk" to a Groceries list (typed, from Meals, or through a connected app), it gets the same store, department and aisle. Anything you set yourself wins, including choosing **None**.
 
 * Names match ignoring capitals, extra spaces and simple plurals: "Eggs" is "egg", "Tomatoes" is "tomato", "Berries" is "berry".
 * The aisle is remembered per store. Milk can be in Aisle 4 at one store and on the back wall at another; each store's aisle comes back when the item is planned for that store.
@@ -143,7 +143,7 @@ On a Groceries or Shopping list, the name in **Add item** suggests names your fa
 * Tap a suggestion to use that name, with the spelling you used last time; its remembered store and aisle fill in. On a keyboard, use ↑ and ↓ to pick one and Enter to add it; Enter with nothing highlighted adds what you typed. Escape closes the suggestions.
 * With the name empty, **Buy again** offers the six things you add most that aren't on the list.
 * Suggestions come with the list, so they work offline too.
-* Names are remembered household-wide, on the server, whether you add from the app, from Meals or through the assistant. Renaming an item changes the spelling suggested next time.
+* Names are remembered household-wide, on the server, whether you add from the app, from Meals or through a connected app. Renaming an item changes the spelling suggested next time.
 * Items from before this update show in simple lowercase (for example "banana milk") until you add them again; the next add keeps your spelling.
 * To forget one, open it in the list's [catalog](#catalogs) and tap **Forget this item**. It stops being suggested and where it goes is forgotten; items on lists keep it. (A recipe ingredient still comes back as a suggestion while a saved recipe uses it.)
 
@@ -347,7 +347,7 @@ Devices with **List updates** on get "List updated — *Groceries* has new items
 * Items carry `priority` (`low`, `normal`, `high` or `urgent`; older clients sending `high` keep working), `steps` (`[{id, title, done, sort, addedBy, checkedBy}]`, in order), `stepsDone` and `stepsTotal`.
 * Barcodes: `GET /api/lists/{id}/barcodes/{code}` (a shopping list; `code` is 8 to 14 digits, EAN or UPC) answers `{title, source}`: `family` when the barcode is saved in the catalog, else `openfoodfacts`, else (asked together, preferred in this order) `openproductsfacts`, `openbeautyfacts` or `openpetfoodfacts`; `404` when nobody knows it, `400` on another kind of list, `502` when Open Food Facts is unavailable (one of the others being down just counts as no match). `POST …/items` takes an optional `barcode` on each item, which saves that item's title for the barcode in the list's catalog (not stored on the item; the app sends it only when **Also save to catalog** is on). A 12-digit UPC-A and the same code as a 13-digit EAN-13 (a leading `0`) match each other: codes are saved as scanned and looked up in both forms, the newest name winning. Renaming a catalog item (`PUT /api/lists/remembered/{key}` with `title`) carries its barcodes; forgetting it (`DELETE`) forgets them. The export has them as `itemBarcodes`.
 * `POST /api/lists/{id}/items?skipExisting=1` (the Kinwall app's Siri adds): a name already on the list, matched like the catalog (case, spacing and simple plurals ignored), isn't added again. An open one comes back as it is with `existing: "open"`; a ticked one is unticked ("I need garlic again") and comes back with `existing: "reopened"`. New ones are added as usual. Without it, adding never looks at what's there.
-* Who did it ([Who added it](#who-added-it)): items and steps carry `addedBy` and `checkedBy`, each an actor `{memberId}` (a family member) or `{label}` (a wall screen's or automation key's name, or `"Assistant"` for an AI connector), or `null` when nobody is known. `checkedBy` is `null` while the item isn't done; unticking and `reset` clear it. `doneBy` (a string) is still there for older clients: the member id in `checkedBy`, else `null`. `PATCH` an item with `{done: true, doneBy}` to name the member who did it yourself. Lists carry `lastDoneAt` and `lastDoneBy` (an actor), set on a reusable list by a full `reset` with something ticked, or when its chore is done; both `null` until then. They're written by the same statements that add and tick, so adding and ticking cost no extra writes; a reset writes the list row once more.
+* Who did it ([Who added it](#who-added-it)): items and steps carry `addedBy` and `checkedBy`, each an actor `{memberId}` (a family member) or `{label}` (a wall screen's or automation key's name, or `"Assistant"` for a connected app), or `null` when nobody is known. `checkedBy` is `null` while the item isn't done; unticking and `reset` clear it. `doneBy` (a string) is still there for older clients: the member id in `checkedBy`, else `null`. `PATCH` an item with `{done: true, doneBy}` to name the member who did it yourself. Lists carry `lastDoneAt` and `lastDoneBy` (an actor), set on a reusable list by a full `reset` with something ticked, or when its chore is done; both `null` until then. They're written by the same statements that add and tick, so adding and ticking cost no extra writes; a reset writes the list row once more.
 * `POST /api/lists/{id}/items/move` `{itemIds, toListId}` moves items to another list of the same type (a different type, or the same list, is a `400`; an unknown list or item a `404`). Each keeps its id, fields, steps, discussion and meal links; both lists' `itemsRev` go up. It returns the moved items. MCP: `move_list_items` (`list`, `items` as ids or titles, `toList`).
 * Steps: `POST /api/lists/{id}/items/{itemId}/steps` (`{title}`), `PATCH …/steps/{stepId}` (`title`, `done`, `sort`), `DELETE …/steps/{stepId}`, `POST …/steps/reorder` (`{stepIds}`). Each returns the whole updated item, including any automatic complete or re-open.
 * List types: a shopping list's `catalog` is its type, `groceries` or `shopping` (`null` on to-do and reusable lists); `kind` stays `shopping` for both, so older apps keep working. `POST /api/lists` and `PATCH /api/lists/{id}` take `catalog`. Without one, a new shopping list is `groceries` when its name looks like groceries or the family has no Groceries list yet, else `shopping`, and a list switched to shopping keeps its type or takes the same rule.

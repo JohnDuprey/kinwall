@@ -2,6 +2,8 @@
 
 Kinwall runs on your server or your Cloudflare account. The code includes no analytics or tracking, and your family's data goes nowhere except the calendar providers you connect.
 
+Kinwall sends no data to AI services and doesn't train any models. Its [MCP server](../integrations/mcp.md) and [REST API](../integrations/rest-api.md) are a standard, user-authorized API: an app gets in only when you approve it on the consent screen or give it a key, and it sees only what that access allows. Disconnect it any time under **Settings → Access → Connected apps**.
+
 ## Encrypted at rest (AES-256-GCM)
 
 These are encrypted with `ENCRYPTION_KEY`, using the row ID as additional data so a blob can't be moved to another row:
@@ -26,7 +28,7 @@ What stays readable in the database, so the list can be filtered and sorted: the
 * Without an `ENCRYPTION_KEY`, the server refuses to save health entries rather than store them in plain form. Docker and the Home Assistant add-on always have one (see [Configuration](../self-hosting/configuration.md)).
 * Health request and response bodies are never written to the server logs.
 * Webhooks get only that a health entry changed (its ID and kind), never what's in it.
-* Claude and other connected apps (MCP, and a connected app's sign-in on the REST API) can't see or change health entries until a parent turns on **Let connected apps see health entries** in **Settings → Access → Connected apps**. It's off by default. See [MCP server](../integrations/mcp.md#health-entries).
+* Connected apps (MCP, and a connected app's sign-in on the REST API) can't see or change health entries until a parent turns on **Let connected apps see health entries** in **Settings → Access → Connected apps**. It's off by default. See [MCP server](../integrations/mcp.md#health-entries).
 * The [export](export-import.md) is your own backup, so it holds health entries in plain form. Importing it encrypts them again.
 * Changing `ENCRYPTION_KEY` isn't supported yet: with a new key, existing health entries (like calendar logins) can't be read. Keep the key with your backups.
 
@@ -36,7 +38,7 @@ What stays readable in the database, so the list can be filtered and sorted: the
 
 * **Who sees the answers:** the person's own device and parents' devices. A shared wall screen can take answers but shows only that they answered. Another person's device sees only that they answered.
 * **Webhooks** get `tempcheck.changed` with the person and the day, never the answers.
-* **Claude and other connected apps** get the goal and whether they answered, but not sleep or feelings (or their own feelings list) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Temp check.
+* **Connected apps** get the goal and whether they answered, but not sleep or feelings (or their own feelings list) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Temp check.
 * The snapshot, profiles and push notifications never include sleep or feelings.
 * The [export](export-import.md) holds them in plain form (it's your backup); importing encrypts them again.
 
@@ -49,7 +51,7 @@ A person's [journal](../using/journal.md) entries (the words and the mood) are e
 * **Who can open it:** the person's own device and parents' devices. Never a shared wall screen or another person's device.
 * **Private journals:** a grown-up's journal is private by default, and a kid's can be when a parent allows it (see [Private journals](../using/journal.md#private-journals)). A private entry's words, and that day's goal check notes, open only on a device that belongs to that person. Everyone else, parents included, sees the mood and that there's an entry.
 * **Webhooks** get `journal.changed` with the person, the day and the entry ID, never the words.
-* **Claude and other connected apps** get nothing from the journal until a parent turns on **Let connected apps see health entries**. Even then, never a private entry's words or notes. There's no MCP tool for it.
+* **Connected apps** get nothing from the journal until a parent turns on **Let connected apps see health entries**. Even then, never a private entry's words or notes. There's no MCP tool for it.
 * The [export](export-import.md) holds entries in plain form, except private ones: their words and goal check notes are left out for everyone, the mood and day stay. Importing encrypts them again, and never overwrites a private entry that's already there.
 
 #### What a private journal protects
@@ -60,7 +62,7 @@ It keeps your words from:
 
 * the rest of the family: brothers, sisters and the other parent, on their own phones and computers;
 * parent devices that don't belong to you, wall screens, and any device that belongs to no one;
-* Claude and other connected apps, whatever their settings;
+* Connected apps, whatever their settings;
 * the export and anything restored from one;
 * someone who has a copy of the database or a backup but not the encryption key.
 
@@ -78,7 +80,7 @@ Moods, sleep, feelings, whether you answered and goal check outcomes are still s
 
 * **Computed on request, never stored.** Nothing new is saved, so there's nothing extra to encrypt, back up or delete: the server opens the encrypted answers, works out the charts and sentences for that one request and forgets them. Journal **words are never read**, only how many entries there were and their mood emoji.
 * **Who can open them:** the person's own device and parents' devices (for kids, parents can see them too). Never a shared wall screen (403, and it shows no link) or another person's device.
-* **Claude and other connected apps** get nothing (403) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Insights. Everything is plain arithmetic on the server: no AI writes or reads the insights.
+* **Connected apps** get nothing (403) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Insights. Everything is plain arithmetic on the server: no AI writes or reads the insights.
 * Never in the server logs, webhooks, the snapshot, profiles or push text. The [export](export-import.md) doesn't include them: they're worked out from data it already has.
 
 ### Energy battery
@@ -87,7 +89,7 @@ The [energy battery](../using/battery.md) is worked out from sleep and feelings,
 
 * **Computed on request, never stored.** The only new things saved are the person's on/off setting, for the heads-up push a one-way hash that says a push was handled (not who it was for or which day), and their evening **How drained do you feel?** answers. Those are health data: encrypted with `ENCRYPTION_KEY` like sleep and feelings (bound to the person, the day and the column), refused without a key, and never in the server logs, webhooks or push text. The adjustment they make is worked out each time, never stored.
 * **Who can see it:** the person's own device and parents' devices. Never a shared wall screen, the Board, a profile or another person's device.
-* **Claude and other connected apps** get nothing (403; the refill MCP tools are refused too) until a parent turns on **Let connected apps see health entries**.
+* **Connected apps** get nothing (403; the refill MCP tools are refused too) until a parent turns on **Let connected apps see health entries**.
 * **Push text** comes from the calendar and chores only ("Tomorrow looks full: 5 events and a late evening…"), never sleep or feelings, and goes only to the person's own devices. It isn't added to the family's notification feed.
 * Never in the server logs, webhooks, the snapshot or the export. The drained answers are in a parent's [export](export-import.md) with the rest of Temp check.
 
@@ -98,7 +100,7 @@ The [energy battery](../using/battery.md) is worked out from sleep and feelings,
 * **Who sees what:** parent devices see everyone's medicines and history and are the only ones that add, change or delete them. A person's own device sees and marks their own (a kid's too). A shared wall screen shows **Take now** cards for whoever is due, as "Meds" unless the family turns on **Show medicine names on shared screens**, and can mark them; it never shows the list or history. Other people's devices see nothing about someone else's medicines, in the app or in the bell's feed.
 * **Push text** is generic ("Time for Maya's medicine", "Still time for Maya's medicine (until 8 PM)"; for parents, "Maya's 8:00 AM medicine hasn't been marked yet") unless that device turns on **Show medicine names in notifications on this device**. Push text passes through Apple or Google and shows on lock screens.
 * **Webhooks and Home Assistant** get no medication events at all.
-* **Claude and other connected apps** get nothing (403; the refill MCP tools are refused too) until a parent turns on **Let connected apps see health entries**. They can't turn medications on or change its settings either.
+* **Connected apps** get nothing (403; the refill MCP tools are refused too) until a parent turns on **Let connected apps see health entries**. They can't turn medications on or change its settings either.
 * **Snapshots, profiles and share links** never include medicines. A profile only links to the medicines page, on the person's own device and parents' devices.
 * The [export](export-import.md) holds medicines and their log in plain form (it's your backup); importing encrypts them again. **Delete all medication data** (Trackers → Health → Medicines → More…) removes every medicine, its log and its notifications. Deleting one medicine removes its log.
 
@@ -128,7 +130,7 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 [Contacts](../using/contacts.md) hold other people's details: babysitters, grandparents, the pediatrician, a neighbor's phone and address. They're stored in plain form like the rest of your family's content (not encrypted like health entries), so the same care for the host applies. Who sees them:
 
 * Parent devices see every contact. Members' own devices and shared wall screens see only what each contact's **Who can see it** setting allows. A wall screen sees only contacts marked **Show on wall**, and only their phone numbers or address when those wall switches are on. Device keys never get a contact's notes.
-* Claude and other connected apps (MCP) read contacts with their own access: one with full access sees every contact, like a parent device. One with everyday access sees what its owner's own device would, or what a wall screen sees when it has no owner.
+* Connected apps (MCP) read contacts with their own access: one with full access sees every contact, like a parent device. One with everyday access sees what its owner's own device would, or what a wall screen sees when it has no owner.
 * Webhooks get only that a contact changed (its ID and what happened), never its details.
 * The [export](export-import.md) includes every contact. An imported vCard file isn't kept: the server reads it, you review the contacts, and only the ones you import are saved.
 

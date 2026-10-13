@@ -8,7 +8,7 @@
 //
 // Who may open it (see `block`): the person's own device (a display key they own) and parents'
 // devices (admin keys, passkey sessions, Kinwall's own app). Never a shared wall screen or another
-// member's device. Connected apps (MCP, AI connectors) only once the family turns on aiHealthAccess.
+// member's device. Connected apps (MCP, OAuth connections) only once the family turns on aiHealthAccess.
 //
 // Private journals: an entry written while the journal is private is marked private on the entry
 // (journal_entries.private, and temp_checks.private for that day's goal-check notes) and stays so,

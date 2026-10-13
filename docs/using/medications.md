@@ -29,7 +29,7 @@ For a medicine taken first thing, whenever the day really starts (handy with irr
 
 or at the latest time, if none of those happen first. From that moment it works like any dose: the reminder, the **Take now** card and the late window all start then, and the reminder is sent once (starting the day after the latest time changes nothing). The card and the person's page say **Started at 9:40 AM**, or **When you start your day** before then.
 
-Only the person counts. A parent's phone opening a kid's day, or a parent answering a Temp check or checking in for a kid, never starts a kid's day. Answering or checking in on a shared wall screen does (that's the kid, at the wall); so does a grown-up doing it on a parent device nobody owns, or on their own. Another grown-up's phone doesn't: answering Sam's Temp check on Alex's phone doesn't start Sam's day. The app tells the server once a day, on the person's own device only. Connected apps (like Claude) are never anyone's own device.
+Only the person counts. A parent's phone opening a kid's day, or a parent answering a Temp check or checking in for a kid, never starts a kid's day. Answering or checking in on a shared wall screen does (that's the kid, at the wall); so does a grown-up doing it on a parent device nobody owns, or on their own. Another grown-up's phone doesn't: answering Sam's Temp check on Alex's phone doesn't start Sam's day. The app tells the server once a day, on the person's own device only. Connected apps are never anyone's own device.
 
 ## Take now
 
@@ -132,7 +132,7 @@ A kid's own device can request a refill for their own medicine too. Their card s
 | A person's own device | Their own medicines, cards, history and refill cards | Mark and fix their own doses and request their own refills (kids too) |
 | Shared wall screen | Take now cards for whoever is due ("Meds" unless names are on) | Mark Taken, Skip or Snooze |
 | Another person's device | Nothing about others' medicines | Nothing |
-| Claude and other connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | With it on: read a refill card, request a refill, set the pharmacy and who to ask |
+| Connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | With it on: read a refill card, request a refill, set the pharmacy and who to ask |
 
 Everything is encrypted on the server, including who to ask, the pharmacy, date of birth and callback number, and the medicine notes in the bell's feed. See [Privacy](../your-data/privacy.md#medications).
 

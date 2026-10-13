@@ -30,7 +30,7 @@ Who can change it:
 
 * **Parents**, for anyone, from the profile or **Settings → Family** (tap the person, then **Add a picture** or **Change picture**).
 * **A kid**, for themselves only, on their own device. Their picture and their emoji are the only things a kid can change about themselves; the name, color and everything else stay under [Settings → Family](../settings/family.md) on a parent's device.
-* Not wall screens, the phone app's widgets, or connected apps such as AI assistants.
+* Not wall screens, the phone app's widgets, or connected apps.
 
 Kinwall keeps only the small circle (256 pixels), stored with the family photos on your own server, and never the original twice: a picture cropped from the album just remembers which photo it came from. It counts toward the [photo limits](photos.md#limits) but doesn't show in the album, on the Board's picture card or in the slideshow. It's deleted when it's replaced or removed and when the person is removed, and it travels in the photo zip (see [Backing up](photos.md#backing-up-and-moving-photos)). Webhooks never carry it; connected apps see only its address on the member, like any photo.
 

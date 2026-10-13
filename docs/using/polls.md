@@ -33,7 +33,7 @@ Open the poll from the Board, the Polls list, the Meals planner or the notificat
 
 ## Ending voting and planning it
 
-On a parent's device, open the poll and tap **End voting…**. The choice with the most votes is picked; on a tie, pick the winner from the list. Tap **End voting** to finish, or **Keep voting** to leave it open. Nobody can vote after that, and the poll leaves the Board. To pick a different winner afterwards, end voting again through the API or an AI assistant (`close_poll`).
+On a parent's device, open the poll and tap **End voting…**. The choice with the most votes is picked; on a tie, pick the winner from the list. Tap **End voting** to finish, or **Keep voting** to leave it open. Nobody can vote after that, and the poll leaves the Board. To pick a different winner afterwards, end voting again through the API or MCP (`close_poll`).
 
 With Meals on, a poll whose voting has ended has **Plan it**. It opens the meal the poll was about with the winner filled in: the meal already planned in that slot if there is one, else a new meal on that day (today's dinner for a poll without a date). A recipe choice plans that recipe, a restaurant plans dining out there, and an idea becomes the meal's name. Save it and the poll links to that meal (**Open the meal** next time).
 
@@ -43,10 +43,10 @@ In the Kinwall app for iPhone, the Shortcuts app has a **Vote in a poll** action
 
 ## Turning polls off
 
-**Settings → General → Features → Family polls**. Off, polls are gone everywhere: nothing on the Board, no Polls button, nothing in the Meals planner, no notifications (and earlier poll notifications leave the bell), and the API and AI tools answer that polls are off. Polls already made are kept and come back when it's turned on. With Meals off, polls still work with typed ideas only (recipes and restaurants need Meals), and there's no **Plan it**.
+**Settings → General → Features → Family polls**. Off, polls are gone everywhere: nothing on the Board, no Polls button, nothing in the Meals planner, no notifications (and earlier poll notifications leave the bell), and the API and MCP tools answer that polls are off. Polls already made are kept and come back when it's turned on. With Meals off, polls still work with typed ideas only (recipes and restaurants need Meals), and there's no **Plan it**.
 
 ## API
 
 * REST: `GET /api/polls[?status=open|closed]`, `GET /api/polls/{id}`, `POST /api/polls`, `PUT /api/polls/{id}/vote`, `POST /api/polls/{id}/close`, `PATCH /api/polls/{id}`, `DELETE /api/polls/{id}`. See [REST API](../integrations/rest-api.md).
-* AI assistants: `list_polls`, `create_poll`, `vote_poll`, `close_poll`. See [MCP](../integrations/mcp.md).
+* Connected apps (MCP): `list_polls`, `create_poll`, `vote_poll`, `close_poll`. See [MCP](../integrations/mcp.md).
 * Webhook: `poll.changed`. See [Webhooks](../integrations/webhooks.md).

@@ -33,7 +33,7 @@ Use all of it or just a few parts: anything you turn off disappears from every s
 | Routines and reminders | A Now / Next strip with a countdown, transition reminders before the next thing or the leave-by time, and timers anyone can start from the header. | [Now / Next](../using/calendar.md#now--next), [Transition reminders](../settings/family.md#transition-reminders), [Timers](../using/timers.md) |
 | Night | During the night hours, wall screens rest on a dim clock or a photo slideshow, and reminders wait until morning. | [Night](../using/night.md) |
 | Notifications | Web Push reminders, a daily summary, chore nudges and list updates, set per device. | [Notifications](../using/notifications.md) |
-| Automation | REST API with OpenAPI docs, signed webhooks, an MCP server for AI assistants, a Home Assistant integration and n8n workflows. | [Integrations](../integrations/rest-api.md) |
+| Automation | REST API with OpenAPI docs, signed webhooks, an MCP server for apps you connect, a Home Assistant integration and n8n workflows. | [Integrations](../integrations/rest-api.md) |
 
 ## How it runs
 

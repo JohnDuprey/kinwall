@@ -3007,7 +3007,7 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
 // so there's one place to mint each kind of key instead of two overlapping ones. Revoking a
 // display key still works here-or-there since both call the same DELETE /api/keys/:id, but this
 // list only shows admin keys to keep that one job in Displays.
-/** OAuth connections (e.g. a Claude connector) - approved on the consent screen, revoked here.
+/** OAuth connections (e.g. an MCP client) - approved on the consent screen, revoked here.
  * Kinwall's own app also has an owner ("Whose device is this?"), changeable here. */
 /** The Kinwall app's widgets and Watch keys under `parent` (the device or app sign-in that made them,
  * wallScreen.ts widgetParent), or, with `parent` null, the ones Kinwall can't place. */
@@ -3059,7 +3059,7 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
   return (
     <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
-      {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like a Claude connector) appear here. Point them at {location.origin}/mcp.</p>}
+      {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like an MCP-compatible client) appear here. Point them at {location.origin}/mcp.</p>}
       {apps.map(a => (
         <Fragment key={a.id}>
           <div className={a.deviceApp && !a.current ? 'key-item key-item-owned' : 'key-item'}>
@@ -3082,7 +3082,7 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
       <div className="toggle-row">
         <div>
           <label id="ai-health-label">Let connected apps see health entries</label>
-          <div className="settings-row-sub" id="ai-health-sub">Off: Claude and other connected apps can't read or change the Health tracker.</div>
+          <div className="settings-row-sub" id="ai-health-sub">Off: connected apps can't read or change the Health tracker.</div>
         </div>
         <button className={`switch ${settings.aiHealthAccess ? 'on' : ''}`} role="switch" aria-checked={settings.aiHealthAccess} aria-labelledby="ai-health-label" aria-describedby="ai-health-sub"
           onClick={() => setHealth(!settings.aiHealthAccess)}><span className="knob" /></button>

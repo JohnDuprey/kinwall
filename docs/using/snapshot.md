@@ -45,7 +45,7 @@ Who sees what:
 * **Their own device and parents' devices** show their answers (😄 Slept great · Feeling good, tired · 🎯 Finish my book report).
 * **A shared wall screen** lets them answer, but once they have it shows only **Answered ✓**, never how they slept or felt. **Change** starts the questions fresh there.
 * **The goal** is for the family: it stays up all day on the [Board](calendar.md#board-view) in the **Today** card (for people with **Show the goal on the Board** on; when you pick one person in the family filter it shows only theirs, and a kid's own device leaves out the grown-ups' goals) and as a line above the calendar when it shows just that person (pinned, filtered, or on their own device).
-* Sleep and feelings are health data: encrypted on the server and kept from Claude and other connected apps. See [Privacy](../your-data/privacy.md#temp-check).
+* Sleep and feelings are health data: encrypted on the server and kept from connected apps. See [Privacy](../your-data/privacy.md#temp-check).
 
 ### Evening goal check
 
@@ -95,7 +95,7 @@ A list item's **Assign to** field decides whose snapshot it appears in. Items wi
 
 `GET /api/board?days=` (default 7, max 14) returns the same kind of feed for the whole household instead of one member: every member's events plus untagged ones, open list items due within the range (or overdue) or high/urgent priority regardless of due date, today's chores grouped per member (with an "anyone" group), birthdays and [meals](meals.md) in the range. A feature that's off comes back empty in the same shape: `chores` while **Chores & points** is off, `items` while **Lists** is off (see [Features](../settings/general.md#features)). It's the data behind the calendar's [Board view](calendar.md#board-view). The MCP tool [`get_board`](../integrations/mcp.md) returns the same data.
 
-## For assistants
+## For connected apps
 
 `GET /api/snapshot?member=<id>&range=day|week` (admin and display keys) and the MCP tool [`get_snapshot`](../integrations/mcp.md) return the same data. Here too, `chores` is empty while **Chores & points** is off, `items` (and tomorrow's) while **Lists** is off, and `checkInPoints` is 0 while **Chores & points** or **Check-ins & journal** is off.
 

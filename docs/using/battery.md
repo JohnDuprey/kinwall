@@ -97,7 +97,7 @@ From **7:00 PM** (household time) the evening before a day like that, their own 
 It's worked out from sleep and feelings, so it's as private as [Insights](insights.md):
 
 * **The person's own device** and **parents' devices**. Never a shared wall screen, the Board, a profile, or another person's device.
-* **Claude and other connected apps** can't see it unless a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
+* **Connected apps** can't see it unless a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
 * It's worked out each time it's opened and never saved. The only things stored are the on/off setting, a one-way hash that stops the push going out twice, and their **How drained do you feel?** answers, encrypted with the family's key like sleep and feelings. See [Privacy](../your-data/privacy.md#energy-battery).
 
 ## API

@@ -68,7 +68,7 @@ When there are 3 weeks of check-ins but nothing passes these checks, the page sa
 
 * **The person's own device** and **parents' devices**. For kids, parents can see it too.
 * **Never a shared wall screen** or another person's device, and no link to it shows there.
-* **Claude and other connected apps** can't see it unless a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
+* **Connected apps** can't see it unless a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
 
 Insights are worked out each time the page opens and never saved, so there's nothing new stored, logged or exported. See [Privacy](../your-data/privacy.md#insights).
 

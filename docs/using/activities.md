@@ -154,6 +154,6 @@ When you open one, Kinwall asks **Who's playing?** unless the header is set to o
 * **No zooming.** Pinch and double-tap zoom are off inside an activity (and on Kinwall's page while one is open), so nobody zooms in and gets lost. Activities follow Kinwall's **Text size** instead (see [Appearance](appearance.md)); zoom works as usual everywhere else.
 * **On-screen keyboard.** While an activity has the keyboard up (typing a spelling word, say), the activity's bar steps aside too and the activity fits above the keyboard. It comes back when the keyboard goes away.
 
-Some activities take requests from other apps, like Spelling practice adding a kid's list for the week from an AI assistant ("add Maya's spelling words for Friday"), [Home Assistant](../integrations/home-assistant.md) or [n8n](../integrations/n8n.md). Only grown-ups' devices, full-access keys and connected apps can send them. The activity applies it the next time that person opens it. See [Actions](../contributing/plugins.md#actions).
+Some activities take requests from other apps, like Spelling practice adding a kid's list for the week from a connected app, [Home Assistant](../integrations/home-assistant.md) or [n8n](../integrations/n8n.md). Only grown-ups' devices, full-access keys and connected apps can send them. The activity applies it the next time that person opens it. See [Actions](../contributing/plugins.md#actions).
 
 Want to build one? See [Building activity plugins](../contributing/plugins.md).

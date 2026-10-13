@@ -5,7 +5,7 @@
 // display key read and write /api/trackers like chores, but these paths are shared by every kind,
 // so the handlers check the kind: a display key gets 403 for anything health, and a list without
 // a kind leaves health out. Displays can't delete (not in the allow-list). Connected apps (MCP and
-// AI connectors' OAuth tokens, mcp-oauth.ts isConnectedApp) get the same treatment until the family
+// OAuth connections' OAuth tokens, mcp-oauth.ts isConnectedApp) get the same treatment until the family
 // turns on aiHealthAccess (healthBlock).
 //
 // Photos: only a memory has one (at most one). A photo uploaded for the memory (POST /api/photos?family=0)
@@ -116,7 +116,7 @@ const HEALTH_OFF_WALL = { error: 'Health entries stay on phones and computers, n
 export const HEALTH_PRIVATE = { error: "Health entries are private to the family's own devices. A parent can allow connected apps to see them in Settings → Connected apps." };
 
 /** Why this caller may not see or change health entries, or null when it may: a wall display never,
- * a connected app (MCP, an AI connector's OAuth token) only once the family turns on aiHealthAccess. */
+ * a connected app (MCP, a connected app's OAuth token) only once the family turns on aiHealthAccess. */
 export async function healthBlock(c: C): Promise<{ error: string } | null> {
   if ((await resolveKey(c))?.scope === 'display') return HEALTH_OFF_WALL;
   if (!(await isConnectedApp(c))) return null;
