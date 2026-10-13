@@ -145,7 +145,7 @@ test('barcodes: the brand leads the name unless the name already has one of its 
   }
 });
 
-test("barcodes: Open Food Facts first, then its household, beauty and pet databases, first match in that order", async () => {
+test("barcodes: Groceries asks Open Food Facts first, then pet food, household and beauty, first match in that order", async () => {
   const { send } = setup();
   const list = (await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping' })).body;
   const answers: Record<string, () => Response> = {};
@@ -157,17 +157,37 @@ test("barcodes: Open Food Facts first, then its household, beauty and pet databa
   assert.equal(new URL(calls[0]).host, 'world.openfoodfacts.org', 'food first');
   assert.deepEqual(calls.slice(1).map((u) => new URL(u).host).sort(), ['world.openbeautyfacts.org', 'world.openpetfoodfacts.org', 'world.openproductsfacts.org']);
 
-  delete answers['world.openproductsfacts.org'];
   answers['world.openpetfoodfacts.org'] = offProduct({ product_name: 'Cat Food' });
-  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Shampoo', source: 'openbeautyfacts' }, 'beauty before pets');
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Cat Food', source: 'openpetfoodfacts' }, 'pet food before household');
 
-  answers['world.openbeautyfacts.org'] = () => new Response('down', { status: 503 });
-  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Cat Food', source: 'openpetfoodfacts' }, 'one being down is just no match');
+  answers['world.openpetfoodfacts.org'] = () => new Response('down', { status: 503 });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Bounty Paper Towels', source: 'openproductsfacts' }, 'one being down is just no match');
+
+  answers['world.openfoodfacts.org'] = () => new Response('busy', { status: 429 });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Bounty Paper Towels', source: 'openproductsfacts' }, 'food down: the others are still asked');
 
   calls.length = 0;
   answers['world.openfoodfacts.org'] = offProduct({ product_name: 'Milk' });
   assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Milk', source: 'openfoodfacts' });
   assert.equal(calls.length, 1, 'found in food: the others are not asked');
+});
+
+test("barcodes: another shopping list asks household and beauty first, then food and pet food", async () => {
+  const { send } = setup();
+  const list = (await send('POST', '/api/lists', { name: 'Hardware store', kind: 'shopping', catalog: 'shopping' })).body;
+  const answers: Record<string, () => Response> = {};
+  const calls = mockFetch((url) => (answers[new URL(url).host] ?? offMissing)());
+
+  answers['world.openfoodfacts.org'] = offProduct({ product_name: 'Hand Soap Refill' }); // food's database knows it too
+  answers['world.openbeautyfacts.org'] = offProduct({ product_name: 'Hand Soap' });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Hand Soap', source: 'openbeautyfacts' });
+  assert.deepEqual(calls.map((u) => new URL(u).host).sort(), ['world.openbeautyfacts.org', 'world.openproductsfacts.org'], 'food not asked once household or beauty has it');
+
+  delete answers['world.openbeautyfacts.org'];
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Hand Soap Refill', source: 'openfoodfacts' }, 'then food');
+
+  mockFetch(() => new Response('down', { status: 503 }));
+  assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).status, 502, 'none answered: unavailable');
 });
 
 test("barcodes: a UPC-A (Android's 12 digits) and its EAN-13 (the iPhone's leading 0) are one product", async () => {

@@ -960,7 +960,13 @@ function productTitle(p: { product_name?: string; product_name_en?: string; gene
 const OFF_USER_AGENT = 'Kinwall/1.0 (https://kinwall.family; self-hosted family calendar)'; // Open Food Facts asks apps to name themselves
 const OPEN_FACTS = { openfoodfacts: 'world.openfoodfacts.org', openproductsfacts: 'world.openproductsfacts.org', openbeautyfacts: 'world.openbeautyfacts.org', openpetfoodfacts: 'world.openpetfoodfacts.org' } as const;
 type OpenFacts = keyof typeof OPEN_FACTS;
-const OPEN_FACTS_FALLBACKS: OpenFacts[] = ['openproductsfacts', 'openbeautyfacts', 'openpetfoodfacts']; // in this order of preference
+/** Which databases a list asks first, by its catalog: Groceries the food ones, other shopping lists
+ * (a hardware store, the pharmacy) the household and beauty ones. Each round is asked at once, and
+ * the first match in this order wins; the next round only when the one before has nothing. */
+const OPEN_FACTS_ORDER: Record<Catalog, OpenFacts[][]> = {
+  groceries: [['openfoodfacts'], ['openpetfoodfacts', 'openproductsfacts', 'openbeautyfacts']],
+  shopping: [['openproductsfacts', 'openbeautyfacts'], ['openfoodfacts', 'openpetfoodfacts']],
+};
 
 /** One Open Facts database's name for a barcode, or null when it doesn't know it; throws when it's unreachable. */
 async function openFactsTitle(db: OpenFacts, code: string): Promise<string | null> {
@@ -975,7 +981,7 @@ listsRoutes.openapi(
     method: 'get',
     path: '/api/lists/{id}/barcodes/{code}',
     tags: ['Lists'],
-    summary: "A scanned product's item name for this shopping list: what the family saved for it (source family), else Open Food Facts (openfoodfacts), else its household, beauty and pet food databases (openproductsfacts, openbeautyfacts, openpetfoodfacts, preferred in that order). Add it with `barcode` to save the name.",
+    summary: "A scanned product's item name for this shopping list: what the family saved for it (source family), else the Open Facts databases in the list's order. A Groceries list asks Open Food Facts (openfoodfacts) first, then Open Pet Food Facts, Open Products Facts and Open Beauty Facts (openpetfoodfacts, openproductsfacts, openbeautyfacts); another shopping list asks the household and beauty ones first, then food and pet food. The first match in that order wins. Add it with `barcode` to save the name.",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string(), code: BarcodeSchema }) },
     responses: {
@@ -983,7 +989,7 @@ listsRoutes.openapi(
       400: { description: 'not a shopping list, or not a barcode', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'no such list, or nobody knows this product', content: { 'application/json': { schema: ErrorSchema } } },
       429: { description: 'too many lookups', content: { 'application/json': { schema: ErrorSchema } } },
-      502: { description: 'Open Food Facts is unavailable', content: { 'application/json': { schema: ErrorSchema } } },
+      502: { description: 'none of the product databases answered', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -994,17 +1000,17 @@ listsRoutes.openapi(
     const known = await recallBarcode(c.env.DB, list.catalog, code);
     if (known) return c.json({ title: known, source: 'family' as const }, 200);
     if (!(await checkRate(c.env.DB, 'barcodes', 30, 60_000))) return c.json({ error: 'Too many scans - try again in a minute' }, 429);
-    try {
-      const food = await openFactsTitle('openfoodfacts', code);
-      if (food) return c.json({ title: food, source: 'openfoodfacts' as const }, 200);
-      // Not food: the smaller databases at once; one that's down is just no match.
-      const others = await Promise.all(OPEN_FACTS_FALLBACKS.map((db) => openFactsTitle(db, code).catch(() => null)));
-      const at = others.findIndex(Boolean);
-      return at >= 0 ? c.json({ title: others[at]!, source: OPEN_FACTS_FALLBACKS[at] }, 200) : c.json({ error: 'Product not found' }, 404);
-    } catch (err) {
-      console.error('barcode lookup failed', err instanceof Error ? err.message : err);
-      return c.json({ error: 'Product lookup is unavailable right now' }, 502);
+    // One that's down is just no match; unavailable only when none of them answered.
+    let answered = false;
+    for (const round of OPEN_FACTS_ORDER[list.catalog]) {
+      const titles = await Promise.all(round.map((db) => openFactsTitle(db, code).then((t) => { answered = true; return t; }, (err) => {
+        console.error('barcode lookup failed', err instanceof Error ? err.message : err);
+        return null;
+      })));
+      const at = titles.findIndex(Boolean);
+      if (at >= 0) return c.json({ title: titles[at]!, source: round[at] }, 200);
     }
+    return answered ? c.json({ error: 'Product not found' }, 404) : c.json({ error: 'Product lookup is unavailable right now' }, 502);
   },
 );
 
