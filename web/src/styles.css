@@ -1641,6 +1641,7 @@ button.month-cell .month-daynum { flex: none; }
 /* The grocery catalog: search, Filter & sort and New, a one-line summary of the filters, then a row per
    item (tap to edit, + to add to the list). */
 .catalog-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.catalog-stores-btn { margin-bottom: 10px; }
 .catalog-bar .manage-find { flex: 1; min-width: 0; margin: 0; }
 .catalog-bar .btn { flex: none; width: auto; min-height: 44px; }
 .catalog-tag-picks { margin-bottom: 12px; }

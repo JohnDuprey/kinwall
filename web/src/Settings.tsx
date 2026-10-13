@@ -203,6 +203,7 @@ export default function SettingsView() {
           {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
           {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
+          {!isDisplay && settings.features.lists && <ShoppingSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}
           {!isDisplay && settings.features.outings !== false && <Section id="outings" title="Outings"><CommunityCalendars /></Section>}
         </>}
@@ -679,6 +680,39 @@ function MealSettingsSection({ settings, onSaved, toast, readOnly = false }: { s
           <input type="time" className="settings-select" aria-label={`Usual ${slot} time`} defaultValue={settings.mealTimes[slot]} disabled={readOnly} onBlur={e => void save(slot, e.target.value)} />
         </div>
       ))}
+    </Section>
+  )
+}
+
+/** Each list type's default store: Shop on a list of that type starts there, and it's first in the store pickers. */
+function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const [stores, setStores] = useState<Record<'groceries' | 'shopping', string[]>>({ groceries: [], shopping: [] })
+  useEffect(() => { api.getListStores().then(setStores).catch(() => {}) }, [])
+  const rows = [
+    { key: 'defaultGroceryStore', catalog: 'groceries', label: 'Default grocery store', sub: 'Shop on a grocery list starts here.' },
+    { key: 'defaultShoppingStore', catalog: 'shopping', label: 'Default store for other shopping lists', sub: 'Shop on any other shopping list starts here.' },
+  ] as const
+  const save = async (patch: Partial<Settings>) => {
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  return (
+    <Section title="Shopping">
+      {rows.map(r => {
+        const value = settings[r.key] ?? ''
+        const options = [...new Set([...stores[r.catalog], ...(value ? [value] : [])])]
+        return (
+          <div className="settings-row" key={r.key}>
+            <div>
+              <div className="settings-row-label">{r.label}</div>
+              <div className="settings-row-sub">{options.length ? r.sub : 'Pick a store on an item first.'}</div>
+            </div>
+            <select className="settings-select" aria-label={r.label} value={value} disabled={!options.length} onChange={e => save({ [r.key]: e.target.value || null })}>
+              <option value="">None</option>
+              {options.map(st => <option key={st} value={st}>{st}</option>)}
+            </select>
+          </div>
+        )
+      })}
     </Section>
   )
 }

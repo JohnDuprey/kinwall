@@ -8,6 +8,8 @@ import type { KinwallDb, KinwallStatement } from './db.ts';
 
 export type Catalog = 'groceries' | 'shopping';
 export const CATALOGS = ['groceries', 'shopping'] as const;
+/** The settings key holding each catalog's default store (Settings → Family → Shopping). */
+export const DEFAULT_STORE_KEY: Record<Catalog, string> = { groceries: 'defaultGroceryStore', shopping: 'defaultShoppingStore' };
 
 /** A shopping list named like groceries, in generic words ("Groceries", "Grocery run", "Food",
  * "Supermarket", "Farmers market", "Produce", "Pantry"; never store brands). Picks a new shopping list's type when none is given, and an older

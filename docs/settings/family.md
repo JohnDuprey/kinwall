@@ -102,6 +102,10 @@ See [Chores](../using/chores.md) for how these play out day to day.
 
 When the Meals feature is on, this tab has the family's usual meal times: **Breakfast** 7:30 AM, **Lunch** 12:00 PM, **Dinner** 6:00 PM and **Snack** 3:00 PM unless you change them. A meal without its own time goes on the calendar at its usual time, and the meal sheet shows it under the **Time** field. Changing a usual time doesn't move events already on the calendar. API: `mealTimes` in `GET` / `PATCH /api/settings`, as `{ "breakfast": "07:30", "lunch": "12:00", "dinner": "18:00", "snack": "15:00" }` (send all four). See [Meals](../using/meals.md#the-calendar).
 
+## Shopping
+
+When the Lists feature is on, a parent's device sets a default store for each type of shopping list: **Default grocery store** for Groceries lists and **Default store for other shopping lists**. Each picks from that type's stores (the ones its items and catalog use), or **None**. With a default, **Shop** on a list of that type starts the trip there right away, without asking **Where are you shopping?**; you can still switch stores during the trip. The default store is also first in that type's store pickers. New items aren't planned for it; their **Store** stays empty unless you pick one. Renaming the store in [Stores & departments](../using/lists.md#stores--departments) updates the setting, and removing it clears it. API: `defaultGroceryStore` and `defaultShoppingStore` in `GET` / `PATCH /api/settings` (a store name, or `null` for none); `GET /api/lists/stores` lists each type's stores.
+
 ## Outings
 
 **Community calendars** (parents' devices, while [Outings](../using/outings.md) is on): a town, library or school calendar's iCal link, read once a day. Its events wait at the top of **Outings → Upcoming** to **Keep** or mark **Not for us**, and never go on the family calendar. Each one has a name, a category and "who it's for" for its events, and words to skip ("meeting, committee, board, hearing" to start). See [Community calendars](../using/outings.md#community-calendars).

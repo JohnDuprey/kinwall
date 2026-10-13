@@ -358,6 +358,8 @@ export const SettingsSchema = z
     nightLook: NightLookSchema.openapi({ description: "What wall screens show during night hours, unless a screen picks its own on the device." }),
     boardPresets: z.array(BoardPresetSchema).openapi({ description: "Board layouts a parent saved for the family; each screen picks one (or a built-in one, or its own) on the device." }),
     features: FeaturesSchema,
+    defaultGroceryStore: z.string().nullable().openapi({ description: 'The store Shop starts at on Groceries lists (no store step), listed first in their store pickers. null: none (Shop asks).' }),
+    defaultShoppingStore: z.string().nullable().openapi({ description: 'The same for Shopping lists (hardware store, department store...).' }),
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
     aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
     medications: z.boolean().openapi({ description: 'Medication reminders (off by default). Off: the medication routes answer 404; the data is kept.' }),
@@ -417,6 +419,8 @@ export const SettingsPatchSchema = z
       .refine((l) => new Set(l.map((x) => x.id)).size === l.length, 'preset ids must be unique')
       .optional(), // the whole list
     features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
+    defaultGroceryStore: z.string().trim().max(60).nullable().optional(), // null clears it
+    defaultShoppingStore: z.string().trim().max(60).nullable().optional(),
     mealTimes: MealTimesSchema.optional(),
     aiHealthAccess: z.boolean().optional(), // the family's own devices only: a connected app gets 403
     medications: z.boolean().optional(), // likewise
@@ -848,9 +852,10 @@ export const ListDetailSchema = z
     list: ListSchema,
     items: z.array(ListItemSchema),
     groups: z.array(ListGroupSchema),
-    // Household-wide values (items on any list, plus remembered ones) for the item pickers.
+    // The list type's values (items on its lists, its remembered places and aisle orders) for the item pickers.
     suggestions: z.object({
-      stores: z.array(z.string()),
+      stores: z.array(z.string()).openapi({ description: "The list type's stores, the family's default store for it (defaultStore) first, then A-Z." }),
+      defaultStore: z.string().nullable().optional().openapi({ description: "The family's default store for this list type (settings defaultGroceryStore / defaultShoppingStore), when it's one of stores: Shop starts there. null: none." }),
       categories: z.array(z.string()),
       aisles: z.array(z.object({ store: z.string().nullable(), aisle: z.string() })),
       // Shopping lists: names to autocomplete, most used first (up to 300) - remembered from past adds
@@ -889,7 +894,7 @@ export const ListValueRenameSchema = z
     from: z.string().min(1),
     to: z.string().trim().min(1).max(60).nullable(),
     store: z.string().nullable().optional(),
-    catalog: ListCatalogSchema.optional().openapi({ description: 'field category only: rename the department in this catalog only (items on lists of this type and their remembered places). Stores and aisles are shared by both types.' }),
+    catalog: ListCatalogSchema.optional().openapi({ description: 'Rename or remove it in this list type only: items on its lists, its catalog (remembered places), its aisle orders and its default store. Without it, every list type.' }),
   })
   .openapi('ListValueRename');
 
@@ -932,7 +937,11 @@ export const RememberedItemPatchSchema = z
 export const RememberedItemInputSchema = RememberedItemPatchSchema.extend({ title: z.string().trim().min(1).max(200) }).openapi('RememberedItemInput');
 
 export const StoreAislesSchema = z
-  .object({ store: z.string().nullable(), aisles: z.array(z.string().min(1).max(60)).max(200) })
+  .object({
+    store: z.string().nullable(),
+    aisles: z.array(z.string().min(1).max(60)).max(200),
+    catalog: ListCatalogSchema.optional().openapi({ description: 'The list type whose order this is (groceries, the default, or shopping): a store used by both has one in each.' }),
+  })
   .openapi('StoreAisles');
 
 // Checkout / Reset: only these items (still checked) when given, else every checked item.

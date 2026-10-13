@@ -191,7 +191,7 @@ const ExportSchema = z
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
     // catalog (0076): which list type's catalog; older exports predate it (see catalogsFor).
     itemMemory: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), store: z.string(), category: z.string().nullable(), aisle: z.string().nullable(), updatedAt: z.string() })),
-    storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
+    storeAisles: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), store: z.string(), aisles: z.array(z.string()) })), // no catalog (older files): groceries
     // Names to autocomplete on shopping lists (0041): the spelling last used and how often.
     itemNames: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
     // The family's library (migration 0089); readers come from the trackers' bookId.
@@ -404,9 +404,9 @@ dataRoutes.openapi(
           .map((r) => ({ catalog: r.catalog, barcode: r.barcode, title: r.title, updatedAt: r.updated_at })),
         itemTags: (await db.prepare('SELECT catalog, name_key, tag FROM item_tags ORDER BY catalog, name_key, sort').all<{ catalog: Catalog; name_key: string; tag: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, tag: r.tag })),
-        storeAisles: (await db.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort').all<{ store: string; aisle: string }>()).results
-          .reduce<{ store: string; aisles: string[] }[]>((out, r) => {
-            if (out.at(-1)?.store !== r.store) out.push({ store: r.store, aisles: [] });
+        storeAisles: (await db.prepare('SELECT catalog, store, aisle FROM store_aisles ORDER BY catalog, store, sort').all<{ catalog: Catalog; store: string; aisle: string }>()).results
+          .reduce<{ catalog: Catalog; store: string; aisles: string[] }[]>((out, r) => {
+            if (out.at(-1)?.store !== r.store || out.at(-1)?.catalog !== r.catalog) out.push({ catalog: r.catalog, store: r.store, aisles: [] });
             out.at(-1)!.aisles.push(r.aisle);
             return out;
           }, []),
@@ -1026,8 +1026,9 @@ dataRoutes.openapi(
       // Newer knowledge wins: a remembered place only replaces one that is older.
       ...upserts(db, 'item_memory', 'catalog, name_key, store', catalogs.rows(body.itemMemory).map((m) => ({ catalog: m.catalog, name_key: m.nameKey, store: m.store, category: m.category, aisle: m.aisle, updated_at: m.updatedAt })), { where: 'excluded.updated_at > item_memory.updated_at' }),
       // A store's aisle order in the file replaces this instance's order for that store.
-      db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
-      ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
+      db.prepare("DELETE FROM store_aisles WHERE EXISTS (SELECT 1 FROM json_each(?) j WHERE j.value->>'catalog' = store_aisles.catalog AND j.value->>'store' = store_aisles.store)")
+        .bind(JSON.stringify(body.storeAisles.map((a) => ({ catalog: a.catalog ?? 'groceries', store: a.store })))),
+      ...upserts(db, 'store_aisles', 'catalog, store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ catalog: a.catalog ?? 'groceries', store: a.store, aisle, sort })))),
       ...upserts(db, 'library_books', 'id', body.libraryBooks.map((b) => ({ id: b.id, format: b.format ?? 'book', title: b.title, author: b.author, isbn: b.isbn, pages: b.pages, cover_url: b.coverUrl, year: b.year, series: b.series, series_number: b.seriesNumber, lexile: b.lexile, description: b.description, genres: b.genres.length ? JSON.stringify(b.genres) : null, location: b.location ?? null, lent_to: b.lentTo ?? null, lent_on: b.lentOn ?? null, shelf: b.shelf ?? null, added_by: b.addedBy?.memberId ?? null, added_by_label: b.addedBy?.label ?? null, created_at: b.createdAt, updated_at: b.updatedAt })), { keep: ['created_at'], expr: { added_by: "(SELECT id FROM members WHERE id = j.value->>'added_by')" } }),
       ...upserts(db, 'item_barcodes', 'catalog, barcode', body.itemBarcodes.map((b) => ({ catalog: b.catalog, barcode: b.barcode, title: b.title, updated_at: b.updatedAt })), { where: 'excluded.updated_at > item_barcodes.updated_at' }),
       ...upserts(db, 'item_names', 'catalog, name_key', catalogs.rows(body.itemNames).map((n) => ({ catalog: n.catalog, name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),

@@ -152,9 +152,8 @@ function readCollapsed(): ListType[] {
   try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]') } catch { return [] }
 }
 
-function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
+function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
   list: List | 'new'; onClose: () => void; onSaved: () => void; onDeleted: () => void
-  onManage?: () => void // shopping lists: open "Stores & departments"
 }) {
   const dialog = useDialog()
   const { members, toast } = useApp()
@@ -250,12 +249,6 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
         </div>
       </div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Owners (nobody = whole family)" />
-      {onManage && existing?.kind === 'shopping' && (
-        <div className="field">
-          <label>Stores &amp; departments</label>
-          <button className="btn btn-secondary btn-block" onClick={onManage}>Rename stores, departments and aisles, or set aisle order</button>
-        </div>
-      )}
     </Sheet>
   )
 }
@@ -1076,12 +1069,11 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
   return keys.map(key => ({ name: label(key), items: byKey.get(key)! }))
 }
 
-/** "Stores & departments": rename or remove a store, department (the category field) or aisle everywhere (every list and
- * what's remembered), and drag a store's aisles into the order you walk them. */
-function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChanged, onCatalog }: {
-  catalog: ListCatalog // departments are renamed in this list type's catalog; stores and aisles are shared
+/** "Stores & departments" (from a catalog): rename or remove a store, department (the category field) or aisle on every list
+ * of this type and in its catalog, and drag a store's aisles into the order you walk them. Each list type has its own. */
+function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChanged }: {
+  catalog: ListCatalog
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onChanged: () => void
-  onCatalog?: () => void // shopping lists: open the list type's catalog
 }) {
   const dialog = useDialog()
   const { toast } = useApp()
@@ -1096,7 +1088,7 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
 
   const rename = async (field: Field, from: string, to: string | null) => {
     try {
-      const { updated } = await api.renameListValue({ field, from, to, ...(field === 'aisle' ? { store } : {}), ...(field === 'category' ? { catalog } : {}) })
+      const { updated } = await api.renameListValue({ field, from, to, catalog, ...(field === 'aisle' ? { store } : {}) })
       announce(to ? `Renamed ${from} to ${to}${updated ? `, ${updated} item${updated === 1 ? '' : 's'} updated` : ''}` : `Removed ${from}`)
       setEditing(null); setOverride(null); onChanged()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
@@ -1107,7 +1099,7 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
   }
   const saveOrder = async (next: string[]) => {
     setOverride({ store, aisles: next })
-    try { await api.setStoreAisles(store, next); onChanged() }
+    try { await api.setStoreAisles(store, next, catalog); onChanged() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the aisle order', true); setOverride(null) }
   }
   const addAisle = () => {
@@ -1135,7 +1127,7 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
 
   return (
     <Sheet title="Stores & departments" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
-      <p className="field-hint">Renaming changes every item that uses the name, on every list. Removing clears it from those items.</p>
+      <p className="field-hint">{catalog === 'groceries' ? 'For grocery lists.' : 'For shopping lists other than groceries.'} Renaming changes every item that uses the name on those lists. Removing clears it from those items.</p>
       <h3 className="manage-head">Stores</h3>
       {suggestions.stores.length ? suggestions.stores.map(v => row('store', v)) : <p className="list-item-meta">No stores yet. Pick one on an item.</p>}
       <h3 className="manage-head">Departments</h3>
@@ -1157,11 +1149,6 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
           placeholder={`Add an aisle${store ? ` at ${store}` : ''}…`} aria-label={`Add an aisle${store ? ` at ${store}` : ''}`} enterKeyHint="done" />
         <button className="icon-btn" onClick={addAisle} disabled={!newAisle.trim()} aria-label="Add aisle"><PlusIcon width={20} height={20} /></button>
       </div>
-      {onCatalog && <>
-        <h3 className="manage-head">Items</h3>
-        <p className="field-hint">Everything you've bought before, where it's found at each store, and its department.</p>
-        <button className="btn btn-secondary btn-block" onClick={onCatalog}>Open the {catalogName(catalog).toLowerCase()}</button>
-      </>}
     </Sheet>
   )
 }
@@ -1183,7 +1170,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   const [department, setDepartment] = useState<string | null>(null)
   const [view, setView] = useState(catalogView)
   const [filtering, setFiltering] = useState(false) // the Filter & sort sheet, over this one
-  const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | null>(null)
+  const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | 'stores' | null>(null)
   const load = () => api.getRemembered(catalog).then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const all = items ?? []
@@ -1211,6 +1198,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
     </button>
   )
 
+  if (editing === 'stores') return <ManageValuesSheet catalog={catalog} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => { setEditing(null); load() }} onChanged={onChanged} />
   if (editing === 'tags') return <CatalogTagsSheet catalog={catalog} tags={tags} onClose={() => setEditing(null)} onChanged={() => { load(); onChanged() }} />
   if (editing) return (
     <CatalogItemSheet catalog={catalog} item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder} familyTags={tags.map(t => t.name)}
@@ -1291,6 +1279,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
           {parentDevice && <button className="link-btn" onClick={() => { setFiltering(false); setEditing('tags') }}>Edit categories</button>} {/* renaming or removing one everywhere is parents only */}
         </Sheet>
       )}
+      {parentDevice && <button className="btn btn-secondary btn-block catalog-stores-btn" onClick={() => setEditing('stores')}>Stores &amp; departments</button>} {/* renaming everywhere is parents only */}
       {items === null ? <p className="list-item-meta">Loading…</p>
         : !shown.length ? <p className="list-item-meta">{items.length ? (query.trim() ? 'Nothing by that name.' : 'Nothing matches these filters.') : 'Nothing yet. Items you add to a shopping list show up here.'}</p>
         : sections.map(sec => sec.name === null ? sec.items.map(row) : (
@@ -1599,7 +1588,6 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const [editList, setEditList] = useState(false)
   const [reorderGroups, setReorderGroups] = useState(false)
   const [viewing, setViewing] = useState(false) // the View sheet: group, sort, show store
-  const [managing, setManaging] = useState(false)
   const [cataloging, setCataloging] = useState(false) // the list type's catalog
   const [showDone, setShowDone] = useState(false)
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
@@ -1879,6 +1867,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   }, [shopping])
   // A link to shopping mode for a list that isn't a shopping list: just the list.
   useEffect(() => { if (shopMode && detail && !shopping) location.replace('#/lists') }, [shopMode, detail, shopping])
+  // Straight into shopping mode with no store yet (a link, Siri): the family's default store for this list type, when there is one.
+  const defaultStore = detail?.list.id === listId ? detail.suggestions.defaultStore : null
+  // Only on the way in: Checkout ends the trip while still in shopping mode, and mustn't start another.
+  useEffect(() => { if (shopping && !trip && storeLink === null && defaultStore) changeTrip(defaultStore) }, [shopping, defaultStore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error || !detail) {
     const card = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
@@ -1969,10 +1961,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     if (!shopping) enterShop() // from the list page's Shop button
     else setTimeout(() => shopHeading.current?.focus()) // after the sheet hands focus back
   }
-  // Shop: with one store (or none) it starts right away; with more, it asks first.
+  // Shop: at the family's default store for this list type, or with one store (or none), it starts right away; else it asks first.
   const startShop = () => {
-    if (tripStores.length > 1) { setPicking(true); return }
-    changeTrip(tripStores[0] ?? ANY_STORE); enterShop()
+    if (tripStores.length > 1 && !suggestions.defaultStore) { setPicking(true); return }
+    changeTrip(suggestions.defaultStore ?? tripStores[0] ?? ANY_STORE); enterShop()
   }
   // No store yet (Shop, or a link straight in): ask first; backing out of shopping mode leaves it.
   const storeSheet = (picking || (shopping && !trip && storeLink === null)) && (
@@ -2206,7 +2198,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
       )}
       {editList && (
-        <ListEditSheet list={list} onClose={() => setEditList(false)} onManage={() => { setEditList(false); setManaging(true) }}
+        <ListEditSheet list={list} onClose={() => setEditList(false)}
           onSaved={() => { setEditList(false); load(); onArchivedOrDeleted() }}
           onDeleted={() => { setEditList(false); onArchivedOrDeleted() }} />
       )}
@@ -2215,8 +2207,6 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         <ListViewSheet list={list} stores={stores} store={selectedStore} onStore={setSelectedStore} onGroupBy={setGroupBy} onSortBy={setSortBy} onClose={() => setViewing(false)}
           onReorder={list.kind === 'shopping' && reorderable && reorderableNames.length > 1 ? () => { setViewing(false); setReorderGroups(true) } : undefined} />
       )}
-      {managing && <ManageValuesSheet catalog={list.catalog ?? 'groceries'} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setManaging(false)} onChanged={load}
-        onCatalog={list.kind === 'shopping' ? () => { setManaging(false); setCataloging(true) } : undefined} />}
       {cataloging && <ListCatalogSheet catalog={list.catalog ?? 'groceries'} listId={listId} listName={list.name} onList={onList} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setCataloging(false)} onChanged={load} />}
       {reorderGroups && reorderable && (
         <ReorderGroupsSheet listId={listId} groupBy={list.groupBy === 'store' ? 'store' : 'category'} names={groupNamesForOrder.length ? groupNamesForOrder.filter(n => reorderableNames.includes(n)).concat(reorderableNames.filter(n => !groupNamesForOrder.includes(n))) : reorderableNames}

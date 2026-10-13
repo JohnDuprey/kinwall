@@ -196,7 +196,7 @@ test('groceries: aisle sort - by store, natural or custom aisle order, no aisle 
 
   // A walking order (set over MCP), with Frozen between numbered aisles; unlisted aisles follow in natural order.
   const set = await tool('set_store_aisle_order', { store: 'Costco', aisles: ['Produce', 'Aisle 10', 'Frozen', 'Bakery'] });
-  assert.deepEqual(set.order, { store: 'Costco', aisles: ['Produce', 'Aisle 10', 'Frozen', 'Bakery'] });
+  assert.deepEqual(set.order, { store: 'Costco', aisles: ['Produce', 'Aisle 10', 'Frozen', 'Bakery'], catalog: 'groceries' });
   assert.deepEqual(await titles(), ['Apples', 'Soup', 'Ice cream', 'Beans', 'Rice', 'Batteries', 'Stamps', 'Gum']);
   const detail = await send('GET', `/api/lists/${list.id}`);
   assert.deepEqual(detail.aisleOrder, [{ store: 'Costco', aisles: ['Produce', 'Aisle 10', 'Frozen', 'Bakery'] }]);
@@ -388,11 +388,11 @@ test('list detail: suggestions only on shopping lists; suggestions=false leaves 
   assert.ok(shop.items.every((i: any) => Array.isArray(i.places)));
 
   const other = await send('GET', `/api/lists/${todo.id}`);
-  assert.deepEqual(other.suggestions, { stores: [], categories: [], aisles: [] });
+  assert.deepEqual(other.suggestions, { stores: [], categories: [], aisles: [], defaultStore: null });
   assert.deepEqual(other.items.map((i: any) => i.title), ['Sweep']);
 
   const lean = await send('GET', `/api/lists/${list.id}?suggestions=false`);
-  assert.deepEqual(lean.suggestions, { stores: [], categories: [], aisles: [] });
+  assert.deepEqual(lean.suggestions, { stores: [], categories: [], aisles: [], defaultStore: null });
   assert.deepEqual(lean.items.map((i: any) => [i.title, i.places]), shop.items.map((i: any) => [i.title, undefined]));
   assert.deepEqual(lean.aisleOrder, shop.aisleOrder);
   assert.deepEqual(lean.list, shop.list);

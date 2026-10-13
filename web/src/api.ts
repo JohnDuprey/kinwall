@@ -750,7 +750,7 @@ export const api = {
   // store: Checkout at the end of a shopping trip - remembered as where these were last bought.
   clearListCompleted: (listId: string, itemIds?: string[], store?: string) => MOCK ? mock.clearListCompleted(listId, itemIds, store) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`, itemIds ? { itemIds, ...(store ? { store } : {}) } : undefined),
   resetList: (listId: string, itemIds?: string[]) => MOCK ? mock.resetList(listId, itemIds) : post<{ reset: number }>(`api/lists/${listId}/reset`, itemIds ? { itemIds } : undefined),
-  // Stores & departments: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
+  // Stores & departments (per list type, catalog): rename (to) or remove (to: null) a value; a store's aisle order; each type's stores.
   renameListValue: (body: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null; catalog?: ListCatalog }) =>
     MOCK ? mock.renameListValue(body) : post<{ updated: number }>('api/lists/values', body),
   // A list type's catalog (groceries or shopping): every remembered item and where it's found per store; edit or add one.
@@ -762,8 +762,9 @@ export const api = {
   renameCatalogTag: (catalog: ListCatalog, from: string, to: string | null) => MOCK ? mock.renameCatalogTag(catalog, from, to) : patch<{ updated: number }>(`api/lists/remembered-tags?catalog=${catalog}`, { from, to }),
   // Stop suggesting a remembered item name (and forget where it goes).
   forgetItemName: (catalog: ListCatalog, key: string) => MOCK ? mock.forgetItemName(catalog, key) : del<{ ok: boolean }>(`api/lists/remembered/${encodeURIComponent(key)}?catalog=${catalog}`),
-  setStoreAisles: (store: string | null, aisles: string[]) =>
-    MOCK ? mock.setStoreAisles(store, aisles) : put<{ store: string | null; aisles: string[] }>('api/lists/aisles', { store, aisles }),
+  setStoreAisles: (store: string | null, aisles: string[], catalog: ListCatalog) =>
+    MOCK ? mock.setStoreAisles(store, aisles, catalog) : put<{ store: string | null; aisles: string[] }>('api/lists/aisles', { store, aisles, catalog }),
+  getListStores: () => MOCK ? mock.getListStores() : get<Record<ListCatalog, string[]>>('api/lists/stores'),
   // Step routes answer with the whole updated item (it may have auto-completed or re-opened).
   addListItemStep: (listId: string, itemId: string, title: string) =>
     MOCK ? mock.addListItemStep(listId, itemId, title) : post<ListItem>(`api/lists/${listId}/items/${itemId}/steps`, { title }),

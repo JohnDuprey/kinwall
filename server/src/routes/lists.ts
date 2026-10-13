@@ -10,7 +10,7 @@ import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Act
 import type { Context } from 'hono';
 import { hiddenFromDisplay } from './events.ts';
 import { checkRate } from '../ratelimit.ts';
-import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, barcodeWrites, recallBarcode, rememberBarcode, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
+import { DEFAULT_STORE_KEY, SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, barcodeWrites, recallBarcode, rememberBarcode, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
   BarcodeSchema,
   ErrorSchema,
@@ -521,6 +521,27 @@ listsRoutes.openapi(
   },
 );
 
+listsRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/lists/stores',
+    tags: ['Lists'],
+    summary: "Each list type's stores (A-Z): the ones its lists' items, its catalog and its aisle orders use. A store used by both types is in both. What the default store settings (defaultGroceryStore, defaultShoppingStore) pick from.",
+    security: [{ Bearer: [] }],
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ groceries: z.array(z.string()), shopping: z.array(z.string()) }) } } } },
+  }),
+  async (c) => {
+    const { results } = await c.env.DB.prepare(
+      `SELECT DISTINCT catalog, store FROM (
+         SELECT coalesce(l.catalog, 'groceries') AS catalog, li.store FROM list_items li JOIN lists l ON l.id = li.list_id WHERE l.kind = 'shopping' AND li.store IS NOT NULL
+         UNION SELECT catalog, store FROM item_memory WHERE store != ''
+         UNION SELECT catalog, store FROM store_aisles WHERE store != ''
+       ) ORDER BY store`,
+    ).all<{ catalog: Catalog; store: string }>();
+    return c.json({ groceries: results.filter((r) => r.catalog === 'groceries').map((r) => r.store), shopping: results.filter((r) => r.catalog === 'shopping').map((r) => r.store) }, 200);
+  },
+);
+
 async function saveCatalogItem(c: Context<{ Bindings: Env }>, cat: Catalog, from: string, existing: CatalogItem | null, edit: CatalogEdit): Promise<CatalogItem> {
   if (edit.tags) {
     const { results } = await c.env.DB.prepare('SELECT DISTINCT tag FROM item_tags WHERE catalog = ? AND name_key != ?').bind(cat, from).all<{ tag: string }>();
@@ -597,9 +618,10 @@ listsRoutes.openapi(
         `SELECT DISTINCT li.store, li.category, li.aisle FROM lists l CROSS JOIN lists o JOIN list_items li ON li.list_id = o.id
          WHERE ${shop} AND o.kind = 'shopping' AND coalesce(o.catalog, 'groceries') = coalesce(l.catalog, 'groceries')`,
       ).bind(id, want),
-      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
+      c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'defaultGroceryStore', 'defaultShoppingStore')"),
       c.env.DB.prepare(`SELECT target_id, COUNT(*) AS n FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE list_id = ?) GROUP BY target_id`).bind(id),
-      c.env.DB.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort'),
+      // Aisle orders of the list's own catalog (a store in both catalogs has one in each).
+      c.env.DB.prepare("SELECT a.store, a.aisle FROM lists l JOIN store_aisles a ON a.catalog = coalesce(l.catalog, 'groceries') WHERE l.id = ? ORDER BY a.store, a.sort").bind(id),
       // Which planned meals an item came from: meal_shopping_sources refs are "meal-plan:<mealId>:ingredient:<id>".
       c.env.DB.prepare(
         `SELECT DISTINCT s.item_id, m.title, m.date FROM meal_shopping_sources s
@@ -641,7 +663,11 @@ listsRoutes.openapi(
     const steps = groupSteps(stepsRes.results as ListItemStepRow[]);
     const orderRows = orderRes.results as { store: string; aisle: string }[];
     const suggest = list.kind === 'shopping' && want === 1;
+    const settingRows = new Map((tzRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
     const { stores, categories, aisles } = suggest ? suggestedValues(valuesRes.results as ValueRow[], memoryRes.results as ValueRow[], orderRows) : { stores: [], categories: [], aisles: [] };
+    // The family's default store for this list type (settings), when it's one of these stores: first in every picker.
+    const defaultStore = stores.find((s) => s === settingRows.get(DEFAULT_STORE_KEY[(list.catalog ?? 'groceries') as Catalog])) ?? null;
+    if (defaultStore) stores.unshift(...stores.splice(stores.indexOf(defaultStore), 1));
     const aisleOrder: AisleOrder = new Map();
     for (const r of orderRows) aisleOrder.set(r.store, [...(aisleOrder.get(r.store) ?? []), r.aisle]);
     const meals = new Map<string, string[]>();
@@ -650,7 +676,7 @@ listsRoutes.openapi(
       if (!titles.includes(r.title)) meals.set(r.item_id, [...titles, r.title]);
     }
     const openCount = items.filter((i) => !i.done).length;
-    const today = todayIn((tzRes.results as { value: string }[])[0]?.value);
+    const today = todayIn(settingRows.get('timezone'));
     const overdueCount = items.filter((i) => !i.done && i.due_date && i.due_date < today).length;
     const order = compareItems(list.sort_by, today, { keepChecked: !!list.keep_checked, aisleOrder });
     const apiItems = items
@@ -671,6 +697,7 @@ listsRoutes.openapi(
           stores,
           categories,
           aisles,
+          defaultStore,
           ...(suggest
             ? { items: nameSuggestions(namesRes.results as never, memoryOf(namesRes.results as { name_key: string }[], memoryRes.results as { name_key: string; updated_at: string }[]) as never, ingredientsRes.results as never, tripStore) }
             : {}),
@@ -1320,7 +1347,7 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/values',
     tags: ['Lists'],
-    summary: 'Rename (to: a name) or remove (to: null) a store, category or aisle everywhere: items on every list, remembered places, group and aisle orders. An aisle belongs to a store (store: null = items with no store). A category with catalog changes only lists of that type and that catalog.',
+    summary: 'Rename (to: a name) or remove (to: null) a store, category or aisle everywhere: items on every list, remembered places, group and aisle orders, and the default store setting. An aisle belongs to a store (store: null = items with no store). With catalog, only that list type changes: its lists\' items, its catalog and its aisle orders (a store used by both types keeps its name in the other).',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: ListValueRenameSchema } } } },
     responses: { 200: { description: 'items changed', content: { 'application/json': { schema: z.object({ updated: z.number() }) } } } },
@@ -1329,37 +1356,43 @@ listsRoutes.openapi(
     const { field, from, to, catalog: cat } = c.req.valid('json');
     const store = c.req.valid('json').store ?? null;
     const db = c.env.DB;
-    // A department is per catalog when one is given: only items on lists of that type (and their groups).
-    const inCatalog = field === 'category' && cat ? " AND list_id IN (SELECT id FROM lists WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = ?)" : '';
+    // Per catalog when one is given: only items on lists of that type (and their groups), its remembered places and aisle orders.
+    const inCatalog = cat ? " AND list_id IN (SELECT id FROM lists WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = ?)" : '';
     const catalogBind = inCatalog ? [cat] : [];
+    const ofCatalog = cat ? ' AND catalog = ?' : '';
     const writes =
       field === 'store'
         ? [
-            db.prepare('UPDATE list_items SET store = ? WHERE store = ?').bind(to, from),
+            db.prepare(`UPDATE list_items SET store = ? WHERE store = ?${inCatalog}`).bind(to, from, ...catalogBind),
             // OR REPLACE: renaming onto a store that already has a remembered row keeps the renamed one.
-            db.prepare("UPDATE OR REPLACE item_memory SET store = coalesce(?, '') WHERE store = ?").bind(to, from),
+            db.prepare(`UPDATE OR REPLACE item_memory SET store = coalesce(?, '') WHERE store = ?${ofCatalog}`).bind(to, from, ...catalogBind),
             to
-              ? db.prepare("UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'store' AND name = ?").bind(to, from)
-              : db.prepare("DELETE FROM list_groups WHERE kind = 'store' AND name = ?").bind(from),
-            to ? db.prepare('UPDATE OR REPLACE store_aisles SET store = ? WHERE store = ?').bind(to, from) : db.prepare('DELETE FROM store_aisles WHERE store = ?').bind(from),
+              ? db.prepare(`UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'store' AND name = ?${inCatalog}`).bind(to, from, ...catalogBind)
+              : db.prepare(`DELETE FROM list_groups WHERE kind = 'store' AND name = ?${inCatalog}`).bind(from, ...catalogBind),
+            to
+              ? db.prepare(`UPDATE OR REPLACE store_aisles SET store = ? WHERE store = ?${ofCatalog}`).bind(to, from, ...catalogBind)
+              : db.prepare(`DELETE FROM store_aisles WHERE store = ?${ofCatalog}`).bind(from, ...catalogBind),
+            // The default store follows a rename, and clears when it's removed ('' = none).
+            db.prepare("UPDATE settings SET value = coalesce(?, '') WHERE key IN (SELECT value FROM json_each(?)) AND value = ?")
+              .bind(to, JSON.stringify(cat ? [DEFAULT_STORE_KEY[cat]] : Object.values(DEFAULT_STORE_KEY)), from),
           ]
         : field === 'category'
           ? [
               db.prepare(`UPDATE list_items SET category = ? WHERE category = ?${inCatalog}`).bind(to, from, ...catalogBind),
-              db.prepare(`UPDATE item_memory SET category = ? WHERE category = ?${cat ? ' AND catalog = ?' : ''}`).bind(to, from, ...(cat ? [cat] : [])),
+              db.prepare(`UPDATE item_memory SET category = ? WHERE category = ?${ofCatalog}`).bind(to, from, ...catalogBind),
               to
                 ? db.prepare(`UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'category' AND name = ?${inCatalog}`).bind(to, from, ...catalogBind)
                 : db.prepare(`DELETE FROM list_groups WHERE kind = 'category' AND name = ?${inCatalog}`).bind(from, ...catalogBind),
             ]
           : [
-              db.prepare("UPDATE list_items SET aisle = ? WHERE aisle = ? AND coalesce(store, '') = coalesce(?, '')").bind(to, from, store),
-              db.prepare("UPDATE item_memory SET aisle = ? WHERE aisle = ? AND store = coalesce(?, '')").bind(to, from, store),
+              db.prepare(`UPDATE list_items SET aisle = ? WHERE aisle = ? AND coalesce(store, '') = coalesce(?, '')${inCatalog}`).bind(to, from, store, ...catalogBind),
+              db.prepare(`UPDATE item_memory SET aisle = ? WHERE aisle = ? AND store = coalesce(?, '')${ofCatalog}`).bind(to, from, store, ...catalogBind),
               to
-                ? db.prepare("UPDATE OR REPLACE store_aisles SET aisle = ? WHERE aisle = ? AND store = coalesce(?, '')").bind(to, from, store)
-                : db.prepare("DELETE FROM store_aisles WHERE aisle = ? AND store = coalesce(?, '')").bind(from, store),
+                ? db.prepare(`UPDATE OR REPLACE store_aisles SET aisle = ? WHERE aisle = ? AND store = coalesce(?, '')${ofCatalog}`).bind(to, from, store, ...catalogBind)
+                : db.prepare(`DELETE FROM store_aisles WHERE aisle = ? AND store = coalesce(?, '')${ofCatalog}`).bind(from, store, ...catalogBind),
             ];
     // The count runs first, in the same batch, so it's the items this rename touches.
-    const count = db.prepare(`SELECT COUNT(*) AS n FROM list_items WHERE ${field} = ?${field === 'aisle' ? " AND coalesce(store, '') = coalesce(?, '')" : inCatalog}`).bind(...(field === 'aisle' ? [from, store] : [from, ...catalogBind]));
+    const count = db.prepare(`SELECT COUNT(*) AS n FROM list_items WHERE ${field} = ?${field === 'aisle' ? " AND coalesce(store, '') = coalesce(?, '')" : ''}${inCatalog}`).bind(...(field === 'aisle' ? [from, store] : [from]), ...catalogBind);
     const [counted] = await db.batch<{ n: number }>([count, ...writes]);
     emit(c, 'list.changed', { value: field });
     return c.json({ updated: counted.results[0]?.n ?? 0 }, 200);
@@ -1371,20 +1404,20 @@ listsRoutes.openapi(
     method: 'put',
     path: '/api/lists/aisles',
     tags: ['Lists'],
-    summary: "Set a store's aisle walking order (store: null = items with no store), e.g. [\"Produce\", \"Bakery\", \"Aisle 4\", \"Frozen\", \"Aisle 5\", \"Dairy\"]. Aisle sort and grouping follow it; aisles not in it come after, in natural order. An empty array clears it. Every aisle in it is offered in that store's aisle picker.",
+    summary: "Set a store's aisle walking order (store: null = items with no store), e.g. [\"Produce\", \"Bakery\", \"Aisle 4\", \"Frozen\", \"Aisle 5\", \"Dairy\"]. Aisle sort and grouping follow it; aisles not in it come after, in natural order. An empty array clears it. Every aisle in it is offered in that store's aisle picker. Per catalog (catalog: groceries, the default, or shopping): lists of that type use it, and the store shows in their pickers.",
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: StoreAislesSchema } } } },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: StoreAislesSchema } } } },
   }),
   async (c) => {
-    const { store, aisles } = c.req.valid('json');
+    const { store, aisles, catalog: cat = 'groceries' } = c.req.valid('json');
     const unique = [...new Set(aisles.map((a) => a.trim()).filter(Boolean))];
     await c.env.DB.batch([
-      c.env.DB.prepare('DELETE FROM store_aisles WHERE store = ?').bind(store ?? ''),
-      c.env.DB.prepare('INSERT INTO store_aisles (store, aisle, sort) SELECT ?, value, key FROM json_each(?)').bind(store ?? '', JSON.stringify(unique)),
+      c.env.DB.prepare('DELETE FROM store_aisles WHERE catalog = ? AND store = ?').bind(cat, store ?? ''),
+      c.env.DB.prepare('INSERT INTO store_aisles (catalog, store, aisle, sort) SELECT ?, ?, value, key FROM json_each(?)').bind(cat, store ?? '', JSON.stringify(unique)),
     ]);
     emit(c, 'list.changed', { aisles: store });
-    return c.json({ store, aisles: unique }, 200);
+    return c.json({ store, aisles: unique, catalog: cat }, 200);
   },
 );
 

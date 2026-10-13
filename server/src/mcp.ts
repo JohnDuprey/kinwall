@@ -1465,7 +1465,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_list',
     {
       title: 'Get list',
-      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions (shopping lists; empty on others) and stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores. An item with no aisle known there whose category (department) names one of the store\'s aisles, any case, shows in that aisle (not saved).',
+      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions from the list\'s own type (shopping lists; empty on others; the family\'s default store for the type first, as defaultStore) and that type\'s stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores. An item with no aisle known there whose category (department) names one of the store\'s aisles, any case, shows in that aisle (not saved).',
       inputSchema: { list: z.string().describe('List id or name.'), store: z.string().optional().describe('Shopping at this store: adds the trip view.') },
     },
     async ({ list, store }) => {
@@ -2105,14 +2105,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'set_store_aisle_order',
     {
       title: 'Set store aisle order',
-      description: 'Set the order you walk a store\'s aisles in, e.g. ["Produce", "Bakery", "Deli", "Aisle 4", "Frozen", "Aisle 5", "Dairy"]. Shopping lists sorted or grouped by aisle follow it; aisles not in it come after, in natural order. Every aisle in it is offered when picking an aisle for that store. An empty list clears it. get_list returns it as aisleOrder.',
+      description: 'Set the order you walk a store\'s aisles in, e.g. ["Produce", "Bakery", "Deli", "Aisle 4", "Frozen", "Aisle 5", "Dairy"]. Shopping lists sorted or grouped by aisle follow it; aisles not in it come after, in natural order. Every aisle in it is offered when picking an aisle for that store. An empty list clears it. Each list type keeps its own: catalog groceries (the default) for Groceries lists, shopping for the others; a store used by both has an order in each. get_list returns the list\'s type\'s orders as aisleOrder.',
       inputSchema: {
         store: z.string().nullable().describe('Store name (as on the items), or null for items with no store.'),
         aisles: jsonList(z.array(z.string())).describe('Aisle names in walking order.'),
+        catalog: CATALOG_ARG,
       },
     },
-    async ({ store, aisles }) => {
-      const res = await call(app, env, auth, 'PUT', '/api/lists/aisles', { store, aisles });
+    async ({ store, aisles, catalog }) => {
+      const res = await call(app, env, auth, 'PUT', '/api/lists/aisles', { store, aisles, ...(catalog ? { catalog } : {}) });
       if (res.status >= 400) return errorResult(res.json, 'failed to set aisle order');
       const order = res.json as { aisles: string[] };
       return okResult(order.aisles.length ? `Set ${store ?? 'no-store'} aisle order: ${order.aisles.join(', ')}.` : `Cleared ${store ?? 'no-store'} aisle order.`, { order: res.json as Record<string, unknown> });

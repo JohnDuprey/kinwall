@@ -73,6 +73,8 @@ export async function readSettings(db: KinwallDb) {
     density: (map.get('density') ?? DEFAULTS.density) as 'comfortable' | 'compact',
     typeface: TYPEFACES.find((t) => t === map.get('typeface')) ?? 'default',
     timeFormat: TIME_FORMATS.find((t) => t === map.get('timeFormat')) ?? 'auto',
+    defaultGroceryStore: map.get('defaultGroceryStore') || null, // routes/lists.ts: Shop starts there; follows a store rename
+    defaultShoppingStore: map.get('defaultShoppingStore') || null,
     defaultCalendarId: map.get('defaultCalendarId') || null, // default-calendar.ts; GET /api/calendars marks the one in use
     defaultEventMinutes: Number(map.get('defaultEventMinutes') || DEFAULTS.defaultEventMinutes),
     defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),

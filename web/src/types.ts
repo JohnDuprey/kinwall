@@ -47,6 +47,8 @@ export interface Settings {
   density: Density
   typeface: Typeface // the family's; a device can pick its own
   timeFormat: TimeFormat // the family's; a device can pick its own
+  defaultGroceryStore?: string | null // Shop on a Groceries list starts here (no store step); null: Shop asks
+  defaultShoppingStore?: string | null // the same for other shopping lists
   defaultCalendarId?: string | null // a parent's pick for new events; null: the server picks (CalendarEntry.default)
   defaultEventMinutes?: number // how long a new event lasts once its start is picked (60 unless changed)
   defaultReminderMinutes: number[]
@@ -907,8 +909,9 @@ export interface ListDetail {
   list: List
   items: ListItem[]
   groups: ListGroup[]
-  suggestions: { stores: string[]; categories: string[]; aisles: { store: string | null; aisle: string }[]; items?: ItemSuggestion[] }
-  aisleOrder: { store: string | null; aisles: string[] }[] // stores with a custom aisle walking order
+  // The list type's own stores (the family's default store for the type first, as defaultStore), departments and aisles.
+  suggestions: { stores: string[]; categories: string[]; aisles: { store: string | null; aisle: string }[]; items?: ItemSuggestion[]; defaultStore?: string | null }
+  aisleOrder: { store: string | null; aisles: string[] }[] // the list type's stores with a custom aisle walking order
   /** With ?store= (a one-store trip): the other type's shopping lists' items for that store, walked on
    * the same trip; tick and check them out on their own list (listId). */
   alsoAtStore?: (ListItem & { listName: string })[]

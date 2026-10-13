@@ -63,7 +63,7 @@ export type CatalogFilters = { store: string | null; tag: string | null; departm
 /** How many of store, category and department are picked (the Filter & sort button's badge). */
 export const activeCatalogFilters = (f: CatalogFilters) => [f.store, f.tag, f.department].filter(Boolean).length
 
-/** The line above the items: "Shaws · Breakfast · Most bought" (the sort and grouping only when not the
+/** The line above the items: "Neighborhood market · Breakfast · Most bought" (the sort and grouping only when not the
  * default); empty when nothing is filtered. */
 export function catalogFilterSummary(f: CatalogFilters, view: { sort: CatalogSort; group: CatalogGroup }): string {
   if (!activeCatalogFilters(f)) return ''
@@ -106,7 +106,7 @@ export function setCatalogView(view: { sort: CatalogSort; group: CatalogGroup })
   try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)) } catch { /* not kept */ }
 }
 
-/** "Shaws · Aisle 7", or just "Shaws" when the aisle there isn't known. */
+/** "Neighborhood market · Aisle 7", or just "Neighborhood market" when the aisle there isn't known. */
 export const placeLabel = (p: { store: string; aisle: string | null }) => (p.aisle ? `${p.store} · ${p.aisle}` : p.store)
 
 /** An item's places, the filtered store first. */

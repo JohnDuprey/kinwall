@@ -126,6 +126,8 @@ const settings: Settings = {
   typeface: 'default',
   timeFormat: 'auto',
   defaultCalendarId: null,
+  defaultGroceryStore: null,
+  defaultShoppingStore: null,
   defaultEventMinutes: 60,
   defaultReminderMinutes: [30],
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
@@ -565,11 +567,13 @@ listItems.push(...mealGroceries.map(([title, quantity, category, notes, done, ai
   dueDate: null, eventId: null, done, doneAt: done ? iso() : null, doneBy: done ? 'm1' : null,
   sort: sort + 5, createdAt: iso(), updatedAt: iso(),
 }), meals })))
-// The market's walking order (Frozen sits between the numbered aisles), and remembered places:
-// what a checked-out item leaves behind so the next "milk" lands in the right spot.
-let aisleOrder: { store: string | null; aisles: string[] }[] = [
-  { store: 'Neighborhood market', aisles: ['Produce', 'Bakery', 'Deli', 'Meat', 'Seafood', 'Aisle 3', 'Aisle 4', 'Aisle 5', 'Frozen', 'Aisle 6', 'Dairy'] },
+// The market's walking order (Frozen sits between the numbered aisles) and the home center's, each in its
+// list type's catalog, and remembered places: what a checked-out item leaves behind so the next "milk" lands in the right spot.
+let aisleOrder: { catalog: ListCatalog; store: string | null; aisles: string[] }[] = [
+  { catalog: 'groceries', store: 'Neighborhood market', aisles: ['Produce', 'Bakery', 'Deli', 'Meat', 'Seafood', 'Aisle 3', 'Aisle 4', 'Aisle 5', 'Frozen', 'Aisle 6', 'Dairy'] },
+  { catalog: 'shopping', store: 'Home center', aisles: ['Aisle 1', 'Aisle 18', 'Garden'] },
 ]
+const DEFAULT_STORE_KEY = { groceries: 'defaultGroceryStore', shopping: 'defaultShoppingStore' } as const
 let remembered: ListItem[] = []
 // Each shopping list type keeps its own catalog: an item (on a list, or remembered from one) belongs to its list's.
 const catalogOf = (listId: string): ListCatalog => lists.find(l => l.id === listId)?.catalog ?? 'groceries'
@@ -1549,24 +1553,26 @@ export const mock = {
   },
   getList: async (id: string, store?: string) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
-    const order = aisleOrderMap({ aisleOrder })
+    const ownOrder = aisleOrder.filter(o => o.catalog === catalogOf(id)).map(({ store, aisles }) => ({ store, aisles })) // the list type's own
+    const order = aisleOrderMap({ aisleOrder: ownOrder })
     const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()), { keepChecked: l.keepChecked, aisleOrder: order }))
       .map(i => ({ ...i, noteCount: noteCount('list_item', i.id), ...(l.kind === 'shopping' ? { places: placesOf(i.title, catalogOf(id)) } : {}) }))
     const groups = listGroups.filter(g => g.name) // per-list groups aren't keyed by list in this fixture; kept simple for demo
     const known = [...listItems, ...remembered].filter(inCatalog(catalogOf(id)))
     const uniq = (v: (string | null)[]) => [...new Set(v.filter((x): x is string => !!x))].sort()
-    const stores = uniq([...known.map(i => i.store), ...aisleOrder.map(o => o.store)])
+    const defaultStore = settings[DEFAULT_STORE_KEY[catalogOf(id)]] ?? null
+    const stores = uniq([...known.map(i => i.store), ...ownOrder.map(o => o.store)]).sort((a, b) => Number(b === defaultStore) - Number(a === defaultStore))
     const categories = uniq(known.map(i => i.category))
-    const aisles = [...new Map([...known.filter(i => i.aisle).map(i => ({ store: i.store, aisle: i.aisle! })), ...aisleOrder.flatMap(o => o.aisles.map(aisle => ({ store: o.store, aisle })))]
+    const aisles = [...new Map([...known.filter(i => i.aisle).map(i => ({ store: i.store, aisle: i.aisle! })), ...ownOrder.flatMap(o => o.aisles.map(aisle => ({ store: o.store, aisle })))]
       .map(a => [`${a.store}|${a.aisle}`, a])).values()]
     // Like the server: suggestions only on shopping lists.
-    const suggestions = l.kind === 'shopping' ? { stores, categories, aisles, items: nameSuggestions(catalogOf(id)) } : { stores: [], categories: [], aisles: [] }
+    const suggestions = l.kind === 'shopping' ? { stores, categories, aisles, items: nameSuggestions(catalogOf(id)), defaultStore: defaultStore && stores.includes(defaultStore) ? defaultStore : null } : { stores: [], categories: [], aisles: [] }
     // A one-store trip: the other type's lists' items for that store (the server's alsoAtStore, roughly).
     const alsoAtStore = !store || l.kind !== 'shopping' ? undefined : lists
       .filter(o => o.id !== id && o.kind === 'shopping' && !o.archived && catalogOf(o.id) !== catalogOf(id))
       .flatMap(o => listItems.filter(i => i.listId === o.id && (i.store === store || (!i.store && placesOf(i.title, catalogOf(o.id)).some(p => p.store === store))))
         .map(i => ({ ...i, listName: o.name, places: placesOf(i.title, catalogOf(o.id)).filter(p => p.store === store) })))
-    return { list: l, items, groups, suggestions, aisleOrder, ...(alsoAtStore ? { alsoAtStore } : {}) }
+    return { list: l, items, groups, suggestions, aisleOrder: ownOrder, ...(alsoAtStore ? { alsoAtStore } : {}) }
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
@@ -1719,12 +1725,16 @@ export const mock = {
   },
   renameListValue: async ({ field, from, to, store, catalog }: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null; catalog?: ListCatalog }) => {
     let updated = 0
-    for (const i of [...listItems, ...remembered].filter(i => field !== 'category' || !catalog || inCatalog(catalog)(i))) {
+    for (const i of [...listItems, ...remembered].filter(i => !catalog || inCatalog(catalog)(i))) {
       if (i[field] !== from || (field === 'aisle' && i.store !== (store ?? null))) continue
       i[field] = to; if (listItems.includes(i)) updated++
     }
-    if (field === 'store') aisleOrder = to ? aisleOrder.map(o => o.store === from ? { ...o, store: to } : o) : aisleOrder.filter(o => o.store !== from)
-    if (field === 'aisle') aisleOrder = aisleOrder.map(o => o.store !== (store ?? null) ? o : { ...o, aisles: to ? o.aisles.map(a => a === from ? to : a) : o.aisles.filter(a => a !== from) })
+    const mine = (o: { catalog: ListCatalog }) => !catalog || o.catalog === catalog
+    if (field === 'store') {
+      aisleOrder = to ? aisleOrder.map(o => o.store === from && mine(o) ? { ...o, store: to } : o) : aisleOrder.filter(o => o.store !== from || !mine(o))
+      for (const c of catalog ? [catalog] : (['groceries', 'shopping'] as const)) if (settings[DEFAULT_STORE_KEY[c]] === from) settings[DEFAULT_STORE_KEY[c]] = to
+    }
+    if (field === 'aisle') aisleOrder = aisleOrder.map(o => o.store !== (store ?? null) || !mine(o) ? o : { ...o, aisles: to ? o.aisles.map(a => a === from ? to : a) : o.aisles.filter(a => a !== from) })
     bump(); return { updated }
   },
   // The catalogs (one per shopping list type): seeded from what's remembered above, then edited on their own (roughly the server's).
@@ -1762,9 +1772,13 @@ export const mock = {
   forgetItemName: async (catalog: ListCatalog, key: string) => {
     forgotten.add(`${catalog}:${key}`); mockCatalog(catalog).delete(key); remembered = remembered.filter(i => itemKey(i.title) !== key || !inCatalog(catalog)(i)); bump(); return { ok: true }
   },
-  setStoreAisles: async (store: string | null, aisles: string[]) => {
-    aisleOrder = [...aisleOrder.filter(o => o.store !== store), ...(aisles.length ? [{ store, aisles }] : [])]
+  setStoreAisles: async (store: string | null, aisles: string[], catalog: ListCatalog) => {
+    aisleOrder = [...aisleOrder.filter(o => o.store !== store || o.catalog !== catalog), ...(aisles.length ? [{ catalog, store, aisles }] : [])]
     bump(); return { store, aisles }
+  },
+  getListStores: async () => {
+    const of = (c: ListCatalog) => [...new Set([...[...listItems, ...remembered].filter(inCatalog(c)).map(i => i.store), ...aisleOrder.filter(o => o.catalog === c).map(o => o.store)].filter((x): x is string => !!x))].sort()
+    return { groceries: of('groceries'), shopping: of('shopping') }
   },
   resetList: async (listId: string, itemIds?: string[]) => {
     const items = listItems.filter(i => i.listId === listId && i.done && (!itemIds || itemIds.includes(i.id)))

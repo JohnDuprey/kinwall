@@ -172,7 +172,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   // Aisles, the remembered place and the store's aisle order travel too.
   assert.deepEqual([file.lists[0].keepChecked, file.lists[0].items.find((i: any) => i.title === 'Milk').aisle, file.lists[0].items.find((i: any) => i.title === 'Milk').onSale], [true, 'Aisle 9', true]);
   assert.deepEqual(file.itemMemory.map((m: any) => [m.nameKey, m.store, m.category, m.aisle]), [['milk', 'Aldi', 'Dairy', 'Aisle 9']]);
-  assert.deepEqual(file.storeAisles, [{ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }]);
+  assert.deepEqual(file.storeAisles, [{ catalog: 'groceries', store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }]);
   assert.deepEqual(file.itemTags, [{ catalog: 'groceries', nameKey: 'milk', tag: 'Breakfast' }, { catalog: 'groceries', nameKey: 'milk', tag: 'Staples' }]);
   file.settings = { ...file.settings, lateCompletionCredit: 25, streakGraceDays: 3, leaderboardEnabled: false }; // non-defaults must survive too
 

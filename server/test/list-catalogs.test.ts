@@ -2,13 +2,14 @@
 // with its own catalog of remembered names, places and categories (migration 0076).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { looksLikeGroceries } from '../src/item-memory.ts';
+import { runMigrations } from '../src/migrate.ts';
 import type { Env } from '../src/env.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
@@ -257,4 +258,73 @@ test('combined trip: a trip at a store also walks the other type\'s items for th
   assert.deepEqual((await send('GET', `/api/lists/${groceries.id}`)).items.map((i: any) => i.title), ['Milk']);
   assert.deepEqual((await send('GET', `/api/lists/${hardware.id}`)).items.map((i: any) => i.title).sort(), ['Glue', 'Hammer', 'Tape']);
   assert.deepEqual((await send('GET', '/api/lists/remembered?catalog=shopping')).find((i: any) => i.title === 'Batteries').lastStore, 'Supercenter');
+});
+
+test('list types: each type has its own stores and aisle orders; a store in both has one in each', async () => {
+  const { send, groceries, hardware } = await twoLists();
+  await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Bread', store: 'Supercenter', aisle: 'Aisle 4' });
+  await send('POST', `/api/lists/${hardware.id}/items`, { title: 'Tape', store: 'Supercenter', aisle: 'Aisle 9' });
+  await send('PUT', '/api/lists/aisles', { store: 'Home Center', aisles: ['Aisle 12', 'Garden'], catalog: 'shopping' });
+  await send('PUT', '/api/lists/aisles', { store: 'Supercenter', aisles: ['Aisle 4', 'Bakery'] }); // groceries, the default
+  await send('PUT', '/api/lists/aisles', { store: 'Supercenter', aisles: ['Aisle 9', 'Paint'], catalog: 'shopping' });
+
+  const food = await send('GET', `/api/lists/${groceries.id}`);
+  assert.deepEqual(food.suggestions.stores, ['Market', 'Supercenter']); // never the hardware store
+  assert.deepEqual(food.aisleOrder, [{ store: 'Supercenter', aisles: ['Aisle 4', 'Bakery'] }]);
+  assert.deepEqual(food.suggestions.aisles.filter((a: any) => a.store === 'Supercenter').map((a: any) => a.aisle), ['Aisle 4', 'Bakery']);
+  const tools = await send('GET', `/api/lists/${hardware.id}`);
+  assert.deepEqual(tools.suggestions.stores, ['Home Center', 'Supercenter']);
+  assert.deepEqual(tools.aisleOrder, [{ store: 'Home Center', aisles: ['Aisle 12', 'Garden'] }, { store: 'Supercenter', aisles: ['Aisle 9', 'Paint'] }]);
+  assert.deepEqual(await send('GET', '/api/lists/stores'), { groceries: ['Market', 'Supercenter'], shopping: ['Home Center', 'Supercenter'] });
+
+  // Renaming or removing in one type leaves the other alone.
+  assert.deepEqual(await send('POST', '/api/lists/values', { field: 'store', from: 'Supercenter', to: 'Supercenter North', catalog: 'shopping' }), { updated: 1 });
+  assert.deepEqual(await send('POST', '/api/lists/values', { field: 'aisle', from: 'Aisle 4', to: 'Bread aisle', store: 'Supercenter', catalog: 'groceries' }), { updated: 1 });
+  const food2 = await send('GET', `/api/lists/${groceries.id}`);
+  assert.deepEqual(food2.items.map((i: any) => [i.title, i.store, i.aisle]).sort(), [['Bread', 'Supercenter', 'Bread aisle'], ['Milk', 'Market', 'Aisle 4']]);
+  assert.deepEqual(food2.aisleOrder, [{ store: 'Supercenter', aisles: ['Bread aisle', 'Bakery'] }]);
+  const tools2 = await send('GET', `/api/lists/${hardware.id}`);
+  assert.deepEqual(tools2.suggestions.stores, ['Home Center', 'Supercenter North']);
+  assert.deepEqual(tools2.aisleOrder.find((o: any) => o.store === 'Supercenter North').aisles, ['Aisle 9', 'Paint']);
+  await send('POST', '/api/lists/values', { field: 'store', from: 'Home Center', to: null, catalog: 'groceries' }); // not a grocery store: nothing changes
+  assert.deepEqual((await send('GET', `/api/lists/${hardware.id}`)).suggestions.stores, ['Home Center', 'Supercenter North']);
+});
+
+test('list types: a default store per type comes first, follows a rename and clears on remove', async () => {
+  const { send, groceries, hardware } = await twoLists();
+  await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Bread', store: 'Bakery Row' });
+  assert.equal((await send('GET', '/api/settings')).defaultGroceryStore, null);
+  await send('PATCH', '/api/settings', { defaultGroceryStore: 'Market', defaultShoppingStore: 'Market' });
+  const food = await send('GET', `/api/lists/${groceries.id}`);
+  assert.deepEqual([food.suggestions.defaultStore, food.suggestions.stores], ['Market', ['Market', 'Bakery Row']]);
+  assert.equal((await send('GET', `/api/lists/${hardware.id}`)).suggestions.defaultStore, null); // not one of its stores
+
+  await send('POST', '/api/lists/values', { field: 'store', from: 'Market', to: 'Main Street Market', catalog: 'groceries' });
+  const settings = await send('GET', '/api/settings');
+  assert.deepEqual([settings.defaultGroceryStore, settings.defaultShoppingStore], ['Main Street Market', 'Market']); // only this type's
+  assert.equal((await send('GET', `/api/lists/${groceries.id}`)).suggestions.defaultStore, 'Main Street Market');
+  await send('POST', '/api/lists/values', { field: 'store', from: 'Main Street Market', to: null });
+  assert.equal((await send('GET', '/api/settings')).defaultGroceryStore, null);
+});
+
+test('list types: migration 0117 gives existing aisle orders to the types whose items use the store', async () => {
+  const all = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort().map((name) => ({ name, sql: readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8') }));
+  const db = openDb(':memory:') as unknown as D1Database;
+  await runMigrations(db, all.filter((m) => m.name < '0117'));
+  const now = new Date().toISOString();
+  await db.batch([
+    db.prepare("INSERT INTO lists (id, name, kind, catalog, created_at) VALUES ('g', 'Food', 'shopping', 'groceries', ?), ('h', 'Hardware', 'shopping', 'shopping', ?)").bind(now, now),
+    db.prepare("INSERT INTO list_items (id, list_id, title, store, created_at, updated_at) VALUES ('1', 'g', 'Milk', 'Supercenter', ?, ?), ('2', 'h', 'Tape', 'Supercenter', ?, ?), ('3', 'h', 'Hammer', 'Home Center', ?, ?)").bind(now, now, now, now, now, now),
+    db.prepare("INSERT INTO item_memory (catalog, name_key, store, updated_at) VALUES ('groceries', 'egg', 'Market', ?)").bind(now),
+    db.prepare("INSERT INTO store_aisles (store, aisle, sort) VALUES ('Supercenter', 'Aisle 1', 0), ('Home Center', 'Garden', 0), ('Market', 'Dairy', 0), ('Old Shop', 'Front', 0)"),
+  ]);
+  await runMigrations(db, all);
+  const rows = (await db.prepare('SELECT catalog, store, aisle FROM store_aisles ORDER BY store, catalog').all()).results.map((r: any) => [r.catalog, r.store, r.aisle]);
+  assert.deepEqual(rows, [
+    ['shopping', 'Home Center', 'Garden'],
+    ['groceries', 'Market', 'Dairy'],
+    ['groceries', 'Old Shop', 'Front'], // used nowhere: kept, as groceries
+    ['groceries', 'Supercenter', 'Aisle 1'],
+    ['shopping', 'Supercenter', 'Aisle 1'],
+  ]);
 });
