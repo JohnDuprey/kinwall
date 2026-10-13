@@ -33,6 +33,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
 | `TZ` | system | Docker/Node: the fallback timezone until the household sets one. |
+| `PHOTO_FOLDER` | — | Docker/Node only. A folder of pictures (for example `/photos`, mounted read-only) that the Night screen and the Board can show. See [Photo folder](#photo-folder). |
 
 ### Google Photos
 
@@ -59,6 +60,22 @@ Things to know:
 * **Access isn't guaranteed.** The Ambient API is meant for photo-frame and TV makers. Whether Google enables it for a small personal project is unknown; if the API isn't listed or connecting fails, it isn't available to that project.
 * **Verification.** `photosambient.mediaitems` is a sensitive scope. Until Google verifies the app for it, people connecting see "Google hasn't verified this app" and must choose **Advanced → Go to … (unsafe)** to continue, and an app in **Testing** only works for the test users you add (and its sign-ins expire after 7 days). An unverified app published to production is limited to about 100 users of sensitive scopes. Just your own family is well within that. Verification is requested on the consent screen's **Verification center** page.
 * Google limits each family's Photos device to 240 photo-list requests a day. Kinwall asks for the list at most about once an hour, and only while a screen is showing Google Photos.
+
+### Photo folder
+
+Point `PHOTO_FOLDER` at a folder of pictures you already keep on the server or a network share, and wall screens can show them in the [Night screen slideshow](../using/night.md#screensaver) and on the Board's picture card, without copying them into Kinwall. In Docker, mount the folder read-only:
+
+```yaml
+    volumes: ["./data:/data", "/mnt/nas/photos:/photos:ro"]
+    environment:
+      PHOTO_FOLDER: /photos
+```
+
+* Subfolders count. Folders whose names start with `.`, `@` or `#` (thumbnails and recycle bins that NAS boxes add, like `@eaDir`) are skipped.
+* JPEG, PNG, WebP, GIF and AVIF pictures are shown. HEIC, RAW and videos are skipped, since most browsers can't show them.
+* The name of the folder a picture is in shows as its caption, so a folder called `2024 Beach day` captions its pictures "2024 Beach day". Pictures at the top of the folder have no caption.
+* Kinwall only reads the folder, about once an hour, so new pictures show up within the hour. Each picture is sent to the screen as it is, at full size.
+* Every signed-in device of the family can see these pictures, wall screens included, so only point it at pictures you're happy to have on the wall.
 
 ### Live Activities (Apple push)
 

@@ -4,25 +4,26 @@ import type { GooglePhotosState, NightLook } from './types.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
 export type { NightLook }
 
-type Family = { photos: boolean; paint?: boolean; googlePhotos?: GooglePhotosState }
+type Family = { photos: boolean; paint?: boolean; googlePhotos?: GooglePhotosState; photoFolder?: boolean }
 
 /** This display's picks, minus what the family can't show: family photos or drawings (Paint) turned
  * off become nature pictures; Google Photos not ready (connecting, or needing reconnecting) is left out, and if it was
- * the only pick nature pictures stand in. Nothing picked stays nothing: the plain clock. */
+ * the only pick nature pictures stand in; so is the server's photo folder on a server without one. Nothing picked stays nothing: the plain clock. */
 export function nightSources(picked: SaverSource[], family: Family): SaverSource[] {
   const out = picked
     .map(s => ((s === 'photos' && !family.photos) || (s === 'drawings' && family.paint === false) ? 'nature' : s))
-    .filter(s => s !== 'google' || family.googlePhotos === 'ready')
+    .filter(s => (s !== 'google' || family.googlePhotos === 'ready') && (s !== 'folder' || !!family.photoFolder))
   return [...new Set(picked.length && !out.length ? ['nature' as const] : out)]
 }
 
 /** The Board's picture: this display's Night screen picks, or with none picked the family's own
- * pictures (Google Photos when it's ready, family photos when there are some), else nature. */
+ * pictures (Google Photos when it's ready, family photos when there are some, the server's photo folder), else nature. */
 export function boardSources(picked: SaverSource[], family: Family, hasPhotos: boolean): SaverSource[] {
   if (picked.length) return nightSources(picked, family)
   const own: SaverSource[] = []
   if (family.googlePhotos === 'ready') own.push('google')
   if (family.photos && hasPhotos) own.push('photos')
+  if (family.photoFolder) own.push('folder')
   return own.length ? own : ['nature']
 }
 

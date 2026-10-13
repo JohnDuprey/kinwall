@@ -17,6 +17,7 @@ import { lookUpSome } from './book-details.ts';
 import { refreshDueFeeds } from './routes/outing-feeds.ts';
 import { http2Send } from './apns-node.ts';
 import { guardedLookup, nodeFetch } from './outbound-node.ts';
+import { photoFolder } from './photo-folder-node.ts';
 import { nodeClientIp } from './ratelimit.ts';
 import { isSupervisorPeer } from './webauthn.ts';
 
@@ -138,6 +139,7 @@ const env: Env = {
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
   ALLOW_PRIVATE_FEED_URLS: process.env.ALLOW_PRIVATE_FEED_URLS,
   ALLOW_PRIVATE_WEBHOOK_URLS: process.env.ALLOW_PRIVATE_WEBHOOK_URLS,
+  PHOTO_FOLDER: process.env.PHOTO_FOLDER ? photoFolder(process.env.PHOTO_FOLDER) : undefined,
   OUTBOUND_FETCH: nodeFetch(guardedLookup()), // person-supplied URLs: refuse names that resolve to private addresses
   WEBAUTHN_RP_ID: process.env.WEBAUTHN_RP_ID,
   SAME_REQUEST: (from, to) => { if (viaIngress.has(from)) viaIngress.add(to); peerOf.set(to, peerOf.get(from)); },

@@ -87,7 +87,22 @@ function googleSource(): Source {
   }
 }
 
-const SOURCES: Record<SaverSource, () => Source> = { drawings: drawingsSource, photos: photosSource, art: () => artNext, nature: () => natureNext, google: googleSource }
+// The photo folder on this Kinwall server (self-hosted, routes/photo-folder.ts): the server picks the
+// next one. Empty or gone: rest for a while and let the other sources carry on.
+function folderSource(): Source {
+  let restUntil = 0
+  return async () => {
+    if (Date.now() < restUntil) return null
+    try {
+      return await api.nextFolderPhoto()
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) { restUntil = Date.now() + 10 * 60_000; return null }
+      throw e
+    }
+  }
+}
+
+const SOURCES: Record<SaverSource, () => Source> = { drawings: drawingsSource, photos: photosSource, folder: folderSource, art: () => artNext, nature: () => natureNext, google: googleSource }
 
 const loggedFailure = new Set<SaverSource>() // one console line per source per page load
 

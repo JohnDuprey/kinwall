@@ -299,7 +299,7 @@ export const FeaturesSchema = z
 
 // The family's Night screen (Settings -> For the whole family -> Night screen): what wall screens
 // show during night hours unless a screen picks its own (a device setting in the app).
-export const NIGHT_SOURCES = ['drawings', 'photos', 'google', 'art', 'nature'] as const;
+export const NIGHT_SOURCES = ['drawings', 'photos', 'folder', 'google', 'art', 'nature'] as const;
 export const NightLookSchema = z
   .object({
     sources: z.array(z.enum(NIGHT_SOURCES)).max(NIGHT_SOURCES.length).refine((l) => new Set(l).size === l.length, 'a source can be picked once')
@@ -366,6 +366,7 @@ export const SettingsSchema = z
     medicationNamesOnWalls: z.boolean().openapi({ description: 'Show medicine names and doses on shared wall screens (off by default: "Meds").' }),
     newscastNotFeatured: z.array(z.string()).openapi({ description: "Members whose chores, rewards, photos, books, memories and birthday stay out of Newscast (their own announcements still show)." }),
     newscastPostingPaused: z.array(z.string()).openapi({ description: 'Members who can\'t post announcements for now (a parent turns it back on). They still react.' }),
+    photoFolder: z.boolean().optional().openapi({ description: 'The server has a photo folder (PHOTO_FOLDER, self-hosted) for the Night screen and the Board: GET /api/photo-folder/next. Read-only.' }),
     googlePhotos: z.enum(['off', 'signing-in', 'choosing', 'ready', 'reconnect', 'refused']).optional().openapi({ description: "Google Photos for the Night screen and the Board (GET /api/google-photos). Read-only; not in the export." }),
   })
   .openapi('Settings');

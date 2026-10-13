@@ -276,7 +276,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
   const activate = () => { setManual(''); if (pinLocked.current) setKeypad(true); else wake() }
   // Photos turned off (Settings → Features) or Google Photos not ready: the other picks, or nature pictures.
   const night = { ...device, ...nightFieldsFor(device, settings.nightLook) } // this screen's own, or the family's
-  const sources = nightSources(night.saverSources ?? [], { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos })
+  const sources = nightSources(night.saverSources ?? [], { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos, photoFolder: settings.photoFolder })
   const fixed = night.clockPos && CLOCK_SPOTS[night.clockPos]
   const corners = sources.length > 0 // over a slideshow the small clock keeps to the corners
   useEffect(() => {

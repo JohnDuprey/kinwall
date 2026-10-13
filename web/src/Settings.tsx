@@ -1626,10 +1626,10 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
 /** The Night screen's pictures: the plain clock, or a dim slideshow cycling through the picked
  * sources (Screensaver.tsx). The family picks for every wall screen; a screen can pick its own. */
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
-  { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'google', label: 'Google Photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
+  { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'folder', label: 'Photo folder' }, { key: 'google', label: 'Google Photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
-/** A source the family can show: family photos on, drawings with Paint on, Google Photos connected with albums picked. */
-const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos' || settings.features.photos) && (key !== 'drawings' || settings.features.paint) && (key !== 'google' || settings.googlePhotos === 'ready')
+/** A source the family can show: family photos on, drawings with Paint on, a photo folder on this server, Google Photos connected with albums picked. */
+const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos' || settings.features.photos) && (key !== 'drawings' || settings.features.paint) && (key !== 'google' || settings.googlePhotos === 'ready') && (key !== 'folder' || !!settings.photoFolder)
 const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
   { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
 ]
@@ -1782,6 +1782,7 @@ function NightRows({ value, onChange, here = false, label = 'Show' }: { value: N
     {sources.includes('drawings') && !here && <div className="settings-row-sub">Each screen shows the drawings made on it (Activities → Paint).</div>}
     {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this display yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
     {services && <div className="settings-row-sub">Pictures are fetched by {here ? 'this display' : 'each screen'} directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see {here ? "this device's" : "the screen's"} address.</div>}
+    {sources.includes('folder') && <div className="settings-row-sub">Pictures from the photo folder on your Kinwall server. The name of the folder a picture is in shows as its caption.</div>}
     {sources.includes('google') && <div className="settings-row-sub">Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.</div>}
     {sources.length > 0 && <>
       <div className="settings-row-label" aria-hidden="true">Change picture every</div>

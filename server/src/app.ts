@@ -52,6 +52,7 @@ import { rewardsRoutes } from './routes/rewards.ts';
 import { bonusPointsRoutes } from './routes/bonus-points.ts';
 import { photosRoutes, MAX_ZIP_BYTES as MAX_PHOTO_ZIP_BYTES } from './routes/photos.ts';
 import { googlePhotosRoutes } from './routes/google-photos.ts';
+import { photoFolderRoutes } from './routes/photo-folder.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
 import { booksRoutes } from './routes/books.ts';
@@ -179,6 +180,7 @@ export function createApp() {
   app.route('/', bonusPointsRoutes);
   app.route('/', photosRoutes);
   app.route('/', googlePhotosRoutes);
+  app.route('/', photoFolderRoutes);
   app.route('/', snapshotRoutes);
   app.route('/', weatherRoutes);
   app.route('/', booksRoutes);

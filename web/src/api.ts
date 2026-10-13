@@ -665,6 +665,18 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText))
     return { src: URL.createObjectURL(await res.blob()), revoke: true }
   },
+  /** The next picture from the server's photo folder (routes/photo-folder.ts), as a blob URL the caller
+   * revokes; its folder's name is the caption. */
+  nextFolderPhoto: async (): Promise<{ src: string; revoke: boolean; caption?: string }> => {
+    if (MOCK) return mock.nextFolderPhoto()
+    let res: Response
+    try {
+      res = await fetch(apiUrl('api/photo-folder/next'), { headers: { Authorization: `Bearer ${getKey() ?? ''}` } })
+    } catch { throw new ApiError(0, OFFLINE_MESSAGE) }
+    if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText))
+    const caption = res.headers.get('x-caption')
+    return { src: URL.createObjectURL(await res.blob()), revoke: true, caption: caption ? decodeURIComponent(caption) : undefined }
+  },
   /** An <img src> for a photo: it can't send the Bearer header, so the media token rides as ?key=
    * (mediaUrl; '' until it's known). The demo's photos are plain public URLs. */
   photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : mediaUrl(`api/photos/${p.id}/image`),

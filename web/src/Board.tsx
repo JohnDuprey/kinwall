@@ -784,7 +784,7 @@ function PhotoCard({ density }: { density?: CardDensity }) {
   const nightPicks = nightFieldsFor(device, settings.nightLook).saverSources ?? [] // this screen's Night screen, or the family's
   const picked = nightPicks.length > 0
   useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count - (q.memoryPhotos ?? 0) > 0)).catch(() => {}) }, [picked, refreshTick])
-  const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
+  const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos, photoFolder: settings.photoFolder }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
     <section className={`board-card board-photo${densityClass(density)}`} aria-label="Picture">

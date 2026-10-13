@@ -73,6 +73,7 @@ export interface Settings {
   newscastNotFeatured?: string[] // members whose chores, photos, books and so on stay out of Newscast; absent (older servers) = none
   newscastPostingPaused?: string[] // members who can't post in Newscast for now (a parent turns it back on)
   googlePhotos?: GooglePhotosState // Google Photos for the Night screen and the Board (read-only)
+  photoFolder?: boolean // the server has a photo folder (PHOTO_FOLDER, self-hosted) for the Night screen and the Board (read-only)
 }
 
 /** The family's Night screen: pictures to take turns through (none = the plain clock) and the clock. */

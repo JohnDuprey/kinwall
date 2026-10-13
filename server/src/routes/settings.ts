@@ -245,7 +245,7 @@ settingsRoutes.openapi(
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: SettingsSchema } } } },
   }),
-  async (c) => c.json(await readSettings(c.env.DB), 200),
+  async (c) => c.json({ ...(await readSettings(c.env.DB)), photoFolder: !!c.env.PHOTO_FOLDER }, 200),
 );
 
 // A validated PATCH body as upsert statements - shared by PATCH /api/settings and POST /api/import.
@@ -286,7 +286,7 @@ settingsRoutes.openapi(
     const writes = settingsWrites(c.env.DB, body);
     if (writes.length) await c.env.DB.batch(writes);
     emit(c, 'settings.changed', {});
-    return c.json(await readSettings(c.env.DB), 200);
+    return c.json({ ...(await readSettings(c.env.DB)), photoFolder: !!c.env.PHOTO_FOLDER }, 200);
   },
 );
 
@@ -323,6 +323,6 @@ settingsRoutes.openapi(
       return c.json({ error: `The family has ${MAX_CUSTOM_SCHEMES} saved schemes, the most it can keep` }, 400);
     }
     emit(c, 'settings.changed', {});
-    return c.json(await readSettings(c.env.DB), 201);
+    return c.json({ ...(await readSettings(c.env.DB)), photoFolder: !!c.env.PHOTO_FOLDER }, 201);
   },
 );

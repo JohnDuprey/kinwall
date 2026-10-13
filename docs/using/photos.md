@@ -46,8 +46,12 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 
 ## Where photos show up
 
-* **Board view**: the picture card rotates through this display's screensaver sources (its own, or the family's). If none are chosen, it shows your family photos and [Google Photos](#google-photos) when it's connected (or nature photos until there are some). A photo's caption shows along the bottom of the card; photos without one show just the picture.
+* **Board view**: the picture card rotates through this display's screensaver sources (its own, or the family's). If none are chosen, it shows your family photos, the server's [photo folder](#photo-folder) if it has one, and [Google Photos](#google-photos) when it's connected (or nature photos until there are some). A photo's caption shows along the bottom of the card; photos without one show just the picture.
 * **Screensaver**: turn on **Family photos** under **What they show** (**Settings → General**, tap **Change** under **Night**, for the whole family or under **Night screen on this device** for one screen).
+
+## Photo folder
+
+On a self-hosted server, whoever runs it can point Kinwall at a folder of pictures it already has (a NAS share, for example). Wall screens can then show them on the Night screen and the Board's picture card, without copying them into Kinwall: turn on **Photo folder** under **What they show**. They don't appear on the Photos page and don't count toward its limits. See [Photo folder](../self-hosting/configuration.md#photo-folder) to set it up.
 
 ## Google Photos
 

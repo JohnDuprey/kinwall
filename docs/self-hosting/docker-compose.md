@@ -18,6 +18,7 @@ services:
       # GOOGLE_CLIENT_ID: / GOOGLE_CLIENT_SECRET:
       # MS_CLIENT_ID: / MS_CLIENT_SECRET:
       # TRUST_PROXY: "1"                      # only behind a reverse proxy / Cloudflare Tunnel; see below
+      # PHOTO_FOLDER: /photos                 # with a read-only volume such as "/mnt/nas/photos:/photos:ro"; see Configuration
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

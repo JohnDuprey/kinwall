@@ -104,6 +104,7 @@ const bump = () => { rev++ }
 let quietPin: string | null = null
 const settings: Settings = {
   familyName: 'Our Family',
+  photoFolder: true, // a pretend photo folder on the server (nextFolderPhoto)
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   weekStart: 0,
   themeMode: 'auto',
@@ -261,6 +262,9 @@ const photos: Photo[] = [
 const DEMO_GOOGLE = [1018, 1036, 1044, 1050, 1069]
 let googleAt = 0 // when Connect was tapped; 0 = not connected
 let googleN = 0
+// The demo server's photo folder (routes/photo-folder.ts): a few beach pictures.
+const DEMO_FOLDER = [1011, 1015, 1039, 1053]
+let folderN = 0
 // For screenshots of every state, sessionStorage 'kinwall.demoGooglePhotos' can pin one: 'reconnect',
 // 'refused', or 'legacy' (connected before Kinwall kept the account).
 const demoGoogle = () => { try { return sessionStorage.getItem('kinwall.demoGooglePhotos') } catch { return null } }
@@ -1478,6 +1482,7 @@ export const mock = {
   getGooglePhotos: async () => googleStatus(),
   connectGooglePhotos: async () => { googleAt = Date.now(); return googleStatus() },
   disconnectGooglePhotos: async () => { googleAt = 0; return googleStatus() },
+  nextFolderPhoto: async () => ({ src: `https://picsum.photos/id/${DEMO_FOLDER[folderN++ % DEMO_FOLDER.length]}/1600/1000`, revoke: false, caption: 'Beach day' }),
   nextGooglePhoto: async (w: number, h: number) => {
     if (googleState() !== 'ready') throw new Error('Google Photos is not ready')
     return { src: `https://picsum.photos/id/${DEMO_GOOGLE[googleN++ % DEMO_GOOGLE.length]}/${w}/${h}`, revoke: false, caption: 'Demo Google Photos' }

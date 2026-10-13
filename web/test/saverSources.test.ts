@@ -90,3 +90,14 @@ test('artCaption: title, artist and date, skipping blanks', () => {
   assert.equal(artCaption({ title: 'Untitled', artistDisplayName: ' ', objectDate: '' }), 'Untitled')
   assert.equal(artCaption({}), undefined)
 })
+
+test("nightSources: the server's photo folder shows only when the server has one", () => {
+  assert.deepEqual(nightSources(['folder', 'art'], { photos: true, photoFolder: true }), ['folder', 'art'])
+  assert.deepEqual(nightSources(['folder', 'art'], { photos: true }), ['art'], 'a server without a folder (or hosted): left out')
+  assert.deepEqual(nightSources(['folder'], { photos: true }), ['nature'], 'picked alone: nature stands in')
+})
+
+test("boardSources: nothing picked: the photo folder joins the family's own pictures", () => {
+  assert.deepEqual(boardSources([], { photos: true, photoFolder: true }, true), ['photos', 'folder'])
+  assert.deepEqual(boardSources([], { photos: true, photoFolder: true }, false), ['folder'])
+})

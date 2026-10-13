@@ -82,7 +82,7 @@ export function resolveColors(household: Pick<Appearance, 'colorScheme' | 'custo
   const custom: CustomColors = device.skin ? { ...(device.custom ?? {}) } : { ...householdCustom, ...(device.custom ?? {}) }
   return { scheme, skinId, skin: findSkin(skinId, household.customSchemes), custom, householdCustom }
 }
-export type SaverSource = 'drawings' | 'photos' | 'art' | 'nature' | 'google'
+export type SaverSource = 'drawings' | 'photos' | 'folder' | 'art' | 'nature' | 'google'
 
 export function readDeviceAppearance(): DeviceAppearance {
   try {
