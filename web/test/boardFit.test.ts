@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardFixed, castFit, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from '../src/boardFit.ts'
+import { boardAreas, boardChores, boardFixed, boardShort, tidbitCardsThatFit, castFit, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -190,4 +190,17 @@ test('castFit: full size when the cards fit, else just small enough, never under
   assert.equal(castFit(383, 300), 1)
   assert.equal(castFit(380, 400), 0.95)
   assert.equal(castFit(300, 1000), 0.75)
+})
+
+test('short three-column board: Today takes its whole column; meals go under the picture, no quote card', () => {
+  assert.equal(boardShort(507), true) // a tablet on its side (1280x800)
+  assert.equal(boardShort(780), false) // a wall
+  assert.equal(tidbitCardsThatFit(1160, 507, true), 0)
+  assert.equal(tidbitCardsThatFit(1160, 507, false), 1, 'two columns that scroll keep one')
+  assert.equal(tidbitCardsThatFit(1700, 780, true), 3)
+  const shown = ['clock', 'tiles', 'today', 'meals', 'photo', 'coming']
+  assert.equal(boardAreas(shown, true)['--board-areas-3'], '"tiles tiles tiles" "clock today coming" "photo today coming" "photo today coming" "meals today coming"')
+  assert.equal(boardAreas(shown)['--board-areas-3'], '"tiles tiles tiles" "clock today coming" "photo today coming" "photo today coming" "photo meals coming"', 'tall: as before')
+  // With Chores' full card, Today keeps the top half and Chores the rest.
+  assert.ok(boardAreas([...shown, 'chores'], true)['--board-areas-3'].endsWith('"photo chores coming" "meals chores coming"'))
 })

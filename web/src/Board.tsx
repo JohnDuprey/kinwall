@@ -27,7 +27,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardFixed, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
+import { boardAreas, boardChores, boardFixed, boardShort, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -84,7 +84,9 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, what, chi
     const fab = w.closest('[data-fixed]') && document.querySelector('.fab')?.getBoundingClientRect()
     const under = fab && fab.left < box.right && fab.right > box.left && fab.top < box.bottom
     const space = under ? Math.max(0, fab.top - 8 - box.top) : box.height
-    const shown = rowsThatFit(info, space, MORE_SPACE * scale)
+    // The More button sits at the left, so beside the add button when there's room for it there.
+    const beside = under && fab.left - box.left >= 160 * scale ? box.height - space : 0
+    const shown = rowsThatFit(info, space, Math.max(0, MORE_SPACE * scale - beside))
     els.forEach((e, i) => { e.hidden = i >= shown })
     for (const d of days) d.hidden = !!d.querySelector('.snap-day-heading[hidden]') // a day whose rows all went
     setMore(shown < els.length ? moreLabel(info, shown, what) : null)
@@ -264,6 +266,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const [roomFor, setRoomFor] = useState(1) // tidbit cards
   const [boardW, setBoardW] = useState(0)
   const [fixed, setFixed] = useState(false) // the three-column board that shares out the screen's height (styles.css)
+  const [short, setShort] = useState(false)
   const cast = !!device.cast
   const loaded = !!data
   const meds = useDueDoses()
@@ -274,9 +277,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     if (!el) return
     const ro = new ResizeObserver(([e]) => {
       setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H)
-      setRoomFor(tidbitCardsThatFit(e.contentRect.width, e.contentRect.height))
+      const fixed = boardFixed(e.contentRect.width, matchMedia('(min-height: 640px)').matches, cast)
+      setRoomFor(tidbitCardsThatFit(e.contentRect.width, e.contentRect.height, fixed))
       setBoardW(e.contentRect.width)
-      setFixed(boardFixed(e.contentRect.width, matchMedia('(min-height: 640px)').matches, cast))
+      setShort(boardShort(e.contentRect.height))
+      setFixed(fixed)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -467,7 +472,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
       {medsSlot.sheets}{pollSlot.sheets}
-      <div className="board" style={custom ? custom.style : boardAreas(shown)}>
+      <div className="board" style={custom ? custom.style : boardAreas(shown, short)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance" style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
             {tiles.includes('meds') && <TakeNowTile {...meds} />}

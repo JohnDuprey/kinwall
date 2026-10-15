@@ -40,8 +40,11 @@ export function boardItems<T extends { memberId: string | null; listId: string }
 }
 
 /** grid-template-areas for the cards actually on the Board, one per layout (styles.css picks one
- * per container width), so a card that's turned off leaves no hole. `shown` is in phone order. */
-export function boardAreas(shown: string[]): Record<string, string> {
+ * per container width), so a card that's turned off leaves no hole. `shown` is in phone order.
+ * `short`: a short three-column board (boardShort), where Today takes its whole column and Today's
+ * meals go under the picture, in the quote card's place (tidbitCardsThatFit has none there), so the
+ * picture and quote give up height before Today does. */
+export function boardAreas(shown: string[], short = false): Record<string, string> {
   const has = (a: string) => shown.includes(a)
   // Two columns: rows of two cards; a card whose partner is off spans the row.
   const two = [['tiles'], ['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['meals', 'tidbit'], ['tidbit2', 'tidbit3']]
@@ -49,8 +52,9 @@ export function boardAreas(shown: string[]): Record<string, string> {
   // Three full-height columns: a missing card's rows go to the card above it.
   // Tidbit cards share the bottom row: a second under Coming up / Due soon, a third under Today,
   // which moves Today's meals up a row (beside Chores' slot, taking it when Chores is off).
-  const middle = has('tidbit3') ? ['today', has('chores') ? 'chores' : 'today', 'meals', 'tidbit3'] : ['today', 'today', 'chores', 'meals']
-  const cols = [['clock', 'photo', 'photo', 'tidbit'], middle, ['coming', 'coming', 'due', 'tidbit2']]
+  const squeeze = short && !has('tidbit3')
+  const middle = has('tidbit3') ? ['today', has('chores') ? 'chores' : 'today', 'meals', 'tidbit3'] : squeeze ? ['today', 'today', 'chores', 'chores'] : ['today', 'today', 'chores', 'meals']
+  const cols = [['clock', 'photo', 'photo', squeeze ? 'meals' : 'tidbit'], middle, ['coming', 'coming', 'due', 'tidbit2']]
     .map(col => col.reduce<string[]>((out, a) => [...out, has(a) ? a : out[out.length - 1]], []))
   const three = [...(has('tiles') ? ['"tiles tiles tiles"'] : []), ...[0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)]
   return {
@@ -63,12 +67,17 @@ export function boardAreas(shown: string[]): Record<string, string> {
 }
 
 /** How many tidbit cards a Board this size (CSS px) has room for: one on a phone (one column) and on
- *  a short three-column board (a tablet on its side), where the bottom row can't hold three; up to
- *  three on two columns (the page scrolls) and on a wall-sized three-column board. */
-export function tidbitCardsThatFit(width: number, height: number): number {
+ *  a short two-column board; none on a short three-column one (`fixed`: a tablet on its side, a Nest
+ *  Hub), where Today needs the height (boardAreas' `short`); up to three on two columns (the page
+ *  scrolls) and on a wall-sized three-column board. */
+export function tidbitCardsThatFit(width: number, height: number, fixed = false): number {
   if (width < 620) return 1
+  if (fixed && boardShort(height)) return 0
   return width < 880 || height >= 640 ? 3 : 1
 }
+
+/** Whether a fixed board (`height`: its CSS px) is short, a tablet on its side or a Nest Hub: boardAreas' `short`. */
+export const boardShort = (height: number) => height < 700
 
 /** Whether the Board shares out the screen's height in columns that don't scroll (styles.css, the
  *  `data-fixed` board): a wall or a tablet on its side, 880px wide and 640 tall; shorter, it stays
