@@ -23,7 +23,7 @@ const rewardLabel = (r: { emoji: string | null; title: string }) => (r.emoji ? `
 const periodWord = (l: RewardLimit) => (l.period === 'day' ? 'today' : 'this week')
 const usedUp = (r: Reward) => !!r.limit && (r.used ?? 0) >= r.limit.count
 
-const STATUS_TEXT: Record<RedemptionStatus, string> = { pending: 'Waiting for OK', approved: 'Approved! Coming soon', given: 'Given', declined: 'Not this time' }
+const STATUS_TEXT: Record<RedemptionStatus, string> = { pending: 'Waiting for OK', approved: 'Approved!', given: 'Given', declined: 'Not this time' }
 
 /** One tap on an empty Rewards screen adds one of these (a parent can edit it after). */
 const SUGGESTIONS: Partial<Reward>[] = [
@@ -157,7 +157,8 @@ function RewardsPanel({ member }: { member: Member }) {
     { key: 'used', title: 'All used up for now', items: list.filter(usedUp) },
   ].filter(g => g.items.length)
   // Parents see every request in the queue above, so theirs isn't repeated.
-  const waiting = parentDevice ? [] : history.filter(h => h.status === 'pending' || h.status === 'approved')
+  const waiting = parentDevice ? [] : history.filter(h => h.status === 'pending')
+  const handOver = parentDevice ? [] : history.filter(h => h.status === 'approved') // said yes (or needed no OK): a grown-up hands it over
   const past = history.filter(h => h.status === 'given' || (h.status === 'declined' && (parentDevice || ownDevice)))
 
   // Others this reward is for, who could chip in.
@@ -213,7 +214,14 @@ function RewardsPanel({ member }: { member: Member }) {
       {waiting.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-waiting-heading">
           <h3 id="reward-waiting-heading" className="snap-heading">Waiting for a grown-up</h3>
-          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} onCancel={ownDevice && h.status === 'pending' && h.memberId === member.id ? () => cancelRequest(h) : undefined} />)}</ul>
+          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} onCancel={ownDevice && h.memberId === member.id ? () => cancelRequest(h) : undefined} />)}</ul>
+        </section>
+      )}
+
+      {handOver.length > 0 && (
+        <section className="reward-history" aria-labelledby="reward-handover-heading">
+          <h3 id="reward-handover-heading" className="snap-heading">Ask a grown-up to hand it over</h3>
+          <ul className="snap-list">{handOver.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
         </section>
       )}
 

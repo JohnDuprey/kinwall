@@ -19,7 +19,8 @@ Pick whose rewards from the avatar chips. A device that belongs to one person (i
 * **Maya has 42 points**, with a reminder of how it works: earn points by doing chores, spend them on rewards and sticker packs.
 * **Points history** under it lists where the points came from and went: chores (all time), bonus points, check-ins, rewards (and points back), and sticker packs, newest first, with the totals earned and spent. On someone else's own device it shows the totals only.
 * **Saving for** their goal, with a progress bar and how many more points it needs (see [Saving for a goal](#saving-for-a-goal)).
-* **Waiting for a grown-up**: requests a parent hasn't said yes or no to yet, and approved ones not handed over yet. (On a parent's device these are in **Reward requests** instead.)
+* **Waiting for a grown-up**: requests a parent hasn't said yes or no to yet.
+* **Ask a grown-up to hand it over**: requests that are approved (or didn't need an OK), marked **Approved!**, until a grown-up taps **Given**. (On a parent's device both are in **Reward requests** instead.)
 * **Ready now**: rewards they have enough points for. **Keep saving**: the rest, each with a progress bar and "8 more points". **All used up for now**: ones whose limit is used up.
 * **Sticker packs** opens the sticker shop for that person, when the sticker shop is on.
 * **Recent**: past requests, **Given** or **Not this time** with the parent's note.
@@ -65,7 +66,7 @@ A bigger reward can be shared: Sam and Leo can put their points together for a 3
 * **Not this time** (or **Cancel** on an approved one) gives every share back that was taken, and each person's own devices are told what came back to them.
 * Each share is its own line in that person's points ledger. A reward's daily or weekly limit counts for the person who asked.
 
-Requests show under **Waiting for a grown-up** (**Waiting for OK**, or **Approved! Coming soon**) until they're handled, then under **Recent**.
+Requests show under **Waiting for a grown-up** (**Waiting for OK**), then under **Ask a grown-up to hand it over** (**Approved!**) once a grown-up says yes, then under **Recent** once given.
 
 Changed your mind? On your own device, tap **Cancel request** on a request still **Waiting for OK**, then **Cancel request** again to confirm. The points come back at once, the request is gone (it doesn't count toward the reward's limit), and the grown-ups have nothing to decide. Once a parent has said yes, only a parent can call it off (**Not this time**). Wall screens and other people's devices can't cancel someone's request.
 
