@@ -125,3 +125,6 @@
 .setup-qr-center { justify-content: center; }
 .setup-feature-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .setup-feature-sub { font-weight: 600; font-size: 0.8125rem; line-height: 1.4; color: var(--text-dim); }
+/* "Needs setup" under Google/Outlook when the server has no app for them yet. */
+.setup-provider-card { flex-wrap: wrap; }
+.setup-provider-note { flex-basis: 100%; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }

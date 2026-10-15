@@ -20,7 +20,7 @@ Kinwall's service worker deliberately caches nothing, and the server sends `no-c
 
 ## Google/Outlook buttons are grayed out
 
-No OAuth client is configured yet. Set one up under **Settings → Calendars → Calendar providers**. See [Google](../calendars/google.md) and [Microsoft](../calendars/microsoft.md).
+They say **Needs setup**: no OAuth client is configured yet. Set one up under **Settings → Calendars → Calendar providers**. See [Google](../calendars/google.md) and [Microsoft](../calendars/microsoft.md).
 
 ## Google says `redirect_uri_mismatch`
 

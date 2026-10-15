@@ -1,7 +1,8 @@
 // Shared Google/Microsoft OAuth provider config form — used by Settings' "Calendar providers"
 // section and reused as-is inside the setup wizard's calendars step (same component, just a
 // different `useAdmin` key while the wizard's own key is still display-scoped).
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { DOCS_URL } from './Help.tsx'
 import { api, ApiError } from './api.ts'
 import type { Providers } from './types.ts'
 import { useDialog } from './dialog.tsx'
@@ -43,6 +44,7 @@ export function ProviderForm({ kind, providers, toast, onChanged }: {
   const [showGuide, setShowGuide] = useState(false)
   const [copied, setCopied] = useState(false)
   const label = LABEL[kind]
+  const id = useId()
 
   const save = async () => {
     if (!clientId.trim()) return
@@ -73,52 +75,50 @@ export function ProviderForm({ kind, providers, toast, onChanged }: {
 
       {locked ? (
         <p className="settings-row-sub">{label} sign-in is provided by your host — nothing to set up here.</p>
-      ) : (
-        <>
-          <div className="field"><label>Client ID</label><input type="text" value={clientId} onChange={e => setClientId(e.target.value)} /></div>
-          <div className="field">
-            <label>Client secret</label>
-            <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder={status.secretSet ? '••••• set — leave blank to keep' : ''} />
-          </div>
-          {kind === 'microsoft' && <div className="field"><label>Tenant</label><input type="text" value={tenant} onChange={e => setTenant(e.target.value)} placeholder="common" /></div>}
-          <div className="form-actions">
-            <button className="btn btn-primary" onClick={save} disabled={!clientId.trim()}>Save</button>
-            {status.configured && <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={remove}>Remove</button>}
-          </div>
-        </>
-      )}
-
-      {!locked && <>
-      <div className="field">
-        <label>Redirect URI</label>
-        <div className="provider-redirect">
-          <code>{redirect}</code>
-          <button className="link-btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
+      ) : <>
+        {!status.configured && <p className="settings-row-sub provider-intro">{kind === 'google' ? 'Google' : 'Outlook'} needs a one-time app setup, about 10 minutes. Easier: subscribe to a link or use iCloud.</p>}
+        <div className="provider-guide-links">
+          <a className="text-link" href={`${DOCS_URL}/calendars/${kind}`} target="_blank" rel="noopener">Step-by-step guide</a>
+          <button className="link-btn" onClick={() => setShowGuide(s => !s)} aria-expanded={showGuide}>{showGuide ? 'Hide the steps' : 'Show the steps here'}</button>
         </div>
-        {redirect.startsWith('/') && <p className="settings-row-sub">Set the Public URL above first — {label} needs a full https:// redirect URI.</p>}
-      </div>
-
-      <button className="link-btn" onClick={() => setShowGuide(s => !s)}>{showGuide ? 'Hide setup guide' : 'Show setup guide'}</button>
-      {showGuide && (
-        <ol className="provider-guide">
-          {kind === 'google' ? (
-            <>
-              <li>In Google Cloud Console, create an OAuth client of type "Web application".</li>
-              <li>Add the redirect URI above to its Authorized redirect URIs.</li>
-              <li>Enable the Google Calendar API for the project.</li>
-              <li>Under Data access, add the scopes <code>calendar.events</code> and <code>calendar.calendarlist.readonly</code> (and openid, email).</li>
-              <li>If the consent screen is in Testing, add yourself as a test user.</li>
-            </>
-          ) : (
-            <>
-              <li>In Microsoft Entra, go to App registrations → New registration.</li>
-              <li>Add the redirect URI above under a Web platform.</li>
-              <li>Add delegated permissions: Calendars.ReadWrite, User.Read, offline_access.</li>
-              <li>Create a client secret and paste it above.</li>
-            </>
-          )}
-        </ol>
-      )}
+        {showGuide && (
+          <ol className="provider-guide">
+            {kind === 'google' ? (
+              <>
+                <li>In Google Cloud Console, create an OAuth client of type "Web application".</li>
+                <li>Add the redirect URI below to its Authorized redirect URIs.</li>
+                <li>Enable the Google Calendar API for the project.</li>
+                <li>Under Data access, add the scopes <code>calendar.events</code> and <code>calendar.calendarlist.readonly</code> (and openid, email).</li>
+                <li>If the consent screen is in Testing, add yourself as a test user.</li>
+              </>
+            ) : (
+              <>
+                <li>In Microsoft Entra, go to App registrations → New registration.</li>
+                <li>Add the redirect URI below under a Web platform.</li>
+                <li>Add delegated permissions: Calendars.ReadWrite, User.Read, offline_access.</li>
+                <li>Create a client secret and paste it below.</li>
+              </>
+            )}
+          </ol>
+        )}
+        <div className="field">
+          <label htmlFor={`${id}-redirect`}>Redirect URI</label>
+          <div className="provider-redirect">
+            <code id={`${id}-redirect`}>{redirect}</code>
+            <button className="link-btn" onClick={copy} aria-label={copied ? 'Copied' : 'Copy the redirect URI'}>{copied ? 'Copied' : 'Copy'}</button>
+          </div>
+          {redirect.startsWith('/') && <p className="settings-row-sub">Set the Public URL above first — {label} needs a full https:// redirect URI.</p>}
+        </div>
+        <div className="field"><label htmlFor={`${id}-client`}>Client ID</label><input id={`${id}-client`} type="text" value={clientId} onChange={e => setClientId(e.target.value)} /></div>
+        <div className="field">
+          <label htmlFor={`${id}-secret`}>Client secret</label>
+          <input id={`${id}-secret`} type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder={status.secretSet ? '••••• set — leave blank to keep' : ''} />
+        </div>
+        {kind === 'microsoft' && <div className="field"><label htmlFor={`${id}-tenant`}>Tenant</label><input id={`${id}-tenant`} type="text" value={tenant} onChange={e => setTenant(e.target.value)} placeholder="common" /></div>}
+        <div className="form-actions">
+          <button className="btn btn-primary" onClick={save} disabled={!clientId.trim()}>Save</button>
+          {status.configured && <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={remove}>Remove</button>}
+        </div>
       </>}
 
       {status.configured && <button className="btn btn-block" onClick={() => connectCalendar(kind, m => toast(m, true))}>Test sign-in</button>}
@@ -144,13 +144,13 @@ export function PublicUrlRow({ providers, toast, onChanged }: { providers: Provi
 
   return (
     <div className="field">
-      <label>Public URL</label>
+      <label htmlFor="provider-public-url">Public URL</label>
       {locked ? (
         <p className="settings-row-sub">Set via PUBLIC_URL — {providers.publicUrl.value}</p>
       ) : (
         <>
           <div className="provider-redirect">
-            <input type="url" value={value} onChange={e => setValue(e.target.value)} placeholder="https://cal.home.example" />
+            <input id="provider-public-url" type="url" value={value} onChange={e => setValue(e.target.value)} placeholder="https://cal.home.example" />
             <button className="btn btn-primary" onClick={save} disabled={!value.trim()}>Save</button>
           </div>
           {warning && <p className="settings-row-sub" style={{ color: 'var(--danger)' }}>{warning}</p>}

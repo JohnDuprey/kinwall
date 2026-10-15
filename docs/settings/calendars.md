@@ -37,8 +37,8 @@ Add buttons:
 | **+ Local calendar** | A Kinwall-only calendar (**Add local calendar**: a name; it gets the next unused color, and you can change the rest in **Edit calendar**). |
 | **+ ICS URL** | [ICS feed](../calendars/ics-feeds.md). |
 | **+ CalDAV** | [iCloud & CalDAV](../calendars/icloud-caldav.md). |
-| **Connect Google** | [Google](../calendars/google.md). Grayed out until a Google client is configured. |
-| **Connect Outlook** | [Microsoft / Outlook](../calendars/microsoft.md). Grayed out until configured. |
+| **Connect Google** | [Google](../calendars/google.md). Grayed out and marked **Needs setup** until a Google client is configured; the line under the buttons says it's a one-time app setup (about 10 minutes) under **Calendar providers**, and that **+ ICS URL** or **+ CalDAV** (iCloud) is easier. |
+| **Connect Outlook** | [Microsoft / Outlook](../calendars/microsoft.md). Grayed out and marked **Needs setup** until configured. |
 
 After connecting an account, **Calendars for *account*** lists its calendars. Pick members, then **Add calendar** on each one you want.
 
@@ -47,6 +47,6 @@ Synced calendars bring each event's free/busy ("Show as") along from Google, Out
 ## Calendar providers
 
 * **Public URL**: the base URL used for OAuth redirect URIs and the passkey domain, for example `https://cal.home.example`. The server warns about a bare IP address or plain `http` on a non-localhost host. If `PUBLIC_URL` is set in the environment, this shows "Set via PUBLIC_URL" and is locked.
-* **Google** and **Microsoft** cards: **Client ID**, **Client secret** (leave blank to keep the saved one), **Tenant** (Microsoft), **Redirect URI** with copy, setup steps, **Save**, **Remove** and **Test sign-in**. Credentials that come from environment variables show "Provided by your host" and are read-only.
+* **Google** and **Microsoft** cards. Before one is set up, it starts with "Google needs a one-time app setup, about 10 minutes. Easier: subscribe to a link or use iCloud." Then the guide comes first: **Step-by-step guide** (these docs) and **Show the steps here**, then the **Redirect URI** with **Copy**, **Client ID**, **Client secret** (leave blank to keep the saved one), **Tenant** (Microsoft), **Save**, **Remove** and **Test sign-in**. Credentials that come from environment variables show "Provided by your host" and are read-only.
 
 Client secrets are encrypted at rest and never returned. See [Configuration](../self-hosting/configuration.md) for precedence rules.

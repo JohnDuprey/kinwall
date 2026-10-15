@@ -2563,11 +2563,11 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
         <button className="connect-btn" onClick={() => setLocalSheet(true)}>+ Local calendar</button>
         <button className="connect-btn" onClick={() => setIcsSheet(true)}>+ ICS URL</button>
         <button className="connect-btn" onClick={() => setCaldavSheet(true)}>+ CalDAV</button>
-        <button className="connect-btn" disabled={!oauth.google} onClick={() => connectCalendar('google', m => toast(m, true))}>Connect Google</button>
-        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => connectCalendar('microsoft', m => toast(m, true))}>Connect Outlook</button>
+        <button className="connect-btn" disabled={!oauth.google} onClick={() => connectCalendar('google', m => toast(m, true))}>Connect Google{!oauth.google && <span className="connect-btn-note">Needs setup</span>}</button>
+        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => connectCalendar('microsoft', m => toast(m, true))}>Connect Outlook{!oauth.microsoft && <span className="connect-btn-note">Needs setup</span>}</button>
       </div>
       {(!oauth.google || !oauth.microsoft) && (
-        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook grayed out? Set them up in Calendar providers below.</p>
+        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google and Outlook need a one-time app setup first, about 10 minutes, under Calendar providers below. Easier: + ICS URL subscribes to a link, and + CalDAV connects iCloud.</p>
       )}
 
       {localSheet && (

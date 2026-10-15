@@ -541,8 +541,8 @@ function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
       <h1>Connect a calendar</h1>
       <p className="setup-sub">Optional — you can always add these later in Settings.</p>
       <div className="setup-provider-grid">
-        <button className="setup-provider-card" onClick={() => setOpen(open === 'google' ? null : 'google')} aria-expanded={open === 'google'}>📆 Google</button>
-        <button className="setup-provider-card" onClick={() => setOpen(open === 'microsoft' ? null : 'microsoft')} aria-expanded={open === 'microsoft'}>📧 Outlook</button>
+        <button className="setup-provider-card" onClick={() => setOpen(open === 'google' ? null : 'google')} aria-expanded={open === 'google'}>📆 Google{!oauth.google && <span className="setup-provider-note">Needs setup</span>}</button>
+        <button className="setup-provider-card" onClick={() => setOpen(open === 'microsoft' ? null : 'microsoft')} aria-expanded={open === 'microsoft'}>📧 Outlook{!oauth.microsoft && <span className="setup-provider-note">Needs setup</span>}</button>
         <button className="setup-provider-card" onClick={() => setOpen(open === 'icloud' ? null : 'icloud')} aria-expanded={open === 'icloud'}>🍎 iCloud (CalDAV)</button>
         <button className="setup-provider-card" onClick={() => setOpen(open === 'ics' ? null : 'ics')} aria-expanded={open === 'ics'}>🔗 Subscribe to a link</button>
       </div>

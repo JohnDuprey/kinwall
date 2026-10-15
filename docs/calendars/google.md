@@ -7,7 +7,7 @@ Google calendars sync **two-way**: events you create, edit or delete in Kinwall 
 You can do this entirely in the UI, with no restart. On an admin device, open **Settings → Calendars → Calendar providers**:
 
 1. Check **Public URL**. It's pre-filled from the page's own address and used to build the redirect URI.
-2. Open the **Google** card. It shows the exact **Redirect URI** (`<public URL>/api/oauth/google/callback`) with a copy button, plus these steps:
+2. Open the **Google** card. It links this guide and shows these steps under **Show the steps here**, then the exact **Redirect URI** (`<public URL>/api/oauth/google/callback`) with a copy button:
    1. In Google Cloud Console, create an OAuth client of type "Web application".
    2. Add the redirect URI to its Authorized redirect URIs.
    3. Enable the Google Calendar API for the project.

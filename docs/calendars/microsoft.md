@@ -4,7 +4,7 @@ Outlook.com and Microsoft 365 calendars sync **two-way** through Microsoft Graph
 
 ## 1. Register an app
 
-In **Settings → Calendars → Calendar providers → Microsoft**, the card shows the **Redirect URI** (`<public URL>/api/oauth/microsoft/callback`) and these steps:
+In **Settings → Calendars → Calendar providers → Microsoft**, the card links this guide, shows these steps under **Show the steps here**, and shows the **Redirect URI** (`<public URL>/api/oauth/microsoft/callback`) with **Copy**:
 
 1. In Microsoft Entra, go to App registrations → New registration.
 2. Add the redirect URI under a **Web** platform.

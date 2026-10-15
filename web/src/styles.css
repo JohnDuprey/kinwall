@@ -1307,6 +1307,10 @@ button.month-cell .month-daynum { flex: none; }
 .connect-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .connect-btn { flex: 1 1 30%; min-width: 140px; background: var(--bg-alt); border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-weight: 800; color: var(--text); min-height: 52px; }
 .connect-btn:disabled { opacity: 0.5; }
+.connect-btn-note { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
+.provider-intro { margin: 0 0 6px; }
+.provider-guide-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-bottom: 4px; }
+.provider-guide-links .text-link { min-height: 44px; display: inline-flex; align-items: center; }
 
 .provider-card { border-top: 1px solid var(--border); padding: 14px 4px; }
 .provider-card:first-of-type { border-top: none; }
