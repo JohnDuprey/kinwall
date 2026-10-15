@@ -27,7 +27,7 @@ import { durationLabel } from './timers.ts'
 import { SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
 import { suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
-import { choreOrder, isLate, pointsEarned, pointsGivenOut } from './choreDay.ts'
+import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -205,7 +205,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
   const ticked = chore.completed || pending
   const notYet = !ticked && chore.rejection ? `Not yet${chore.rejection.note ? `: ${chore.rejection.note}` : ''}` : ''
   const cl = chore.checklist
-  const checklist = cl ? `☑ ${cl.done}/${cl.total} ${cl.name}` : ''
+  const checklist = cl && !ticked ? `☑ ${cl.done}/${cl.total} ${cl.name}` : '' // a reusable list resets once done: "0/1" would look unfinished
   // A linked activity: tapping the card plays it (as the chore's person), the check still ticks it.
   // Removed or turned off, it's a plain chore that says so.
   const act = chore.activity?.available ? chore.activity : null
@@ -276,7 +276,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={pending ? 'mixed' : chore.completed} tabIndex={0}
-        aria-label={[chore.title, startsAt && `starts at ${startsAt}`, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel, ...said].filter(Boolean).join(', ')}
+        aria-label={[chore.title, startsAt && `starts at ${startsAt}`, by && `done by ${by}`, `${chore.points} points`, schedule, checklist && `checklist ${cl!.name} ${cl!.done} of ${cl!.total} done`, actLabel, ...said].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={editOnRightClick} onClick={handleClick}>
         {info}
         {check}
@@ -534,8 +534,7 @@ export default function Chores() {
     const creditTo = c.memberId ?? doneBy ?? undefined
     // Off a parent's device it's approved at once; otherwise the chore (or the person's default) says.
     // An activity chore whose activity is gone always waits off a parent's device (as on the server).
-    const activityGone = !!c.activity && !c.activity.available
-    const waits = !ticked && !parentDevice && (activityGone || !!(c.needsApproval ?? members.find(m => m.id === creditTo)?.needsApproval))
+    const waits = !ticked && waitsForOk(c, members.find(m => m.id === creditTo), parentDevice)
     setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !ticked && key < dateKey(new Date())
@@ -554,6 +553,15 @@ export default function Chores() {
       setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection } : x)) // revert
       toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
     }
+  }
+
+  // A checklist chore completes itself on its last tick when it knows who gets the points (its person,
+  // or the person picked); an Anyone chore that would ask Who did it? waits for a tap instead.
+  const checklistDone = (c: ChoreDay) => {
+    const who = members.find(m => m.id === (c.memberId ?? actingMember(selectedMemberId, members)?.id))
+    if (!who || c.completed || c.pending) return null
+    const late = key < dateKey(new Date())
+    return earnedText(late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points, who.name, waitsForOk(c, who, parentDevice))
   }
 
   // #/chores?done=<id> (from the app's Chores widget): tap that chore once it's loaded, so it asks
@@ -708,7 +716,7 @@ export default function Chores() {
       {/* A chore's checklist opens straight into Get stuff done; all ticked, it completes the chore here. */}
       {checklistFor?.checklist && (
         <GetStuffDone listId={checklistFor.checklist.listId} onClose={() => { setChecklistId(null); load() }}
-          chore={{ memberId: checklistFor.memberId, title: checklistFor.title, onComplete: () => { const c = checklistFor; void toggle({ ...c, checklist: null }) } }} />
+          chore={{ memberId: checklistFor.memberId, title: checklistFor.title, points: checklistFor.points, done: checklistDone(checklistFor), onComplete: () => { const c = checklistFor; void toggle({ ...c, checklist: null }) } }} />
       )}
       {libraryOpen && parentDevice && (
         <ChoreLibrarySheet onClose={() => setLibraryOpen(false)}

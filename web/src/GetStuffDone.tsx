@@ -11,8 +11,10 @@ import { holdAwake } from './wakeLock.ts'
 import { Face } from './Face'
 
 /** Opened from a chore with this checklist: only its person's items (and nobody's), and once
- * they're all ticked the chore completes the usual way (`onComplete`: approval, points, reset). */
-export type DoChore = { memberId: string | null; title: string; onComplete: () => void }
+ * they're all ticked the chore completes the usual way (`onComplete`: approval, points, reset).
+ * `done`: what completing earns ("⭐ 5 points for Leo"); with it, ticking the last item completes the
+ * chore right away. Without it (an Anyone chore that asks Who did it?) it's one more tap. */
+export type DoChore = { memberId: string | null; title: string; points: number; done: string | null; onComplete: () => void }
 
 /** Get stuff done: one checklist, full screen, for a routine (Bedtime, After school). One item at a
  * time (big, with its person and steps, Done / Skip / Back) or the whole list, the last view kept
@@ -27,6 +29,7 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   const [view, setView] = useState<DoView>(savedView)
   const [cur, setCur] = useState<string | null>(null) // the item one at a time shows, by id (stays put through reloads)
   const [review, setReview] = useState(false) // all done, but looking the list over
+  const [completed, setCompleted] = useState<string | null>(null) // what the chore earned once it completed itself (its list may reset under us)
   const lastIndex = useRef(0)
   const heading = useRef<HTMLHeadingElement>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -66,7 +69,14 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   const { done, total } = progress(items)
   const finished = allDone(items)
   useEffect(() => { if (!finished) setReview(false) }, [finished])
-  useEffect(() => { if (finished) announce(`All done! ${list?.name ?? ''} is finished.`) }, [finished]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (finished && !chore?.done) announce(`All done! ${list?.name ?? ''} is finished.`) }, [finished]) // eslint-disable-line react-hooks/exhaustive-deps
+  // From a chore that knows who gets the points: the last tick completes it, so nobody walks away with 0.
+  useEffect(() => {
+    if (!finished || !chore?.done || completed) return
+    setCompleted(chore.done)
+    chore.onComplete()
+    announce(`All done! ${chore.title}: ${chore.done}`)
+  }, [finished]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = (id: string, next: Partial<ListItem>) => setDetail(d => d && { ...d, items: d.items.map(i => (i.id === id ? { ...i, ...next } : i)) })
   const setDone = async (it: ListItem, on: boolean) => {
@@ -125,18 +135,42 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   let body: React.ReactNode
   if (error || !detail) body = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
   else if (!items.length) body = <div className="empty-card gsd-empty"><span className="emoji">📝</span>Nothing on {name} {chore || kid ? 'for you ' : ''}yet.</div>
-  else if (finished && !review) {
+  else if (completed && chore) {
     body = (
       <div className="gsd-main scroll-y">
         <div className="gsd-celebrate">
           <span className="gsd-party" aria-hidden="true">🎉</span>
           <p className="gsd-title">All done!</p>
-          <p className="gsd-sub">{chore ? `Every step of ${name} is ticked.` : `${name} is finished.`}</p>
+          <p className="gsd-sub">{chore.title}: {completed}</p>
+          <div className="gsd-finish"><button type="button" className="btn btn-primary" onClick={onClose}>Finish</button></div>
+        </div>
+      </div>
+    )
+  } else if (finished && !review && chore) {
+    // Who did it? comes next, so it can't complete itself: one more tap, and the party after.
+    body = (
+      <div className="gsd-main scroll-y">
+        <div className="gsd-celebrate">
+          <span className="gsd-party" aria-hidden="true">⭐</span>
+          <p className="gsd-title">One more tap!</p>
+          <p className="gsd-sub">Every step of {name} is ticked.</p>
           <div className="gsd-finish">
-            {chore ? <button type="button" className="btn btn-primary" onClick={() => { onClose(); chore.onComplete() }}>Complete {chore.title}</button> : <>
-              {list?.kind === 'reusable' && <button type="button" className="btn btn-secondary" onClick={reset}>Reset for next time</button>}
-              <button type="button" className="btn btn-primary" onClick={exit}>{pinned ? 'Back to the Board' : 'Finish'}</button>
-            </>}
+            <button type="button" className="btn btn-primary" onClick={() => { onClose(); chore.onComplete() }}>⭐ Get the {chore.points} points</button>
+            <button type="button" className="link-btn" onClick={() => setReview(true)}>Look over the list</button>
+          </div>
+        </div>
+      </div>
+    )
+  } else if (finished && !review) {
+    body = (
+      <div className="gsd-main scroll-y">
+        <div className="gsd-celebrate">
+          <span className="gsd-party" aria-hidden="true">🎉</span>
+          <p className="gsd-title">All done!</p>
+          <p className="gsd-sub">{name} is finished.</p>
+          <div className="gsd-finish">
+            {list?.kind === 'reusable' && <button type="button" className="btn btn-secondary" onClick={reset}>Reset for next time</button>}
+            <button type="button" className="btn btn-primary" onClick={exit}>{pinned ? 'Back to the Board' : 'Finish'}</button>
             <button type="button" className="link-btn" onClick={() => setReview(true)}>Look over the list</button>
           </div>
         </div>
@@ -190,12 +224,12 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
           : <button type="button" className="icon-btn" aria-label="Exit Get stuff done" onClick={exit}><XIcon width={24} height={24} /></button>}
         <div className="gsd-head">
           <h2 id={titleId} ref={heading} tabIndex={-1} className="cook-title">Get stuff done: {list?.emoji ? `${list.emoji} ` : ''}{name}</h2>
-          {total > 0 && <span className="gsd-progress-text">{done} of {total} done</span>}
+          {total > 0 && !completed && <span className="gsd-progress-text">{done} of {total} done</span>}
         </div>
         <Segmented label="Show" value={view} onChange={pickView} className="gsd-toggle"
           options={[{ key: 'step', label: 'One at a time' }, { key: 'list', label: 'Whole list' }]} />
       </header>
-      <div className="cook-progress" aria-hidden="true"><div style={{ width: `${total ? done / total * 100 : 0}%` }} /></div>
+      <div className="cook-progress" aria-hidden="true"><div style={{ width: `${completed ? 100 : total ? done / total * 100 : 0}%` }} /></div>
       {body}
     </div>,
     document.body,

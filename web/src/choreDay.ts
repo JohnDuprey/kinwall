@@ -21,3 +21,13 @@ export function choreOrder<C extends { dueTime: string | null; completed: boolea
   const ticked = (c: C) => (c.completed || c.pending ? 1 : 0)
   return list.map((c, i) => ({ c, i })).sort((a, b) => ticked(a.c) - ticked(b.c) || (ticked(a.c) ? 0 : time(a.c).localeCompare(time(b.c))) || a.i - b.i).map(x => x.c)
 }
+
+/** Whether a tick waits for a parent's OK (as the server decides): never from a parent's device;
+ * otherwise an activity chore whose activity is gone always does, else the chore's own setting or
+ * its person's. */
+export const waitsForOk = (c: { needsApproval?: boolean | null; activity?: { available: boolean } | null }, person: { needsApproval?: boolean } | undefined, parentDevice: boolean) =>
+  !parentDevice && ((!!c.activity && !c.activity.available) || !!(c.needsApproval ?? person?.needsApproval))
+
+/** What completing a checklist chore earns, for its All done! screen. */
+export const earnedText = (points: number, name: string, waits: boolean) =>
+  waits ? `a grown-up will OK it, then ${name} gets ${points} point${points === 1 ? '' : 's'}` : `⭐ ${points} point${points === 1 ? '' : 's'} for ${name}`

@@ -48,9 +48,9 @@ Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTH
 
 A chore can have a **checklist**: one of your [lists](lists.md). Any kind of list works, but a **reusable** list fits best, such as "Bedtime routine: pick out clothes, shower, pajamas, brush teeth". Pick it under **Checklist (optional)** when you add or edit the chore.
 
-* The chore card shows the progress, for example `☑ 2/4 Bedtime`.
+* The chore card shows the progress, for example `☑ 2/4 Bedtime`, until the chore is done.
 * Tapping the chore while items are still open opens the checklist straight in [Get stuff done](lists.md#get-stuff-done), full screen, instead of completing it: one item at a time, or the whole list.
-* Once every item is ticked, **All done! 🎉** offers **Complete *chore***, which completes it the usual way: points, **Who did it?** for an Anyone chore, and a parent's OK when the chore needs one. Closing it (**✕**) leaves the chore as it was.
+* Ticking the last item completes the chore the usual way (points, and a parent's OK when the chore needs one), then shows **All done! 🎉** with what it earned, such as "⭐ 5 points for Leo". An **Anyone** chore that would ask **Who did it?** says **One more tap!** instead, with **⭐ Get the 5 points**, which asks who and completes it. Closing it (**✕**) before then leaves the chore as it was.
 * Completing the chore resets a reusable checklist, ready for next time. Other kinds of list stay as they are.
 * Add, reorder or change the checklist's items, notes and sub-steps on the list itself, under Lists.
 

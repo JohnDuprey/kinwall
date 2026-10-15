@@ -1,7 +1,7 @@
 // node --test test/ (npm test). A day of chores: whose points they are, and the order a column reads in.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { choreOrder, isLate, pointsEarned, pointsGivenOut } from '../src/choreDay.ts'
+import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from '../src/choreDay.ts'
 
 const done = (points: number, memberId: string | null, completedBy: string | null, completed = true) => ({ points, memberId, completedBy, completed })
 
@@ -24,4 +24,13 @@ test('isLate: a start time that has gone by', () => {
   assert.equal(isLate('20:00', '10:25'), false)
   assert.equal(isLate(null, '10:25'), false)
   assert.equal(isLate('after dinner', '10:25'), false)
+})
+
+test('waitsForOk follows the server: parent devices never, a gone activity always, else chore then person', () => {
+  assert.equal(waitsForOk({ needsApproval: true }, undefined, true), false)
+  assert.equal(waitsForOk({ needsApproval: false, activity: { available: false } }, undefined, false), true)
+  assert.equal(waitsForOk({ needsApproval: null }, { needsApproval: true }, false), true)
+  assert.equal(waitsForOk({ needsApproval: false }, { needsApproval: true }, false), false)
+  assert.equal(earnedText(5, 'Leo', false), '⭐ 5 points for Leo')
+  assert.equal(earnedText(1, 'Leo', true), 'a grown-up will OK it, then Leo gets 1 point')
 })
