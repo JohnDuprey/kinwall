@@ -141,7 +141,7 @@ On a Groceries or Shopping list, the name in **Add item** suggests names your fa
 * Capitals and simple plurals don't matter: "egg" finds Eggs.
 * Things already on the list (and not ticked) aren't suggested.
 * Tap a suggestion to use that name, with the spelling you used last time; its remembered store and aisle fill in. On a keyboard, use ↑ and ↓ to pick one and Enter to add it; Enter with nothing highlighted adds what you typed. Escape closes the suggestions.
-* With the name empty, **Buy again** offers the six things you add most that aren't on the list.
+* With the name empty, **Buy again** under it offers the six things you add most that aren't waiting on the list. On a trip, ones you've already ticked off (they're in the cart) are left out too.
 * Suggestions come with the list, so they work offline too.
 * Names are remembered household-wide, on the server, whether you add from the app, from Meals or through a connected app. Renaming an item changes the spelling suggested next time.
 * Items from before this update show in simple lowercase (for example "banana milk") until you add them again; the next add keeps your spelling.

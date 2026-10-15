@@ -1475,10 +1475,9 @@ function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList,
   label: string; placeholder: string; autoFocus?: boolean; onEscape?: (e: React.KeyboardEvent) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [focused, setFocused] = useState(false)
   const [active, setActive] = useState(-1)
   const matches = open && suggestions ? matchItems(value, suggestions, onList) : []
-  const again = buyAgain && focused && !value.trim() && suggestions ? suggestions.filter(s => s.uses > 0 && !onList.has(s.key)).slice(0, 6) : []
+  const again = buyAgain && !value.trim() && suggestions ? suggestions.filter(s => s.uses > 0 && !onList.has(s.key)).slice(0, 6) : []
   const listId = `${id}-suggest`
   const pick = (title: string, tapped = false) => { setOpen(false); setActive(-1); (tapped && onPick ? onPick : onAdd)(title) }
   const hint = (s: ItemSuggestion) => [s.category ?? s.place?.aisle, s.place?.store].filter(Boolean).join(' · ')
@@ -1503,7 +1502,7 @@ function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList,
         // spell check and autocorrect stay on, so a new item doesn't go in with a typo.
         autoComplete="off" autoCorrect="on" autoCapitalize="sentences" spellCheck
         onChange={e => { onChange(e.target.value); setOpen(true); setActive(-1) }} onKeyDown={onKeyDown}
-        onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); setOpen(false); setActive(-1) }}
+        onBlur={() => { setOpen(false); setActive(-1) }}
         {...(suggestions ? {
           role: 'combobox', 'aria-autocomplete': 'list' as const, 'aria-expanded': matches.length > 0,
           'aria-controls': matches.length ? listId : undefined, 'aria-activedescendant': active >= 0 && matches[active] ? `${listId}-${active}` : undefined,
@@ -1945,7 +1944,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
   const addSheet = adding && (
-    <ItemAddSheet listId={listId} listName={list.name} members={members} suggestions={suggestions} aisleOrder={aisleOrder} onList={onList} trip={tripAt}
+    <ItemAddSheet listId={listId} listName={list.name} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt}
+      onList={activeTrip ? new Set(items.map(i => itemKey(i.title))) : onList /* on a trip, ticked ones are in the cart: not offered again */}
       onAdded={showQueued} onClose={() => setAdding(false)} />
   )
   // A one-store trip also walks the other list type's items for that store, tagged with their list.

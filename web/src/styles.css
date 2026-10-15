@@ -1459,6 +1459,9 @@ button.month-cell .month-daynum { flex: none; }
 .item-suggest-hint { font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
 .manage-find { width: 100%; min-height: var(--ctl-h); padding: 0 14px; margin-bottom: 6px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; }
 .item-again { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; }
+/* In the Add item sheet, Buy again sits under the name and pushes the fields down, not over them. */
+.item-add:has(> .item-again) { flex-wrap: wrap; }
+.item-add:not(.above) > .item-again { position: static; flex-basis: 100%; margin-top: 6px; box-shadow: none; max-height: none; }
 .item-again-label { font-size: 0.78125rem; font-weight: 800; color: var(--text-dim); margin-right: 2px; }
 
 
