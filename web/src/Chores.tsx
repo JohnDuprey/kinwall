@@ -27,6 +27,7 @@ import { durationLabel } from './timers.ts'
 import { SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
 import { suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
+import { choreOrder, isLate, pointsEarned, pointsGivenOut } from './choreDay.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -194,7 +195,7 @@ function scheduleLabel(rrule: string | null): string {
   return `${what} · until ${format(new Date(y, m - 1, d), 'MMM d')}`
 }
 
-function ChoreCard({ chore, editing, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; onToggle: () => void; onEdit: () => void }) {
+function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
   const schedule = scheduleLabel(chore.rrule)
   // An Anyone chore says who got the points once it's done.
@@ -214,7 +215,7 @@ function ChoreCard({ chore, editing, onToggle, onEdit }: { chore: ChoreDay; edit
   const play = () => { location.hash = `#/activities/plugin/${act!.pluginId}${player ? `?member=${player}` : ''}` }
   // A timer (not on an activity chore, which times itself): tapping the card starts it, the check ticks it.
   const timer = !act && !ticked && chore.timerMinutes ? chore.timerMinutes : 0
-  const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? formatTime(chore.dueTime) : ''
+  const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? `${formatTime(chore.dueTime)}${late && !ticked ? ' (late)' : ''}` : ''
   const [burst, setBurst] = useState(false)
   // Toggle on click, not pointerup: a sheet the toggle opens (Who did it?, a checklist) would
   // otherwise catch the click a touch sends right after lifting the finger.
@@ -490,6 +491,7 @@ export default function Chores() {
   const editDay = editChore && editChore !== 'new' ? chores.find(c => c.id === editChore.id) : undefined
   const resetMember = parentDevice && editDay?.activity && editDay.activity.doneSeconds > 0 ? editDay.memberId ?? selectedMemberId : null
   const isToday = key === dateKey(new Date())
+  const now = format(new Date(), 'HH:mm') // late start times, as of this render (refreshTick re-renders)
   const resetTime = async (c: ChoreDay, member: string) => {
     const act = c.activity!
     const who = members.find(m => m.id === member)?.name ?? 'Someone'
@@ -633,7 +635,7 @@ export default function Chores() {
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
           {active.map(col => {
-            const list = chores.filter(c => col.id === '__anyone' ? !c.memberId : c.memberId === col.id)
+            const list = choreOrder(chores.filter(c => col.id === '__anyone' ? !c.memberId : c.memberId === col.id))
             const done = list.filter(c => c.completed).length
             const pct = list.length ? done / list.length : 0
             return (
@@ -641,13 +643,13 @@ export default function Chores() {
                 <div className="chore-col-head">
                   <ProgressRing pct={pct} m={col} label={`${col.name}: ${done} of ${list.length} done`} />
                   <h3 className="chore-col-name" style={{ margin: 0 }}>{col.name}</h3>
-                  <div className="chore-col-pts">{list.reduce((s, c) => s + (c.completed ? c.points : 0), 0)} pts today</div>
+                  <div className="chore-col-pts">{col.id === '__anyone' ? `${pointsGivenOut(list)} pts given out` : `${pointsEarned(chores, col.id)} pts${isToday ? ' today' : ''}`}</div>
                   {rewardsShown && col.id !== '__anyone' && 'balance' in col && (
                     <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={`${col.name} has ${col.balance} points to spend. See rewards`}>⭐ {col.balance} to spend</a>
                   )}
                 </div>
                 {list.map(c => (
-                  <ChoreCard key={c.id} chore={c} editing={editing && parentDevice} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />
+                  <ChoreCard key={c.id} chore={c} editing={editing && parentDevice} late={isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />
                 ))}
               </div>
             )

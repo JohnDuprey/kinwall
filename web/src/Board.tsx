@@ -13,6 +13,7 @@ import { zonedParts } from './date.ts'
 import { LoadError } from './a11y.tsx'
 import { dedupeEvents } from './dayLayout.ts'
 import { formatTime } from './timeFormat.ts'
+import { isLate } from './choreDay.ts'
 import { durationLabel } from './timers.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
@@ -765,7 +766,8 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
 /** A chore with a start time or a timer on Today, like an event: "4:00 PM · 20 min", "🎹 Practice
  *  piano", whose it is, and Start for its timer (ChoreTimer.tsx). Without a timer it opens the Chores tab. */
 function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
-  const when = [c.dueTime ? formatTime(c.dueTime) : 'Today', c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
+  const late = isLate(c.dueTime, new Date().toTimeString().slice(0, 5))
+  const when = [c.dueTime ? `${formatTime(c.dueTime)}${late ? ' (late)' : ''}` : 'Today', c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
   const main = <>
     <span className="board-bar" style={{ background: who?.color ?? 'var(--border)' }} aria-hidden="true" />
     <span className="snap-main" aria-hidden="true">
@@ -774,7 +776,7 @@ function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
     </span>
     {who && <span className="board-avatars" aria-hidden="true"><Avatar m={who} /></span>}
   </>
-  const label = `Chore: ${[c.dueTime && formatTime(c.dueTime), c.title, c.timerMinutes && `${durationLabel(c.timerMinutes)} timer`, who?.name ?? (!c.memberId && 'anyone')].filter(Boolean).join(', ')}`
+  const label = `Chore: ${[c.dueTime && formatTime(c.dueTime), late && 'late', c.title, c.timerMinutes && `${durationLabel(c.timerMinutes)} timer`, who?.name ?? (!c.memberId && 'anyone')].filter(Boolean).join(', ')}`
   if (!c.timerMinutes) return <li><a className="snap-row board-event board-chore-line" href="#/chores" aria-label={label}>{main}</a></li>
   return (
     <li><div className="snap-row board-event board-chore-line" role="group" aria-label={label}>
