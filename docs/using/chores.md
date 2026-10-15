@@ -163,7 +163,7 @@ Some jobs don't fit a schedule: clean out the car, wash the windows, flip the ma
 * Each saved chore has a title, emoji, points, and optionally a checklist, the person it usually goes to, notes, whether it needs a parent's OK, and **About every** a number of days, weeks or months.
 * **About every** is not a schedule. It's a hint: once a chore has been about that long since it was last done (90% of the way there), it moves to the top with **⏰ Due-ish**. Each row says how it's going, for example "Last done 5 weeks ago · usually every 4 weeks", "Not done yet" or "To do: Maya, Sat".
 * **Tap a chore** to hand it out: pick **Who** (or **Anyone**) and **When** (**Today**, **Tomorrow**, **This weekend** or **Pick a date**), then **Add chore**. It becomes a normal one-off chore with the same points, checklist and approval setting. The library stays open, so you can hand out a few in a row.
-* **Again** gives a chore to whoever got it last time, for today, in one tap.
+* **Again · Maya** gives a chore to whoever got it last time (Maya here), for today, in one tap. **Undo** on the "Added" message takes it back. The rows stay where they are until you close the library, so the next **Again** doesn't move under your finger.
 * **More… → Make it repeat…** opens the chore editor filled in, repeating at the chore's **About every** (for example every 4 weeks). Change the schedule there if you like.
 * **More… → Edit library chore…** changes the saved chore (chores already handed out stay as they are), and **Remove from library…** at the bottom of that sheet deletes it.
 * **Save to library** (in a chore's edit sheet, under **More…**) saves an existing chore to the library. Its history comes along, so "last done" is right from the start.

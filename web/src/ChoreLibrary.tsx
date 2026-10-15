@@ -28,15 +28,23 @@ export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: 
   useEffect(() => { void load() }, [refreshTick])
   const today = dateKey(new Date())
   const nameOf = (id: string | null) => (id ? members.find(m => m.id === id)?.name ?? 'someone' : 'Anyone')
+  // After an Again the rows keep their places until the sheet closes, so the next row's Again
+  // doesn't slide under the thumb that just tapped.
+  const [frozen, setFrozen] = useState<string[] | null>(null)
   const rows = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
-    return sortLibrary((items ?? []).filter(i => !q || i.title.toLocaleLowerCase().includes(q) || i.notes?.toLocaleLowerCase().includes(q)), today)
-  }, [items, query, today])
+    const sorted = sortLibrary((items ?? []).filter(i => !q || i.title.toLocaleLowerCase().includes(q) || i.notes?.toLocaleLowerCase().includes(q)), today)
+    const at = (id: string) => { const i = frozen!.indexOf(id); return i < 0 ? Infinity : i }
+    return frozen ? [...sorted].sort((a, b) => at(a.item.id) - at(b.item.id)) : sorted
+  }, [items, query, today, frozen])
 
   const again = async (item: LibraryChore) => {
+    if (!frozen) setFrozen(rows.map(r => r.item.id))
     try {
-      await api.assignLibraryChore(item.id, { date: today, memberId: item.lastMemberId })
-      toast(`Added: ${item.title} for ${nameOf(item.lastMemberId)} today`)
+      const c = await api.assignLibraryChore(item.id, { date: today, memberId: item.lastMemberId })
+      toast(`Added: ${item.title} for ${nameOf(item.lastMemberId)} today`, false, { label: 'Undo', run: () => {
+        api.deleteChore(c.id).then(() => { onAssigned(today); void load() }, () => toast('Could not undo that', true))
+      } })
       onAssigned(today); void load()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add the chore', true) }
   }
@@ -68,7 +76,7 @@ export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: 
                   </span>
                 </button>
                 {item.timesAssigned > 0 && !item.open && (
-                  <button type="button" className="btn btn-secondary lib-again" onClick={() => again(item)} aria-label={`Again: ${item.title} for ${nameOf(item.lastMemberId)} today`}>Again</button>
+                  <button type="button" className="btn btn-secondary lib-again" onClick={() => again(item)} aria-label={`Again: ${item.title} for ${nameOf(item.lastMemberId)} today`}>Again · {nameOf(item.lastMemberId)}</button>
                 )}
               </li>
             ))}
