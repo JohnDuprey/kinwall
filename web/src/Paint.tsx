@@ -16,7 +16,7 @@ import { Face, FacePic } from './Face.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, type Drawing, type Meta } from './drawings-db.ts'
-import { BookIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
+import { BookIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, MoreIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
 import { preparePhoto } from './photos.ts'
 import { api, ApiError } from './api.ts'
 import { beginStroke, endStroke, floodFill, packRGBA, PAPER, parseSizes, SIZE_NAMES, SIZES, sizeFor, STAMPS, strokeTo, drawStroke, type Brush, type Stroke } from './paintTools.ts'
@@ -129,6 +129,7 @@ export default function Paint() {
   const [gallery, setGallery] = useState(false)
   const [who, setWho] = useState(false)
   const [colors, setColors] = useState(false)
+  const [more, setMore] = useState(false)
   const [recent, setRecent] = useState(loadRecent)
   const [printing, setPrinting] = useState<{ url: string; name: string; date: string } | null>(null)
 
@@ -527,9 +528,13 @@ export default function Paint() {
           <button className="paint-btn" aria-label="Redo" title="Redo" disabled={!canRedo} onClick={redo}><RedoIcon /></button>
           <button className="paint-btn" aria-label="Clear picture" title="Clear" onClick={clear}><TrashIcon /></button>
           <button className="paint-btn" aria-label="My drawings" title="My drawings" onClick={async () => { await save(); setGallery(true) }}><ImagesIcon /></button>
-          <button className="paint-btn" aria-label="Save picture" title="Save" onClick={exportPng}><DownloadIcon /></button>
-          <button className="paint-btn" aria-label="Save to family photos" title="Save to family photos" disabled={savingPhoto} onClick={saveToPhotos}><HeartIcon /></button>
-          <button className="paint-btn" aria-label="Print picture" title="Print" onClick={print}><PrinterIcon /></button>
+          {/* Phones: Save, Save to family photos and Print go behind More so the actions fit one row. */}
+          <span className="paint-extra">
+            <button className="paint-btn" aria-label="Save picture" title="Save" onClick={exportPng}><DownloadIcon /></button>
+            <button className="paint-btn" aria-label="Save to family photos" title="Save to family photos" disabled={savingPhoto} onClick={saveToPhotos}><HeartIcon /></button>
+            <button className="paint-btn" aria-label="Print picture" title="Print" onClick={print}><PrinterIcon /></button>
+          </span>
+          <button className="paint-btn paint-more" aria-haspopup="dialog" aria-label="More: save or print" title="More" onClick={() => setMore(true)}><MoreIcon /></button>
           {members.length > 0 && (
             <button className={`paint-btn paint-who${member?.picture ? ' face-has-pic' : ''}`} aria-label={member ? `Drawing by ${member.name} (change)` : "Who's drawing?"} title="Who's drawing?" onClick={() => setWho(true)}
               style={member ? { background: member.color, color: inkFor(member.color) } : undefined}>
@@ -579,6 +584,16 @@ export default function Paint() {
             ))}
           </div>
           <p className="paint-gallery-note" style={{ marginTop: 12 }}>Each dot shows how big it draws. Every brush, and the eraser, keeps its own size on this device.</p>
+        </Sheet>
+      )}
+
+      {more && (
+        <Sheet title="Save or print" onClose={() => setMore(false)}>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <button className="btn btn-secondary btn-block" onClick={() => { setMore(false); exportPng() }}><DownloadIcon /> Save picture</button>
+            <button className="btn btn-secondary btn-block" disabled={savingPhoto} onClick={() => { setMore(false); saveToPhotos() }}><HeartIcon /> Save to family photos</button>
+            <button className="btn btn-secondary btn-block" onClick={() => { setMore(false); print() }}><PrinterIcon /> Print</button>
+          </div>
         </Sheet>
       )}
 

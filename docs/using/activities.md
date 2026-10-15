@@ -8,7 +8,7 @@ An admin can turn off **Paint** or **Photos** in **Settings → General** (tap *
 
 ## Paint
 
-A drawing app for kids. Tap **Activities → Paint**. The canvas fills the screen under a row of big buttons. Draw with a finger, an Apple Pencil or a mouse. Only one finger draws at a time, so a hand resting on the screen won't scribble.
+A drawing app for kids. Tap **Activities → Paint**. Paint is full screen: the tab bar hides, and the canvas fills the screen under a row of big buttons (two rows on a phone, where **Save**, **Save to family photos** and **Print** sit behind the **⋯** button). To leave, tap **‹** at the start of the toolbar; your drawing is already saved. Draw with a finger, an Apple Pencil or a mouse. Only one finger draws at a time, so a hand resting on the screen won't scribble.
 
 ### Tools
 

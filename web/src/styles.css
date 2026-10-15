@@ -2283,12 +2283,17 @@ a.activity-card:active { transform: scale(0.98); }
 .paint-gallery-actions { display: flex; gap: 6px; align-items: center; }
 .paint-gallery-actions .btn { min-height: 44px; padding: 0 12px; }
 .paint-gallery-actions .icon-btn { width: 44px; height: 44px; flex-shrink: 0; }
+.paint-extra { display: contents; }
+.paint-more { display: none; }
 @media (max-width: 600px) {
-  /* One scrolling row on phones so the canvas keeps its height. */
-  .paint-toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 6px 12px; }
-  /* The tools (with the Colors button) first, where a kid looks; sizes and actions scroll in after. */
-  .paint-toolbar > .paint-group { order: 2; }
-  .paint-toolbar > .paint-group:first-child { order: 0; }
+  /* Two rows on phones, nothing off-screen: Back and the tools, then Undo, Redo and the rest, with
+     Save and Print behind More. The drawing's name shrinks first. */
+  .paint-toolbar { gap: 6px; padding: 6px 12px; }
+  .paint-btn { width: 44px; height: 44px; border-radius: 12px; }
+  .paint-toolbar > .paint-group { width: 100%; min-width: 0; }
+  .paint-extra { display: none; }
+  .paint-more { display: grid; }
+  .paint-name { flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0 6px; }
 }
 /* A short landscape screen (a Nest Hub, a tablet on its side): one row, so the canvas keeps its
    height. Slightly smaller buttons (still 44px) and the drawing's name shrinks first; anything left
