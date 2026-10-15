@@ -41,7 +41,7 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
       <span className="board-meter battery-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={day.level} aria-label={`${member.name}'s battery by evening`}>
         <span style={{ width: `${day.level}%`, background: member.color }} />
       </span>
-      <p className="profile-note">{reasonLine(day.reasons)}</p>
+      {day.reasons.length > 0 && <ul className="chip-row battery-reasons" aria-label="Why">{day.reasons.map(r => <li key={r.text} className="chip chip-static">{reasonLine([r])}</li>)}</ul>}
       {warnings.map(w => (
         <div key={w.date} className="battery-warning" role="note">
           <strong>{w.text}</strong>
