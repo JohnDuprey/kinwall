@@ -3007,7 +3007,7 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-when { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .board-event.past { opacity: 0.55; }
 /* A chore on the Board's Today card (Board.tsx ChoreLine): Start for its timer at the row's end. */
-.board-chore-line { align-items: center; }
+.board-chore-line { align-items: center; text-decoration: none; } /* a link row, like its siblings: not underlined */
 .board-chore-line .snap-main { align-self: flex-start; }
 .chore-timer-start { flex: none; min-height: 44px; padding: 0 14px; }
 .chore-timer-left { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-text); }
