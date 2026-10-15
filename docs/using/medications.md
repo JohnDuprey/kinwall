@@ -8,7 +8,7 @@ Medication reminders are part of the Health tracker. On a parent's device: **Set
 
 ## Add a medicine
 
-On a parent's device, open **Trackers → Health**. The **💊 Medicines** section lists each person (the header's person filter narrows it); under a person, tap **+ Add medicine**. The Health tab shows while medication reminders are on, even if the Health tracker itself is off.
+On a parent's device, open **Trackers → Health**. The **💊 Medicines** section lists each person (the header's person filter narrows it); someone with none says **No medicines** with an **+ Add** button beside it. Someone who has medicines is folded shut so a glance doesn't show them: tap their row (or its arrow) to open it, then **+ Add medicine** or **History**. The Health tab shows while medication reminders are on, even if the Health tracker itself is off.
 
 * **Medicine**: a name the family knows it by, like "Allergy medicine". There's no place for what it's for, and no need for one.
 * **Dose** (optional): free text, like "1 tablet" or "5 mg".

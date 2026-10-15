@@ -12,6 +12,7 @@ import { daysLabel, EVERY_DAY, scheduleLabel, WEEKDAYS } from './medications.ts'
 import type { LateWindow, Medication, MedicationRefill, Member, MedTime } from './types.ts'
 import { Face } from './Face'
 import { RefillFields } from './Refills.tsx'
+import { ChevronDown } from './icons.tsx'
 
 const NOTICE = 'Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.'
 
@@ -61,13 +62,23 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
       <h3 className="trk-heading" id="meds-list-title">💊 Medicines</h3>
       {members.filter(m => !memberId || m.id === memberId).map(m => {
           const mine = meds.filter(x => x.memberId === m.id)
+          // Nobody's medicines to hide: say so and offer Add right in the row.
+          if (mine.length === 0) return (
+            <div key={m.id} className="meds-person meds-person-head">
+              <Face m={m} className="board-avatar" aria-hidden="true" />
+              <span className="settings-row-label">{m.name}</span>
+              <span className="settings-row-sub">No medicines</span>
+              <button className="btn btn-secondary meds-add-inline" onClick={() => setEditing({ med: null, member: m })} aria-label={`Add a medicine for ${m.name}`}>+ Add</button>
+            </div>
+          )
           return (
             // Collapsed by default so a glance at Health doesn't show anyone's medicines.
             <details key={m.id} className="meds-person">
               <summary className="meds-person-head">
                 <Face m={m} className="board-avatar" aria-hidden="true" />
                 <span className="settings-row-label">{m.name}</span>
-                <span className="settings-row-sub">{mine.length === 0 ? 'None' : mine.length === 1 ? '1 medicine' : `${mine.length} medicines`}</span>
+                <span className="settings-row-sub">{mine.length === 1 ? '1 medicine' : `${mine.length} medicines`}</span>
+                <ChevronDown className="meds-chevron" aria-hidden="true" />
               </summary>
               <div className="meds-person-body">
                 {mine.map(x => (
@@ -79,7 +90,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
                 ))}
                 <div className="settings-inline-btns">
                   <button className="btn btn-secondary" onClick={() => setEditing({ med: null, member: m })}>+ Add medicine</button>
-                  {mine.length > 0 && <a className="btn btn-secondary meds-link" href={`#/medications/${m.id}`}>History</a>}
+                  <a className="btn btn-secondary meds-link" href={`#/medications/${m.id}`}>History</a>
                 </div>
               </div>
             </details>
