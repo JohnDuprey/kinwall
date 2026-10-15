@@ -61,7 +61,7 @@ function ContactCard({ contact, categoryNames, onOpen }: { contact: Contact; cat
     <span className="contact-card-copy">
       <span className="contact-card-title">{contact.name}</span>
       {subtitle && <span className="contact-card-sub">{subtitle}</span>}
-      <span className="contact-card-kind">{contact.kind === 'service' ? 'Service' : contact.kind === 'organization' ? 'Organization' : contact.kind === 'place' ? 'Place' : 'Person'}</span>
+      {!contact.relationship && <span className="contact-card-kind">{contact.kind === 'service' ? 'Service' : contact.kind === 'organization' ? 'Organization' : contact.kind === 'place' ? 'Place' : 'Person'}</span>}
       {contact.categoryIds?.length ? <span className="contact-card-sub">{contact.categoryIds.map(id => categoryNames.get(id)).filter(Boolean).slice(0, 2).join(' · ')}</span> : null}
       {contact.phones[0] && <span className="contact-card-phone">{contact.phones[0].value}</span>}
     </span>
@@ -376,6 +376,7 @@ function FiltersSheet({ filters, categories, onChange, onClose }: { filters: Con
     <div className="field"><label htmlFor={`${id}-show`}>Show</label><select id={`${id}-show`} value={filters.show} onChange={e => set('show', e.target.value as ContactFilters['show'])}>{options(CONTACT_SHOW_LABELS)}</select></div>
     <div className="field"><label htmlFor={`${id}-kind`}>Contact kind</label><select id={`${id}-kind`} value={filters.kind} onChange={e => set('kind', e.target.value as ContactFilters['kind'])}>{options(CONTACT_KIND_LABELS)}</select></div>
     <div className="field"><label htmlFor={`${id}-category`}>Category</label><select id={`${id}-category`} value={filters.category} onChange={e => set('category', e.target.value)}><option value="all">All categories</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+    <p className="field-hint">In the list: ★ Favorite · ✚ Emergency · ▣ On the wall</p>
   </Sheet>
 }
 
