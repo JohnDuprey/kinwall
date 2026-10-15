@@ -1,7 +1,8 @@
 // Shared accessibility plumbing: screen-reader announcements, arrow-key movement inside picker
 // rows, label <-> field wiring for the `.field` pattern, the segmented control, roving focus for
 // the calendar's day cells, and keyboard activation for tappable non-button elements.
-import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { loadErrorText } from './failureMessage.ts'
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -142,4 +143,11 @@ if (firstLoad) {
   }
   new MutationObserver(() => { if (!queued) { queued = true; queueMicrotask(link) } })
     .observe(document.body, { childList: true, subtree: true })
+}
+
+/** Something that didn't load: "Couldn't load outings. Check your connection." and Try again, the
+ * same on every screen. The server's own message only goes to the console. */
+export function LoadError({ what, onRetry, error }: { what: string; onRetry: () => void; error?: unknown }) {
+  useEffect(() => { if (error) console.error(`Couldn't load ${what}:`, error) }, [error, what])
+  return <div className="state-card" role="alert">{loadErrorText(what)} <button className="btn btn-secondary" onClick={onRetry}>Try again</button></div>
 }

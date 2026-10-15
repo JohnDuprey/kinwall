@@ -13,7 +13,7 @@ import { formatTime } from './timeFormat.ts'
 import { useMediaQuery } from './useIsPhone.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { preparePhoto, safeImageSrc } from './photos.ts'
-import { announce } from './a11y.tsx'
+import { announce, LoadError } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { MoreIcon } from './icons.tsx'
@@ -98,7 +98,7 @@ export default function NewscastView() {
     }
   }
 
-  if (error) return <div className="state-card" role="alert">Couldn't load Newscast. Check your connection. <button className="btn btn-secondary" onClick={() => load(true)}>Try again</button></div>
+  if (error) return <LoadError what="Newscast" onRetry={() => load(true)} />
   if (!feed) return <div className="news-loading" aria-busy="true" />
 
   const all = [...feed.items, ...(older ?? [])]

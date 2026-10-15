@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { withHashParam } from './hashQuery.ts'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { Segmented } from './a11y.tsx'
+import { LoadError, Segmented } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
@@ -145,7 +145,7 @@ export default function Meals() {
         <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : <>{mealDayLabel(from, { month: 'short', day: 'numeric' })} – {mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' })}</>}</h2>
       </div>
       {recipeError && <p className="field-error" role="alert">The recipe library could not refresh. <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
-      {mealError ? <div className="state-card" role="alert">Could not load the meal plan: {mealError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan">
+      {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(t => t + 1)} /> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan">
         <table className="meal-grid"><caption className="sr-only">Meals from {from} through {to}</caption><thead><tr><th scope="col">Date</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{SLOT_LABEL[slot]}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
           <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">Today</span>}</th>
           {MEAL_SLOTS.map(slot => <td key={slot} data-slot={SLOT_LABEL[slot]}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
@@ -174,7 +174,7 @@ export default function Meals() {
         <div className="field"><label htmlFor="recipe-loved">Favorites</label><select id="recipe-loved" value={loved} onChange={e => setLoved(e.target.value)}><option value="">All recipes</option><option value="any">Anyone's favorites</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}'s favorites</option>)}</select></div>
         <div className="field"><label htmlFor="recipe-sort">Sort</label><select id="recipe-sort" value={sort} onChange={e => setSort(e.target.value as 'name' | 'rating')}><option value="name">Name</option><option value="rating">Top rated</option></select></div>
       </div>
-      {recipeError && <div role="alert" className="state-card">Could not load recipes: {recipeError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div>}
+      {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(t => t + 1)} />}
       {!recipesLoaded && !recipeError ? <p role="status">Loading recipes…</p> : <>
         <p className="field-hint" role="status">{shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</p>
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}

@@ -13,7 +13,7 @@ import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.t
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery, useScreenK } from './useIsPhone.ts'
 import { castScale } from './cast.ts'
-import { announce, pressable, Segmented, useRovingGrid } from './a11y.tsx'
+import { announce, LoadError, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
@@ -554,7 +554,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
         ) : viewMode === 'newscast' ? (
           <NewscastView />
         ) : error ? (
-          <div className="state-card" role="alert">Couldn't load events. Check your connection. <button className="btn btn-secondary" onClick={() => setRetry(r => r + 1)}>Try again</button></div>
+          <LoadError what="events" onRetry={() => setRetry(r => r + 1)} />
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
           <div className="empty-card"><span className="emoji">🗓️</span>{activeCategoryFilter.length ? 'No events in the next 30 days match the category filter.' : 'No events in the next 30 days.'}</div>
         ) : viewMode === 'week' ? (

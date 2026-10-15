@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import { announce } from './a11y.tsx'
+import { announce, LoadError } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
@@ -451,7 +451,7 @@ export default function Contacts() {
         </div>
         {summary && <button className="filter-summary contacts-filter-summary" onClick={() => setSheet('filters')} aria-label={`Filters: ${summary}. Change filters`}>{summary}</button>}
       </>}
-      {loadError && <div className="empty-card" role="alert"><p>{loadError}</p><button className="btn btn-secondary" onClick={() => { setLoading(true); void load() }}>Try again</button></div>}
+      {loadError && <LoadError what="contacts" error={loadError} onRetry={() => { setLoading(true); void load() }} />}
       {!loadError && loading && <div className="state-card">Loading contacts…</div>}
       {!loadError && !loading && count === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">☎️</span>
         <p>{parentDevice ? 'No contacts yet. Add the people and places your family calls: school, doctor, sitter, neighbors.' : 'No contacts here yet.'}</p></div>}

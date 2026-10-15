@@ -6,3 +6,7 @@ export function failureMessage(status: number, message: string | undefined): str
   return status >= 500 && bare ? SERVER_TROUBLE_MESSAGE : message || `HTTP ${status}`
 }
 const BARE = ['Internal Server Error', 'Bad Gateway', 'Service Unavailable', 'Gateway Timeout']
+
+/** A screen or section that didn't load (LoadError in a11y.tsx): the same plain words everywhere,
+ * never the server's own message. */
+export const loadErrorText = (what: string) => `Couldn't load ${what}. Check your connection.`

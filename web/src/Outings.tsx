@@ -11,7 +11,7 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { useDialog } from './dialog.tsx'
-import { Segmented } from './a11y.tsx'
+import { LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import PickField from './PickField.tsx'
 import { Face } from './Face'
@@ -223,7 +223,7 @@ export default function Outings() {
         <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> Filters{chips.length ? ` (${chips.length})` : ''}</button>
       </div>
       {who.parent && view === 'upcoming' && <Pile categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
-      {error && <div role="alert" className="state-card">Could not load outings: {error} <button className="btn btn-secondary" onClick={retry}>Retry</button></div>}
+      {error && <LoadError what="outings" error={error} onRetry={retry} />}
       {!loaded && !error ? <p role="status">Loading outings…</p> : <>
         <p className="field-hint" role="status">{shown.length} {view === 'place' ? `place${shown.length === 1 ? '' : 's'}` : `outing${shown.length === 1 ? '' : 's'}`}</p>
         {!shown.length && <p className="state-card">{chips.length ? 'Nothing matches these filters.' : view === 'place'

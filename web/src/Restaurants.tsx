@@ -9,7 +9,7 @@ import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ORDER_TYPE_LABEL, ordersInLabel } from './orders.ts'
 import { mapHref, menuOptions, menuSections, optionName, parsePrice, priceLabel, telHref } from './restaurants.ts'
-import { reducedMotion } from './a11y.tsx'
+import { LoadError, reducedMotion } from './a11y.tsx'
 import type { MenuItem, MenuItemInput, Restaurant, RestaurantInput } from './meal-types.ts'
 
 /** The Restaurants tab in Meals: the binder, searchable, read-only for walls and kids. */
@@ -26,7 +26,7 @@ export function RestaurantBinder({ restaurants, loaded, error, onRetry, onOpen }
       <div className="field meals-search"><label htmlFor="restaurant-search">Find a restaurant</label><input id="restaurant-search" type="search" placeholder="Pizza, lo mein…" value={search} onChange={e => setSearch(e.target.value)} /></div>
       <div className="field"><label htmlFor="restaurant-filter">Show</label><select id="restaurant-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">Restaurants</option><option value="archived">Archived</option><option value="all">All</option></select></div>
     </div>
-    {error && <div role="alert" className="state-card">Could not load restaurants: {error} <button className="btn btn-secondary" onClick={onRetry}>Retry</button></div>}
+    {error && <LoadError what="restaurants" error={error} onRetry={onRetry} />}
     {!loaded && !error ? <p role="status">Loading restaurants…</p> : <>
       <p className="field-hint" role="status">{shown.length} restaurant{shown.length === 1 ? '' : 's'}</p>
       {!shown.length && !error && <p className="state-card">{q || filter !== 'active' ? 'No restaurants match.' : 'Keep your takeout menus here: the places you order from, what everyone likes and how to call.'}</p>}
