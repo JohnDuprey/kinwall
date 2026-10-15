@@ -179,10 +179,10 @@ On a wall screen, picking someone also says who's using it. Until the screen goe
 
 Tap the family button at the top left. The family sheet lists everyone, with how many points they've earned today.
 
-<img src="../screenshots/phone-family.png" width="300" alt="The family sheet on a phone: each person with today's points and a round button to show only them" />
+<img src="../screenshots/phone-family.png" width="300" alt="The family sheet on a phone: each person with today's points and an Only button to show only them" />
 
 * **Tap a person** to open [their day](snapshot.md), where you can also tick off their chores.
-* **The round button** on the right shows only them: it fills in, the row says "Showing only them", and their face moves to the front of the pile on the family button. Tap it again to show the whole family.
+* **Only** on the right shows only them: its circle fills in, the row says "Showing only them", and their face moves to the front of the pile on the family button. Tap it again to show the whole family.
 
 On phones, Home's toolbar is one row: **Board | Newscast**, then **Polls**, **Outings** and **Layout and filter**. Calendar's is two: **Day | 3 Day | Month | Schedule** across the first, then ◀ **Today** ▶, the dates shown, **Show hidden** and the filter. (With big text the view button takes the first row, beside **Show hidden** and the filter.)
 

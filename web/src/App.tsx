@@ -913,6 +913,7 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
   const { settings } = useApp()
   return (
     <Sheet title={name} onClose={onClose}>
+      <p className="settings-row-sub family-hint">Tap a name to see their day, or Only to show just them.</p>
       <div className="family-list">
         {members.map(m => (
           <div key={m.id} className="family-row-wrap">
@@ -922,7 +923,7 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
               {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Showing only them' : `${m.pointsToday} pts today`}</span>}
             </button>
             <button className={`family-pick ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}
-              aria-label={`Show only ${m.name}`} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" /></button>
+              aria-label={`Show only ${m.name}`} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" />Only</button>
           </div>
         ))}
       </div>
