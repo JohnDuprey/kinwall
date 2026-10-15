@@ -346,7 +346,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       const weekEnd = endOfWeek(anchor, { weekStartsOn: settings.weekStart })
       return isSameMonth(from, weekEnd) ? format(from, 'MMMM yyyy') : `${format(from, 'MMM')} – ${format(weekEnd, 'MMM yyyy')}`
     }
-    if (viewMode === 'day') return format(anchor, 'EEEE, MMMM d')
+    if (viewMode === 'day') return format(anchor, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d') // "Thu, Oct 15" fits a phone's toolbar
     if (viewMode === 'month') return format(anchor, 'MMMM yyyy')
     return `Next 30 days`
   }, [viewMode, anchor, settings.weekStart, weekDays, isPhone])

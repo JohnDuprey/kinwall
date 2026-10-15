@@ -2713,6 +2713,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   .header-phone:has(.header-right > :nth-child(5)) .family-name-sm { display: none; }
   .header-phone:has(.header-right > :nth-child(5)) .family-btn { padding-right: 4px; }
 }
+/* A narrow phone: the faces overlap more before the name is cut ("OUR FAMI…"). */
+@media (max-width: 411px) { .header-phone .family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -14px; } }
 /* Narrowest phones, offline: tighter gaps keep all four faces inside the pill, icons stay 44px. */
 @media (max-width: 340px) {
   .header-phone { gap: 4px; }
