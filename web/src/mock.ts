@@ -205,11 +205,40 @@ const redemption = (r: Reward, memberId: string, status: Redemption['status'], d
   return { id: uid(), rewardId: r.id, memberId, title: r.title, emoji: r.emoji, cost: r.cost, status, note: null, date: dateKey(at), requestedAt: at.toISOString(), decidedAt: status === 'pending' ? null : at.toISOString(), givenAt: status === 'given' ? at.toISOString() : null }
 }
 const redemptions: Redemption[] = [
-  redemption(rewards[2], 'm4', 'pending', 0),
+  redemption(rewards[2], 'm4', 'approved', 0), // no OK needed: approved at once, waiting to be handed over
   { ...redemption(rewards[0], 'm4', 'pending', 0), shares: [{ memberId: 'm4', points: 60 }, { memberId: 'm3', points: 40 }] },
   redemption(rewards[2], 'm3', 'given', 1),
   redemption(rewards[1], 'm3', 'given', 6),
 ]
+// The points ledger, as the server keeps it (point_entries): rewards taken and given back, sticker packs
+// and check-ins. Bonus points are their own list below. The seeded entries are already in the balances.
+const ledger: PointEntry[] = []
+const charge = (r: Redemption, pay: RewardShare[]) => {
+  for (const s of pay) {
+    members.find(x => x.id === s.memberId)!.balance -= s.points
+    ledger.unshift({ id: uid(), memberId: s.memberId, amount: -s.points, reason: 'reward', ref: r.id, at: new Date().toISOString() })
+  }
+}
+const charged = (r: Redemption) => ledger.filter(e => e.reason === 'reward' && e.ref === r.id)
+/** Gives back what a request took (a split waiting for an OK has taken only the asker's share). */
+const refund = (r: Redemption) => {
+  for (const e of charged(r)) {
+    members.find(x => x.id === e.memberId)!.balance -= e.amount
+    ledger.unshift({ id: uid(), memberId: e.memberId, amount: -e.amount, reason: 'reward_refund', ref: r.id, at: new Date().toISOString() })
+  }
+}
+for (const r of redemptions) {
+  const pay = r.status === 'pending' && r.shares ? r.shares.slice(0, 1) : r.shares ?? [{ memberId: r.memberId, points: r.cost }]
+  for (const s of pay) ledger.push({ id: uid(), memberId: s.memberId, amount: -s.points, reason: 'reward', ref: r.id, at: r.requestedAt })
+}
+// Chore points, as the server credits them: to whoever the completion names, not while it waits for an OK.
+const credit = (memberId: string | null, points: number, date: string) => {
+  const m = members.find(x => x.id === memberId); if (!m || !points) return
+  m.balance += points
+  if (date === dateKey(new Date())) m.pointsToday += points
+  m.pointsWeek += points // ponytail: the demo doesn't check the week's start
+}
+
 // Bonus points (demo only): one a parent gave Maya yesterday (already in her balance above).
 const pointAwards: PointAward[] = [
   (at => ({ id: 'pa1', memberId: 'm3', points: 10, note: 'Helped carry groceries', date: dateKey(at), at: at.toISOString() }))(new Date(Date.now() - 86_400_000)),
@@ -427,7 +456,7 @@ const chores: Chore[] = [
   { id: 'ch9', title: 'Practice piano', emoji: '🎹', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '16:00', timerMinutes: 20, active: true, sort: 9, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
-const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean }>() // key `${choreId}:${date}`
+const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
 // parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
 const SUGGESTIONS_KEY = 'kinwall.demoSuggestions'
@@ -1319,9 +1348,20 @@ export const mock = {
     }
     // Like the server: off a parent's device, an activity chore whose activity is gone waits for an OK.
     const gone = !!c?.pluginId && !(await installedPlugins()).some(p => p.id === c.pluginId && p.enabled)
-    completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null, pending: gone && !!mock.demoKid() }); bump()
+    const key = `${id}:${date}`, prev = completions.get(key), who = memberId ?? c?.memberId ?? null
+    const pending = gone && !!mock.demoKid()
+    // Like the server: a re-tick keeps the points it earned (moving them to whoever it names); a new
+    // one earns the chore's points, the late share for a past day, or nothing while it waits.
+    const points = pending ? 0 : prev && !prev.pending ? prev.points ?? 0 : date < dateKey(new Date()) ? Math.round((c?.points ?? 0) * settings.lateCompletionCredit / 100) : c?.points ?? 0
+    if (prev && !prev.pending) credit(prev.memberId, -(prev.points ?? 0), date)
+    credit(who, points, date)
+    completions.set(key, { completedAt: new Date().toISOString(), memberId: who, pending, points }); bump()
   },
-  uncompleteChore: async (id: string, date: string) => { completions.delete(`${id}:${date}`); bump() },
+  uncompleteChore: async (id: string, date: string) => {
+    const key = `${id}:${date}`, prev = completions.get(key)
+    if (prev && !prev.pending) credit(prev.memberId, -(prev.points ?? 0), date)
+    completions.delete(key); bump()
+  },
   getChoreSuggestions: async (memberId?: string): Promise<ChoreSuggestion[]> => {
     const own = mock.demoKid()
     return suggestions.filter(s => (s.status === 'pending' || !s.seen) && (!(memberId ?? own) || s.memberId === (memberId ?? own)))
@@ -1341,7 +1381,7 @@ export const mock = {
       const c = suggestionChore(s, a)
       Object.assign(s, { rrule: c.rrule, dueTime: c.dueTime, timerMinutes: c.timerMinutes })
       chores.push(c)
-      if (s.done) completions.set(`${c.id}:${s.dueDate}`, { completedAt: s.suggestedAt, memberId: s.memberId })
+      if (s.done) { completions.set(`${c.id}:${s.dueDate}`, { completedAt: s.suggestedAt, memberId: s.memberId, points: s.pointsGiven ?? 0 }); credit(s.memberId, s.pointsGiven ?? 0, s.dueDate) }
     }
     saveSuggestions(); bump(); return s
   },
@@ -1361,7 +1401,7 @@ export const mock = {
         if (new Date(date) < cutoff) continue
         const chore = chores.find(c => c.id === choreId)
         if (!chore) continue
-        points += chore.points; completed++
+        points += v.points ?? chore.points; completed++
       }
       for (const a of pointAwards) if (a.memberId === m.id && new Date(`${a.date}T00:00:00`) >= cutoff) points += a.points // bonus points: points, not chores
       for (let i = 0; i < 30; i++) {
@@ -1396,11 +1436,15 @@ export const mock = {
   redeemReward: async (id: string, memberId: string, shares?: RewardShare[]) => {
     const r = rewards.find(x => x.id === id), m = members.find(x => x.id === memberId)
     if (!r || !m) throw new Error('not found')
+    // As the server: off a parent's device it waits when the reward needs an OK or it's split, and a
+    // waiting split takes only the asker's share now (the rest when a grown-up says yes).
+    const waits = (r.needsApproval || !!shares) && !!mock.demoKid()
     const pay = shares ?? [{ memberId, points: r.cost }]
-    if (pay.some(s => members.find(x => x.id === s.memberId)!.balance < s.points)) throw new Error('Not enough points')
+    const now = waits && shares ? pay.filter(s => s.memberId === memberId) : pay
+    if (now.some(s => members.find(x => x.id === s.memberId)!.balance < s.points)) throw new Error('Not enough points')
     if (r.limit && usedOf(r, memberId) >= r.limit.count) throw new Error(`That's all for ${r.limit.period === 'day' ? 'today' : 'this week'}`)
-    for (const s of pay) members.find(x => x.id === s.memberId)!.balance -= s.points
-    const red = { ...redemption(r, memberId, r.needsApproval ? 'pending' : 'approved', 0), shares: shares ?? null }
+    const red = { ...redemption(r, memberId, waits ? 'pending' : 'approved', 0), shares: shares ?? null }
+    charge(red, now)
     redemptions.unshift(red); bump()
     return { redemption: red, balance: m.balance }
   },
@@ -1409,26 +1453,34 @@ export const mock = {
   decideRedemption: async (id: string, action: 'approve' | 'decline' | 'given', note?: string) => {
     const r = redemptions.find(x => x.id === id); if (!r) throw new Error('not found')
     if (action === 'decline') {
-      for (const s of r.shares ?? [{ memberId: r.memberId, points: r.cost }]) members.find(m => m.id === s.memberId)!.balance += s.points
+      refund(r)
       Object.assign(r, { status: 'declined', note: note ?? null })
-    }
-    else Object.assign(r, { status: action === 'approve' ? 'approved' : 'given' })
+    } else if (action === 'approve') {
+      // Saying yes takes the shares not paid yet, all or none.
+      const unpaid = (r.shares ?? []).filter(s => !charged(r).some(e => e.memberId === s.memberId))
+      const short = unpaid.find(s => members.find(m => m.id === s.memberId)!.balance < s.points)
+      if (short) throw new Error(`${members.find(m => m.id === short.memberId)!.name} doesn't have ${short.points} points any more`)
+      charge(r, unpaid)
+      Object.assign(r, { status: 'approved' })
+    } else Object.assign(r, { status: 'given' })
     bump(); return { ...r }
   },
   cancelRedemption: async (id: string) => {
     const i = redemptions.findIndex(x => x.id === id && x.status === 'pending'); if (i < 0) throw new Error('Not waiting any more')
     const m = members.find(x => x.id === redemptions[i].memberId)!
-    for (const s of redemptions[i].shares ?? [{ memberId: m.id, points: redemptions[i].cost }]) members.find(x => x.id === s.memberId)!.balance += s.points
+    refund(redemptions[i])
     redemptions.splice(i, 1); bump()
     return { ok: true, balance: m.balance }
   },
   setRewardGoal: async (memberId: string, rewardId: string | null) => { goals.set(memberId, rewardId); bump(); return { rewardId } },
 
-  // The demo's ledger holds only bonus points; balances are the members' own numbers.
+  // The ledger plus bonus points, newest first; earned is what the balance and spending add up to.
   getMemberPoints: async (memberId: string) => {
     const m = members.find(x => x.id === memberId); if (!m) throw new Error('not found')
-    const entries: PointEntry[] = pointAwards.filter(a => a.memberId === memberId).map(a => ({ id: a.id, memberId, amount: a.points, reason: 'bonus', ref: a.date, at: a.at, note: a.note }))
-    return { balance: m.balance, earnedTotal: m.balance, spentTotal: 0, entries }
+    const bonus: PointEntry[] = pointAwards.filter(a => a.memberId === memberId).map(a => ({ id: a.id, memberId, amount: a.points, reason: 'bonus', ref: a.date, at: a.at, note: a.note }))
+    const entries = [...ledger.filter(e => e.memberId === memberId), ...bonus].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50)
+    const spentTotal = -ledger.filter(e => e.memberId === memberId && (e.amount < 0 || e.reason === 'reward_refund')).reduce((n, e) => n + e.amount, 0)
+    return { balance: m.balance, earnedTotal: m.balance + spentTotal, spentTotal, entries }
   },
   givePoints: async (body: { memberId: string; points: number; note?: string; date?: string }) => {
     const m = members.find(x => x.id === body.memberId); if (!m) throw new Error('member not found')
@@ -1454,7 +1506,7 @@ export const mock = {
     if (!settings.checkInPoints) throw new Error('Daily check-ins are turned off')
     const date = dateKey(new Date()), key = `${memberId}:${date}`
     const awarded = checkIns.has(key) ? 0 : settings.checkInPoints
-    if (awarded) { checkIns.add(key); m.balance += awarded; bump() }
+    if (awarded) { checkIns.add(key); m.balance += awarded; ledger.unshift({ id: uid(), memberId, amount: awarded, reason: 'check_in', ref: date, at: new Date().toISOString() }); bump() }
     return { date, points: settings.checkInPoints, awarded, balance: m.balance }
   },
   buyStickerPack: async (packId: string, memberId: string) => {
@@ -1465,6 +1517,7 @@ export const mock = {
     if (pack.unlocked) throw new Error('Already unlocked')
     if (m.balance < pack.price) throw new Error('Not enough points')
     m.balance -= pack.price
+    if (pack.price) ledger.unshift({ id: uid(), memberId, amount: -pack.price, reason: 'sticker_pack', ref: packId, at: new Date().toISOString() })
     unlockedPacks.set(memberId, new Set([...unlockedPacks.get(memberId) ?? [], packId]))
     bump()
     return { pack: { ...pack, unlocked: true }, balance: m.balance }
@@ -1997,7 +2050,7 @@ export const mockPlugins = {
     return chores.filter(c => c.active && c.pluginId === id && (c.memberId === member || !c.memberId)).map(c => {
       const needSeconds = (c.pluginMinutes ?? 5) * 60
       let completed = completions.has(`${c.id}:${date}`), justCompleted = false
-      if (!completed && total >= needSeconds) { completions.set(`${c.id}:${date}`, { completedAt: new Date().toISOString(), memberId: member }); bump(); completed = justCompleted = true }
+      if (!completed && total >= needSeconds) { completions.set(`${c.id}:${date}`, { completedAt: new Date().toISOString(), memberId: member, points: c.points }); credit(member, c.points, date); bump(); completed = justCompleted = true }
       return { choreId: c.id, title: c.title, emoji: c.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted }
     })
   },
