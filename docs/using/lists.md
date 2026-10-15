@@ -183,7 +183,7 @@ Each shopping list type has its own catalog: the **Grocery catalog** for Groceri
 
 Next to **+ Add**, **Shop** starts a trip and opens [shopping mode](#shopping-mode). It asks **Where are you shopping?** with this list type's stores and **Any store**; if there's only one store (or none yet), it starts right away there (or at any store). With a [default store](../settings/family.md#shopping) for the list type, it starts there right away; you can still switch stores during the trip. The default store is also first in the store pickers. The trip is kept on this device only (the wall and other phones aren't affected) and ends at **Done shopping**, or when you tap **End**.
 
-While a trip is on, the list shows the store with a cart and how many items are left ("Neighborhood market · 5 left") in place of **Shop**. Tap it to go back to shopping mode, or tap **End** next to it to stop shopping without taking anything off the list.
+While a trip is on, the list shows the store with a cart and how many items are left ("Neighborhood market · 5 left") in place of **Shop**. Tap it to go back to shopping mode, or tap **End** next to it to stop shopping without taking anything off the list (**Undo** in the message picks the trip back up, at the same store).
 
 During a trip:
 

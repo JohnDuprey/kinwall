@@ -1984,6 +1984,12 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const leftoversSheet = leftovers && tripAt && (
     <LeftoversSheet items={leftovers} trip={tripAt} stores={suggestions.stores} onDone={finishLeftovers} onCancel={() => { setLeftovers(null); announce('Still shopping') }} />
   )
+  // End: the trip stops at once, with Undo (the store and its reversed walk come back with it).
+  const endTrip = () => {
+    const was = trip
+    changeTrip(null)
+    toast('Shopping ended', false, { label: 'Undo', run: () => changeTrip(was) })
+  }
   const pickStore = (store: string) => {
     if (store !== trip) changeTrip(store)
     setPicking(false)
@@ -2118,7 +2124,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={`Shopping at ${storeLabel}, ${tripLeft} left. Resume shopping`}>
               <CartIcon width={18} height={18} /><span className="list-shop-label">{storeLabel}<span className="list-shop-sub"> · {tripLeft} left</span></span>
             </button>
-            <button className="btn btn-secondary list-end-btn" onClick={() => changeTrip(null)} aria-label={`End shopping at ${storeLabel}`}>End</button>
+            <button className="btn btn-secondary list-end-btn" onClick={endTrip} aria-label={`End shopping at ${storeLabel}`}>End</button>
           </> : (
             <button className="btn btn-secondary list-shop-btn" onClick={startShop} aria-haspopup={tripStores.length > 1 ? 'dialog' : undefined}>
               <CartIcon width={18} height={18} />Shop
