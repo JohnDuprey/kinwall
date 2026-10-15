@@ -17,7 +17,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { minutesSinceMidnight, todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
-import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
+import { byMealTime, SLOT_LABEL } from './meal-date.ts'
 import MealQuickSheet from './MealQuickSheet.tsx'
 import type { Meal } from './meal-types.ts'
 import { leadOf, leadText } from './leadTime.ts'
@@ -376,7 +376,7 @@ export function ItemRow({ i, today, close, after }: { i: SnapshotItem; today: st
   return (
     <li>
       <button className="snap-row" onClick={() => go(`#/lists?list=${encodeURIComponent(i.listId)}`, close)}>
-        <span className="snap-time snap-emoji" aria-hidden="true">{i.listEmoji || '📝'}</span>
+        <span className="snap-time snap-emoji" aria-hidden="true">{i.overdue ? '⚠️' : i.listEmoji || '📝'}{/* a ✅ list's emoji read as done */}</span>
         <span className="snap-main">
           <span className="snap-title">{i.priority !== 'normal' && <PriorityBadge p={i.priority} />}{i.title}</span>
           <span className={`snap-meta ${i.overdue ? 'snap-overdue' : ''}`}>{[dueText(i, today), i.listName, i.stepsTotal > 0 && `${i.stepsDone}/${i.stepsTotal} steps`].filter(Boolean).join(' · ')}</span>
@@ -397,7 +397,7 @@ export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: strin
 }
 
 function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void; books: TrackerEntry<ReadingData>[] }) {
-  const { features } = useApp().settings
+  const { features, mealTimes } = useApp().settings
   const [meal, setMeal] = useState<Meal | null>(null)
   const today = snap.from
   const t = snap.tomorrow
@@ -407,9 +407,9 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
     ...t.birthdays.map(b => `🎂 ${birthdayLine(b, snap.member.id)}`),
     t.events.length ? `🗓 ${t.events.slice(0, 3).map(e => `${e.allDay ? '' : `${formatTime(e.start, tz)} `}${e.title}`).join(', ')}${t.events.length > 3 ? ` +${t.events.length - 3} more` : ''}` : '🗓 Nothing on the calendar',
     t.items.length > 0 && `📝 Due: ${t.items.slice(0, 3).map(i => i.title).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3} more` : ''}`,
-    features.meals && t.meals.length > 0 && `🍽 ${t.meals.map(m => `${SLOT_LABEL[m.slot]}: ${m.title}`).join(', ')}`,
+    features.meals && t.meals.length > 0 && `🍽 ${byMealTime(t.meals, mealTimes).map(m => `${SLOT_LABEL[m.slot]}: ${m.title}`).join(', ')}`,
   ].filter(Boolean) as string[] : []
-  const meals = !features.meals ? [] : MEAL_SLOTS.flatMap(slot => snap.meals.filter(m => m.date === today && m.slot === slot))
+  const meals = !features.meals ? [] : byMealTime(snap.meals.filter(m => m.date === today), mealTimes) // by time: a 3:30 snack before a 6:00 dinner
   const openChores = snap.chores.filter(c => !c.done).length
   return (
     <>
