@@ -1114,6 +1114,10 @@ button.month-cell .month-daynum { flex: none; }
 /* Kids suggest chores (ChoreSuggest.tsx). */
 .suggest-stepper { display: flex; align-items: center; gap: 4px; font-weight: 800; }
 .suggest-stepper span { min-width: 88px; text-align: center; }
+.reward-split-stepper { flex: none; }
+.reward-split-stepper span { min-width: 48px; font-size: 1.125rem; }
+.reward-split-error { display: block; margin: 0; font-size: 0.8125rem; }
+.reward-split-status { margin: 0 0 8px; }
 .suggest-checks { display: flex; flex-direction: column; gap: 4px; }
 .field label.suggest-check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); text-transform: none; letter-spacing: normal; }
 .field .suggest-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent-strong); }

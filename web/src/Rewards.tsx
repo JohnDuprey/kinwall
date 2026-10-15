@@ -15,7 +15,8 @@ import { isSingleEmoji } from './emoji.ts'
 import { ApprovalQueue } from './Chores.tsx'
 import type { Member, PointEntry, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
 import { Face, ChipFace } from './Face'
-import { evenSplit, shareText } from './rewardSplit.ts'
+import { evenSplit, movePoints, shareText } from './rewardSplit.ts'
+import { MinusIcon, PlusIcon } from './icons.tsx'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const rewardLabel = (r: { emoji: string | null; title: string }) => (r.emoji ? `${r.emoji} ${r.title}` : r.title)
@@ -333,7 +334,7 @@ function PointsHistorySheet({ member, onClose }: { member: Member; onClose: () =
 function SplitSheet({ reward: r, member, onClose, onDone }: { reward: Reward; member: Member; onClose: () => void; onDone: (res: { redemption: Redemption; balance: number }) => void }) {
   const { members, parentDevice, toast } = useApp()
   const others = members.filter(m => m.id !== member.id && (!r.memberIds.length || r.memberIds.includes(m.id)))
-  const [ids, setIds] = useState(() => [member.id, ...others.filter(m => !m.grownUp && m.balance > 0).map(m => m.id)])
+  const [ids, setIds] = useState(() => [member.id]) // nobody else until they're picked: chipping in is theirs to agree to
   const people = ids.map(id => id === member.id ? member : members.find(m => m.id === id)!)
   const [points, setPoints] = useState(() => evenSplit(r.cost, people))
   const [busy, setBusy] = useState(false)
@@ -344,7 +345,9 @@ function SplitSheet({ reward: r, member, onClose, onDone }: { reward: Reward; me
   }
   const sum = ids.reduce((n, id) => n + (points[id] ?? 0), 0)
   const valid = ids.length > 1 && sum === r.cost && people.every(p => (points[p.id] ?? 0) >= 1 && points[p.id] <= p.balance)
-  const status = sum === r.cost ? `Adds up to ${plural(r.cost, 'point')}.` : sum < r.cost ? `${plural(r.cost - sum, 'more point')} to go.` : `${plural(sum - r.cost, 'point')} too many.`
+  const status = ids.length < 2 ? "Pick who's chipping in." : sum === r.cost ? `✓ Adds up to ${plural(r.cost, 'point')}.` : sum < r.cost ? `⚠️ ${plural(r.cost - sum, 'more point')} to go.` : `⚠️ ${plural(sum - r.cost, 'point')} too many.`
+  const step = r.cost >= 50 ? 5 : 1
+  const move = (id: string, delta: number) => setPoints(v => movePoints(v, people, id, delta, r.cost))
   const submit = async () => {
     setBusy(true)
     try {
@@ -375,14 +378,18 @@ function SplitSheet({ reward: r, member, onClose, onDone }: { reward: Reward; me
             <Face m={p} className="stickers-avatar" aria-hidden="true" />
             <span className="snap-main">
               <span className="snap-title">{p.name}</span>
-              <span className="snap-meta">{(points[p.id] ?? 0) > p.balance ? `Only has ${plural(p.balance, 'point')}` : `Has ${plural(p.balance, 'point')}`}</span>
+              <span className={(points[p.id] ?? 0) > p.balance ? 'field-error reward-split-error' : 'snap-meta'}>{(points[p.id] ?? 0) > p.balance ? `⚠️ Only has ${plural(p.balance, 'point')}` : `Has ${plural(p.balance, 'point')}`}</span>
             </span>
-            <input className="reward-split-points" aria-label={`${p.name}'s points`} type="text" inputMode="numeric" value={points[p.id] ?? 0}
-              onChange={e => setPoints(v => ({ ...v, [p.id]: Number(e.target.value.replace(/\D/g, '')) || 0 }))} />
+            {/* −/+ move points between people: the others' shares follow, so it keeps adding up. */}
+            <div className="suggest-stepper reward-split-stepper" role="group" aria-label={`${p.name}'s points`}>
+              <button type="button" className="icon-btn" aria-label={`${step} fewer from ${p.name}`} disabled={(points[p.id] ?? 0) <= 1} onClick={() => move(p.id, -step)}><MinusIcon width={20} height={20} /></button>
+              <span aria-live="polite">{points[p.id] ?? 0}</span>
+              <button type="button" className="icon-btn" aria-label={`${step} more from ${p.name}`} disabled={(points[p.id] ?? 0) >= p.balance} onClick={() => move(p.id, step)}><PlusIcon width={20} height={20} /></button>
+            </div>
           </li>
         ))}
       </ul>
-      <p className="field-hint" aria-live="polite">{status}</p>
+      <p className={sum !== r.cost && ids.length > 1 ? 'field-error reward-split-status' : 'field-hint'} aria-live="polite">{status}</p>
       <p className="field-hint">{parentDevice
         ? "Everyone's points come off now."
         : `A grown-up will OK it first. ${member.name}'s points come off now, everyone else's when a grown-up says yes.`}</p>
