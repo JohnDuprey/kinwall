@@ -22,6 +22,7 @@ A new instance is *unclaimed*. The first browser to open it gets the setup wizar
    * 🩺 **Doctor visits and health**: the Health tracker
    * 📚 **Reading log and library**: the Reading tracker
    * 🎨 **Painting and coloring**: Paint
+   * 🎟️ **Outings and places to go**: Outings
    * 🗳️ **Family polls**: Family polls
    * 📸 **Photos and memories**: Photos and the Memories tracker
    * 📰 **Family news and messages**: Newscast, Family messages and Notes

@@ -84,7 +84,7 @@ A row for each of the next 7 days with its weather emoji and high/low, then that
 * A chore ticks off right there (tap again to undo). An **Anyone** chore done from someone's day counts for them, and once it's done it says who got the points ("Done by Sam"). If the chore has a checklist with open items, the checklist opens first. See [Chores](chores.md#checklists).
 * **Profile** (next to their name) opens their [profile](profiles.md).
 * **Show only Maya** (at the top, under the greeting) filters Kinwall to that person: the calendar, chores, lists and the rest. Once it's on, the button says **Show everyone**. Their avatar keeps its ring while the filter is on. Not shown on a display pinned to one member.
-* On a phone, the family sheet does this directly: tap a person to show only them, and tap them again to show the whole family.
+* On a phone, the family sheet has both: tap a person's row to open their day, or the circle beside them to show only them (tap it again to show the whole family).
 * An idle wall closes the snapshot with everything else.
 
 ## Assigning items to someone
