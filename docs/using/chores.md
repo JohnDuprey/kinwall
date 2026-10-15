@@ -205,7 +205,7 @@ Points are also a currency. A member's **balance** is every point they've ever e
 
 * The leaderboard and the member's today/week points always count what was **earned**. Spending never lowers a rank.
 * Each leaderboard pill also shows the balance, such as "22 to spend", and so does each person's column ("⭐ 22 to spend"). Tap the column's balance, or **🎁 Rewards** next to the date, to open [Rewards](rewards.md) for that person.
-* Spending is recorded in a points ledger. `GET /api/members/{id}/points` returns `{ balance, earnedTotal, spentTotal, entries }`, with the last 50 ledger entries. The member list (`GET /api/members`) includes `balance` too.
+* Spending is recorded in a points ledger. **Points history** on [Rewards](rewards.md#whats-on-the-screen), under the balance, shows it. `GET /api/members/{id}/points` returns `{ balance, earnedTotal, spentTotal, entries }`, with the last 50 ledger entries. The member list (`GET /api/members`) includes `balance` too.
 * Unticking a completed chore takes its points back out of the balance (deleting a chore doesn't: its history stays). A balance can end up below zero that way. New purchases then wait until it's back up.
 * **Settings → Family → Chores** has **Rewards** (on/off), **Sticker shop** (on/off) and **Sticker prices** (Free, 50%, 100% or 150%).
 * `rewardsEnabled` (default on): turn it off and kids spend points only in the sticker shop. Apps hide [Rewards](rewards.md), reward goals and the balance links to them. Rewards and past requests are kept.

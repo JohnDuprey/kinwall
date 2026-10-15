@@ -2563,6 +2563,9 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-points { color: var(--accent-text); white-space: nowrap; }
 .rewards-how { margin: 4px 0 0; color: var(--text-dim); font-weight: 600; }
 .rewards-how a { color: var(--accent-text); font-weight: 800; }
+.rewards-ledger-btn { padding-left: 0; }
+.points-amount { flex: none; font-weight: 800; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.points-amount.plus { color: var(--text); }
 .rewards-goal { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
 .rewards-goal-title { font-weight: 800; }
 .rewards-goal-left { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }

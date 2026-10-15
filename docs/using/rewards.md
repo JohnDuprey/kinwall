@@ -17,6 +17,7 @@ Pick whose rewards from the avatar chips. A device that belongs to one person (i
 ## What's on the screen
 
 * **Maya has 42 points**, with a reminder of how it works: earn points by doing chores, spend them on rewards and sticker packs.
+* **Points history** under it lists where the points came from and went: chores (all time), bonus points, check-ins, rewards (and points back), and sticker packs, newest first, with the totals earned and spent. On someone else's own device it shows the totals only.
 * **Saving for** their goal, with a progress bar and how many more points it needs (see [Saving for a goal](#saving-for-a-goal)).
 * **Waiting for a grown-up**: requests a parent hasn't said yes or no to yet, and approved ones not handed over yet. (On a parent's device these are in **Reward requests** instead.)
 * **Ready now**: rewards they have enough points for. **Keep saving**: the rest, each with a progress bar and "8 more points". **All used up for now**: ones whose limit is used up.

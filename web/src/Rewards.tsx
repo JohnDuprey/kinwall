@@ -13,7 +13,7 @@ import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { ApprovalQueue } from './Chores.tsx'
-import type { Member, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
+import type { Member, PointEntry, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
 import { Face, ChipFace } from './Face'
 import { evenSplit, shareText } from './rewardSplit.ts'
 
@@ -68,6 +68,7 @@ function RewardsPanel({ member }: { member: Member }) {
   const [managing, setManaging] = useState(false)
   const [adding, setAdding] = useState(false)
   const [splitting, setSplitting] = useState<Reward | null>(null)
+  const [ledger, setLedger] = useState(false)
   useEffect(() => { setBalance(member.balance) }, [member.balance])
 
   const load = () => {
@@ -185,6 +186,7 @@ function RewardsPanel({ member }: { member: Member }) {
         <div className="rewards-hero-text">
           <p className="rewards-balance"><strong>{member.name}</strong> has <strong className="rewards-points">{plural(balance, 'point')}</strong></p>
           <p className="rewards-how">Earn points by doing <a href="#/chores">chores</a>. Spend them on rewards{settings.stickersEnabled ? ' and sticker packs' : ''}.</p>
+          <button type="button" className="link-btn rewards-ledger-btn" aria-haspopup="dialog" onClick={() => setLedger(true)}>Points history</button>
         </div>
         {goal && (
           <div className="rewards-goal">
@@ -247,6 +249,7 @@ function RewardsPanel({ member }: { member: Member }) {
       {managing && <RewardsManageSheet onClose={() => { setManaging(false); load(); reloadCore() }} />}
       {splitting && <SplitSheet reward={splitting} member={{ ...member, balance }} onClose={() => setSplitting(null)}
         onDone={res => { setSplitting(null); setBalance(res.balance); load(); reloadCore() }} />}
+      {ledger && <PointsHistorySheet member={member} onClose={() => setLedger(false)} />}
       {adding && <RewardEditSheet reward={null} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load() }} />}
     </div>
   )
@@ -269,6 +272,58 @@ function HistoryRow({ h, onCancel }: { h: Redemption; onCancel?: () => void }) {
       <span className={`reward-status ${h.status}`}>{STATUS_TEXT[h.status]}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
       {onCancel && <button className="btn btn-secondary reward-cancel" onClick={onCancel} aria-label={`Cancel the request for ${h.title}`}>Cancel request</button>}
     </li>
+  )
+}
+
+const STICKER_NAME = (id: string) => id[0].toUpperCase() + id.slice(1)
+
+/** Where a member's points came from and went: the ledger (bonus points, check-ins, rewards, refunds,
+ * sticker packs; the server's last 50) with chore points as one all-time line, since chores aren't
+ * ledger entries. A sibling's own device gets the totals only (the server leaves the entries out). */
+function PointsHistorySheet({ member, onClose }: { member: Member; onClose: () => void }) {
+  const { toast } = useApp()
+  const [data, setData] = useState<{ balance: number; earnedTotal: number; spentTotal: number; entries: PointEntry[] } | null>(null)
+  const [titles, setTitles] = useState<Map<string, Redemption>>(new Map())
+  useEffect(() => {
+    api.getMemberPoints(member.id).then(setData).catch(() => toast("Couldn't load the points history.", true))
+    api.getRedemptions({ memberId: member.id }).then(rs => setTitles(new Map(rs.map(r => [r.id, r])))).catch(() => { /* rows just say "A reward" */ })
+  }, [member.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const what = (e: PointEntry) => {
+    const r = e.ref ? titles.get(e.ref) : undefined
+    const reward = r ? rewardLabel(r) : '🎁 A reward'
+    switch (e.reason) {
+      case 'bonus': return `⭐ Bonus points${e.note ? `: ${e.note}` : ''}`
+      case 'check_in': return '☀️ Daily check-in'
+      case 'reward': return r?.shares ? `${reward} (split)` : reward
+      case 'reward_refund': return `↩️ Points back: ${r?.title ?? 'a reward'}`
+      case 'sticker_pack': return `🛍️ Sticker pack${e.ref ? `: ${STICKER_NAME(e.ref)}` : ''}`
+      default: return e.reason
+    }
+  }
+  // Chore points: everything earned that isn't a ledger entry. Only known while all the entries are here.
+  const chores = data && data.entries.length < 50 ? data.earnedTotal - data.entries.reduce((n, e) => n + (e.amount > 0 && e.reason !== 'reward_refund' ? e.amount : 0), 0) : null
+  const signed = (n: number) => (n > 0 ? `+${n}` : `−${-n}`)
+  return (
+    <Sheet title={`${member.name}'s points`} onClose={onClose}>
+      {!data ? <p className="snap-empty">Loading…</p> : <>
+        <p className="settings-row-sub lib-intro">{plural(data.balance, 'point')} to spend · {data.earnedTotal} earned · {data.spentTotal} spent, in all</p>
+        <ul className="snap-list">
+          {chores !== null && chores > 0 && (
+            <li className="reward-history-row">
+              <span className="snap-main"><span className="snap-title">✅ Chores</span><span className="snap-meta">All time</span></span>
+              <span className="points-amount plus">{signed(chores)}</span>
+            </li>
+          )}
+          {data.entries.map(e => (
+            <li key={e.id} className="reward-history-row">
+              <span className="snap-main"><span className="snap-title">{what(e)}</span><span className="snap-meta">{format(new Date(e.at), 'EEE, MMM d')}</span></span>
+              <span className={`points-amount ${e.amount > 0 ? 'plus' : ''}`}>{signed(e.amount)}</span>
+            </li>
+          ))}
+        </ul>
+        {!data.entries.length && <p className="snap-empty">No bonus points, check-ins or spending yet.</p>}
+      </>}
+    </Sheet>
   )
 }
 
