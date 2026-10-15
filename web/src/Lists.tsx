@@ -1099,7 +1099,7 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onChanged: () => void
 }) {
   const dialog = useDialog()
-  const { toast } = useApp()
+  const { toast, reloadCore } = useApp()
   type Field = 'store' | 'category' | 'aisle'
   const [editing, setEditing] = useState<{ field: Field; from: string } | null>(null)
   const [draft, setDraft] = useState('')
@@ -1138,6 +1138,18 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
     <button className="icon-btn" onClick={() => nudgeAisle(i, -1)} disabled={i === 0} aria-label={`Move ${a} up`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
     <button className="icon-btn" onClick={() => nudgeAisle(i, 1)} disabled={i === aisles.length - 1} aria-label={`Move ${a} down`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
   </>
+  // The default store for this list type (the same setting as Settings → Family → Shopping): Shop starts there.
+  const defaultKey = catalog === 'groceries' ? 'defaultGroceryStore' : 'defaultShoppingStore'
+  const [defaultStore, setDefaultStore] = useState(suggestions.defaultStore ?? null)
+  const makeDefault = async (st: string) => {
+    const to = defaultStore === st ? null : st
+    try { await api.updateSettings({ [defaultKey]: to }); setDefaultStore(to); announce(to ? `${to} is the default store` : 'No default store'); reloadCore(); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the default store', true) }
+  }
+  const star = (st: string) => (
+    <button className="icon-btn manage-star" onClick={() => makeDefault(st)} aria-pressed={defaultStore === st} aria-label={`Default store: ${st}`}
+      title={defaultStore === st ? 'Default store' : 'Make it the default store'}><span aria-hidden="true">{defaultStore === st ? '★' : '☆'}</span></button>
+  )
   const addAisle = () => {
     const name = newAisle.trim()
     if (!name || aisles.includes(name)) return
@@ -1165,7 +1177,8 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
     <Sheet title="Stores & departments" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <p className="field-hint">{catalog === 'groceries' ? 'For grocery lists.' : 'For shopping lists other than groceries.'} Renaming changes every item that uses the name on those lists. Removing clears it from those items.</p>
       <h3 className="manage-head">Stores</h3>
-      {suggestions.stores.length ? suggestions.stores.map(v => row('store', v)) : <p className="list-item-meta">No stores yet. Pick one on an item.</p>}
+      {suggestions.stores.length > 0 && <p className="field-hint">★ marks the default store: Shop starts there without asking where you are. Tap a star to change it.</p>}
+      {suggestions.stores.length ? suggestions.stores.map(v => row('store', v, star(v))) : <p className="list-item-meta">No stores yet. Pick one on an item.</p>}
       <h3 className="manage-head">Departments</h3>
       <p className="field-hint">An item with no aisle at a store goes in the aisle named like its department, if the store has one.</p>
       {suggestions.categories.length ? suggestions.categories.map(v => row('category', v)) : <p className="list-item-meta">No departments yet.</p>}

@@ -1691,6 +1691,8 @@ button.month-cell .month-daynum { flex: none; }
 .manage-row input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
 .manage-row .btn { flex: none; width: auto; min-height: 44px; }
 .manage-row .icon-btn { background: none; box-shadow: none; width: 44px; height: 44px; flex-shrink: 0; }
+.manage-star { font-size: 1.375rem; color: var(--text-dim); }
+.manage-star[aria-pressed="true"] { color: var(--accent-strong); }
 .list-actions .list-catalog-btn { padding: 8px 14px; }
 .list-actions .list-add-btn { gap: 6px; padding-inline: 16px; }
 .list-actions .list-scan-btn { width: 44px; height: 44px; flex: none; }
