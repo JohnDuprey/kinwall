@@ -397,6 +397,26 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
         }))} />
     </div>
   )
+  const assignField = (
+    <div className="field">
+      <label>Assign to</label>
+      <div className="chip-row">
+        <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>Nobody</button>
+        {members.map(m => (
+          <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
+        ))}
+      </div>
+    </div>
+  )
+  const dueField = showDue && (
+    <div className="field">
+      <label htmlFor="item-due">Due date</label>
+      <div className="due-field">
+        <input id="item-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+        {dueDate && <button type="button" className="btn btn-secondary" onClick={() => { setDueDate(''); announce('Due date cleared') }} aria-label="Clear due date">Clear</button>}
+      </div>
+    </div>
+  )
   const eventAndNotes = (
     <>
       <div className="field">
@@ -437,11 +457,29 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
         <ItemByLines item={live} members={members} />
       </div>
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
+      {kind !== 'shopping' && assignField /* a to-do's: who and when come first */}
+      {kind !== 'shopping' && dueField}
       {showFor && <MemberPicker members={members} selected={forIds} onChange={setForIds} label="For" noneLabel="Everyone" />}
       {kind === 'shopping' && <SaleField id="item-sale" on={onSale} onChange={setOnSale} />}
       {kind !== 'shopping' && priorityField}
       <StepsEditor listId={listId} item={live} onChange={setLive} />
-      {kind !== 'shopping' && quantityAndPlace}
+      {kind === 'shopping' && dueField}
+      {kind === 'shopping' ? (
+        // Groceries: where it goes stays up front; the rest folds away, with what's set in the summary.
+        <details className="settings-disclosure item-more">
+          <summary>{['More', category.trim(), priority !== 'normal' && `${PRIORITY_LABEL[priority]} priority`, eventId && 'Event', notes.trim() && 'Notes'].filter(Boolean).join(' · ')}</summary>
+          <ValuePicker id="item-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
+          {priorityField}
+          {eventAndNotes}
+        </details>
+      ) : <>
+        {eventAndNotes}
+        {/* Quantity is rarely a to-do thing: folded away, its value in the summary. */}
+        <details className="settings-disclosure item-more">
+          <summary>{['More', quantity.trim()].filter(Boolean).join(' · ')}</summary>
+          {quantityAndPlace}
+        </details>
+      </>}
       {moveTargets.length > 0 && (
         <div className="field">
           <button className="btn btn-secondary btn-block" onClick={() => setMoving(true)} aria-haspopup="dialog">Move to another list…</button>
@@ -455,35 +493,6 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           </div>
         </Sheet>
       )}
-      {kind !== 'shopping' && (
-          <div className="field">
-            <label>Assign to</label>
-            <div className="chip-row">
-              <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>Nobody</button>
-              {members.map(m => (
-                <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
-              ))}
-            </div>
-          </div>
-      )}
-      {showDue && (
-          <div className="field">
-            <label htmlFor="item-due">Due date</label>
-            <div className="due-field">
-              <input id="item-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-              {dueDate && <button type="button" className="btn btn-secondary" onClick={() => { setDueDate(''); announce('Due date cleared') }} aria-label="Clear due date">Clear</button>}
-            </div>
-          </div>
-      )}
-      {kind === 'shopping' ? (
-        // Groceries: where it goes stays up front; the rest folds away, with what's set in the summary.
-        <details className="settings-disclosure item-more">
-          <summary>{['More', category.trim(), priority !== 'normal' && `${PRIORITY_LABEL[priority]} priority`, eventId && 'Event', notes.trim() && 'Notes'].filter(Boolean).join(' · ')}</summary>
-          <ValuePicker id="item-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
-          {priorityField}
-          {eventAndNotes}
-        </details>
-      ) : eventAndNotes}
       </fieldset>
       {settings.features.notes && <NotesThread target={`list_item:${item.id}`} title="Discussion" />}
       {manual && !readOnly && (
