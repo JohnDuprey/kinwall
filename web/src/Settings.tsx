@@ -1694,7 +1694,9 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
       </div>}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <NightRows value={look} onChange={saveLook} label="What they show" />
-        <div className="settings-row-sub">{on && rest ? 'At night, and whenever' : 'Whenever'} the Night screen is started from the moon button or Home Assistant. A screen can pick its own under Night screen on this device.</div>
+        <div className="settings-row-sub">{on && rest
+          ? 'Wall screens show this at night, and whenever the Night screen is started from the moon button or Home Assistant.'
+          : 'Wall screens show this whenever the Night screen is started from the moon button or Home Assistant.'} A screen can pick its own under Night screen on this device.</div>
         <GooglePhotosRows />
       </div>
       {on && rest && <QuietPinRow settings={settings} onSaved={onSaved} toast={toast} />}
