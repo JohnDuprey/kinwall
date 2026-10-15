@@ -118,7 +118,7 @@ export function TypefaceRow({ options, value, family, onPick }: {
   const valueId = useId()
   const labelOf = (k: Typeface | undefined) => (options.find(o => o.key === k) ?? options[0]).label
   const shown = value ?? family ?? 'default'
-  const rowValue = value || !family ? labelOf(value) : `🏠 Household (${labelOf(family).split(' (')[0]})`
+  const rowValue = value || !family ? labelOf(value) : `🏠 The family's (${labelOf(family).split(' (')[0]})`
   const card = (key: Typeface | undefined, font: Typeface, name: string, desc: string) => (
     <button key={key ?? 'family'} type="button" className="scheme-card" aria-pressed={key === value} onClick={() => onPick(key)}>
       {key === value && <span className="scheme-card-check" aria-hidden="true">✓</span>}

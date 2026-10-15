@@ -30,11 +30,11 @@ Changes save as you make them, and other devices pick them up within about 30 se
 
 ## Per-device overrides
 
-Under **Appearance on this device** (tap **Change**):
+Under **Appearance on this device** (tap **Change**). It's the one card for this device's look; the family's **Appearance** card only notes that this device changes some of it.
 
-* **Mode**, **Text size** and **Density** are menus. The first option is **Family (*current value*)**, which follows the family setting. On a parent's phone, Density's first option is **Phone default (Compact)** instead.
+* **Mode**, **Text size** and **Density** are menus. The first option is **🏠 Use the family's (*current value*)**, which follows the family setting. On a parent's phone, Density's first option is **Phone default (Compact)** instead.
 * **Color scheme** opens the same sheet as the household setting, with **Use the family's scheme** first, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
-* **Typeface** opens the same sheet as the household setting, with **Use the family's typeface** first, which follows the family setting. While it does, the row reads **🏠 Household (*typeface*)**. See [Typeface](#typeface).
+* **Typeface** opens the same sheet as the household setting, with **Use the family's typeface** first, which follows the family setting. While it does, the row reads **🏠 The family's (*typeface*)**; the color scheme row does the same. See [Typeface](#typeface).
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.
 
 **Reset this device's appearance**, at the bottom of the Color scheme sheet, puts mode, color scheme, text size, density, typeface and low-stimulation mode back to the family's settings on this device. It asks first.

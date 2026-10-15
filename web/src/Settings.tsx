@@ -437,11 +437,12 @@ function SummaryChips({ chips }: { chips: Chip[] }) {
     <ul className="chip-row summary-chips">
       {chips.map(c => (
         <li key={c.label} className={`chip chip-static${c.family ? ' chip-family' : ''}`}>
-          {c.family && <span aria-label="Household:" role="img">🏠</span>}
+          {c.family && <span aria-label="Using the family's" role="img">🏠</span>}
           {c.icon && <span aria-hidden="true">{c.icon}</span>}
           {c.label}
         </li>
       ))}
+      {chips.some(c => c.family) && <li className="summary-legend" aria-hidden="true">🏠 Using the family's</li>}
     </ul>
   )
 }
@@ -609,9 +610,8 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
   return (
     <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
-        For the whole family.{overridden.length > 0 && <> This device uses its own, under Appearance on this device:</>}
+        For the whole family.{overridden.length > 0 && <> This device changes some of it for itself, under Appearance on this device.</>}
       </p>
-      {overridden.length > 0 && <div className="summary-chips-block"><SummaryChips chips={overridden} /></div>}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
           <span>Mode</span>
@@ -1148,10 +1148,10 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const current = scheme ?? householdScheme ?? DEFAULT_SKIN_ID
   const [lightT, darkT] = [tokensFor(skinOf(current), false), tokensFor(skinOf(current), true)]
   const emojiOf = (id: ColorScheme) => id === 'seasonal' ? '🗓️' : skinOf(id).emoji
-  const rowValue = scheme || !householdScheme ? `${emojiOf(current)} ${nameOf(current)}` : `🏠 Household (${nameOf(householdScheme)})`
+  const rowValue = scheme || !householdScheme ? `${emojiOf(current)} ${nameOf(current)}` : `🏠 The family's (${nameOf(householdScheme)})`
   const pick = (id: ColorScheme | undefined) => {
     onScheme(id)
-    announce(`${id ? nameOf(id) : 'Household'} color scheme`)
+    announce(id ? `${nameOf(id)} color scheme` : "The family's color scheme")
   }
   const activeCustom = customs.find(c => c.id === skin.id)
   const startFrom = (base: typeof skin, name: string): CustomScheme =>
@@ -1350,7 +1350,7 @@ function DeviceAppearanceRows() {
   ]
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-      <div className="settings-row-sub">Leave a setting on Household to follow the family's. Pick anything else to change it on this device only.</div>
+      <div className="settings-row-sub">Leave a setting on 🏠 the family's to follow it. Pick anything else to change it on this device only.</div>
 
       {rows.slice(0, 1).map(r => {
         const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
@@ -1358,7 +1358,7 @@ function DeviceAppearanceRows() {
           <div key={r.key} className="device-pref-row">
             <span>{r.label}</span>
             <select className="settings-select" aria-label={`${r.label} on this device`} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">Household ({household})</option>
+              <option value="">🏠 Use the family's ({household})</option>
               {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </div>
@@ -1382,13 +1382,13 @@ function DeviceAppearanceRows() {
           <div key={r.key} className="device-pref-row">
             <span>{r.label}</span>
             <select className="settings-select" aria-label={`${r.label} on this device`} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">{phoneDensity ? 'Phone default (Compact)' : `Family (${household})`}</option>
+              <option value="">{phoneDensity ? 'Phone default (Compact)' : `🏠 Use the family's (${household})`}</option>
               {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </div>
         )
       })}
-      <TypefaceRow options={FONTS} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? `${fontName(key)} typeface` : 'Household typeface') }} />
+      <TypefaceRow options={FONTS} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? `${fontName(key)} typeface` : "The family's typeface") }} />
       <div className="device-pref-row">
         <span>Time format</span>
         <select className="settings-select" aria-label="Time format on this device" value={device.timeFormat ?? ''} onChange={e => set({ timeFormat: deviceTimeFormat(e.target.value) })}>
