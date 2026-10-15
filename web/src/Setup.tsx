@@ -3,9 +3,9 @@ import { HelpButton } from './Help.tsx'
 import { api, ApiError, setKey } from './api.ts'
 import { clearOffline } from './outbox.ts'
 import { QrCode } from './App.tsx'
-import { CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.tsx'
+import { CaldavHint, CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.tsx'
 import TimezoneField from './TimezoneField.tsx'
-import { announce } from './a11y.tsx'
+import { announce, reducedMotion } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import type { Features, Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
@@ -85,15 +85,15 @@ function Progress({ step, features }: { step: Step; features: Features | null })
   )
 }
 
-function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, sticky }: {
-  onBack?: () => void; onNext?: () => void; nextLabel?: string; nextDisabled?: boolean; onSkip?: () => void
+function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, skipLabel = 'Skip', sticky }: {
+  onBack?: () => void; onNext?: () => void; nextLabel?: string; nextDisabled?: boolean; onSkip?: () => void; skipLabel?: string
   sticky?: boolean // stays at the bottom of the card while a long step scrolls
 }) {
   return (
     <div className={`setup-nav ${sticky ? 'setup-nav-sticky' : ''}`}>
       <div>{onBack && <button className="btn btn-secondary setup-btn" onClick={onBack}>Back</button>}</div>
       <div className="setup-nav-right">
-        {onSkip && <button className="link-btn" onClick={onSkip}>Skip</button>}
+        {onSkip && <button className="link-btn" onClick={onSkip}>{skipLabel}</button>}
         {onNext && <button className="btn btn-primary setup-btn" onClick={onNext} disabled={nextDisabled}>{nextLabel}</button>}
       </div>
     </div>
@@ -142,7 +142,7 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
     <div className="setup-step">
       <h1>Welcome to Kinwall 👋</h1>
       <p className="setup-sub">
-        {useKey ? 'Enter the ADMIN_API_KEY you set on the server.' : linked ? "Let's get your family wall set up. Your setup link filled in the code, so tap Continue to begin." : "Let's get your family wall set up. Enter the setup code from your server log to begin."}
+        {useKey ? 'Enter the ADMIN_API_KEY you set on the server.' : linked ? "Let's get your family wall set up. Your setup link filled in the code, so tap Continue to begin." : "Let's get your family wall set up. Enter the 6-digit setup code. Ask whoever set up your Kinwall server for it, or tap Where do I find this?"}
       </p>
       <label className="setup-input-label" htmlFor="setup-code">{useKey ? 'Admin API key' : 'Setup code'}</label>
       {useKey ? (
@@ -164,15 +164,16 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
           placeholder="000 000"
         />
       )}
-      <button className="link-btn setup-hint-toggle" onClick={switchMode}>
-        {useKey ? 'Use a 6-digit setup code instead' : 'Use your ADMIN_API_KEY instead'}
-      </button>
-      {!useKey && !linked && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)} aria-expanded={hint}>Where do I find this?</button>}
+      {useKey
+        ? <button className="link-btn setup-hint-toggle" onClick={switchMode}>Use a 6-digit setup code instead</button>
+        : !linked && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)} aria-expanded={hint}>Where do I find this?</button>}
       {hint && !useKey && (
         <div className="setup-hint-box">
+          <p>The server prints it in its log when it starts:</p>
           <p><strong>Docker:</strong> <code>docker logs kinwall</code></p>
           <p><strong>Home Assistant:</strong> Settings → Apps → Kinwall → Log (Add-ons in older versions)</p>
-          <p><strong>Cloudflare Workers:</strong> the Worker's logs, or use your <code>ADMIN_API_KEY</code> secret instead</p>
+          <p><strong>Cloudflare Workers:</strong> the Worker's logs</p>
+          <p>Set up the server yourself? <button className="link-btn" onClick={switchMode}>Use your ADMIN_API_KEY instead</button></p>
         </div>
       )}
       {error && <p className="setup-error" role="alert">{error}</p>}
@@ -248,13 +249,13 @@ function RecoveryStep({ required, onNext }: { required?: boolean; onNext: () => 
       {codes ? <RecoveryCodesView codes={codes} /> : !error && <p className="setup-sub">Creating…</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
       {codes && (
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0', minHeight: 44 }}>
+        <label className="setup-check-row">
           <input type="checkbox" checked={saved} onChange={e => setSaved(e.target.checked)} />
           I've saved these somewhere safe
         </label>
       )}
       <StepNav onNext={onNext} nextDisabled={!saved} />
-      {(!required || error) && <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>Skip for now</button>}
+      {(!required || error) && <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>I'll do this later (not recommended)</button>}
     </div>
   )
 }
@@ -305,6 +306,7 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
   const [avatar, setAvatar] = useState(MEMBER_EMOJI[0])
   const [grownUp, setGrownUp] = useState(defaultGrownUp(0))
   const [error, setError] = useState('')
+  const [custom, setCustom] = useState(false) // color and avatar: picked for them unless opened
   const nameRef = useRef<HTMLInputElement>(null)
   // Ready for the next person: their color, avatar and grown-up/kid default.
   const resetFor = (list: Member[]) => {
@@ -383,6 +385,11 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
           <button className={`setup-choice ${grownUp ? '' : 'active'}`} aria-pressed={!grownUp} onClick={() => setGrownUp(false)}>🧒 Kid</button>
         </div>
       </div>
+      <button type="button" className="setup-customize" aria-expanded={custom} onClick={() => setCustom(c => !c)}>
+        <span className="member-avatar-sm" aria-hidden="true" style={{ background: color, color: inkFor(color) }}>{avatar}</span>
+        {custom ? 'Hide color and avatar' : 'Change color and avatar'}
+      </button>
+      {custom && <>
       <div className="field">
         <label id="setup-color-label">Color</label>
         <div className="color-swatch-row" role="group" aria-labelledby="setup-color-label">
@@ -396,9 +403,10 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
         </div>
         <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
       </div>
+      </>}
       <button className="add-row-btn setup-add-btn" onClick={add} disabled={!name.trim() || !isValidAvatar(avatar)}><PlusIcon width={20} height={20} />{members.length ? 'Add another' : 'Add'}</button>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav sticky onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} />
+      <StepNav sticky onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} nextLabel={name.trim() ? 'Add and continue' : 'Next'} />
     </div>
   )
 }
@@ -501,7 +509,8 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
         <div className="field"><label htmlFor="setup-caldav-name">Account name</label><input id="setup-caldav-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. iCloud" autoFocus /></div>
         <div className="field"><label htmlFor="setup-caldav-url">Server URL</label><input id="setup-caldav-url" type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
         <div className="field"><label htmlFor="setup-caldav-user">Username</label><input id="setup-caldav-user" type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
-        <div className="field"><label htmlFor="setup-caldav-pass">App password</label><input id="setup-caldav-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+        <div className="field"><label htmlFor="setup-caldav-pass">App password</label><input id="setup-caldav-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} aria-describedby="caldav-hint" /></div>
+        <CaldavHint />
         {error && <p className="setup-error" role="alert">{error}</p>}
         <button className="btn btn-primary setup-btn" onClick={connect} disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
       </div>
@@ -535,6 +544,9 @@ function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
   const next = async () => { if (!pending || await pending.commit()) onNext() }
   const loadProviders = () => { api.getProviders().then(setProviders).catch(() => {}) }
   useEffect(loadProviders, [])
+  // The form opens under the four big buttons, below the fold on a phone: bring it into view.
+  const formRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (open) formRef.current?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' }) }, [open])
 
   return (
     <div className="setup-step">
@@ -547,6 +559,7 @@ function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
         <button className="setup-provider-card" onClick={() => setOpen(open === 'ics' ? null : 'ics')} aria-expanded={open === 'ics'}>🔗 Subscribe to a link</button>
       </div>
 
+      <div ref={formRef} className="setup-form-anchor">
       {providerMsg && <p className="setup-note">{providerMsg}</p>}
 
       {open === 'google' && (oauth.google ? (
@@ -559,6 +572,7 @@ function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
 
       {open === 'icloud' && <CaldavForm onPending={setPending} />}
       {open === 'ics' && <IcsForm members={members} onDone={() => setOpen(null)} />}
+      </div>
 
       <StepNav onBack={onBack} onNext={next} onSkip={pending ? undefined : onNext}
         nextLabel={pending?.label} nextDisabled={pending?.busy} />
@@ -681,11 +695,11 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
           {FEATURE_CARDS.map(c => {
             const on = cardOn(features, c)
             return (
-              <div key={c.id} className={`setup-chore-card ${on ? 'active' : ''}`}>
+              <div key={c.id} className={`setup-chore-card setup-feature-card ${on ? 'active' : ''}`}>
                 <button className="setup-chore-tap" onClick={() => setFeatures(f => f && toggleCard(f, c))} aria-pressed={on}>
                   <span className="setup-chore-emoji" aria-hidden="true">{c.emoji}</span>
                   <span className="setup-feature-text"><span>{c.title}</span><span className="setup-feature-sub">{c.sub}</span></span>
-                  {on && <CheckIcon width={16} height={16} />}
+                  <span className="setup-check" aria-hidden="true">{on && <CheckIcon width={16} height={16} />}</span>
                 </button>
               </div>
             )
@@ -705,12 +719,12 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
       </>}
       <p className="setup-note">You can change any of these later in Settings → General → Features.</p>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav sticky onBack={onBack} onSkip={() => onNext()} onNext={save} nextDisabled={busy || !features} nextLabel={busy ? 'Saving…' : 'Next'} />
+      <StepNav sticky onBack={onBack} onSkip={() => onNext()} skipLabel="Keep all on" onNext={save} nextDisabled={busy || !features} nextLabel={busy ? 'Saving…' : 'Next'} />
     </div>
   )
 }
 
-function DoneStep({ onGoToCalendar }: { onGoToCalendar: () => void }) {
+function DoneStep({ onGoToCalendar, onPair }: { onGoToCalendar: () => void; onPair: () => void }) {
   return (
     <div className="setup-step">
       <h1>All set! 🎉</h1>
@@ -718,9 +732,10 @@ function DoneStep({ onGoToCalendar }: { onGoToCalendar: () => void }) {
       <ol className="setup-steps-list">
         <li>Open <strong>{location.origin}{location.pathname}</strong> in the browser on the wall tablet or screen</li>
         <li>Add it to the home screen (on an iPad: Share → <strong>Add to Home Screen</strong>)</li>
-        <li>Open it from the home screen — it'll show a pairing code / QR</li>
-        <li>Scan that code with this phone, or enter it in Settings → Access → Add a wall screen or kid's device</li>
+        <li>Open it from the home screen and tap <strong>Set up a wall screen or kid's device</strong>. It shows a pairing code and a QR code.</li>
+        <li>Scan that QR code with this phone, or tap <strong>Pair a wall screen now</strong> below and enter the code</li>
       </ol>
+      <button className="btn btn-secondary btn-block setup-btn" onClick={onPair}>Pair a wall screen now</button>
       <StepNav onNext={onGoToCalendar} nextLabel="Go to calendar" />
     </div>
   )
@@ -807,7 +822,8 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
           <CalendarsStep members={members} oauth={oauth} onBack={() => back('calendars')} onNext={() => go('calendars')} onOAuthStart={startOAuth} />
         )}
         {step === 'chores' && <ChoresStep members={members} onBack={() => back('chores')} onNext={() => go('chores')} />}
-        {step === 'done' && <DoneStep onGoToCalendar={() => { saveResume(null); onDone() }} />}
+        {step === 'done' && <DoneStep onGoToCalendar={() => { saveResume(null); onDone() }}
+          onPair={() => { saveResume(null); location.hash = '#/settings?tab=access&section=paired-devices'; onDone() }} />}
       </div>
     </main>
   )

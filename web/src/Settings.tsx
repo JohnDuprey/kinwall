@@ -2726,8 +2726,18 @@ function CaldavSheet({ onClose, onAccountCreated, toast }: { onClose: () => void
       <div className="field"><label>Account name</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. iCloud" autoFocus /></div>
       <div className="field"><label>Server URL</label><input type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
       <div className="field"><label>Username</label><input type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
-      <div className="field"><label>App password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+      <div className="field"><label>App password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} aria-describedby="caldav-hint" /></div>
+      <CaldavHint />
     </Sheet>
+  )
+}
+
+/** What iCloud wants in the CalDAV form, which the field names alone don't say. */
+export function CaldavHint() {
+  return (
+    <p className="settings-row-sub" id="caldav-hint">
+      For iCloud: server <strong>https://caldav.icloud.com</strong>, your Apple Account email as the username, and an <a className="text-link" href="https://support.apple.com/102654" target="_blank" rel="noopener">app-specific password</a> (not your Apple Account password).
+    </p>
   )
 }
 

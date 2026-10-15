@@ -128,3 +128,13 @@
 /* "Needs setup" under Google/Outlook when the server has no app for them yet. */
 .setup-provider-card { flex-wrap: wrap; }
 .setup-provider-note { flex-basis: 100%; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
+/* Recovery codes' "I've saved these": the whole row is the target. */
+.setup-check-row { display: flex; align-items: center; gap: 12px; min-height: 52px; margin: 12px 0; padding: 0 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); font-weight: 800; }
+.setup-check-row input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--accent-strong); }
+/* Who's in the family?: color and avatar are picked for each person unless this opens them. */
+.setup-customize { display: flex; align-items: center; gap: 10px; min-height: 48px; margin: 0 0 8px; padding: 0 4px; border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 800; }
+/* Feature cards: a light tint when picked, and a circle that's empty when not, so both states read. */
+.setup-feature-card.active { background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+.setup-check { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--control-edge); display: grid; place-items: center; }
+.setup-feature-card.active .setup-check { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-ink); }
+.setup-form-anchor { scroll-margin-top: 12px; }

@@ -4063,7 +4063,7 @@ html:root[data-cast] {
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
-    .setup-choice, .setup-provider-card, .get-started-item
+    .setup-choice, .setup-provider-card, .get-started-item, .setup-check-row
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
@@ -4079,7 +4079,7 @@ html:root[data-cast] {
   .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--control-edge), 0 0 0 3px var(--accent-soft); }
   /* Events carry an inline background, so the wash is an inset shadow over it instead. */
   :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }
-  :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, .chore-col-spend, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
+  :where(.link-btn, .text-link, .setup-customize, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, .chore-col-spend, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 /* An iPhone on its side reports the island's inset (about 60px) on both sides; the side without it

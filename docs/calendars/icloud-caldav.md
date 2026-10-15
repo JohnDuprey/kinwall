@@ -4,7 +4,7 @@ CalDAV calendars (iCloud, Fastmail, Nextcloud, Radicale, Baïkal…) sync **two-
 
 ## Connect
 
-**Settings → Calendars → + CalDAV** opens **Connect CalDAV**:
+**Settings → Calendars → + CalDAV** opens **Connect CalDAV**. A line under the fields says what iCloud wants:
 
 | Field | iCloud |
 |---|---|
