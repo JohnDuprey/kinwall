@@ -184,7 +184,7 @@ Tap the family button at the top left. The family sheet lists everyone, with how
 * **Tap a person** to open [their day](snapshot.md), where you can also tick off their chores.
 * **Only** on the right shows only them: its circle fills in, the row says "Showing only them", and their face moves to the front of the pile on the family button. Tap it again to show the whole family.
 
-On phones, Home's toolbar is one row: **Board | Newscast**, then **Polls**, **Outings** and **Layout and filter**. Calendar's is two: **Day | 3 Day | Month | Schedule** across the first, then ◀ **Today** ▶, the dates shown, **Show hidden** and the filter. (With big text the view button takes the first row, beside **Show hidden** and the filter.)
+On phones, Home's toolbar is one row: **Board | Newscast**, then **Polls** and **Outings** (each icon with its name in small letters under it, or just the icon at a larger text size) and **Layout and filter**. Calendar's is two: **Day | 3 Day | Month | Schedule** across the first, then ◀ **Today** ▶, the dates shown, **Show hidden** and the filter. (With big text the view button takes the first row, beside **Show hidden** and the filter.)
 
 ### By category
 

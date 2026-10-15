@@ -3826,6 +3826,15 @@ div.meds-person-head { cursor: default; }
 .calendar-toolbar[data-chips="tight"] .polls-btn-label { max-width: 0; overflow: hidden; white-space: nowrap; }
 .calendar-toolbar[data-chips="wrap"] .board-chips { grid-column: 1 / -1; grid-row: 2; }
 @media (max-width: 600px) { .calendar-toolbar .polls-btn.btn { grid-column: 3; grid-row: 1; padding: 6px 10px; } .polls-btn-label { display: none; } } /* a phone's toolbar is full: the 🗳 alone */
+/* Most phones have room for a small word under each icon ("Polls", "Outings"): an emoji alone doesn't
+   say what it opens. In rem, so a larger text size goes back to the icons alone. */
+@media (max-width: 600px) {
+  .home-toolbar { container: home-toolbar / inline-size; }
+  @container home-toolbar (min-width: 21rem) {
+    .polls-btn.btn { flex-direction: column; gap: 0; padding: 2px 8px; line-height: 1.1; border-radius: 14px; }
+    .polls-btn-label { display: block; font-size: 0.6875rem; }
+  }
+}
 /* The narrowest portrait tablets (a foldable's inner screen, about 600-720px wide): Polls and Outings
    show their icons (their names stay as aria-labels), and the view switch tightens. */
 @media (min-width: 601px) and (max-width: 719px) and (orientation: portrait) {
