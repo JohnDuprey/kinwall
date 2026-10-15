@@ -16,6 +16,7 @@
 // (only ones it was given), and nudges it ('actions') when something changed while it's open.
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
+import { ChevronLeft } from './icons.tsx'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
 import { announce, reducedMotion } from './a11y.tsx'
@@ -314,7 +315,7 @@ export function PluginPlayer({ id }: { id: string }) {
   return (
     <div className="plugin-player" style={keyboard ? { paddingBottom: keyboard } : undefined}>
       <div className="plugin-bar">
-        <button type="button" className="btn btn-secondary" onClick={() => askLeaveRef.current()}>‹ Activities</button>
+        <button type="button" className="btn btn-secondary" aria-label="Back to Activities" onClick={() => askLeaveRef.current()}><ChevronLeft width={20} height={20} /><span className="plugin-bar-word"> Activities</span></button>
         <span className="plugin-bar-title"><span aria-hidden="true">{plugin.emoji}</span> {plugin.name}</span>
         {chip && (() => {
           const inner = <>
@@ -330,7 +331,7 @@ export function PluginPlayer({ id }: { id: string }) {
             ? <button type="button" className={cls} onClick={() => void resetChip()} aria-label={`${chip.title}: ${chip.completed ? 'done' : `${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min`}. Reset today's time`}>{inner}</button>
             : <span className={cls} role="status">{inner}</span>
         })()}
-        {player && members.length > 1 && <button className="btn btn-secondary" onClick={() => { setPresetId(null); setPlayer(undefined) }}>{player.avatar || ''} {player.name} · Switch</button>}
+        {player && members.length > 1 && <button className="btn btn-secondary" aria-label={`${player.name} is playing. Switch`} onClick={() => { setPresetId(null); setPlayer(undefined) }}>{player.avatar || ''} {player.name}<span className="plugin-bar-word"> · Switch</span></button>}
       </div>
       {/* key: switching players restarts the plugin with the new person's progress */}
       <iframe key={player?.id ?? 'nobody'} ref={frame} className="plugin-frame" title={plugin.name} src={api.pluginUrl(plugin)}

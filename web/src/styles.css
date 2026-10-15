@@ -3098,6 +3098,9 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .plugin-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* The title keeps at least ~12rem before the chip and Switch wrap below it, so on a phone it never gets squeezed. */
 .plugin-bar-title { flex: 1 1 12rem; font-weight: 800; font-size: 1.0625rem; min-width: 0; }
+/* Phones: one slim row, ‹ + name + who's playing; the words "Activities" and "Switch" go (the buttons
+   keep them for screen readers), and a chore's time chip gets its own row under it. */
+@media (max-width: 600px) { .plugin-bar-title { flex: 1 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .plugin-bar-word { display: none; } .plugin-bar .plugin-chore-chip { order: 5; } }
 :root[data-keyboard] .plugin-bar { display: none; } /* keyboard up in an activity: the frame gets the room (keyboard.ts) */
 .plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: var(--radius-sm, 14px); background: var(--card); }
 .plugin-chore-chip { position: relative; flex: 0 1 auto; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--bg-alt); color: var(--text); font-size: 0.875rem; font-weight: 700; }
@@ -3117,7 +3120,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .plugin-version { color: var(--text-dim); font-weight: 700; font-size: 0.8125rem; }
 .plugin-row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .plugin-row-actions .toggle-row { padding: 0; gap: 8px; }
-.plugin-bar .btn, .plugin-row-actions .btn, .plugin-upload .btn, .plugin-install-row .btn { flex: none; min-height: 40px; padding: 8px 16px; text-decoration: none; }
+.plugin-bar .btn, .plugin-row-actions .btn, .plugin-upload .btn, .plugin-install-row .btn { flex: none; min-height: 44px; padding: 8px 16px; text-decoration: none; }
 /* ---------- Trackers (Trackers.tsx) ---------- */
 .trackers-head { padding: 10px var(--pad) 6px; flex-shrink: 0; }
 .trackers-head .segmented { max-width: 100%; }
