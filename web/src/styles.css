@@ -2680,6 +2680,7 @@ button.notif-item:active { transform: scale(0.99); }
 .snap-avatar { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; flex-shrink: 0; }
 .snap-greeting { margin: 0; font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
 .snap-sub { margin: 2px 0 0; font-weight: 700; color: var(--text-dim); }
+.snap-points { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
 .snap-range { margin-bottom: 12px; }
 .snap-range button { min-height: 44px; }
 .snap-weather {

@@ -17,7 +17,7 @@ Don't use chores? An admin can turn off **Chores & points** in **Settings → Ge
 
 ## Ticking chores off from someone's day
 
-A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done, or (after confirming) not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first, in [Get stuff done](lists.md#get-stuff-done).
+A person's day (their snapshot) lists their chores for today, plus **Anyone** chores, each with its start time and points ("8:00 PM · 5 pts"). Under the greeting it says what they have to spend and what they're saving for ("⭐ 18 to spend · Saving for 🍦 Ice cream trip, 18 / 50"), which opens their Rewards. Tap a chore to mark it done, or (after confirming) not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first, in [Get stuff done](lists.md#get-stuff-done).
 
 On a phone, open someone's day from the family button at the top left, then tap the person.
 

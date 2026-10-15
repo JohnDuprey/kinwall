@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { isAudiobook, readingPercent } from './reading.ts'
+import { rewardsOn } from './types.ts'
 import type { ChoreDay, Member, ReadingData, TempCheck as TempCheckData, TempCheckInput, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
 import { Confetti } from './Chores.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
@@ -44,7 +45,7 @@ const eventHash = (e: SnapshotEvent) => `#/calendar?event=${encodeURIComponent(e
 
 /** Header avatar tap: one member's day (or week) - weather, their events, chores, due items, birthdays. */
 export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: Member; onClose: () => void; toCheckIn?: boolean }) {
-  const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast, parentDevice, meMemberId } = useApp()
+  const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast, parentDevice, meMemberId, members } = useApp()
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const [range, setRange] = useState<Range>('day')
   const [snap, setSnap] = useState<Snapshot | null>(null)
@@ -129,6 +130,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
         <div>
           <p className="snap-greeting">{shown?.greeting ?? ' '}</p>
           {hello && range === 'day' && <p className="snap-sub">☀️ Here's your day</p>}
+          {settings.features.chores && rewardsOn(settings) && <a className="snap-sub snap-points" href={`#/rewards/${member.id}`} onClick={onClose}>{pointsLine(members.find(m => m.id === member.id) ?? member)}</a>}
         </div>
         <a className="btn btn-secondary snap-profile" href={`#/profile/${member.id}`} onClick={onClose}>Profile</a>
       </div>
@@ -346,6 +348,12 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
   )
 }
 
+/** "⭐ 18 to spend · Saving for 🍦 Ice cream trip, 18 / 50" under the greeting. */
+function pointsLine(m: Member) {
+  const g = m.rewardGoal
+  return [`⭐ ${m.balance} to spend`, g && `Saving for ${g.emoji ? `${g.emoji} ` : ''}${g.title}, ${m.balance >= g.cost ? 'ready!' : `${Math.max(0, m.balance)} / ${g.cost}`}`].filter(Boolean).join(' · ')
+}
+
 function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotChore) => void }) {
   const { members } = useApp()
   // An Anyone chore says who got the points once it's done.
@@ -353,11 +361,11 @@ function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotCho
   return (
     <li>
       <button className={`snap-row snap-chore ${c.done ? 'done' : ''}`} role="checkbox" aria-checked={c.pending ? 'mixed' : c.done} onClick={() => onToggle(c)}
-        aria-label={[c.title, c.shared && 'anyone', by && `done by ${by}`, c.points > 0 && `${c.points} points`, c.pending && "waiting for a parent's OK"].filter(Boolean).join(', ')}>
+        aria-label={[c.title, c.dueTime && `starts at ${formatTime(c.dueTime)}`, c.shared && 'anyone', by && `done by ${by}`, c.points > 0 && `${c.points} points`, c.pending && "waiting for a parent's OK"].filter(Boolean).join(', ')}>
         <span className="snap-time snap-emoji" aria-hidden="true">{c.emoji || '⭐'}</span>
         <span className="snap-main" aria-hidden="true">
           <span className="snap-title">{c.title}</span>
-          <span className="snap-meta">{[c.shared && 'Anyone', by && `Done by ${by}`, c.points > 0 && `${c.points} pts`, c.pending && 'Waiting for OK'].filter(Boolean).join(' · ')}</span>
+          <span className="snap-meta">{[c.dueTime && formatTime(c.dueTime), c.shared && 'Anyone', by && `Done by ${by}`, c.points > 0 && `${c.points} pts`, c.pending && 'Waiting for OK'].filter(Boolean).join(' · ')}</span>
         </span>
         <span className={`chore-check ${c.done ? 'done' : c.pending ? 'pending' : ''}`} aria-hidden="true">{c.done ? <CheckIcon width={18} height={18} /> : c.pending && '⏳'}</span>
       </button>
