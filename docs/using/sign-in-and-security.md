@@ -44,7 +44,7 @@ A link ending in `#key=…` (older links: `?key=…`) carries a key or a setup c
 * **Add a passkey on another device**: shows a QR code with a one-time token, valid for 15 minutes, that lets another device register exactly one passkey.
 * Rename a passkey, or remove it. Removing a passkey also signs out every session created with it. Removing the last one warns you first.
 * **Sign out** ends this device's passkey session.
-* A passkey can belong to a grown-up: set it from a device signed in with it (**Settings → Access → This device**). Every later sign-in with it then opens that person's [private journal](journal.md#private-journals).
+* A passkey can belong to a grown-up: set it from a device signed in with it (**Settings → General → This device**). Every later sign-in with it then opens that person's [private journal](journal.md#private-journals).
 
 Passkeys are bound to your domain (the *rpID*). That's the host of `PUBLIC_URL` when it's set, otherwise the address you opened Kinwall at. Multi-family hosts can share one rpID across subdomains with `WEBAUTHN_RP_ID`. See [Configuration](../self-hosting/configuration.md).
 

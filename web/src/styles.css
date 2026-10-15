@@ -1255,6 +1255,9 @@ button.month-cell .month-daynum { flex: none; }
 .settings-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .settings-search-icon { position: absolute; left: 14px; top: 50%; translate: 0 -50%; color: var(--text-dim); pointer-events: none; }
 .settings-search-clear { position: absolute; right: 4px; top: 50%; translate: 0 -50%; background: none; box-shadow: none; color: var(--text-dim); }
+/* Family and Access: a chip per card, in one row that scrolls sideways. */
+.settings-jump { flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(var(--pad) * -1); padding: 0 var(--pad) 2px; scrollbar-width: thin; }
+.settings-jump .chip { flex: none; }
 .settings-search-none { margin: 0; padding: 12px 4px; font-weight: 700; color: var(--text-dim); }
 .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border-top: 1px solid var(--border); gap: 12px; }
 .settings-row:first-of-type { border-top: none; }

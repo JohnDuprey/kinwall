@@ -145,7 +145,7 @@ When a grown-up answers, your device gets a notification and **Chore ideas** sho
 * New ideas wait in **To approve** at the top of Chores, counted in the **Chores** badge, and parent devices get a notification ("Maya suggests a chore: Piano practice").
 * **Say yes…** shows what they asked for. Keep their points or change them, change the days, start time or timer, add a note, and tap **Approve**. Quick notes like **Great idea!** or **Love the initiative!** fill in with one tap. Approving makes a normal chore for that kid. If they said they already did it, it's marked done today and they get the points now, once.
 * **Not this time** sends your note (optional) to the kid instead.
-* The kid sees your name when you answer from a device that's yours (**Settings → Access**, "Whose device is this?"). Otherwise it says "A grown-up".
+* The kid sees your name when you answer from a device that's yours (**Settings → General → This device**, "Whose device is this?"). Otherwise it says "A grown-up".
 * Turn it off with **Kids can suggest chores** in **Settings → Family** (chore settings). It's on by default, like Rewards. Ideas already waiting can still be answered.
 * A person can have up to 10 ideas waiting at once.
 

@@ -1,4 +1,4 @@
-// Settings → General: which sections are open (kept per device) and the search that filters them.
+// Settings: which General sections are open (kept per device) and the search that filters every tab.
 // The pure parts are tested in test/settingsSearch.test.ts; filterSettings works on the DOM.
 
 /** Lowercase, accents and extra spaces dropped: "Café  Time" → "cafe time". */
@@ -60,10 +60,22 @@ export function filterSettings(panel: HTMLElement, query: string): number {
     sec.toggleAttribute('data-search-hide', !hit)
     if (hit) shown++
   }
+  // A tab's heading (shown while searching) covers its groups too, so it reads up to the next tab.
   for (const g of panel.querySelectorAll('.settings-group-head')) {
+    const end = g.matches('.settings-tab-head') ? '.settings-tab-head' : '.settings-group-head'
     let n = g.nextElementSibling, any = false
-    while (n && !n.matches('.settings-group-head')) { if (n.matches('[data-acc]:not([data-search-hide])')) any = true; n = n.nextElementSibling }
+    while (n && !n.matches(end)) { if (n.matches('[data-acc]:not([data-search-hide])')) any = true; n = n.nextElementSibling }
     g.toggleAttribute('data-search-hide', !any)
   }
   return shown
 }
+
+/** The tabs on screen: the picked one, or while searching every tab this device can see. */
+export const tabsShown = <T>(current: T, tabs: T[], searching: boolean): T[] => searching ? tabs : [current]
+
+/** Cards that moved to another tab, so older links (#/settings?tab=access&section=this-device)
+ * still land on them. */
+const MOVED: Record<string, string> = { 'this-device': 'general' }
+
+/** The tab a link opens: where its section lives now, else the tab it names. */
+export const linkTab = (tab: string | null, section: string | null): string | null => (section && MOVED[section]) || tab

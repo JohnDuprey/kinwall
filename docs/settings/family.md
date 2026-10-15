@@ -1,5 +1,7 @@
 # Settings → Family
 
+Chips at the top jump to each card: Members, Categories, Chores, Meals, Shopping and Outings (the ones that are on).
+
 ## Members
 
 Everyone who shows up on the wall. When two people's colors would look alike, to someone with color blindness or at a glance, a note under the list says so: "Sam and Maya may look alike to someone with red-green color blindness." It shows both colors and a suggested one, and **Use the suggestion** (not on a wall display) changes the second person's color to it. See [Color vision](../accessibility.md#color-vision).

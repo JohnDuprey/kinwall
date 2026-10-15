@@ -51,7 +51,7 @@ import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
-import { filterSettings, matchesAll, queryWords, readOpen, writeOpen } from './settingsSearch.ts'
+import { filterSettings, linkTab, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
 import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
@@ -76,7 +76,7 @@ export default function SettingsView() {
   const tabFromHash = (): SettingsTab => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     if (q.get('account') || q.get('oauthError')) return 'calendars'
-    const t = q.get('tab')
+    const t = linkTab(q.get('tab'), q.get('section'))
     return SETTINGS_TABS.some(x => x.key === t) ? (t as SettingsTab) : 'general'
   }
   const [tab, setTab] = useState<SettingsTab>(tabFromHash)
@@ -88,7 +88,8 @@ export default function SettingsView() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-  const pickTab = (t: SettingsTab) => { setTab(t); history.replaceState(history.state, '', `#/settings?tab=${t}`) }
+  // Picking a tab during a search ends it, so the tab shows whole.
+  const pickTab = (t: SettingsTab) => { setTab(t); setQuery(''); setSearchShut(new Set()); history.replaceState(history.state, '', `#/settings?tab=${t}`) }
   // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
   // admin sections, even briefly, if the check is slow or fails.
   const [me, setMe] = useState<Me>({ scope: 'display', keyName: '', kind: 'api' })
@@ -115,8 +116,8 @@ export default function SettingsView() {
 
   const [meReady, setMeReady] = useState(false)
   useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })).finally(() => setMeReady(true)) }, [])
-  // General's cards fold up. Each device keeps the ones it opened; a search opens every match
-  // (and a header tapped during a search folds just for that search).
+  // General's cards fold up. Each device keeps the ones it opened. A search looks through every
+  // tab and opens every match (and a header tapped during a search folds just for that search).
   const [open, setOpen] = useState(readOpen)
   const [query, setQuery] = useState('')
   const [searchShut, setSearchShut] = useState<Set<string>>(new Set())
@@ -140,7 +141,7 @@ export default function SettingsView() {
     if (key && !open.has(key)) { toggle(key, true); return } // runs again once it's open
     el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
-    if (q.has('section')) { q.delete('section'); history.replaceState(history.state, '', `#/settings?${q}`) }
+    if (q.has('section')) { q.delete('section'); q.set('tab', current); history.replaceState(history.state, '', `#/settings?${q}`) }
     setJumpTo(null)
   }, [meReady, jumpTo, open, query]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -157,7 +158,7 @@ export default function SettingsView() {
   const [hits, setHits] = useState(0)
   useLayoutEffect(() => {
     const panel = panelRef.current
-    if (!panel || current !== 'general') return
+    if (!panel) return
     const apply = () => setHits(filterSettings(panel, query))
     apply()
     if (!words.length) return
@@ -172,59 +173,65 @@ export default function SettingsView() {
         <div className="settings-tabs">
           <Segmented tabs idBase="settings-tab" label="Settings sections" value={current} onChange={pickTab} options={tabs} />
         </div>
+        <SettingsSearch query={query} onChange={search} />
+        {(current === 'family' || current === 'access') && !words.length && <JumpChips panel={panelRef} />}
         <div className="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`} ref={panelRef}>
-        {current === 'general' && <AccordionCtx.Provider value={{ open, toggle, words, shut: searchShut }}>
-          <SettingsSearch query={query} onChange={search} />
+        <AccordionCtx.Provider value={current === 'general' || words.length ? { open, toggle, words, shut: searchShut } : null}>
           {words.length > 0 && hits === 0 && <p className="settings-search-none" role="status">No settings match “{query.trim()}”</p>}
-          {/* Family settings are for parent devices; a wall screen or kid's device only has its own. */}
-          {!isDisplay && (
-            <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
-              <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={false} />
-              <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
-              <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
-              <Section id="board-presets" title="Board presets"><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}><BoardPresetRows toast={toast} /></div></Section>
-              <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
-              <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
-              <NightSection settings={settings} onSaved={reloadCore} toast={toast} />
-            </SettingsGroup>
-          )}
-          <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
-            {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
-            <DeviceAppearanceSection />
-            <TimeCuesSection />
-            <NightScreenSection />
-            <NotificationsSection toast={toast} />
-            <TroubleshootSection keyName={isDisplay ? me.keyName : undefined} />
-          </SettingsGroup>
-        </AccordionCtx.Provider>}
-        {current === 'family' && <>
-          <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
-          <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
-          {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
-          {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
-          {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
-          {!isDisplay && settings.features.lists && <ShoppingSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
-          {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}
-          {!isDisplay && settings.features.outings !== false && <Section id="outings" title="Outings"><CommunityCalendars /></Section>}
-        </>}
-        {current === 'calendars' && <>
-          <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
-          <CalendarProvidersSection toast={toast} />
-        </>}
-        {current === 'access' && <>
-          <SecondWayInNudge tick={accessTick} />
-          <ThisDeviceOwnerSection me={me} toast={toast} />
-          <DisplaysSection toast={toast} />
-          <NotificationDevicesSection toast={toast} />
-          <PasskeysSection me={me} toast={toast} onChanged={bumpAccess} />
-          <RecoveryCodesSection toast={toast} onChanged={bumpAccess} />
-          <ConnectedAppsSection toast={toast} />
-          <KeysSection toast={toast} />
-          <WebhooksSection toast={toast} />
-          <SecurityActivitySection tick={accessTick} />
-          <YourDataSection hostPortalUrl={me.hostPortalUrl} toast={toast} onImported={reloadCore} />
-          <HostingActivitySection />
-        </>}
+          {tabsShown(current, tabs.map(t => t.key), words.length > 0).map(t => <Fragment key={t}>
+            {words.length > 0 && <div className="settings-group-head settings-tab-head"><h2 className="settings-group-title">{tabs.find(x => x.key === t)?.label}</h2></div>}
+            {t === 'general' && <>
+              {/* Family settings are for parent devices; a wall screen or kid's device only has its own. */}
+              {!isDisplay && (
+                <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
+                  <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={false} />
+                  <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
+                  <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
+                  <Section id="board-presets" title="Board presets"><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}><BoardPresetRows toast={toast} /></div></Section>
+                  <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
+                  <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
+                  <NightSection settings={settings} onSaved={reloadCore} toast={toast} />
+                </SettingsGroup>
+              )}
+              <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
+                <ThisDeviceOwnerSection me={me} toast={toast} />
+                {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
+                <DeviceAppearanceSection />
+                <TimeCuesSection />
+                <NightScreenSection />
+                <NotificationsSection toast={toast} />
+                <TroubleshootSection keyName={isDisplay ? me.keyName : undefined} />
+              </SettingsGroup>
+            </>}
+            {t === 'family' && <>
+              <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
+              <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
+              {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
+              {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+              {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
+              {!isDisplay && settings.features.lists && <ShoppingSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+              {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}
+              {!isDisplay && settings.features.outings !== false && <Section id="outings" title="Outings"><CommunityCalendars /></Section>}
+            </>}
+            {t === 'calendars' && <>
+              <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
+              <CalendarProvidersSection toast={toast} />
+            </>}
+            {t === 'access' && <>
+              <SecondWayInNudge tick={accessTick} />
+              <DisplaysSection toast={toast} />
+              <NotificationDevicesSection toast={toast} />
+              <PasskeysSection me={me} toast={toast} onChanged={bumpAccess} />
+              <RecoveryCodesSection toast={toast} onChanged={bumpAccess} />
+              <ConnectedAppsSection toast={toast} />
+              <KeysSection toast={toast} />
+              <WebhooksSection toast={toast} />
+              <SecurityActivitySection tick={accessTick} />
+              <YourDataSection hostPortalUrl={me.hostPortalUrl} toast={toast} onImported={reloadCore} />
+              <HostingActivitySection />
+            </>}
+          </Fragment>)}
+        </AccordionCtx.Provider>
         </div>
         <div className="settings-version">
           <Brand />
@@ -252,16 +259,44 @@ function SettingsGroup({ title, sub: note, children }: { title: string; sub: str
 }
 
 /** General's folding cards: which are open on this device, the search words, and the cards folded
- * during the current search. Other tabs have none, so their cards stay plain. */
+ * during the current search. Other tabs fold only while a search shows them. */
 const AccordionCtx = createContext<{ open: Set<string>; toggle: (key: string) => void; words: string[]; shut: Set<string> } | null>(null)
 
-/** Settings → General's search field. Escape (or ✕) clears it; focus stays in the field. */
+/** Family and Access are long: a chip per card at the top jumps to it (and focuses its title). Read
+ * from the page, so it lists just the cards this device shows. */
+function JumpChips({ panel }: { panel: React.RefObject<HTMLDivElement | null> }) {
+  const [cards, setCards] = useState<{ id: string; title: string }[]>([])
+  useLayoutEffect(() => {
+    const el = panel.current
+    if (!el) return
+    const read = () => {
+      const next = [...el.querySelectorAll<HTMLElement>('.settings-section > .settings-section-title[id]')].map(h => ({ id: h.id, title: h.textContent ?? '' }))
+      setCards(c => JSON.stringify(c) === JSON.stringify(next) ? c : next)
+    }
+    read()
+    const watch = new MutationObserver(read)
+    watch.observe(el, { childList: true, subtree: true })
+    return () => watch.disconnect()
+  }, [panel])
+  if (cards.length < 3) return null
+  return (
+    <nav className="chip-row settings-jump" aria-label="Jump to">
+      {cards.map(c => <button key={c.id} type="button" className="chip" onClick={() => {
+        const h = document.getElementById(c.id)
+        h?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
+        h?.focus({ preventScroll: true })
+      }}>{c.title}</button>)}
+    </nav>
+  )
+}
+
+/** Settings' search field, over every tab. Escape (or ✕) clears it; focus stays in the field. */
 function SettingsSearch({ query, onChange }: { query: string; onChange: (q: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   return (
     <div className="field settings-search">
       <SearchIcon className="settings-search-icon" width={18} height={18} aria-hidden="true" />
-      <input ref={input} type="search" aria-label="Search settings" placeholder="Search settings" autoComplete="off" value={query}
+      <input ref={input} type="search" aria-label="Search all settings" placeholder="Search all settings" autoComplete="off" value={query}
         onChange={e => onChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); onChange('') } }} />
       {query && <button type="button" className="icon-btn settings-search-clear" aria-label="Clear search" onClick={() => { onChange(''); input.current?.focus() }}><XIcon width={18} height={18} /></button>}
@@ -671,7 +706,7 @@ function MealSettingsSection({ settings, onSaved, toast, readOnly = false }: { s
     try { await api.updateSettings({ mealTimes: { ...settings.mealTimes, [slot]: value } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
   return (
-    <Section title="Meals">
+    <Section title="Meals" keywords={['Meal times']}>
       <p className="settings-row-sub">Usual meal times. A meal without its own time goes on the calendar at these.</p>
       {readOnly && <p className="settings-row-sub">Only a parent device can change these times.</p>}
       {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(slot => (
@@ -1013,7 +1048,9 @@ function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: bo
   }
 
   return (
-    <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+    <Section title={settings.features.messages ? 'Send a family message' : 'Devices with notifications'} icon={<BellIcon width={16} height={16} />}>
+      {settings.features.messages && <SendMessageForm />}
+      {settings.features.messages && <h3 className="settings-subhead">Devices with notifications</h3>}
       {subs.length === 0 ? (
         <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in <a className="text-link" href="#/settings?tab=general&section=notifications">Settings → General</a>.</p>
       ) : subs.map(s => (
@@ -1027,7 +1064,6 @@ function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: bo
           <button className="icon-btn" onClick={() => remove(s)} aria-label={`Remove ${s.deviceName}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
-      {settings.features.messages && <SendMessageForm />}
     </Section>
   )
 }
@@ -2855,7 +2891,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
   }
 
   return (
-    <Section id="passkeys" title="Parent devices" icon={<KeyIcon width={16} height={16} />}>
+    <Section id="passkeys" title="Parent devices" icon={<KeyIcon width={16} height={16} />} keywords={['Passkeys']}>
       <p className="settings-row-sub">Phones and computers that sign in with a passkey. Parents (admins) can change everything.</p>
       {inFrame() && <p className="settings-row-sub">Inside Home Assistant's panel, some browsers won't add a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener">Open Kinwall in its own tab</a> to add one.</p>}
       {me.kind === 'session' && (
@@ -3106,11 +3142,11 @@ function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, pers
     try { await api.setMyOwner(owner); reloadCore(); toast('Saved') } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
   }
   return (
-    <Section title="This device">
+    <Section id="this-device" title="This device">
       <div className="settings-row">
         <div>
           <div className="settings-row-label" id="this-device-owner">Whose device is this?</div>
-          <div className="settings-row-sub">It opens that person's private journal. Their own devices get a note when this changes, and it's in Security activity below.</div>
+          <div className="settings-row-sub">It opens that person's private journal. Their own devices get a note when this changes, and it's in Access → Security activity.</div>
         </div>
         <select className="settings-select" aria-labelledby="this-device-owner" value={meMemberId ?? 'shared'} onChange={e => change(e.target.value)}>
           <option value="shared">Shared (whole family)</option>

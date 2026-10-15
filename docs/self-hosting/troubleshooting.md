@@ -54,7 +54,7 @@ Old events stay visible after a failed sync. **Sync now** retries straight away.
 ## Push notifications not arriving
 
 1. **iPhone/iPad**: iOS 16.4+, Kinwall added to the Home Screen and opened from there. Safari tabs can't receive push.
-2. The device is listed under **Settings → Access → Notifications** (on an admin device). "never delivered" means the push service hasn't accepted a message for it yet.
+2. The device is listed under **Settings → Access → Send a family message → Devices with notifications** (**Devices with notifications** when Messages is off) (on an admin device). "never delivered" means the push service hasn't accepted a message for it yet.
 3. **Send test** in **Settings → General → Notifications**. If the test arrives but reminders don't:
    * Is **Event reminders** on, and does **Which family members?** include the event's people?
    * Does the event have a reminder? Check the 🔔 line in its sheet, or the household **Default reminder**.

@@ -1,7 +1,7 @@
-// node --test test/ (npm test). Settings → General search matching and the open sections kept per device.
+// node --test test/ (npm test). Settings search matching, the tabs it covers, links and the open sections kept per device.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fold, matchesAll, queryWords, readOpen, writeOpen } from '../src/settingsSearch.ts'
+import { fold, linkTab, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from '../src/settingsSearch.ts'
 
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) } }
 
@@ -40,4 +40,19 @@ test('bad or blocked storage reads as nothing open and never throws', () => {
   const blocked = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
   assert.deepEqual([...readOpen(blocked)], [])
   assert.doesNotThrow(() => writeOpen(new Set(['x']), blocked))
+})
+
+test('a search covers every tab the device can see; otherwise just the picked one', () => {
+  const tabs = ['general', 'family', 'calendars', 'access']
+  assert.deepEqual(tabsShown('family', tabs, false), ['family'])
+  assert.deepEqual(tabsShown('family', tabs, true), tabs)
+  assert.deepEqual(tabsShown('general', ['general', 'family'], true), ['general', 'family'], 'a wall screen has no Calendars or Access')
+})
+
+test('an old link to a card that moved tabs opens its new tab', () => {
+  assert.equal(linkTab('access', 'this-device'), 'general')
+  assert.equal(linkTab(null, 'this-device'), 'general')
+  assert.equal(linkTab('access', 'paired-devices'), 'access')
+  assert.equal(linkTab('family', null), 'family')
+  assert.equal(linkTab(null, null), null)
 })

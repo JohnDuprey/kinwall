@@ -2,6 +2,10 @@
 
 The second group of cards on **Settings → General**. Everything here applies to **this device only** and is stored in the browser, not on the server. It isn't in exports.
 
+## This device
+
+On a parent's phone or computer, first in the group: **Whose device is this?** picks a grown-up, or **Shared (whole family)**. A device that belongs to someone opens their [private journal](../using/journal.md#private-journals) (Alex's journal also offers **This is Alex's device**), and is their own device everywhere else too: opening Kinwall on it starts their day for ["When I start my day" medicines](../using/medications.md), "Anyone" chores completed through the API without a name count for them, and their personal reminders (medicines, event heads-ups) go to it. It still acts for everyone, like any parent device. Connected apps are never anyone's own device. Signed in with a passkey, the passkey remembers it for later sign-ins too; in the Kinwall app it's the same as the app's "Whose device is this?". A full-access device can only belong to a grown-up. The setup admin key and a sign-in with a recovery code (or the hosted service's support sign-in) can't belong to anyone. Every change is logged in [Security activity](access.md#security-activity) ("Alex's phone now belongs to Alex"), and that person's own devices get a 🔒 note in their [notifications](../using/notifications.md#notification-feed). It was under Access before; older links still land here.
+
 ## This display
 
 What this screen shows, how you get around it, and whether it stays on and resets itself.
