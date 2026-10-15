@@ -158,8 +158,7 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
   }
   const addOther = (text: string) => { if (text.trim()) add({ menuItemId: null, name: text.trim() }) }
   return <Sheet title={`${name}’s order`} onClose={() => void close()} dismissable={!busy} actions={<>
-    <button className="btn btn-secondary" disabled={busy} onClick={() => void close()}>Cancel</button>
-    <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save order'}</button>
+    <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button>
   </>}>
     {items.length ? <ul className="order-items" aria-label={`In ${name}’s order`}>{items.map((item, i) => {
       const extras = addonsFor(fullMenu, fullMenu.find(m => m.id === item.menuItemId))

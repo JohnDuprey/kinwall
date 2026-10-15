@@ -195,7 +195,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
     <Sheet title={existing ? 'Edit list' : 'New list'} onClose={onClose} dirty="auto"
       actions={
         <>
-          <button className="btn btn-primary" onClick={submit} disabled={!name.trim() || !isSingleEmoji(emoji)}>{existing ? 'Save' : 'Create list'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!name.trim() || !isSingleEmoji(emoji)}>{existing ? 'Save' : 'Add list'}</button>
         </>
       }>
       <div className="field">
@@ -716,7 +716,7 @@ function ReorderGroupsSheet({ listId, groupBy, names, onClose, onSaved }: {
   }
   return (
     <Sheet title={`Reorder ${groupBy === 'store' ? 'stores' : 'categories'}`} onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={save}>Save order</button>}>
+      actions={<button className="btn btn-primary" onClick={save}>Save</button>}>
       {order.map((name, i) => (
         <div key={name} className="settings-row">
           <div className="settings-row-label">{name}</div>

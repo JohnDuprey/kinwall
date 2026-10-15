@@ -66,7 +66,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, onClose
   // would then submit the form and read the recipe again).
   return <Sheet title={r ? 'Check the recipe' : 'Import a recipe'} onClose={onClose} dismissable={!busy} actions={r ? <>
     <button key="back" type="button" className="btn btn-secondary" disabled={busy} onClick={() => { setPreview(null); setError('') }}>Back</button>
-    <button key="save" type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : updates ? 'Update recipe' : 'Save recipe'}</button>
+    <button key="save" type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : updates ? 'Save' : 'Add recipe'}</button>
   </> : <button key="read" className="btn btn-primary" type="submit" form={id} disabled={busy}>{busy ? 'Reading…' : mode === 'url' ? 'Get recipe' : 'Read recipe'}</button>}>
     {r ? <>
       {updates && <div className="recipe-import-updates" role="status">

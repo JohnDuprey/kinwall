@@ -10,7 +10,7 @@ On a parent's phone or computer: **Whose device is this?** picks a grown-up, or 
 
 ## Paired devices
 
-Wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. On chores, a display ticks them off and undoes that; adding, editing and deleting chores needs a parent device. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen, a **Name** and **What is this device?**, then **Add it**:
+Wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. On chores, a display ticks them off and undoes that; adding, editing and deleting chores needs a parent device. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen, a **Name** and **What is this device?**, then **Add device**:
 
 * **🖼️ Shared (whole family)**: a wall screen everyone shares. The screen turns on **Use as a wall screen** by itself.
 * **A kid's device** (pick the kid): shows only that kid's things.

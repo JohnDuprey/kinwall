@@ -118,10 +118,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
-  return <Sheet title={meal ? admin ? 'Edit meal' : meal.title : 'Plan a meal'} onClose={close} dismissable={!busy} dirty={canUpdate ? 'auto' : false} actions={choosing ? <button className="btn btn-secondary" onClick={close}>Cancel</button> : canUpdate ? <>
-    <button className="btn btn-secondary" disabled={busy} onClick={close}>Cancel</button>
-    <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save meal'}</button>
-  </> : undefined}>
+  return <Sheet title={meal ? admin ? 'Edit meal' : meal.title : 'Plan a meal'} onClose={close} dismissable={!busy} dirty={canUpdate ? 'auto' : false} actions={!choosing && canUpdate ? <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : meal ? 'Save' : 'Add meal'}</button> : undefined}>
     {choosing ? <MealChooser recipes={recipes} slot={draft.slot}
       onRecipe={recipe => { setDraft(d => ({ ...d, mealKind: 'recipe', recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings })); setChoosing(false) }}
       onOther={(kind, title) => { setDraft(d => ({ ...d, mealKind: kind, recipeId: null, title })); setChoosing(false) }} /> :

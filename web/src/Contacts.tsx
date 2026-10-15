@@ -151,7 +151,7 @@ export function ContactForm({ initial, categories, members, onClose, onSaved }: 
     finally { setSaving(false) }
   }
   return <Sheet title={initial ? 'Edit contact' : 'New contact'} onClose={onClose} dismissable={!saving} dirty="auto"
-    actions={<><button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save contact'}</button></>}>
+    actions={<><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : initial ? 'Save' : 'Add contact'}</button></>}>
     {!initial && <div className="field"><label htmlFor={`${id}-template`}>Start from a template (optional)</label>
       <select id={`${id}-template`} value={template} onChange={e => { const to = e.target.value; setForm(f => applyContactTemplate(f, template, to, categories)); setTemplate(to) }}>
         <option value="">Blank contact</option>
@@ -284,7 +284,7 @@ function ImportSheet({ contacts, categories, members, shared, onClose, onImporte
   return <Sheet title={review ? (review.length === 1 ? 'Import contact' : 'Review contacts') : 'Import contacts'} onClose={onClose} dismissable={!busy}
     actions={review ? <>
       <button className="btn btn-secondary" disabled={busy} onClick={() => shared ? onClose() : setReview(null)}>{shared ? 'Cancel' : 'Back'}</button>
-      <button className="btn btn-primary" disabled={busy || !importing} onClick={commit}>{busy ? 'Saving…' : review.length === 1 ? (review[0].decision === 'merge' ? 'Update contact' : 'Save contact') : `Save ${importing}`}</button>
+      <button className="btn btn-primary" disabled={busy || !importing} onClick={commit}>{busy ? 'Saving…' : review.length === 1 ? (review[0].decision === 'merge' ? 'Save' : 'Add contact') : `Save ${importing}`}</button>
     </> : undefined}>
     {!review && shared && !message ? <p className="state-card" role="status">Reading the contact…</p> : !review ? <div className="contact-import-options">
       <p>Review every contact before it’s added. Imported contacts are for the whole family and stay off wall screens until you turn that on.</p>

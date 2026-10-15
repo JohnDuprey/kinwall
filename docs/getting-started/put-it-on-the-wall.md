@@ -7,7 +7,7 @@
 1. On the iPad, open `https://<your-kinwall>` in Safari and tap **Set up a wall screen or kid's device**. It shows **Set up this screen** with a 6-digit code and a QR code. The code is valid for 10 minutes.
 2. Approve it from a parent's phone or computer (a device signed in with a passkey, which has admin rights), either way:
    * scan the QR code and tap **Approve as a parent**, or
-   * open **Settings → Access → Paired devices → Add a wall screen or kid's device**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add it**.
+   * open **Settings → Access → Paired devices → Add a wall screen or kid's device**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add device**.
 
    Either way you also pick **What is this device?**:
    * **🖼️ Shared (whole family)** for a kitchen wall. It turns on **Use as a wall screen** by itself.

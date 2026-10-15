@@ -203,7 +203,7 @@ export function RestaurantEditSheet({ restaurant, onClose, onSaved }: { restaura
   const close = () => { if (!busy) onClose() }
   return <Sheet title={restaurant ? `Edit ${restaurant.name}` : 'New restaurant'} onClose={close} dismissable={!busy} actions={<>
     <button className="btn btn-secondary" disabled={busy} onClick={close}>Cancel</button>
-    <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? 'Saving…' : 'Save restaurant'}</button>
+    <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? 'Saving…' : restaurant ? 'Save' : 'Add restaurant'}</button>
   </>}>
     <form id={formId} onSubmit={e => { e.preventDefault(); void save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>

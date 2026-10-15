@@ -264,7 +264,7 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
       <option value="archive">{recipe.archived ? 'Restore recipe' : 'Archive recipe'}</option>
       <option value="delete">Delete recipe…</option>
     </select>}
-    <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? 'Saving…' : 'Save recipe'}</button>
+    <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? 'Saving…' : recipe ? 'Save' : 'Add recipe'}</button>
   </>}>
     <form id={formId} onSubmit={e => { e.preventDefault(); save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>

@@ -3295,7 +3295,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
 
       {adding && (
         <Sheet title="Add a wall screen or kid's device" onClose={() => setAdding(false)}
-          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? 'Pairing…' : 'Add it'}</button>}>
+          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? 'Pairing…' : 'Add device'}</button>}>
           <p className="settings-row-sub" style={{ marginBottom: 14 }}>On that screen, open Kinwall, choose "Set up a wall screen or kid's device", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.</p>
           <div className="row-2">
             <div className="field">
