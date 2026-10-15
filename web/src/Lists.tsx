@@ -219,7 +219,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
           <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label="Custom list color" />
         </div>
       </div>
-      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Owners (nobody = whole family)" />
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Owners" noneLabel="Everyone" />
       {existing && (
         <div className="sheet-danger-zone">
           <button className="link-btn" onClick={archive}>Archive list</button>
@@ -450,7 +450,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       {/* Read-only: every field and button inside is disabled; the discussion below stays open. */}
       <fieldset className="item-sheet-fields" disabled={readOnly}>
       <div className="field">
-        <label htmlFor="item-title">Title</label>
+        <label htmlFor="item-title">Name</label>
         {/* A textarea so a long title shows in full; Enter doesn't add a line break. */}
         <textarea id="item-title" className="item-title-input" rows={2} value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} />

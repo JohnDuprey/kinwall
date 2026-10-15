@@ -97,7 +97,8 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
   const formId = `notes-add-${target}`
   return (
     <section ref={threadRef} className="notes-thread" aria-label={title}>
-      {notes.length > 0 && <h3 className="notes-title">{title}</h3>}
+      {/* Always: so + Add note doesn't read as part of a Notes field above it. */}
+      <h3 className="notes-title">{title}</h3>
       {notes.length > 0 && (
         <ul className="notes-list">
           {notes.map(n => {
