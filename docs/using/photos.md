@@ -12,7 +12,7 @@ A [memory](trackers.md#memories)'s own photo isn't a family photo unless its **A
 
 <img src="../screenshots/phone-photos.png" width="32%" alt="Photos on a phone" />
 
-Tap **Add photos** (the button at the top, or the **Add photos** tile at the start of the grid) and pick one or more pictures. On an iPhone or iPad this opens your Photos library.
+Tap **Add photos** at the top and pick one or more pictures. On an iPhone or iPad this opens your Photos library.
 
 Before uploading, your browser shrinks each photo to at most 1280 pixels on its long edge and saves it as WebP (or JPEG on browsers that can't make WebP). A typical phone photo ends up around 150–300 KB. The original stays on your device.
 

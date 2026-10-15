@@ -106,15 +106,6 @@ export default function Photos() {
       )}
       {photos && photos.length > 0 && (
         <ul className="photo-grid" aria-label="Photos">
-          {isAdmin && (
-            <li>
-              {/* The first tile is the picker itself, so "where do I add one?" answers itself. */}
-              <button className="photo-tile photo-tile-add" onClick={() => input.current?.click()} disabled={!!progress} aria-label="Add photos from your library">
-                <span className="photo-add-plus" aria-hidden="true">＋</span>
-                <span>Add photos</span>
-              </button>
-            </li>
-          )}
           {photos.map(p => (
             <li key={p.id}>
               <button className="photo-tile" onClick={() => setOpenId(p.id)} aria-label={p.caption || `Photo from ${new Date(p.createdAt).toLocaleDateString()}`}>

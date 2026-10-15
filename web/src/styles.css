@@ -2548,7 +2548,7 @@ button.notif-item:active { transform: scale(0.99); }
 .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-tile:active { transform: scale(0.98); }
 .photo-tile-caption { position: absolute; inset: auto 0 0; padding: 18px 10px 8px; color: #fff; font-size: 0.8125rem; font-weight: 700; text-align: left;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: linear-gradient(transparent, rgb(0 0 0 / 0.6)); }
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; line-height: 1.25; padding-bottom: 0; border-bottom: 8px solid transparent; /* the border, not padding, so a third line stays hidden */ background: linear-gradient(transparent, rgb(0 0 0 / 0.6)); }
 .photo-full { display: block; width: 100%; height: auto; max-height: 60vh; object-fit: contain; border-radius: 14px; background: var(--bg); margin-bottom: 16px; }
 @media (max-width: 480px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; } .photo-tile { border-radius: 8px; } }
 
@@ -2582,7 +2582,7 @@ button.notif-item:active { transform: scale(0.99); }
 .sticker-toolbar .btn { flex: 0 0 auto; min-height: 44px; padding: 0 14px; font-size: 0.8125rem; }
 .sticker-tray { flex-shrink: 0; display: flex; gap: 18px; align-items: flex-end; overflow-x: auto; padding: 8px var(--pad) 10px; background: var(--bg-alt); }
 .sticker-tray-pack { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
-.sticker-tray-label { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
+.sticker-tray-label { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
 .sticker-tray-row { display: flex; gap: 2px; }
 .sticker-tray-btn { width: 52px; height: 52px; flex-shrink: 0; border: none; border-radius: 14px; background: var(--card); font-size: 1.75rem; line-height: 1; display: grid; place-items: center; }
 .sticker-tray-btn:active { transform: scale(0.9); }
@@ -2675,7 +2675,10 @@ button.notif-item:active { transform: scale(0.99); }
   /* Phones: Manage rewards on top, the people under it with the whole width (the picked one stays in view). */
   .stickers-head .reward-manage { order: -1; }
   .stickers-head:has(.reward-manage) .stickers-members { flex-basis: 100%; }
-  .stickers-head [role="tablist"] { flex-basis: 100%; }
+  .stickers-head:has(.reward-manage) [role="tablist"] { flex-basis: 100%; }
+  /* The sticker book: Back and Book/Shop share the first row; the names wrap below it instead of scrolling. */
+  .stickers-head:not(:has(.reward-manage)) [role="tablist"] { flex: 1 1 0; min-width: 0; }
+  .stickers-head:not(:has(.reward-manage)) .stickers-members { flex-wrap: wrap; overflow: visible; flex-basis: 100%; order: 3; }
   .sticker-tray { padding: 8px 12px 10px; }
   .stickers-shop { padding: 4px 12px 16px; }
   .sticker-packs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -3064,9 +3067,7 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-tidbit .btn { margin-top: 8px; padding: 6px 14px; min-height: 0; font-size: 0.875rem; }
 :root[data-density="icons"] .board-avatar { width: 36px; height: 36px; font-size: 1.25rem; }
 
-/* Photos: the add tile and the sheet's prev/next */
-.photo-tile-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 2px dashed var(--accent-strong); background: var(--bg-alt); color: var(--accent-text); font-weight: 800; }
-.photo-add-plus { font-size: 2rem; line-height: 1; }
+/* Photos: the sheet's prev/next */
 .photo-stage { position: relative; }
 .photo-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; font-size: 1.75rem; line-height: 1; background: var(--card); box-shadow: var(--shadow); }
 .photo-nav-prev { left: 8px; } .photo-nav-next { right: 8px; }
