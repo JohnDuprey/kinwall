@@ -6,6 +6,7 @@ import Sheet from './Sheet.tsx'
 import { api } from './api.ts'
 import { getKey } from './api.ts'
 import { HelpIcon } from './icons.tsx'
+import { helpPath } from './helpPage.ts'
 
 export const DOCS_URL = 'https://docs.kinwall.family'
 export const ISSUES_URL = 'https://github.com/JohnDuprey/kinwall/issues'
@@ -19,6 +20,7 @@ export function HelpButton({ className = '' }: { className?: string }) {
   // Version and hosting link come from /api/me; before sign-in (gate, wizard) there's no key, so skip.
   useEffect(() => { if (open && !me && getKey()) api.meStrict().then(setMe).catch(() => {}) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const version = me?.version, hostPortalUrl = me?.hostPortalUrl
+  const here = open ? helpPath(location.hash) : null
   return (
     <>
       <button className={`icon-btn help-btn ${className}`} onClick={() => setOpen(true)} aria-label="Help" aria-haspopup="dialog">
@@ -27,6 +29,7 @@ export function HelpButton({ className = '' }: { className?: string }) {
       {open && (
         <Sheet title="Help" onClose={() => setOpen(false)} variant="dialog">
           <ul className="help-links">
+            {here && <li><a className="help-link" href={`${DOCS_URL}/${here}`} target="_blank" rel="noopener"><strong>Help with this page</strong><span>How this screen works, in the docs.</span></a></li>}
             <li><a className="help-link" href={DOCS_URL} target="_blank" rel="noopener"><strong>Docs &amp; guides</strong><span>Setting up, connecting calendars, chores, lists, the wall display.</span></a></li>
             <li><a className="help-link" href={`${DOCS_URL}/contributing/accessibility`} target="_blank" rel="noopener"><strong>Accessibility</strong><span>Keyboard, screen readers, low-stimulation mode, what's still missing.</span></a></li>
             <li><a className="help-link" href={newIssue('bug_report.yml', version)} target="_blank" rel="noopener"><strong>Report a problem</strong><span>Something isn't working. Opens a short form on GitHub.</span></a></li>

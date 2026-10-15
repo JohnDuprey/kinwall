@@ -139,7 +139,7 @@ On a phone, or a tablet standing up (portrait), the header is one row:
 
 There's no clock in this header, since the phone or tablet already shows the time.
 
-**Help** (the **?** button) is in the same spot on every screen. It opens a short sheet with links to these docs, accessibility notes, **Report a problem** and **Suggest a feature** (short GitHub forms; a problem report arrives with the Kinwall version filled in), plus the Kinwall version.
+**Help** (the **?** button) is in the same spot on every screen. It opens a short sheet with **Help with this page** (the docs page for the screen that's open, or the Settings tab you're on), links to these docs, accessibility notes, **Report a problem** and **Suggest a feature** (short GitHub forms; a problem report arrives with the Kinwall version filled in), plus the Kinwall version.
 
 The browser tab or window title shows the screen and your family name, for example "Chores · Our Family".
 
