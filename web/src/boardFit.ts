@@ -12,10 +12,11 @@ export function rowsThatFit(rows: { bottom: number; heading?: boolean }[], space
   return n
 }
 
-/** The More button's label: how many rows (not headings) the sheet adds, "Show 4" when none fit. */
-export function moreLabel(rows: { heading?: boolean }[], shown: number): string {
+/** The More button's label: how many rows (not headings) the sheet adds, "+4 more"; when none fit and
+ * the card says what its rows are (`what`: one, many), "4 meals". */
+export function moreLabel(rows: { heading?: boolean }[], shown: number, what?: [string, string]): string {
   const n = rows.slice(shown).filter(r => !r.heading).length
-  return n === 0 ? 'More' : shown === 0 ? `Show ${n}` : `+${n} more`
+  return n === 0 ? 'More' : shown === 0 && what ? `${n} ${n === 1 ? what[0] : what[1]}` : `+${n} more`
 }
 
 /** The Board's chore rows for who's shown, the same rule as the Chores tab: with someone picked,

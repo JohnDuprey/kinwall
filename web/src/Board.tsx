@@ -47,26 +47,27 @@ function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar' | 'picture'
 const densityClass = (d: CardDensity | undefined) => d && d !== 'normal' ? ` board-density-${d}` : ''
 
 /** `foot`: something right under the rows that always shows (the "in Today" slot), taking its space from them. */
-function Card({ title, area, link, density, foot, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; children: React.ReactNode }) {
+function Card({ title, area, link, density, foot, what, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; what?: [string, string]; children: React.ReactNode }) {
   return (
     <section className={`board-card board-${area}${densityClass(density)}`} aria-label={title}>
       <h3 className="snap-heading">{title}{link}</h3>
-      <FitBody title={title}>{children}</FitBody>
+      <FitBody title={title} what={what}>{children}</FitBody>
       {foot}
     </section>
   )
 }
 
 const ROWS = '.snap-list > li, .snap-day-heading'
+const MEALS: [string, string] = ['meal', 'meals'] // Today's meals' More button: "4 meals"
 const MORE_SPACE = 50 // the More button (44px) and the gap above it
 /** A card's body that shows the rows that fit its space and a "+3 more" button for the rest, which
  *  opens the whole card in a sheet. Only a wall or tablet Board gives a card a fixed space; on a phone
  *  the card grows to its rows, so everything fits and nothing is cut. */
-function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, children }: { title: string; rows?: string; bodyClass?: string; head?: React.ReactNode; children: React.ReactNode }) {
+function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, what, children }: { title: string; rows?: string; bodyClass?: string; head?: React.ReactNode; what?: [string, string]; children: React.ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)
   const [more, setMore] = useState<string | null>(null)
-  const [none, setNone] = useState(false) // no row fits: `head` shows above "Show 3"
+  const [none, setNone] = useState(false) // no row fits: `head` shows above "+3 more"
   const [open, setOpen] = useState(false)
   const fit = useCallback(() => {
     const w = wrap.current, b = body.current
@@ -85,9 +86,9 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, children 
     const shown = rowsThatFit(info, space, MORE_SPACE * scale)
     els.forEach((e, i) => { e.hidden = i >= shown })
     for (const d of days) d.hidden = !!d.querySelector('.snap-day-heading[hidden]') // a day whose rows all went
-    setMore(shown < els.length ? moreLabel(info, shown) : null)
+    setMore(shown < els.length ? moreLabel(info, shown, what) : null)
     setNone(shown === 0 && els.length > 0)
-  }, [rows])
+  }, [rows, what])
   useLayoutEffect(fit) // every render: the rows may have changed
   // The body never stretches, so after a cut its own size can't tell it the space grew: watch the card
   // and what shares it too (the slot under it), again each render since the slot may have just come.
@@ -418,6 +419,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   </span>
   const choresText = restLeft ? `${restLeft} left today` : 'All done ✓'
   const choresName = timed.length ? 'Other chores' : 'Chores'
+  const toDos = (n: number) => n === 1 ? '1 to-do' : `${n} to-dos` // the chip says what's due: "3 to-dos due"
   const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
   // Today's slot, in order: Take now, today's chores, what's due today (the week's still a tap away), an open poll.
   const todaySlot = [
@@ -430,7 +432,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     },
     todayTiles && dueTile && items.length > 0 && dueSummary && {
       key: 'due',
-      chip: <a className="board-slot-chip" href="#/lists" aria-label={`Due: ${dueSummary}`}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${overdue ? 'snap-overdue' : ''}`}>{overdue && overdue === dueToday.length ? `${overdue} overdue` : dueToday.length ? `${dueToday.length} due` : `${dueLater} due soon`}</span></a>,
+      chip: <a className="board-slot-chip" href="#/lists" aria-label={`Due: ${dueSummary}`}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${overdue ? 'snap-overdue' : ''}`}>{overdue && overdue === dueToday.length ? `${toDos(overdue)} overdue` : dueToday.length ? `${toDos(dueToday.length)} due` : `${toDos(dueLater)} due soon`}</span></a>,
       row: dueRow,
       full: !dueToday.length ? dueRow : <div className="board-slot-due">
         <a className="board-slot-head board-slot-head-link" href="#/lists"><span aria-hidden="true">📝</span>Due today<span className="board-slot-row-meta">{dueLater > 0 ? `${dueLater} later this week ›` : 'All lists ›'}</span></a>
@@ -565,7 +567,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
         </Sheet>}
 
-        {has('meals') && <Card title="Today’s meals" area="meals" density={dense('meals')}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
+        {has('meals') && <Card title="Today’s meals" area="meals" density={dense('meals')} what={MEALS}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
         {has('coming') && <Card title="Coming up" area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
           {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {
@@ -698,7 +700,7 @@ function TidbitCard({ tidbit, area, title, heading, density }: { tidbit: Tidbit;
       {title && heading && <h3 className="snap-heading">{title}</h3>}{/* one source: its tag already says what it is */}
       {/* Trivia keeps its answers on the card (answering happens right here), so it never trims rows
           into a "+N more" sheet; when space is tight its body scrolls instead. */}
-      {/* Too small for even its first line, its tag goes with it: the title stays above "Show 1". */}
+      {/* Too small for even its first line, its tag goes with it: the title stays above "+1 more". */}
       <TidbitBody trivia={tidbit.kind === 'trivia'} fitKey={key} title={title ?? label} head={!(title && heading) && <h3 className="snap-heading">{title ?? label}</h3>}>
         {tidbit.kind === 'quote' && <blockquote><p>“{tidbit.text}”</p><footer>— {tidbit.by}</footer></blockquote>}
         {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 Did you know?</span> {tidbit.text}</p>}
