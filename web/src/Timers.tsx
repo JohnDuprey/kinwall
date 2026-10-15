@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useReducer, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { announce } from './a11y.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
@@ -7,7 +7,7 @@ import { timerActivity, timerName } from './liveActivity.ts'
 import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
 import Sheet from './Sheet.tsx'
 import {
-  chimeDue, choreOfTimer, clock, dismissRung, durationLabel, getTimers, isRunning, pauseTimer, phase, resetTimer, resumeTimer, ringDue,
+  cancelTimer, chimeDue, choreOfTimer, clock, durationLabel, forgetCancel, lastCancelled, undoCancel, getTimers, isRunning, pauseTimer, phase, resetTimer, resumeTimer, ringDue,
   startTimer, stopTimer, subscribeTimers, timerWords, untilNext, type NewTimer, type Timer,
 } from './timers.ts'
 
@@ -103,49 +103,70 @@ export function TimerHost() {
     if (a) tellAppActivity('cooking', a); else endAppActivity('cooking')
   }, [timers])
 
+  // Cancel's Undo, for a few seconds: here, over everything, so it works in cooking mode too.
+  const gone = lastCancelled(), [, rerender] = useReducer((n: number) => n + 1, 0)
+  useEffect(() => {
+    if (!gone) return
+    const forget = setTimeout(() => { forgetCancel(); rerender() }, 8000)
+    return () => clearTimeout(forget)
+  }, [gone])
+
   const rang = timers.filter(t => t.done)
-  if (!rang.length) return null
-  return createPortal(
+  // The banner's height, so cooking mode moves down under it instead of hiding its ✕ (meals.css).
+  useEffect(() => {
+    const banner = document.querySelector<HTMLElement>('.timer-alarm'), root = document.documentElement.style
+    if (!banner) { root.removeProperty('--alarm-h'); return }
+    const fit = new ResizeObserver(() => root.setProperty('--alarm-h', `${banner.offsetHeight}px`))
+    fit.observe(banner)
+    return () => { fit.disconnect(); root.removeProperty('--alarm-h') }
+  }, [rang.length > 0])
+  // One recipe's timers don't need its name on each.
+  const oneRecipe = rang.every(t => t.title && t.title === rang[0].title)
+  const undo = gone && createPortal(
+    <div className="toast toast-with-action timer-undo" role="status">Timer cancelled<button type="button" className="toast-action" onClick={() => { undoCancel(); announce(`${gone.label} timer back`) }}>Undo</button></div>,
+    document.body)
+  if (!rang.length) return undo || null
+  return <>{undo}{createPortal(
     <div className="timer-alarm">
-      <span>⏰ Time's up: {rang.map(t => [t.label, about(t)].filter(Boolean).join(', ')).join('; ')}</span>
-      {/* A chore's timer offers to mark it done: the Chores tab ticks it (who did it, a checklist, a parent's OK as usual). */}
-      <div className="timer-alarm-actions">
-        {rang.filter(t => choreOfTimer(t)).map(t => (
-          <button key={t.id} type="button" className="btn" onClick={() => { stopTimer(t.id); location.hash = `#/chores?done=${encodeURIComponent(choreOfTimer(t)!)}&sure=1` }}>
-            {rang.length > 1 ? `Mark ${timerName(t.label)} done` : 'Mark done'}
-          </button>
-        ))}
-        <button type="button" className="btn" onClick={dismissRung}>OK</button>
-      </div>
+      {/* A row and an OK each, so one can be silenced while another keeps ringing. */}
+      {rang.map(t => <div key={t.id} className="timer-alarm-row">
+        <span>⏰ Time's up: {oneRecipe && rang.length > 1 ? t.label : [t.label, about(t)].filter(Boolean).join(', ')}</span>
+        {/* A chore's timer offers to mark it done: the Chores tab ticks it (who did it, a checklist, a parent's OK as usual). */}
+        <div className="timer-alarm-actions">
+          {choreOfTimer(t) && <button type="button" className="btn" onClick={() => { stopTimer(t.id); location.hash = `#/chores?done=${encodeURIComponent(choreOfTimer(t)!)}&sure=1` }}>Mark done</button>}
+          <button type="button" className="btn" aria-label={rang.length > 1 ? `OK, ${timerName(t.label)}` : undefined} onClick={() => stopTimer(t.id)}>OK</button>
+        </div>
+      </div>)}
     </div>,
     document.body,
-  )
+  )}</>
 }
 
-/** The timers that haven't rung, each with Pause/Resume, Reset and Cancel. */
-export function TimerList({ timers, now, className = '' }: { timers: Timer[]; now: number; className?: string }) {
+/** The timers that haven't rung, each with Pause/Resume, Reset and Cancel. `recipe`: cooking mode's,
+ * whose name its own timers leave off (just the step). */
+export function TimerList({ timers, now, className = '', recipe }: { timers: Timer[]; now: number; className?: string; recipe?: string }) {
   return (
     <ul className={`timer-bar ${className}`} aria-label="Running timers">
       {timers.filter(t => !t.done).map(t => {
         const paused = t.left !== undefined, name = [t.label, t.detail].filter(Boolean).join(', ')
         const [words, more] = timerWords(t, now), checking = phase(t, now) === 'check'
         return <li key={t.id} className={checking ? 'timer-checking' : undefined}>
-          <span className="timer-bar-label">{words}{more && <small className="timer-more">{more}</small>}{about(t) && <small>{about(t)}</small>}</span>
+          <span className="timer-bar-label">{words}{more && <small className="timer-more">{more}</small>}{(t.title === recipe ? t.detail : about(t)) && <small>{t.title === recipe ? t.detail : about(t)}</small>}</span>
           <strong className={`timer-clock ${paused ? 'timer-clock-paused' : ''}`}>{clock(untilNext(t, now))}{paused && <span className="sr-only">, paused</span>}</strong>
           {/* A range past its check: it's ready when it looks ready. */}
-          {checking && <button type="button" className="btn btn-secondary timer-done" aria-label={`Done with ${name}`} onClick={() => stopTimer(t.id)}>Done</button>}
+          {checking && <button type="button" className="btn btn-secondary timer-done" aria-label={`${name} is ready`} onClick={() => stopTimer(t.id)}>Ready</button>}
           {paused
             ? <button type="button" className="icon-btn" aria-label={`Resume ${name} timer`} onClick={() => resumeTimer(t.id)}><PlayIcon width={18} height={18} /></button>
             : <button type="button" className="icon-btn" aria-label={`Pause ${name} timer`} onClick={() => pauseTimer(t.id)}><PauseIcon width={18} height={18} /></button>}
           <button type="button" className="icon-btn" aria-label={`Reset ${name} timer`} onClick={() => resetTimer(t.id)}><ResetIcon width={18} height={18} /></button>
-          <button type="button" className="icon-btn" aria-label={`Cancel ${name} timer`} onClick={() => stopTimer(t.id)}><XIcon width={18} height={18} /></button>
+          <button type="button" className="icon-btn timer-cancel" aria-label={`Cancel ${name} timer`} onClick={() => cancelTimer(t.id)}><XIcon width={18} height={18} /></button>
         </li>
       })}
     </ul>
   )
 }
 
-const PRESETS = [1, 2, 5, 10, 15, 20, 30, 60]
+const PRESETS = [0.5, 1, 2, 5, 10, 15, 20, 30, 60]
 
 /** Header button: a quick timer for homework, a chore, brushing teeth. While one runs it shows the
  * soonest one's time left. */
@@ -189,7 +210,7 @@ function TimerSheet({ onClose }: { onClose: () => void }) {
       {waiting.length > 0 && <TimerList timers={waiting} now={now} className="timer-bar-stack" />}
       <div className="field">
         <label htmlFor="timer-name">Name (optional)</label>
-        <input id="timer-name" type="text" value={name} maxLength={40} placeholder="Homework" onChange={e => setName(e.target.value)} />
+        <input id="timer-name" type="text" value={name} maxLength={40} placeholder="Pasta, reading…" onChange={e => setName(e.target.value)} />
       </div>
       <div className="chip-row timer-presets" role="group" aria-label="Start a timer">
         {PRESETS.map(m => <button key={m} type="button" className="chip" onClick={() => go(m)}>{durationLabel(m)}</button>)}
@@ -198,8 +219,9 @@ function TimerSheet({ onClose }: { onClose: () => void }) {
         <label htmlFor="timer-minutes">Other time (minutes)</label>
         <div className="timer-custom-row">
           <input id="timer-minutes" type="text" inputMode="decimal" value={minutes} placeholder="25" onChange={e => setMinutes(e.target.value)} />
-          <button type="submit" className="btn btn-primary" disabled={!valid}>Start</button>
+          <button type="submit" className="btn btn-primary" disabled={!valid} aria-describedby={valid ? undefined : 'timer-start-hint'}>Start</button>
         </div>
+        {!valid && <p id="timer-start-hint" className="field-hint">{minutes.trim() ? 'Type a number of minutes, up to 1440 (a day).' : 'Type how many minutes to start it, or tap a time above.'}</p>}
       </form>
     </Sheet>
   )

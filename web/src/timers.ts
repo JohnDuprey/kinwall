@@ -92,8 +92,13 @@ export const pauseTimer = (id: number) => save(paused(timers, id, Date.now()))
 export const resumeTimer = (id: number) => save(resumed(timers, id, Date.now()))
 export const resetTimer = (id: number) => save(wasReset(timers, id, Date.now()))
 export const stopTimer = (id: number) => save(timers.filter(t => t.id !== id))
-/** OK on the "Time's up" banner: clears every timer that rang. */
-export const dismissRung = () => save(timers.filter(t => !t.done))
+/** Cancel (a timer's ×): gone, but kept as the last cancelled one so Undo can put it back as it was
+ * (still counting down from when it started, or paused where it was). */
+let cancelled: Timer | null = null
+export const lastCancelled = () => cancelled
+export function cancelTimer(id: number) { cancelled = timers.find(t => t.id === id) ?? null; stopTimer(id) }
+export function undoCancel() { const t = cancelled; cancelled = null; if (t && !timers.some(x => x.id === t.id)) save([...timers, t]) }
+export function forgetCancel() { cancelled = null }
 /** Marks the ranges at their check as checked and returns them (each chimes once). */
 export function chimeDue(at: number): Timer[] {
   const up = checksDue(timers, at)
