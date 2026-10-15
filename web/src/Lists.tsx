@@ -1977,7 +1977,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           <div className="shop-bar-title">
             <h2 id={`shop-title-${listId}`} ref={shopHeading} tabIndex={-1}>{list.name}<span className="sr-only">, shopping mode</span></h2>
             <button className="shop-store-btn" onClick={() => setPicking(true)} aria-label={`Shopping at ${storeLabel ?? 'no store yet'}. Change store`}>
-              <CartIcon width={16} height={16} />{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span>
+              <CartIcon width={16} height={16} /><span>{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span></span>
             </button>
           </div>
           {view && <div className="shop-left">{tripLeft} left{tripAt && reversed && <span className="chip chip-static shop-reversed">Reversed</span>}</div>}
@@ -2065,7 +2065,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           {scanBtn}
           {activeTrip ? <>
             <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={`Shopping at ${storeLabel}, ${tripLeft} left. Resume shopping`}>
-              <CartIcon width={18} height={18} /><span className="list-shop-label">Shopping at {storeLabel}<span className="list-shop-sub"> · {tripLeft} left</span></span>
+              <CartIcon width={18} height={18} /><span className="list-shop-label">{storeLabel}<span className="list-shop-sub"> · {tripLeft} left</span></span>
             </button>
             <button className="btn btn-secondary list-end-btn" onClick={() => changeTrip(null)} aria-label={`End shopping at ${storeLabel}`}>End</button>
           </> : (

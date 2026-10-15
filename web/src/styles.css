@@ -1565,7 +1565,7 @@ button.month-cell .month-daynum { flex: none; }
 .list-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .list-actions .btn { flex: none; min-height: 44px; padding: 8px 18px; }
 .list-actions .list-shop-btn.on-trip { flex: 0 1 auto; min-width: 0; }
-.list-shop-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-shop-label { min-width: 0; text-align: left; overflow-wrap: anywhere; } /* wraps: the store is the point */
 .list-shop-sub { font-weight: 700; opacity: 0.85; }
 .list-view-summary { flex-shrink: 0; margin-top: -6px; }
 
@@ -1636,8 +1636,9 @@ button.month-cell .month-daynum { flex: none; }
 .shop-bar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .shop-bar h2 { margin: 0; max-width: 100%; font-size: 1.0625rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-bar h2:focus { outline: none; } /* focused on open so it's announced; not a control */
-.shop-store-btn > svg { margin-right: 4px; vertical-align: -3px; }
-.shop-store-btn { min-height: 32px; max-width: 100%; padding: 0; border: none; background: none; color: var(--accent-strong); font: inherit; font-size: 0.875rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+/* The store wraps rather than cut off (with its ▾, the hint that it's tappable). */
+.shop-store-btn > svg { flex-shrink: 0; }
+.shop-store-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; max-width: 100%; padding: 0; border: none; background: none; color: var(--accent-strong); font: inherit; font-size: 0.875rem; font-weight: 800; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
 .shop-left:has(.shop-reversed) { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .shop-reversed { padding: 1px 8px; font-size: 0.75rem; }
 .shop-reverse-btn { flex: none; font-size: 1.25rem; font-weight: 800; }
