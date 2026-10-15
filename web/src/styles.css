@@ -298,6 +298,9 @@ button {
 .app-shell-rail .content { padding-bottom: 10px; }
 .app-shell-rail .fab { bottom: 10px; right: 14px; }
 .app-shell-rail .toast { bottom: calc(var(--safe-b) + 16px); }
+/* With an add button on screen, toasts ride above it instead of covering it and the row it sits by. */
+:root:has(.fab) .toast:not(.update-banner) { bottom: calc(var(--tab-h) + var(--safe-b) + 92px); }
+:root:has(.fab) .app-shell-rail .toast:not(.update-banner) { bottom: calc(var(--safe-b) + 84px); }
 .demo-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: calc(env(safe-area-inset-top, 0px) + 28px); padding-top: env(safe-area-inset-top, 0px); display: flex; align-items: center; justify-content: center; background: var(--accent-strong); color: #fff; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.01em; }
 .demo-bar-leave { margin-left: 10px; height: 20px; padding: 0 10px; line-height: 1; font-size: 0.75rem; border: 1.5px solid rgba(255,255,255,0.85); border-radius: 999px; background: transparent; color: inherit; font-family: inherit; font-weight: 700; cursor: pointer; position: relative; }
 .demo-bar-leave::after { content: ''; position: absolute; inset: -12px -8px; } /* a 44px tap target in the 28px bar */
@@ -2300,7 +2303,7 @@ a.activity-card:active { transform: scale(0.98); }
 .task-add-go { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; border: none; border-radius: 9px; background: var(--accent-strong); color: var(--accent-ink); display: grid; place-items: center; }
 .task-add-go:disabled { opacity: 0.4; cursor: not-allowed; }
 .task-add-lists { gap: 6px; }
-.task-add-lists .chip { min-height: 36px; padding: 0 12px; font-size: 0.8125rem; }
+.task-add-lists .chip { min-height: 44px; padding: 0 12px; font-size: 0.8125rem; }
 
 /* iOS Safari zooms the page when a focused field's font is under 16px. Pinch-zoom stays enabled for
  * accessibility, so on touch devices every field is held at 16px regardless of the rules above. */
@@ -3892,12 +3895,10 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 :root[data-density="compact"] .sheet-links { gap: 6px; margin: 8px 0; }
 :root[data-density="compact"] .sheet-link { min-height: 44px; padding: 6px 12px; }
 :root[data-density="compact"] .segmented.list-type-seg button { min-height: 48px; }
-/* Pick chips (who, type, for): drawn 34px and as wide as their words, so three or four share a row; the
-   ::after keeps a 44px tap, and the 10px between rows means neighboring taps never overlap. Rows that
-   scroll sideways (which would clip the ::after) and the kids' avatar chips keep their size. */
-:root[data-density="compact"] .chip-row:not(.stickers-members, .menu-jump, .security-filters) { gap: 10px 6px; }
-:root[data-density="compact"] .chip-row:not(.stickers-members, .menu-jump, .security-filters) > button.chip:not(.chip-static) { position: relative; min-height: 34px; padding: 3px 10px; gap: 4px; font-size: 0.8125rem; border-width: 1.5px; }
-:root[data-density="compact"] .chip-row:not(.stickers-members, .menu-jump, .security-filters) > button.chip:not(.chip-static)::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+/* Pick chips (who, type, for): 44px tall but as narrow as their words, so three or four share a row.
+   Rows that scroll sideways and the kids' avatar chips keep their size. */
+:root[data-density="compact"] .chip-row:not(.stickers-members, .menu-jump, .security-filters) { gap: 8px 6px; }
+:root[data-density="compact"] .chip-row:not(.stickers-members, .menu-jump, .security-filters) > button.chip:not(.chip-static) { min-height: 44px; padding: 3px 10px; gap: 4px; font-size: 0.8125rem; border-width: 1.5px; }
 :root[data-density="compact"] .emoji-swatch-row { gap: 6px; }
 /* Short notes at the top of a sheet (Health's privacy line): one quiet line, not a card. */
 :root[data-density="compact"] .trk-privacy { margin: 0 0 6px; padding: 0; background: none; font-size: 0.75rem; font-weight: 600; }
