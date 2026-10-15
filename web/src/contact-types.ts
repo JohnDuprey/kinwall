@@ -57,6 +57,40 @@ export const emptyContact = (): ContactInput => ({
 })
 
 /** The import review rows. The server parses vCards and finds duplicates; nothing merges until someone picks Merge. */
+/** New-contact templates, each filed under a built-in category (by name: built-ins can't be renamed). */
+export const CONTACT_TEMPLATES: { label: string; relationship: string; kind: NonNullable<Contact['kind']>; category: string; emergency?: boolean }[] = [
+  { label: 'Poison Control', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
+  { label: 'Animal Control', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
+  { label: 'Emergency services', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
+  { label: 'Police non-emergency', relationship: 'Public service', kind: 'service', category: 'Emergency services' },
+  { label: 'Fire department', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
+  { label: 'Pediatrician', relationship: 'Doctor', kind: 'service', category: 'Medical' },
+  { label: 'Veterinarian', relationship: 'Veterinarian', kind: 'service', category: 'Veterinary' },
+  { label: 'Pharmacy', relationship: 'Medical', kind: 'service', category: 'Medical' },
+  { label: 'School office', relationship: 'School', kind: 'organization', category: 'School' },
+  { label: 'Utility company', relationship: 'Home service', kind: 'organization', category: 'Home services' },
+  { label: 'Locksmith', relationship: 'Home service', kind: 'service', category: 'Home services' },
+  { label: 'Insurance provider', relationship: 'Insurance', kind: 'organization', category: 'Organizations' },
+  { label: 'Babysitter', relationship: 'Childcare', kind: 'person', category: 'Childcare' },
+  { label: 'Neighbor', relationship: 'Neighbor', kind: 'person', category: 'Neighbors' },
+  { label: 'Other service', relationship: 'Service', kind: 'service', category: 'Other' },
+]
+
+/** Switch a new contact's template from `from` to `to` ('' is Blank contact). A name the template
+ * filled in follows the template; a name someone typed stays. The old template's category goes. */
+export function applyContactTemplate(f: ContactInput, from: string, to: string, categories: ContactCategory[]): ContactInput {
+  const prev = CONTACT_TEMPLATES.find(t => t.label === from), next = CONTACT_TEMPLATES.find(t => t.label === to)
+  const categoryOf = (t?: { category: string }) => t && categories.find(c => c.name === t.category)?.id
+  const prevCategory = categoryOf(prev), nextCategory = categoryOf(next)
+  const blank = emptyContact()
+  return {
+    ...f,
+    name: !f.name.trim() || f.name === prev?.label ? next?.label ?? '' : f.name,
+    kind: next?.kind ?? blank.kind, relationship: next?.relationship ?? blank.relationship, emergency: !!next?.emergency,
+    categoryIds: [...new Set([...(f.categoryIds ?? []).filter(id => id !== prevCategory), ...(nextCategory ? [nextCategory] : [])])],
+  }
+}
+
 export function reviewCandidates(entries: ImportPreviewEntry[]): ImportCandidate[] {
   return entries.map(({ contact, duplicateIds }, index) => ({ key: `candidate-${index}`, input: contact, matchId: duplicateIds[0] ?? null,
     status: duplicateIds.length ? 'match' : 'new', decision: duplicateIds.length ? 'skip' : 'add' }))

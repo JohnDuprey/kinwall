@@ -9,7 +9,7 @@ import { hashPath, hashQuery } from './hashQuery.ts'
 import { CONTACTS_SHARED_EVENT, takeSharedContacts } from './native.ts'
 import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
 import type { Member } from './types.ts'
-import { activeContactFilters, contactDate, contactFilterSummary, contactLabel, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
+import { activeContactFilters, applyContactTemplate, CONTACT_TEMPLATES, contactDate, contactFilterSummary, contactLabel, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
   type Contact, type ContactFilters, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
@@ -25,23 +25,6 @@ const memberOptions = (members: Member[]): PickOption[] => members.map(m => ({ v
 type PickerContact = { name?: string[]; tel?: string[]; email?: string[]; address?: { toString(): string }[] }
 type ContactPicker = { select: (properties: string[], options: { multiple: boolean }) => Promise<PickerContact[]>; getProperties?: () => Promise<string[]> }
 
-const TEMPLATES: { label: string; relationship: string; kind: NonNullable<Contact['kind']>; emergency?: boolean }[] = [
-  { label: 'Poison Control', relationship: 'Emergency service', kind: 'service', emergency: true },
-  { label: 'Animal Control', relationship: 'Emergency service', kind: 'service', emergency: true },
-  { label: 'Emergency services', relationship: 'Emergency service', kind: 'service', emergency: true },
-  { label: 'Police non-emergency', relationship: 'Public service', kind: 'service' },
-  { label: 'Fire department', relationship: 'Emergency service', kind: 'service', emergency: true },
-  { label: 'Pediatrician', relationship: 'Doctor', kind: 'service' },
-  { label: 'Veterinarian', relationship: 'Veterinarian', kind: 'service' },
-  { label: 'Pharmacy', relationship: 'Medical', kind: 'service' },
-  { label: 'School office', relationship: 'School', kind: 'organization' },
-  { label: 'Utility company', relationship: 'Home service', kind: 'organization' },
-  { label: 'Locksmith', relationship: 'Home service', kind: 'service' },
-  { label: 'Insurance provider', relationship: 'Insurance', kind: 'organization' },
-  { label: 'Babysitter', relationship: 'Childcare', kind: 'person' },
-  { label: 'Neighbor', relationship: 'Neighbor', kind: 'person' },
-  { label: 'Other service', relationship: 'Service', kind: 'service' },
-]
 const VISIBILITY_HINTS: Record<NonNullable<ContactInput['visibility']>, string> = {
   household: 'Parent devices and everyone’s own devices. Wall screens too, if it’s on the wall.',
   adults: 'Parent devices and grown-ups’ own devices. Never wall screens or kids’ devices.',
@@ -170,9 +153,9 @@ export function ContactForm({ initial, categories, members, onClose, onSaved }: 
   return <Sheet title={initial ? 'Edit contact' : 'New contact'} onClose={onClose} dismissable={!saving}
     actions={<><button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save contact'}</button></>}>
     {!initial && <div className="field"><label htmlFor={`${id}-template`}>Start from a template (optional)</label>
-      <select id={`${id}-template`} value={template} onChange={e => { setTemplate(e.target.value); const t = TEMPLATES.find(x => x.label === e.target.value); if (t) setForm(f => ({ ...f, name: f.name || t.label, kind: t.kind, relationship: t.relationship, emergency: !!t.emergency })) }}>
+      <select id={`${id}-template`} value={template} onChange={e => { const to = e.target.value; setForm(f => applyContactTemplate(f, template, to, categories)); setTemplate(to) }}>
         <option value="">Blank contact</option>
-        {TEMPLATES.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+        {CONTACT_TEMPLATES.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
       </select></div>}
     <div className="field"><label htmlFor={`${id}-name`}>Name *</label><input id={`${id}-name`} type="text" value={form.name} onChange={e => change('name', e.target.value)} maxLength={160} autoComplete="name" /></div>
     <div className="field"><label htmlFor={`${id}-kind`}>Contact kind</label><select id={`${id}-kind`} value={form.kind ?? 'person'} onChange={e => change('kind', e.target.value as ContactInput['kind'])}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></div>

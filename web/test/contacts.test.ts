@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The contact import review built from the server's preview.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { activeContactFilters, contactDate, contactFilterSummary, contactLabel, DEFAULT_CONTACT_FILTERS, emptyContact, reviewCandidates } from '../src/contact-types.ts'
+import { activeContactFilters, applyContactTemplate, contactDate, contactFilterSummary, contactLabel, DEFAULT_CONTACT_FILTERS, emptyContact, reviewCandidates } from '../src/contact-types.ts'
 
 test('reviewCandidates: new drafts are added, matches are skipped until someone decides', () => {
   const maya = { ...emptyContact(), name: 'Coach Maya' }
@@ -59,4 +59,16 @@ test('demo import preview: parses an Apple vCard like the server and finds demo 
   assert.deepEqual(jordan.duplicateIds, ['contact-neighbor'], 'same phone as the demo neighbor')
   assert.deepEqual(friend.contact.phones, [{ label: 'Mobile', value: '555-010-0001' }])
   assert.deepEqual(friend.duplicateIds, [])
+})
+
+test('applyContactTemplate: a template name follows the template, a typed name stays, Blank resets', () => {
+  const cats = ['Emergency services', 'Medical', 'Home services'].map((name, sort) => ({ id: `c${sort}`, name, color: null, sort, createdAt: '', updatedAt: '' }))
+  const pharmacy = applyContactTemplate(emptyContact(), '', 'Pharmacy', cats)
+  assert.deepEqual([pharmacy.name, pharmacy.kind, pharmacy.categoryIds], ['Pharmacy', 'service', ['c1']])
+  const locksmith = applyContactTemplate(pharmacy, 'Pharmacy', 'Locksmith', cats)
+  assert.deepEqual([locksmith.name, locksmith.categoryIds], ['Locksmith', ['c2']], 'changing your mind swaps the name and the category')
+  const typed = applyContactTemplate({ ...pharmacy, name: 'Maple Grove Pharmacy' }, 'Pharmacy', 'Poison Control', cats)
+  assert.deepEqual([typed.name, typed.emergency, typed.categoryIds], ['Maple Grove Pharmacy', true, ['c0']])
+  const blank = applyContactTemplate(typed, 'Poison Control', '', cats)
+  assert.deepEqual([blank.name, blank.kind, blank.relationship, blank.emergency, blank.categoryIds], ['Maple Grove Pharmacy', 'person', null, false, []])
 })
