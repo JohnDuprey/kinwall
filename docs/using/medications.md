@@ -98,10 +98,10 @@ It opens on the person's own device and on parents' devices, and both can catch 
 
 Each medicine can say where and how to ask for a refill. Set it up from a parent's device: **Trackers → Health → Medicines**, tap the medicine, and fill in **Refills** at the bottom.
 
-* **Ask for refills at**: who to ask, picked from your [contacts](contacts.md): doctors' offices and pharmacies first, then other places, then people. Or **Add a contact…** to make one right there, and **Edit contact** to change the one picked. Several medicines can share a contact, so you set up an office once. On the refill card it shows with:
+* **Ask for refills at**: who to ask, picked from your [contacts](contacts.md): doctors' offices and pharmacies first (contacts in the **Medical** category, or with a doctor or pharmacy as their relationship), then **Other contacts**. Or **Add a contact…** to make one right there, and **Edit contact** to change the one picked. Several medicines can share a contact, so you set up an office once. On the refill card it shows with:
   * its **phone numbers**, each with its [phone menu](contacts.md#phone-menus) if it has one, so **Call** gets you through "press 2 for prescriptions" for you,
   * its **websites and apps** (like the office's patient portal), each with **Open**.
-* **Pharmacy**: pick it from your [contacts](contacts.md) (pharmacies are listed first, then other places), or type its name if it isn't a contact.
+* **Pharmacy**: pick it from your [contacts](contacts.md) (pharmacies are listed first, then other **Medical** places, then **Other contacts**; people aren't listed), or type its name if it isn't a contact.
 * **Date of birth** and **Callback number**: said in the message.
 * **Remind me to ask on**: on that day at 9 AM, Kinwall adds the refill to-do by itself and sends a reminder (to a grown-up's own devices, or to parents' devices for a kid's medicine).
 

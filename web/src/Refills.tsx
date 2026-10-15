@@ -14,6 +14,7 @@ import Sheet from './Sheet.tsx'
 import { ContactForm } from './Contacts.tsx'
 import { contactLabel, type Contact, type ContactCategory } from './contact-types.ts'
 import type { Medication, MedicationRefill, Member, RefillCard } from './types.ts'
+import { askChoices, pharmacyChoices } from './refillChoices.ts'
 
 const medLabel = (m: Medication) => (m.dose ? `${m.name} · ${m.dose}` : m.name)
 const since = (at: string) => format(new Date(at), 'EEE, MMM d')
@@ -123,7 +124,6 @@ export function RefillSheet({ med, member, onClose, onDone }: { med: Medication;
 }
 
 /** The medicine sheet's Refills part. `siblings`: the person's other medicines, to start a new one's details from. */
-/** The medicine sheet's Refills part. `siblings`: the person's other medicines, to start a new one's details from. */
 export function RefillFields({ refill, onChange, siblings }: { refill: MedicationRefill; onChange: (r: MedicationRefill) => void; siblings: Medication[] }) {
   const { members } = useApp()
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -133,8 +133,8 @@ export function RefillFields({ refill, onChange, siblings }: { refill: Medicatio
     api.getContacts().then(setContacts).catch(() => setContacts([]))
     api.getContactCategories().then(setCategories).catch(() => setCategories([]))
   }, [])
-  const { pharmacies, services } = pharmacyChoices(contacts)
-  const offices = askChoices(contacts)
+  const pharmacies = pharmacyChoices(contacts, categories)
+  const offices = askChoices(contacts, categories)
   const picked = contacts.find(x => x.id === refill.pharmacyContactId)
   const askAt = contacts.find(x => x.id === refill.contactId)
   const set = (p: Partial<MedicationRefill>) => onChange({ ...refill, ...p })
@@ -159,8 +159,7 @@ export function RefillFields({ refill, onChange, siblings }: { refill: Medicatio
       <select id="refill-pharmacy" className="settings-select" value={refill.pharmacyContactId ?? ''}
         onChange={e => { const c = contacts.find(x => x.id === e.target.value); set(c ? { pharmacyContactId: c.id, pharmacy: c.name } : { pharmacyContactId: null }) }}>
         <option value="">Not in contacts: type its name</option>
-        {pharmacies.length > 0 && <optgroup label="Pharmacies">{pharmacies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>}
-        {services.length > 0 && <optgroup label="Other places in contacts">{services.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>}
+        {pharmacies.map(g => g.list.length > 0 && <optgroup key={g.label} label={g.label}>{g.list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
         {refill.pharmacyContactId && !picked && <option value={refill.pharmacyContactId}>{refill.pharmacy || 'A contact'}</option>}
       </select>
       {!refill.pharmacyContactId && <input aria-label="Pharmacy name" type="text" maxLength={120} value={refill.pharmacy} onChange={e => set({ pharmacy: e.target.value })} placeholder="The pharmacy on Main Street" autoComplete="off" className="refill-second" />}
@@ -175,26 +174,4 @@ export function RefillFields({ refill, onChange, siblings }: { refill: Medicatio
         onSaved={c => { setContacts(cs => [...cs.filter(x => x.id !== c.id), c]); set({ contactId: c.id }); setEditing(null) }} />}
     </fieldset>
   )
-}
-
-const MEDICAL = /pharm|drug|apothec|doctor|pediatric|clinic|medical|health|dental|dentist|physician|hospital/i
-const medical = (c: Contact) => MEDICAL.test([c.name, c.organization, c.relationship, ...(c.tags ?? [])].join(' '))
-
-/** Pharmacies first (named like one, or made from the Pharmacy template: relationship "Medical"), then other services and organizations. */
-function pharmacyChoices(contacts: Contact[]) {
-  const isPharmacy = (c: Contact) => /pharm|drug|apothec/i.test([c.name, c.organization, c.relationship, ...(c.tags ?? [])].join(' ')) || c.relationship === 'Medical'
-  const pharmacies = contacts.filter(isPharmacy)
-  return { pharmacies, services: contacts.filter(c => !isPharmacy(c) && (c.kind === 'service' || c.kind === 'organization')) }
-}
-
-/** Where to ask: doctors' offices and pharmacies first, then other places, then people. */
-function askChoices(contacts: Contact[]) {
-  const byName = [...contacts].sort((a, b) => a.name.localeCompare(b.name))
-  const med = byName.filter(medical)
-  const places = byName.filter(c => !medical(c) && c.kind !== 'person')
-  return [
-    { label: 'Doctors and pharmacies', list: med },
-    { label: 'Other places in contacts', list: places },
-    { label: 'People', list: byName.filter(c => !medical(c) && c.kind === 'person') },
-  ]
 }
