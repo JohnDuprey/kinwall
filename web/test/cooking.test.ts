@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Cooking mode: plain-text steps, timers and a step's ingredients.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cookingSteps, findDurations, stepIngredients, stepTimers } from '../src/cooking.ts'
+import { cookingSteps, findDurations, saveStep, savedStep, stepIngredients, stepTimers } from '../src/cooking.ts'
 
 const texts = (instructions: string) => cookingSteps({ instructions }).map(s => s.text)
 
@@ -43,11 +43,34 @@ test('stepTimers: a step\'s own timers, named, win over durations found in its t
     { label: 'Veggies · 20 min', seconds: 1200 },
     { label: '1.5 min', seconds: 90 },
   ])
-  assert.deepEqual(stepTimers({ text, bullets: [], timers: [] }), [{ label: '25 min', seconds: 1500 }, { label: '5 min', seconds: 300 }])
-  assert.deepEqual(stepTimers({ text: 'Plate.', bullets: ['Bake 10 min'] }), [{ label: '10 min', seconds: 600 }], 'steps saved before timers')
+  assert.deepEqual(stepTimers({ text, bullets: [], timers: [] }), [{ label: 'Roast · 25 min', seconds: 1500 }, { label: 'Rest · 5 min', seconds: 300 }])
+  assert.deepEqual(stepTimers({ text: 'Plate.', bullets: ['Bake 10 min'] }), [{ label: 'Bake · 10 min', seconds: 600 }], 'steps saved before timers')
+  // Unnamed timers get a name from the words that start their part of the sentence.
+  assert.deepEqual(stepTimers({ text: 'Bring the rice to a boil.', bullets: ['Cover, turn the heat to low and simmer 18-20 minutes.', 'Rest off the heat for 5 minutes, then fluff.'] }), [
+    { label: 'Simmer · 18–20 min', seconds: 1200, check: 1080 }, { label: 'Rest · 5 min', seconds: 300 },
+  ])
+  assert.deepEqual(stepTimers({ text: 'For 10 minutes, stir.', bullets: [] }), [{ label: '10 min', seconds: 600 }], 'no name from a filler word')
   // A meal kit's timer is one number; its text may give the range ("Roast 15–20 min").
   assert.deepEqual(stepTimers({ text: 'Roast 15–20 minutes, then broil 2 min.', bullets: [], timers: [{ name: 'Veggies', minutes: 15 }, { name: null, minutes: 2 }] }), [
     { label: 'Veggies · 15–20 min', seconds: 1200, check: 900 },
-    { label: '2 min', seconds: 120 },
+    { label: 'Broil · 2 min', seconds: 120 },
   ])
+})
+
+test('savedStep: the step you left off on, forgotten after 12 hours', () => {
+  const store = new Map<string, string>()
+  Object.assign(globalThis, { localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) } })
+  const at = Date.UTC(2026, 9, 15, 17)
+  saveStep('r1', 3, at)
+  assert.equal(savedStep('r1', at + 3600_000), 3)
+  assert.equal(savedStep('r1', at + 12 * 3600_000), 0, 'that dinner is over')
+  saveStep('r1', null)
+  assert.equal(savedStep('r1', at), 0)
+  store.set('kinwall.cookingStep.r2', '4') // saved before it had a time
+  assert.equal(savedStep('r2', at), 0)
+})
+
+test('cookingSteps: a typed recipe reads as the same numbered steps in its view and in cooking mode', () => {
+  assert.deepEqual(texts('Whisk the flour and milk. Fold in the blueberries. Cook on a hot griddle.'), ['Whisk the flour and milk.', 'Fold in the blueberries.', 'Cook on a hot griddle.'])
+  assert.deepEqual(texts('1. Whisk\n2. Fold\n3. Cook'), ['Whisk', 'Fold', 'Cook'])
 })

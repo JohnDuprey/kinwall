@@ -58,15 +58,7 @@ export function IngredientList({ recipe, servings, onBasic, makeIt }: { recipe: 
   </ul>
 }
 
-/** Steps saved as "1. …" lines read as a numbered list; anything else as written. */
-function Steps({ text }: { text: string }) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-  return lines.every(l => /^\d+[.)]\s/.test(l))
-    ? <ol className="recipe-steps">{lines.map((l, i) => <li key={i}>{l.replace(/^\d+[.)]\s+/, '')}</li>)}</ol>
-    : <p className="meal-prose">{text}</p>
-}
-
-/** Structured steps as numbered cards to cook along with: tapping one marks it done (only while this
+/** The steps (structured, or typed ones split the way cooking mode splits them) as numbered cards to cook along with: tapping one marks it done (only while this
  * view is open), Reset clears them. A step's photo sits beside it when there's room, above it when not. */
 function StepCards({ recipe, steps }: { recipe: Recipe; steps: RecipeStep[] }) {
   const [done, setDone] = useState<ReadonlySet<number>>(new Set())
@@ -189,8 +181,7 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
       </div>}
     </div>
     <IngredientList recipe={recipe} servings={servings} onBasic={openBasic} />
-    {recipe.steps?.length ? <StepCards key={`steps:${recipe.id}`} recipe={recipe} steps={recipe.steps} />
-      : recipe.instructions && <><h3>Steps</h3><Steps text={recipe.instructions} /></>}
+    {cookSteps.length > 0 && <StepCards key={`steps:${recipe.id}`} recipe={recipe} steps={cookSteps} />}
     {recipe.preparationNotes && <><h3>Preparation notes</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
     {admin && <RecipeShare key={`share:${recipe.id}`} recipe={recipe} />}

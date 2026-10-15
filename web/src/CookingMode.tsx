@@ -37,7 +37,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
     const i = Math.max(0, Math.min(steps.length - 1, to))
     if (i === index) return
     if (i === 0 && document.activeElement === backBtn.current) nextBtn.current?.focus() // Back is about to be disabled
-    setIndex(i); saveStep(recipe.id, i)
+    setIndex(i); saveStep(recipe.id, i === steps.length - 1 ? null : i) // the last step: nearly done, so it starts over next time
     announce(`Step ${i + 1} of ${steps.length}. ${[steps[i].title, steps[i].text].filter(Boolean).join('. ')}`)
   }
   const finish = () => { saveStep(recipe.id, null); onClose() }
@@ -98,10 +98,11 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
       </header>
       <div className="cook-progress" aria-hidden="true"><div style={{ width: `${(index + 1) / steps.length * 100}%` }} /></div>
       {/* Every running timer, a quick one from the header too: the app's header is out of view here. */}
-      {timers.some(t => !t.done) && <TimerList timers={soonestFirst(timers, now)} now={now} className="cook-timer-bar" />}
+      {timers.some(t => !t.done) && <TimerList timers={soonestFirst(timers, now)} now={now} className="cook-timer-bar" recipe={recipe.name} />}
       <div className="cook-main scroll-y" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null }}>
         <div className="cook-step">
-          {/* This step's ingredients right under the photo (beside the text when there's room), so they're in view without scrolling. */}
+          {/* This step's ingredients right under the photo (beside the text when there's room); on a phone or a
+              portrait screen they follow the step's text instead (meals.css), so the instruction is what's in view. */}
           {step.imageUrl && <div className="cook-step-side">
             <RecipePhoto key={index} id={recipe.id} step={{ n: index + 1, v: recipe.updatedAt }} className="cook-photo" />
             {ingredients}

@@ -33,12 +33,27 @@ export function findDurations(text: string): Duration[] {
  * it's that range. */
 export function stepTimers(step: RecipeStep): Duration[] {
   const found = findDurations([step.text, ...step.bullets].join('\n'))
-  if (!step.timers?.length) return found
+  const named = durationNames(step)
+  if (!step.timers?.length) return found.map(d => named.has(d.label) ? { ...d, label: `${named.get(d.label)} · ${d.label}` } : d)
   return step.timers.map(t => {
-    const name = t.name ? `${t.name} · ` : '', seconds = Math.round(t.minutes * 60)
-    const range = found.find(d => d.check === seconds)
+    const seconds = Math.round(t.minutes * 60)
+    const range = found.find(d => d.check === seconds), same = range ?? found.find(d => d.seconds === seconds && d.check === undefined)
+    const label = t.name ?? (same && named.get(same.label)), name = label ? `${label} · ` : ''
     return range ? { ...range, label: name + range.label } : { label: `${name}${t.minutes} min`, seconds }
   })
+}
+
+const FILLER = new Set(['for', 'about', 'another', 'a', 'an', 'the', 'or', 'then', 'and', 'until', 'after', 'in'])
+/** A name for each duration from the words that start its part of a sentence: "Simmer" for "…and
+ * simmer 18–20 minutes", "Rest" for "Rest off the heat for 5 minutes". */
+function durationNames(step: RecipeStep): Map<string, string> {
+  const names = new Map<string, string>()
+  for (const part of [step.text, ...step.bullets].join('\n').split(/[\n,;.:!?]+|\s+(?:and|then)\s+/i)) {
+    const word = part.trim().split(/\s+/)[0] ?? ''
+    if (!/^\p{L}{3,}$/u.test(word) || FILLER.has(word.toLowerCase())) continue
+    for (const d of findDurations(part)) if (!names.has(d.label)) names.set(d.label, word[0].toUpperCase() + word.slice(1).toLowerCase())
+  }
+  return names
 }
 
 const words = (s: string) => (s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map(itemKey)
@@ -52,11 +67,16 @@ export function stepIngredients<T extends { name: string }>(step: RecipeStep, in
   })
 }
 
-// Where you left off, per recipe on this device: just the step number.
+// Where you left off, per recipe on this device: the step number and when, forgotten after half a
+// day (that dinner is over) and on the last step (it's nearly done).
 const stepKey = (recipeId: string) => `kinwall.cookingStep.${recipeId}`
-export function savedStep(recipeId: string): number {
-  try { return Math.max(0, Number(localStorage.getItem(stepKey(recipeId))) || 0) } catch { return 0 }
+const KEEP_MS = 12 * 3600_000
+export function savedStep(recipeId: string, now = Date.now()): number {
+  try {
+    const saved = JSON.parse(localStorage.getItem(stepKey(recipeId)) ?? 'null') as { step?: number; at?: number } | null
+    return saved && typeof saved.at === 'number' && now - saved.at < KEEP_MS ? Math.max(0, Number(saved.step) || 0) : 0
+  } catch { return 0 }
 }
-export function saveStep(recipeId: string, step: number | null) {
-  try { if (step) localStorage.setItem(stepKey(recipeId), String(step)); else localStorage.removeItem(stepKey(recipeId)) } catch { /* storage blocked */ }
+export function saveStep(recipeId: string, step: number | null, now = Date.now()) {
+  try { if (step) localStorage.setItem(stepKey(recipeId), JSON.stringify({ step, at: now })); else localStorage.removeItem(stepKey(recipeId)) } catch { /* storage blocked */ }
 }

@@ -92,7 +92,7 @@
 .recipe-stepper span { min-width: 88px; text-align: center; }
 .recipe-steps { padding-left: 22px; }
 .recipe-steps li { margin: 10px 0; line-height: 1.5; overflow-wrap: anywhere; }
-/* Structured steps: numbered cards to cook along with (tap marks one done). A step's photo sits
+/* Steps: numbered cards to cook along with (tap marks one done). A step's photo sits
    above its text in a narrow sheet and beside it when there's room. */
 .recipe-steps-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .recipe-step-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; container-type: inline-size; }
@@ -151,6 +151,7 @@
 .cook-start { width: 100%; margin: 12px 0 4px; font-size: 1.0625rem; }
 .cook-mode {
   position: fixed; inset: 0; z-index: 55; /* over the recipe sheet (50), under toasts (100) */
+  top: var(--alarm-h, 0px); /* under a "Time's up" banner (Timers.tsx), so ✕ and All ingredients stay in reach */
   display: flex; flex-direction: column; background: var(--bg); color: var(--text);
   padding: 0 var(--safe-r) 0 var(--safe-l);
 }
@@ -168,13 +169,18 @@
 .cook-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px; }
 .cook-step-title { margin: 0; font-size: clamp(1.125rem, 0.9rem + 1vw, 1.75rem); font-weight: 800; color: var(--accent-text); }
 /* One size for every step on a screen, photo or not, short or long (about 30px on a wall). */
-.cook-step-text { margin: 8px 0 0; font-size: clamp(1.25rem, 0.75rem + 1.4vw, 2rem); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
-.cook-bullets { margin: 12px 0 0; padding-left: 1.2em; font-size: clamp(1.25rem, 0.9rem + 1.4vw, 2.25rem); line-height: 1.4; }
+/* The lead sentence and its bullets: one size, the sentence bolder. */
+.cook-step-text, .cook-bullets { --cook-text: clamp(1.25rem, 0.75rem + 1.4vw, 2rem); }
+.cook-step-text { margin: 8px 0 0; font-size: var(--cook-text); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.cook-bullets { margin: 12px 0 0; padding-left: 1.2em; font-size: var(--cook-text); font-weight: 600; line-height: 1.4; }
+.cook-step-head .link-btn { font-size: 1rem; }
 .cook-bullets li { margin: 6px 0; overflow-wrap: anywhere; }
 .cook-timers { display: flex; flex-wrap: wrap; gap: 10px; }
 /* The timers bar (Timers.tsx) under the cook bar, flat across the top. */
 /* Capped so several timers never push the step and Back/Next off a phone; soonest first, the rest scroll. */
 .timer-bar.cook-timer-bar { flex-shrink: 0; max-height: 30vh; overflow-y: auto; padding: 8px 16px; background: var(--card-soft); border-bottom: 1px solid var(--border); }
+/* Time left is what you check across the kitchen: big. */
+.cook-timer-bar .timer-clock { font-size: clamp(2rem, 1.4rem + 1.2vw, 2.75rem); line-height: 1.1; }
 .cook-timer-chip { min-height: 52px; padding: 8px 20px; border-radius: 999px; border: 2px solid var(--accent-strong); background: var(--accent-tint); color: var(--text); font: inherit; font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
 .cook-timer-chip:disabled { border-style: dashed; }
 .cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
@@ -201,6 +207,17 @@
   .cook-step:has(.cook-step-side > *) { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
   .cook-photo { max-height: none; }
 }
+/* A phone or a portrait screen: one column of photo (a short one on a phone), the step's words and
+   timers, then its ingredients, so the instruction is in view without scrolling. */
+@media (max-width: 699px), (orientation: portrait) {
+  .cook-step-side { display: contents; }
+  .cook-step-body { display: flex; flex-direction: column; }
+  .cook-ingredients { order: 1; }
+  .cook-step-side .cook-ingredients { margin-top: 0; }
+  .cook-step .cook-ingredients + .cook-step-text { margin-top: 8px; }
+  .cook-step .cook-ingredients + .cook-bullets { margin-top: 12px; }
+}
+@media (max-width: 699px) { .cook-photo { max-height: 25vh; } }
 /* A phone on its side: every pixel of height for the step. */
 @media (max-height: 500px) {
   .cook-bar { padding-top: calc(var(--safe-t) + 4px); padding-bottom: 4px; }
