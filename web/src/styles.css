@@ -304,6 +304,8 @@ button {
 /* With an add button on screen, toasts ride above it instead of covering it and the row it sits by. */
 :root:has(.fab) .toast:not(.update-banner) { bottom: calc(var(--tab-h) + var(--safe-b) + 92px); }
 :root:has(.fab) .app-shell-rail .toast:not(.update-banner) { bottom: calc(var(--safe-b) + 84px); }
+/* Over a sheet with buttons at the bottom (Save, Done), a toast rides above them instead of covering them. */
+:root:has(.sheet-actions) .toast:not(.update-banner), :root:has(.sheet-actions) .app-shell-rail .toast:not(.update-banner) { bottom: calc(var(--safe-b) + 88px); }
 .demo-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: calc(env(safe-area-inset-top, 0px) + 28px); padding-top: env(safe-area-inset-top, 0px); display: flex; align-items: center; justify-content: center; background: var(--accent-strong); color: #fff; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.01em; }
 .demo-bar-leave { margin-left: 10px; height: 20px; padding: 0 10px; line-height: 1; font-size: 0.75rem; border: 1.5px solid rgba(255,255,255,0.85); border-radius: 999px; background: transparent; color: inherit; font-family: inherit; font-weight: 700; cursor: pointer; position: relative; }
 .demo-bar-leave::after { content: ''; position: absolute; inset: -12px -8px; } /* a 44px tap target in the 28px bar */
