@@ -96,6 +96,24 @@ test("meal orders: asking for orders notifies who's eating, and the event page f
   assert.equal((await f.request(`/api/meals/${meal.id}/ask-orders`, 'POST')).status, 403);
 });
 
+test('meal orders: asking skips who already ordered, and sends nothing when everyone has', async () => {
+  const f = fixture();
+  const { sam, leo, meal } = await orderNight(f);
+  await f.json(`/api/meals/${meal.id}/orders/${sam.id}`, 'PUT', { items: [{ name: 'Cheese slice' }] });
+  await f.json(`/api/meals/${meal.id}/ask-orders`, 'POST');
+  let notes = await f.json('/api/notifications');
+  assert.deepEqual(notes.map((n: any) => n.memberIds), [[leo.id]]);
+  await f.json(`/api/meals/${meal.id}/orders/${leo.id}`, 'PUT', { items: [{ name: 'Garlic knots' }] });
+  assert.deepEqual(await f.json(`/api/meals/${meal.id}/ask-orders`, 'POST'), { ok: true, sent: 0 });
+  assert.equal((await f.json('/api/notifications')).length, 1);
+  // Nobody picked as eating means everyone: still skips Sam, who ordered.
+  const open = await f.json('/api/meals', 'POST', { date: '2099-10-12', slot: 'dinner', mealKind: 'dining_out', title: 'Taco night' });
+  await f.json(`/api/meals/${open.id}/orders/${sam.id}`, 'PUT', { items: [{ name: 'Tacos' }] });
+  await f.json(`/api/meals/${open.id}/ask-orders`, 'POST');
+  notes = await f.json('/api/notifications');
+  assert.deepEqual(notes[0].memberIds, [leo.id]);
+});
+
 test("meal orders: a restaurant shows nights coming up and each person's usual; export and import keep orders", async () => {
   const f = fixture();
   const { sam, leo, place, meal } = await orderNight(f);

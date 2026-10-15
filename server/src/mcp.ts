@@ -542,7 +542,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'PUT', `/api/meals/${encodeURIComponent(mealId)}/orders/${encodeURIComponent(memberId)}`, { items, ...(note !== undefined && { note }) });
     return result.status >= 400 ? errorResult(result.json, 'failed to set the order') : okResult(items.length || note ? 'Order saved' : 'Order cleared', { meal: result.json });
   });
-  tool('ask_for_orders', { title: 'Ask for orders', description: "Admin: ask who's eating a dining-out meal (everyone when nobody is picked) what they want: a notification in the bell and on their phones that opens the order sheet.", inputSchema: { mealId: z.string() } }, async ({ mealId }) => {
+  tool('ask_for_orders', { title: 'Ask for orders', description: "Admin: ask who's eating a dining-out meal (everyone when nobody is picked) and hasn't ordered yet what they want: a notification in the bell and on their phones that opens the order sheet.", inputSchema: { mealId: z.string() } }, async ({ mealId }) => {
     const result = await call(app, env, auth, 'POST', `/api/meals/${encodeURIComponent(mealId)}/ask-orders`);
     return result.status >= 400 ? errorResult(result.json, 'failed to ask for orders') : okResult('Asked for orders', result.json as Record<string, unknown>);
   });

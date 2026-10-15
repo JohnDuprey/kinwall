@@ -412,20 +412,26 @@ mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}/order
   return c.json(await readMeal(c.env.DB, id) as Meal, 200);
 });
 const ORDER_HOW = { dine_in: 'Eating there', pickup: 'Pickup', delivery: 'Delivery' } as const;
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-orders', tags: ['Meals'], summary: "Ask who's eating (everyone when nobody is picked) what they want: a bell notification and a push to their devices, opening the order sheet (admin)", security: [{ Bearer: [] }], request: { params },
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-orders', tags: ['Meals'], summary: "Ask who's eating (everyone when nobody is picked) and hasn't ordered yet what they want: a bell notification and a push to their devices, opening the order sheet (admin)", security: [{ Bearer: [] }], request: { params },
   responses: { 200: { description: 'how many devices got the push', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } }, ...errors, 429: { description: 'asked too often this hour', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);
   if (!meal) return c.json({ error: 'meal not found' }, 404);
   if (meal.mealKind !== 'dining_out') return c.json({ error: 'orders are for dining-out meals' }, 400);
   if (!(await readFeatures(c.env.DB)).meals) return c.json({ error: 'Meals is turned off in Settings → General → Features' }, 403);
+  // Only who hasn't ordered yet; nobody left means nothing to send (and no use of the hourly limit).
+  const ordered = new Set((meal.orders ?? []).filter(o => o.items.length).map(o => o.memberId));
+  const eating = meal.eaterIds.length || !ordered.size ? meal.eaterIds
+    : (await c.env.DB.prepare('SELECT id FROM members ORDER BY sort, created_at').all<{ id: string }>()).results.map(r => r.id);
+  const ask = eating.filter(id => !ordered.has(id));
+  if (eating.length && !ask.length) return c.json({ ok: true, sent: 0 }, 200);
   // Each ask notifies everyone eating, so a runaway app or script can't flood the family's phones.
   if (!(await checkRate(c.env.DB, 'meals:ask-orders', ASK_ORDERS_PER_HOUR, 3600_000))) return c.json({ error: `Everyone was already asked for their orders ${ASK_ORDERS_PER_HOUR} times this hour, so nobody was asked again. Try again in a while.` }, 429);
   const day = new Date(`${meal.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   const title = `${meal.title}, ${day} ${meal.slot}: what do you want?`;
   const text = `${meal.orderType ? `${ORDER_HOW[meal.orderType]}. ` : ''}Tap to add your order.`;
   const url = `/#/meals?meal=${encodeURIComponent(meal.id)}&orders=1`;
-  await recordNotification(c.env.DB, { kind: 'meal', title, body: text, url, memberIds: meal.eaterIds, source: c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api' });
-  const sent = await pushToMembers(c.env, meal.eaterIds, { title, body: text, url, tag: `orders:${meal.id}` });
+  await recordNotification(c.env.DB, { kind: 'meal', title, body: text, url, memberIds: ask, source: c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api' });
+  const sent = await pushToMembers(c.env, ask, { title, body: text, url, tag: `orders:${meal.id}` });
   return c.json({ ok: true, sent }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/events/{id}/meal', tags: ['Meals'], summary: "The planned meal linked to this calendar event, with its orders (null when there's none)", security: [{ Bearer: [] }], request: { params },
