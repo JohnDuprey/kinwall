@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The words and labels on a member's profile.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { birthdayText, chartLabels, compareText, duration, periodWord } from '../src/profile.ts'
+import { birthdayText, chartLabels, compareText, duration, periodWord, unknownMember } from '../src/profile.ts'
 
 test('compareText: only against your own earlier stretch, never scary', () => {
   assert.equal(compareText(12, { choresDone: 8 }, 'week', '2025-03-08'), '▲ 4 more than last week')
@@ -37,4 +37,12 @@ test('chartLabels: sparse enough to read', () => {
   assert.deepEqual(chartLabels(['2026-09-01', '2026-09-02', '2026-09-08', '2026-09-15'], 'month'), ['1', '', '8', '15'])
   assert.deepEqual(chartLabels(['2026-01', '2026-02', '2026-12'], 'year'), ['J', 'F', 'D'])
   assert.deepEqual(chartLabels(['2025-12', '2026-01', '2026-02', '2026-07'], 'all'), ['Dec ’25', 'Jan ’26', '', 'Jul ’26'])
+})
+
+test('unknownMember: a link to someone not in the family, never while the family is loading', () => {
+  const family = [{ id: 'm1' }, { id: 'm2' }]
+  assert.equal(unknownMember('zzz', family), true)
+  assert.equal(unknownMember('m2', family), false)
+  assert.equal(unknownMember(undefined, family), false)
+  assert.equal(unknownMember('zzz', []), false)
 })

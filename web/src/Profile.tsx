@@ -12,7 +12,7 @@ import { todayKeyInTz } from './date.ts'
 import { hoursMinutes } from './reading.ts'
 import { useIsPhone } from './useIsPhone.ts'
 import { goalsThisWeek } from './journal.ts'
-import { birthdayText, chartLabels, compareText, duration, periodWord, WEEKDAYS } from './profile.ts'
+import { birthdayText, chartLabels, compareText, duration, periodWord, unknownMember, WEEKDAYS } from './profile.ts'
 import type { ChoreDay, Member, MemberStats, StatsPeriod } from './types.ts'
 import { rewardsOn } from './types.ts'
 import type { PointEntry } from './types.ts'
@@ -32,6 +32,9 @@ export default function Profile({ memberId }: { memberId?: string }) {
   const { members, settings, refreshTick, meMemberId, parentDevice } = useApp()
   const isPhone = useIsPhone()
   const member = members.find(m => m.id === memberId) ?? members.find(m => m.id === meMemberId) ?? members[0]
+  const unknown = unknownMember(memberId, members)
+  // A bad link: say so, and take the id out of the address so a reload opens the viewer's own.
+  useEffect(() => { if (unknown) history.replaceState(history.state, '', '#/profile') }, [unknown])
   const [period, setPeriod] = useState<StatsPeriod>('week')
   const [stats, setStats] = useState<MemberStats | null>(null)
   const [error, setError] = useState('')
@@ -46,6 +49,7 @@ export default function Profile({ memberId }: { memberId?: string }) {
     return () => { canceled = true }
   }, [member?.id, period, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (unknown) return <div className="state-card">That isn't here anymore.</div>
   if (!member) return <div className="state-card">No one in the family yet.</div>
   // Parents change anyone's picture; a kid's own device, theirs. Never a wall screen.
   const canChange = parentDevice || meMemberId === member.id

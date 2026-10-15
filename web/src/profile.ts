@@ -53,3 +53,8 @@ export function chartLabels(keys: string[], period: StatsPeriod): string[] {
 }
 
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/** A link to a profile (#/profile/<id>) whose person isn't in the family (removed, or a bad link):
+ * show "That isn't here anymore" rather than someone else's profile. No id: the viewer's own. */
+export const unknownMember = (id: string | undefined, members: { id: string }[]) =>
+  !!id && members.length > 0 && !members.some(m => m.id === id)
