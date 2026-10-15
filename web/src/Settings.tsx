@@ -139,6 +139,7 @@ export default function SettingsView() {
     if (query) { search(''); return } // runs again without the search
     const key = el.closest<HTMLElement>('[data-acc]')?.dataset.acc
     if (key && !open.has(key)) { toggle(key, true); return } // runs again once it's open
+    el.closest('details')?.setAttribute('open', '')
     el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     if (q.has('section')) { q.delete('section'); q.set('tab', current); history.replaceState(history.state, '', `#/settings?${q}`) }
@@ -223,9 +224,13 @@ export default function SettingsView() {
               <NotificationDevicesSection toast={toast} />
               <PasskeysSection me={me} toast={toast} onChanged={bumpAccess} />
               <RecoveryCodesSection toast={toast} onChanged={bumpAccess} />
-              <ConnectedAppsSection toast={toast} />
-              <KeysSection toast={toast} />
-              <WebhooksSection toast={toast} />
+              {/* For people who connect other apps and scripts: folded, except while a search shows them. */}
+              <details className="settings-advanced" open={words.length > 0 || undefined}>
+                <summary>Advanced: connected apps, API keys and webhooks</summary>
+                <ConnectedAppsSection toast={toast} />
+                <KeysSection toast={toast} />
+                <WebhooksSection toast={toast} />
+              </details>
               <SecurityActivitySection tick={accessTick} />
               <YourDataSection hostPortalUrl={me.hostPortalUrl} toast={toast} onImported={reloadCore} />
               <HostingActivitySection />
@@ -283,6 +288,7 @@ function JumpChips({ panel }: { panel: React.RefObject<HTMLDivElement | null> })
     <nav className="chip-row settings-jump" aria-label="Jump to">
       {cards.map(c => <button key={c.id} type="button" className="chip" onClick={() => {
         const h = document.getElementById(c.id)
+        h?.closest('details')?.setAttribute('open', '')
         h?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
         h?.focus({ preventScroll: true })
       }}>{c.title}</button>)}
@@ -3126,6 +3132,7 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
   return (
     <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Other apps you've let into your family's Kinwall, such as an assistant or the Kinwall phone app. Each one asked first, and Disconnect takes its access away.</p>
       {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like an MCP-compatible client) appear here. Point them at {location.origin}/mcp.</p>}
       {apps.map(a => (
         <Fragment key={a.id}>
@@ -3208,6 +3215,7 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
 
   return (
     <Section title="API Keys" icon={<KeyIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Passwords for your own scripts and home automations to use Kinwall. Each one can do what a parent can, so keep it secret.</p>
       {newKey && (
         <div className="new-key-banner">
           <div style={{ fontWeight: 800 }}>{newKey.name} — save this now, it won't be shown again</div>
@@ -3411,6 +3419,7 @@ function WebhooksSection({ toast }: { toast: (m: string, persist?: boolean) => v
 
   return (
     <Section title="Webhooks" icon={<WebhookIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Kinwall tells another app or service, at an address you give it, whenever something changes here, like a chore done or an event added.</p>
       {shown && (
         <div className="new-key-banner">
           <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>Signing secret for {shown.url}</div>

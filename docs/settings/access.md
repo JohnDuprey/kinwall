@@ -1,6 +1,6 @@
 # Settings → Access
 
-*Admin only.* This tab is hidden on displays. It's everything about who and what can reach your Kinwall. Chips at the top jump to each card.
+*Admin only.* This tab is hidden on displays. It's everything about who and what can reach your Kinwall. Chips at the top jump to each card. [Connected apps](#connected-apps), [API Keys](#api-keys) and [Webhooks](#webhooks) are folded under **Advanced: connected apps, API keys and webhooks** (a chip, a link or a search opens it), and each starts with one plain sentence on what it's for.
 
 When you have only one way in, a banner at the top suggests a second parent device (**Parent devices**) or **Recovery codes**. **Not now** hides it for 30 days on that device.
 

@@ -1262,6 +1262,9 @@ button.month-cell .month-daynum { flex: none; }
 .settings-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .settings-search-icon { position: absolute; left: 14px; top: 50%; translate: 0 -50%; color: var(--text-dim); pointer-events: none; }
 .settings-search-clear { position: absolute; right: 4px; top: 50%; translate: 0 -50%; background: none; box-shadow: none; color: var(--text-dim); }
+/* Access → Advanced: connected apps, API keys and webhooks, folded. */
+.settings-advanced > summary { min-height: 48px; box-sizing: border-box; padding: 13px 16px; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); font-weight: 800; }
+.settings-advanced[open] > * + * { margin-top: var(--gap); }
 /* Family and Access: a chip per card, in one row that scrolls sideways. */
 .settings-jump { flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(var(--pad) * -1); padding: 0 var(--pad) 2px; scrollbar-width: thin; }
 .settings-jump .chip { flex: none; }

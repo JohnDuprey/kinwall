@@ -60,11 +60,16 @@ export function filterSettings(panel: HTMLElement, query: string): number {
     sec.toggleAttribute('data-search-hide', !hit)
     if (hit) shown++
   }
+  // A folded group of cards (Access → Advanced) hides with its last match.
+  for (const d of panel.querySelectorAll('details')) {
+    if (d.querySelector('[data-acc]')) d.toggleAttribute('data-search-hide', words.length > 0 && !d.querySelector('[data-acc]:not([data-search-hide])'))
+  }
   // A tab's heading (shown while searching) covers its groups too, so it reads up to the next tab.
   for (const g of panel.querySelectorAll('.settings-group-head')) {
     const end = g.matches('.settings-tab-head') ? '.settings-tab-head' : '.settings-group-head'
     let n = g.nextElementSibling, any = false
-    while (n && !n.matches(end)) { if (n.matches('[data-acc]:not([data-search-hide])')) any = true; n = n.nextElementSibling }
+    const shown = '[data-acc]:not([data-search-hide])' // a card, or one inside a group such as Access → Advanced
+    while (n && !n.matches(end)) { if (n.matches(shown) || n.querySelector(shown)) any = true; n = n.nextElementSibling }
     g.toggleAttribute('data-search-hide', !any)
   }
   return shown
