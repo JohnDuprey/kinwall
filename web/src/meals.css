@@ -138,14 +138,14 @@
 .recipe-ratings li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
 .recipe-rating-who { display: flex; align-items: center; gap: 10px; font-weight: 700; min-width: 0; }
 .recipe-rating-stars { display: flex; }
-.recipe-rating-stars button { width: 48px; height: 48px; padding: 0; border: 0; background: none; font-size: 2rem; line-height: 1; color: color-mix(in srgb, var(--text-dim) 35%, transparent); cursor: pointer; border-radius: 12px; }
+.recipe-rating-stars button { width: 48px; height: 48px; padding: 0; border: 0; background: none; font-size: 2rem; line-height: 1; color: var(--control-edge); cursor: pointer; border-radius: 12px; }
 .recipe-rating-stars button.on, .recipe-stars .on { color: var(--accent-strong); }
 .recipe-rating-stars button:disabled:not(.on) { opacity: 0.5; }
 .recipe-rating-stars .recipe-heart { margin-left: 4px; }
 .recipe-rating-stars .recipe-heart.on, .recipe-card > .recipe-loved { color: var(--danger); }
 .recipe-loved { display: flex; align-items: center; gap: 6px; font-weight: 700; }
 .recipe-stars { color: var(--text-dim); font-size: 0.8125rem; font-weight: 700; }
-.recipe-stars > span { color: color-mix(in srgb, var(--text-dim) 35%, transparent); letter-spacing: 1px; }
+.recipe-stars > span { color: var(--control-edge); letter-spacing: 1px; }
 
 /* ---------- Cooking mode (CookingMode.tsx): one step at a time, full screen, readable across the kitchen ---------- */
 .cook-start { width: 100%; margin: 12px 0 4px; font-size: 1.0625rem; }

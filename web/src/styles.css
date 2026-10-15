@@ -7,6 +7,9 @@
   --text: #102A43;
   --text-dim: #4A6078;
   --border: #C6D5E4;
+  /* Outlines of controls you tap while off (an unticked check, an unrated star, a switch that's
+     off): 3:1+ on cards and the page in every background preset, unlike --border. */
+  --control-edge: color-mix(in srgb, var(--text-dim) 85%, var(--card));
   /* --accent and --accent-ink are set inline on <html> by useTheme.ts from settings.accent (a
      JS-computed WCAG luminance pick between a dark ink and white) - the strong/soft/tint
      variants below are derived from --accent alone so any custom accent stays consistent. */
@@ -376,6 +379,9 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   color: var(--text);
   box-shadow: var(--shadow);
 }
+/* On a card or sheet (the same color as the plain track), a tinted track and an edge, so the
+   control doesn't read as greyed out. */
+:is(.settings-section, .sheet-body) .segmented { background: var(--bg-alt); box-shadow: inset 0 0 0 1px var(--border); }
 
 /* Home's Board | Newscast and Calendar's Day | Week | Month | Schedule: one flat pill each (Calendar.tsx .view-switch). */
 .calendar-toolbar .view-switch button { white-space: nowrap; }
@@ -878,7 +884,9 @@ button.month-cell .month-daynum { flex: none; }
 .switch.on .knob { transform: translateX(20px); }
 /* Dark: --text-dim is pale, so an off track in it outshone the on track and hid the white knob
    (about 2:1). Off is a dark track with a --text-dim ring instead; on stays the accent. */
-:root[data-theme="dark"] .switch:not(.on) { background: var(--border); box-shadow: inset 0 0 0 2px var(--text-dim); }
+/* Off is an outlined track with a dark knob, so off and on differ by more than the knob's side. */
+.switch:not(.on) { background: var(--bg-alt); box-shadow: inset 0 0 0 2px var(--control-edge); }
+.switch:not(.on) .knob { background: var(--control-edge); box-shadow: none; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -1062,7 +1070,7 @@ button.month-cell .month-daynum { flex: none; }
 .who-avatar { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
 .chore-check {
   width: 34px; height: 34px; border-radius: 50%;
-  border: 2.5px solid var(--border);
+  border: 2.5px solid var(--control-edge);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   color: white;
@@ -1433,7 +1441,7 @@ button.month-cell .month-daynum { flex: none; }
 @media (prefers-reduced-motion: no-preference) { .swipe-track:not(.dragging) { transition: transform 0.18s ease; } }
 .list-item-row.done .list-item-title { text-decoration: line-through; color: var(--text-dim); }
 .list-item-check {
-  width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--border); background: none; flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--control-edge); background: none; flex-shrink: 0;
 }
 .list-item-check { display: flex; align-items: center; justify-content: center; color: white; padding: 0; }
 .list-item-check.done { background: var(--success); border-color: var(--success); }
@@ -1603,7 +1611,7 @@ button.month-cell .month-daynum { flex: none; }
   border: none; border-top: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer;
 }
 .shop-group .list-group-title + .shop-row { border-top: none; }
-.shop-check { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: 2.5px solid var(--border); color: white; }
+.shop-check { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: 2.5px solid var(--control-edge); color: white; }
 .shop-row.done .shop-check { background: var(--success); border-color: var(--success); }
 .shop-row.pending .shop-check { border-style: dashed; }
 .shop-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -2375,7 +2383,7 @@ a.activity-card:active { transform: scale(0.98); }
 .bell-badge {
   position: absolute; top: -2px; right: -4px;
   min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
-  background: var(--danger); color: white; font-size: 0.75rem; font-weight: 800; line-height: 22px; text-align: center;
+  background: var(--danger-fill); color: white; font-size: 0.75rem; font-weight: 800; line-height: 22px; text-align: center; /* not --danger: dark mode's light red is 2.3:1 under white */
   box-shadow: 0 0 0 2px var(--card);
 }
 .notif-toolbar { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
@@ -4010,11 +4018,11 @@ html:root[data-cast] {
     .activity-card, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
-  /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */
+  /* Switches: a soft accent ring (the "off" track keeps its own inset ring). */
   .switch:not(:disabled):hover { box-shadow: 0 0 0 3px var(--accent-soft); }
   .profile-avatar-btn:hover .profile-avatar-edit { box-shadow: 0 0 0 2px var(--accent); }
   .news-photo:hover img { box-shadow: 0 0 0 2px var(--accent); }
-  :root[data-theme="dark"] .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--text-dim), 0 0 0 3px var(--accent-soft); }
+  .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--control-edge), 0 0 0 3px var(--accent-soft); }
   /* Events carry an inline background, so the wash is an inset shadow over it instead. */
   :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }
   :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, .chore-col-spend, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
