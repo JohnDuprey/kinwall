@@ -1486,7 +1486,7 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
           <select value={reminder} onChange={e => setReminder(e.target.value)}>
             {initialReminder === 'keep' && <option value="keep">{reminderLabel(ownReminders)}</option>}
             {/* Outlook has no "use the default" setting to write back */}
-            {calKind !== 'microsoft' && <option value="default">{calKind === 'google' ? 'Google calendar default' : 'Household default'}</option>}
+            {calKind !== 'microsoft' && <option value="default">{calKind === 'google' ? 'Google calendar default' : 'Family default'}</option>}
             {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>

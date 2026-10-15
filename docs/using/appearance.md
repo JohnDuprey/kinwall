@@ -32,7 +32,7 @@ Changes save as you make them, and other devices pick them up within about 30 se
 
 Under **Appearance on this device** (tap **Change**):
 
-* **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting. On a parent's phone, Density's first option is **Phone default (Compact)** instead.
+* **Mode**, **Text size** and **Density** are menus. The first option is **Family (*current value*)**, which follows the family setting. On a parent's phone, Density's first option is **Phone default (Compact)** instead.
 * **Color scheme** opens the same sheet as the household setting, with **Use the family's scheme** first, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
 * **Typeface** opens the same sheet as the household setting, with **Use the family's typeface** first, which follows the family setting. While it does, the row reads **🏠 Household (*typeface*)**. See [Typeface](#typeface).
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.

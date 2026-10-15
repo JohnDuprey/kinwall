@@ -1344,7 +1344,7 @@ function DeviceAppearanceRows() {
           <div key={r.key} className="device-pref-row">
             <span>{r.label}</span>
             <select className="settings-select" aria-label={`${r.label} on this device`} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">{phoneDensity ? 'Phone default (Compact)' : `Household (${household})`}</option>
+              <option value="">{phoneDensity ? 'Phone default (Compact)' : `Family (${household})`}</option>
               {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </div>
