@@ -849,10 +849,12 @@ button.month-cell .month-daynum { flex: none; }
 /* Chore schedule: 44px targets even where phone .segmented shrinks; 7 day toggles share one row (335px fits at 375 wide). */
 .day-toggles { display: flex; gap: 4px; max-width: 420px; }
 .day-toggles button {
-  flex: 1 1 0; min-width: 0; min-height: 44px; border-radius: 12px; font-weight: 800;
+  flex: 1 1 0; min-width: 0; min-height: 44px; border-radius: 12px; font-weight: 800; font-size: 0.8125rem; padding: 0;
   background: var(--bg-alt); border: 2px solid var(--border); color: var(--text-dim);
 }
-.day-toggles button.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 22%, var(--bg-alt)); color: var(--text); }
+.day-toggles button.active { border-color: var(--accent-strong); background: var(--accent-strong); color: var(--accent-ink); } /* filled: picked at a glance */
+.suggest-send { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.suggest-send .field-hint { margin: 0; text-align: center; }
 .field label { display: block; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
 .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="url"],
 .field input[type="password"], .field input[type="search"], .field select, .field textarea, .meds-ends-detail input[type="number"] {

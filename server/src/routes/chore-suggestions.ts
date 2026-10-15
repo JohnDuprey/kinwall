@@ -297,6 +297,30 @@ choreSuggestionsRoutes.openapi(
 
 choreSuggestionsRoutes.openapi(
   createRoute({
+    method: 'delete',
+    path: '/api/chore-suggestions/{id}',
+    tags: ['Chores'],
+    summary: "Take back an idea still waiting for a grown-up (it's gone, as if never sent). Their own device, a wall screen or a parent's.",
+    security: [{ Bearer: [] }],
+    request: { params: decideParams },
+    responses: { 200: json(z.object({ ok: z.boolean() })), 403: err("this device is someone else's"), 404: err('nothing waiting with that id') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const s = await c.env.DB.prepare("SELECT member_id FROM chore_suggestions WHERE id = ? AND status = 'pending'").bind(id).first<{ member_id: string }>();
+    if (!s) return c.json({ error: 'nothing waiting with that id' }, 404);
+    const blocked = await ownerBlock(c, s.member_id);
+    if (blocked) return c.json({ error: blocked }, 403);
+    // Only while it's still waiting, so it can't race a parent's answer.
+    const res = await c.env.DB.prepare("DELETE FROM chore_suggestions WHERE id = ? AND status = 'pending'").bind(id).run();
+    if (!res.meta.changes) return c.json({ error: 'nothing waiting with that id' }, 404);
+    emit(c, 'chore.suggestion.changed', { id, memberId: s.member_id, status: 'withdrawn' });
+    return c.json({ ok: true }, 200);
+  },
+);
+
+choreSuggestionsRoutes.openapi(
+  createRoute({
     method: 'post',
     path: '/api/chore-suggestions/{id}/seen',
     tags: ['Chores'],

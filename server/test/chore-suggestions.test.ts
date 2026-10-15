@@ -151,3 +151,17 @@ test('not this time: a note for the kid, no chore, and a shared wall never shows
   await t.flush();
   assert.ok((await t.req('/api/notifications', 'GET', undefined, t.mayaKey)).json.some((n: any) => n.title === 'Not this time: Piano practice' && n.body === "Let's talk about it at dinner"));
 });
+
+test('a kid takes back an idea still waiting; not someone else\'s, and not once answered', async () => {
+  const t = await setup();
+  const s = (await t.suggest({})).json;
+  const leoKey = (await t.req('/api/keys', 'POST', { name: 'leo-tablet', scope: 'display' })).json;
+  assert.equal((await t.req(`/api/keys/${leoKey.id}`, 'PATCH', { owner: t.leo.id })).status, 200);
+  assert.equal((await t.req(`/api/chore-suggestions/${s.id}`, 'DELETE', undefined, leoKey.key)).status, 403);
+  assert.equal((await t.req(`/api/chore-suggestions/${s.id}`, 'DELETE', undefined, t.mayaKey)).status, 200);
+  assert.equal((await t.req('/api/chore-suggestions', 'GET', undefined, t.mayaKey)).json.length, 0);
+  assert.equal((await t.req(`/api/chore-suggestions/${s.id}`, 'DELETE', undefined, t.mayaKey)).status, 404);
+  const answered = (await t.suggest({})).json;
+  assert.equal((await t.req(`/api/chore-suggestions/${answered.id}/decline`, 'POST', {})).status, 200);
+  assert.equal((await t.req(`/api/chore-suggestions/${answered.id}`, 'DELETE', undefined, t.mayaKey)).status, 404);
+});

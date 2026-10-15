@@ -12,6 +12,7 @@ import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { MinusIcon, PlusIcon } from './icons.tsx'
 import { announce } from './a11y.tsx'
+import { useDialog } from './dialog.tsx'
 import { durationLabel } from './timers.ts'
 import { PRAISE, daysText, pointsMax, pointsStart, rruleWeekdays, suggestionDetails, weekdaysRrule } from './choreSuggest.ts'
 
@@ -46,7 +47,7 @@ function RepeatFields({ days, setDays, time, setTime, timer, setTimer, idPrefix 
         <div className="day-toggles" role="group" aria-labelledby={`${idPrefix}-days`}>
           {weekOrder.map(d => {
             const on = days.includes(d)
-            return <button key={d} type="button" className={on ? 'active' : ''} aria-pressed={on} aria-label={DAY_LONG[d]} onClick={() => setDays(on ? days.filter(x => x !== d) : [...days, d])}>{DAY_SHORT[d][0]}</button>
+            return <button key={d} type="button" className={on ? 'active' : ''} aria-pressed={on} aria-label={DAY_LONG[d]} onClick={() => setDays(on ? days.filter(x => x !== d) : [...days, d])}>{DAY_SHORT[d]}</button>
           })}
         </div>
         {!days.length && <p className="field-hint">Pick at least one day.</p>}
@@ -86,6 +87,8 @@ export function SuggestChoreSheet({ memberId, onClose, onSent }: { memberId: str
   const [timer, setTimer] = useState<number | null>(null)
   const [done, setDone] = useState(false)
   const [day, setDay] = useState(() => dateKey(new Date()))
+  const tomorrow = dateKey(new Date(Date.now() + 86_400_000))
+  const [picking, setPicking] = useState(false) // "Pick a day": the date field
   const [sending, setSending] = useState(false)
   const ok = !!title.trim() && isSingleEmoji(emoji) && (!repeat || days.length > 0)
 
@@ -105,7 +108,10 @@ export function SuggestChoreSheet({ memberId, onClose, onSent }: { memberId: str
 
   return (
     <Sheet title="Suggest a chore" onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={send} disabled={!ok || sending}>Send to a grown-up</button>}>
+      actions={<div className="suggest-send">
+        <button className="btn btn-primary" onClick={send} disabled={!ok || sending} aria-describedby={ok ? undefined : 'suggest-why'}>Send to a grown-up</button>
+        {!ok && <p id="suggest-why" className="field-hint">{!title.trim() ? 'Type your idea first.' : !isSingleEmoji(emoji) ? 'Pick an emoji.' : 'Pick at least one day.'}</p>}
+      </div>}>
       {who && <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>An idea from {who.name}. A grown-up says yes or not this time.</p>}
       <div className="field">
         <label htmlFor="suggest-title">What's the chore?</label>
@@ -132,8 +138,14 @@ export function SuggestChoreSheet({ memberId, onClose, onSent }: { memberId: str
       </div>
       {!done && !repeat && (
         <div className="field">
-          <label htmlFor="suggest-day">Which day?</label>
-          <input id="suggest-day" type="date" value={day} min={dateKey(new Date())} onChange={e => setDay(e.target.value || dateKey(new Date()))} />
+          <label id="suggest-day-label">Which day?</label>
+          <div className="chip-row" role="group" aria-labelledby="suggest-day-label">
+            {([['Today', dateKey(new Date())], ['Tomorrow', tomorrow]] as const).map(([label, d]) => (
+              <button key={label} type="button" className={`chip ${!picking && day === d ? 'active' : ''}`} aria-pressed={!picking && day === d} onClick={() => { setPicking(false); setDay(d) }}>{label}</button>
+            ))}
+            <button type="button" className={`chip ${picking ? 'active' : ''}`} aria-pressed={picking} onClick={() => setPicking(true)}>Pick a day</button>
+          </div>
+          {picking && <input id="suggest-day" type="date" aria-label="Day" value={day} min={dateKey(new Date())} onChange={e => setDay(e.target.value || dateKey(new Date()))} style={{ marginTop: 8 }} />}
         </div>
       )}
     </Sheet>
@@ -145,6 +157,7 @@ export function SuggestChoreSheet({ memberId, onClose, onSent }: { memberId: str
  * shows everyone's, named. */
 export function SuggestionCards({ memberId }: { memberId: string | null }) {
   const { members, refreshTick, toast } = useApp()
+  const dialog = useDialog()
   const [list, setList] = useState<ChoreSuggestion[]>([])
   const load = () => { api.getChoreSuggestions(memberId ?? undefined).then(setList).catch(() => { /* keep what's shown */ }) }
   useEffect(load, [memberId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -153,6 +166,11 @@ export function SuggestionCards({ memberId }: { memberId: string | null }) {
   const dismiss = async (s: ChoreSuggestion) => {
     setList(l => l.filter(x => x !== s))
     try { await api.dismissSuggestion(s.id) } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't put it away", true); load() }
+  }
+  const takeBack = async (s: ChoreSuggestion) => {
+    if (!await dialog.confirm({ title: `Take back "${s.title}"?`, body: "It won't go to a grown-up.", confirmLabel: 'Take back', cancelLabel: 'Keep it' })) return
+    setList(l => l.filter(x => x !== s))
+    try { await api.withdrawSuggestion(s.id); toast(`Taken back: ${s.title}`) } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't take it back", true); load() }
   }
   return (
     <section className="approve-card suggest-cards" aria-labelledby="suggest-cards-heading">
@@ -181,7 +199,9 @@ export function SuggestionCards({ memberId }: { memberId: string | null }) {
                   <div className="chore-notyet">{s.note ? `${by}: “${s.note}”` : `${by} said thanks for the idea.`}</div>
                 </>}
               </div>
-              {s.status !== 'pending' && <div className="approve-actions"><button className="btn btn-secondary" onClick={() => dismiss(s)} aria-label={`Got it: ${s.title}`}>Got it</button></div>}
+              <div className="approve-actions">{s.status === 'pending'
+                ? <button className="btn btn-secondary" onClick={() => takeBack(s)} aria-label={`Take back: ${s.title}`}>Take back</button>
+                : <button className="btn btn-secondary" onClick={() => dismiss(s)} aria-label={`Got it: ${s.title}`}>Got it</button>}</div>
             </li>
           )
         })}

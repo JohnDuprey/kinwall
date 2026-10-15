@@ -17,8 +17,9 @@ test('weekdaysRrule and rruleWeekdays round-trip', () => {
 test('daysText says the schedule in plain words', () => {
   assert.equal(daysText(null), null)
   assert.equal(daysText('FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'), 'Mon–Fri')
-  assert.equal(daysText('FREQ=WEEKLY;BYDAY=MO,WE,FR'), 'Mon, Wed, Fri')
-  assert.equal(daysText('FREQ=WEEKLY;BYDAY=SA,SU'), 'Sun, Sat')
+  assert.equal(daysText('FREQ=WEEKLY;BYDAY=MO,WE,FR'), 'Every Mon, Wed, Fri')
+  assert.equal(daysText('FREQ=WEEKLY;BYDAY=TH'), 'Every Thu')
+  assert.equal(daysText('FREQ=WEEKLY;BYDAY=SA,SU'), 'Every Sun, Sat')
   assert.equal(daysText('FREQ=DAILY'), 'Every day')
   assert.equal(daysText('FREQ=MONTHLY'), 'Repeats')
 })

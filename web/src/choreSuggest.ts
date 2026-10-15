@@ -25,7 +25,7 @@ export function rruleWeekdays(rrule: string | null): number[] {
   return days.includes(-1) ? [] : days.sort()
 }
 
-/** "Every day", "Mon–Fri", "Mon, Wed, Fri", or null for a one-time chore. */
+/** "Every day", "Mon–Fri", "Every Mon, Wed, Fri", or null for a one-time chore. */
 export function daysText(rrule: string | null): string | null {
   if (!rrule) return null
   const days = rruleWeekdays(rrule)
@@ -33,7 +33,7 @@ export function daysText(rrule: string | null): string | null {
   if (days.length === 7) return 'Every day'
   const run = days.every((d, i) => i === 0 || d === days[i - 1] + 1)
   if (run && days.length >= 3) return `${DAY_SHORT[days[0]]}–${DAY_SHORT[days[days.length - 1]]}`
-  return days.map(d => DAY_SHORT[d]).join(', ')
+  return `Every ${days.map(d => DAY_SHORT[d]).join(', ')}` // "Thu" alone reads like a one-time day
 }
 
 /** "Mon–Fri · 4:00 PM · 20 min timer · Already done" */

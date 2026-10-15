@@ -133,10 +133,10 @@ Kids can add their own chores. Maybe piano practice isn't on the chart yet, or t
 1. On **Chores**, tap **💡 Suggest a chore** (**💡 Idea** on a phone). On a wall screen, pick who you are first.
 2. Type the chore, pick an emoji, and use **−** and **+** to say how many points you think it's worth.
 3. Check what fits:
-   * **Make it repeat**: pick the days, and if you like a start time and how long it takes ("20 min" for practicing). Tapping the chore later starts that timer.
+   * **Make it repeat**: pick the days (picked ones fill in), and if you like a start time and how long it takes ("20 min" for practicing). Tapping the chore later starts that timer.
    * **I already did it today**: a grown-up checks it, then the points count.
-   * Neither: it's a one-time chore for today, or pick another day.
-4. Tap **Send to a grown-up**. Your idea shows under **Chore ideas** as **Waiting for a grown-up**. It isn't a chore yet, so it doesn't count and you can't tick it.
+   * Neither: it's a one-time chore. Pick **Today**, **Tomorrow** or **Pick a day**.
+4. Tap **Send to a grown-up** (until you've typed your idea it says **Type your idea first.** under the button). Your idea shows under **Chore ideas** as **Waiting for a grown-up**, with its days ("Every Thu"). It isn't a chore yet, so it doesn't count and you can't tick it. Changed your mind? **Take back** removes it while it's still waiting.
 
 When a grown-up answers, your device gets a notification and **Chore ideas** shows it: "Sam said yes! Piano practice · 4 points" with their note, or "Not this time" with their reason. Tap **Got it** to put it away. A "Not this time" shows only on your own device, never on a shared wall screen.
 
@@ -151,7 +151,7 @@ When a grown-up answers, your device gets a notification and **Chore ideas** sho
 
 **API and MCP**
 
-* `GET /api/chore-suggestions?memberId=` lists ideas that are waiting and answers not yet put away. `POST /api/chore-suggestions {memberId?, title, emoji?, points (0-100), dueDate?, done?, rrule?, dueTime?, timerMinutes?}` sends one. A kid's own device sends and reads only its own. A wall screen has to name `memberId`. `POST /api/chore-suggestions/{id}/seen` puts an answer away.
+* `GET /api/chore-suggestions?memberId=` lists ideas that are waiting and answers not yet put away. `POST /api/chore-suggestions {memberId?, title, emoji?, points (0-100), dueDate?, done?, rrule?, dueTime?, timerMinutes?}` sends one. A kid's own device sends and reads only its own. A wall screen has to name `memberId`. `POST /api/chore-suggestions/{id}/seen` puts an answer away, and `DELETE /api/chore-suggestions/{id}` takes back one still waiting (its person's own device, a wall screen or a parent's).
 * Parent devices only: `POST /api/chore-suggestions/{id}/approve {points?, title?, emoji?, rrule?, dueTime?, timerMinutes?, note?}` (returns the suggestion with `choreId` and `pointsGiven`) and `POST /api/chore-suggestions/{id}/decline {note?}`.
 * Webhooks: `chore.suggestion.changed`, plus `chore.changed` for the new chore and `chore.completed` for an "already did it" one.
 * MCP: `list_chore_suggestions`, `approve_chore_suggestion`, `reject_chore_suggestion`.
@@ -240,7 +240,7 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 
 * `GET /api/chores/day?date=YYYY-MM-DD`, `POST /api/chores/{id}/complete {date, memberId?}`, `DELETE /api/chores/{id}/complete?date=`
 * `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}`, `POST /api/chores/{id}/reject {date, note?}` (parent devices)
-* `GET/POST /api/chore-suggestions`, `POST /api/chore-suggestions/{id}/seen`; `POST /api/chore-suggestions/{id}/approve|decline` (parent devices). See [Kids suggest chores](#kids-suggest-chores)
+* `GET/POST /api/chore-suggestions`, `POST /api/chore-suggestions/{id}/seen`, `DELETE /api/chore-suggestions/{id}`; `POST /api/chore-suggestions/{id}/approve|decline` (parent devices). See [Kids suggest chores](#kids-suggest-chores)
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
 * `POST /api/points/awards {memberId, points, note?, date?}`, `GET /api/points/awards?memberId=`, `DELETE /api/points/awards/{id}` ([bonus points](#bonus-points), parent devices)

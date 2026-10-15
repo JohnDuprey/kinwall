@@ -1385,6 +1385,10 @@ export const mock = {
     }
     saveSuggestions(); bump(); return s
   },
+  withdrawSuggestion: async (id: string) => {
+    const i = suggestions.findIndex(x => x.id === id && x.status === 'pending'); if (i < 0) throw new Error('nothing waiting with that id')
+    suggestions.splice(i, 1); saveSuggestions(); bump(); return { ok: true }
+  },
   dismissSuggestion: async (id: string) => { const s = suggestions.find(x => x.id === id); if (s) s.seen = true; saveSuggestions(); bump(); return { ok: true } },
 
   // Dev fixture only - period filtering is approximate (day-count windows, no real tz/weekStart

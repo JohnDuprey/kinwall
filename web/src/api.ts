@@ -538,6 +538,7 @@ export const api = {
   approveSuggestion: (id: string, body: ChoreSuggestionAnswer) => MOCK ? mock.answerSuggestion(id, 'approve', body) : post<ChoreSuggestion>(`api/chore-suggestions/${id}/approve`, body),
   declineSuggestion: (id: string, note?: string) => MOCK ? mock.answerSuggestion(id, 'decline', { note }) : post<ChoreSuggestion>(`api/chore-suggestions/${id}/decline`, { note }),
   dismissSuggestion: (id: string) => MOCK ? mock.dismissSuggestion(id) : post<{ ok: boolean }>(`api/chore-suggestions/${id}/seen`),
+  withdrawSuggestion: (id: string) => MOCK ? mock.withdrawSuggestion(id) : del<{ ok: boolean }>(`api/chore-suggestions/${encodeURIComponent(id)}`),
 
   getLeaderboard: (period: LeaderboardPeriod) =>
     MOCK ? mock.getLeaderboard(period) : get<LeaderboardEntry[]>(`api/leaderboard?period=${period}`),

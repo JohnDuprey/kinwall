@@ -239,6 +239,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/chore-suggestions$/ },
   { method: 'POST', pattern: /^\/api\/chore-suggestions$/ },
   { method: 'POST', pattern: /^\/api\/chore-suggestions\/[^/]+\/seen$/ },
+  { method: 'DELETE', pattern: /^\/api\/chore-suggestions\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/points$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/stats$/ }, // profiles: the whole family sees the fun stats
