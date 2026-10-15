@@ -109,7 +109,7 @@ const clearQuery = () => history.replaceState(history.state, '', hashPath(locati
  * Back and Show hidden. */
 export default function CalendarView({ place }: { place: 'home' | 'calendar' }) {
   const dialog = useDialog()
-  const { settings, members, categories, selectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, parentDevice, toast, reloadCore, refreshTick } = useApp()
+  const { settings, members, categories, selectedMemberId, setSelectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, parentDevice, toast, reloadCore, refreshTick } = useApp()
   const device = useDeviceAppearance()
   const isPhone = useIsPhone()
   // Where the Board puts one or two count tiles as chips (boardFit.ts tileChips); a phone's toolbar has no room.
@@ -460,6 +460,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change the filter', true) }
   }
 
+  const onlyMember = selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined
   return (
     <div className="content">
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} warnMinutes={warnTimes} />}
@@ -553,6 +554,14 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
         </Sheet>
       )}
 
+      {/* Picked in the header (not a display pinned to them): say so, or events just look missing. */}
+      {!focusMemberId && onlyMember && (
+        <div className="only-row">
+          <button className="chip only-chip" onClick={() => setSelectedMemberId(null)} aria-label={`Showing only ${onlyMember.name}. Show everyone`}>
+            <ChipFace m={onlyMember} /> Showing only {onlyMember.name} <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      )}
       {calendarish && goalLine && <p className="cal-goal"><span className="sr-only">{goalLine.name}'s goal: </span><span aria-hidden="true">🎯</span> {goalLine.goal}</p>}
 
       <div className="swipe-area" {...(calendarish ? swipe : {})} role={tabsShown ? 'tabpanel' : 'region'}

@@ -2852,6 +2852,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }
 .board-goal-line .board-avatar { flex-shrink: 0; }
 /* Temp check: the goal of the one person the calendar shows. */
+.only-row { display: flex; margin: 0 var(--pad) 8px; flex-shrink: 0; }
+.only-chip { min-width: 0; }
 .cal-goal { margin: 0 12px 8px; padding: 8px 14px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; font-size: 0.875rem; overflow-wrap: anywhere; }
 .board-coming { grid-area: coming; }
 .board-due { grid-area: due; }

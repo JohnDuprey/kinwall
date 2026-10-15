@@ -169,7 +169,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 
 ### By family member
 
-Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only …** button at the top shows only their things across Kinwall: events, chores, lists and the rest; the other avatars dim. Tap **Show everyone** to clear the filter.
+Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only …** button at the top shows only their things across Kinwall: events, chores, lists and the rest; the other avatars dim. Tap **Show everyone** to clear the filter. While someone is picked, a **Showing only Maya ✕** button sits under the toolbar on Home and Calendar, so it's clear why the others' events are gone; tap it to show everyone again. (A display pinned to one person doesn't show it.)
 
 While the filter is on, every view shows only that person's events, on the same grid. An event they share with others still shows everyone's avatars. The filter also applies to the Board and the Chores tab.
 
