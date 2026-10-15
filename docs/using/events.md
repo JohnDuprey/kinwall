@@ -24,7 +24,7 @@ Tap an event to open its sheet. It shows:
 In the Kinwall app for iPhone, the Shortcuts app also has an **Add an event** action: a title, when it starts, and optionally when it ends (the family's [new event length](../settings/calendars.md#calendars) later otherwise) and the calendar (the family's default for new events otherwise).
 
 
-Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). After you save, "Event added" (or "Event updated") shows at the bottom with **View**, which opens the event, from the calendar or any other tab. **+** starts on the day you're looking at, at the next half hour today or 9 AM on another day; see [Navigating](calendar.md#navigating). The edit sheet has:
+Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). After you save, "Event added" (or "Event updated") shows at the bottom with **View**, which opens the event, from the calendar or any other tab. **+** starts on the day you're looking at, at the next half hour today or 9 AM on another day; see [Navigating](calendar.md#navigating). Closing it after typing something (✕, a tap outside it, swiping it down, Escape or Back) asks **Discard changes?** first; **Keep editing** goes back to it. The edit sheet has:
 
 | Field | Notes |
 |---|---|

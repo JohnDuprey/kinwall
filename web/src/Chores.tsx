@@ -788,7 +788,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   }
 
   return (
-    <Sheet title={chore ? 'Edit chore' : draft ? 'Make it repeat' : 'New chore'} onClose={onClose}
+    <Sheet title={chore ? 'Edit chore' : draft ? 'Make it repeat' : 'New chore'} onClose={onClose} dirty="auto"
       actions={
         <>
           {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary(); if (e.target.value === 'reset') resetTime?.run() }}>

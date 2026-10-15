@@ -397,7 +397,7 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
   const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
 
   return (
-    <Sheet title={reward ? 'Edit reward' : 'New reward'} onClose={onClose}
+    <Sheet title={reward ? 'Edit reward' : 'New reward'} onClose={onClose} dirty="auto"
       actions={
         <>
           {reward && <button className="btn btn-danger" onClick={del}>Delete</button>}

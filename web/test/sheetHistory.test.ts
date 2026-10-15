@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Back closes sheets: one history entry per open sheet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSheetHistory, type HistoryLike } from '../src/sheetHistory.ts'
+import { createSheetHistory, unsavedChanges, type HistoryLike } from '../src/sheetHistory.ts'
 
 // A browser's session history, enough of it: entries with state and a URL, traversals that land
 // later (popstate is async in browsers), pushes that drop the forward entries.
@@ -132,4 +132,11 @@ test('other state on the entry (an open activity) is kept on the sheet entry', a
   assert.equal((t.h.state as { kinwallActivity?: string }).kinwallActivity, 'x')
   t.sh.closed('a'); await t.settle()
   assert.deepEqual(Object.keys(t.h.state as object).includes('kinwallActivity'), true)
+})
+
+test('unsavedChanges: Discard changes? only for a form with changes', () => {
+  assert.equal(unsavedChanges(false, true), false) // read-only and settings sheets never ask
+  assert.equal(unsavedChanges(true, false), true) // the form says it changed
+  assert.equal(unsavedChanges('auto', false), false) // opened and closed untouched
+  assert.equal(unsavedChanges('auto', true), true) // something was typed
 })

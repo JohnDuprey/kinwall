@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { XIcon } from './icons.tsx'
 import { reducedMotion } from './a11y.tsx'
 import { useKeyboard } from './keyboard.ts'
-import { sheetHistory } from './sheetHistory.ts'
+import { sheetHistory, unsavedChanges } from './sheetHistory.ts'
 import { useDialogMaybe } from './dialog.tsx'
 
 let nextToken = 0
@@ -22,7 +22,8 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   onCancel?: () => void
   // Typed work a stray tap would lose: ✕, Escape, a backdrop tap, a swipe down and Back ask
   // "Discard changes?" first. Only on forms with a Save/Add button, never on read-only sheets.
-  dirty?: boolean
+  // 'auto': once anything has been typed, picked or ticked in its fields.
+  dirty?: boolean | 'auto'
   onGone?: () => void // after the sheet has closed and its history entry is gone (dialog.tsx)
 }) {
   const backdropRef = useRef<HTMLDivElement>(null)
@@ -31,13 +32,15 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   const titleId = useId()
   const [opener] = useState(() => document.activeElement as HTMLElement | null) // at first render, before the sheet takes focus
   onCloseRef.current = onClose
+  const [typed, setTyped] = useState(false)
+  const changed = unsavedChanges(dirty, typed)
   const dialog = useDialogMaybe() // null for the dialogs themselves' provider-less uses
   const asking = useRef(false)
   // The user asked to close (✕, Escape, backdrop, swipe, Back). Unsaved changes ask first.
   const dismissRef = useRef<(close: (() => void) | undefined) => Promise<void>>(async () => {})
   dismissRef.current = async close => {
     if (!close || asking.current) return
-    if (dirty && dialog) {
+    if (changed && dialog) {
       asking.current = true
       const discard = await dialog.confirm({ title: 'Discard changes?', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
       asking.current = false
@@ -54,7 +57,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   const [token] = useState(() => `s${Date.now().toString(36)}-${++nextToken}`)
   const onBackRef = useRef(() => {})
   onBackRef.current = () => {
-    if (dirty || !escape) sheetHistory.keep(token)
+    if (changed || !escape) sheetHistory.keep(token)
     void dismissRef.current(escape)
   }
   const onGoneRef = useRef(onGone)
@@ -132,7 +135,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
     const v = dy / Math.max(1, e.timeStamp - drag.current.t)
     drag.current = null
     const sheet = sheetRef.current!
-    if ((dy > 80 || v > 0.5) && dirty) { // spring back and ask
+    if ((dy > 80 || v > 0.5) && changed) { // spring back and ask
       sheet.style.transition = reducedMotion() ? 'none' : 'transform 0.2s ease'
       sheet.style.transform = ''
       void dismissRef.current(onCloseRef.current)
@@ -160,7 +163,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   return createPortal(
     <div className={`sheet-backdrop ${variant === 'dialog' ? 'sheet-backdrop-dialog' : ''}`} ref={backdropRef} onClick={onBackdrop}>
       <div className={`sheet ${variant ? `sheet-${variant}` : ''}`} ref={sheetRef} role={role} aria-modal="true" aria-labelledby={titleId} aria-describedby={describedBy}
-        tabIndex={-1} onClick={e => e.stopPropagation()}
+        tabIndex={-1} onClick={e => e.stopPropagation()} onInput={dirty === 'auto' && !typed ? () => setTyped(true) : undefined}
         style={keyboard ? { paddingBottom: 8, maxHeight: 'calc(100% - var(--safe-t))', borderRadius: '20px 20px 0 0' } : undefined}>
         <div className={`sheet-drag ${dismissable ? '' : 'no-drag'}`} onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
           <div className="sheet-grabber" />

@@ -84,3 +84,7 @@ export function createSheetHistory(h: HistoryLike) {
 
 export const sheetHistory = createSheetHistory(typeof history === 'undefined' ? { state: null, pushState() {}, replaceState() {}, go() {} } : history)
 if (typeof window !== 'undefined') window.addEventListener('popstate', () => sheetHistory.popped())
+
+/** Sheet's dirty prop: true, or 'auto' once something was typed or picked in its fields. When it
+ * holds, ✕, Escape, a backdrop tap, a swipe down and Back ask "Discard changes?" first. */
+export const unsavedChanges = (dirty: boolean | 'auto', typed: boolean) => dirty === true || (dirty === 'auto' && typed)

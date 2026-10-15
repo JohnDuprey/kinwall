@@ -253,7 +253,7 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
-  return <Sheet title={recipe ? 'Edit recipe' : 'New recipe'} onClose={close} dismissable={!busy} actions={<>
+  return <Sheet title={recipe ? 'Edit recipe' : 'New recipe'} onClose={close} dismissable={!busy} dirty="auto" actions={<>
     {recipe && <select className="settings-select actions-select" aria-label="Recipe actions" value="" disabled={busy} onChange={e => {
       if (e.target.value === 'archive') void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? 'Recipe restored' : 'Recipe archived')
       if (e.target.value === 'delete') void remove()

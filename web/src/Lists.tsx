@@ -192,7 +192,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
   }
 
   return (
-    <Sheet title={existing ? 'Edit list' : 'New list'} onClose={onClose}
+    <Sheet title={existing ? 'Edit list' : 'New list'} onClose={onClose} dirty="auto"
       actions={
         <>
           {existing && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}
@@ -363,6 +363,10 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const [pickingEvent, setPickingEvent] = useState(false)
   const linked = eventId ? byId.get(eventId) : undefined
   const showDue = kind === 'todo' || !!item.dueDate // due dates are a to-do thing, but one set elsewhere (API, MCP) stays editable
+  // Unsaved changes (Sheet asks before discarding). Steps and the discussion save as they go.
+  const edited = !readOnly && (title !== item.title || quantity !== (item.quantity ?? '') || notes !== (item.notes ?? '') || store !== (item.store ?? '')
+    || category !== (item.category ?? '') || aisle !== initialAisle || onSale !== !!item.onSale || memberId !== item.memberId
+    || forIds.join() !== (item.forMemberIds ?? []).join() || dueDate !== (item.dueDate ?? '') || eventId !== item.eventId || priority !== item.priority)
 
   const submit = async () => {
     if (!title.trim()) return
@@ -443,7 +447,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   )
 
   return (
-    <Sheet title={readOnly ? 'Item' : 'Edit item'} onClose={onClose}
+    <Sheet title={readOnly ? 'Item' : 'Edit item'} onClose={onClose} dirty={edited}
       actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
         <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>
         <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Save</button>
@@ -1553,7 +1557,7 @@ function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onLi
   }
 
   return (
-    <Sheet title="Add item" onClose={onClose} actions={<>
+    <Sheet title="Add item" onClose={onClose} dirty={!!(title.trim() || quantity.trim() || notes.trim())} actions={<>
       <button className="btn btn-secondary" onClick={() => add(title, true)} disabled={!title.trim()}>Add another</button>
       <button className="btn btn-primary" onClick={() => add(title, false)} disabled={!title.trim()}>Add</button>
     </>}>

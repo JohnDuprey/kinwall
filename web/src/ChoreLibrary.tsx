@@ -169,7 +169,7 @@ export function LibraryEditSheet({ item, onClose, onSaved }: { item: LibraryChor
   }
 
   return (
-    <Sheet title={item ? 'Edit library chore' : 'New library chore'} onClose={onClose}
+    <Sheet title={item ? 'Edit library chore' : 'New library chore'} onClose={onClose} dirty="auto"
       actions={
         <>
           {item && <select className="settings-select actions-select" aria-label="Library chore actions" value="" onChange={e => { if (e.target.value === 'delete') void remove() }}>

@@ -572,7 +572,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
 
   const noun = kind === 'reading' ? 'book' : kind === 'memory' ? 'memory' : 'visit'
   return (
-    <Sheet title={readOnly ? `${everyone.find(m => m.id === entry?.memberId)?.name ?? 'Someone'}'s ${noun}` : entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose}
+    <Sheet title={readOnly ? `${everyone.find(m => m.id === entry?.memberId)?.name ?? 'Someone'}'s ${noun}` : entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose} dirty={readOnly ? false : 'auto'}
       actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
         {entry && (admin || (!!kid && entry.memberId === kid)) && <button className="btn btn-danger" onClick={del}>Delete</button>}
         <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? 'Save' : 'Add'}</button>

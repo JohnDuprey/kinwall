@@ -150,7 +150,7 @@ export function ContactForm({ initial, categories, members, onClose, onSaved }: 
     catch (error) { toast(errorText(error, 'Could not save contact.'), true) }
     finally { setSaving(false) }
   }
-  return <Sheet title={initial ? 'Edit contact' : 'New contact'} onClose={onClose} dismissable={!saving}
+  return <Sheet title={initial ? 'Edit contact' : 'New contact'} onClose={onClose} dismissable={!saving} dirty="auto"
     actions={<><button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save contact'}</button></>}>
     {!initial && <div className="field"><label htmlFor={`${id}-template`}>Start from a template (optional)</label>
       <select id={`${id}-template`} value={template} onChange={e => { const to = e.target.value; setForm(f => applyContactTemplate(f, template, to, categories)); setTemplate(to) }}>

@@ -118,7 +118,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
-  return <Sheet title={meal ? admin ? 'Edit meal' : meal.title : 'Plan a meal'} onClose={close} dismissable={!busy} actions={choosing ? <button className="btn btn-secondary" onClick={close}>Cancel</button> : canUpdate ? <>
+  return <Sheet title={meal ? admin ? 'Edit meal' : meal.title : 'Plan a meal'} onClose={close} dismissable={!busy} dirty={canUpdate ? 'auto' : false} actions={choosing ? <button className="btn btn-secondary" onClick={close}>Cancel</button> : canUpdate ? <>
     {meal && admin && <button className="icon-btn" aria-label="Delete meal" disabled={busy} onClick={remove}><TrashIcon /></button>}
     <button className="btn btn-secondary" disabled={busy} onClick={close}>Cancel</button>
     <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save meal'}</button>

@@ -1414,7 +1414,7 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
   }
 
   return (
-    <Sheet title={event ? 'Edit event' : 'New event'} onClose={onClose}
+    <Sheet title={event ? 'Edit event' : 'New event'} onClose={onClose} dirty="auto"
       actions={<>
         {shared && outingsOn && <button className="btn btn-secondary" onClick={() => void saveToOutings()} disabled={endBeforeStart || !title.trim() || savingOuting}>🎟 Save to Outings</button>}
         <button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save changes' : 'Add event'}</button>
