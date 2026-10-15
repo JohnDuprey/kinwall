@@ -57,6 +57,15 @@ test('dedupeEvents: one block per event, merging the same event from two calenda
   const hidden = { ...family, hidden: 'event' } as EventInstance
   assert.deepEqual(dedupeEvents([hidden, work]).map(e => [e.id, e.hidden]), [['w', undefined]])
 })
+test('dedupeEvents on the Board: the same event from two calendars once a day, a multi-day event under each day', () => {
+  const at = ['2026-10-07T16:30:00Z', '2026-10-07T17:00:00Z'] as const
+  const day = (e: EventInstance, date: string) => ({ ...e, date })
+  const family = day(full('f', 'family', 'Team Meeting', ...at, ['m1']), '2026-10-07')
+  const work = day(full('w', 'work', 'Team Meeting', ...at, ['m2']), '2026-10-07')
+  assert.deepEqual(dedupeEvents([family, work]).map(e => [e.id, e.date, e.memberIds]), [['f', '2026-10-07', ['m1', 'm2']]])
+  const trip = full('t', 'family', 'Camping', '2026-10-09', '2026-10-11', [])
+  assert.deepEqual(dedupeEvents([day(trip, '2026-10-09'), day(trip, '2026-10-10')]).map(e => e.date), ['2026-10-09', '2026-10-10'])
+})
 
 test('eventPeople: who an event is for, in family order', () => {
   const members = [{ id: 'm1', name: 'Alex' }, { id: 'm2', name: 'Sam' }, { id: 'm3', name: 'Maya' }, { id: 'm4', name: 'Leo' }]

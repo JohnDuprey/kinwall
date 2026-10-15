@@ -10,6 +10,7 @@ import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent, TimedChore } from './types.ts'
 import { rewardsOn } from './types.ts'
 import { zonedParts } from './date.ts'
+import { dedupeEvents } from './dayLayout.ts'
 import { formatTime } from './timeFormat.ts'
 import { durationLabel } from './timers.ts'
 import { useDeviceAppearance } from './useTheme.ts'
@@ -350,7 +351,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   if (!data) return error ? <div className="state-card" role="alert">Couldn't load the board. Check your connection. <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Try again</button></div> : null
   const byId = new Map(members.map(m => [m.id, m]))
   const today = data.today
-  const events = data.events.filter(show)
+  const events = dedupeEvents(data.events).filter(show) // each event once, as on Calendar
   const w = data.weather
   const wToday = w?.days.find(d => d.date === today)
   const booksDue = data.booksDue ?? [] // an older server sends none

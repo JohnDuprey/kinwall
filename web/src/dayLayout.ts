@@ -65,11 +65,12 @@ export function layoutDay(evs: EventInstance[], tz: string, minMinutes = 20) {
  * across the copies.
  * ponytail: matches on title+time, not the provider's iCalUID (Kinwall doesn't store it); a copy
  * renamed on one calendar shows twice. Store the UID at sync if that comes up. */
-export function dedupeEvents(evs: EventInstance[]): EventInstance[] {
-  const groups = new Map<string, { kept: EventInstance; ids: Set<string>; calendars: Set<string> }[]>()
-  const out: EventInstance[] = []
+export function dedupeEvents<E extends EventInstance & { date?: string }>(evs: E[]): E[] {
+  const groups = new Map<string, { kept: E; ids: Set<string>; calendars: Set<string> }[]>()
+  const out: E[] = []
   for (const ev of evs) {
-    const key = `${ev.allDay}|${ev.start}|${ev.end}|${ev.title.trim().replace(/\s+/g, ' ').toLowerCase()}`
+    // The Board lists a multi-day event under each of its days (`date`): one copy per day stays.
+    const key = `${ev.date ?? ''}|${ev.allDay}|${ev.start}|${ev.end}|${ev.title.trim().replace(/\s+/g, ' ').toLowerCase()}`
     const list = groups.get(key) ?? []
     groups.set(key, list)
     const same = list.find(g => g.ids.has(ev.id) || !g.calendars.has(ev.calendarId))
