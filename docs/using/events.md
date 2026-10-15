@@ -88,7 +88,7 @@ An event's people come from, in order:
 2. a tag on **the whole series** ("Tagged for the whole series"),
 3. the **calendar's** members ("From the calendar").
 
-Tapping chips in the detail sheet saves immediately, even on read-only ICS events, because tags are stored only in Kinwall. On a recurring synced event, Kinwall asks **This event** or **All events in the series** first.
+Tapping chips in the detail sheet saves immediately, even on read-only ICS events, because tags are stored only in Kinwall. A message says what changed ("Added Alex to Piano Lesson") with **Undo**, so a stray tap is easy to take back. On a recurring synced event, Kinwall asks **This event** or **All events in the series** first.
 
 ## Linked tasks
 

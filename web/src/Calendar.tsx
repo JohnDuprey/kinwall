@@ -385,11 +385,20 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
   // Recurring synced events (event.seriesId set) don't save immediately - see saveDetailMembers.
   const toggleDetailMember = async (memberId: string) => {
     if (!detail) return
-    const memberIds = detail.memberIds.includes(memberId) ? detail.memberIds.filter(x => x !== memberId) : [...detail.memberIds, memberId]
-    try {
-      const updated = await api.updateEvent(detail.id, { memberIds })
-      setDetail(updated)
+    const was = detail.memberIds, removed = was.includes(memberId)
+    const memberIds = removed ? was.filter(x => x !== memberId) : [...was, memberId]
+    const save = async (ids: string[]) => {
+      const updated = await api.updateEvent(detail.id, { memberIds: ids })
+      setDetail(d => d?.id === updated.id ? updated : d)
       setEvents(evs => evs.map(e => e.id === updated.id ? updated : e))
+    }
+    try {
+      await save(memberIds)
+      // Saved at once, so a stray tap (a kid brushing the wall) says what it did and can be undone.
+      const name = members.find(m => m.id === memberId)?.name ?? 'Someone'
+      toast(removed ? `Removed ${name} from ${detail.title}` : `Added ${name} to ${detail.title}`, false, {
+        label: 'Undo', run: () => { save(was).catch(e => toast(e instanceof ApiError ? e.message : 'Could not update members', true)) },
+      })
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Could not update members', true)
     }
