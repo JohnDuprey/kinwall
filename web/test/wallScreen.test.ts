@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deviceKindOf, deviceKindValue, IDLE_CEILING_MS, idleWaitsForTyping, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { deviceKindOf, deviceKindSaid, deviceKindValue, IDLE_CEILING_MS, idleWaitsForTyping, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -110,4 +110,11 @@ test('idleWaitsForTyping: a wall waits for a focused text field up to 10 minutes
   assert.equal(idleWaitsForTyping(true, 2 * 60 * 1000), true)
   assert.equal(idleWaitsForTyping(true, IDLE_CEILING_MS), false, 'an abandoned form on the wall goes back Home')
   assert.equal(idleWaitsForTyping(false, 60 * 60 * 1000), true, 'a parent typing slowly never loses it')
+})
+
+test("deviceKindSaid: a role change says what the device is now", () => {
+  const members = [{ id: 'm3', name: 'Maya' }]
+  assert.equal(deviceKindSaid('Kitchen wall', 'kid:m3', members), "Kitchen wall is now Maya's device")
+  assert.equal(deviceKindSaid('Kitchen wall', 'wall', members), 'Kitchen wall is now a shared wall screen')
+  assert.equal(deviceKindSaid('Old tablet', 'kid:gone', members), 'Old tablet is now a shared wall screen', "a member who's gone isn't named")
 })

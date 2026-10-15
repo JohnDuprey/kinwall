@@ -31,7 +31,7 @@ import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
 import { DEFAULT_ACCENT, effectiveDensity, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { screenScale, SCREEN_SCALES } from './screenScale.ts'
-import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
+import { deviceKindOf, deviceKindSaid, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
@@ -3315,7 +3315,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
     }
   }
   const changeKind = async (k: ApiKey, next: string) => {
-    try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change what it is', true) }
+    try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore(); toast(deviceKindSaid(k.name, next, members)) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change what it is', true) }
   }
   const revoke = async (k: ApiKey) => {
     if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: `It will be signed out and need pairing again.${widgetsUnder(all, { keyId: k.id }).length ? ' So will its widgets and Watch.' : ''}`, confirmLabel: 'Remove', danger: true })) return

@@ -104,3 +104,10 @@ export function parseDeviceKind(value: string): { kind: DeviceKind; owner?: stri
   const [kind, owner] = value.split(':')
   return owner ? { kind: kind as DeviceKind, owner } : { kind: kind as DeviceKind }
 }
+
+/** The toast after a paired device's role changes: "Kitchen wall is now Maya's device". */
+export function deviceKindSaid(name: string, value: string, members: { id: string; name: string }[]): string {
+  const { kind, owner } = parseDeviceKind(value)
+  const who = kind === 'kid' ? members.find(m => m.id === owner)?.name : undefined
+  return who ? `${name} is now ${who}'s device` : `${name} is now a shared wall screen`
+}
