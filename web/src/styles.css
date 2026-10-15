@@ -3784,6 +3784,12 @@ div.meds-person-head { cursor: default; }
 /* With the add button over it, a scrolling Board can scroll its last card clear (the fixed one's
    cards move their rows out from under it: Board.tsx FitBody). */
 .content:has(> .fab) .board-scroll:not([data-fixed]) { padding-bottom: calc(60px + 22px + var(--safe-b) + 16px); }
+/* A phone's add button sits over the Board's right edge: a timer's ▶ Start and the poll row keep
+   their controls and counts left of it, so they're never hidden under it at rest. */
+@media (max-width: 600px) {
+  .content:has(> .fab) .board-scroll:not([data-fixed]) .chore-timer-start { margin-right: 52px; }
+  .content:has(> .fab) .board-scroll:not([data-fixed]) :is(.board-slot-row, .board-poll-btn) { padding-right: 64px; }
+}
 .board-scroll:has(> .board-polls:not(:empty)) { display: flex; flex-direction: column; }
 .board-polls:empty { display: none; }
 .board-polls { flex: none; padding: 4px var(--pad) 0; }
