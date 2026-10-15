@@ -505,7 +505,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
   const num = (v?: number) => v === undefined ? '' : String(v)
   const p = prefill?.draft
   const [f, setF] = useState<Form>(() => ({
-    memberId: p ? p.memberId ?? ASK : entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : kid ?? memberId, date: p?.date ?? entry?.date ?? date ?? '', title: p?.title ?? entry?.title ?? '',
+    memberId: p ? p.memberId ?? ASK : entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : kid ?? memberId ?? (kind === 'health' ? ASK : null), date: p?.date ?? entry?.date ?? date ?? '', title: p?.title ?? entry?.title ?? '',
     photoId: entry?.photoId ?? null, photoOwned: !!entry?.photoOwned, photoFamily: !!entry?.photoFamily, pending: null,
     format: d.format ?? 'book', author: d.author ?? '', narrator: d.narrator ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages),
     listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: p?.notes ?? d.notes ?? '',
@@ -574,7 +574,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
   return (
     <Sheet title={readOnly ? `${everyone.find(m => m.id === entry?.memberId)?.name ?? 'Someone'}'s ${noun}` : entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose} dirty={readOnly ? false : 'auto'}
       actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
-        <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? 'Save' : 'Add'}</button>
+        <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? 'Save' : kind === 'health' ? 'Add visit' : 'Add'}</button>
       </>}>
       {/* Read-only: every field inside is disabled. */}
       <fieldset className="item-sheet-fields" disabled={readOnly}>
@@ -677,7 +677,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
           <MeasureInput id="trk-weight" label="Weight" value={f.weight} unit={f.weightUnit} units={['lb', 'kg']} onValue={v => set({ weight: v })} onUnit={u => set({ weightUnit: u as Form['weightUnit'] })} />
           <MeasureInput id="trk-temp" label="Temperature" value={f.temperature} unit={f.temperatureUnit} units={['F', 'C']} onValue={v => set({ temperature: v })} onUnit={u => set({ temperatureUnit: u as Form['temperatureUnit'] })} />
         </fieldset>
-        <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="What the doctor said, medicine, next steps…" /></div>
+        <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="Next steps, what to bring next time…" /></div>
         <div className="field"><label htmlFor="trk-follow">Follow-up</label><input id="trk-follow" type="date" value={f.followUp} onChange={e => set({ followUp: e.target.value })} /></div>
         {entry && d.eventId && <a className="btn btn-secondary" href={eventHref(d.eventId, entry.date)} onClick={onClose}>📅 Open on the calendar</a>}
       </>}

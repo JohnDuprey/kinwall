@@ -82,7 +82,7 @@ A memory's own photos count toward the family's photo storage (200 photos, 100 M
 
 Doctor, dentist and other visits: the date and time, the type (checkup, dentist, specialist, vaccine, sick visit, other), the reason, the doctor or office, notes, measurements (height, weight, temperature, each in the unit you pick) and a follow-up date. Upcoming visits come first, then past ones.
 
-**Whose health** at the top of the tab shows **Everyone** or one person: their visits and their medicines, and a visit you add is theirs to start with. This device remembers the choice, and it starts from the header's member filter when one is set. It doesn't change the header's filter, so the calendar stays as it was.
+**Whose health** at the top of the tab shows **Everyone** or one person: their visits and their medicines, and a visit you add is theirs to start with. With **Everyone**, a new visit asks **Whose visit?** before **Add visit** works (pick a person, or **Family**). Notes are for next steps; keep medical detail out of them. This device remembers the choice, and it starts from the header's member filter when one is set. It doesn't change the header's filter, so the calendar stays as it was.
 
 **Add to calendar** on an upcoming visit adds a normal calendar event, like "🦷 Dentist · Maya", at the visit's time with the office as its location. Only the type and the person go on the calendar; the reason, notes and measurements stay in Trackers.
 
