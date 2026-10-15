@@ -34,7 +34,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { dedupeEvents, eventPeople, gridTop, hourPx, layoutDay, newEventDay, newEventStart, wallHourPx } from './dayLayout.ts'
+import { dedupeEvents, eventPeople, gridTop, hourPx, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx, type RepeatChoice } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
@@ -1335,7 +1335,7 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
   // Notes are plain text; a provider's HTML (from before the server stored it as text) shows as text too.
   const initialNotes = base.description ? stripHtmlToText(base.description).trim() : ''
   const [notes, setNotes] = useState(initialNotes)
-  const initialRepeat: '' | 'daily' | 'weekly' | 'monthly' = base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : ''
+  const initialRepeat = repeatChoice(base.rrule)
   const [rrule, setRrule] = useState(initialRepeat)
   // reminderSource says whether the reminders are the event's own or the default. The event's own
   // ones pre-select a matching preset, or show as "keep" when they don't fit one (e.g. 10 min + 1 day
@@ -1397,10 +1397,9 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
   const submit = () => {
     if (!title.trim()) { setNoTitle(true); titleInput.current?.focus(); return }
     if (!calendarId) return
-    // The menu only knows plain daily/weekly/monthly: an untouched menu keeps the real rule
+    // The menu only knows plain daily/weekly/monthly/yearly: an untouched menu keeps the real rule
     // (e.g. FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR) instead of flattening it.
-    const rruleStr = rrule === initialRepeat && base.rrule ? base.rrule
-      : rrule === 'daily' ? 'FREQ=DAILY' : rrule === 'weekly' ? 'FREQ=WEEKLY' : rrule === 'monthly' ? 'FREQ=MONTHLY' : null
+    const rruleStr = rrule === initialRepeat && base.rrule ? base.rrule : repeatRule(rrule)
     if (endBeforeStart) return
     let start: string, end: string
     if (allDay) {
@@ -1529,11 +1528,12 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
       {!allDay && <TravelFields minutes={travel.minutes} remind={travel.remind} onChange={(minutes, remind) => setTravel({ minutes, remind })} />}
       <div className="field">
         <label>Repeat</label>
-        <select value={rrule} onChange={e => setRrule(e.target.value as typeof rrule)}>
+        <select value={rrule} onChange={e => setRrule(e.target.value as RepeatChoice)}>
           <option value="">Does not repeat</option>
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
         </select>
       </div>
       <div className="field">

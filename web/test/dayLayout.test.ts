@@ -2,7 +2,7 @@
 // which events count for Now / Next and leave-by (leadTime.ts blocksTime).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dedupeEvents, eventPeople, FREE_EDGE, gridTop, hourPx, layoutDay, newEventDay, newEventStart, wallHourPx } from '../src/dayLayout.ts'
+import { dedupeEvents, eventPeople, FREE_EDGE, gridTop, hourPx, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx } from '../src/dayLayout.ts'
 import { blocksTime } from '../src/leadTime.ts'
 import type { EventInstance } from '../src/types.ts'
 
@@ -116,4 +116,13 @@ test('gridTop: 7 AM, or an hour before now while 9 PM stays in view; now always 
   assert.equal(gridTop(23, 6, true), 21) // late: now stays on screen
   assert.ok(gridTop(5, 14, true) <= 5) // early morning: now on screen
   assert.equal(gridTop(16, 6, false), 7) // another day: 7 AM
+})
+
+test('repeat menu: Yearly saves FREQ=YEARLY, and a stored rule shows as its frequency', () => {
+  assert.equal(repeatRule('yearly'), 'FREQ=YEARLY')
+  assert.equal(repeatRule(''), null)
+  assert.equal(repeatChoice('FREQ=YEARLY'), 'yearly')
+  assert.equal(repeatChoice('FREQ=WEEKLY;BYDAY=MO,WE'), 'weekly')
+  assert.equal(repeatChoice('FREQ=MONTHLY;BYDAY=+2TU'), 'monthly')
+  assert.equal(repeatChoice(null), '')
 })

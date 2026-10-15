@@ -219,6 +219,8 @@ test('events: a repeat that can never occur is refused, and costs nothing to rea
   // The range's end doesn't change what a rule with its own COUNT or UNTIL gives.
   assert.equal(expand('FREQ=DAILY;COUNT=3', '2026-10-06', '2026-10-07', true, 'UTC', ...week).length, 2);
   assert.equal(expand('FREQ=DAILY;UNTIL=20261003T000000Z', '2026-10-01', '2026-10-02', true, 'UTC', ...week).length, 3);
+  // The event sheet's Yearly (a birthday or an anniversary): the same day next year.
+  assert.deepEqual(expand('FREQ=YEARLY', '2026-10-06', '2026-10-07', true, 'UTC', new Date('2027-10-01T00:00:00Z'), new Date('2027-10-08T00:00:00Z')).map(i => i.start), ['2027-10-06']);
 });
 
 test('events and chores: a monthly or yearly repeat that never happens is refused, and one already stored costs one scan', async () => {
