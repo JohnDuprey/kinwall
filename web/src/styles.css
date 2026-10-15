@@ -2833,6 +2833,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-row.attn, .board-slot-full.attn { box-shadow: inset 0 0 0 2px var(--accent); }
 .board-polls .board-slot-row { border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
 .board-slot-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-goal-chips { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); } /* the chores tile's saving-for line */
 .board-slot-row-meta { flex: none; margin-left: auto; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
 .board-slot-head { display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text); text-decoration: none; }
 .board-slot-head-link { min-height: 32px; }

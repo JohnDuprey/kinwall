@@ -425,6 +425,13 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     ))}
   </span>
   const choresText = restLeft ? `${restLeft} left today` : 'All done ✓'
+  // Saving-for goals, short ("Leo 🍦 18/50"), on the compact chores line and tile too: the full Chores
+  // card has them on each person's row, but a 1080p wall gets the line, and the kids' goal belongs on the wall.
+  const goals = !rewards ? [] : members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && (!focusMemberId || m.id === focusMemberId))
+  const goalsText = goals.map(m => `${m.name} ${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? 'Ready!' : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' · ')
+  const goalsShort = goals.map(m => `${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? '✓' : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' ')
+  const goalsSaid = goals.map(m => `${m.name} ${goalText(m)!.label}`).join(', ')
+  const goalsLine = goals.length > 0 && <span className="board-goal-chips" aria-hidden="true">🎯 {goalsText}</span>
   const choresName = timed.length ? 'Other chores' : 'Chores'
   const toDos = (n: number) => n === 1 ? '1 to-do' : `${n} to-dos` // the chip says what's due: "3 to-dos due"
   const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
@@ -436,6 +443,13 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       chip: <a className="board-slot-chip" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{restLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!restLeft ? 'All done' : restLeft === 1 ? '1 chore' : `${restLeft} chores`}</span></a>,
       row: <a className="board-slot-row" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">{choresName} · {choresText}</span></a>,
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
+    },
+    // Right after the chores: what the kids are saving for, at every size the full Chores card isn't on.
+    todayTiles && choresTile && goals.length > 0 && {
+      key: 'goals',
+      chip: <a className="board-slot-chip" href="#/rewards" aria-label={`Saving for: ${goalsSaid}`}><span aria-hidden="true">🎯</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{goalsShort}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{goalsText}</span></a>,
+      row: <a className="board-slot-row" href="#/rewards" aria-label={`Saving for: ${goalsSaid}`}><span aria-hidden="true">🎯</span><span className="board-slot-row-text" aria-hidden="true">{goalsText}</span></a>,
+      full: <a className="board-slot-row" href="#/rewards" aria-label={`Saving for: ${goalsSaid}`}><span aria-hidden="true">🎯</span><span className="board-slot-row-text" aria-hidden="true">{goalsText}</span></a>,
     },
     todayTiles && dueTile && items.length > 0 && dueSummary && {
       key: 'due',
@@ -481,6 +495,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
               <a className="board-tile" href="#/chores">
                 <span className="board-tile-label">✅ Chores</span>
                 <span className="board-tile-value">{choresLeft ? `${choresLeft} left today` : chores.length ? 'All done ✓' : 'None today'}</span>
+                {goalsLine}{goalsSaid && <span className="sr-only">{goalsSaid}</span>}
                 {chores.length > 0 && (
                   <span className="board-tile-people">
                     {chores.map(c => (
