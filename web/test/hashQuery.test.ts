@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Links into the app: #/<path>?<query>.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hashPath, hashQuery, withHashParam } from '../src/hashQuery.ts'
+import { hashPath, hashQuery, listRoute, withHashParam } from '../src/hashQuery.ts'
 
 test('hashQuery: the query after the path, decoded; none is empty', () => {
   assert.equal(hashQuery('#/lists/abc/shop?store=Trader%20Joe%27s').get('store'), "Trader Joe's")
@@ -24,4 +24,13 @@ test('withHashParam: sets or takes out one param, keeping the path and the other
   assert.equal(withHashParam('#/lists?gsd=L1', 'gsd', null), '#/lists')
   assert.equal(withHashParam('', 'gsd', 'a b'), '#/home?gsd=a+b')
   assert.equal(hashQuery(withHashParam('#/chores', 'checklist', 'c&1')).get('checklist'), 'c&1')
+})
+
+test('listRoute: the open list is in the address; old ?list= links move to it', () => {
+  assert.deepEqual(listRoute('#/lists'), { id: null, shop: false, redirect: null })
+  assert.deepEqual(listRoute('#/lists/l1'), { id: 'l1', shop: false, redirect: null })
+  assert.deepEqual(listRoute('#/lists/l1?gsd=l1'), { id: 'l1', shop: false, redirect: null })
+  assert.deepEqual(listRoute('#/lists/l1/shop?store=Market'), { id: 'l1', shop: true, redirect: null })
+  assert.deepEqual(listRoute('#/lists?list=l%202'), { id: 'l 2', shop: false, redirect: '#/lists/l%202' })
+  assert.deepEqual(listRoute('#/home?list=l1'), { id: null, shop: false, redirect: null })
 })

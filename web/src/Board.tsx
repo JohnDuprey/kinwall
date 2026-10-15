@@ -451,7 +451,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     ...listTiles.filter(t => tiles.includes(t.type)).map(({ type, lists: ls, open }) => {
       const Icon = type === 'groceries' ? BasketIcon : CartIcon
       return {
-        key: type, href: ls.length === 1 ? `#/lists?list=${encodeURIComponent(ls[0].id)}` : '#/lists',
+        key: type, href: ls.length === 1 ? `#/lists/${encodeURIComponent(ls[0].id)}` : '#/lists',
         icon: ls.length === 1 && ls[0].emoji ? <span className="emoji-plate" aria-hidden="true">{ls[0].emoji}</span> : <Icon width={16} height={16} aria-hidden="true" />,
         name: ls.length === 1 ? ls[0].name : type === 'groceries' ? 'Groceries' : 'Shopping',
         value: open ? `${open} on the list` : 'Nothing needed', count: open ? `${open}` : '✓',

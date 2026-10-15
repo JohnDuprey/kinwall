@@ -375,7 +375,7 @@ function dueText(i: SnapshotItem, today: string): string | null {
 export function ItemRow({ i, today, close, after }: { i: SnapshotItem; today: string; close: () => void; after?: React.ReactNode }) {
   return (
     <li>
-      <button className="snap-row" onClick={() => go(`#/lists?list=${encodeURIComponent(i.listId)}`, close)}>
+      <button className="snap-row" onClick={() => go(`#/lists/${encodeURIComponent(i.listId)}`, close)}>
         <span className="snap-time snap-emoji" aria-hidden="true">{i.overdue ? '⚠️' : i.listEmoji || '📝'}{/* a ✅ list's emoji read as done */}</span>
         <span className="snap-main">
           <span className="snap-title">{i.priority !== 'normal' && <PriorityBadge p={i.priority} />}{i.title}</span>

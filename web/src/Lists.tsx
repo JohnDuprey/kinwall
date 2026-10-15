@@ -21,11 +21,11 @@ import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.ts
 import NotesThread from './NotesThread.tsx'
 import { actorName, byLine, nowrap, whenLabel } from './addedBy.ts'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, placeNeeds, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
-import { hashPath, hashQuery, useHashParam } from './hashQuery.ts'
+import { hashPath, hashQuery, listRoute, useHashParam } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
 import GetStuffDone from './GetStuffDone.tsx'
 import { shoppingActivity } from './liveActivity.ts'
-import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, wallCamera } from './native.ts'
+import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, tellAppHere, wallCamera } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
@@ -1626,7 +1626,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     const store = tripStoreFor(storeLink, [...detail.suggestions.stores, ...(current && current !== ANY_STORE ? [current] : [])])
     if (store && store !== current) changeTrip(store)
     setStoreLink(null)
-    history.replaceState(null, '', hashPath(location.hash)) // handled: a reload doesn't start it again
+    history.replaceState(history.state, '', hashPath(location.hash)) // handled: a reload doesn't start it again
   }, [storeLink, shopMode, detail, listId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [reversed, setReversed] = useState(() => !!trip && trip !== ANY_STORE && tripReverse(trip))
   useEffect(() => setReversed(!!trip && trip !== ANY_STORE && tripReverse(trip)), [trip])
@@ -1638,8 +1638,11 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
   // Shopping mode: the trip alone, full screen. "Back" leaves it with the trip still on
   // (Shopping at on the list comes back to it); only Done shopping (the checkout) or End ends the trip.
-  const enterShop = () => { location.hash = `#/lists/${listId}/shop` }
-  const exitShop = () => { location.hash = '#/lists' }
+  // History: the list is shopping mode's parent, so Back steps back to it (never a new entry,
+  // which left shopping mode one Back away, ready to start an ended trip again).
+  const enterShop = () => { location.hash = `#/lists/${listId}/shop`; history.replaceState({ ...history.state, kinwallShopFrom: true }, '') }
+  const exitShop = () => { if (history.state?.kinwallShopFrom) history.back(); else location.replace(`#/lists/${listId}`) }
+  const freshLink = useRef(false) // shopping mode opened by a link (Siri), not come back to with Back or Forward
   const [picking, setPicking] = useState(false) // the store step
   const [adding, setAdding] = useState(false) // the Add item sheet (shopping lists)
   const [leftovers, setLeftovers] = useState<ListItem[] | null>(null) // Checkout's "Didn't find these?" step
@@ -1650,6 +1653,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // Kept for a relaunch, the screen stays on, and the app behind is out of reach (the view covers it).
   useEffect(() => {
     if (!shopMode) return
+    freshLink.current = !history.state?.kinwallShopSeen
+    history.replaceState({ ...history.state, kinwallShopSeen: true }, '')
     setShoppingModeList(listId); holdAwake('shopping', true)
     const shell = document.querySelector('.app-shell')
     shell?.setAttribute('inert', '')
@@ -1866,11 +1871,12 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     shopHeading.current?.focus({ preventScroll: true })
   }, [shopping])
   // A link to shopping mode for a list that isn't a shopping list: just the list.
-  useEffect(() => { if (shopMode && detail && !shopping) location.replace('#/lists') }, [shopMode, detail, shopping])
+  useEffect(() => { if (shopMode && detail && !shopping) location.replace(`#/lists/${listId}`) }, [shopMode, detail, shopping, listId])
   // Straight into shopping mode with no store yet (a link, Siri): the family's default store for this list type, when there is one.
   const defaultStore = detail?.list.id === listId ? detail.suggestions.defaultStore : null
-  // Only on the way in: Checkout ends the trip while still in shopping mode, and mustn't start another.
-  useEffect(() => { if (shopping && !trip && storeLink === null && defaultStore) changeTrip(defaultStore) }, [shopping, defaultStore]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Only on the way in from a link: Checkout ends the trip while still in shopping mode, and mustn't
+  // start another, and neither does Back or Forward onto shopping mode after the trip ended.
+  useEffect(() => { if (shopping && freshLink.current && !trip && storeLink === null && defaultStore) changeTrip(defaultStore) }, [shopping, defaultStore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error || !detail) {
     const card = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
@@ -1931,7 +1937,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const tripRow = (item: ListItem, other = false) => (
     <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
       event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)} onDelete={delFor(item)}
-      onOpen={() => (item.listId !== listId ? (location.hash = `#/lists?list=${encodeURIComponent(item.listId)}`) : openItem(item))} />
+      onOpen={() => (item.listId !== listId ? (location.hash = `#/lists/${encodeURIComponent(item.listId)}`) : openItem(item))} />
   )
   const tripStores = [...new Set([...suggestions.stores, ...(tripAt ? [tripAt] : [])])]
   // Checkout on a trip: at one store, anything unchecked gets a "Didn't find these?" step first.
@@ -2280,27 +2286,38 @@ export default function Lists() {
   }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  // #/lists?list=<id> (a tap in a member's snapshot): open that list.
-  const listParam = () => new URLSearchParams(location.hash.split('?')[1] || '').get('list')
-  // #/lists/<id>/shop: that list in shopping mode.
-  const shopParam = () => /^#\/lists\/([^/?]+)\/shop/.exec(location.hash)?.[1] ?? null
-  const [shopId, setShopId] = useState<string | null>(shopParam)
-  const [selectedId, setSelectedId] = useState<string | null>(() => listParam() ?? shopParam() ?? hashQuery(location.hash).get('gsd')) // gsd: Get stuff done open on it before a reload
+  // The address names the open list (listRoute): #/lists/<id>, #/lists/<id>/shop; #/lists is the
+  // overview, the open list's history parent on a phone. Old #/lists?list=<id> links move over.
+  const route = listRoute(location.hash)
+  const [shopId, setShopId] = useState<string | null>(route.shop ? route.id : null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => route.id ?? hashQuery(location.hash).get('gsd')) // gsd: Get stuff done open on it before a reload
+  const [missing, setMissing] = useState(false) // a link to a list that isn't here anymore
   const [editList, setEditList] = useState<List | 'new' | null>(null)
+  const phone = useRef(isPhone)
+  phone.current = isPhone
   useEffect(() => {
     const read = () => {
-      const shop = shopParam()
-      setShopId(shop)
-      if (shop) setSelectedId(shop)
-      const id = listParam()
-      if (!id) return
-      setSelectedId(id)
-      history.replaceState(null, '', '#/lists')
+      const r = listRoute(location.hash)
+      if (r.redirect) { location.replace(r.redirect); return }
+      if (!location.hash.startsWith('#/lists')) return // on the way out
+      setShopId(r.shop ? r.id : null)
+      setSelectedId(cur => r.id ?? (phone.current ? null : cur)) // the wall keeps one open
+      if (r.id) setMissing(false)
     }
     read()
     window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)
   }, [])
+  // A phone steps into a list (Back comes out to the overview); a wide screen shows both, so
+  // switching lists replaces the address instead of piling up history.
+  const openList = (id: string) => {
+    const to = `#/lists/${encodeURIComponent(id)}`
+    setMissing(false)
+    if (!phone.current) { history.replaceState(history.state, '', to); tellAppHere(); setSelectedId(id); return }
+    location.hash = to
+    history.replaceState({ ...history.state, kinwallListFrom: true }, '')
+  }
+  const toOverview = () => { if (history.state?.kinwallListFrom) history.back(); else location.replace('#/lists') }
 
   const load = () => {
     setLoading(true)
@@ -2315,7 +2332,8 @@ export default function Lists() {
   useEffect(() => {
     if (loading) return
     const gone = selectedId && !lists.find(l => l.id === selectedId)
-    if (gone && shopId === selectedId) location.replace('#/lists')
+    if (gone) { setMissing(true); history.replaceState(history.state, '', '#/lists') } // "That list isn't here anymore", and a reload doesn't ask again
+    if (gone && shopId === selectedId) { setShopId(null); location.replace('#/lists') }
     if (gone || (!selectedId && !isPhone)) setSelectedId(isPhone ? null : sections[0]?.lists[0]?.id ?? null)
   }, [lists, sections, loading, selectedId, isPhone, shopId])
 
@@ -2333,6 +2351,7 @@ export default function Lists() {
 
   const cards = (
     <div className="lists-col">
+      {missing && <div className="state-card">That isn't here anymore.</div>}
       {reordering && (
         <div className="edit-mode-bar" role="status">
           <span>Tap a list to edit it, or drag to reorder.</span>
@@ -2353,7 +2372,7 @@ export default function Lists() {
               ? <DragList items={s.lists.map(l => ({ ...l, title: l.name }))} onReorder={reorder}
                   renderRow={(l, handle) => <ReorderCard list={l} handle={handle} first={ids[0] === l.id} last={ids[ids.length - 1] === l.id} onMove={dir => nudge(ids, l, dir)} onEdit={() => setEditList(l)} />} />
               : s.lists.map(l => (
-                <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => setSelectedId(l.id)} onEdit={parentDevice ? () => setEditList(l) : undefined} />
+                <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => openList(l.id)} onEdit={parentDevice ? () => setEditList(l) : undefined} />
               )))}
           </section>
         )
@@ -2372,7 +2391,7 @@ export default function Lists() {
     <div className="content lists-content">
       {isPhone ? (
         selectedId ? (
-          <ListDetailPane listId={selectedId} lists={lists} isPhone shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
+          <ListDetailPane listId={selectedId} lists={lists} isPhone shopMode={shopId === selectedId} onBack={toOverview} onArchivedOrDeleted={() => { toOverview(); setSelectedId(null); load() }} onLoaded={syncCard} />
         ) : (
           <div className="lists-shell lists-shell-phone">{cards}</div>
         )
@@ -2380,7 +2399,7 @@ export default function Lists() {
         <div className="lists-shell">
           {cards}
           {selectedId
-            ? <ListDetailPane listId={selectedId} lists={lists} isPhone={false} shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
+            ? <ListDetailPane listId={selectedId} lists={lists} isPhone={false} shopMode={shopId === selectedId} onBack={toOverview} onArchivedOrDeleted={() => { toOverview(); setSelectedId(null); load() }} onLoaded={syncCard} />
             : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>Pick a list to open it.</div></div>}
         </div>
       )}
