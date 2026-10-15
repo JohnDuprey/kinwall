@@ -2,7 +2,7 @@
 // which events count for Now / Next and leave-by (leadTime.ts blocksTime).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dedupeEvents, eventPeople, FREE_EDGE, hourPx, layoutDay, newEventDay, newEventStart } from '../src/dayLayout.ts'
+import { dedupeEvents, eventPeople, FREE_EDGE, gridTop, hourPx, layoutDay, newEventDay, newEventStart, wallHourPx } from '../src/dayLayout.ts'
 import { blocksTime } from '../src/leadTime.ts'
 import type { EventInstance } from '../src/types.ts'
 
@@ -15,7 +15,8 @@ test('layoutDay: a free window never splits busy events into columns; they step 
   const out = layoutDay([soccer, window, early], 'UTC')
   assert.deepEqual(out.map(p => [p.ev.id, p.free, p.totalCols]), [['w', true, 1], ['e', false, 1], ['s', false, 1]], 'free first (drawn behind), each set packed on its own')
   assert.equal(out[0].width, 'calc((100% - 0px) / 1 - 4px)', 'the window keeps the full width')
-  assert.ok(out[2].left.startsWith(`calc(${FREE_EDGE}px`), 'Soccer overlaps the window: inset')
+  assert.ok(out[2].left.startsWith(`calc(${FREE_EDGE} `), 'Soccer overlaps the window: inset')
+  assert.deepEqual(out.map(p => p.covered), [true, false, false], 'the window keeps its words to the lane Soccer leaves')
   assert.ok(out[1].left.startsWith('calc(0px'), 'the early event does not overlap it: no inset')
   // Two busy events still share the column between themselves.
   const clash = layoutDay([soccer, ev('p', '2026-10-07T16:30:00Z', '2026-10-07T17:30:00Z'), window], 'UTC').filter(p => !p.free)
@@ -100,4 +101,19 @@ test('hourPx: a cast screen and a big screen draw their hour rows bigger, like s
   assert.equal(hourPx('compact', false, false, 1.2), 48 * 1.2)
   assert.equal(hourPx('comfortable', false, false, 0, 1.5), 90, 'a big screen: 60px times --screen-k')
   assert.equal(hourPx('compact', false, false, 0, 2), 80)
+})
+
+test('wallHourPx: a wall fits 7 AM to 9 PM, never bigger than usual nor under 40px', () => {
+  assert.equal(wallHourPx(760, 72), 54) // 1920x1080: 14 hours in 760px
+  assert.equal(wallHourPx(1400, 60), 60) // room to spare: the usual size
+  assert.equal(wallHourPx(240, 48), 40) // a Nest Hub: as small as it goes, and it scrolls
+})
+
+test('gridTop: 7 AM, or an hour before now while 9 PM stays in view; now always on screen', () => {
+  assert.equal(gridTop(10.5, 14, true), 7) // the whole day fits
+  assert.equal(gridTop(10.5, 6, true), 9.5) // a Nest Hub in the morning: from 9:30
+  assert.equal(gridTop(18, 6, true), 15) // the evening: 3 PM to 9 PM
+  assert.equal(gridTop(23, 6, true), 21) // late: now stays on screen
+  assert.ok(gridTop(5, 14, true) <= 5) // early morning: now on screen
+  assert.equal(gridTop(16, 6, false), 7) // another day: 7 AM
 })

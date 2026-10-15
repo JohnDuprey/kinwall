@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
@@ -34,7 +34,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { dedupeEvents, eventPeople, hourPx, layoutDay, newEventDay, newEventStart } from './dayLayout.ts'
+import { dedupeEvents, eventPeople, gridTop, hourPx, layoutDay, newEventDay, newEventStart, wallHourPx } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
@@ -72,15 +72,16 @@ function useNowMinutes(tz: string) {
   return minutes
 }
 
-/** Scrolls a time-grid to the current time (1/3 down from the top) when `isToday`, else to 7am. */
-function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number) {
+/** Scrolls a time-grid to where it opens (dayLayout.ts gridTop): 7 AM, or near now on today.
+ * `space`: the grid's height under its sticky head. */
+function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number, space: number) {
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    if (isToday) el.scrollTop = Math.max(0, (nowMinutes / 60) * hourPx - el.clientHeight / 3)
-    else el.scrollTop = 7 * hourPx
+    // A little above the hour, so its label isn't under the day headers.
+    el.scrollTop = Math.max(0, gridTop(nowMinutes / 60, (space || el.clientHeight) / hourPx, isToday) * hourPx - 10)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isToday, dep, hourPx])
+  }, [isToday, dep, hourPx, space])
 }
 
 function useSwipe(onLeft: () => void, onRight: () => void) {
@@ -674,7 +675,7 @@ function CategoryMark({ mark }: { mark: string }) {
 /** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
  * multi-member or categorized events - an inline avatar row and a translucent backing pill so
  * text stays readable over the stripes/category color. */
-function EventTitle({ title, avatars, emoji, pill, hidden, free, meal }: { title: string; avatars: ChipMember[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean; meal?: EventInstance['meal'] }) {
+function EventTitle({ title, avatars, emoji, pill, hidden, free, meal, maxFaces = Infinity }: { title: string; avatars: ChipMember[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean; meal?: EventInstance['meal']; maxFaces?: number }) {
   // A planned meal's 🍽 (✓ once cooked or ordered) stands in for a 🍽 category emoji rather than doubling it.
   if (meal && emoji?.startsWith('🍽')) emoji = null
   const text = <>{hidden && <HiddenMark />}{free && <FreeMark />}{meal && <><span className="event-emoji">{mealEventStatus(meal).compact}</span> </>}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
@@ -682,7 +683,9 @@ function EventTitle({ title, avatars, emoji, pill, hidden, free, meal }: { title
   return (
     <>
       <span className={`event-title-text ${pill ? 'event-title-pill' : ''}`}>{text}</span>
-      <InlineFaces who={avatars} />
+      {/* A small block keeps its faces to `maxFaces` and "+2", rather than cut the last one off. */}
+      <InlineFaces who={avatars.length > maxFaces ? avatars.slice(0, maxFaces) : avatars} />
+      {avatars.length > maxFaces && <span className="event-avatars-more" aria-hidden="true">+{avatars.length - maxFaces}</span>}
     </>
   )
 }
@@ -697,7 +700,7 @@ function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventIns
   const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, small ? 7 : 10)
   return (
     <div className={(small ? 'allday-chip' : 'event-chip') + evClass(ev)} style={evFill(background, ink, solid)} {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
-      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
+      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} />
     </div>
   )
 }
@@ -716,12 +719,27 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
   days: Date[]; events: EventInstance[]; tz: string; members: ChipMember[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void; onDayTap: (d: Date) => void
 }) {
-  const HOUR_PX = useHourPx()
+  const baseHourPx = useHourPx()
   const todayStr = dateKey(new Date())
   const isCurrentWeek = days.some(d => dateKey(d) === todayStr)
   const scrollRef = useRef<HTMLDivElement>(null)
   const nowMinutes = useNowMinutes(tz)
-  useGridAutoScroll(scrollRef, nowMinutes, isCurrentWeek, days[0].getTime(), HOUR_PX)
+  // A wall or cast screen (nobody scrolls it) fits 7 AM to 9 PM where it can (dayLayout.ts wallHourPx).
+  const wide = useMediaQuery('(min-width: 1280px)')
+  const cast = !!useDeviceAppearance().cast
+  const wall = wide || cast
+  const [space, setSpace] = useState(0)
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const head = el.querySelector<HTMLElement>('.grid-head')
+    const ro = new ResizeObserver(() => setSpace(el.clientHeight - (head?.offsetHeight ?? 0) - 12))
+    ro.observe(el)
+    if (head) ro.observe(head)
+    return () => ro.disconnect()
+  }, [])
+  const HOUR_PX = wall && space > 0 ? wallHourPx(space, baseHourPx) : baseHourPx
+  useGridAutoScroll(scrollRef, nowMinutes, isCurrentWeek, days[0].getTime(), HOUR_PX, space)
 
   const dayKeys = days.map(dateKey)
   const allDayByDay = dayKeys.map(k => events.filter(e => e.allDay && isAllDayOnDate(e, k)))
@@ -732,7 +750,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
   const minMinutes = (24 / HOUR_PX) * 60 // same 24px floor as .timed-event's min-height
 
   return (
-    <div className="grid-scroll" ref={scrollRef}>
+    <div className="grid-scroll" ref={scrollRef} style={{ '--hour-h': `${HOUR_PX}px` } as React.CSSProperties}>
       <div className="grid-head">
         {/* Day view (one day): the toolbar already names the day. */}
         {days.length > 1 && <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))` }} onKeyDown={roving.onKeyDown}>
@@ -777,16 +795,19 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
-              {laidOut.map(({ ev, s, e, left, width }) => {
+              {laidOut.map(({ ev, s, e, left, width, covered }) => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 10)
+                const time = `${formatTime(ev.start, tz)}${ev.meal ? timedMealText(ev.meal, days.length === 1) : ''}`
+                // Too short for a second line (under about 48px): "Title · 4:00 PM" on one.
+                const oneLine = ((e - s) / 60) * HOUR_PX < 48
                 return (
                   <Fragment key={ev.id}>
                     <LeaveMarker ev={ev} tz={tz} dayKey={dayKeys[i]} hourPx={HOUR_PX} left={left} width={width} color={solid} />
-                    <div className={`timed-event${evClass(ev)}`}
+                    <div className={`timed-event${evClass(ev)}${covered ? ' ev-covered' : ''}${oneLine ? ' ev-one-line' : ''}`}
                       style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} /></div>
-                      <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}{ev.meal && timedMealText(ev.meal, days.length === 1)}</span>
+                      <div className="event-title-row"><EventTitle title={oneLine ? `${ev.title} · ${time}` : ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} /></div>
+                      {!oneLine && <span className={`ev-time${pill ? ' event-title-pill' : ''}`}>{time}</span>}
                     </div>
                   </Fragment>
                 )

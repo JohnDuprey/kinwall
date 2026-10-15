@@ -472,7 +472,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   position: sticky;
   top: 0;
   background: var(--bg);
-  z-index: 4; /* above .now-line (3) and events, below .fab (5) */
+  z-index: 4; /* above the now-line and events, below .fab (5) */
 }
 .week-header {
   display: grid;
@@ -529,7 +529,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   left: 0; right: 0;
   height: 2px;
   background: var(--accent-strong);
-  z-index: 3;
+  z-index: 0; /* under the events (drawn after it), so it never runs through their words; the dot marks it in the gutter */
   pointer-events: none;
 }
 .now-dot {
@@ -587,6 +587,14 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
    avatar row work the same in every view (week/day timed blocks, all-day chips, month chips,
    schedule rows). eventVisual() in Calendar.tsx computes the stripe/solid background. */
 .event-title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* A timed block's time: one line, cut rather than wrapped ("4:00 / PM"); on stripes it sits on the
+   title's backing pill too (.event-title-pill). */
+.ev-time { display: block; width: fit-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
+.ev-time.event-title-pill { opacity: 1; margin-top: 1px; }
+.event-avatars-more { flex: none; font-size: 0.6875rem; font-weight: 800; }
+/* A free event under busy ones keeps its words to the lane they leave (dayLayout.ts FREE_EDGE), wrapping. */
+.ev-covered > * { max-width: calc(max(14px, min(22%, 100px)) - 8px); }
+.ev-covered .event-title-text { white-space: normal; min-width: 0; }
 .event-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: min(100%, 3.5em); flex: 1 1 auto; }
 /* Stripes mix several member colors, so contrast against --chip-ink isn't guaranteed the way a
    single pastel color is — give the title a translucent backing pill to keep it readable. */
@@ -3996,7 +4004,7 @@ html:root[data-cast] {
 :root[data-cast] .nav-rail-btn svg { width: calc(26px * var(--cast-k, 1)); height: calc(26px * var(--cast-k, 1)); }
 :root[data-cast] .icon-btn svg { width: calc(24px * var(--cast-k, 1)); height: calc(24px * var(--cast-k, 1)); }
 :root[data-cast] .fab { width: calc(64px * var(--cast-k, 1)); height: calc(64px * var(--cast-k, 1)); right: 14px; bottom: 14px; }
-:root[data-cast] .now-next { padding: 6px 12px; gap: 2px; }
+:root[data-cast] .now-next { padding: 6px 12px; gap: 2px 20px; flex-direction: row; flex-wrap: wrap; } /* Now and Next side by side when they fit: one line more for the Board and the grids */
 :root[data-cast] .calendar-toolbar { padding-block: calc(var(--gap) * 0.5); }
 /* The Board: the layout's own columns (or the default three) share out the height, like a wall's,
    drawn a little smaller when even that doesn't fit (Board.tsx castFit). */

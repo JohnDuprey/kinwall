@@ -12,6 +12,18 @@ export function hourPx(density: string, shortLandscape = false, shortTablet = fa
   return shortLandscape ? 44 : (density === 'compact' || shortTablet ? 40 : 60) * screenK
 }
 
+/** A wall or cast screen's hour height (px): 7 AM to 9 PM in the grid's `space` without scrolling,
+ * never taller than the usual `base` nor shorter than `min` (then the grid scrolls, see gridTop). */
+export const wallHourPx = (space: number, base: number, min = 40) => Math.max(min, Math.min(base, Math.floor(space / 14)))
+
+/** The hour a time grid opens at: 7 AM; on today, an hour before now (`now`, hours) while that still
+ * leaves 9 PM in view (`visible`: hours on screen), and always with now on screen. */
+export function gridTop(now: number, visible: number, isToday: boolean): number {
+  if (!isToday) return 7
+  const top = Math.min(Math.max(now - 1, 7), Math.max(7, 21 - visible))
+  return now >= top && now < top + visible ? top : Math.max(0, now - visible / 3)
+}
+
 /** Greedy column packing for overlapping timed events on one day. Simple, not cluster-optimal.
  * ponytail: good enough for a wall calendar's visual density; revisit with an interval-graph
  * algorithm if events routinely overlap 4+ ways. */
@@ -37,23 +49,26 @@ export function layoutColumns(evs: EventInstance[], tz: string, minMinutes = 20)
   return out
 }
 
-/** The inset (px) a busy event steps in by where it overlaps a free one, leaving the free one's edge showing. */
-export const FREE_EDGE = 14
+/** The inset (CSS length) a busy event steps in by where it overlaps a free one: a lane where the free
+ * one's striped edge and its title ("📦 Grocery delivery", wrapping) stay showing. */
+export const FREE_EDGE = 'max(14px, min(22%, 100px))'
 
 /** layoutColumns, with free events (Show as free) kept out of the way: they're packed among
  * themselves and drawn first (behind), at full width; busy events are packed among themselves, so a
  * delivery window never squeezes a real appointment into half a column, and step in by FREE_EDGE
- * where they overlap a free one so its striped edge stays visible. left/width are CSS values. */
+ * where they overlap a free one so its edge and title stay visible (`covered`: a free one some busy
+ * event overlaps, whose words keep to that lane). left/width are CSS values. */
 export function layoutDay(evs: EventInstance[], tz: string, minMinutes = 20) {
   const free = layoutColumns(evs.filter(e => e.busy === false), tz, minMinutes)
   const busy = layoutColumns(evs.filter(e => e.busy !== false), tz, minMinutes)
-  const place = (col: number, total: number, inset: number) => ({
-    left: `calc(${inset}px + (100% - ${inset}px) * ${col / total} + 2px)`,
-    width: `calc((100% - ${inset}px) / ${total} - 4px)`,
+  const place = (col: number, total: number, inset: string) => ({
+    left: `calc(${inset} + (100% - ${inset}) * ${col / total} + 2px)`,
+    width: `calc((100% - ${inset}) / ${total} - 4px)`,
   })
+  const overlaps = (a: { s: number; e: number }, b: { s: number; e: number }) => a.s < b.e && b.s < a.e
   return [
-    ...free.map(p => ({ ...p, free: true, ...place(p.col, p.totalCols, 0) })),
-    ...busy.map(p => ({ ...p, free: false, ...place(p.col, p.totalCols, free.some(f => f.s < p.e && p.s < f.e) ? FREE_EDGE : 0) })),
+    ...free.map(p => ({ ...p, free: true, covered: busy.some(b => overlaps(b, p)), ...place(p.col, p.totalCols, '0px') })),
+    ...busy.map(p => ({ ...p, free: false, covered: false, ...place(p.col, p.totalCols, free.some(f => overlaps(f, p)) ? FREE_EDGE : '0px') })),
   ]
 }
 

@@ -26,6 +26,8 @@ Calendar has four: **Day**, **Week** (**3 Day** on a phone), **Month** and **Sch
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
 | **Newscast** | What the family did and shared: chores done, rewards, photos, books and announcements, with reactions. See [Newscast](newscast.md). | None: the last 7 days, then **Earlier this month** |
 
+The Day, Week and 3 Day grids open at 7 AM, or on today an hour before now (with now always on screen). A screen 1280 pixels wide or more, and a [cast screen](../settings/this-display.md), shrinks the hour rows so 7 AM to 9 PM fits without scrolling, as far as it can while staying readable. An event too short for two lines shows its time after its title ("Team Meeting · 4:30 PM"), and the line for now runs under the events, marked by a dot at the left edge.
+
 Every device opens Home on **Board**. A display can be locked to any view (Settings → General → This display → [Lock view](../settings/this-display.md#this-display)), which hides the tabs: locked to Board or Newscast, it has no Calendar button; locked to Day, Week, Month or Schedule, Calendar takes Home's place in the navigation and is where the screen goes back to when idle.
 
 Links: `#/home` opens Home, `#/calendar` opens Calendar in its last view, and `#/calendar/day`, `/week`, `/month` or `/schedule` open that view.
@@ -143,7 +145,7 @@ The browser tab or window title shows the screen and your family name, for examp
 
 ### Now / Next
 
-A strip above the calendar shows what's on now and what's next today, with a countdown and any 🚗 leave-by time. It shows on every view. Events shown as [free](events.md#free-or-busy), like a delivery window, are left out, so a 12-hour window never sits there as "Now" all day.
+A strip above the calendar shows what's on now and what's next today, with a countdown and any 🚗 leave-by time. It shows on every view. Events shown as [free](events.md#free-or-busy), like a delivery window, are left out, so a 12-hour window never sits there as "Now" all day. On a cast screen, Now and Next share one line when they fit.
 
 * On a wall display it hides when nothing is left today.
 * On a phone it's always two lines, so the screen never jumps. When the day is done it reads "Nothing more today".
