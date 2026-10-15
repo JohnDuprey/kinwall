@@ -563,7 +563,7 @@ export default function Chores() {
     const id = params.get('done')
     if (!id || loading) return
     if (key !== dateKey(new Date())) { setSelectedDate(new Date()); return } // the widget shows today
-    history.replaceState(null, '', '#/chores')
+    history.replaceState(history.state, '', '#/chores')
     const c = chores.find(x => x.id === id)
     if (!c || c.completed || c.pending) return
     const opensSheet = (c.checklist && c.checklist.done < c.checklist.total) || (!c.memberId && !selectedMemberId && members.length > 0)

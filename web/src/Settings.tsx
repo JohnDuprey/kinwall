@@ -88,7 +88,7 @@ export default function SettingsView() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-  const pickTab = (t: SettingsTab) => { setTab(t); history.replaceState(null, '', `#/settings?tab=${t}`) }
+  const pickTab = (t: SettingsTab) => { setTab(t); history.replaceState(history.state, '', `#/settings?tab=${t}`) }
   // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
   // admin sections, even briefly, if the check is slow or fails.
   const [me, setMe] = useState<Me>({ scope: 'display', keyName: '', kind: 'api' })
@@ -109,7 +109,7 @@ export default function SettingsView() {
       const who = kind === 'google' ? 'Google' : 'Microsoft'
       toast(reason === 'canceled' ? `${who} sign-in canceled — nothing was connected` : `${who} connection failed: ${reason}`, true)
       q.delete('oauthError')
-      history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
+      history.replaceState(history.state, '', `#/settings${q.toString() ? `?${q}` : ''}`)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -140,7 +140,7 @@ export default function SettingsView() {
     if (key && !open.has(key)) { toggle(key, true); return } // runs again once it's open
     el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
-    if (q.has('section')) { q.delete('section'); history.replaceState(null, '', `#/settings?${q}`) }
+    if (q.has('section')) { q.delete('section'); history.replaceState(history.state, '', `#/settings?${q}`) }
     setJumpTo(null)
   }, [meReady, jumpTo, open, query]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1655,7 +1655,7 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
     if (returned === 'failed') toast("Google Photos didn't connect. Try again.", true)
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     q.delete('googlePhotos')
-    history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
+    history.replaceState(history.state, '', `#/settings${q.toString() ? `?${q}` : ''}`)
   }, [returned]) // eslint-disable-line react-hooks/exhaustive-deps
   const saveSettings = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }

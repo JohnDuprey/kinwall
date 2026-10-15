@@ -391,7 +391,7 @@ export default function Contacts() {
       const id = hashQuery(location.hash).get('contact')
       if (!location.hash.startsWith('#/contacts') || !id) return
       setSelectedId(id); setSheet('detail')
-      history.replaceState(null, '', hashPath(location.hash))
+      history.replaceState(history.state, '', hashPath(location.hash))
     }
     read(); window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)

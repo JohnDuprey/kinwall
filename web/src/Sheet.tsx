@@ -3,8 +3,12 @@ import { createPortal } from 'react-dom'
 import { XIcon } from './icons.tsx'
 import { reducedMotion } from './a11y.tsx'
 import { useKeyboard } from './keyboard.ts'
+import { sheetHistory } from './sheetHistory.ts'
+import { useDialogMaybe } from './dialog.tsx'
 
-export default function Sheet({ title, onClose, children, actions, variant, role = 'dialog', describedBy, dismissable = true, onCancel }: {
+let nextToken = 0
+
+export default function Sheet({ title, onClose, children, actions, variant, role = 'dialog', describedBy, dismissable = true, onCancel, dirty = false, onGone }: {
   title: string
   onClose: () => void
   children: ReactNode
@@ -16,6 +20,10 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   // Escape and the content's own buttons do. Escape and X call onCancel when given.
   dismissable?: boolean
   onCancel?: () => void
+  // Typed work a stray tap would lose: ✕, Escape, a backdrop tap, a swipe down and Back ask
+  // "Discard changes?" first. Only on forms with a Save/Add button, never on read-only sheets.
+  dirty?: boolean
+  onGone?: () => void // after the sheet has closed and its history entry is gone (dialog.tsx)
 }) {
   const backdropRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -23,8 +31,38 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   const titleId = useId()
   const [opener] = useState(() => document.activeElement as HTMLElement | null) // at first render, before the sheet takes focus
   onCloseRef.current = onClose
-  const onEscapeRef = useRef<(() => void) | undefined>(onClose)
-  onEscapeRef.current = dismissable ? onClose : onCancel
+  const dialog = useDialogMaybe() // null for the dialogs themselves' provider-less uses
+  const asking = useRef(false)
+  // The user asked to close (✕, Escape, backdrop, swipe, Back). Unsaved changes ask first.
+  const dismissRef = useRef<(close: (() => void) | undefined) => Promise<void>>(async () => {})
+  dismissRef.current = async close => {
+    if (!close || asking.current) return
+    if (dirty && dialog) {
+      asking.current = true
+      const discard = await dialog.confirm({ title: 'Discard changes?', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
+      asking.current = false
+      if (!discard) return
+    }
+    close()
+  }
+  const escape = dismissable ? onClose : onCancel
+  const onEscapeRef = useRef<() => void>(() => {})
+  onEscapeRef.current = () => void dismissRef.current(escape)
+
+  // Back closes the sheet (sheetHistory.ts). One that stays open (unsaved changes, busy) gets its
+  // history entry back, so the next Back still lands here.
+  const [token] = useState(() => `s${Date.now().toString(36)}-${++nextToken}`)
+  const onBackRef = useRef(() => {})
+  onBackRef.current = () => {
+    if (dirty || !escape) sheetHistory.keep(token)
+    void dismissRef.current(escape)
+  }
+  const onGoneRef = useRef(onGone)
+  onGoneRef.current = onGone
+  useEffect(() => {
+    sheetHistory.opened(token, () => onBackRef.current())
+    return () => sheetHistory.closed(token, () => onGoneRef.current?.())
+  }, [token])
 
   // Dialog basics: focus moves in on open and back on close, Escape closes, Tab wraps inside.
   useEffect(() => {
@@ -35,7 +73,12 @@ export default function Sheet({ title, onClose, children, actions, variant, role
     // marks the control that should start focused (a dialog's primary button or prompt input).
     ;(sheet.querySelector<HTMLElement>('[data-autofocus]') ?? sheet).focus({ preventScroll: true })
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onEscapeRef.current?.(); return }
+      if (e.key === 'Escape') {
+        // An open combobox (Add item's suggestions) closes its list first; a nested control's
+        // own Escape (preventDefault) wins too. This native listener runs before React's.
+        if (e.defaultPrevented || (e.target as HTMLElement).closest?.('[role="combobox"][aria-expanded="true"]')) return
+        e.stopPropagation(); onEscapeRef.current(); return
+      }
       if (e.key !== 'Tab') return
       const els = focusables()
       if (!els.length) return
@@ -89,6 +132,12 @@ export default function Sheet({ title, onClose, children, actions, variant, role
     const v = dy / Math.max(1, e.timeStamp - drag.current.t)
     drag.current = null
     const sheet = sheetRef.current!
+    if ((dy > 80 || v > 0.5) && dirty) { // spring back and ask
+      sheet.style.transition = reducedMotion() ? 'none' : 'transform 0.2s ease'
+      sheet.style.transform = ''
+      void dismissRef.current(onCloseRef.current)
+      return
+    }
     if (dy > 80 || v > 0.5) {
       if (reducedMotion()) { onCloseRef.current(); return } // no slide-away
       sheet.style.transition = 'transform 0.2s ease'
@@ -100,7 +149,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   }
 
   const onBackdrop = () => {
-    if (dismissable) { onClose(); return }
+    if (dismissable) { void dismissRef.current(onClose); return }
     const sheet = sheetRef.current!
     if (reducedMotion()) return
     sheet.classList.remove('sheet-nudge'); void sheet.offsetWidth; sheet.classList.add('sheet-nudge') // restart the animation
@@ -117,7 +166,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
           <div className="sheet-grabber" />
           <div className="sheet-header">
             <h2 className="sheet-title" id={titleId}>{title}</h2>
-            <button className="icon-btn" onClick={onCancel ?? onClose} aria-label={onCancel ? 'Cancel' : 'Close'}><XIcon width={20} height={20} /></button>
+            <button className="icon-btn" onClick={() => void dismissRef.current(onCancel ?? onClose)} aria-label={onCancel ? 'Cancel' : 'Close'}><XIcon width={20} height={20} /></button>
           </div>
         </div>
         <div className="sheet-body scroll-y">{children}</div>

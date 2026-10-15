@@ -101,7 +101,7 @@ function useSwipe(onLeft: () => void, onRight: () => void) {
 /** The link this place handles its own query on: Home is #/home (or no link at all), Calendar #/calendar/…. */
 const isHere = (home: boolean) => home ? /^#?\/?(home)?(\?|$)/.test(location.hash) : /^#\/calendar(\/|\?|$)/.test(location.hash)
 /** Takes a handled link's query away, so a reload doesn't run it again. */
-const clearQuery = () => history.replaceState(null, '', hashPath(location.hash) || '#/home')
+const clearQuery = () => history.replaceState(history.state, '', hashPath(location.hash) || '#/home')
 
 /** Home (`place` home: the Board and Newscast) and Calendar (Day, Week, Month and Schedule): one
  * screen in two places, mounted apart (App.tsx keys them), so leaving Calendar forgets its day,

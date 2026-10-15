@@ -201,7 +201,7 @@ export default function Outings() {
     window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)
   }, [])
-  const openOne = useCallback((id: string | null) => { history.replaceState(null, '', withHashParam(location.hash, 'outing', id)); setOpen(id) }, [])
+  const openOne = useCallback((id: string | null) => { history.replaceState(history.state, '', withHashParam(location.hash, 'outing', id)); setOpen(id) }, [])
   const linked = open ? outings.find(o => o.id === open) : null
   useEffect(() => { if (linked?.kind) setView(v => v === 'ideas' ? v : linked.kind) }, [linked?.kind])
 

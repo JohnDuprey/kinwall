@@ -30,6 +30,9 @@ let nextId = 0
 
 const DialogContext = createContext<DialogApi | null>(null)
 
+/** The dialogs, or null outside DialogProvider (Sheet's unsaved-changes question). */
+export const useDialogMaybe = () => useContext(DialogContext)
+
 export function useDialog(): DialogApi {
   const api = useContext(DialogContext)
   if (!api) throw new Error('useDialog outside DialogProvider')
@@ -59,12 +62,12 @@ function DialogView({ req, onDone }: { req: Request; onDone: () => void }) {
   const [edited, setEdited] = useState(false)
   const settled = useRef(false) // Escape, backdrop tap and drag can all fire; resolve once
 
+  const answer = useRef<() => void>(() => { if (req.kind === 'confirm') req.resolve(false); else if (req.kind === 'prompt') req.resolve(null); else req.resolve() })
   const finish = (ok: boolean) => {
     if (settled.current) return
     settled.current = true
-    if (req.kind === 'confirm') req.resolve(ok)
-    else if (req.kind === 'prompt') req.resolve(ok ? value.trim() : null)
-    else req.resolve()
+    const text = value.trim()
+    answer.current = () => { if (req.kind === 'confirm') req.resolve(ok); else if (req.kind === 'prompt') req.resolve(ok ? text : null); else req.resolve() }
     onDone()
   }
 
@@ -77,7 +80,9 @@ function DialogView({ req, onDone }: { req: Request; onDone: () => void }) {
   const danger = req.kind === 'confirm' && req.opts.danger
 
   return (
-    <Sheet title={title} onClose={() => finish(false)} variant="dialog" role={req.kind === 'prompt' ? 'dialog' : 'alertdialog'}
+    // Answered once the dialog's history entry is gone (Sheet onGone), so a caller that navigates
+    // next (Leave an activity, open a screen) isn't undone by the dialog's own step back.
+    <Sheet title={title} onClose={() => finish(false)} onGone={() => answer.current()} variant="dialog" role={req.kind === 'prompt' ? 'dialog' : 'alertdialog'}
       describedBy={body ? `${ids}-body` : undefined}
       actions={<>
         {cancelLabel && <button className="btn btn-secondary" onClick={() => finish(false)} data-autofocus={danger || undefined}>{cancelLabel}</button>}

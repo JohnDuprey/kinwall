@@ -71,7 +71,7 @@ export default function Meals() {
     const read = () => {
       const query = new URLSearchParams(location.hash.split('?')[1] ?? '')
       // A link shared from another app: #/recipes/import?url=…
-      if (location.hash.startsWith('#/recipes/import')) { setView('recipes'); setImporting({ url: query.get('url') ?? '' }); history.replaceState(null, '', '#/meals'); return }
+      if (location.hash.startsWith('#/recipes/import')) { setView('recipes'); setImporting({ url: query.get('url') ?? '' }); history.replaceState(history.state, '', '#/meals'); return }
       if (!location.hash.startsWith('#/meals')) return
       const date = query.get('date')
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))) setAnchor(date)
@@ -81,7 +81,7 @@ export default function Meals() {
       // cook=<id>: cooking mode was open before a reload. Its recipe opens, and the param stays for RecipeSheet to reopen it.
       const cook = query.get('cook')
       if (cook) setPendingRecipe(cook)
-      if (query.toString()) history.replaceState(null, '', withHashParam('#/meals', 'cook', cook))
+      if (query.toString()) history.replaceState(history.state, '', withHashParam('#/meals', 'cook', cook))
     }
     read(); window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)

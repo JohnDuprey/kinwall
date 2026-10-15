@@ -36,7 +36,7 @@ export default function Activities({ sub, rest }: { sub?: string; rest?: string 
   useEffect(() => {
     // #/activities?more=1 (a chore whose activity isn't installed links here) opens Get more activities.
     const more = hashQuery(location.hash).get('more') === '1'
-    if (more) history.replaceState(null, '', hashPath(location.hash))
+    if (more) history.replaceState(history.state, '', hashPath(location.hash))
     api.meStrict().then(me => { setIsAdmin(me.scope === 'admin'); if (more && me.scope === 'admin') setManaging(true) }).catch(() => {})
   }, [])
   if (sub === 'plugin' && rest) return <PluginPlayer id={rest} />

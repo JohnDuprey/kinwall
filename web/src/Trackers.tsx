@@ -134,7 +134,7 @@ export default function Trackers({ sub }: { sub?: string }) {
   useEffect(() => {
     const id = hashQuery(location.hash).get('visit')
     if (!entries || !id || kind !== 'health' || entries.some(e => e.kind !== 'health')) return // the Health list, not one still loading for another view
-    history.replaceState(null, '', hashPath(location.hash))
+    history.replaceState(history.state, '', hashPath(location.hash))
     const e = entries.find(x => x.id === id)
     if (e) setEditing(e)
   }, [entries, kind])

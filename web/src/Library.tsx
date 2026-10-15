@@ -93,13 +93,13 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     const q = hashQuery(location.hash)
     const title = q.get('add')
     if (!title) return
-    history.replaceState(null, '', hashPath(location.hash))
+    history.replaceState(history.state, '', hashPath(location.hash))
     setLinkedAdd({ title, author: q.get('author') ?? '', pages: null, coverUrl: null })
   }, [])
   useEffect(() => {
     const id = hashQuery(location.hash).get('book')
     if (!all || !id) return
-    history.replaceState(null, '', hashPath(location.hash))
+    history.replaceState(history.state, '', hashPath(location.hash))
     const b = all.find(x => x.id === id)
     if (b) setOpen(b)
     else Promise.all([{ returned: true }, { wanted: true }].map(f => api.getLibrary(f))).then(l => { const f = l.flat().find(x => x.id === id); if (f) setOpen(f) }).catch(() => {})
