@@ -41,7 +41,9 @@ Open an outing and tap **👀 Interested** or **⭐ Really want to go**. Tap it 
 
 * **A kid's own device** marks only for that kid ("Marking for Maya").
 * **A wall screen** asks **Who?** first, then gets ready for the next person.
-* **A parent's device** starts on its owner and can mark for anyone.
+* **A parent's device** marks for its owner without asking ("Marking for Alex"); **Someone else** shows everyone's names to mark for another person. A parent's device with no owner asks **Who?** like a wall.
+
+Who marked what is listed once, under the buttons.
 
 ## Adding and editing
 

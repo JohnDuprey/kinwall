@@ -21,7 +21,7 @@ import { formatTime } from './timeFormat.ts'
 import { mapHref, parsePrice } from './restaurants.ts'
 import { hashQuery, withHashParam } from './hashQuery.ts'
 import { FOR_BOXES, interestOf, type ForBox } from './outing-rules.ts'
-import { audienceLabel, boxLabel, filterChips, placeSections, priceLabel, reallyCount, shownOutings, startFilters, trayRows, upcomingSections, whenLabel, type Cost, type Filters, type When } from './outings.ts'
+import { audienceLabel, boxLabel, filterChips, placeSections, priceLabel, reallyCount, shownOutings, startFilters, timeLabel, trayRows, upcomingSections, whenLabel, type Cost, type Filters, type When } from './outings.ts'
 import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingFeed, OutingIdeas, OutingInput, OutingPile } from './types.ts'
 import './meals.css'
 import './outings.css'
@@ -292,6 +292,7 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
   const [tick, setTick] = useState(0)
   const [busy, setBusy] = useState(false)
   const [calendar, setCalendar] = useState(false)
+  const [someoneElse, setSomeoneElse] = useState(false) // a parent's own device: mark for someone else
   // A member's own device marks only for them; a wall marks for the person picked in its header
   // (until it goes idle), else asks; a parent's device starts on its owner.
   const lockedTo = !who.parent && meMemberId ? meMemberId : actingMember(actingMemberId, members)?.id ?? null
@@ -344,11 +345,12 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
   const actions = <>
     {options.length > 0 && <select className="settings-select actions-select" aria-label="Outing actions" value="" disabled={busy} onChange={e => void more(e.target.value)}><option value="" disabled hidden>More…</option>{options}</select>}
     {who.parent && o.kind === 'upcoming' && !o.gotTickets && (o.ticketsUrl || o.buyBy || o.ticketsOnSaleAt) && <button className="btn btn-secondary" disabled={busy} onClick={() => void more('tickets')}>🎟 We have tickets</button>}
-    {who.parent && !o.calendarEventId && <button className="btn btn-primary" disabled={busy} onClick={() => setCalendar(true)}>Add to our calendar</button>}
+    {who.parent && !o.calendarEventId && <button className="btn btn-primary outing-cal-btn" disabled={busy} onClick={() => setCalendar(true)}>Add to our calendar</button>}
   </>
   const facts: [string, ReactNode][] = [
-    ['📅', whenLabel(o, who.today) + (o.kind === 'upcoming' && o.startsOn && !o.endsOn ? ` · ${longDay(o.startsOn)}` : '')],
-    ...(o.placeName || o.address ? [['📍', <>{[o.placeName, o.address].filter(Boolean).join(', ')}{(o.address || o.placeName) && <> · <a href={mapHref([o.placeName, o.address].filter(Boolean).join(', '))} target="_blank" rel="noopener noreferrer">Map</a></>}</>] as [string, ReactNode]] : []),
+    // One day: its date once ("Sat, Oct 17, 10 AM – 4 PM"); Today and Tomorrow keep the word and add the date.
+    ['📅', o.kind === 'upcoming' && o.startsOn && !o.endsOn ? (/^(Today|Tomorrow)/.test(whenLabel(o, who.today)) ? `${whenLabel(o, who.today)} · ${longDay(o.startsOn)}` : [longDay(o.startsOn), timeLabel(o)].filter(Boolean).join(', ')) : whenLabel(o, who.today)],
+    ...(o.placeName || o.address ? [['📍', <>{[o.placeName, o.address].filter(Boolean).join(', ')}{(o.address || o.placeName) && <> <a className="btn btn-secondary outing-map-btn" href={mapHref([o.placeName, o.address].filter(Boolean).join(', '))} target="_blank" rel="noopener noreferrer" aria-label={`Map: ${o.placeName || o.address}`}>Map</a></>}</>] as [string, ReactNode]] : []),
     ...(price || o.priceNote ? [['💵', [price === 'Free' ? 'Free' : price && `From ${price}`, o.priceNote].filter(Boolean).join(' · ')] as [string, ReactNode]] : []),
     ...(o.kind === 'upcoming' && (o.ticketsOnSaleAt || o.buyBy || o.ticketsUrl || o.gotTickets) ? [['🎟', <>{[
       o.gotTickets && '✓ We have tickets',
@@ -363,12 +365,14 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
     <p className="outing-meta">{[category?.name, audienceLabel(o, members), o.addedBy && `Added by ${name(o.addedBy)}`, o.feedId && !o.addedBy && 'From a community calendar', o.archived && 'Not for us'].filter(Boolean).join(' · ')}</p>
     <ul className="outing-facts">{facts.map(([icon, text], i) => <li key={i}><span aria-hidden="true">{icon}</span><span>{text}</span></li>)}</ul>
     <section className="outing-interest" aria-label="Who wants to go">
-      {lockedTo ? <p className="poll-voting-as"><Face m={members.find(m => m.id === lockedTo) ?? { name: '?', color: 'var(--bg-alt)' }} /> Marking for {name(lockedTo)}</p>
+      {/* A parent's own device marks for its owner without asking; Someone else opens the names. */}
+      {!lockedTo && who.parent && meMemberId && !someoneElse ? <p className="poll-voting-as"><Face m={members.find(m => m.id === marker) ?? { name: '?', color: 'var(--bg-alt)' }} /> Marking for {name(marker)} <button type="button" className="link-btn" onClick={() => setSomeoneElse(true)}>Someone else</button></p>
+        : lockedTo ? <p className="poll-voting-as"><Face m={members.find(m => m.id === lockedTo) ?? { name: '?', color: 'var(--bg-alt)' }} /> Marking for {name(lockedTo)}</p>
         : <div className="poll-who">
           <p className="poll-who-label" id={`outing-who-${o.id}`}>{marker ? `Marking for ${name(marker)}` : 'Who? Tap your name.'}</p>
           <div className="poll-who-row" role="group" aria-labelledby={`outing-who-${o.id}`}>
             {members.map(m => <button key={m.id} type="button" className={`news-who-btn poll-who-btn ${marker === m.id ? 'active' : ''}`} aria-pressed={marker === m.id} onClick={() => setMarker(m.id)}>
-              <Face m={m} /><span>{m.name}</span>{interestOf(o, m.id) && <span className="poll-who-done">{interestOf(o, m.id) === 'really' ? '⭐' : '👀'}</span>}
+              <Face m={m} /><span>{m.name}</span>
             </button>)}
           </div>
         </div>}
