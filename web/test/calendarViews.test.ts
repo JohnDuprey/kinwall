@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Home's and Calendar's views, where a screen rests, and the nav's lock and "Me" rules.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CALENDAR_VIEWS, HOME_VIEWS, VIEW_MODES, dayOrigin, lastCalendarView, linkedCalendarView, lockedOut, meSlot, monthDayLabel, rememberCalendarView, restingHash, viewHint, viewLabel } from '../src/calendarViews.ts'
+import { CALENDAR_VIEWS, HOME_VIEWS, VIEW_MODES, dayOrigin, lastCalendarView, linkedCalendarView, lockedOut, meSlot, navBadgeCount, monthDayLabel, rememberCalendarView, restingHash, viewHint, viewLabel } from '../src/calendarViews.ts'
 
 test('Home is Board | Newscast; Calendar is Day | Week | Month | Schedule, Week is 3 Day on a phone', () => {
   assert.deepEqual(HOME_VIEWS, ['board', 'newscast'])
@@ -87,4 +87,12 @@ test('a month day reads as its date and how many events it has', () => {
   assert.equal(monthDayLabel(thu, 4), 'Thursday, October 1: 4 events')
   assert.equal(monthDayLabel(thu, 1), 'Thursday, October 1: 1 event')
   assert.equal(monthDayLabel(thu, 0), 'Thursday, October 1: no events')
+})
+
+test('navBadgeCount: reward requests count on Rewards, not on Chores too', () => {
+  const keys = ['home', 'chores', 'lists', 'rewards']
+  // 1 chore idea + 2 reward requests waiting: Chores 1, Rewards 2 (3 things, not 5).
+  assert.deepEqual(['chores', 'rewards', 'lists'].map(k => navBadgeCount(k, keys, 3, 2)), [1, 2, 0])
+  // Rewards off: whatever Chores' To approve holds stays on Chores.
+  assert.equal(navBadgeCount('chores', ['home', 'chores'], 3, 2), 3)
 })

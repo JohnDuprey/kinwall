@@ -25,7 +25,7 @@ import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
 import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme, type LockedView } from './useTheme.ts'
-import { lockedOut, meSlot, restingHash } from './calendarViews.ts'
+import { lockedOut, meSlot, navBadgeCount, restingHash } from './calendarViews.ts'
 import { isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
 import { pickAfterIdle } from './actingAs.ts'
 import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
@@ -121,9 +121,8 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
   // A cast screen (a Nest Hub, 600px tall) too: its rail buttons are drawn big, so seven fit, the rest under More.
   const cast = !!useDeviceAppearance().cast
   const shortRail = useMediaQuery('(max-height: 500px) and (orientation: landscape)') || cast
-  // Parent devices: everything waiting for an OK on Chores (its To approve holds reward requests
-  // too), and the reward requests alone on Rewards.
-  const count = (key: string) => key === 'chores' ? toApprove : key === 'rewards' ? rewardRequests : 0
+  // Parent devices: what's waiting for an OK, each thing on one badge (navBadgeCount).
+  const count = (key: string) => navBadgeCount(key, items.map(i => i.key), toApprove, rewardRequests)
   const badgeFor = (n: number) => n > 0
     ? <><span className="nav-badge" aria-hidden="true">{n > 9 ? '9+' : n}</span><span className="sr-only">, {n} to approve</span></>
     : null

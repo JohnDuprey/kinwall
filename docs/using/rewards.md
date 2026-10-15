@@ -77,7 +77,7 @@ Parent devices get a notification and a feed entry: "Leo wants 🍦 Ice cream tr
 Requests wait in two places, and deciding in either one is enough:
 
 * **Reward requests** at the top of the **Rewards** screen on a parent's device, for the whole family. The **Rewards** menu item shows how many are waiting.
-* **To approve** at the top of the **Chores** screen, next to chores waiting for an OK. They count toward the badge on the Chores tab too.
+* **To approve** at the top of the **Chores** screen, next to chores waiting for an OK. They count only in the Rewards badge, so each request is counted once.
 
 * **Approve**: it's on. The points stay spent.
 * **Not this time**: opens a sheet for an optional note ("Let's do it on Friday"). The points go back, and the person's own devices get a notification with the note.

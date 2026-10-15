@@ -65,6 +65,13 @@ export const restingHash = (lock: ViewMode | undefined) => isCalendarView(lock) 
 export const lockedOut = (key: string, lock: ViewMode | undefined) =>
   isHomeView(lock) ? key === 'calendar' : isCalendarView(lock) ? key === 'home' : false
 
+/** A nav item's to-approve badge (parent devices). Chores' To approve holds reward requests too, but
+ * they count once: on Rewards (or the More that holds it) while Rewards is in the nav. */
+export const navBadgeCount = (key: string, keys: string[], toApprove: number, rewardRequests: number) =>
+  key === 'rewards' ? rewardRequests
+    : key === 'chores' ? toApprove - (keys.includes('rewards') ? rewardRequests : 0)
+    : 0
+
 /** Where "Me" goes in the nav (an index into `keys`): after Chores on a kid's device, so it stays on
  * the phone's bottom bar; after Lists on a grown-up's own phone, where it heads the More list. */
 export const meSlot = (keys: string[], kid: boolean) => {
