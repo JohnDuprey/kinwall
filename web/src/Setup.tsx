@@ -620,7 +620,7 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
 }
 
 const SETUP_PASSKEY_POLL_MS = 3000
-const SHARED = '__shared' // the owner step's "Shared (the whole family)": no owner
+const SHARED = '__shared' // the owner step's "Shared (whole family)": no owner
 
 /** A parent's device, once the family's in: whose it is (PUT /api/me/owner, on its passkey or key),
  * so it reads their private journal right away. Only a grown-up owns one, so only grown-ups (marked
@@ -648,7 +648,7 @@ function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () 
         {grownUps.map(m => (
           <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}><ChipFace m={m} /> {m.name}</button>
         ))}
-        <button className={`setup-choice ${pick === SHARED ? 'active' : ''}`} aria-pressed={pick === SHARED} onClick={() => setPick(SHARED)}><span aria-hidden="true">🏠</span> Shared (the whole family)</button>
+        <button className={`setup-choice ${pick === SHARED ? 'active' : ''}`} aria-pressed={pick === SHARED} onClick={() => setPick(SHARED)}><span aria-hidden="true">🏠</span> Shared (whole family)</button>
       </div>
       {error && <p className="setup-error" role="alert">{error}</p>}
       <StepNav onBack={onBack} onNext={save} nextDisabled={busy || !pick} nextLabel={busy ? 'Saving…' : 'Next'} />

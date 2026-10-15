@@ -3111,7 +3111,7 @@ function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, pers
           <div className="settings-row-sub">It opens that person's private journal. Their own devices get a note when this changes, and it's in Security activity below.</div>
         </div>
         <select className="settings-select" aria-labelledby="this-device-owner" value={meMemberId ?? 'shared'} onChange={e => change(e.target.value)}>
-          <option value="shared">No one in particular</option>
+          <option value="shared">Shared (whole family)</option>
           {grownUps.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
         </select>
       </div>
@@ -3207,7 +3207,7 @@ export function DeviceKindSelect({ value, onChange, members, id, label, legacy }
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
       {legacy && <option value="" disabled>Pick one</option>}
-      <option value="wall">🖼️ Wall screen (whole family)</option>
+      <option value="wall">🖼️ Shared (whole family)</option>
       {kids.length > 0 && <optgroup label="A kid's device">{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {m.name}'s device</option>)}</optgroup>}
     </select>
   )

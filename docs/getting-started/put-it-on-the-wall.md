@@ -10,7 +10,7 @@
    * open **Settings → Access → Paired devices → Add a wall screen or kid's device**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add it**.
 
    Either way you also pick **What is this device?**:
-   * **🖼️ Wall screen (whole family)** for a kitchen wall. It turns on **Use as a wall screen** by itself.
+   * **🖼️ Shared (whole family)** for a kitchen wall. It turns on **Use as a wall screen** by itself.
    * **A kid's device**: one kid (say Maya, for her tablet or bedroom screen). It shows only her things.
 
    A paired device is never a grown-up's: whoever approves a code would otherwise get a device that opens that grown-up's [private journal](../using/journal.md#private-journals). Grown-ups sign in on their own phone or computer with a passkey (or the Kinwall app with full access), then pick themselves under **Whose device is this?**.
