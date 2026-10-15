@@ -101,6 +101,11 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   "a grown-up", not "admin"; "this tablet", not "display key"). Keep API values, enum names and
   tool names as they are; only what people see changes. One word for one thing everywhere, and
   whole sentences rather than strings glued from parts, so each translates cleanly.
+- Translations ([docs/contributing/translations.md](docs/contributing/translations.md)): wrap what
+  people read in `t()` from `web/src/i18n.ts` (English is the key), one `t()`/`tn()` with
+  `{placeholders}` per sentence, labels kept in constants marked `msg()` and shown with `tm()`, no
+  `t()` at module level, dates through `formatDate`/`Intl`, never date-fns patterns. API values,
+  enums, logs, MCP and OpenAPI text stay English. `scripts/check.sh` fails on new hard-coded copy.
 - Words a screen reader hears must also be visible where there's room: an icon or count alone
   (🗳 3/4) gets a few words on tablets and larger ("3 of 4 voted").
 - Kids use this: no dark patterns, nothing scary, parent-only actions stay behind parent access.

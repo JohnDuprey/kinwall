@@ -2,6 +2,14 @@
 
 Kinwall is built on other people's open-source work and open data. Thank you to everyone behind these projects. This page lists the ones you'd recognize and everything whose license asks for credit; the full dependency list is in `server/package.json` and `web/package.json`.
 
+## Translations
+
+| Language | By |
+|---|---|
+| German (Deutsch) | [sudo-Foras666](https://github.com/sudo-Foras666), whose [fork](https://github.com/sudo-Foras666/kinwall) also shaped how Kinwall handles translations |
+
+Want to add a language or improve one? See [Translations](translations.md).
+
 ## Typefaces
 
 Bundled in `web/src/fonts/` (each folder holds its license), from the [Fontsource](https://fontsource.org) builds. All are under the [SIL Open Font License 1.1](https://openfontlicense.org).

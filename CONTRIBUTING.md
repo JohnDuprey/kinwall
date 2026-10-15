@@ -13,6 +13,8 @@ Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
   missing screenshots are all fair game.
 - **Build an activity plugin.** Start from [kinwall-plugin-hello-world](https://github.com/JohnDuprey/kinwall-plugin-hello-world)
   and read [Building activity plugins](docs/contributing/plugins.md). Plugins live in their own repos.
+- **Translations**: add a language or improve one; [Translations](docs/contributing/translations.md)
+  explains how, no coding needed.
 - **Write code.** Small fixes are welcome as-is. For anything bigger (a new feature, a new setting,
   an API or data change), open an issue first so we can agree on the approach before you build it.
 

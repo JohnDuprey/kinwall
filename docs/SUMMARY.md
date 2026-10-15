@@ -93,6 +93,7 @@
 * [Architecture](contributing/architecture.md)
 * [Embedding the server](contributing/embedding.md)
 * [Building activity plugins](contributing/plugins.md)
+* [Translations](contributing/translations.md)
 * [Accessibility](accessibility.md)
 * [License & Built with Claude](contributing/license.md)
 * [Credits](contributing/credits.md)
