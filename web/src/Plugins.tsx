@@ -243,7 +243,13 @@ export function PluginPlayer({ id }: { id: string }) {
     if (viewport) viewport.content = `${zoomable}, maximum-scale=1, user-scalable=no`
     const noPinch = (e: Event) => e.preventDefault() // iOS Safari ignores user-scalable=no
     document.addEventListener('gesturestart', noPinch)
-    const mark = () => history.pushState({ ...history.state, kinwallActivity: id }, '', location.href)
+    const mark = () => {
+      const { kinwallSheet, kinwallBase: _base, ...rest } = history.state ?? {}
+      void _base
+      // Who's playing? just closed: its history entry (sheetHistory.ts) becomes the activity's.
+      if (kinwallSheet) history.replaceState({ ...rest, kinwallActivity: id }, '')
+      else history.pushState({ ...rest, kinwallActivity: id }, '', location.href)
+    }
     if (history.state?.kinwallActivity !== id) mark() // not again after a reload or a re-render
     const onPop = () => {
       if (leaving.current) { location.replace('#/activities'); return }
@@ -289,7 +295,9 @@ export function PluginPlayer({ id }: { id: string }) {
   if (plugin === null) return <div className="state-card">This activity isn't installed or is turned off. <a href="#/activities">Back to Activities</a></div>
   if (player === undefined) {
     return (
-      <Sheet title="Who's playing?" onClose={() => { location.hash = '#/activities' }}>
+      // Closing goes back where the activity was opened from (Activities, a chore), stepping back
+      // over the sheet's own history entry first (sheetHistory.ts), so Back never reopens it.
+      <Sheet title="Who's playing?" onClose={() => history.back()}>
         <p className="settings-row-sub">{plugin.emoji} {plugin.name} saves progress for each person.</p>
         <div className="who-grid">
           {members.map(m => (
