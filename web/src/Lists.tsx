@@ -1406,15 +1406,16 @@ function CatalogItemSheet({ catalog, item, newTitle, suggestions, aisleOrder, fa
 }
 
 /** Checkout with items left over at one store: "Didn't find these?" - pick another store (or
- * Anywhere) for any of them, or leave them as they are. Either way Checkout goes ahead after. */
-function LeftoversSheet({ items, trip, stores, onDone }: {
-  items: ListItem[]; trip: string; stores: string[]; onDone: (moves: { item: ListItem; store: string | null }[]) => void
+ * Anywhere) for any of them, or leave them as they are. Either way Checkout goes ahead after;
+ * closing it (✕, Escape, a swipe) is "not yet": back to the trip, nothing ended. */
+function LeftoversSheet({ items, trip, stores, onDone, onCancel }: {
+  items: ListItem[]; trip: string; stores: string[]; onDone: (moves: { item: ListItem; store: string | null }[]) => void; onCancel: () => void
 }) {
   const [picked, setPicked] = useState<Record<string, string>>(() => Object.fromEntries(items.map(i => [i.id, i.store ?? ''])))
   const moves = items.filter(i => picked[i.id].trim() !== (i.store ?? '')).map(item => ({ item, store: picked[item.id].trim() || null }))
   const leave = () => onDone([])
   return (
-    <Sheet title="Didn't find these?" onClose={leave} actions={<>
+    <Sheet title="Didn't find these?" onClose={onCancel} actions={<>
       <button className="btn btn-secondary" onClick={leave}>Leave them as they are</button>
       {moves.length > 0 && <button className="btn btn-primary" onClick={() => onDone(moves)}>Move {moves.length}</button>}
     </>}>
@@ -1938,7 +1939,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     checkoutTrip(true)
   }
   const leftoversSheet = leftovers && tripAt && (
-    <LeftoversSheet items={leftovers} trip={tripAt} stores={suggestions.stores} onDone={finishLeftovers} />
+    <LeftoversSheet items={leftovers} trip={tripAt} stores={suggestions.stores} onDone={finishLeftovers} onCancel={() => { setLeftovers(null); announce('Still shopping') }} />
   )
   const pickStore = (store: string) => {
     if (store !== trip) changeTrip(store)
