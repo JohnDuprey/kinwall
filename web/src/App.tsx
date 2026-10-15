@@ -1247,13 +1247,24 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     return () => { clearTimeout(timer); events.forEach(ev => window.removeEventListener(ev, reset)) }
   }, [idleReset, lockView])
 
+  // A toast with an action ("Event added · View") waits while it's hovered or focused, and for a
+  // keyboard user it stays until the screen changes, so Tab can still reach its button.
+  const [heldToast, setHeldToast] = useState<object | null>(null) // the toast under the pointer or focus
+  const toastHeld = !!toastMsg && heldToast === toastMsg
+  const keyboardUser = useRef(false)
   useEffect(() => {
-    if (!toastMsg) return
-    announce(toastMsg.msg, toastMsg.persist)
-    if (toastMsg.persist) return
+    const key = (e: KeyboardEvent) => { if (e.key === 'Tab' || e.key === 'Enter') keyboardUser.current = true }
+    const pointer = () => { keyboardUser.current = false }
+    const route = () => setToastMsg(t => (t?.action ? null : t))
+    window.addEventListener('keydown', key); window.addEventListener('pointerdown', pointer); window.addEventListener('hashchange', route)
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('pointerdown', pointer); window.removeEventListener('hashchange', route) }
+  }, [])
+  useEffect(() => { if (toastMsg) announce(toastMsg.msg, toastMsg.persist) }, [toastMsg])
+  useEffect(() => {
+    if (!toastMsg || toastMsg.persist || toastHeld || (toastMsg.action && keyboardUser.current)) return
     const id = setTimeout(() => setToastMsg(null), toastMsg.action ? 8000 : 4000)
     return () => clearTimeout(id)
-  }, [toastMsg])
+  }, [toastMsg, toastHeld])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
   // "When I start my day" medicines: a person's own device opening the app starts their day, once a
   // day (the server keeps the first of that, their Temp check and their check-in): a kid's device, or
@@ -1361,7 +1372,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
         {navMode === 'right' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <SaveIndicator />
         {toastMsg && (toastMsg.action
-          ? <div className="toast toast-with-action">{toastMsg.msg}<button type="button" className="toast-action" onClick={() => { setToastMsg(null); toastMsg.action!.run() }}>{toastMsg.action.label}</button></div>
+          ? <div className="toast toast-with-action" onPointerEnter={() => setHeldToast(toastMsg)} onPointerLeave={() => setHeldToast(null)} onFocus={() => setHeldToast(toastMsg)} onBlur={() => setHeldToast(null)}>
+              {toastMsg.msg}<button type="button" className="toast-action" onClick={() => { setToastMsg(null); toastMsg.action!.run() }}>{toastMsg.action.label}</button>
+            </div>
           : toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>
           : <div className="toast">{toastMsg.msg}</div>)}
