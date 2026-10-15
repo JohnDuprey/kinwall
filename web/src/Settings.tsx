@@ -1466,14 +1466,12 @@ function DevicePinRows() {
 /** Device-only behavior for this screen: member focus, locked calendar view, the Board's lists,
  * acting as a wall screen, keeping the screen on and going back to Home when idle. Stored
  * alongside the device appearance. `display`: a paired wall screen or kid's device, always a wall screen (no switch). */
-function ScreenFocusRows({ display }: { display: boolean }) {
-  const { members, focusMemberId, focusLocked, parentDevice, settings } = useApp()
+function ScreenFocusRows() {
+  const { members, focusMemberId, focusLocked, settings } = useApp()
   const isPhone = useIsPhone()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const focus = members.find(m => m.id === focusMemberId)
-  const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
-  const keepOn = device.keepAwake ?? wallDefaultsOn(parentDevice, device)
   return (
     <>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
@@ -1521,6 +1519,19 @@ function ScreenFocusRows({ display }: { display: boolean }) {
       </div>
       <DeviceTidbitRows />
       <DevicePinRows />
+    </>
+  )
+}
+
+/** This display → Wall-screen behavior: acting as a wall, staying awake, going back to Home. */
+function WallBehaviorRows({ display }: { display: boolean }) {
+  const { parentDevice } = useApp()
+  const device = useDeviceAppearance()
+  const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
+  const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
+  const keepOn = device.keepAwake ?? wallDefaultsOn(parentDevice, device)
+  return (
+    <>
       {!display && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <div className="toggle-row">
@@ -1966,14 +1977,17 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
           <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
         </div>
       )}
-      <ScreenFocusRows display={keyName !== undefined} />
-      <InstallRow />
+      <h4 className="settings-subhead">This screen's layout</h4>
+      <ScreenFocusRows />
       <ScreenScaleRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>
         <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
         <div className="settings-row-sub">{isPhone ? 'Phones use the bottom bar, or a side rail when turned sideways.' : 'Where the Calendar, Chores and Lists buttons sit.'}</div>
       </div>
+      <h4 className="settings-subhead">Wall-screen behavior</h4>
+      <WallBehaviorRows display={keyName !== undefined} />
+      <InstallRow />
       {appQuickSettingsTiles() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label">Add a Quick Settings tile</div>
         <div className="settings-row-sub">A tile is a button in the panel you swipe down from the top of the screen, so you can use Kinwall without opening it. Android asks before adding it.</div>

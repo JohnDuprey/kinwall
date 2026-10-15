@@ -8,7 +8,7 @@ On a parent's phone or computer, first in the group: **Whose device is this?** p
 
 ## This display
 
-What this screen shows, how you get around it, and whether it stays on and resets itself.
+What this screen shows, how you get around it, and whether it stays on and resets itself. The card is folded until you open it, and its rows come in two groups: **This screen's layout** (Show only, Lock view, the Board's layout, chores and to-dos and quotes, Pin a checklist, Screen scale and Navigation position) and **Wall-screen behavior** (Use as a wall screen, Keep the screen on, Back to Home when idle, Add to Home Screen and the Quick Settings tile).
 
 | Item | Notes |
 |---|---|
