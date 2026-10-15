@@ -72,7 +72,7 @@ Each reminder is sent once per dose (and once per snooze and follow-up), even if
 
 ## A person's medicines page
 
-Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Trackers → Health**. It shows:
+Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Trackers → Health**. The **‹** button at the top goes back to Health (on a person's own device, to their profile). It shows:
 
 * **Take now**, when something is due;
 * **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later. A dose that's due or not marked has **Taken** and **Skip** buttons, so a dose taken without tapping the card can still be logged. A dose already on the **Take now** card above shows only its status here, so each dose has one set of buttons;

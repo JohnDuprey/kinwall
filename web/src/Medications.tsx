@@ -14,6 +14,7 @@ import TakeNow, { useDueDoses, WhenTakenSheet } from './TakeNow.tsx'
 import type { Medication, MedicationHistory } from './types.ts'
 import { Face } from './Face'
 import { RefillsCard } from './Refills.tsx'
+import { ChevronLeft } from './icons.tsx'
 
 type Day = MedicationHistory['days'][number]
 
@@ -37,7 +38,15 @@ export default function Medications({ memberId }: { memberId?: string }) {
     return () => { canceled = true }
   }, [member?.id, refreshTick, reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!member) return <div className="state-card">No one in the family yet.</div>
+  if (!member) return members.length === 0 ? <div className="state-card">No one in the family yet.</div> : (
+    <div className="profile profile-narrow meds-page scroll-y">
+      <h2 className="profile-name">Whose medicines?</h2>
+      <p className="snap-dim">Pick someone.</p>
+      <div className="meds-person-body">
+        {members.map(m => <a key={m.id} className="meds-set-row meds-pick" href={`#/medications/${m.id}`}><Face m={m} className="board-avatar" aria-hidden="true" /> <span className="settings-row-label">{m.name}</span></a>)}
+      </div>
+    </div>
+  )
   const shown = data?.memberId === member.id ? data : null
   const byId = new Map(shown?.medications.map(m => [m.id, m]))
   const today = shown?.days.at(-1)
@@ -88,6 +97,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
     <div className="profile profile-narrow meds-page scroll-y" style={{ ['--m' as string]: member.color }}>
       <section className="profile-top">
         <div className="profile-hero">
+          <a className="icon-btn" href={parentDevice ? '#/trackers/health' : `#/profile/${member.id}`} aria-label={parentDevice ? 'Back to Health' : `Back to ${member.name}'s profile`}><ChevronLeft width={20} height={20} /></a>
           <Face m={member} className="profile-avatar" aria-hidden="true" />
           <div>
             <h2 className="profile-name">{member.name}'s medicines</h2>
