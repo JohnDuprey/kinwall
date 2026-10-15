@@ -178,11 +178,16 @@ export function ContactForm({ initial, categories, members, onClose, onSaved }: 
       <label><input type="checkbox" checked={form.favorite} onChange={e => change('favorite', e.target.checked)} /> Favorite</label>
       <label><input type="checkbox" checked={form.emergency} onChange={e => change('emergency', e.target.checked)} /> Emergency contact</label>
       <label><input type="checkbox" checked={form.alwaysOpen ?? false} onChange={e => change('alwaysOpen', e.target.checked)} /> Available 24/7</label>
-      <label><input type="checkbox" checked={form.wallVisible} onChange={e => change('wallVisible', e.target.checked)} /> Show on wall and shared displays</label>
-      {form.wallVisible && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> Show permitted phone numbers on wall</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> Show address on wall</label></>}
-      <div className="field"><label htmlFor={`${id}-visibility`}>Who can see it</label><select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">Everyone in the family</option><option value="adults">Grown-ups only</option><option value="selected_members">Only the people I choose</option><option value="private">Parent devices only</option></select>
+    </fieldset>
+    <fieldset className="contact-options"><legend>Who can see it</legend>
+      <div className="field"><label htmlFor={`${id}-visibility`} className="sr-only">Who can see it</label><select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">Everyone in the family</option><option value="adults">Grown-ups only</option><option value="selected_members">Only the people I choose</option><option value="private">Parent devices only</option></select>
         <p className="field-hint">{VISIBILITY_HINTS[form.visibility ?? 'household']}</p></div>
       {form.visibility === 'selected_members' && <div className="field"><label htmlFor={`${id}-selected`}>Who can see it on their own device</label><PickField id={`${id}-selected`} label="Who can see it on their own device" title="Who can see it" multiple none="Nobody yet" options={memberOptions(members)} value={form.selectedMemberIds ?? []} onChange={v => change('selectedMemberIds', v)} /></div>}
+    </fieldset>
+    <fieldset className="contact-options"><legend>On the wall</legend>
+      <p className="field-hint">Wall screens show it only when everyone in the family can see it.</p>
+      <label><input type="checkbox" checked={form.wallVisible} onChange={e => change('wallVisible', e.target.checked)} /> Show on wall and shared displays</label>
+      {form.wallVisible && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> Show permitted phone numbers on wall</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> Show address on wall</label></>}
     </fieldset>
     {validation && <p className="field-error" role="alert">{validation}</p>}
   </Sheet>
