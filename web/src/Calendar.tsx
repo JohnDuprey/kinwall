@@ -1507,6 +1507,10 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
           ))}
         </div>
       </div>
+      {/* Most events need only a title, a time and who: the rest folds away, saying what's set. */}
+      <details className="settings-disclosure event-more">
+        <summary>{['More options', rrule && `Repeats ${rrule}`, !busy && 'Free', !allDay && travel.minutes && `${travel.minutes} min travel`,
+          categories.find(c => c.id === categoryId)?.name].filter(Boolean).join(' · ')}</summary>
       {remindersEditable && (
         <div className="field">
           <label>Reminder</label>
@@ -1548,6 +1552,7 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
             options={[{ key: 'series', label: 'All events' }, { key: 'occurrence', label: 'This event' }]} />
         )}
       </div>
+      </details>
     </Sheet>
   )
 }

@@ -35,6 +35,7 @@ Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). Afte
 | **Location** | Optional. |
 | **Notes** | Optional, several lines: what to bring, a link, a gate code. See [Event notes](#event-notes). |
 | **Who** | Family member chips. |
+| **More options** | Folded away, since most events need only a title, a time and who. Its line says what's set inside ("More options · Repeats weekly · Free"). Tap it for Reminder, Show as, [Travel time](#travel-time-and-leave-by), Repeat and Category, below. |
 | **Show as** | **Busy** (the default) or **Free (doesn't block time)**. See [Free or busy](#free-or-busy). |
 | **Reminder** | Local, Google and Outlook calendars only. Options: None, 5, 10, 15 or 30 minutes, 1 hour, 1 day, plus **Family default** (local) or **Google calendar default** (Google). Outlook has no "default" to write back. Reminders that came from the provider and don't match a preset stay as they are. |
 | **Repeat** | Does not repeat, Daily, Weekly, Monthly or Yearly (a birthday, an anniversary, a yearly checkup). More complex rules from a provider or the API are kept as long as you don't change this menu. |
