@@ -747,6 +747,9 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
     ? `linear-gradient(${who.map((m, i) => `${m.color} ${(i * 100) / who.length}% ${((i + 1) * 100) / who.length}%`).join(', ')})`
     : who[0]?.color ?? e.color
   const when = e.allDay ? 'All day' : formatTime(e.start, tz)
+  // Its category's emoji, as on Calendar, so a category-colored event there (⚽ Sports, green) reads
+  // as the same one here, where its bar is in the person's color.
+  const emoji = useApp().categories.find(c => c.id === e.categoryId)?.emoji
   return (
     <li>
       <button className={`snap-row board-event ${past ? 'past' : ''}${e.busy === false ? ' ev-free-row' : ''}`} onClick={() => onTap(e)}
@@ -754,7 +757,7 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
         <span className="board-bar" style={{ background: bar }} aria-hidden="true" />
         <span className="snap-main" aria-hidden="true">
           <span className="board-when">{when}</span>
-          <span className="snap-title">{e.busy === false && <span className="ev-free-mark">Free ·</span>}{e.title}</span>
+          <span className="snap-title">{e.busy === false && <span className="ev-free-mark">Free ·</span>}{emoji && !e.title.startsWith(emoji) && `${emoji} `}{e.title}</span>
           {(leadOf(e) || e.location) && <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>}
         </span>
         {who.length > 0 && <span className="board-avatars" aria-hidden="true">{who.map(m => <Avatar key={m.id} m={m} />)}</span>}
