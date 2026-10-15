@@ -2578,7 +2578,7 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-empty p { margin: 0 0 10px; }
 .rewards-suggestions { justify-content: center; margin-bottom: 14px; }
 .rewards-suggestions .chip { min-height: 44px; }
-.chores-library-btn + :is(.chores-library-btn, .chores-rewards-btn) { margin-left: 0; } /* Give points, Library and Rewards sit together at the end */
+.chores-rewards-btn + .chores-rewards-btn { margin-left: 0; } /* the buttons (Give points … Rewards, or Suggest a chore and Rewards) sit together at the end */
 .chores-short-label { display: none; }
 .chores-rewards-btn { flex: none; margin-left: auto; min-height: 44px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 /* Chore library (ChoreLibrary.tsx): a row per saved chore, with "Again" beside it. */
