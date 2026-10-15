@@ -2381,7 +2381,7 @@ a.activity-card:active { transform: scale(0.98); }
   .paint-print p { margin: 0; font: 600 9pt system-ui, sans-serif; color: #555; }
 }
 
-/* Event sheet: the "Add task" field (text with the go button inside) and a list chip row. */
+/* Event sheet: the "Add to-do" field (text with the go button inside) and a list chip row. */
 .task-add { display: flex; flex-direction: column; gap: 8px; }
 .task-add-field { position: relative; }
 .task-add-field input { width: 100%; min-height: 44px; padding-right: 52px; }

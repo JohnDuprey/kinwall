@@ -16,7 +16,7 @@ Everything in the app can be reached and operated without a mouse or touch scree
 | Chores | **Space** or **Enter** ticks a chore off or back on. To edit it, press **Tab** once more to reach its **Edit** button, or use **Shift+F10** / the Menu key. |
 | Lists | **Space** ticks an item; **Enter** on an item opens its editor. To reorder, focus an item's grip and press **Alt+↑** / **Alt+↓** (the new position is announced). The item editor also has **Move up** / **Move down**. |
 | Sheets and dialogs | **Esc** closes. **Tab** stays inside while it's open, and focus goes back to where you were when it closes. |
-| An event's **+ Add task** | **Enter** adds the task and keeps the field open for another; **Esc** folds it away. |
+| An event's **+ Add to-do** | **Enter** adds the to-do and keeps the field open for another; **Esc** folds it away. |
 
 Dragging is never the only way to do something: sheets have a Close button, the calendar has Previous/Next next to swiping, and list items can be moved with the keyboard or the Move buttons.
 
@@ -72,7 +72,7 @@ We'd rather list these than pretend they aren't there:
 - In the default look, input, chip and card borders are softer than the 3:1 WCAG asks for non-text boundaries. Turn on your device's Increase contrast setting to get solid borders.
 - The Night screen's clock is deliberately dim (it's a night light, not a screen to read).
 - Scrollbars are hidden and text outside form fields can't be selected, because the app is designed for a wall-mounted touch screen.
-- The quick-add fields in a list ("Add an item…") and on an event ("Add task…") are labeled for screen readers but show only a placeholder on screen.
+- The quick-add fields in a list ("Add an item…") and on an event ("Add to-do…") are labeled for screen readers but show only a placeholder on screen.
 - Emoji avatars are read by their Unicode names ("fox", "bear face").
 - Testing so far has used the browser's accessibility tree and keyboard-only runs. It has not yet been tested end to end with VoiceOver, TalkBack or NVDA.
 - Shipped since this audit, per device under Settings: a low-stimulation mode, a typeface choice (Nunito, Atkinson Hyperlegible, Lexend), an icon-first density, and time-blindness aids (Now / Next countdown, leave-by times, transition warnings you can repeat as an event gets close, and per-person transition reminders). See [Appearance](using/appearance.md) and [Calendar](using/calendar.md).

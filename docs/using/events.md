@@ -96,7 +96,7 @@ Tapping chips in the detail sheet saves immediately, even on read-only ICS event
 The **Tasks** block in the detail sheet lists [list items](lists.md) linked to the event, open ones first.
 
 * Tick a task to mark it done.
-* Tap **+ Add task**, type the task, pick a list, and press Enter to add a linked item. Kinwall remembers the list you used last. Escape (or leaving the field empty) folds the form away again.
+* Tap **+ Add to-do**, type it, pick a list, and press Enter to add a linked item. Kinwall remembers the list you used last. Escape (or leaving the field empty) folds the form away again.
 * The daily summary notification includes "To do for today's events", up to three open tasks per event.
 
 ## Event notes

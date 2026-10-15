@@ -34,7 +34,7 @@ function readPostAs(): string | null {
 }
 
 /** The notes thread on an event or list item: who said what, in their color. Tap a note to edit or
- * delete it; "+ Add note" (folded, like "+ Add task") posts a new one as the chosen member (on a
+ * delete it; "+ Add note" (folded, like "+ Add to-do") posts a new one as the chosen member (on a
  * kid's own device, always as the kid). */
 export default function NotesThread({ target, title = 'Notes' }: { target: NoteTarget; title?: string }) {
   const { members, selectedMemberId, meMemberId, refreshTick, toast, parentDevice, focusLocked } = useApp()

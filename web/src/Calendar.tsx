@@ -44,7 +44,7 @@ const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
 const CATEGORY_FILTER_KEY = 'kinwall.categoryFilter'
 const NO_CATEGORY = '__none'
-const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add task…" last used
+const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add to-do…" last used
 
 /** Row height for the density actually applied on this device (household, device override, low-stim). */
 function useHourPx() {
@@ -1186,7 +1186,7 @@ function HideSection({ event, calendar, onHide, onUnhide, onHideLike, choosing, 
 }
 
 /** List items linked to this event: tick them off, or add one to a list (the last one used).
- * The add form stays folded behind "+ Add task" so every event sheet isn't a form. */
+ * The add form stays folded behind "+ Add to-do" so every event sheet isn't a form. */
 function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
   const { toast } = useApp()
   const [items, setItems] = useState<(ListItem & { listName: string })[]>([])
@@ -1231,7 +1231,7 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
       ))}
       {canAdd && lists.length > 0 && !adding && (
         <button ref={addBtnRef} className="link-btn" style={{ alignSelf: 'flex-start' }} aria-expanded={adding} aria-controls={`tasks-add-${eventId}`}
-          onClick={() => setAdding(true)}>+ Add task</button>
+          onClick={() => setAdding(true)}>+ Add to-do</button>
       )}
       {canAdd && lists.length > 0 && adding && (
         // One composite field: text, list chip, go. Escape or leaving it empty folds it back. Capture
@@ -1241,7 +1241,7 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
           <div className="task-add-field">
             <input type="text" value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }} autoFocus
               enterKeyHint="done" placeholder="New task" aria-label="New task" />
-            <button type="button" className="task-add-go" onClick={add} disabled={!draft.trim()} aria-label="Add task"><PlusIcon width={20} height={20} /></button>
+            <button type="button" className="task-add-go" onClick={add} disabled={!draft.trim()} aria-label="Add to-do"><PlusIcon width={20} height={20} /></button>
           </div>
           <div className="chip-row task-add-lists" role="radiogroup" aria-label="Add to list">
             {lists.map(l => (
@@ -1490,12 +1490,12 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
         </select>
       </div>}
       <div className="field">
-        <label>Location</label>
-        <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Optional" />
+        <label htmlFor="event-location">Location (optional)</label>
+        <input id="event-location" type="text" value={location} onChange={e => setLocation(e.target.value)} />
       </div>
       <div className="field">
-        <label htmlFor="event-notes">Notes</label>
-        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional: what to bring, a link, a gate code" />
+        <label htmlFor="event-notes">Notes (optional)</label>
+        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="What to bring, a link, a gate code" />
       </div>
       <div className="field">
         <label>Who</label>
