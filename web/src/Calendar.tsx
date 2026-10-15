@@ -1285,6 +1285,8 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
   const base = event ?? prefill ?? {}
   const eventMinutes = useApp().settings.defaultEventMinutes ?? 60
   const [title, setTitle] = useState(base.title ?? '')
+  const [noTitle, setNoTitle] = useState(false) // Add event tapped with no title
+  const titleInput = useRef<HTMLInputElement>(null)
   const [allDay, setAllDay] = useState(!!base.allDay)
   const [calendarId, setCalendarId] = useState(base.calendarId ?? (writable.find(c => c.default) ?? writable[0])?.id ?? NEW_LOCAL_CALENDAR)
   const calKind = calendarId === NEW_LOCAL_CALENDAR ? 'local' : calendars.find(c => c.id === calendarId)?.kind
@@ -1365,7 +1367,8 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
   }
 
   const submit = () => {
-    if (!title.trim() || !calendarId) return
+    if (!title.trim()) { setNoTitle(true); titleInput.current?.focus(); return }
+    if (!calendarId) return
     // The menu only knows plain daily/weekly/monthly: an untouched menu keeps the real rule
     // (e.g. FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR) instead of flattening it.
     const rruleStr = rrule === initialRepeat && base.rrule ? base.rrule
@@ -1417,8 +1420,10 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
         <button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save changes' : 'Add event'}</button>
       </>}>
       <div className="field">
-        <label>Title</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" autoFocus={!event} /* new events only: on a phone, opening Edit shouldn't throw up the keyboard */ />
+        <label htmlFor="event-title">Title</label>
+        <input id="event-title" ref={titleInput} type="text" value={title} onChange={e => { setTitle(e.target.value); setNoTitle(false) }} placeholder="Event title" autoFocus={!event} /* new events only: on a phone, opening Edit shouldn't throw up the keyboard */
+          aria-invalid={noTitle || undefined} aria-describedby={noTitle ? 'event-title-error' : undefined} />
+        {noTitle && <p className="field-error" id="event-title-error" role="alert">Add a title.</p>}
       </div>
       <div className="toggle-row">
         <label id="event-allday-label">All day</label>
