@@ -52,7 +52,7 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 
 ### Features
 
-*Admin only.* The card shows how many are on ("All 15 on", or "12 of 15 on" with the ones that are off); tap **Change** under **Features** for the switches, grouped under **Everyday** (chores, lists, notes, messages, polls, check-ins) and **Nooks** (Meals, Outings, Trackers, Activities, Contacts, Newscast: spaces of their own with several parts inside). Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default; the setup wizard's **What do you want Kinwall for?** step lets a new family pick them first.
+*Admin only.* The card shows how many are on ("All 15 on", or "12 of 15 on" with the ones that are off); tap **Change** under **Features** for the switches, grouped under **Everyday** (chores, lists, notes, messages, polls, check-ins) and **Spaces** (Meals, Outings, Trackers, Activities, Contacts, Newscast: areas of their own with several parts inside). Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default; the setup wizard's **What do you want Kinwall for?** step lets a new family pick them first.
 
 | Switch | When it's off |
 |---|---|

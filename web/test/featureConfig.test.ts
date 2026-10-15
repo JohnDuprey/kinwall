@@ -7,5 +7,5 @@ test('feature settings include every household feature', () => {
     'chores', 'lists', 'notes', 'messages', 'polls', 'checkIns',
     'meals', 'outings', 'trackersReading', 'trackersMemories', 'trackersHealth', 'paint', 'photos', 'contacts', 'newscast',
   ])
-  assert.deepEqual([...new Set(FEATURE_ROWS.map(feature => feature.section))], ['Everyday', 'Nooks'], 'two headings, each once')
+  assert.deepEqual([...new Set(FEATURE_ROWS.map(feature => feature.section))], ['Everyday', 'Spaces'], 'two headings, each once')
 })

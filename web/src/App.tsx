@@ -74,7 +74,7 @@ const NAV_ITEMS = [
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
 
-/** The nav's "nooks": spaces of their own with several parts inside. Only a heading in the phone's More list. */
+/** The nav's "spaces": areas of their own with several parts inside. Only a heading in the phone's More list. */
 const NOOKS = new Set(['meals', 'outings', 'trackers', 'activities'])
 
 type NavItem = { key: string; href: string; label: string; Icon: (p: object) => ReactNode }
@@ -149,8 +149,8 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
         <Sheet title="More" onClose={() => setMore(false)}>
           <div className="more-list">
             {rest.map((item, i) => (<Fragment key={item.key}>
-              {/* "Nooks": the spaces with several parts inside (Meals, Outings, Trackers, Activities) get a heading. */}
-              {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">Nooks</h3>}
+              {/* "Spaces": the spaces with several parts inside (Meals, Outings, Trackers, Activities) get a heading. */}
+              {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">Spaces</h3>}
               <a className={`more-row ${tab === item.key ? 'active' : ''} ${!NOOKS.has(item.key) && NOOKS.has(rest[i - 1]?.key ?? '') ? 'more-after-group' : ''}`} href={item.href} aria-current={tab === item.key ? 'page' : undefined}
                 onClick={() => setMore(false)}>
                 <item.Icon /> <span>{item.label}</span>{badge(item.key)}

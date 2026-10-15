@@ -29,7 +29,7 @@
 * [Energy battery](using/battery.md)
 * [Medications](using/medications.md)
 * [Lists](using/lists.md)
-* Nooks
+* Spaces
   * [Meals](using/meals.md)
   * [Outings](using/outings.md)
   * [Trackers](using/trackers.md)

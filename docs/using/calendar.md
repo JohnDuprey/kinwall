@@ -4,7 +4,7 @@
 
 ![Board view on the wall iPad](../screenshots/ipad-board.png)
 
-**Nooks:** Meals, Outings, Trackers and Activities are Kinwall's nooks, spaces of their own with several parts inside. It's only a heading (Settings → Features, the phone's More list); each tab keeps its own name.
+**Spaces:** Meals, Outings, Trackers and Activities are Kinwall's spaces, areas of their own with several parts inside. It's only a heading (Settings → Features, the phone's More list); each tab keeps its own name.
 
 **New events** go on the family's default calendar unless you pick another in the event sheet: a parent sets it in [Settings → Calendars](../settings/calendars.md#calendars), and until then it's the family's own Kinwall calendar rather than an imported one (a school feed or a meal kit's deliveries). See [Events](events.md#creating-and-editing).
 

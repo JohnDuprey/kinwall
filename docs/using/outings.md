@@ -4,7 +4,7 @@ A list the whole family adds to: things happening that you might go to (a fall f
 
 Outings are kept apart from the calendar on purpose: the calendar is what you're doing, Outings is what you might do.
 
-Outings is one of Kinwall's **nooks**: a space of its own with several parts inside, like Meals and Trackers. "Nooks" is only a heading (in Settings → Features and the phone's **More** list); the tab is called **Outings**.
+Outings is one of Kinwall's **spaces**: an area of its own with several parts inside, like Meals and Trackers. "Spaces" is only a heading (in Settings → Features and the phone's **More** list); the tab is called **Outings**.
 
 ## Where it is
 
