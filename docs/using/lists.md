@@ -233,7 +233,8 @@ Get stuff done is one checklist, full screen, for working through a routine like
 
 * Tap **Get stuff done** on the list. It also opens from a [chore with a checklist](chores.md#checklists), from the Board's [Get stuff done card](calendar.md#board-layouts), and by itself on a screen with a [pinned checklist](../settings/this-display.md#this-display).
 * The top bar shows **Get stuff done: *list***, how many are done ("3 of 8 done") and a bar filling up.
-* **One at a time** (where it starts) shows the next open item big and centered, with the avatar of the person it's for and its [steps](#steps) to tick one by one. Dots show where you are (filled for done, a ring for to do, a bigger ring for this one) with "3 of 8" under them. **Done** ticks it and moves to the next open one; **Skip** leaves it for later (Skip comes back round to it); **Back** goes to the one before. A done item says **✓ Done** and has **Not done** instead.
+* Items come in the list's own [sort](#sorting) (Due date, Priority, your Manual order…), the same order as on the list. Ticking one doesn't move it.
+* **One at a time** (where it starts) shows the next open item big and centered, with the avatar of the person it's for, its priority, its due date ("Overdue · Oct 10" in red), its linked event and its [steps](#steps) to tick one by one. Dots show where you are (filled for done, a ring for to do, a bigger ring for this one) with "Item 3 of 8" under them. **Done** ticks it and moves to the next open one; **Skip** leaves it for later (Skip comes back round to it); **Back** goes to the one before. A done item says **✓ Done** and has **Not done** instead.
 * **Whole list** shows every item large; tap anywhere on a row to tick or untick it. Ticked ones move to the bottom.
 * Switch between them with the toggle at the top. Each device remembers which one you used last.
 * When everything's ticked: **All done! 🎉**. On a reusable list, **Reset for next time** unticks it (the same as **Reset list**) and closes; **Finish** just closes, back where you started. **Look over the list** shows the list again.
@@ -283,7 +284,7 @@ When anything differs from a new list of that kind (grouped by aisle and sorted 
 |---|---|
 | **Manual** (default) | By priority, overdue items first within each, then your own drag order. |
 | **Date added** | Newest first. |
-| **Due date** | Soonest first. Items with no due date go last. |
+| **Due date** | Soonest first. An item with no due date but a [linked event](#linking-items-to-events) counts the event's day. Items with no date go last. |
 | **Priority** | By priority, overdue first, then soonest due date. |
 | **A–Z** | Alphabetical, ignoring capital letters. |
 | **Aisle** (shopping lists; the default for new ones) | By store, then aisle in the store's walking order (natural order, "Aisle 2" before "Aisle 10", if you haven't set one), items with no aisle last, then A–Z. |
@@ -314,7 +315,8 @@ Break a bigger job into steps ("Tidy the living room": fold blankets, fluff cush
 
 Give an item a **Linked event** (picked from the next 30 days) and it becomes a task for that event:
 
-* the list row shows the event's date and title,
+* the list row shows the event's date, time and title,
+* with no due date of its own, the event's day is its due date for the **Due date** sort,
 * the event's detail sheet lists it under **Tasks**, where you can tick it off or add more ([Events → Linked tasks](events.md#linked-tasks)),
 * the morning [daily summary](notifications.md#daily-summary) shows "To do for today's events".
 

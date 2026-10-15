@@ -840,12 +840,15 @@ export function compareAisles(store: string | null, a: string | null, b: string 
  * items by priority, overdue first within each, then the hand-set order; priority: the same, then
  * soonest due; added: newest first; due: soonest, undated last; alpha: A-Z, ignoring case; aisle:
  * by store, then aisle (compareAisles), then A-Z. `today` is YYYY-MM-DD. A done item gets no
- * priority/overdue boost - unless keepChecked (checked items stay in place). */
-export function compareItems(sortBy: ListSortBy, today: string, opts: { keepChecked?: boolean; aisleOrder?: AisleOrder } = {}) {
+ * priority/overdue boost - unless keepChecked (checked items stay in place). eventDue (client only:
+ * the server doesn't know a recurring event's next date): a linked event's date, YYYY-MM-DD by event
+ * id, stands in for an item's missing due date when sorting by due date. */
+export function compareItems(sortBy: ListSortBy, today: string, opts: { keepChecked?: boolean; aisleOrder?: AisleOrder; eventDue?: Map<string, string> } = {}) {
   const isDone = (i: ListItem) => i.done && !opts.keepChecked
   const rank = (i: ListItem) => (isDone(i) ? 2 : PRIORITY_RANK[i.priority] ?? 2)
   const overdue = (i: ListItem) => (!isDone(i) && i.dueDate && i.dueDate < today ? 0 : 1)
-  const due = (a: ListItem, b: ListItem) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999')
+  const dueOf = (i: ListItem) => i.dueDate || (i.eventId && opts.eventDue?.get(i.eventId)) || '9999'
+  const due = (a: ListItem, b: ListItem) => dueOf(a).localeCompare(dueOf(b))
   const manual = (a: ListItem, b: ListItem) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt)
   const alpha = (a: ListItem, b: ListItem) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
   const store = (a: ListItem, b: ListItem) => (a.store ?? '\uffff').localeCompare(b.store ?? '\uffff') // no store last

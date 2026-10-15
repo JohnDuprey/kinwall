@@ -2,6 +2,7 @@
 // list, progress, all done, and a wall screen's pinned checklist.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { compareItems, type ListItem } from '../src/types.ts'
 import { allDone, choreItems, doOrder, listOrder, nextOpen, pinnedNow, progress, savedView, saveView, startAt, stayOn } from '../src/getStuffDone.ts'
 
 const it = (id: string, sort: number, done = false, memberId: string | null = null) => ({ id, sort, done, memberId })
@@ -10,7 +11,7 @@ const items = [it('c', 2), it('a', 0, true), it('d', 3), it('b', 1)]
 
 test('doOrder: the list in its own order; listOrder puts ticked ones at the bottom', () => {
   assert.deepEqual(doOrder(items).map(i => i.id), ['a', 'b', 'c', 'd'])
-  assert.deepEqual(listOrder(items).map(i => i.id), ['b', 'c', 'd', 'a'])
+  assert.deepEqual(listOrder(doOrder(items)).map(i => i.id), ['b', 'c', 'd', 'a'])
 })
 
 test('progress and allDone', () => {
@@ -78,4 +79,26 @@ test('the last view is remembered on this device; blocked storage starts one at 
     assert.equal(savedView(), 'step')
     saveView('list') // doesn't throw
   } finally { delete g.localStorage }
+})
+
+// A to-do the way the list holds it: only what compareItems reads.
+const todo = (id: string, sort: number, more: Partial<ListItem> = {}) =>
+  ({ id, sort, done: false, memberId: null, priority: 'normal', dueDate: null, eventId: null, createdAt: '2026-10-01T00:00:00Z', ...more }) as ListItem
+
+test("doOrder follows the list's sort: due date, with a linked event's day standing in, and ticks don't move items", () => {
+  const list = [
+    todo('mow', 0),
+    todo('books', 1, { priority: 'high', dueDate: '2026-10-10' }), // overdue
+    todo('guards', 2, { eventId: 'soccer' }), // no due date, linked to today's practice
+    todo('paint', 3, { dueDate: '2026-10-19' }),
+  ]
+  const eventDue = new Map([['soccer', '2026-10-15']])
+  const due = compareItems('due', '2026-10-15', { keepChecked: true, eventDue })
+  assert.deepEqual(doOrder(list, due).map(i => i.id), ['books', 'guards', 'paint', 'mow'])
+  assert.deepEqual(doOrder(list, compareItems('due', '2026-10-15', { keepChecked: true })).map(i => i.id), ['books', 'paint', 'mow', 'guards'], 'without the event, undated goes last')
+  const manual = compareItems('manual', '2026-10-15', { keepChecked: true })
+  assert.deepEqual(doOrder(list, manual).map(i => i.id), ['books', 'mow', 'guards', 'paint'], 'manual: high priority first')
+  const ticked = list.map(i => (i.id === 'books' ? { ...i, done: true } : i))
+  assert.deepEqual(doOrder(ticked, manual).map(i => i.id), ['books', 'mow', 'guards', 'paint'], 'a tick keeps its place')
+  assert.deepEqual(listOrder(doOrder(ticked, manual)).map(i => i.id), ['mow', 'guards', 'paint', 'books'])
 })

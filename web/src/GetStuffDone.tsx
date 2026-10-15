@@ -4,9 +4,13 @@ import { announce, Segmented } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { allDone, choreItems, doOrder, listOrder, nextOpen, progress, savedView, saveView, startAt, stayOn, type DoView } from './getStuffDone.ts'
-import { CheckIcon, ChevronLeft, ChevronRight, HomeIcon, XIcon } from './icons.tsx'
+import { CalendarIcon, CheckIcon, ChevronLeft, ChevronRight, HomeIcon, XIcon } from './icons.tsx'
 import { canChangeItem } from './listSections.ts'
-import type { ListDetail, ListItem } from './types.ts'
+import { compareItems, type ListDetail, type ListItem } from './types.ts'
+import { dateKey } from './date.ts'
+import { dueLabel, eventDueMap, eventLabel } from './itemDue.ts'
+import { useEventWindow } from './useEventWindow.ts'
+import { PriorityBadge } from './PriorityBadge.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { Face } from './Face'
 
@@ -35,6 +39,7 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   const root = useRef<HTMLDivElement>(null)
   const [opener] = useState(() => document.activeElement as HTMLElement | null)
 
+  const { byId: events } = useEventWindow(refreshTick) // linked events: on the card, and their day in a due-date sort
   const load = () => api.getList(listId).then(d => { setDetail(d); setError(false) }).catch(() => setError(true))
   useEffect(() => { load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -62,10 +67,15 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   // and on a kid's own device only what it may tick (canChangeItem, the server's rule too).
   const kid = !parentDevice && focusLocked ? meMemberId : null
   const who = chore ? chore.memberId : focusMemberId
-  const items = !detail ? [] : doOrder(choreItems(detail.items, who).filter(i => canChangeItem(i, detail.list, kid)))
+  // In the list's own sort (as the list shows it); a tick doesn't move an item along.
+  const today = dateKey(new Date())
+  const items = !detail ? [] : doOrder(choreItems(detail.items, who).filter(i => canChangeItem(i, detail.list, kid)),
+    compareItems(detail.list.sortBy, today, { keepChecked: true, eventDue: eventDueMap(events) }))
   const index = cur ? stayOn(items, cur, lastIndex.current) : startAt(items)
   lastIndex.current = index
   const item = items[index] as ListItem | undefined
+  const due = item ? dueLabel(item, today) : null
+  const linked = item?.eventId ? events.get(item.eventId) : undefined
   const { done, total } = progress(items)
   const finished = allDone(items)
   useEffect(() => { if (!finished) setReview(false) }, [finished])
@@ -199,9 +209,16 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
       <div className="gsd-main scroll-y">
         <div className="gsd-step">
           <div className="gsd-dots" aria-hidden="true">{items.map((it, i) => <span key={it.id} className={`${it.done ? 'done' : ''} ${i === index ? 'here' : ''}`} />)}</div>
-          <p className="cook-step-num gsd-count">{index + 1} of {total}{item.done ? ' · ✓ Done' : ''}</p>
+          <p className="cook-step-num gsd-count">Item {index + 1} of {total}{item.done ? ' · ✓ Done' : ''}</p>
           {avatar(item.memberId, 'big')}
           <p className={`gsd-title ${item.done ? 'done' : ''}`}>{item.title}</p>
+          {(due || linked || item.priority !== 'normal') && (
+            <p className="gsd-meta">
+              <PriorityBadge p={item.priority} />
+              {due && <span className={due.overdue ? 'gsd-overdue' : undefined}>{due.overdue && <span aria-hidden="true">⚠ </span>}{due.text}</span>}
+              {linked && <span><CalendarIcon width={16} height={16} aria-hidden="true" /> {eventLabel(linked)}</span>}
+            </p>
+          )}
           {item.notes && <p className="gsd-sub">{item.notes}</p>}
           {stepRows(item)}
         </div>

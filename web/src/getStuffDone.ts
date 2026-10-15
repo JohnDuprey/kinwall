@@ -4,11 +4,12 @@ import { inTimeWindow } from './wallScreen.ts'
 
 type Item = { id: string; sort: number; done: boolean }
 
-/** The list in its own (manual) order. */
-export const doOrder = <T extends Item>(items: T[]): T[] => items.slice().sort((a, b) => a.sort - b.sort)
+/** The list in its order: the list's own sort (`cmp`, compareItems with keepChecked so a tick
+ * doesn't move an item along), else its manual order. */
+export const doOrder = <T extends Item>(items: T[], cmp: (a: T, b: T) => number = (a, b) => a.sort - b.sort): T[] => items.slice().sort(cmp)
 
 /** The whole-list view: open items first, ticked ones at the bottom, each in the list's order. */
-export const listOrder = <T extends Item>(items: T[]): T[] => { const o = doOrder(items); return [...o.filter(i => !i.done), ...o.filter(i => i.done)] }
+export const listOrder = <T extends Item>(items: T[]): T[] => [...items.filter(i => !i.done), ...items.filter(i => i.done)]
 
 export const progress = (items: Item[]) => ({ done: items.filter(i => i.done).length, total: items.length })
 

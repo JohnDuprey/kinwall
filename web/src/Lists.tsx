@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { applyListOps, type Op } from './outbox.ts'
 import type { EventInstance, ItemSuggestion, List, ListCatalog, ListDetail, ListItemInput, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member, RememberedItem, BarcodeLookup } from './types.ts'
 import { aisleOrderMap, compareAisles, compareItems, LIST_EMOJI, MEMBER_PALETTE, type AisleOrder } from './types.ts'
 import { dateKey } from './date.ts'
+import { dueLabel as itemDueLabel, eventDueMap, eventLabel } from './itemDue.ts'
+import { useEventWindow } from './useEventWindow.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
@@ -54,7 +55,7 @@ const SORT_LABEL: Record<ListSortBy, string> = { manual: 'Manual', added: 'Date 
 const SORT_HINT: Record<ListSortBy, string> = {
   manual: 'Your order, urgent and important first',
   added: 'Newest first',
-  due: 'Soonest first, no date last',
+  due: "Soonest first (a linked event's day counts), no date last",
   priority: 'Urgent first, then by due date',
   alpha: 'Alphabetical',
   aisle: 'By store, in the order you walk the aisles',
@@ -69,35 +70,7 @@ const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: 'Clear checked', re
 const TRIP_DONE_LABEL = 'Done shopping'
 const todayKey = () => dateKey(new Date())
 
-/** "Due today" / "Due Fri, Oct 3" / "Overdue · Sep 22" (open items only). */
-function dueLabel(item: ListItem): { text: string; overdue: boolean } | null {
-  if (!item.dueDate) return null
-  const today = todayKey()
-  const d = new Date(item.dueDate + 'T00:00:00')
-  if (item.dueDate === today) return { text: 'Due today', overdue: false }
-  if (item.dueDate < today && !item.done) return { text: `Overdue · ${format(d, 'MMM d')}`, overdue: true }
-  return { text: `Due ${format(d, 'EEE, MMM d')}`, overdue: false }
-}
-
-const eventDay = (e: EventInstance) => new Date(e.allDay ? e.start + 'T00:00:00' : e.start)
-const eventLabel = (e: EventInstance) => `${format(eventDay(e), 'EEE, MMM d')} · ${e.title}`
-
-/** Events from 30 days back to 30 ahead: `upcoming` (next occurrence per id, for the picker) and
- * `byId` (a linked item's event - its next occurrence, else a past one). */
-function useEventWindow(dep: unknown) {
-  const [events, setEvents] = useState<EventInstance[]>([])
-  useEffect(() => {
-    const now = new Date()
-    api.getEvents(addDays(now, -30).toISOString(), addDays(now, 30).toISOString())
-      .then(evs => setEvents(evs.sort((a, b) => eventDay(a).getTime() - eventDay(b).getTime()))).catch(() => setEvents([]))
-  }, [dep])
-  const now = Date.now()
-  const byId = new Map<string, EventInstance>()
-  for (const e of events) if (new Date(e.allDay ? e.end + 'T00:00:00' : e.end).getTime() > now && !byId.has(e.id)) byId.set(e.id, e)
-  const upcoming = [...byId.values()]
-  for (const e of events) if (!byId.has(e.id)) byId.set(e.id, e)
-  return { upcoming, byId }
-}
+const dueLabel = (item: ListItem) => itemDueLabel(item, todayKey())
 
 function ownersOf(list: List, members: Member[]) {
   return list.memberIds.map(id => members.find(m => m.id === id)).filter((m): m is Member => !!m)
@@ -1840,7 +1813,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     const queue = [...groupIds]
     const order = all.map(id => (moved.has(id) ? queue.shift()! : id))
     // Sorted too: grouped views keep array order, so without it the move only showed after a refetch.
-    setDetail({ ...detail, items: detail.items.map(i => ({ ...i, sort: order.indexOf(i.id) })).sort(compareItems(detail.list.sortBy, todayKey(), { keepChecked: detail.list.keepChecked, aisleOrder: aisleOrderMap(detail) })) })
+    setDetail({ ...detail, items: detail.items.map(i => ({ ...i, sort: order.indexOf(i.id) })).sort(compareItems(detail.list.sortBy, todayKey(), { keepChecked: detail.list.keepChecked, aisleOrder: aisleOrderMap(detail), eventDue: eventDueMap(byId) })) })
     try { await api.reorderListItems(listId, order) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder', true); load() }
   }
@@ -1911,7 +1884,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const filtered = selectedStore ? items.filter(i => i.store === selectedStore || i.store === null) : items
   // Keep checked in place: ticked items stay put, crossed off, and the order doesn't move under you.
   const keep = list.keepChecked
-  const cmp = compareItems(list.sortBy, todayKey(), { keepChecked: keep, aisleOrder })
+  const cmp = compareItems(list.sortBy, todayKey(), { keepChecked: keep, aisleOrder, eventDue: eventDueMap(byId) })
   const openItems = keep ? filtered : filtered.filter(i => !i.done)
   const doneItems = keep ? [] : filtered.filter(i => i.done)
   const checked = filtered.filter(i => i.done && mine(i)) // a kid's device checks out only what it may change
