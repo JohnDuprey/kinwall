@@ -1009,7 +1009,11 @@ button.month-cell .month-daynum { flex: none; }
 .emoji-swatch.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 22%, var(--bg-alt)); }
 
 /* ---------- Chores ---------- */
-.chores-scroll { display: contents; }
+/* The whole view scrolls as one (header, approvals, leaderboard and columns), with only the day
+   strip pinned, so a few approvals never squeeze the chores into a sliver. */
+.chores-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+.chores-scroll > .chore-columns { flex: none; }
+.chores-scroll > .date-strip { position: sticky; top: 0; z-index: 2; background: var(--bg); }
 .chores-header { padding: 14px 20px 6px; display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; gap: 10px; container: chores-header / inline-size; }
 /* Off a phone the leaderboard lives in the header: its own slim row, or inline between the date
    and Rewards once the row is wide enough for them all. */
@@ -1344,9 +1348,6 @@ button.month-cell .month-daynum { flex: none; }
   .app-shell-rail .list-detail:has(.list-checkout-bar) { padding-bottom: 0; } /* the sticky Checkout bar sits on the bottom edge and clears it */
   .app-shell-rail .list-detail .list-items { flex: none; overflow: visible; }
   .app-shell-rail .list-detail .list-add-bar { top: calc(var(--gap) * -1.2); margin-top: calc(var(--gap) * -1.2); padding-top: calc(var(--gap) * 1.2 + 2px); }
-  /* Chores too: the header, leaderboard, days and approvals scroll away with the columns. */
-  .app-shell-rail .chores-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
-  .app-shell-rail .chores-scroll > .chore-columns { flex: none; }
 }
 .lists-col { width: min(calc(320px * var(--screen-k)), 40%); flex-shrink: 0; /* 40%: 200% zoom / XL text on a narrow tablet */ display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .lists-shell-phone .lists-col { width: 100%; }

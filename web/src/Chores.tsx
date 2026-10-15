@@ -336,6 +336,10 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
   }
   const whenR = (r: Redemption) => r.date === dateKey(new Date()) ? '' : format(new Date(r.requestedAt), 'EEE, MMM d')
   const count = items.length + ideas.length + rewards.filter(r => r.status === 'pending').length
+  // On Chores, two rows and "Show all (N)", so a busy day doesn't push the chores off screen.
+  const SHOWN = only ? Infinity : 2
+  const total = items.length + ideas.length + rewards.length
+  const [showAll, setShowAll] = useState(false)
   const when = (p: PendingApproval) => {
     if (p.date === dateKey(new Date())) return ''
     const [y, m, d] = p.date.split('-').map(Number)
@@ -365,7 +369,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
         <section className="approve-card" aria-labelledby="approve-heading">
           <h3 id="approve-heading" className="approve-heading">{only ? 'Reward requests' : 'To approve'} {count > 0 && <span className="approve-count">{count}</span>}</h3>
           <ul className="approve-list">
-            {items.map(p => (
+            {[...items.map(p => (
               <li key={`${p.choreId}:${p.date}`} className="approve-row">
                 <span className="approve-emoji" aria-hidden="true">{p.emoji}</span>
                 <div className="approve-info">
@@ -377,8 +381,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                   <button className="btn btn-primary" onClick={() => act(p, () => api.approveChore(p.choreId, p.date), `Approved: +${p.points} for ${name(p)}`)} aria-label={`Approve ${p.title} by ${name(p)}`}>Approve</button>
                 </div>
               </li>
-            ))}
-            {ideas.map(s => (
+            )), ...ideas.map(s => (
               <li key={s.id} className="approve-row">
                 <span className="approve-emoji" aria-hidden="true">{s.emoji ?? '💡'}</span>
                 <div className="approve-info">
@@ -390,8 +393,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                   <button className="btn btn-primary" onClick={() => setAnswer({ s, mode: 'yes' })} aria-label={`Say yes to ${s.title}, ${name(s)}'s idea`}>Say yes…</button>
                 </div>
               </li>
-            ))}
-            {rewards.map(r => (
+            )), ...rewards.map(r => (
               <li key={r.id} className="approve-row">
                 <span className="approve-emoji" aria-hidden="true">{r.emoji ?? '🎁'}</span>
                 <div className="approve-info">
@@ -408,8 +410,11 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                   </>}
                 </div>
               </li>
-            ))}
+            ))].filter((_, i) => showAll || i < SHOWN)}
           </ul>
+          {total > SHOWN && (
+            <button type="button" className="link-btn approve-more" aria-expanded={showAll} onClick={() => setShowAll(v => !v)}>{showAll ? 'Show fewer' : `Show all (${total})`}</button>
+          )}
         </section>
       )}
       {answer && (
