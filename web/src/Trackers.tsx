@@ -566,7 +566,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
     } catch (e) { toast(errMsg(e, 'Could not save'), true) } finally { setBusy(false) }
   }
   const del = async () => {
-    if (!entry || !await dialog.confirm({ title: 'Delete this entry?', body: 'It is gone for good.', confirmLabel: 'Delete', danger: true })) return
+    if (!entry || !await dialog.confirm({ title: entry.title ? `Delete “${entry.title}”?` : `Delete this ${noun}?`, body: 'It is gone for good.', confirmLabel: 'Delete', danger: true })) return
     try { await api.deleteTracker(entry.id); onSaved() } catch (e) { toast(errMsg(e, 'Could not delete'), true) }
   }
 
@@ -574,7 +574,6 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
   return (
     <Sheet title={readOnly ? `${everyone.find(m => m.id === entry?.memberId)?.name ?? 'Someone'}'s ${noun}` : entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose} dirty={readOnly ? false : 'auto'}
       actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
-        {entry && (admin || (!!kid && entry.memberId === kid)) && <button className="btn btn-danger" onClick={del}>Delete</button>}
         <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? 'Save' : 'Add'}</button>
       </>}>
       {/* Read-only: every field inside is disabled. */}
@@ -683,6 +682,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
         {entry && d.eventId && <a className="btn btn-secondary" href={eventHref(d.eventId, entry.date)} onClick={onClose}>📅 Open on the calendar</a>}
       </>}
       </fieldset>
+      {!readOnly && entry && (admin || (!!kid && entry.memberId === kid)) && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={del}>Delete {noun}</button></div>}
       {shelving && entry && <AddBookSheet places={shelving.places} sources={shelving.sources} today={todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}
         from={{ title: f.title.trim(), author: f.author.trim(), pages: n(f.totalPages), coverUrl: f.coverUrl.trim() || null }} onClose={() => setShelving(null)} onAdded={shelved} />}
     </Sheet>

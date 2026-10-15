@@ -20,7 +20,7 @@ Only recipe meals add to the grocery list; something else and eating out don't.
 
 To trade two meals around, open a planned meal's sheet and tap **Swap with…**, right under the meal's name: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.
 
-A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where you can also delete it. A night out from the [binder](#restaurants) opens its [orders](#ordering-together) instead, with **Edit meal** (parents) for the meal's sheet. A planned meal shows small avatars of who's eating.
+A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where **Delete meal** at the bottom deletes it (after asking). A night out from the [binder](#restaurants) opens its [orders](#ordering-together) instead, with **Edit meal** (parents) for the meal's sheet. A planned meal shows small avatars of who's eating.
 
 Can't decide? Start a [family poll](polls.md) for that meal: it shows **🗳 Vote open** in the slot until it closes, and **Plan it** fills the meal in with the winner.
 

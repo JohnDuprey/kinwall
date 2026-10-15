@@ -1275,6 +1275,9 @@ button.month-cell .month-daynum { flex: none; }
 .form-actions { display: flex; align-items: center; gap: 16px; margin: 4px 0 18px; }
 .text-link { color: var(--accent-text); font-weight: 800; text-decoration: none; }
 .link-btn { background: none; border: none; color: var(--accent-text); font-weight: 800; font-size: 0.8125rem; padding: 6px 2px; min-height: 44px; }
+/* Delete, Archive, Remove: at the bottom of a sheet's body, away from its Save (AGENTS.md). */
+.sheet-danger-zone { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 24px; margin-top: 20px; padding-top: 8px; border-top: 1px solid var(--border); }
+.link-btn.link-danger { color: var(--danger); font-size: 0.9375rem; }
 
 .connect-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .connect-btn { flex: 1 1 30%; min-width: 140px; background: var(--bg-alt); border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-weight: 800; color: var(--text); min-height: 52px; }

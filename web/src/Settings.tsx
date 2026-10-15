@@ -1243,12 +1243,7 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn() } finally { setBusy(false) } }
   return (
     <Sheet title={isNew ? 'New color scheme' : `Edit ${draft.name}`} onClose={onClose}
-      actions={<>
-        {onDelete && <button className="btn btn-danger" disabled={busy} onClick={async () => {
-          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Peacock.', confirmLabel: 'Delete', danger: true })) run(onDelete)
-        }}>Delete</button>}
-        <button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? 'Save and use' : 'Save'}</button>
-      </>}>
+      actions={<button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? 'Save and use' : 'Save'}</button>}>
       <div className="row-2">
         <div className="field"><label htmlFor="scheme-name">Name</label><input id="scheme-name" type="text" maxLength={30} value={c.name} onChange={e => setC({ ...c, name: e.target.value })} /></div>
         <div className="field scheme-emoji"><label htmlFor="scheme-emoji">Emoji</label><input id="scheme-emoji" type="text" maxLength={8} value={c.emoji} onChange={e => setC({ ...c, emoji: e.target.value })} /></div>
@@ -1282,6 +1277,13 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
         })}
       </div>
       <p className="settings-row-sub">{failing ? `${failing} check${failing === 1 ? '' : 's'} below 4.5:1. Adjust the colors until every check passes to save.` : 'Readable in both modes. Accent buttons adjust themselves so their labels stay readable.'}</p>
+      {onDelete && (
+        <div className="sheet-danger-zone">
+          <button className="link-btn link-danger" disabled={busy} onClick={async () => {
+            if (await dialog.confirm({ title: `Delete “${draft.name}”?`, body: 'Screens using it go back to Peacock.', confirmLabel: 'Delete', danger: true })) run(onDelete)
+          }}>Delete scheme</button>
+        </div>
+      )}
     </Sheet>
   )
 }

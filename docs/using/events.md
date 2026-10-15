@@ -17,7 +17,7 @@ Tap an event to open its sheet. It shows:
 * **Discussion**: the family's back-and-forth on this event, separate from its notes. See [Discussion](#discussion).
 * **Make it a health visit**, on parents' devices and a grown-up's own device when the Health tracker is on: a Health visit filled in from the event and linked to it. Once there is one, this reads **Health visit: Checkup · Maya** and opens it. Never on a wall screen or a kid's device. See [Trackers](trackers.md#health).
 * **Hide…**, on parents' devices: hide this event, every one in its series, or every event like it, from the whole family. See [Hiding events](calendar.md#hiding-events). A hidden event (with the calendar's **Show hidden** eye on) says "Hidden" with **Show again** instead.
-* **Edit** and **Delete**, only on writable calendars this device may change (see [Who can change events](#who-can-change-events)). Delete asks for **Confirm delete**. An event from Google or Outlook is deleted there too.
+* **Edit**, and **Delete event** at the bottom of the sheet, only on writable calendars this device may change (see [Who can change events](#who-can-change-events)). Delete asks first. An event from Google or Outlook is deleted there too.
 
 ## Creating and editing
 

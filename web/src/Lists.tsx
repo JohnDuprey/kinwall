@@ -186,7 +186,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
   }
   const del = async () => {
     if (!existing) return
-    if (!await dialog.confirm({ title: `Delete "${existing.name}"?`, body: 'This removes all its items too.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: `Delete “${existing.name}”?`, body: 'This removes all its items too.', confirmLabel: 'Delete', danger: true })) return
     try { await api.deleteList(existing.id); onDeleted() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete list', true) }
   }
@@ -195,8 +195,6 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
     <Sheet title={existing ? 'Edit list' : 'New list'} onClose={onClose} dirty="auto"
       actions={
         <>
-          {existing && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}
-          {existing && <button className="btn btn-secondary" onClick={archive}>Archive</button>}
           <button className="btn btn-primary" onClick={submit} disabled={!name.trim() || !isSingleEmoji(emoji)}>{existing ? 'Save' : 'Create list'}</button>
         </>
       }>
@@ -249,6 +247,12 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
         </div>
       </div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Owners (nobody = whole family)" />
+      {existing && (
+        <div className="sheet-danger-zone">
+          <button className="link-btn" onClick={archive}>Archive list</button>
+          <button className="link-btn link-danger" onClick={del}>Delete list</button>
+        </div>
+      )}
     </Sheet>
   )
 }
@@ -386,7 +390,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save item', true) }
   }
   const del = async () => {
-    if (!await dialog.confirm({ title: `Delete "${item.title}"?`, confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: `Delete “${item.title}”?`, confirmLabel: 'Delete', danger: true })) return
     try { await api.queueDeleteListItem(listId, item.id); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete item', true) }
   }
@@ -448,10 +452,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
 
   return (
     <Sheet title={readOnly ? 'Item' : 'Edit item'} onClose={onClose} dirty={edited}
-      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
-        <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>
-        <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Save</button>
-      </>}>
+      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Save</button>}>
       {readOnly && <p className="field-hint item-read-only">{`This one is ${members.find(m => m.id === item.memberId)?.name ?? 'someone else'}'s.`}</p>}
       {/* Read-only: every field and button inside is disabled; the discussion below stays open. */}
       <fieldset className="item-sheet-fields" disabled={readOnly}>
@@ -521,6 +522,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           </div>
         </div>
       )}
+      {!readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={del}>Delete item</button></div>}
     </Sheet>
   )
 }

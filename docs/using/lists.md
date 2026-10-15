@@ -38,7 +38,7 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 
 ## Editing a list
 
-**Edit** opens **Name**, **Type**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. **Edit**, the list order and the **Archived** section are only on a parent's device; see [Wall screens and kids' devices](#wall-screens-and-kids-devices). The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
+**Edit** opens **Name**, **Type**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. At the bottom it has **Archive list** and **Delete list**, which asks first and removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. **Edit**, the list order and the **Archived** section are only on a parent's device; see [Wall screens and kids' devices](#wall-screens-and-kids-devices). The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
 
 ### Default list for each type
 

@@ -391,7 +391,7 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save the reward.", true) }
   }
   const del = async () => {
-    if (!reward || !await dialog.confirm({ title: `Delete "${reward.title}"?`, body: 'Past requests stay in history. Archiving keeps it out of sight without deleting.', confirmLabel: 'Delete', danger: true })) return
+    if (!reward || !await dialog.confirm({ title: `Delete “${reward.title}”?`, body: 'Past requests stay in history. Archiving keeps it out of sight without deleting.', confirmLabel: 'Delete', danger: true })) return
     try { await api.deleteReward(reward.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete the reward.", true) }
   }
   const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
@@ -400,8 +400,6 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
     <Sheet title={reward ? 'Edit reward' : 'New reward'} onClose={onClose} dirty="auto"
       actions={
         <>
-          {reward && <button className="btn btn-danger" onClick={del}>Delete</button>}
-          {reward && <button className="btn btn-secondary" onClick={() => save({ active: !reward.active })} disabled={!valid}>{reward.active ? 'Archive' : 'Restore'}</button>}
           <button className="btn btn-primary" onClick={() => save()} disabled={!valid}>{reward ? 'Save' : 'Add reward'}</button>
         </>
       }>
@@ -452,6 +450,12 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
         )}
         <p className="field-hint">For each person. Requests you say not this time to don't count.</p>
       </div>
+      {reward && (
+        <div className="sheet-danger-zone">
+          <button className="link-btn" onClick={() => save({ active: !reward.active })} disabled={!valid}>{reward.active ? 'Archive reward' : 'Restore reward'}</button>
+          <button className="link-btn link-danger" onClick={del}>Delete reward</button>
+        </div>
+      )}
     </Sheet>
   )
 }

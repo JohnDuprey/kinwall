@@ -26,7 +26,7 @@ Tap a photo to see it full size. Swipe, tap **‹** and **›**, or use the arro
 
 * add or edit a **caption** (shown along the bottom of the Board's picture card, up to two lines, and under the screensaver's clock; a display picks up an edit with its next picture),
 * mark who it's **for**, or leave it for **Everyone**,
-* **Delete** it after you confirm.
+* **Delete photo** (at the bottom of the sheet) after you confirm.
 
 ## Limits
 

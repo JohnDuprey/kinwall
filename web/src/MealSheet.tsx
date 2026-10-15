@@ -3,7 +3,7 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { BookIcon, CalendarIcon, ChevronRight, TrashIcon } from './icons.tsx'
+import { BookIcon, CalendarIcon, ChevronRight } from './icons.tsx'
 import { SourceLink } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { todayKeyInTz } from './date.ts'
@@ -119,7 +119,6 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
   }
   const close = () => { if (!busy) onClose() }
   return <Sheet title={meal ? admin ? 'Edit meal' : meal.title : 'Plan a meal'} onClose={close} dismissable={!busy} dirty={canUpdate ? 'auto' : false} actions={choosing ? <button className="btn btn-secondary" onClick={close}>Cancel</button> : canUpdate ? <>
-    {meal && admin && <button className="icon-btn" aria-label="Delete meal" disabled={busy} onClick={remove}><TrashIcon /></button>}
     <button className="btn btn-secondary" disabled={busy} onClick={close}>Cancel</button>
     <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save meal'}</button>
   </> : undefined}>
@@ -190,6 +189,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       </div>}
       {admin && !meal && <p className="field-hint">Save this meal to put it on a calendar.</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
+      {meal && admin && <div className="sheet-danger-zone"><button type="button" className="link-btn link-danger" disabled={busy} onClick={remove}>Delete meal</button></div>}
     </form>}
     {swapping && meal && swapRange && <SwapPicker meal={meal} range={swapRange} recipes={recipes} onPick={other => void swap(other)} onClose={() => setSwapping(false)} />}
     {picking && <RecipePicker recipes={recipes} currentId={draft.recipeId} saved={savedRecipe} onPick={pick} onClose={() => setPicking(false)} />}

@@ -8,7 +8,7 @@ import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
-import { CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, SlidersIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
+import { CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, SlidersIcon, LocationIcon, PlusIcon, RepeatIcon, EditIcon } from './icons.tsx'
 import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery, useScreenK } from './useIsPhone.ts'
@@ -418,8 +418,8 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
     }
   }
 
-  const deleteEvent = async (id: string) => {
-    if (!await dialog.confirm({ title: 'Delete this event?', body: 'If it came from Google or Outlook it is deleted there too.', confirmLabel: 'Delete', danger: true })) return
+  const deleteEvent = async ({ id, title }: EventInstance) => {
+    if (!await dialog.confirm({ title: `Delete “${title}”?`, body: 'If it came from Google or Outlook it is deleted there too.', confirmLabel: 'Delete', danger: true })) return
     try {
       await api.deleteEvent(id)
       setDetail(null)
@@ -589,7 +589,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
           tz={tz}
           onClose={() => setDetail(null)}
           onEdit={() => openEdit(detail)}
-          onDelete={() => deleteEvent(detail.id)}
+          onDelete={() => deleteEvent(detail)}
           onToggleMember={toggleDetailMember}
           onSaveScopedMembers={saveDetailMembers}
           onSaveTravel={saveTravel}
@@ -982,7 +982,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
   parent: boolean; onHide: (scope: 'occurrence' | 'series') => void; onUnhide: () => void; onHideLike: (filter: CalendarFilter) => void
 }) {
   const { settings } = useApp()
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [hiding, setHiding] = useState(false) // Hide…'s choices are open
   // Recurring synced events don't save a member-chip change immediately - the chips stay
   // "pending" until the user picks This event / All events in the series (see the scope-choice
   // block below). Everything else (local events, non-recurring synced events) keeps the old
@@ -1000,19 +1000,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
   const catLabel = categoryLabel(event, categories)
   return (
     <Sheet title={event.title} onClose={onClose}
-      actions={canEdit && !event.readOnly ? (
-        confirmDelete ? (
-          <>
-            <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>Cancel</button>
-            <button className="btn btn-danger" onClick={onDelete}><TrashIcon width={18} height={18} />Confirm delete</button>
-          </>
-        ) : (
-          <>
-            <button className="btn btn-secondary" onClick={onEdit}><EditIcon width={18} height={18} />Edit</button>
-            <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}><TrashIcon width={18} height={18} />Delete</button>
-          </>
-        )
-      ) : undefined}>
+      actions={canEdit && !event.readOnly ? <button className="btn btn-secondary" onClick={onEdit}><EditIcon width={18} height={18} />Edit</button> : undefined}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="detail-color-bar" style={{ background: detailBar }} />
         <div style={{ fontWeight: 800, fontSize: '0.9375rem' }}>
@@ -1101,7 +1089,8 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             Only the family members and travel time are saved in Kinwall — the event itself comes from {calendarName}.
           </div>
         )}
-        {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} />}
+        {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} choosing={hiding} setChoosing={setHiding} />}
+        {canEdit && !event.readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={() => { setHiding(false); onDelete() }}>Delete event</button></div>}
       </div>
     </Sheet>
   )
@@ -1124,10 +1113,10 @@ function SyncAlert({ calendars }: { calendars: CalendarEntry[] }) {
 }
 
 /** Bottom of a parent's event sheet: hide it (or its series, or every event like it), or show a hidden one again. */
-function HideSection({ event, calendar, onHide, onUnhide, onHideLike }: {
+function HideSection({ event, calendar, onHide, onUnhide, onHideLike, choosing, setChoosing }: {
   event: EventInstance; calendar?: CalendarEntry; onHide: (scope: 'occurrence' | 'series') => void; onUnhide: () => void; onHideLike: (filter: CalendarFilter) => void
+  choosing: boolean; setChoosing: (open: boolean) => void // the sheet's: Delete closes the choices
 }) {
-  const [choosing, setChoosing] = useState(false)
   const name = calendar?.name ?? 'this calendar'
   if (event.hidden === 'filter') return (
     <div className="hidden-note"><EyeOffIcon width={20} height={20} />

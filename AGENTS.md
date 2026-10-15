@@ -91,8 +91,9 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
 - Color is never the only signal: pair it with a word, shape, emoji, avatar or pattern. Check new
   colors with the color-vision helpers in `web/src/colorVision.ts`.
 - Buttons in headers and rows size to their content (`flex: none`); `.btn` stretches by default.
-- Destructive or rare actions (archive, delete) go in a "More…" select or at the bottom of a sheet,
-  never next to the primary button.
+- Destructive or rare actions (archive, delete, remove) go in a "More…" select or at the bottom of
+  a sheet's body (`.sheet-danger-zone`, a danger text button), never in the footer beside the
+  primary button. A delete always asks with `dialog.confirm`, titled `Delete “Name”?`.
 - Copy: US English, short and plain, sentence case. Say what happens ("Saved: Tacos"), not how.
 - Plain words, never the code's words. Families (and kids) read every label, hint, toast, error and
   notification, and translators will too: name things the way a family would ("grocery list", not

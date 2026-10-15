@@ -160,7 +160,7 @@ function PhotoSheet({ photo, isAdmin, members, onClose, onChanged, index, count,
     finally { setBusy(false) }
   }
   const remove = async () => {
-    if (!await dialog.confirm({ title: 'Delete this photo?', body: "It's removed from the Board and the screensaver too.", confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: photo.caption ? `Delete “${photo.caption}”?` : 'Delete this photo?', body: "It's removed from the Board and the screensaver too.", confirmLabel: 'Delete', danger: true })) return
     setBusy(true)
     try { await api.deletePhoto(photo.id); onChanged(); onClose(); announce('Photo deleted') }
     catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete the photo.", true); setBusy(false) }
@@ -168,10 +168,7 @@ function PhotoSheet({ photo, isAdmin, members, onClose, onChanged, index, count,
 
   return (
     <Sheet title={photo.caption || 'Photo'} onClose={onClose}
-      actions={isAdmin ? <>
-        <button className="btn btn-danger" onClick={remove} disabled={busy}>Delete</button>
-        <button className="btn btn-primary" onClick={save} disabled={busy || !dirty}>Save</button>
-      </> : undefined}>
+      actions={isAdmin ? <button className="btn btn-primary" onClick={save} disabled={busy || !dirty}>Save</button> : undefined}>
       <div className="photo-stage" onTouchStart={e => { touchX.current = e.touches[0].clientX }}
         onTouchEnd={e => { const x0 = touchX.current; touchX.current = null; if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50) onNav(dx < 0 ? 1 : -1) }}>
         <img className="photo-full" src={api.photoImageUrl(photo)} alt={photo.caption ?? ''} width={photo.width} height={photo.height} />
@@ -198,6 +195,7 @@ function PhotoSheet({ photo, isAdmin, members, onClose, onChanged, index, count,
         </div>
       </> : owner && <p className="field-hint">For {owner.avatar} {owner.name}</p>}
       <p className="field-hint">Added {new Date(photo.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })} · {photo.width}×{photo.height} · {Math.round(photo.bytes / 1024)} KB</p>
+      {isAdmin && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={remove} disabled={busy}>Delete photo</button></div>}
     </Sheet>
   )
 }
