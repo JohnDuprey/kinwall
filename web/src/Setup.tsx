@@ -211,7 +211,7 @@ function PasskeyStep({ adminKeyId, onDone, onNoPasskey }: { adminKeyId: string |
     <div className="setup-step">
       <h1>Create a passkey for this device</h1>
       <p className="setup-sub">Kinwall signs you in with Face ID, Touch ID or your device's screen lock. It's how you get back into your family.</p>
-      <div className="field"><label>Name this passkey</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field"><label htmlFor="setup-passkey-name">Name this passkey</label><input id="setup-passkey-name" type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
       {inFrame() && <p className="setup-sub">Inside Home Assistant's panel, some browsers won't make a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener" onClick={handOffPasskeyStep}>Open Kinwall in its own tab</a> and finish setup there.</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
       <StepNav onNext={() => create()} nextDisabled={busy || !name.trim()} nextLabel={busy ? 'Creating…' : 'Create passkey'} />
@@ -279,14 +279,14 @@ function HouseholdStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="setup-step">
       <h1>Your household</h1>
-      <div className="field"><label>Family name</label><input type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} autoFocus /></div>
+      <div className="field"><label htmlFor="setup-family-name">Family name</label><input id="setup-family-name" type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} autoFocus /></div>
       <div className="field">
         <label htmlFor="setup-timezone">Timezone</label>
         <TimezoneField id="setup-timezone" value={timezone} onChange={setTimezone} />
       </div>
       <div className="field">
-        <label>Week starts on</label>
-        <div className="setup-choice-row">
+        <label id="setup-week-label">Week starts on</label>
+        <div className="setup-choice-row" role="group" aria-labelledby="setup-week-label">
           <button className={`setup-choice ${weekStart === 0 ? 'active' : ''}`} aria-pressed={weekStart === 0} onClick={() => setWeekStart(0)}>Sunday</button>
           <button className={`setup-choice ${weekStart === 1 ? 'active' : ''}`} aria-pressed={weekStart === 1} onClick={() => setWeekStart(1)}>Monday</button>
         </div>
@@ -372,8 +372,8 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
           ))}
         </div>
       )}
-      <div className="field"><label>{members.length ? 'Next person' : 'Name'}</label>
-        <input ref={nameRef} type="text" value={name} onChange={e => setName(e.target.value)}
+      <div className="field"><label htmlFor="setup-member-name">{members.length ? 'Next person' : 'Name'}</label>
+        <input id="setup-member-name" ref={nameRef} type="text" value={name} onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()} placeholder="e.g. Sam" autoFocus />
       </div>
       <div className="field">
@@ -384,14 +384,14 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
         </div>
       </div>
       <div className="field">
-        <label>Color</label>
-        <div className="color-swatch-row">
+        <label id="setup-color-label">Color</label>
+        <div className="color-swatch-row" role="group" aria-labelledby="setup-color-label">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
         </div>
       </div>
       <div className="field">
-        <label>Avatar</label>
-        <div className="emoji-swatch-row">
+        <label id="setup-avatar-label">Avatar</label>
+        <div className="emoji-swatch-row" role="group" aria-labelledby="setup-avatar-label">
           {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${avatar === e ? 'active' : ''}`} aria-pressed={avatar === e} onClick={() => setAvatar(e)}>{e}</button>)}
         </div>
         <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
@@ -422,7 +422,7 @@ function IcsForm({ members, onDone }: { members: Member[]; onDone: () => void })
 
   return (
     <div className="setup-provider-form">
-      <div className="field"><label>ICS URL</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
+      <div className="field"><label htmlFor="setup-ics-url">Calendar link (ICS URL)</label><input id="setup-ics-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Who is this for?" />
       {result && <p className="setup-success">{result}</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
@@ -498,10 +498,10 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
   if (!accountId) {
     return (
       <div className="setup-provider-form">
-        <div className="field"><label>Account name</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. iCloud" autoFocus /></div>
-        <div className="field"><label>Server URL</label><input type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
-        <div className="field"><label>Username</label><input type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
-        <div className="field"><label>App password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+        <div className="field"><label htmlFor="setup-caldav-name">Account name</label><input id="setup-caldav-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. iCloud" autoFocus /></div>
+        <div className="field"><label htmlFor="setup-caldav-url">Server URL</label><input id="setup-caldav-url" type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
+        <div className="field"><label htmlFor="setup-caldav-user">Username</label><input id="setup-caldav-user" type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
+        <div className="field"><label htmlFor="setup-caldav-pass">App password</label><input id="setup-caldav-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
         {error && <p className="setup-error" role="alert">{error}</p>}
         <button className="btn btn-primary setup-btn" onClick={connect} disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
       </div>
