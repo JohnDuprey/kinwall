@@ -76,6 +76,13 @@ export function intlLocale(own = typeof navigator === 'undefined' ? undefined : 
   return own && own.toLowerCase().split('-')[0] === of ? own : of
 }
 
+let currency = 'USD'
+/** The family's currency for prices (settings.currency, an ISO 4217 code; USD until a parent picks one). */
+export const setCurrency = (code: string | null | undefined) => { currency = code || 'USD' }
+/** A price in the family's currency and language: "$12.99", "12,99 €"; whole amounts without cents ("$12"). */
+export const money = (cents: number): string =>
+  new Intl.NumberFormat(intlLocale(), { style: 'currency', currency, ...(cents % 100 ? {} : { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }).format(cents / 100)
+
 type Vars = Record<string, string | number>
 const fill = (text: string, vars?: Vars) =>
   vars ? text.replace(/\{(\w+)\}/g, (all, k: string) => (k in vars ? String(vars[k]) : all)) : text

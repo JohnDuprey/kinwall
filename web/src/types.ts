@@ -52,6 +52,7 @@ export interface Settings {
   defaultGroceryStore?: string | null // Shop on a Groceries list starts here (no store step); null: Shop asks
   defaultShoppingStore?: string | null // the same for other shopping lists
   language?: Lang // the family's language (i18n.ts); absent (an older server) = English
+  currency?: string // ISO 4217 code for prices (restaurant menus); absent = USD
   defaultCalendarId?: string | null // a parent's pick for new events; null: the server picks (CalendarEntry.default)
   defaultEventMinutes?: number // how long a new event lasts once its start is picked (60 unless changed)
   defaultReminderMinutes: number[]

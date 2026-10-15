@@ -76,6 +76,7 @@ export async function readSettings(db: KinwallDb) {
     defaultGroceryStore: map.get('defaultGroceryStore') || null, // routes/lists.ts: Shop starts there; follows a store rename
     defaultShoppingStore: map.get('defaultShoppingStore') || null,
     language: LANGUAGES.find((l) => l === map.get('language')) ?? 'en',
+    currency: map.get('currency') || 'USD', // restaurant prices (web i18n.ts money)
     defaultCalendarId: map.get('defaultCalendarId') || null, // default-calendar.ts; GET /api/calendars marks the one in use
     defaultEventMinutes: Number(map.get('defaultEventMinutes') || DEFAULTS.defaultEventMinutes),
     defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),

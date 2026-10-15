@@ -1,12 +1,13 @@
 // The restaurant binder's pure helpers (web/test/restaurants.test.ts).
 import type { MenuItem } from './meal-types.ts'
+import { money } from './i18n.ts'
 
-/** "$12.99"; null for no price. Prices are shown, never totaled. */
-export const priceLabel = (cents: number | null) => cents === null ? null : `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`
+/** "$12.99" in the family's currency (i18n.ts money); null for no price. Prices are shown, never totaled. */
+export const priceLabel = (cents: number | null) => cents === null ? null : money(cents)
 
 /** "12.99" typed into a price field, in cents; '' is no price, anything else unreadable is undefined. */
 export function parsePrice(value: string): number | null | undefined {
-  const v = value.trim().replace(/^\$/, '').replace(',', '.')
+  const v = value.trim().replace(/^\p{Sc}\s*|\s*\p{Sc}$/gu, '').replace(',', '.')
   if (!v) return null
   return /^\d{1,4}(\.\d{1,2})?$/.test(v) ? Math.round(Number(v) * 100) : undefined
 }

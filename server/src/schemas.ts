@@ -348,6 +348,7 @@ export const SettingsSchema = z
     density: z.enum(['comfortable', 'compact']),
     typeface: z.enum(TYPEFACES).openapi({ description: "The family's typeface; a device can pick its own. 'default' is Nunito." }),
     language: LanguageSchema.openapi({ description: "The family's language ('en' until a parent picks one): shared screens and walls show it, and so does anyone who hasn't picked their own. A device can pick its own; a member's own pick wins on their own devices." }),
+    currency: z.string().openapi({ description: "The ISO 4217 code prices are shown in (restaurant menus); 'USD' until a parent picks one." }),
     timeFormat: z.enum(TIME_FORMATS).openapi({ description: "Clock times as 12-hour ('3:40 PM') or 24-hour ('15:40'). 'auto' follows each device's locale; server-written text (notifications) goes by the location's country. A device can pick its own." }),
     defaultCalendarId: z.string().nullable().openapi({ description: "The calendar new events go on when none is named (a parent's pick). null: Kinwall picks (the family's own Kinwall calendar first). GET /api/calendars marks the one in use with default: true." }),
     defaultEventMinutes: z.number().openapi({ description: "How long a new event lasts when only its start is picked, in minutes (15, 30, 45, 60, 90, 120 or 180; 60 unless changed). The app's event sheet, a shared event saved without an end and a meal without a recipe time use it." }),
@@ -408,6 +409,7 @@ export const SettingsPatchSchema = z
     typeface: z.enum(TYPEFACES).optional(),
     timeFormat: z.enum(TIME_FORMATS).optional(),
     language: LanguageSchema.optional(),
+    currency: z.string().regex(/^[A-Z]{3}$/, 'an ISO 4217 code like USD or EUR').optional(),
     defaultCalendarId: z.string().max(200).nullable().optional(), // null clears it
     defaultEventMinutes: z.union([z.literal(15), z.literal(30), z.literal(45), z.literal(60), z.literal(90), z.literal(120), z.literal(180)]).optional(),
     defaultReminderMinutes: z.array(z.number()).optional(),

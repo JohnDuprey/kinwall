@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { setCurrency } from '../src/i18n.ts'
 import { addonsFor, menuOptions, menuSections, optionName, parsePrice, priceLabel, telHref } from '../src/restaurants.ts'
 import type { MenuItem } from '../src/meal-types.ts'
 
@@ -15,6 +16,7 @@ test('restaurants: favorites come first, then sections in the order they appear'
 
 test('restaurants: prices and phone numbers', () => {
   assert.equal(priceLabel(1299), '$12.99'); assert.equal(priceLabel(1200), '$12'); assert.equal(priceLabel(null), null)
+  setCurrency('EUR'); assert.equal(priceLabel(1299), '€12.99'); setCurrency(undefined); assert.equal(parsePrice('12,50 €'), 1250)
   assert.equal(parsePrice('$12.5'), 1250); assert.equal(parsePrice(''), null); assert.equal(parsePrice('cheap'), undefined); assert.equal(parsePrice('3,25'), 325)
   assert.equal(telHref('(555) 010-0100'), 'tel:5550100100'); assert.equal(telHref('call us'), null); assert.equal(telHref(null), null)
 })

@@ -386,6 +386,15 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
         </select>
       </div>
       <div className="settings-row">
+        <div>
+          <label className="settings-row-label" htmlFor="family-currency">{t('Currency')}</label>
+          <div className="settings-row-sub">{t('For prices on restaurant menus.')}</div>
+        </div>
+        <select id="family-currency" className="settings-select" value={settings.currency ?? 'USD'} onChange={e => save({ currency: e.target.value })}>
+          {currencies().map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+        </select>
+      </div>
+      <div className="settings-row">
         <div className="settings-row-label">{t('Timezone')}</div>
         <TimezoneField value={settings.timezone ?? null} onChange={timezone => save({ timezone })} />
       </div>
@@ -1347,6 +1356,12 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
 
 // What people search for when they mean colors and light or dark (Settings' search).
 const THEME_WORDS = [msg('Theme'), msg('Dark mode'), msg('Light mode'), msg('Colors')]
+/** Every currency the browser knows, named in the screen's language ("EUR · Euro"). */
+const currencies = () => {
+  const names = new Intl.DisplayNames(intlLocale(), { type: 'currency' })
+  return Intl.supportedValuesOf('currency').map(code => ({ code, label: `${code} · ${names.of(code) ?? code}` }))
+}
+
 /** Which language this screen shows. On someone's own device it's saved in their profile (it
  * follows them to all their devices); on a wall screen or shared device, on this device only.
  * Either way, nothing picked means the family's language (Household). */

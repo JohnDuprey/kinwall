@@ -51,7 +51,7 @@ import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
 import { MedicationLiveActivity } from './TakeNow.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
-import { intlLocale, lang, msg, pickLang, rememberLang, setLang, t, tc, tn, tm } from './i18n.ts'
+import { intlLocale, lang, msg, pickLang, rememberLang, setCurrency, setLang, t, tc, tn, tm } from './i18n.ts'
 import { dateKey } from './date.ts'
 import { nightFieldsFor, nightSources } from './saverSources.ts'
 import { onMinute } from './minuteTick.ts'
@@ -1241,6 +1241,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // Automatic time format: in English the browser's region decides, as before; in another language
   // that language does (German: 15:40). The device's and family's picks come first.
   setHour12(resolveHour12(settings?.timeFormat, device.timeFormat, lang() === 'en' ? undefined : intlLocale())) // before anything below formats a time
+  setCurrency(settings?.currency) // and a price (restaurants.ts priceLabel)
   const effectiveMemberId = focusMember?.id ?? selectedMemberId
   const setMemberId = focusMember ? () => {} : setSelectedMemberId
   // A wall's picked person lasts until it goes idle (and isn't kept across a reload): while picked,

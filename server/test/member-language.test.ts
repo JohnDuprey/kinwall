@@ -104,3 +104,11 @@ test('family language: travels in the export and comes back on import', async ()
   for (const m of file.members) delete m.language;
   assert.equal((await t.req('/api/import', 'POST', file)).status, 200, 'an export from before languages still imports');
 });
+
+test('currency: USD until a parent picks an ISO 4217 code', async () => {
+  const t = await setup();
+  assert.equal((await t.req('/api/settings')).json.currency, 'USD');
+  assert.equal((await t.req('/api/settings', 'PATCH', { currency: 'EUR' })).status, 200);
+  assert.equal((await t.req('/api/settings')).json.currency, 'EUR');
+  assert.equal((await t.req('/api/settings', 'PATCH', { currency: 'euro' })).status, 400);
+});

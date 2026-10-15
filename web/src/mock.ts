@@ -127,6 +127,7 @@ const settings: Settings = {
   typeface: 'default',
   timeFormat: 'auto',
   language: 'en',
+  currency: 'USD',
   defaultCalendarId: null,
   defaultGroceryStore: null,
   defaultShoppingStore: null,
