@@ -24,6 +24,8 @@ A device without a key shows **Welcome home 👋** with these options:
 * **Enter a key manually**: paste any API key.
 * **Use a recovery code**: see below.
 
+On a screen the size of a TV or large display (1600×900 and up), or one already set to **Use as a wall screen**, **Set up a wall screen or kid's device** comes first as the main button. On big screens this card and the pairing screen's code and QR code are drawn large, to read from across the room.
+
 Passkey sign-in attempts are rate-limited to 20 per 10 minutes per address.
 
 ### Sign-in and setup links

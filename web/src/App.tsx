@@ -509,11 +509,14 @@ const PAIR_POLL_MS = 3000
 /** First screen for a signed-out device. Admins (usually on a phone) sign in with a passkey;
  * a wall display is set up from here via a pairing code. Without passkey support (plain HTTP),
  * pairing is the only way in, so it opens straight to that. */
+/** A screen big enough to be the family wall (a TV or a large display), not a laptop. */
+const WALL_SIZED = '(min-width: 1600px) and (min-height: 900px)'
 function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
   // The app's own "Pair with a code" opens the page with ?start=pair: straight to the code, no second tap.
   const [mode, setMode] = useState<'choose' | 'pair' | 'manual' | 'recovery'>(() => (inNativeApp() && new URLSearchParams(location.search).get('start') === 'pair') || !passkeysSupported() ? 'pair' : 'choose')
   const [error, setError] = useState('')
   const [passkeyBusy, setPasskeyBusy] = useState(false)
+  const [wallFirst] = useState(() => !!readDeviceAppearance().wallScreen || !!window.matchMedia?.(WALL_SIZED).matches)
 
   const signInWithPasskey = async () => {
     setPasskeyBusy(true); setError('')
@@ -544,10 +547,19 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
           <button className="btn btn-primary btn-block" onClick={() => setMode('pair')}>Pair this app</button>
           <p className="gate-note">Parents sign in with a passkey in Safari. Here, pair with a code a parent approves under Settings → Access.</p>
         </> : <>
-          <button className="btn btn-primary btn-block" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in as a parent'}</button>
-          <p className="gate-note">With your passkey. Parents can change everything.</p>
-          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMode('pair')}>Set up a wall screen or kid's device</button>
-          <p className="gate-note">A parent approves it with a code. It gets the calendar, chores and lists, but not settings.</p>
+          {/* On a wall-sized screen (or one already set to act as a wall), setting it up comes first. */}
+          <div className="gate-choices">
+            {[
+              <div key="parent">
+                <button className={`btn ${wallFirst ? 'btn-secondary' : 'btn-primary'} btn-block`} onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in as a parent'}</button>
+                <p className="gate-note">With your passkey. Parents can change everything.</p>
+              </div>,
+              <div key="wall">
+                <button className={`btn ${wallFirst ? 'btn-primary' : 'btn-secondary'} btn-block`} onClick={() => setMode('pair')}>Set up a wall screen or kid's device</button>
+                <p className="gate-note">A parent approves it with a code. It gets the calendar, chores and lists, but not settings.</p>
+              </div>,
+            ][wallFirst ? 'reverse' : 'slice']()}
+          </div>
         </>}
         <div className="gate-links">
           <button className="link-btn" onClick={() => setMode('manual')}>Enter a key manually</button>

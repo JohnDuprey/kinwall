@@ -4096,3 +4096,19 @@ html:root[data-cast] {
 /* The library's shelf switcher (All · Kids · Grown-ups), first in its head row. */
 .lib-head .lib-shelf-pick { flex: none; padding: 2px; }
 .lib-shelf-pick button { min-height: 44px; min-width: 44px; padding: 0 12px; font-size: 0.875rem; white-space: nowrap; }
+
+/* Sign-in and pairing on a wall-sized screen: read from across the room. Wall first puts setting
+   up this screen above signing in as a parent (App.tsx PairingGate). */
+.gate-choices { display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 1200px) and (min-height: 700px) {
+  .gate-card { max-width: 640px; padding: 48px 56px; }
+  .gate-card h1 { font-size: 2.25rem; }
+  .gate-card p, .gate-card .gate-note { font-size: 1.125rem; }
+  .gate-card .btn { min-height: 60px; font-size: 1.125rem; }
+  .pairing-card { max-width: min(1100px, 90vw); }
+  .pairing-card p { font-size: 1.375rem; }
+  .pairing-body { gap: 48px; margin: 16px 0 28px; flex-wrap: nowrap; }
+  .pairing-code { font-size: min(7.5rem, 6vw); padding: 24px 40px; white-space: nowrap; }
+  .pairing-body svg { width: min(300px, 26vh); height: auto; }
+  .gate-links .link-btn { font-size: 1rem; }
+}
