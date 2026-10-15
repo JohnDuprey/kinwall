@@ -599,18 +599,18 @@ export default function Chores() {
 
   return (
     <div className="content">
-      {/* display: contents, except on a phone on its side, where it scrolls the whole view as one. */}
+      {/* Scrolls the whole view as one, the day strip pinned (styles.css). */}
       <div className="chores-scroll">
       <div className="chores-header">
-        {/* Date and Rewards share one row (a phone: short date, icon-only Rewards).
-            Off a phone the leaderboard joins that row when it fits, else takes the next one. */}
+        {/* The date and the buttons share a row (a phone: short date and short words, wrapping
+            when they don't fit). Off a phone the leaderboard takes the next row. */}
         <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
         {!isPhone && leaderboard}
-        {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label="Give points"><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">Give points</span></GivePoints>}
-        {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label="Edit chores" onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">Edit chores</span></button>}
-        {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span></button>}
-        {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">Suggest a chore</span></button>}
-        {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>}
+        {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label="Give points"><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">Give points</span><span className="chores-short-label">Give</span></GivePoints>}
+        {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label="Edit chores" onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">Edit chores</span><span className="chores-short-label">Edit</span></button>}
+        {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span><span className="chores-short-label">Library</span></button>}
+        {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">Suggest a chore</span><span className="chores-short-label">Idea</span></button>}
+        {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span><span className="chores-short-label">Rewards</span></a>}
       </div>
       <div className="date-strip" role="group" aria-label="Day">
         {strip.map(d => (

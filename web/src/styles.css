@@ -1021,7 +1021,6 @@ button.month-cell .month-daynum { flex: none; }
 .chores-header .leaderboard-pill { min-width: 170px; padding-top: 4px; padding-bottom: 4px; }
 .chores-header .lb-avatar { width: 32px; height: 32px; font-size: 1rem; }
 @container chores-header (min-width: 1300px) {
-  .chores-header .leaderboard-strip { order: 0; flex: 1 1 0; }
   .chores-header .leaderboard-pills { justify-content: safe center; }
 }
 .date-strip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 20px 10px; flex-shrink: 0; }
@@ -1080,7 +1079,7 @@ button.month-cell .month-daynum { flex: none; }
   overflow: hidden; white-space: normal; overflow-wrap: anywhere;
 }
 .chore-title.done { text-decoration: line-through; }
-.chore-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chore-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; } /* wraps: the checklist progress at its end is what a kid looks for */
 .who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
 .who-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; padding: 14px 8px; border: none; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; }
 .who-btn:active { transform: scale(0.96); }
@@ -1863,10 +1862,12 @@ button.month-cell .month-daynum { flex: none; }
   .chore-pts { font-size: 0.6875rem; }
   .chore-check { width: 32px; height: 32px; border-width: 2px; }
   /* Date, period switch and Rewards share one row; the day strip is slimmer. */
-  .chores-header { padding: 4px 14px 2px; flex-wrap: nowrap; gap: 8px; }
-  .chores-header .period-label { flex: 1; }
-  .chores-header .chores-rewards-btn { flex: none; width: 44px; height: 44px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; font-size: 1.25rem; }
-  .chores-rewards-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* The buttons keep a short word each ("💡 Idea", "🧰 Library") and wrap under the date when they don't fit. */
+  .chores-header { padding: 4px 14px 2px; gap: 6px 8px; }
+  .chores-header .period-label { flex: 1 0 auto; }
+  .chores-header .chores-rewards-btn { flex: none; min-height: 44px; padding: 6px 12px; gap: 4px; font-size: 0.875rem; }
+  .chores-header .chores-rewards-label { display: none; }
+  .chores-header .chores-short-label { display: inline; }
   .date-strip { padding: 2px 14px 6px; gap: 6px; }
   .date-chip { min-width: 40px; min-height: 44px; padding: 3px 2px; border-radius: 12px; line-height: 1.15; }
   .date-chip .dn { font-size: 0.9375rem; }
@@ -2578,6 +2579,7 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-suggestions { justify-content: center; margin-bottom: 14px; }
 .rewards-suggestions .chip { min-height: 44px; }
 .chores-library-btn + :is(.chores-library-btn, .chores-rewards-btn) { margin-left: 0; } /* Give points, Library and Rewards sit together at the end */
+.chores-short-label { display: none; }
 .chores-rewards-btn { flex: none; margin-left: auto; min-height: 44px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 /* Chore library (ChoreLibrary.tsx): a row per saved chore, with "Again" beside it. */
 .lib-intro { margin: 0 0 12px; }

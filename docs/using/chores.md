@@ -130,7 +130,7 @@ Kids can add their own chores. Maybe piano practice isn't on the chart yet, or t
 
 **For kids**
 
-1. On **Chores**, tap **💡 Suggest a chore**. On a wall screen, pick who you are first.
+1. On **Chores**, tap **💡 Suggest a chore** (**💡 Idea** on a phone). On a wall screen, pick who you are first.
 2. Type the chore, pick an emoji, and use **−** and **+** to say how many points you think it's worth.
 3. Check what fits:
    * **Make it repeat**: pick the days, and if you like a start time and how long it takes ("20 min" for practicing). Tapping the chore later starts that timer.
