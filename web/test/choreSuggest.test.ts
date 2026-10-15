@@ -2,7 +2,7 @@
 // schedule, and the points stepper's range.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { daysText, pointsMax, pointsStart, rruleWeekdays, suggestionDetails, weekdaysRrule } from '../src/choreSuggest.ts'
+import { daysText, praiseFor, pointsMax, pointsStart, rruleWeekdays, suggestionDetails, weekdaysRrule } from '../src/choreSuggest.ts'
 
 test('weekdaysRrule and rruleWeekdays round-trip', () => {
   assert.equal(weekdaysRrule([]), null)
@@ -35,4 +35,9 @@ test('the points stepper follows the family\'s chores', () => {
 test('suggestionDetails lists what a parent needs to see', () => {
   assert.match(suggestionDetails({ rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', dueTime: '16:00', timerMinutes: 20, done: false }), /^Mon–Fri · 4:00\s?PM · 20 min timer$/)
   assert.equal(suggestionDetails({ rrule: null, dueTime: null, timerMinutes: null, done: true }), 'Already done')
+})
+
+test('praise fits the idea: practicing only with a timer', () => {
+  assert.ok(praiseFor({ timerMinutes: 20 }).includes('Proud of you for practicing!'))
+  assert.ok(!praiseFor({ timerMinutes: null }).includes('Proud of you for practicing!'))
 })

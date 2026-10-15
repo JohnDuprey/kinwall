@@ -53,5 +53,9 @@ export function pointsStart(points: number[]): number {
   return Math.min(100, sorted[Math.floor(sorted.length / 2)])
 }
 
-/** Quick notes a parent can tap. */
-export const PRAISE = ['Great idea!', 'Love the initiative!', 'Proud of you for practicing!', 'Thanks for helping out!']
+/** Quick notes a parent can tap on a yes: practicing only for an idea with a timer (piano, reading). */
+export const praiseFor = (s: Pick<ChoreSuggestion, 'timerMinutes'>) =>
+  ['Great idea!', 'Love the initiative!', s.timerMinutes ? 'Proud of you for practicing!' : 'Thanks for helping out!']
+
+/** Kind quick notes for "Not this time". */
+export const NOT_NOW = ["Let's do it on Saturday.", "Let's talk about it at dinner.", 'Thanks for the idea!']

@@ -14,7 +14,7 @@ import { MinusIcon, PlusIcon } from './icons.tsx'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { durationLabel } from './timers.ts'
-import { PRAISE, daysText, pointsMax, pointsStart, rruleWeekdays, suggestionDetails, weekdaysRrule } from './choreSuggest.ts'
+import { NOT_NOW, daysText, praiseFor, pointsMax, pointsStart, rruleWeekdays, suggestionDetails, weekdaysRrule } from './choreSuggest.ts'
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -268,7 +268,7 @@ export function SuggestionAnswerSheet({ s, mode, onClose, onDone }: { s: ChoreSu
       <div className="field">
         <label htmlFor="answer-note">A note to {kid} (optional)</label>
         <div className="chip-row suggest-praise">
-          {PRAISE.map(p => <button key={p} type="button" className="chip" onClick={() => tapChip(p)}>{p}</button>)}
+          {(yes ? praiseFor(s) : NOT_NOW).map(p => <button key={p} type="button" className="chip" onClick={() => tapChip(p)}>{p}</button>)}
         </div>
         <input id="answer-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} autoComplete="off"
           placeholder={yes ? 'Why the points, or a cheer' : "Let's talk about it at dinner"} onKeyDown={e => { if (e.key === 'Enter') void go() }} />

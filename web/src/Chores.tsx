@@ -25,7 +25,7 @@ import { ChoreTimerText, startChoreTimer } from './ChoreTimer.tsx'
 import { formatTime } from './timeFormat.ts'
 import { durationLabel } from './timers.ts'
 import { PointsStepper, SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
-import { suggestionDetails } from './choreSuggest.ts'
+import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 
@@ -426,6 +426,9 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
           <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.title}: {notThisTime.shares ? 'everyone chipping in gets their points back' : `${name(notThisTime)} gets their ${notThisTime.cost} points back`}. They'll see your note.</p>
           <div className="field">
             <label htmlFor="notthistime-note">Note (optional)</label>
+            <div className="chip-row suggest-praise">
+              {NOT_NOW.map(p => <button key={p} type="button" className="chip" onClick={() => setNote(p)}>{p}</button>)}
+            </div>
             <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Let's do it on Saturday" autoComplete="off"
               onKeyDown={e => { if (e.key === 'Enter') sendRewardBack() }} />
           </div>

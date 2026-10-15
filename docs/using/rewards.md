@@ -82,7 +82,7 @@ Requests wait in two places, and deciding in either one is enough:
 * **To approve** at the top of the **Chores** screen, next to chores waiting for an OK. They count only in the Rewards badge, so each request is counted once.
 
 * **Approve**: it's on. The points stay spent.
-* **Not this time**: opens a sheet for an optional note ("Let's do it on Friday"). The points go back, and the person's own devices get a notification with the note.
+* **Not this time**: opens a sheet for an optional note ("Let's do it on Friday"), with a few kind ones to tap. The points go back, and the person's own devices get a notification with the note.
 * Approved rewards stay in the section until you tap **Given** once you've handed it over. **Cancel** gives the points back instead, for one that won't happen after all.
 
 Rewards that don't need an OK also show here as approved, so you can mark them given.
