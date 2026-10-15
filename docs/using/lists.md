@@ -161,7 +161,7 @@ On a Groceries or Shopping list, the name in **Add item** suggests names your fa
 Each shopping list type has its own catalog: the **Grocery catalog** for Groceries lists and the **Shopping catalog** for Shopping lists. Tap **Catalog** on a list to open its type's catalog and see everything your family has bought before on lists of that type, A to Z, with its department, its categories (🏷️), how many times it was bought, and where it's found at each store ("Warehouse club · Aisle 12", "Neighborhood market · Dairy").
 
 * **Find an item** searches names; capitals and simple plurals don't matter.
-* **Filter & sort** opens a sheet with everything that narrows or orders the list. Changes show in the catalog behind it right away; tap **Done** when you're finished. The button shows how many filters are on (**2**, say).
+* **Filter and sort** opens a sheet with everything that narrows or orders the list. Changes show in the catalog behind it right away; tap **Done** when you're finished. The button shows how many filters are on (**2**, say).
   * **Store** (**All stores**, then each store) shows only what's found at that store.
   * **Category** (**All categories**, then each category with how many items are in it) shows only that category.
   * **Department** (**All departments**, then each department with its count) shows only that department.
@@ -203,7 +203,7 @@ During a trip:
 * Tapping one on the list page opens its own list. **Didn't find these?** only asks about this list's items.
 * Each list type keeps its own aisle order for a store, so the trip follows the order of the list you started from.
 
-The **View** button (grouping, sort, store) is hidden during a trip, since the store's aisle order is the order.
+The **Filter and sort** button (grouping, sort, store) is hidden during a trip, since the store's aisle order is the order.
 
 You can also shop at **Any store**: nothing is tied to one store's layout, so the list goes store by store, each in its own aisle order.
 
@@ -273,7 +273,7 @@ Each mark has its own shape and word, so priority never depends on telling red f
 
 ## Sorting
 
-**View** (the filter button next to **Shop** on a shopping list, or next to **+** on other lists) opens **Group by** (shopping lists), **Sort** and **Show store** (shopping lists with stores). Group and sort are saved on the list, so every screen shows the same order; the store you show is just for this screen. **Reset** goes back to a new list's grouping and sort, and all stores.
+**Filter and sort** (the funnel button next to **Shop** on a shopping list, or next to **+** on other lists) opens **Group by** (shopping lists), **Sort** and **Show store** (shopping lists with stores). Group and sort are saved on the list, so every screen shows the same order; the store you show is just for this screen. **Reset** goes back to a new list's grouping and sort, and all stores.
 
 When anything differs from a new list of that kind (grouped by aisle and sorted by aisle for shopping, not grouped and in your order for the rest), the button shows how many settings are changed, and one line under it sums them up, for example "Grouped by store · Neighborhood market only". Tap the line to change them. The button is hidden while a list is empty.
 
@@ -305,9 +305,9 @@ Break a bigger job into steps ("Tidy the living room": fold blankets, fluff cush
 
 ## Groups and order
 
-* On shopping lists, **View** → **Group by** switches between Store, Aisle and None. **Aisle** groups are per store ("Neighborhood market · Produce"), in store order and then the store's aisle order; an item with no aisle groups under its department's aisle when the store has one. **Reorder stores** (under Group by) lets you arrange the store groups in the order you shop them, then **Save order**. Shopping lists don't group by department: the department fills in the aisle instead, and a list grouped by category from before switches to Aisle.
+* On shopping lists, **Filter and sort** → **Group by** switches between Store, Aisle and None. **Aisle** groups are per store ("Neighborhood market · Produce"), in store order and then the store's aisle order; an item with no aisle groups under its department's aisle when the store has one. **Reorder stores** (under Group by) lets you arrange the store groups in the order you shop them, then **Save order**. Shopping lists don't group by department: the department fills in the aisle instead, and a list grouped by category from before switches to Aisle.
 * Items added from [Meals](meals.md#adding-to-the-grocery-list) show which meals they're for ("For Taco night").
-* **View** → **Show store** shows one store at a time (items with no store stay), or **All stores**.
+* **Filter and sort** → **Show store** shows one store at a time (items with no store stay), or **All stores**.
 * **Drag** an item by its grip to reorder it within its group (Manual sort only). Other groups and done items keep their places. The keyboard alternative is Move up / Move down in the item sheet.
 
 ## Linking items to events

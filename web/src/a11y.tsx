@@ -151,3 +151,7 @@ export function LoadError({ what, onRetry, error }: { what: string; onRetry: () 
   useEffect(() => { if (error) console.error(`Couldn't load ${what}:`, error) }, [error, what])
   return <div className="state-card" role="alert">{loadErrorText(what)} <button className="btn btn-secondary" onClick={onRetry}>Try again</button></div>
 }
+
+/** The filter button's name on Calendar, Contacts, Lists, Library and Outings (their sheets are
+ * titled "Filter and sort"): "Filter and sort, 2 on". */
+export const filterSortLabel = (on: number) => (on ? `Filter and sort, ${on} on` : 'Filter and sort')

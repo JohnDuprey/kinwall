@@ -15,7 +15,7 @@ import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
 import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, genreOptions, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, onShelf, SHELF_LABEL, startShelf, type ShelfPick, SORT_LABEL, sortLibrary, STATUS_LABEL, type LibraryFilters, type LibrarySort, type LibraryStatus } from './library.ts'
 import type { LibraryFormat, LibraryShelf as BookShelf } from './types.ts'
-import { announce } from './a11y.tsx'
+import { announce, filterSortLabel } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
 import { ChipFace } from './Face'
@@ -189,7 +189,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   // The search row; on a phone it goes up beside the view picker (Trackers' bar slot).
   const searchBar = <div className="lib-bar">
     <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, genres'} value={q} onChange={e => setQ(e.target.value)} />
-    <button type="button" className={`icon-btn filter-btn lib-filter-btn ${badge ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={`Sort and filters${sorted ? `, sorted by ${SORT_LABEL[sort!]}` : ''}${on ? `, ${on} filters on` : ''}`}>
+    <button type="button" className={`icon-btn filter-btn lib-filter-btn ${badge ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={filterSortLabel(badge)}>
       <FilterIcon width={20} height={20} />
       {badge > 0 && <span className="filter-badge" aria-hidden="true">{badge}</span>}
     </button>
@@ -199,7 +199,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     <div className="lib">
       {bar === undefined ? searchBar : bar && createPortal(searchBar, bar)}
       {filtering && (
-        <Sheet title="Filters" onClose={() => setFiltering(false)} actions={<>
+        <Sheet title="Filter and sort" onClose={() => setFiltering(false)} actions={<>
           {on > 0 && <button className="btn btn-secondary" onClick={() => setFilters(NO_FILTERS)}>Clear</button>}
           <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
         </>}>

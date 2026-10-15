@@ -186,7 +186,7 @@ On phones, Home's toolbar is one row: **Board | Newscast**, then **Polls**, **Ou
 
 ### By category
 
-When any categories exist, a **filter** button (the funnel) appears in Calendar's toolbar. It opens **Show categories**. On Home, the categories are in **Layout and filter** (the sliders), under the layouts:
+When any categories exist, a **filter** button (the funnel) appears in Calendar's toolbar. It's named **Filter and sort** and opens the **Filter and sort** sheet with the categories. On Home, the categories are in **Layout and filter** (the sliders), under the layouts:
 
 * Pick one or more categories. **No category** matches events without one.
 * With nothing picked, every event shows. **Show all** clears the selection.

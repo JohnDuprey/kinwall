@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import { announce, LoadError } from './a11y.tsx'
+import { announce, filterSortLabel, LoadError } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
@@ -356,7 +356,7 @@ function FiltersSheet({ filters, categories, onChange, onClose }: { filters: Con
   const id = useId()
   const set = <K extends keyof ContactFilters>(key: K, value: ContactFilters[K]) => onChange({ ...filters, [key]: value })
   const options = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)
-  return <Sheet title="Filters" onClose={onClose} actions={<>
+  return <Sheet title="Filter and sort" onClose={onClose} actions={<>
     <button className="btn btn-secondary" onClick={() => onChange(DEFAULT_CONTACT_FILTERS)} disabled={contactFilterSummary(filters, () => '') === ''}>Clear filters</button>
     <button className="btn btn-primary" onClick={onClose}>Done</button>
   </>}>
@@ -444,7 +444,7 @@ export default function Contacts() {
         <div className="contacts-tools">
           <input type="search" aria-label="Search contacts" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search contacts" />
           <button className={`icon-btn filter-btn contacts-filter-btn ${activeFilters ? 'active' : ''}`} onClick={() => setSheet('filters')}
-            aria-label={activeFilters ? `Filters, ${activeFilters} on` : 'Filters'}>
+            aria-label={filterSortLabel(activeFilters)}>
             <FilterIcon width={20} height={20} />
             {activeFilters > 0 && <span className="filter-badge" aria-hidden="true">{activeFilters}</span>}
           </button>

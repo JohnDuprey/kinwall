@@ -14,7 +14,7 @@ import { isSingleEmoji } from './emoji.ts'
 import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
 import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
-import { announce, pressable, Segmented } from './a11y.tsx'
+import { announce, filterSortLabel, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
@@ -730,7 +730,7 @@ function ReorderGroupsSheet({ listId, groupBy, names, onClose, onSaved }: {
   )
 }
 
-/** Group, Sort and Show store for the list page (Filters button; Contacts uses the same pattern). */
+/** Group, Sort and Show store for the list page (the Filter and sort button; Contacts uses the same pattern). */
 function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onReorder, onClose }: {
   list: List; stores: string[]; store: string | null; onStore: (s: string | null) => void
   onGroupBy: (g: ListGroupBy) => void; onSortBy: (s: ListSortBy) => void; onReorder?: () => void; onClose: () => void
@@ -739,7 +739,7 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
   const def = listViewDefaults(list.kind)
   const changed = list.groupBy !== def.groupBy || list.sortBy !== def.sortBy || store !== null
   return (
-    <Sheet title="View" onClose={onClose} actions={<>
+    <Sheet title="Filter and sort" onClose={onClose} actions={<>
       <button className="btn btn-secondary" disabled={!changed} onClick={() => { if (shopping && list.groupBy !== def.groupBy) onGroupBy(def.groupBy); if (list.sortBy !== def.sortBy) onSortBy(def.sortBy); onStore(null) }}>Reset</button>
       <button className="btn btn-primary" onClick={onClose}>Done</button>
     </>}>
@@ -1161,7 +1161,7 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
 
 /** A list type's catalog (Grocery or Shopping): everything the family has bought before on lists of that type, its department, the family's own
  * categories and where it's found at each store. Search; filter by store, category and department
- * (they combine) and sort and group (kept per device) in the Filter & sort sheet, which applies live over it;
+ * (they combine) and sort and group (kept per device) in the Filter and sort sheet, which applies live over it;
  * add one to this list, or tap it to edit (a sheet in place). */
 function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisleOrder, onClose, onChanged }: {
   catalog: ListCatalog; listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
@@ -1175,7 +1175,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   const [tag, setTag] = useState<string | null>(null)
   const [department, setDepartment] = useState<string | null>(null)
   const [view, setView] = useState(catalogView)
-  const [filtering, setFiltering] = useState(false) // the Filter & sort sheet, over this one
+  const [filtering, setFiltering] = useState(false) // the Filter and sort sheet, over this one
   const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | 'stores' | null>(null)
   const load = () => api.getRemembered(catalog).then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1230,9 +1230,9 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
     <Sheet title={catalogName(catalog)} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="catalog-bar">
         <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an item…" aria-label="Find an item" autoComplete="off" />
-        <button className="btn btn-secondary catalog-options-btn" onClick={() => setFiltering(true)} aria-haspopup="dialog" title="Filter & sort"
-          aria-label={`Filter and sort${active ? `, ${active} ${active === 1 ? 'filter' : 'filters'} on` : ''}`}>
-          <FilterIcon width={18} height={18} /><span className="catalog-options-label">Filter & sort</span>{active > 0 && <span className="catalog-options-on" aria-hidden="true">{active}</span>}
+        <button className="btn btn-secondary catalog-options-btn" onClick={() => setFiltering(true)} aria-haspopup="dialog" title="Filter and sort"
+          aria-label={filterSortLabel(active)}>
+          <FilterIcon width={18} height={18} /><span className="catalog-options-label">Filter and sort</span>{active > 0 && <span className="catalog-options-on" aria-hidden="true">{active}</span>}
         </button>
         {!kid && <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>}
       </div>
@@ -1243,7 +1243,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
         </div>
       )}
       {filtering && (
-        <Sheet title="Filter & sort" onClose={() => setFiltering(false)} actions={<>
+        <Sheet title="Filter and sort" onClose={() => setFiltering(false)} actions={<>
           <button className="btn btn-secondary" disabled={!active && sort === 'alpha' && view.group === 'none'} onClick={() => { clearFilters(); changeView({ sort: 'alpha', group: 'none' }) }}>Reset</button>
           <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
         </>}>
@@ -2056,7 +2056,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   ].filter(Boolean).join(' · ')
   const viewButton = (
     <button className={`icon-btn filter-btn list-view-btn ${viewCount ? 'active' : ''}`} onClick={() => setViewing(true)} aria-haspopup="dialog"
-      aria-label={viewCount ? `View options, ${viewCount} changed` : 'View options'}>
+      aria-label={filterSortLabel(viewCount)}>
       <FilterIcon width={20} height={20} />
       {viewCount > 0 && <span className="filter-badge" aria-hidden="true">{viewCount}</span>}
     </button>

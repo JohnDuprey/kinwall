@@ -13,7 +13,7 @@ import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.t
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery, useScreenK } from './useIsPhone.ts'
 import { castScale } from './cast.ts'
-import { announce, LoadError, pressable, Segmented, useRovingGrid } from './a11y.tsx'
+import { announce, filterSortLabel, LoadError, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
@@ -467,7 +467,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
             {viewMode === 'board' && !locked && settings.features.outings !== false && <OutingsButton />}
             {viewMode === 'board' && (
               <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)} aria-haspopup="dialog"
-                aria-label={locked ? (activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category')
+                aria-label={locked ? filterSortLabel(activeCategoryFilter.length)
                   : activeCategoryFilter.length ? `Layout and filter: ${activeCategoryFilter.length} categories` : 'Layout and filter'}>
                 {locked ? <FilterIcon width={20} height={20} /> : <SlidersIcon width={20} height={20} />}
                 {activeCategoryFilter.length > 0 && <span className="filter-badge" aria-hidden="true">{activeCategoryFilter.length}</span>}
@@ -504,7 +504,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
             )}
             {categories.length > 0 && (
               <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)} aria-haspopup="dialog"
-                aria-label={activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category'}>
+                aria-label={filterSortLabel(activeCategoryFilter.length)}>
                 <FilterIcon width={20} height={20} />
                 {activeCategoryFilter.length > 0 && <span className="filter-badge" aria-hidden="true">{activeCategoryFilter.length}</span>}
               </button>
@@ -516,7 +516,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       {filterOpen && (
         // Home's is Layout and filter: this screen's Board layout, then the categories. Calendar's
         // (and a locked Home's) is the categories alone. One category filter per device, for both.
-        <Sheet title={home && !locked ? 'Layout and filter' : 'Show categories'} onClose={() => setFilterOpen(false)}
+        <Sheet title={home && !locked ? 'Layout and filter' : 'Filter and sort'} onClose={() => setFilterOpen(false)}
           actions={<>
             {categories.length > 0 && <button className="btn btn-secondary" onClick={() => setCategoryFilter([])} disabled={activeCategoryFilter.length === 0}>Show all</button>}
             <button className="btn btn-primary" onClick={() => setFilterOpen(false)}>Done</button>

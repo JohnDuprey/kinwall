@@ -8,7 +8,7 @@ Contacts support multiple categories, tags, phone numbers (each with an optional
 
 ## Finding a contact
 
-Search by name, place or phone number. Tap the **Filters** button next to the search to sort the list and narrow it by **Show** (all contacts, favorites, emergency or on wall), **Contact kind** and **Category**. Changes apply right away; **Clear filters** puts everything back. While a filter is on, the button shows how many are on and a line under the search lists them; tap that line to change them. Filters reset when you leave the page.
+Search by name, place or phone number. Tap the **Filter and sort** button (the funnel) next to the search to sort the list and narrow it by **Show** (all contacts, favorites, emergency or on wall), **Contact kind** and **Category**. Changes apply right away; **Clear filters** puts everything back. While a filter is on, the button shows how many are on and a line under the search lists them; tap that line to change them. Filters reset when you leave the page.
 
 A link to `#/contacts?contact=<contact id>` opens that contact (Spotlight and Siri in the phone app use it). An id that doesn't exist, or a contact this device can't see, just opens Contacts.
 

@@ -11,7 +11,7 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { useDialog } from './dialog.tsx'
-import { LoadError, Segmented } from './a11y.tsx'
+import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import PickField from './PickField.tsx'
 import { Face } from './Face'
@@ -220,7 +220,7 @@ export default function Outings() {
     </section> : <section role="tabpanel" aria-labelledby={`outings-tab-${view}`}>
       <div className="outing-filter-bar">
         {chips.map(c => <button key={c.label} type="button" className="btn btn-secondary outing-chip" aria-label={`Remove filter: ${c.label}`} onClick={() => setFilters(c.without)}>{c.label} <span aria-hidden="true">✕</span></button>)}
-        <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> Filters{chips.length ? ` (${chips.length})` : ''}</button>
+        <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" aria-label={filterSortLabel(chips.length)} onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> Filter and sort{chips.length ? ` (${chips.length})` : ''}</button>
       </div>
       {who.parent && view === 'upcoming' && <Pile categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
       {error && <LoadError what="outings" error={error} onRetry={retry} />}
@@ -253,7 +253,7 @@ function FiltersSheet({ value, place, categories, count, onClose, onApply, onEdi
   const [f, setF] = useState(value)
   const person = members.find(m => m.id === f.who)
   const n = count(f)
-  return <Sheet title="Filters" onClose={onClose} actions={<>
+  return <Sheet title="Filter and sort" onClose={onClose} actions={<>
     <button className="btn btn-secondary" onClick={() => setF({ ...startFilters(null) })}>Clear</button>
     <button className="btn btn-primary" onClick={() => onApply(f)}>Show {n} {place ? `place${n === 1 ? '' : 's'}` : `outing${n === 1 ? '' : 's'}`}</button>
   </>}>

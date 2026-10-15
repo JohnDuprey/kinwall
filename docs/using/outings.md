@@ -22,7 +22,7 @@ Each row shows the category's emoji, when and where, the cost (**Free**, or the 
 
 ## Filters
 
-Tap **Filters**:
+Tap **Filter and sort**:
 
 * **When**: any time, this weekend, the next 7 or 30 days, or past (Upcoming only).
 * **Categories**: one or more.
