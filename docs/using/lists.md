@@ -154,7 +154,7 @@ On a Groceries or Shopping list, the name in **Add item** suggests names your fa
 * **Rename** changes the name on every list of this type and in its catalog. Rename "Corner store" to "Neighborhood market" once and every grocery item follows.
 * The trash button **removes** a name: it's cleared from every item of this type that uses it and forgotten.
 * A store you use for both types (a supercenter, say) shows on both, and each type keeps its own aisles and walking order there. Renaming or removing it from one type leaves the other alone.
-* **Aisles**: pick a store, then drag its aisles into the order you walk the store, for example Produce, Bakery, Deli, Meat, Aisle 3 to Aisle 18 with Frozen in the middle, Dairy, Pharmacy. Aisles don't have to be numbers, and one no item uses yet can be added here so it's in the dropdown. **Aisle** sort and grouping follow this order; aisles you haven't placed come after, in natural order.
+* **Aisles**: pick a store, then drag its aisles (or use **↑** and **↓**) into the order you walk the store, for example Produce, Bakery, Deli, Meat, Aisle 3 to Aisle 18 with Frozen in the middle, Dairy, Pharmacy. Aisles don't have to be numbers, and one no item uses yet can be added here so it's in the dropdown. **Aisle** sort and grouping follow this order; aisles you haven't placed come after, in natural order.
 
 ### Catalogs
 

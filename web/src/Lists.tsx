@@ -1125,6 +1125,19 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
     try { await api.setStoreAisles(store, next, catalog); onChanged() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the aisle order', true); setOverride(null) }
   }
+  // ↑/↓ on each aisle (as in Edit lists): reordering without dragging inside a scrolling sheet.
+  const nudgeAisle = (i: number, dir: -1 | 1) => {
+    const j = i + dir
+    if (j < 0 || j >= aisles.length) return
+    const next = [...aisles]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    saveOrder(next)
+    announce(`${aisles[i]} moved to position ${j + 1} of ${aisles.length}`)
+  }
+  const aisleMoves = (a: string, i: number) => <>
+    <button className="icon-btn" onClick={() => nudgeAisle(i, -1)} disabled={i === 0} aria-label={`Move ${a} up`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
+    <button className="icon-btn" onClick={() => nudgeAisle(i, 1)} disabled={i === aisles.length - 1} aria-label={`Move ${a} down`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
+  </>
   const addAisle = () => {
     const name = newAisle.trim()
     if (!name || aisles.includes(name)) return
@@ -1165,8 +1178,8 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
           </select>
         </div>
       )}
-      <p className="field-hint">Drag the aisles into the order you walk {store ?? 'the store'}. Aisle sort follows it.</p>
-      <DragList items={aisles.map(a => ({ id: a, title: a }))} onReorder={saveOrder} renderRow={(a, handle) => row('aisle', a.id, handle)} />
+      <p className="field-hint">Put the aisles in the order you walk {store ?? 'the store'} (drag them, or use ↑ and ↓). Aisle sort follows it.</p>
+      <DragList items={aisles.map(a => ({ id: a, title: a }))} onReorder={saveOrder} renderRow={(a, handle) => row('aisle', a.id, <>{aisleMoves(a.id, aisles.indexOf(a.id))}{handle}</>)} />
       <div className="list-add-bar step-add">
         <input type="text" value={newAisle} onChange={e => setNewAisle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addAisle() }} maxLength={60}
           placeholder={`Add an aisle${store ? ` at ${store}` : ''}…`} aria-label={`Add an aisle${store ? ` at ${store}` : ''}`} enterKeyHint="done" />
