@@ -1287,7 +1287,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
   const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'insights' ? 'Insights' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Home'
   const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
-  // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
+  // "Chores · Our Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
   useEffect(() => { document.title = inApp ? `${tabLabel} · ${familyName || 'Kinwall'}` : 'Kinwall' }, [tabLabel, inApp, familyName])
 
