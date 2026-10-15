@@ -46,7 +46,7 @@ Wall screens and kids' devices can't add, edit or remove rewards.
 
 Each reward card shows its cost and, for a limited one, how much is used ("1 of 3 today").
 
-* **Get it** asks first: "Spend 50 points on 🍦 Ice cream trip? Leo will have 20 left."
+* **Get it** asks first: "Spend 50 points on 🍦 Ice cream trip? Leo will have 20 left." When they're saving for something else, it says how far that goal will be ("Saving for 🍿 Movie night pick will be 80 points away"), and when they've promised points to someone's split that's still waiting, that the spend leaves too few for it.
 * The points come off right away. If the reward needs a parent's OK, they're set aside while it waits, and come back if a parent says not this time.
 * Short of points, the card shows a progress bar and how many more points it needs instead.
 * Once a limit is used up, the card says "That's all for today" (or "this week") until the next day or week starts. Days and weeks follow the family's timezone and first day of the week. Requests a parent said no to don't count.
@@ -61,7 +61,7 @@ A bigger reward can be shared: Sam and Leo can put their points together for a 3
 * Pick **who's chipping in**. Nobody else is picked to start: whoever asks chooses who to ask. Each person's points start as an even split (whoever has fewer gives what they have, the rest cover the difference). **−** and **+** next to a person move points between them and the others, so the total keeps adding up (5 at a time for a reward of 50 points or more). The sheet says when it adds up ("✓ Adds up to 300 points"), and in red with ⚠️ how many more are needed or how many too many. Nobody can give more than they have.
 * On a **parent's device**, **Get it** takes everyone's points at once and it's approved straight away.
 * Anywhere else (a wall screen or a kid's device), **Ask a grown-up** takes only the asker's points now. The request always waits for a parent, even for a reward that doesn't need an OK, because the others haven't agreed yet. When a parent approves, everyone else's share comes off. If someone has spent their points meanwhile, approving says so ("Leo has only 40 points now, not 100") and nothing changes: say not this time, or wait until they've earned more.
-* Everyone chipping in sees the request in their own **Waiting for a grown-up** and **Recent**, with who's paying what ("300 points: Sam 200 + Leo 100"). Only the person who asked can cancel it while it waits.
+* Everyone chipping in sees the request in their own **Waiting for a grown-up** and **Recent**, and under their balance what they've promised ("🤝 40 promised to Leo's 🍿 Movie night pick") until a grown-up decides, with who's paying what ("300 points: Sam 200 + Leo 100"). Only the person who asked can cancel it while it waits.
 * **Not this time** (or **Cancel** on an approved one) gives every share back that was taken, and each person's own devices are told what came back to them.
 * Each share is its own line in that person's points ledger. A reward's daily or weekly limit counts for the person who asked.
 

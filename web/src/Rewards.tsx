@@ -93,9 +93,13 @@ function RewardsPanel({ member }: { member: Member }) {
 
   const redeem = async (r: Reward) => {
     const waits = r.needsApproval && !parentDevice
+    const left = balance - r.cost
+    const g = member.rewardGoal
+    const goalLine = g && g.rewardId !== r.id && left < g.cost ? ` Saving for ${rewardLabel(g)} will be ${plural(g.cost - left, 'point')} away.` : ''
+    const promiseLine = promisedTotal > left ? ` That leaves too few for the ${promisedTotal} promised to ${promised.map(x => x.to).join(' and ')}.` : ''
     if (!await dialog.confirm({
       title: `Spend ${plural(r.cost, 'point')} on ${rewardLabel(r)}?`,
-      body: `${member.name} will have ${balance - r.cost} left.${waits ? ' A grown-up will OK it first.' : ''}`,
+      body: `${member.name} will have ${left} left.${goalLine}${promiseLine}${waits ? ' A grown-up will OK it first.' : ''}`,
       confirmLabel: 'Get it',
     })) return
     try {
@@ -143,6 +147,10 @@ function RewardsPanel({ member }: { member: Member }) {
 
   const goal = member.rewardGoal ?? null
   const list = rewards ?? []
+  // Shares of someone else's split still waiting for a yes: not taken yet, but promised.
+  const promised = history.filter(h => h.status === 'pending' && h.memberId !== member.id && h.shares)
+    .flatMap(h => h.shares!.filter(x => x.memberId === member.id).map(x => ({ points: x.points, to: members.find(m => m.id === h.memberId)?.name ?? 'someone', h })))
+  const promisedTotal = promised.reduce((n, x) => n + x.points, 0)
   const groups = [
     { key: 'ready', title: 'Ready now', items: list.filter(r => !usedUp(r) && r.cost <= balance) },
     { key: 'saving', title: 'Keep saving', items: list.filter(r => !usedUp(r) && r.cost > balance) },
@@ -186,6 +194,7 @@ function RewardsPanel({ member }: { member: Member }) {
         <Face m={member} className="rewards-avatar" aria-hidden="true" />
         <div className="rewards-hero-text">
           <p className="rewards-balance"><strong>{member.name}</strong> has <strong className="rewards-points">{plural(balance, 'point')}</strong></p>
+          {promised.map(x => <p key={x.h.id} className="rewards-how rewards-promised">🤝 {x.points} promised to {x.to}'s {rewardLabel(x.h)}</p>)}
           <p className="rewards-how">Earn points by doing <a href="#/chores">chores</a>. Spend them on rewards{settings.stickersEnabled ? ' and sticker packs' : ''}.</p>
           <button type="button" className="link-btn rewards-ledger-btn" aria-haspopup="dialog" onClick={() => setLedger(true)}>Points history</button>
         </div>
