@@ -2,7 +2,6 @@
 // leave-by / start-prep Live Activity, composed from parts (opener, core, hint, emoji).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { calmNudge, compose, medFollowup, MED_FOLLOWUPS, mealName, CORES, EMOJI, GENERAL_HINTS, HINT_SETS, hintSet, NUDGE_MEMORY, nudge, nudgeStage, OPENERS, pickNudge, rememberNudge, stepHint, type Nudge, type NudgeKind, type NudgeSeen, type NudgeStage } from '../src/nudges.ts';
 
 const KINDS: NudgeKind[] = ['leave', 'prep', 'start'];
@@ -177,9 +176,4 @@ test('nudges: low stimulation is one plain line', () => {
   assert.equal(pickNudge({ kind: 'leave', title: 'Soccer', minutes: 10, at: '3:40 PM', seed: 'b', calm: true }).seen, null, 'nothing to remember');
   assert.equal(calmNudge('prep', 'Tacos', 0), 'Start prep for Tacos now');
   assert.equal(calmNudge('start', 'Piano', 5), 'Piano in 5 min');
-});
-
-test('nudges: the web app\'s copy is identical', () => {
-  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
-  assert.equal(read('../../web/src/nudges.ts'), read('../src/nudges.ts'), 'copy server/src/nudges.ts to web/src/nudges.ts');
 });

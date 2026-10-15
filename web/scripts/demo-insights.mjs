@@ -8,6 +8,7 @@
 import { writeFileSync } from 'node:fs'
 import { analyze } from '../../server/src/insights.ts'
 import { battery, calibrate, CALIBRATE_DAYS, FORECAST_DAYS, HISTORY_DAYS, RECENT_DAYS } from '../../server/src/battery.ts'
+import { LANGS, words } from '../../server/src/i18n.ts'
 
 const DAYS = 42
 let seed = 8
@@ -49,10 +50,12 @@ for (let ago = DAYS - 1; ago >= 0; ago--) {
 const RANGES = { '4w': 28, '3m': 91, '1y': 364 }
 const blank = (ago) => ({ ago, checkedIn: false, sleep: null, feelings: [], goalSet: false, goalOutcome: null, journalEntries: 0, journalMoods: [], chores: 0, points: 0, activityMinutes: 0, booksFinished: 0, events: 0, lastEventEnd: null })
 const dated = (list) => list.map((d) => ({ ...d, date: new Date(Date.UTC(2026, 0, 1) - d.ago * 86_400_000).toISOString().slice(0, 10) }))
-const analysis = Object.fromEntries(Object.entries(RANGES).map(([range, n]) => {
+// In each language the server writes (server/src/locales), so a German demo reads German.
+const analysisIn = (lang) => Object.fromEntries(Object.entries(RANGES).map(([range, n]) => {
   const series = Array.from({ length: n }, (_, i) => days.find((d) => d.ago === n - 1 - i) ?? blank(n - 1 - i))
-  return [range, analyze(dated(series))]
+  return [range, analyze(dated(series), true, lang)]
 }))
+const analysis = analysisIn('en')
 
 // The battery: her days' events rebuilt from the counts (the last one ends at lastEventEnd), then a
 // full day tomorrow and calmer ones after. `ago` below 0 is a day ahead.
@@ -82,20 +85,55 @@ const word = (level) => (level >= 75 ? 'full' : level >= 50 ? 'ok' : level >= 25
 const felt = Object.fromEntries(battery(batteryInputs, batteryToday).days
   .filter((d) => { const ago = agoOf(d.date); return ago >= 1 && ago <= 20 && days.find((x) => x.ago === ago)?.checkedIn })
   .map((d) => [d.date, word(Math.max(0, d.level - 20))]))
-const b = battery(batteryInputs, batteryToday, calibrate(battery(batteryInputs, batteryToday).days, felt, batteryToday))
-const mayaBattery = {
-  days: b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)).map(({ date, ...d }) => ({ ago: agoOf(date), ...d, felt: felt[date] ?? null })),
-  warnings: b.warnings.map(({ date, ...w }) => ({ ago: agoOf(date), ...w })),
+const batteryIn = (lang) => {
+  const b = battery(batteryInputs, batteryToday, calibrate(battery(batteryInputs, batteryToday).days, felt, batteryToday), lang)
+  return {
+    days: b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)).map(({ date, ...d }) => ({ ago: agoOf(date), ...d, felt: felt[date] ?? null })),
+    warnings: b.warnings.map(({ date, ...w }) => ({ ago: agoOf(date), ...w })),
+  }
 }
+const mayaBattery = batteryIn('en')
+const perLang = (f) => Object.fromEntries(LANGS.map((l) => [l, f(l)]))
+
+// The demo newscast's lines (src/mock.ts DEMO_NEWS), written the way routes/newscast.ts writes them.
+const NEWS = {
+  'chores:m4:0': ['tn', 4, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Leo' }],
+  'drawings:m3:0': ['t', '{name} saved a drawing: “{caption}”', { name: 'Maya', caption: 'Our garden at night' }],
+  'book:demo1': ['t', '{name} finished {book}', { name: 'Maya', book: "Charlotte's Web" }],
+  'chores:m1:0': ['tn', 2, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Alex' }],
+  'reward:demo1': ['t', '{name} got a reward: {reward}', { name: 'Leo', reward: '🍦 Ice cream trip' }],
+  'photos:m1:1': ['tn', 3, '{name} added {n} photo', '{name} added {n} photos', { name: 'Alex' }],
+  'chores:m3:1': ['tn', 3, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Maya' }],
+  'memory:demo1': ['t', '{name} added a memory', { name: 'Sam' }],
+  'book:demo2': ['t', '{name} finished {book}', { name: 'Leo', book: 'Frog and Toad Are Friends' }],
+  'chores:m4:2': ['tn', 3, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Leo' }],
+  'chores:m2:2': ['tn', 2, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Sam' }],
+  'photos:family:3': ['tn', 2, '{n} new photo', '{n} new photos', {}],
+  'reward:demo2': ['t', '{name} got a reward: {reward}', { name: 'Maya', reward: '🎬 Movie night pick' }],
+  'chores:m3:3': ['tn', 5, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Maya' }],
+  'chores:m4:4': ['t', '{name} finished {chore}', { name: 'Leo', chore: 'Feed the cat' }],
+  'drawings:m4:5': ['t', '{name} saved a drawing: “{caption}”', { name: 'Leo', caption: 'Rocket to the moon' }],
+  'chores:m1:5': ['t', '{name} finished {chore}', { name: 'Alex', chore: 'Clean the gutters' }],
+  'memory:demo2': ['t', 'The family added a memory', {}],
+  'chores:m3:6': ['tn', 2, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Maya' }],
+  'book:demo3': ['t', '{name} finished {book}', { name: 'Sam', book: 'The Night Circus' }],
+  'chores:m4:12': ['tn', 3, '{name} finished {n} chore', '{name} finished {n} chores', { name: 'Leo' }],
+  'reward:demo3': ['t', '{name} got a reward: {reward}', { name: 'Leo', reward: '🛝 Park after school' }],
+}
+const newsTitles = Object.fromEntries(Object.entries(NEWS).map(([key, [fn, ...args]]) => [key, perLang((l) => (fn === 'tn' ? words(l).tn(...args) : words(l).t(...args)))]))
 
 const out = `// Generated by scripts/demo-insights.mjs (fictional demo data): don't edit by hand.
 // Maya's last ${DAYS} days (ago: days before today) and the server's analysis of them per range.
 import type { BatteryDay, BatteryWarning, InsightDay, InsightRange, Insights } from './types.ts'
+import type { Lang } from './i18n.ts'
 
 export const MAYA_DAYS: (Omit<InsightDay, 'date'> & { ago: number })[] = ${JSON.stringify(days)}
-export const MAYA_ANALYSIS: Record<InsightRange, Pick<Insights, 'summary' | 'topFeelings' | 'connections'>> = ${JSON.stringify(analysis)}
+// Per language the server writes in.
+export const MAYA_ANALYSIS: Record<Lang, Record<InsightRange, Pick<Insights, 'summary' | 'topFeelings' | 'connections'>>> = ${JSON.stringify(perLang(analysisIn))}
 // Her energy battery: the last 7 days and 3 ahead (ago below 0), and its heads-ups.
-export const MAYA_BATTERY: { days: (Omit<BatteryDay, 'date'> & { ago: number })[]; warnings: (Omit<BatteryWarning, 'date'> & { ago: number })[] } = ${JSON.stringify(mayaBattery)}
+export const MAYA_BATTERY: Record<Lang, { days: (Omit<BatteryDay, 'date'> & { ago: number })[]; warnings: (Omit<BatteryWarning, 'date'> & { ago: number })[] }> = ${JSON.stringify(perLang(batteryIn))}
+// The demo newscast's lines (src/mock.ts DEMO_NEWS) by item key, per language.
+export const NEWS_TITLES: Record<string, Record<Lang, string>> = ${JSON.stringify(newsTitles)}
 `
 writeFileSync(new URL('../src/mock-insights.ts', import.meta.url), out)
 for (const [range, a] of Object.entries(analysis)) console.log(range, a.connections.daysWithCheckIns, a.connections.list.map((c) => `${c.text} [${c.confidence}]`))

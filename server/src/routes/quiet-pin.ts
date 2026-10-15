@@ -2,6 +2,7 @@
 // from a parent's own device; checked by wall screens. Stored only as a salted PBKDF2 hash in the
 // settings table (quietPinHash), which readSettings reports as quietPin: true/false and nothing
 // more, so it never reaches a client, a webhook or the export. Request bodies here are never logged.
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { actorOf, requestKey, timingSafeEqual } from '../auth.ts';
@@ -45,7 +46,7 @@ export async function pinMatches(pin: string, stored: string): Promise<boolean> 
 
 const PinBody = z.object({ pin: z.string().regex(/^\d{4,8}$/, 'must be 4 to 8 digits') }).openapi('QuietPin');
 const OkSchema = z.object({ ok: z.boolean() });
-const parentOnly = "The PIN is set from a parent's own device";
+const parentOnly = stored('error', "The PIN is set from a parent's own device");
 
 quietPinRoutes.openapi(
   createRoute({
@@ -64,7 +65,7 @@ quietPinRoutes.openapi(
     const db = c.env.DB;
     const had = !!(await db.prepare('SELECT 1 FROM settings WHERE key = ?').bind(KEY).first());
     await db.batch([
-      ...securityEventStmts(db, { kind: 'pin.set', summary: had ? 'Night PIN changed' : 'Night PIN set', by: await actorOf(c) }),
+      ...securityEventStmts(db, { kind: 'pin.set', summary: had ? stored('security', 'Night PIN changed') : stored('security', 'Night PIN set'), by: await actorOf(c) }),
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(KEY, await hashPin(pin)),
       db.prepare("DELETE FROM rate_limits WHERE key LIKE 'quiet-pin%'"), // a new PIN ends the wait
     ]);
@@ -86,7 +87,7 @@ quietPinRoutes.openapi(
     if (await isConnectedApp(c)) return c.json({ error: parentOnly }, 403);
     const db = c.env.DB;
     const gone = await db.prepare('DELETE FROM settings WHERE key = ?').bind(KEY).run();
-    if (gone.meta.changes) await db.batch(securityEventStmts(db, { kind: 'pin.removed', summary: 'Night PIN removed', by: await actorOf(c) }));
+    if (gone.meta.changes) await db.batch(securityEventStmts(db, { kind: 'pin.removed', summary: stored('security', 'Night PIN removed'), by: await actorOf(c) }));
     emit(c, 'settings.changed', {});
     return c.json({ ok: true }, 200);
   },

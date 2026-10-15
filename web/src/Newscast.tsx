@@ -8,7 +8,7 @@ import { actingMember } from './actingAs.ts'
 import { api, ApiError } from './api.ts'
 import type { Member, Newscast, NewscastItem, NewscastReaction } from './types.ts'
 import { rewardsOn } from './types.ts'
-import { asYou, daySections, newCount, pictureAlt, weekDigest } from './newscast.ts'
+import { daySections, newCount, pictureAlt, weekDigest } from './newscast.ts'
 import { formatTime } from './timeFormat.ts'
 import { useMediaQuery } from './useIsPhone.ts'
 import { useDeviceAppearance } from './useTheme.ts'
@@ -188,7 +188,6 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
       </article>
     )
   }
-  const title = asYou(item, me, m?.name)
   const alt = pictureAlt(item)
   // "More…": the author deletes their own post; a parent removes any, pauses posting, or leaves someone out.
   const actions: [string, string][] = [
@@ -205,7 +204,7 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
             <div className="news-kind">📣 {mine ? t('You') : m?.name ?? t('Someone')}{post.audience === 'grownups' && <span className="chip chip-static news-audience">{t('Grown-ups only')}</span>}</div>
             <p className="news-say">{post.emoji && <span aria-hidden="true">{post.emoji} </span>}{post.text}</p>
           </> : <>
-            <div className="news-title"><span aria-hidden="true">{item.emoji} </span>{title}</div>
+            <div className="news-title"><span aria-hidden="true">{item.emoji} </span>{item.title}</div>
             {item.detail && <div className="news-detail">{item.detail}</div>}
           </>}
           {calm && item.photos.length > 0 && <div className="news-detail">📸 {tn(item.photos.length, 'A picture in family photos', '{n} pictures in family photos')}</div>}
@@ -250,7 +249,7 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
         </Sheet>
       )}
       {menu && (
-        <Sheet title={post ? (mine ? t('Your post') : t("{name}'s post", { name: m?.name ?? t('Someone') })) : title} variant="dialog" onClose={() => setMenu(false)}>
+        <Sheet title={post ? (mine ? t('Your post') : t("{name}'s post", { name: m?.name ?? t('Someone') })) : item.title} variant="dialog" onClose={() => setMenu(false)}>
           <div className="news-menu">
             {actions.map(([v, l]) => (
               <button key={v} type="button" className={`btn ${v.startsWith('remove') || v === 'delete' ? 'btn-danger' : 'btn-secondary'}`} onClick={() => { setMenu(false); onModerate(item, v) }}>{l}</button>

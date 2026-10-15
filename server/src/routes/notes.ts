@@ -1,6 +1,7 @@
 // Notes threads on events and list items (migration 0024): short, color-coded messages from
 // family members. Event notes hang off the Kinwall event id (the series row for a recurring local
 // event); a thread goes when its target is deleted (routes/events.ts, routes/lists.ts).
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -93,7 +94,7 @@ notesRoutes.openapi(
  * screen (nobody's) the ones posted as "Someone". A parent's device changes any. */
 async function noteBlock(c: Context<{ Bindings: Env }>, note: NoteRow): Promise<string | null> {
   if ((await requestKey(c))?.scope !== 'display') return null;
-  return (note.member_id ?? null) === (await deviceOwner(c)) ? null : "This device can't change someone else's note.";
+  return (note.member_id ?? null) === (await deviceOwner(c)) ? null : stored('error', "This device can't change someone else's note.");
 }
 
 // The note plus its list item's list (for the bus event), in one query.

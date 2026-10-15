@@ -27,6 +27,7 @@ import { ErrorSchema } from '../schemas.ts';
 import { isSingleEmoji } from '../emoji.ts';
 import { todayInTz } from './members.ts';
 import { parseFeatures, parseIds, readFeatures } from './settings.ts';
+import { requestLang, words, type Lang } from '../i18n.ts';
 
 export const newscastRoutes = createRouter();
 
@@ -77,16 +78,16 @@ const addDays = (date: string, n: number) => {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 };
 const photoRef = (id: string) => ({ id, url: `/api/photos/${id}/image` });
-const quote = (s: string | null | undefined) => (s ? `“${s}”` : null);
 const OFF = { error: 'Newscast is turned off in Settings → General → Features' };
 
 type PostRow = { id: string; member_id: string | null; text: string; emoji: string | null; photo_id: string | null; audience: 'everyone' | 'grownups'; status: 'live' | 'removed'; created_at: string };
 
-function postItem(r: PostRow, date: string): Item {
+function postItem(r: PostRow, date: string, lang: Lang): Item {
+  const { t } = words(lang);
   const removed = r.status === 'removed';
   return {
     key: `post:${r.id}`, kind: 'post', date, at: r.created_at, memberId: r.member_id, emoji: '📣',
-    title: removed ? 'Removed by a parent' : r.text, detail: null, count: 1, photos: !removed && r.photo_id ? [photoRef(r.photo_id)] : [],
+    title: removed ? t('Removed by a parent') : r.text, detail: null, count: 1, photos: !removed && r.photo_id ? [photoRef(r.photo_id)] : [],
     post: { id: r.id, text: removed ? null : r.text, emoji: removed ? null : r.emoji, audience: r.audience, removed }, reactions: [],
   };
 }
@@ -168,7 +169,12 @@ newscastRoutes.openapi(
 
     const key = await requestKey(c);
     const parent = key?.scope === 'admin';
+    // On a person's own device, lines about them read "You finished 4 chores" (their own words, not a rewrite).
     const me = await ownDevice(c);
+    const lang = await requestLang(c);
+    const { t, tn } = words(lang);
+    const quote = (text: string | null | undefined) => (text ? t('“{text}”', { text }) : null);
+    const you = (id: string | null) => !!me && id === me;
     const S = NEWSCAST_SQL;
     const reads: [string, KinwallStatement][] = [
       ['posts', db.prepare(S.posts).bind(isoFrom, isoTo)],
@@ -188,7 +194,7 @@ newscastRoutes.openapi(
       const date = dayOf(r.created_at);
       if (!inWindow(date) || (r.audience === 'grownups' && !parent)) continue;
       if (r.status === 'removed' && !parent && (!me || me !== r.member_id)) continue;
-      items.push(postItem(r, date));
+      items.push(postItem(r, date, lang));
     }
 
     const chores = new Map<string, { memberId: string; date: string; titles: string[]; at: string }>();
@@ -202,13 +208,17 @@ newscastRoutes.openapi(
     }
     for (const [k, g] of chores) {
       const n = g.titles.length;
-      add({ key: k, kind: 'chores', date: g.date, at: g.at, memberId: g.memberId, emoji: '✅', title: `${name(g.memberId)} finished ${n === 1 ? g.titles[0] : `${n} chores`}`, detail: n > 1 ? g.titles.join(' · ') : null, count: n });
+      const v = { name: name(g.memberId) ?? '', chore: g.titles[0] };
+      const title = you(g.memberId)
+        ? n === 1 ? t('You finished {chore}', v) : tn(n, 'You finished {n} chore', 'You finished {n} chores')
+        : n === 1 ? t('{name} finished {chore}', v) : tn(n, '{name} finished {n} chore', '{name} finished {n} chores', v);
+      add({ key: k, kind: 'chores', date: g.date, at: g.at, memberId: g.memberId, emoji: '✅', title, detail: n > 1 ? g.titles.join(' · ') : null, count: n });
     }
 
     for (const r of (rows.rewards ?? []) as { id: string; member_id: string; title: string; emoji: string | null; given_at: string }[]) {
       const date = dayOf(r.given_at);
       if (!inWindow(date) || !shown(r.member_id)) continue;
-      add({ key: `reward:${r.id}`, kind: 'reward', date, at: r.given_at, memberId: r.member_id, emoji: '🎁', title: `${name(r.member_id)} got a reward: ${r.emoji ? `${r.emoji} ` : ''}${r.title}` });
+      add({ key: `reward:${r.id}`, kind: 'reward', date, at: r.given_at, memberId: r.member_id, emoji: '🎁', title: you(r.member_id) ? t('You got a reward: {reward}', { reward: r.emoji ? `${r.emoji} ${r.title}` : r.title }) : t('{name} got a reward: {reward}', { name: name(r.member_id) ?? '', reward: r.emoji ? `${r.emoji} ${r.title}` : r.title }) });
     }
 
     const pics = new Map<string, { kind: 'photos' | 'drawings'; memberId: string | null; date: string; ids: string[]; captions: (string | null)[]; at: string }>();
@@ -221,8 +231,8 @@ newscastRoutes.openapi(
       const k = `${kind}:${by ?? 'family'}:${date}`;
       const g = pics.get(k) ?? { kind, memberId: by, date, ids: [], captions: [], at: r.created_at };
       g.ids.push(r.id);
-      // Paint captions a drawing "Rocket by Maya"; the item already says who.
-      g.captions.push(r.caption && by && kind === 'drawings' ? r.caption.replace(` by ${name(by)}`, '') : r.caption);
+      // Paint captions a drawing "Rocket by Maya" ("Rakete von Maya" in German); the item already says who.
+      g.captions.push(r.caption && by && kind === 'drawings' ? r.caption.replace(` by ${name(by)}`, '').replace(` von ${name(by)}`, '') : r.caption);
       g.at = r.created_at;
       pics.set(k, g);
     }
@@ -230,20 +240,34 @@ newscastRoutes.openapi(
       const n = g.ids.length;
       const who = name(g.memberId);
       const caption = g.captions.find(Boolean) ?? null;
+      const v = { name: who ?? '', caption: caption ?? '' };
+      const mine = you(g.memberId);
       const title = g.kind === 'drawings'
-        ? n === 1 ? `${who ? `${who} saved a drawing` : 'A new drawing'}${caption ? `: ${quote(caption)}` : ''}` : who ? `${who} saved ${n} drawings` : `${n} new drawings`
-        : n === 1 ? (who ? `${who} added a photo` : 'A new photo') : who ? `${who} added ${n} photos` : `${n} new photos`;
+        ? n === 1
+          ? caption
+            ? mine ? t('You saved a drawing: “{caption}”', v) : who ? t('{name} saved a drawing: “{caption}”', v) : t('A new drawing: “{caption}”', v)
+            : mine ? t('You saved a drawing') : who ? t('{name} saved a drawing', v) : t('A new drawing')
+          : mine ? tn(n, 'You saved {n} drawing', 'You saved {n} drawings') : who ? tn(n, '{name} saved {n} drawing', '{name} saved {n} drawings', v) : tn(n, '{n} new drawing', '{n} new drawings')
+        : n === 1
+          ? mine ? t('You added a photo') : who ? t('{name} added a photo', v) : t('A new photo')
+          : mine ? tn(n, 'You added {n} photo', 'You added {n} photos') : who ? tn(n, '{name} added {n} photo', '{name} added {n} photos', v) : tn(n, '{n} new photo', '{n} new photos');
       add({ key: k, kind: g.kind, date: g.date, at: g.at, memberId: g.memberId, emoji: g.kind === 'drawings' ? '🎨' : '📸', title, detail: g.kind === 'photos' || n > 1 ? quote(caption) : null, count: n, photos: g.ids.slice(-4).reverse().map(photoRef) });
     }
 
+    const bookTitle = (id: string | null, book: string | null) => {
+      const v = { name: name(id) ?? '', book: book ?? '' };
+      if (you(id)) return book ? t('You finished {book}', v) : t('You finished a book');
+      if (v.name) return book ? t('{name} finished {book}', v) : t('{name} finished a book', v);
+      return book ? t('The family finished {book}', v) : t('The family finished a book');
+    };
     for (const r of (rows.books ?? []) as { id: string; member_id: string | null; title: string | null; finished_on: string; rating: number | null; updated_at: string }[]) {
       if (!shown(r.member_id)) continue;
-      add({ key: `book:${r.id}`, kind: 'book', date: r.finished_on, at: dayOf(r.updated_at) === r.finished_on ? r.updated_at : null, memberId: r.member_id, emoji: '📚', title: `${name(r.member_id) ?? 'The family'} finished ${r.title ?? 'a book'}`, detail: r.rating ? '⭐'.repeat(r.rating) : null });
+      add({ key: `book:${r.id}`, kind: 'book', date: r.finished_on, at: dayOf(r.updated_at) === r.finished_on ? r.updated_at : null, memberId: r.member_id, emoji: '📚', title: bookTitle(r.member_id, r.title), detail: r.rating ? '⭐'.repeat(r.rating) : null });
     }
 
     for (const r of (rows.memories ?? []) as { id: string; member_id: string | null; title: string | null; date: string; created_at: string; photo_id: string | null; photo_family: number | null }[]) {
       if (!shown(r.member_id)) continue;
-      add({ key: `memory:${r.id}`, kind: 'memory', date: r.date, at: dayOf(r.created_at) === r.date ? r.created_at : null, memberId: r.member_id, emoji: '📝', title: `${name(r.member_id) ?? 'The family'} added a memory`, detail: quote(r.title), photos: r.photo_id && r.photo_family === 1 ? [photoRef(r.photo_id)] : [] });
+      add({ key: `memory:${r.id}`, kind: 'memory', date: r.date, at: dayOf(r.created_at) === r.date ? r.created_at : null, memberId: r.member_id, emoji: '📝', title: you(r.member_id) ? t('You added a memory') : name(r.member_id) ? t('{name} added a memory', { name: name(r.member_id)! }) : t('The family added a memory'), detail: quote(r.title), photos: r.photo_id && r.photo_family === 1 ? [photoRef(r.photo_id)] : [] });
     }
 
     for (const m of members.values()) {
@@ -252,7 +276,7 @@ newscastRoutes.openapi(
       for (let d = from; d <= to; d = addDays(d, 1)) {
         if (d.slice(5) !== md) continue;
         const age = DATE.test(m.birthday!) ? Number(d.slice(0, 4)) - Number(m.birthday!.slice(0, 4)) : null;
-        add({ key: `birthday:${m.id}:${d}`, kind: 'birthday', date: d, at: null, memberId: m.id, emoji: '🎂', title: `Happy birthday, ${m.name}!`, detail: age && age > 0 ? `${m.name} turned ${age}` : null });
+        add({ key: `birthday:${m.id}:${d}`, kind: 'birthday', date: d, at: null, memberId: m.id, emoji: '🎂', title: t('Happy birthday, {name}!', { name: m.name }), detail: age && age > 0 ? t('{name} turned {age}', { name: m.name, age }) : null });
       }
     }
 
@@ -322,7 +346,7 @@ newscastRoutes.openapi(
     if (row.audience === 'everyone') emit(c, 'newscast.posted', { id: row.id, memberId: row.member_id, text: row.text, emoji: row.emoji, photoId: row.photo_id, audience: row.audience });
     else emit(c, 'newscast.changed', {});
     const tz = (await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
-    return c.json(postItem(row, todayInTz(tz, new Date(row.created_at))), 201);
+    return c.json(postItem(row, todayInTz(tz, new Date(row.created_at)), await requestLang(c)), 201);
   },
 );
 

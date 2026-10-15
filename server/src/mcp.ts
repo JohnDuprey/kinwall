@@ -38,7 +38,7 @@ import { visitFromEvent, type EventFacts } from './visit-from-event.ts';
 type App = OpenAPIHono<{ Bindings: Env }>;
 
 async function call(app: App, env: Env, auth: string, method: string, path: string, body?: unknown) {
-  const init: RequestInit = { method, headers: { Authorization: auth, 'X-Kinwall-Source': 'mcp' } };
+  const init: RequestInit = { method, headers: { Authorization: auth, 'X-Kinwall-Source': 'mcp', 'Accept-Language': 'en' } }; // an assistant reads it: English (i18n.ts)
   if (body !== undefined) {
     init.headers = { ...init.headers, 'Content-Type': 'application/json' };
     init.body = JSON.stringify(body);

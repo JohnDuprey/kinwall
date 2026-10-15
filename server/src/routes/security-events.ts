@@ -12,7 +12,8 @@ import { createRouter } from '../router.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
 import { waitUntil, type Env, type WaitCtx } from '../env.ts';
 import { resolveKey, type Actor, type KeyDeviceKind } from '../auth.ts';
-import { sendToSub } from '../notify.ts';
+import { loadSubs, PARENT_SUBS, sendToSub } from '../notify.ts';
+import { requestLang, stored, translateStored, type Lang } from '../i18n.ts';
 import { ErrorSchema } from '../schemas.ts';
 
 export const SECURITY_KINDS = [
@@ -64,16 +65,25 @@ export async function ownerName(db: KinwallDb, owner: string | null | undefined)
 
 /** "Kitchen wall is now the whole family's" / "Maya's tablet now belongs to Maya (a kid's device)". */
 export async function deviceOwnerEvent(db: KinwallDb, device: string, owner: string | null | undefined, kind: KeyDeviceKind | null | undefined, by: Actor | null): Promise<SecurityEvent> {
-  const who = await ownerName(db, owner);
-  const what = kind === 'wall' ? ' (a wall screen)' : kind === 'kid' ? " (a kid's device)" : kind === 'grownup' ? " (a grown-up's device)" : '';
-  const summary = !owner || owner === 'shared' ? `"${device}" is now the whole family's${what}` : `"${device}" now belongs to ${who}${what}`;
+  // English, translated when read (stored()): one whole sentence for each case.
+  const family = !owner || owner === 'shared';
+  const v = { device, name: family ? '' : await ownerName(db, owner) };
+  const summary = family
+    ? kind === 'wall' ? stored('security', '"{device}" is now the whole family\'s (a wall screen)', v)
+      : kind === 'kid' ? stored('security', '"{device}" is now the whole family\'s (a kid\'s device)', v)
+      : kind === 'grownup' ? stored('security', '"{device}" is now the whole family\'s (a grown-up\'s device)', v)
+      : stored('security', '"{device}" is now the whole family\'s', v)
+    : kind === 'wall' ? stored('security', '"{device}" now belongs to {name} (a wall screen)', v)
+      : kind === 'kid' ? stored('security', '"{device}" now belongs to {name} (a kid\'s device)', v)
+      : kind === 'grownup' ? stored('security', '"{device}" now belongs to {name} (a grown-up\'s device)', v)
+      : stored('security', '"{device}" now belongs to {name}', v);
   return { kind: 'device.owner', summary, by, device, about: owner && owner !== 'shared' ? owner : null };
 }
 
 // A push to every parent device (full access) that has notifications on, in the background so a
 // sign-in never waits on a push service. Not in the family's feed: the record is the security log.
-const parentSubs = "SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'";
-export function pushGrownUps(c: Context<{ Bindings: Env }>, payload: { title: string; body: string }): void {
+// `text`: the words in a language (each device's).
+export function pushGrownUps(c: Context<{ Bindings: Env }>, text: (lang: Lang) => { title: string; body: string }): void {
   let ctx: WaitCtx | undefined;
   try {
     ctx = c.executionCtx;
@@ -82,8 +92,7 @@ export function pushGrownUps(c: Context<{ Bindings: Env }>, payload: { title: st
   }
   const env = c.env;
   waitUntil(ctx, (async () => {
-    const { results } = await env.DB.prepare(parentSubs).all<Parameters<typeof sendToSub>[2]>();
-    for (const row of results) await sendToSub(env, env.DB, row, { ...payload, url: '/#/settings?tab=access&section=security-activity', tag: 'security' });
+    for (const row of await loadSubs(env.DB, PARENT_SUBS)) await sendToSub(env, env.DB, row, (lang) => ({ ...text(lang), url: '/#/settings?tab=access&section=security-activity', tag: 'security' }));
   })());
 }
 
@@ -146,9 +155,10 @@ securityEventsRoutes.openapi(
       .prepare(`SELECT e.* FROM security_events e LEFT JOIN members m ON m.id = e.actor_member_id WHERE ${where.join(' AND ')} ORDER BY e.rowid DESC LIMIT ?`)
       .bind(...binds, limit)
       .all<Row>();
+    const lang = await requestLang(c); // stored in English, shown in the screen's language
     return c.json(
       results.map((r) => ({
-        id: r.id, at: r.at, kind: r.kind, summary: r.summary,
+        id: r.id, at: r.at, kind: r.kind, summary: translateStored(lang, 'security', r.summary),
         by: r.actor_member_id || r.actor_label ? { memberId: r.actor_member_id, label: r.actor_label } : null,
         device: r.device, detail: r.detail ? JSON.parse(r.detail) : null,
       })),

@@ -8,6 +8,8 @@
 // fetch can't reach a family's private network anyway. The ALLOW_PRIVATE_* opt-outs skip both
 // layers, each for its own fetches only.
 
+import { stored } from './i18n.ts';
+
 // 0/8 this-net, 10/8, 127/8 loopback, 169.254/16 link-local, 172.16/12, 192.168/16, 100.64/10 CGNAT,
 // 224/4 multicast and 240/4 reserved (incl. broadcast).
 function privateV4(a: number, b: number): boolean {
@@ -79,7 +81,7 @@ export const isPublicHttpsUrl = (raw: string) => /^https:\/\//i.test(raw) && isS
 export type FeedEnv = OutboundEnv & { ALLOW_PRIVATE_FEED_URLS?: string };
 export type WebhookEnv = OutboundEnv & { ALLOW_PRIVATE_WEBHOOK_URLS?: string };
 
-export const WEBHOOK_URL_ERROR = 'Webhook URL must be a public https/http address (self-hosted: set ALLOW_PRIVATE_WEBHOOK_URLS=1 to reach a LAN receiver such as Home Assistant)';
+export const WEBHOOK_URL_ERROR = stored('error', 'Webhook URL must be a public https/http address (self-hosted: set ALLOW_PRIVATE_WEBHOOK_URLS=1 to reach a LAN receiver such as Home Assistant)');
 
 // Webhook targets. ALLOW_PRIVATE_WEBHOOK_URLS=1 lets a self-hoster point webhooks at a LAN
 // receiver - the Home Assistant add-on turns it on, since HA itself is the receiver there.
@@ -88,7 +90,7 @@ export function isSafeWebhookUrl(env: WebhookEnv, raw: string): boolean {
   return isSafeOutboundUrl(raw);
 }
 
-export const FEED_URL_ERROR = 'Calendar URL must be a public http(s) address (self-hosted: set ALLOW_PRIVATE_FEED_URLS=1 to reach a LAN server)';
+export const FEED_URL_ERROR = stored('error', 'Calendar URL must be a public http(s) address (self-hosted: set ALLOW_PRIVATE_FEED_URLS=1 to reach a LAN server)');
 
 // Calendar feeds (ICS, CalDAV). Same literal-host check as webhooks, run on the http(s) form of a
 // webcal:// URL (feedFetch adds the connect-time address check on Node). ALLOW_PRIVATE_FEED_URLS=1 lets a self-hoster reach a LAN

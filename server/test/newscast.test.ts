@@ -152,7 +152,8 @@ test('newscast: health, journals, check-ins, goals, medications, messages, rejec
     assert.doesNotMatch(text, /SECRET/, text);
     assert.doesNotMatch(text, /point|balance/i);
     assert.ok(items.every((i) => ['post', 'chores', 'reward', 'photos', 'drawings', 'book', 'memory', 'birthday'].includes(i.kind)));
-    assert.ok(items.some((i) => i.title === 'Leo finished Make bed'));
+    // Leo's own tablet reads it about him: "You finished …" (the server writes it, in the screen's language).
+    assert.ok(items.some((i) => i.title === (key === t.leoKey ? 'You finished Make bed' : 'Leo finished Make bed')));
   }
 });
 

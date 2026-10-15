@@ -1,5 +1,6 @@
 // The restaurant binder (Meals → Restaurants): places the family orders from, their menus and the
 // family's favorites. Parents edit (admin); walls and kids' devices read (DISPLAY_ALLOWED).
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
@@ -142,7 +143,7 @@ export async function planRestaurant(c: Context<{ Bindings: Env }>, input: z.inf
     website: site ?? pick('website') ?? url, orderUrl: normalizeLink(input.orderUrl ?? header.fields.orderUrl),
     menuUrl: normalizeLink(input.menuUrl ?? header.fields.menuUrl) ?? pick('menuUrl'),
   };
-  if (!fields.name) return "Kinwall needs the restaurant's name. Add a name, or share the restaurant's website or Maps place.";
+  if (!fields.name) return stored('error', "Kinwall needs the restaurant's name. Add a name, or share the restaurant's website or Maps place.");
 
   const candidates = await db.prepare('SELECT id, name FROM restaurants WHERE archived = 0').all<{ id: string; name: string }>();
   const match = candidates.results.find((r) => nameKey(r.name) && nameKey(r.name) === nameKey(fields.name));

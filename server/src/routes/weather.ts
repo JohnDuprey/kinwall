@@ -8,6 +8,7 @@ import { hostTimezone } from '../env.ts';
 import { checkRate } from '../ratelimit.ts';
 import { ErrorSchema, GeocodeResultSchema, WeatherSchema } from '../schemas.ts';
 import { readSettings } from './settings.ts';
+import { msg, requestLang, tm, type Lang } from '../i18n.ts';
 
 export const weatherRoutes = createRouter();
 
@@ -17,18 +18,23 @@ const TIMEOUT_MS = 8000;
 
 // WMO weather interpretation codes (Open-Meteo's weather_code).
 const WMO: Record<number, [string, string]> = {
-  0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Cloudy'],
+  0: ['☀️', msg('Clear')], 1: ['🌤️', msg('Mostly clear')], 2: ['⛅', msg('Partly cloudy')], 3: ['☁️', msg('Cloudy')],
   // Not 🌫️: iOS draws it as a gray blurry square that looks broken at this size.
-  45: ['☁️', 'Fog'], 48: ['☁️', 'Freezing fog'],
-  51: ['🌦️', 'Light drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌦️', 'Heavy drizzle'], 56: ['🌧️', 'Freezing drizzle'], 57: ['🌧️', 'Freezing drizzle'],
-  61: ['🌧️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'], 66: ['🌧️', 'Freezing rain'], 67: ['🌧️', 'Freezing rain'],
-  71: ['🌨️', 'Light snow'], 73: ['🌨️', 'Snow'], 75: ['❄️', 'Heavy snow'], 77: ['🌨️', 'Snow grains'],
-  80: ['🌦️', 'Showers'], 81: ['🌧️', 'Showers'], 82: ['🌧️', 'Heavy showers'], 85: ['🌨️', 'Snow showers'], 86: ['❄️', 'Heavy snow showers'],
-  95: ['⛈️', 'Thunderstorms'], 96: ['⛈️', 'Thunderstorms, hail'], 99: ['⛈️', 'Thunderstorms, hail'],
+  45: ['☁️', msg('Fog')], 48: ['☁️', msg('Freezing fog')],
+  51: ['🌦️', msg('Light drizzle')], 53: ['🌦️', msg('Drizzle')], 55: ['🌦️', msg('Heavy drizzle')], 56: ['🌧️', msg('Freezing drizzle')], 57: ['🌧️', msg('Freezing drizzle')],
+  61: ['🌧️', msg('Light rain')], 63: ['🌧️', msg('Rain')], 65: ['🌧️', msg('Heavy rain')], 66: ['🌧️', msg('Freezing rain')], 67: ['🌧️', msg('Freezing rain')],
+  71: ['🌨️', msg('Light snow')], 73: ['🌨️', msg('Snow')], 75: ['❄️', msg('Heavy snow')], 77: ['🌨️', msg('Snow grains')],
+  80: ['🌦️', msg('Showers')], 81: ['🌧️', msg('Showers')], 82: ['🌧️', msg('Heavy showers')], 85: ['🌨️', msg('Snow showers')], 86: ['❄️', msg('Heavy snow showers')],
+  95: ['⛈️', msg('Thunderstorms')], 96: ['⛈️', msg('Thunderstorms, hail')], 99: ['⛈️', msg('Thunderstorms, hail')],
 };
-export function describeWeather(code: number): { emoji: string; text: string } {
-  const [emoji, text] = WMO[code] ?? ['🌡️', 'Unknown'];
-  return { emoji, text };
+export function describeWeather(code: number, lang: Lang = 'en'): { emoji: string; text: string } {
+  const [emoji, text] = WMO[code] ?? ['🌡️', msg('Unknown')];
+  return { emoji, text: tm(lang, text) };
+}
+/** The forecast's words in `lang` (it's cached in English): each condition again from its code. */
+export function weatherIn<T extends Weather | null>(w: T, lang: Lang): T {
+  if (!w || lang === 'en') return w;
+  return { ...w, now: w.now && { ...w.now, text: describeWeather(w.now.code, lang).text }, days: w.days.map((d) => ({ ...d, text: describeWeather(d.code, lang).text })) };
 }
 
 type OpenMeteo = {
@@ -107,7 +113,7 @@ weatherRoutes.openapi(
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: WeatherSchema.nullable() } } } },
   }),
-  async (c) => c.json(await getWeather(c.env.DB), 200),
+  async (c) => c.json(weatherIn(await getWeather(c.env.DB), await requestLang(c)), 200),
 );
 
 weatherRoutes.openapi(

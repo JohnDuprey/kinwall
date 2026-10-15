@@ -3,6 +3,8 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
+# web/src/nudges.ts re-exports the server's nudge lines (it imports nothing).
+COPY server/src/nudges.ts /app/server/src/nudges.ts
 RUN npm run build
 
 FROM node:24-slim

@@ -1,3 +1,4 @@
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
@@ -319,7 +320,7 @@ const oneItem = (itemId: string) => JSON.stringify([itemId]);
 // (places fill in, names are suggested) but its adds, edits and checkouts teach nothing, and it can't
 // edit the catalog itself. A grown-up's later edit or checkout of the same item teaches as usual.
 const teaches = async (c: Context<{ Bindings: Env }>) => !(await deviceOwner(c));
-const KID_CATALOG = "The catalog is changed from a grown-up's device or a wall screen.";
+const KID_CATALOG = stored('error', "The catalog is changed from a grown-up's device or a wall screen.");
 
 /** Whose items a whole-list Reset or Checkout sweeps on this device: a kid's own device only theirs and
  * nobody's (unless the list is theirs); null (everything) anywhere else. */

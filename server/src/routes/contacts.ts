@@ -7,6 +7,7 @@ import { requestKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPrivateFieldSchema, ContactPatchSchema, ContactSchema, ErrorSchema } from '../schemas.ts';
 import { duplicateScore, mergeContacts, parseVCards, type ContactInput } from '../contacts-domain.ts';
+import { stored } from '../i18n.ts';
 
 export const contactsRoutes = createRouter();
 const tag = ['Contacts'];
@@ -220,6 +221,14 @@ const ImportSchema = z.object({ vcard: z.string().min(1).max(2_000_000).optional
 const PreviewSchema = z.object({ entries: z.array(z.object({ contact: ContactInputSchema, duplicateIds: z.array(z.string()) })) });
 const ImportResultSchema = z.object({ created: z.number(), merged: z.number(), skipped: z.number(), ids: z.array(z.string()) });
 const MergeSchema = z.object({ targetId: z.string().uuid(), sourceId: z.string().uuid(), confirm: z.literal(true) });
+
+// vcard.ts's errors (it stays identical with the web app's copy, so it can't import i18n.ts): listed
+// here so the check collects them; app.ts translates them on the way out.
+export const VCARD_ERRORS = [
+  stored('error', 'vCard file is too large'), stored('error', 'nested vCard'), stored('error', 'unexpected END:VCARD'),
+  stored('error', 'text outside vCard'), stored('error', 'unterminated vCard'), stored('error', 'no vCards found'),
+  stored('error', 'too many vCards'), stored('error', 'vCard is missing a name'),
+];
 
 async function preview(db: KinwallDb, vcard: string | undefined, contacts: ContactInput[] | undefined, categoryId?: string) {
   const imported = (contacts ?? parseVCards(vcard!)).map((contact) => ({ ...contact, categoryIds: categoryId ? [...new Set([...contact.categoryIds, categoryId])] : contact.categoryIds }));

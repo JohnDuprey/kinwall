@@ -1,3 +1,4 @@
+import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -265,7 +266,7 @@ export async function choreRepeatError(db: KinwallDb, rrule: string | null | und
   if (!rrule || !isValidRrule(rrule) || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) return null;
   const tz = (await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
   const anchor = dueDate ?? todayInTz(tz, createdAt ? new Date(createdAt) : new Date());
-  return rruleOccurs(rrule, anchor, true, tz) ? null : 'That repeat never happens. Check the day and month.';
+  return rruleOccurs(rrule, anchor, true, tz) ? null : stored('error', 'That repeat never happens. Check the day and month.');
 }
 
 /** The days from `from` to `to` (inclusive, YYYY-MM-DD) a chore is due, in one expansion - what
@@ -387,8 +388,8 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   // wall screen or kid's device only ticks around today (a parent's device can fix up older days).
   // A one-off with no day set (made through the API) is done once, on whichever day.
   const due = chore.rrule || chore.due_date ? dueOnDate(chore, date, tz) : !Number(chore.other_days);
-  if (!chore.active || !due) return { notDue: "This chore isn't due on that day." };
-  if (display && (date < shiftDay(today, -DISPLAY_DAYS_BACK) || date > shiftDay(today, 1))) return { notDue: `From this device a chore can be ticked for the last ${DISPLAY_DAYS_BACK} days. Older days are for a parent's device.` };
+  if (!chore.active || !due) return { notDue: stored('error', "This chore isn't due on that day.") };
+  if (display && (date < shiftDay(today, -DISPLAY_DAYS_BACK) || date > shiftDay(today, 1))) return { notDue: stored('error', "From this device a chore can be ticked for the last {n} days. Older days are for a parent's device.", { n: DISPLAY_DAYS_BACK }) };
   // So does a grown-up's own full-access device (their phone), which otherwise acts for anyone.
   if (!memberId && !chore.member_id) memberId = (await ownDevice(c)) ?? undefined;
   // The checklist gates completion: the list's items for this chore's member (or whoever is
@@ -434,8 +435,10 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
     emit(c, 'chore.pending', { id, date, title: chore.title, memberId: who });
     const name = who ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(who).first<{ name: string }>())?.name : null;
     notifyChoreApproval(c.env, execCtx(c), 'parents', `approve:${id}:${date}`, {
-      title: `${name ?? 'Someone'} finished ${chore.title}. Approve?`,
-      body: 'Open Chores to approve it or say not yet.',
+      text: (lang) => {
+        const { t } = words(lang);
+        return { title: t('{name} finished {chore}. Approve?', { name: name ?? t('Someone'), chore: chore.title }), body: t('Open Chores to approve it or say not yet.') };
+      },
       url: '/#/chores',
       memberIds: who ? [who] : [],
     });
@@ -616,8 +619,10 @@ choresRoutes.openapi(
     emit(c, 'chore.rejected', { id, date, title: row.title, memberId: row.member_id, note });
     if (row.member_id) {
       notifyChoreApproval(c.env, execCtx(c), { owner: row.member_id }, `notyet:${id}:${date}:${now}`, {
-        title: `Not yet: ${row.title}`,
-        body: note ?? 'Give it another go, then tick it again.',
+        text: (lang) => {
+          const { t } = words(lang);
+          return { title: t('Not yet: {chore}', { chore: row.title }), body: note ?? t('Give it another go, then tick it again.') };
+        },
         url: '/#/chores',
         memberIds: [row.member_id],
       });

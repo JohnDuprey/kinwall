@@ -4,6 +4,7 @@
 import { z } from '@hono/zod-openapi';
 import { importIngredient, normalizeSteps, parseIngredientLine } from './meals.ts';
 import { RecipeImportSchema, type RecipeStep } from './meal-schemas.ts';
+import { words, type Lang } from './i18n.ts';
 
 /** qualifier, preparation and category are only set from a Kinwall share link's data. */
 export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null; basic?: string | null };
@@ -222,8 +223,9 @@ export function parseRecipeHtml(html: string, pageUrl: string): RecipePreview | 
   };
 }
 
-const INGREDIENTS = /^(?:ingredients?|what you(?:'|’)?ll need|you will need)\s*:?$/i;
-const STEPS = /^(?:directions?|instructions?|method|steps|preparation)\s*:?$/i;
+// The headings in English and German (a German family pastes "Zutaten" and "Zubereitung").
+const INGREDIENTS = /^(?:ingredients?|what you(?:'|’)?ll need|you will need|zutaten|(?:was )?du brauchst)\s*:?$/i;
+const STEPS = /^(?:directions?|instructions?|method|steps|preparation|zubereitung|anleitung|schritte|so geht'?s)\s*:?$/i;
 /** Pasted recipe text: a name on the first line, then an "Ingredients" heading over one ingredient per
  * line, then "Directions" (or Instructions, Method, Steps) over the steps. Null without an
  * Ingredients heading. */
@@ -245,11 +247,12 @@ export function parseRecipeText(text: string, sourceUrl: string | null = null): 
 }
 
 /** What a family should check before saving. */
-export function previewWarnings(r: RecipePreview): string[] {
+export function previewWarnings(r: RecipePreview, lang: Lang = 'en'): string[] {
+  const { t } = words(lang);
   return [
-    !r.name && 'No recipe name found. Give it one before saving.',
-    !r.ingredients.length && 'No ingredients found.',
-    !r.steps.length && 'No steps found.',
-    r.servings === null && 'No servings found. It will be saved for 4; change it if that is wrong.',
+    !r.name && t('No recipe name found. Give it one before saving.'),
+    !r.ingredients.length && t('No ingredients found.'),
+    !r.steps.length && t('No steps found.'),
+    r.servings === null && t('No servings found. It will be saved for 4; change it if that is wrong.'),
   ].filter((w): w is string => !!w);
 }

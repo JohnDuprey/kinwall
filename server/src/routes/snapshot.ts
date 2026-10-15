@@ -12,7 +12,8 @@ import { eventInstances } from './events.ts';
 import { dueOnDate, type ChoreRow } from './chores.ts';
 import { FLAGGED_OPEN, groupSteps, priorityRankSql, stepsQuery, toItemApi, type ListItemRow, type ListItemStepRow } from './lists.ts';
 import { todayInTz } from './members.ts';
-import { getWeather } from './weather.ts';
+import { getWeather, weatherIn } from './weather.ts';
+import { requestLang, words, type Lang } from '../i18n.ts';
 
 export const snapshotRoutes = createRouter();
 
@@ -25,8 +26,9 @@ export function addDays(date: string, n: number): string {
 }
 
 /** "Good morning, Maya" by the household-local hour (morning 5-11, afternoon 12-16, else evening). */
-export function greetingFor(name: string, hour: number): string {
-  return `${hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening'}, ${name}`;
+export function greetingFor(name: string, hour: number, lang: Lang = 'en'): string {
+  const { t } = words(lang);
+  return hour >= 5 && hour < 12 ? t('Good morning, {name}', { name }) : hour >= 12 && hour < 17 ? t('Good afternoon, {name}', { name }) : t('Good evening, {name}', { name });
 }
 
 /** The date in `year` a YYYY-MM-DD / --MM-DD birthday falls on (Feb 29 -> Feb 28 outside leap years). */
@@ -88,6 +90,7 @@ snapshotRoutes.openapi(
     },
   }),
   async (c) => {
+    const lang = await requestLang(c);
     const { member: memberId, range } = c.req.valid('query');
     const db = c.env.DB;
     const now = new Date();
@@ -155,11 +158,11 @@ snapshotRoutes.openapi(
 
     const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(now));
     const isBirthday = birthdays.some((b) => b.memberId === memberId && b.date === today);
-    const weather = await getWeather(db, now);
+    const weather = weatherIn(await getWeather(db, now), lang);
 
     const meals = settings.features.meals ? await readMeals(db, today, last) : [];
     const body: Snapshot = {
-      greeting: isBirthday ? `Happy birthday, ${member.name}! 🎉` : greetingFor(member.name, hour),
+      greeting: isBirthday ? words(lang).t('Happy birthday, {name}! 🎉', { name: member.name }) : greetingFor(member.name, hour, lang),
       member,
       range,
       from: today,
@@ -201,6 +204,7 @@ snapshotRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: BoardSchema } } } },
   }),
   async (c) => {
+    const lang = await requestLang(c);
     const { days } = c.req.valid('query');
     const db = c.env.DB;
     const now = new Date();
@@ -262,7 +266,7 @@ snapshotRoutes.openapi(
       .map((r) => ({ ...toItemApi(r, steps.get(r.id)), listName: r.list_name, listEmoji: r.list_emoji, overdue: !!r.due_date && r.due_date < today }))
       .sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || priorityRank(a.priority) - priorityRank(b.priority));
 
-    const weather = await getWeather(db, now);
+    const weather = weatherIn(await getWeather(db, now), lang);
 
     const meals = settings.features.meals ? await readMeals(db, today, to) : [];
     // Borrowed library books due back (routes/library.ts), on their day; an overdue one stays on today.

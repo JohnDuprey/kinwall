@@ -4,6 +4,7 @@
 // then, so browsing never calls out. Covers come through the server (GET .../cover), like reading
 // entries' covers. Wall screens and kids' devices browse, add and edit (auth.ts display allow-list);
 // removing a book and picking its shelf (Kids, Grown-ups or Everyone; Auto otherwise, shelve.ts autoShelf) are for parent devices.
+import { stored } from '../i18n.ts';
 import { autoShelf, libraryFormat, sameBook } from '../shelve.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
@@ -74,7 +75,7 @@ async function readersByBook(c: C): Promise<Map<string, Reader[]>> {
 /** The kids' member ids (Auto's "only kids read it"). */
 const kidIds = async (c: C) => new Set((await c.env.DB.prepare('SELECT id FROM members WHERE grown_up = 0').all<{ id: string }>()).results.map((m) => m.id));
 /** A shelf is a parent's pick: the 403 for a wall screen or a kid's device, else null. */
-const shelfBlock = async (c: C) => ((await requestKey(c))?.scope === 'admin' ? null : "A parent picks a book's shelf, from a parent's device.");
+const shelfBlock = async (c: C) => ((await requestKey(c))?.scope === 'admin' ? null : stored('error', "A parent picks a book's shelf, from a parent's device."));
 
 const householdDay = async (c: C) => todayIn((await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value);
 

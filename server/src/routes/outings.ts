@@ -11,6 +11,7 @@
 //
 // Its own feature switch (settings.features.outings): off, every route here answers 404 (so MCP
 // tools refuse). Nothing is deleted.
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -185,9 +186,9 @@ async function people(db: KinwallDb): Promise<PersonFacts[]> {
 
 /** What's wrong with an outing's fields as they'd be saved, or null. */
 async function invalid(db: KinwallDb, o: OutingInput): Promise<string | null> {
-  if (o.startsOn && o.endsOn && o.endsOn < o.startsOn) return 'The last day comes before the first day.';
-  if (o.endsOn && !o.startsOn) return 'A run needs its first day too.';
-  if (o.ageMin != null && o.ageMax != null && o.ageMax < o.ageMin) return 'The oldest age is below the youngest.';
+  if (o.startsOn && o.endsOn && o.endsOn < o.startsOn) return stored('error', 'The last day comes before the first day.');
+  if (o.endsOn && !o.startsOn) return stored('error', 'A run needs its first day too.');
+  if (o.ageMin != null && o.ageMax != null && o.ageMax < o.ageMin) return stored('error', 'The oldest age is below the youngest.');
   if (o.categoryId && !(await db.prepare('SELECT id FROM outing_categories WHERE id = ?').bind(o.categoryId).first())) return 'category not found';
   if (o.memberIds?.length) {
     const found = (await db.prepare('SELECT count(*) AS n FROM members WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify([...new Set(o.memberIds)])).first<{ n: number }>())?.n ?? 0;

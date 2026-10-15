@@ -13,6 +13,7 @@ import { STICKER_PACKS } from '../stickers.ts';
 import { earnedBadges } from '../badges.ts';
 import { minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
 import { ErrorSchema, MemberStatsSchema, StatsPeriodSchema } from '../schemas.ts';
+import { requestLang } from '../i18n.ts';
 
 export const memberStatsRoutes = createRouter();
 
@@ -219,7 +220,7 @@ memberStatsRoutes.openapi(
           packsOwned,
           packsTotal: STICKER_PACKS.length,
           books: finished.length,
-        }),
+        }, await requestLang(c)),
         birthday,
       },
       200,

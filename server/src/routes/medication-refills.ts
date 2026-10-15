@@ -27,6 +27,7 @@ import { recordNotification } from '../notify.ts';
 import { contactFor, fromRow, inputOf, insert, update, type ContactRow } from './contacts.ts';
 import { phoneKey } from '../vcard.ts';
 import { dialToSteps, stepsToDial, stepsToWords, type DialStep } from '../dial-steps.ts';
+import { LOCALES, msg, requestLang, tm, words, type Lang } from '../i18n.ts';
 import { RefillRequestSchema, PRIVATE, bumpRev, findMed, gate, loadMedications, openMedication, sealMedication, type Medication, type MedRow } from './medications.ts';
 
 export const medicationRefillRoutes = createRouter();
@@ -35,13 +36,16 @@ type C = Context<{ Bindings: Env }>;
 // A link the card opens: a website, or an app's own link (e.g. "myclinic://"), never one that runs code or reads files.
 const safeLink = (s: string) => /^[a-z][a-z0-9+.-]*:/i.test(s) && !/^(javascript|data|vbscript|file|blob):/i.test(s);
 
-export const DEFAULT_SCRIPT = [
-  'Hi, this is a refill request for {name}, date of birth {dateOfBirth}.',
-  'The medicine is {medicine}, {dose}, taken {howOften}.',
-  'Please send it to {pharmacy}.',
-  'You can call me back at {callback}.',
-  'Thank you.',
-].join('\n');
+// What to say, a line at a time, in the language the card is shown in (fillScript).
+const SCRIPT_LINES = [
+  msg('Hi, this is a refill request for {name}, date of birth {dateOfBirth}.'),
+  msg('The medicine is {medicine}, {dose}, taken {howOften}.'),
+  msg('Please send it to {pharmacy}.'),
+  msg('You can call me back at {callback}.'),
+  msg('Thank you.'),
+];
+export const scriptIn = (lang: Lang) => SCRIPT_LINES.map((l) => tm(lang, l)).join('\n');
+export const DEFAULT_SCRIPT = scriptIn('en');
 
 const RefillPhoneSchema = z.object({
   label: z.string(), number: z.string(),
@@ -71,25 +75,28 @@ export function telUri(phone: string, dialDigits: string): string | null {
 }
 
 /** "twice a day", "once a day on weekdays", "3 times a day on Mon, Wed, Fri". */
-export function howOften(m: Pick<Medication, 'times' | 'days'>): string {
+export function howOften(m: Pick<Medication, 'times' | 'days'>, lang: Lang = 'en'): string {
+  const { t, tn, locale } = words(lang);
   const n = m.times.length;
-  const per = n === 1 ? 'once a day' : n === 2 ? 'twice a day' : `${n} times a day`;
+  const often = n === 2 ? t('twice a day') : tn(n, 'once a day', '{n} times a day');
   const d = [...m.days].sort().join();
-  const days = d === '0,1,2,3,4,5,6' ? '' : d === '1,2,3,4,5' ? ' on weekdays' : d === '0,6' ? ' on weekends' : ` on ${m.days.map((i) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]).join(', ')}`;
-  return per + days;
+  const short = (i: number) => new Date(Date.UTC(2026, 0, 4 + i, 12)).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' }); // Jan 4, 2026: a Sunday
+  return d === '0,1,2,3,4,5,6' ? often : d === '1,2,3,4,5' ? t('{often} on weekdays', { often }) : d === '0,6' ? t('{often} on weekends', { often }) : t('{often} on {days}', { often, days: m.days.map(short).join(', ') });
 }
-const spokenDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const spokenDate = (d: string, lang: Lang) => new Date(`${d}T12:00:00Z`).toLocaleDateString(LOCALES[lang], { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
-/** The message with its blanks filled; one with nothing known stays as "[date of birth]" so it's said aloud. */
-export function fillScript(m: Medication, memberName: string, pharmacy = m.refill.pharmacy, template = DEFAULT_SCRIPT): string {
+/** The message with its blanks filled, in `lang`; one with nothing known stays as "[date of birth]" so it's said aloud. */
+export function fillScript(m: Medication, memberName: string, pharmacy = m.refill.pharmacy, template?: string, lang: Lang = 'en'): string {
+  const { t } = words(lang);
+  template ??= scriptIn(lang);
   const v: Record<string, [string, string]> = {
-    name: [memberName, 'name'],
-    dateOfBirth: [m.refill.dateOfBirth ? spokenDate(m.refill.dateOfBirth) : '', 'date of birth'],
-    medicine: [m.name, 'medicine'],
-    dose: [m.dose, 'dose'],
-    howOften: [howOften(m), 'how often'],
-    pharmacy: [pharmacy, 'pharmacy'],
-    callback: [m.refill.callback, 'callback number'],
+    name: [memberName, t('name')],
+    dateOfBirth: [m.refill.dateOfBirth ? spokenDate(m.refill.dateOfBirth, lang) : '', t('date of birth')],
+    medicine: [m.name, t('medicine')],
+    dose: [m.dose, t('dose')],
+    howOften: [howOften(m, lang), t('how often')],
+    pharmacy: [pharmacy, t('pharmacy')],
+    callback: [m.refill.callback, t('callback number')],
   };
   return template.replace(/\{(\w+)\}/g, (all, k: string) => (v[k] ? v[k][0] || `[${v[k][1]}]` : all));
 }
@@ -148,11 +155,12 @@ medicationRefillRoutes.openapi(
     const r = await medFor(c, c.req.valid('param').id);
     if (!('m' in r)) return c.json(r.fail, r.status);
     const { m } = r;
+    const lang = await requestLang(c);
     const where = m.refill.contactId ? await contactFor(c, m.refill.contactId) : null;
     const member = await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(m.memberId).first<{ name: string }>();
     const contact = where && {
       id: where.id, name: where.name,
-      phones: where.phones.map((p) => ({ label: p.label, number: p.value, steps: stepsToWords(p.menu ?? []), telUri: telUri(p.value, stepsToDial(p.menu ?? [])) })),
+      phones: where.phones.map((p) => ({ label: p.label, number: p.value, steps: stepsToWords(p.menu ?? [], lang), telUri: telUri(p.value, stepsToDial(p.menu ?? [])) })),
       websites: where.websites.filter((w) => safeLink(w.value)).map((w) => ({ label: w.label, url: w.value })),
     };
     // A pharmacy contact this device can't see (a grown-ups-only one on a kid's device) falls back to the typed name.
@@ -165,7 +173,7 @@ medicationRefillRoutes.openapi(
     return c.json({
       medicationId: m.id, memberId: m.memberId, contact,
       pharmacy,
-      script: fillScript(m, member?.name ?? '', pharmacy?.name ?? ''),
+      script: fillScript(m, member?.name ?? '', pharmacy?.name ?? '', undefined, lang),
       request: m.refillRequest,
     }, 200);
   },

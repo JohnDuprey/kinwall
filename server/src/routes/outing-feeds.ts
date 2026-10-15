@@ -11,6 +11,7 @@
 // Skip words ("meeting, committee, board, hearing") keep public meetings out of the pile.
 //
 // Parents only: none of these routes are in auth.ts's display allow-list. Outings off: 404, no fetching.
+import { requestLang, stored, translateStored, type Lang } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env, WaitCtx } from '../env.ts';
@@ -105,9 +106,10 @@ export function feedItems(events: NormalizedEvent[], tz: string, today: string, 
 function plainError(err: unknown): string {
   const m = err instanceof Error ? err.message : '';
   const http = /HTTP (\d{3})/.exec(m);
-  if (http) return `The calendar link didn't work (error ${http[1]}). Check the link.`;
-  if (m === FEED_URL_ERROR) return 'Kinwall can only read calendar links on the public internet.';
-  return "Couldn't reach the calendar link. Kinwall will try again tomorrow.";
+  // Stored in English, shown in the screen's language (readFeeds).
+  if (http) return stored('error', "The calendar link didn't work (error {code}). Check the link.", { code: http[1] });
+  if (m === FEED_URL_ERROR) return stored('error', 'Kinwall can only read calendar links on the public internet.');
+  return stored('error', "Couldn't reach the calendar link. Kinwall will try again tomorrow.");
 }
 
 // --- Refreshing --------------------------------------------------------------------------------------
@@ -131,7 +133,7 @@ export async function refreshFeed(env: Env, feedId: string, now = new Date()): P
     const cheap = !past && !!feed.fingerprint;
     const res = await fetchIcsConditional(env, feed.url, cheap ? feed.etag : null, null);
     if (res.notModified) { await done(null); return; }
-    if (!/BEGIN:VCALENDAR/i.test(res.text)) { await done("This link isn't an iCal (.ics) calendar. Look for a link ending in .ics or starting with webcal://."); return; }
+    if (!/BEGIN:VCALENDAR/i.test(res.text)) { await done(stored('error', "This link isn't an iCal (.ics) calendar. Look for a link ending in .ics or starting with webcal://.")); return; }
     const fingerprint = await icsFingerprint(`${res.text}\n${feed.skip_words}`);
     if (cheap && fingerprint === feed.fingerprint) { await done(null, { etag: res.etag }); return; }
     const from = new Date(Date.parse(`${today}T00:00:00Z`) - DAY_MS), to = new Date(from.getTime() + (AHEAD_DAYS + 2) * DAY_MS);
@@ -188,10 +190,10 @@ export async function refreshDueFeeds(env: Env, now = new Date(), ctx?: WaitCtx)
 
 // --- Routes --------------------------------------------------------------------------------------
 
-async function readFeeds(db: KinwallDb): Promise<OutingFeed[]> {
+async function readFeeds(db: KinwallDb, lang: Lang = 'en'): Promise<OutingFeed[]> {
   const { results } = await db.prepare(`SELECT f.*, (SELECT count(*) FROM outings o WHERE o.feed_id = f.id AND o.inbox = 1 AND o.archived = 0) AS waiting
     FROM outing_feeds f ORDER BY f.name COLLATE NOCASE, f.created_at`).all<FeedRow & { waiting: number }>();
-  return results.map((f) => ({ id: f.id, name: f.name, url: f.url, categoryId: f.category_id, audience: json(f.audience, []), skipWords: f.skip_words, lastFetchedAt: f.last_fetched_at, lastError: f.last_error, waiting: f.waiting }));
+  return results.map((f) => ({ id: f.id, name: f.name, url: f.url, categoryId: f.category_id, audience: json(f.audience, []), skipWords: f.skip_words, lastFetchedAt: f.last_fetched_at, lastError: f.last_error && translateStored(lang, 'error', f.last_error), waiting: f.waiting }));
 }
 
 const OFF = { error: 'Outings are turned off in Settings → General → Features' };
@@ -208,21 +210,21 @@ const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json
 
 /** The input's problem, in plain words, or null. */
 async function invalid(env: Env, f: Partial<z.infer<typeof FeedInputSchema>>): Promise<string | null> {
-  if (f.url && !isSafeFeedUrl(env, f.url.replace(/^webcal:\/\//i, 'https://'))) return 'Kinwall can only read calendar links on the public internet.';
+  if (f.url && !isSafeFeedUrl(env, f.url.replace(/^webcal:\/\//i, 'https://'))) return stored('error', 'Kinwall can only read calendar links on the public internet.');
   if (f.categoryId && !(await env.DB.prepare('SELECT id FROM outing_categories WHERE id = ?').bind(f.categoryId).first())) return 'category not found';
   return null;
 }
 
 outingFeedsRoutes.openapi(
   createRoute({ method: 'get', path: '/api/outing-feeds', tags: ['Outings'], security: [{ Bearer: [] }], summary: "The family's community calendars (parents)", responses: { 200: { description: 'calendars', content: { 'application/json': { schema: z.array(OutingFeedSchema) } } }, 403: errors[403], 404: errors[404] } }),
-  async (c) => (await off(c.env.DB) ? c.json(OFF, 404) : c.json(await readFeeds(c.env.DB), 200)),
+  async (c) => (await off(c.env.DB) ? c.json(OFF, 404) : c.json(await readFeeds(c.env.DB, await requestLang(c)), 200)),
 );
 
 outingFeedsRoutes.openapi(
   createRoute({ method: 'get', path: '/api/outing-feeds/pile', tags: ['Outings'], security: [{ Bearer: [] }], summary: 'New items from the community calendars, waiting for Keep or Not for us, by calendar (parents)', responses: { 200: { description: 'piles', content: { 'application/json': { schema: PileSchema } } }, 403: errors[403], 404: errors[404] } }),
   async (c) => {
     if (await off(c.env.DB)) return c.json(OFF, 404);
-    const [feeds, items] = await Promise.all([readFeeds(c.env.DB), readOutings(c.env.DB, { inbox: true })]);
+    const [feeds, items] = await Promise.all([readFeeds(c.env.DB, await requestLang(c)), readOutings(c.env.DB, { inbox: true })]);
     return c.json(feeds.map((f) => ({ feed: { id: f.id, name: f.name }, outings: items.filter((o) => o.feedId === f.id) })).filter((p) => p.outings.length), 200);
   },
 );
@@ -258,7 +260,7 @@ outingFeedsRoutes.openapi(
       .bind(id, input.name, input.url, input.categoryId ?? null, JSON.stringify([...new Set(input.audience ?? [])]), input.skipWords?.trim() ?? DEFAULT_SKIP_WORDS, new Date().toISOString()).run();
     await refreshFeed(c.env, id);
     emit(c, 'outing.changed', { feedId: id });
-    return c.json((await readFeeds(c.env.DB)).find((f) => f.id === id)!, 201);
+    return c.json((await readFeeds(c.env.DB, await requestLang(c))).find((f) => f.id === id)!, 201);
   },
 );
 
@@ -276,7 +278,7 @@ outingFeedsRoutes.openapi(
     if (!res.meta.changes) return c.json({ error: 'calendar not found' }, 404);
     if (input.url || input.skipWords !== undefined) await refreshFeed(c.env, id);
     emit(c, 'outing.changed', { feedId: id });
-    return c.json((await readFeeds(c.env.DB)).find((f) => f.id === id)!, 200);
+    return c.json((await readFeeds(c.env.DB, await requestLang(c))).find((f) => f.id === id)!, 200);
   },
 );
 
@@ -289,7 +291,7 @@ outingFeedsRoutes.openapi(
     await c.env.DB.prepare('UPDATE outing_feeds SET fingerprint = NULL WHERE id = ?').bind(id).run();
     await refreshFeed(c.env, id);
     emit(c, 'outing.changed', { feedId: id });
-    return c.json((await readFeeds(c.env.DB)).find((f) => f.id === id)!, 200);
+    return c.json((await readFeeds(c.env.DB, await requestLang(c))).find((f) => f.id === id)!, 200);
   },
 );
 

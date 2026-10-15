@@ -4,6 +4,7 @@ import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { derivedMac } from './crypto.ts';
+import { stored } from './i18n.ts';
 
 const LAST_USED_STALE_MS = 60 * 60 * 1000; // don't write last_used_at more than once an hour
 
@@ -61,7 +62,9 @@ export async function validOwner(db: KinwallDb, owner: string, scope: KeyScope |
 }
 
 /** Why validOwner refused a grown-up for an everyday-access key. */
-export const GROWN_UP_PAIRING = "A paired device can't be a grown-up's. Grown-ups sign in on their own phone or computer with a passkey or the Kinwall app, then pick themselves under Whose device is this?";
+export const GROWN_UP_PAIRING = stored('error', "A paired device can't be a grown-up's. Grown-ups sign in on their own phone or computer with a passkey or the Kinwall app, then pick themselves under Whose device is this?");
+/** The same, for an everyday-access sign-in that asked for a grown-up (routes/mcp-oauth.ts). */
+export const EVERYDAY_GROWN_UP = stored('error', "Everyday access is for a kid or the whole family. A paired device can't be a grown-up's. Grown-ups sign in on their own phone or computer with a passkey or the Kinwall app, then pick themselves under Whose device is this?");
 
 /** What a device is: the family's wall screen, a kid's own device or a grown-up's own device. */
 export const DEVICE_KINDS = ['wall', 'kid', 'grownup'] as const;
@@ -114,9 +117,9 @@ export async function eventWriteBlock(c: Context<{ Bindings: Env }>, cals: Edita
   const key = await requestKey(c);
   const denied = cals.filter((cal) => !canChangeEvents(key, cal));
   if (denied.length === 0) return null;
-  if (denied.some((cal) => !cal.display_edit)) return "Events on this calendar can only be changed from a parent's device.";
+  if (denied.some((cal) => !cal.display_edit)) return stored('error', "Events on this calendar can only be changed from a parent's device.");
   const name = (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(key!.owner).first<{ name: string }>())?.name;
-  return `This device can only change events on ${name ? `${name}'s` : 'its own'} calendars.`;
+  return name ? stored('error', "This device can only change events on {name}'s calendars.", { name }) : stored('error', 'This device can only change events on its own calendars.');
 }
 
 /** The member this request's device belongs to (a display key owned by one member), else null.
@@ -184,7 +187,7 @@ export async function ownerBlock(c: Context<{ Bindings: Env }>, ...memberIds: (s
   const owner = await deviceOwner(c);
   if (!owner || memberIds.every((id) => !id || id === owner)) return null;
   const name = (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(owner).first<{ name: string }>())?.name;
-  return `This device can only do that for ${name ?? 'its owner'}.`;
+  return name ? stored('error', 'This device can only do that for {name}.', { name }) : stored('error', 'This device can only do that for its owner.');
 }
 
 // No-auth routes: health check, the OAuth callback (browser redirect from the provider), the
@@ -376,9 +379,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
 // `error`): a push subscription is a person's device (notify.ts sends medicine names to a parent's
 // device that asks for them), and a webhook hears when health, journal and Temp check entries
 // change. Both would get around aiHealthAccess.
-const NOT_A_DEVICE = "Connected apps can't get push notifications. Turn them on from a family member's own device.";
-const NO_WEBHOOKS = "Connected apps can't set up webhooks. Do this from a parent's own device.";
-const NO_PLUGINS = "Connected apps can't add or update activities. Do this from a parent's own device.";
+const NOT_A_DEVICE = stored('error', "Connected apps can't get push notifications. Turn them on from a family member's own device.");
+const NO_WEBHOOKS = stored('error', "Connected apps can't set up webhooks. Do this from a parent's own device.");
+const NO_PLUGINS = stored('error', "Connected apps can't add or update activities. Do this from a parent's own device.");
 const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[] = [
   { method: /^(POST)$/, pattern: /^\/api\/keys$/ },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/keys\/[^/]+$/ },
@@ -404,7 +407,7 @@ const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[
 
 /** The 403 message when a connected app (mcp-oauth isConnectedApp) asks to manage sign-ins, else null. */
 export async function connectedAppBlock(c: Context<{ Bindings: Env }>): Promise<string | null> {
-  return (await isConnectedApp(c)) ? "Connected apps can't create or change sign-ins. Do this from a parent's own device." : null;
+  return (await isConnectedApp(c)) ? stored('error', "Connected apps can't create or change sign-ins. Do this from a parent's own device.") : null;
 }
 
 // Kinwall's own phone/tablet app signs in on its family.kinwall.app: link. Only its sign-ins are a

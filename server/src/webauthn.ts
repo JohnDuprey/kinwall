@@ -1,6 +1,7 @@
 // WebAuthn (passkey) primitives, isolated in one small module so tests can mock just
 // `verifyRegistrationResponse` / `verifyAuthenticationResponse` (real ceremonies need a browser +
 // authenticator) while everything else (rpID/origin derivation, challenge storage) runs for real.
+import { stored } from './i18n.ts';
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -27,7 +28,7 @@ export function __resetVerifiers() {
 
 export class RpIdIsIpError extends Error {
   constructor() {
-    super('This page is open at an IP address, and passkeys need a name: open Kinwall at its https name (in Home Assistant, at Home Assistant\'s https address) or set PUBLIC_URL.');
+    super(stored('error', "This page is open at an IP address, and passkeys need a name: open Kinwall at its https name (in Home Assistant, at Home Assistant's https address) or set PUBLIC_URL."));
     this.name = 'RpIdIsIpError';
   }
 }
@@ -78,7 +79,7 @@ export async function resolveRpId(env: Env, req: Request): Promise<{ rpID: strin
   // http while the browser is on https, so also accept the same host over https.
   const expectedOrigins = !publicUrl.value && !ingressOrigin && url.protocol === 'http:' ? [url.origin, 'https://' + url.host] : [url.origin];
   if (pageOrigin && !expectedOrigins.includes(pageOrigin)) {
-    throw new Error(`This page is open at ${pageOrigin}, but passkeys here are set up for ${url.origin}: open Kinwall there, or set PUBLIC_URL to the address you use.`);
+    throw new Error(stored('error', 'This page is open at {pageOrigin}, but passkeys here are set up for {origin}: open Kinwall there, or set PUBLIC_URL to the address you use.', { pageOrigin, origin: url.origin }));
   }
   return { rpID, origin: url.origin, expectedOrigins };
 }

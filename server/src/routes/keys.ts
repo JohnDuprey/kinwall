@@ -1,4 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import { stored } from '../i18n.ts';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { actorOf, createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type KeyDeviceKind } from '../auth.ts';
@@ -53,7 +54,7 @@ keysRoutes.openapi(
     const { name, scope } = c.req.valid('json');
     const keyScope = scope ?? 'display'; // least privilege by default
     const { id, key } = await createApiKey(c.env.DB, name, keyScope);
-    await recordSecurityEvent(c.env.DB, { kind: 'key.created', summary: `${keyScope === 'admin' ? 'Full-access' : 'Everyday-access'} API key "${name}" created`, by: await actorOf(c), device: name, detail: { scope: keyScope } });
+    await recordSecurityEvent(c.env.DB, { kind: 'key.created', summary: stored('security', keyScope === 'admin' ? 'Full-access API key "{name}" created' : 'Everyday-access API key "{name}" created', { name }), by: await actorOf(c), device: name, detail: { scope: keyScope } });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: keyScope, key }, 201);
   },
@@ -123,10 +124,9 @@ keysRoutes.openapi(
     const db = c.env.DB;
     const gone = await db.prepare('SELECT name, scope, kind, device_kind FROM api_keys WHERE id = ?').bind(id).first<{ name: string; scope: string; kind: string; device_kind: KeyDeviceKind | null }>();
     if (!gone) return c.json({ error: 'not found' }, 404);
-    const what = gone.device_kind === 'widgets' ? 'Widgets key' : gone.kind !== 'api' ? 'Sign-in' : gone.scope === 'display' ? 'Device' : 'API key';
     await db.batch([
       db.prepare('DELETE FROM api_keys WHERE id = ?').bind(id),
-      ...securityEventStmts(db, { kind: gone.device_kind === 'widgets' ? 'widgets.removed' : 'key.removed', summary: `${what} "${gone.name}" removed and signed out`, by: await actorOf(c), device: gone.name }),
+      ...securityEventStmts(db, { kind: gone.device_kind === 'widgets' ? 'widgets.removed' : 'key.removed', summary: stored('security', gone.device_kind === 'widgets' ? 'Widgets key "{name}" removed and signed out' : gone.kind !== 'api' ? 'Sign-in "{name}" removed and signed out' : gone.scope === 'display' ? 'Device "{name}" removed and signed out' : 'API key "{name}" removed and signed out', { name: gone.name }), by: await actorOf(c), device: gone.name }),
     ]);
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ ok: true }, 200);
@@ -167,7 +167,7 @@ keysRoutes.openapi(
       owner: me?.scope === 'display' ? me.owner ?? null : 'shared', deviceKind: 'widgets',
       ...(grant ? { parentGrantId: grant.oauth_grant_id } : { parentKeyId: me?.id ?? null }),
     });
-    await recordSecurityEvent(c.env.DB, { kind: 'widgets.added', summary: `Widgets key "${name}" added`, by: await actorOf(c), device: name });
+    await recordSecurityEvent(c.env.DB, { kind: 'widgets.added', summary: stored('security', 'Widgets key "{name}" added', { name }), by: await actorOf(c), device: name });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: 'display' as const, key }, 201);
   },
@@ -191,7 +191,7 @@ keysRoutes.openapi(
     const db = c.env.DB;
     await db.batch([
       db.prepare('DELETE FROM api_keys WHERE id = ?').bind(me.id),
-      ...securityEventStmts(db, { kind: 'widgets.removed', summary: `Widgets key "${me.name}" signed out`, device: me.name }),
+      ...securityEventStmts(db, { kind: 'widgets.removed', summary: stored('security', 'Widgets key "{name}" signed out', { name: me.name }), device: me.name }),
     ]);
     emit(c, 'settings.changed', { keyId: me.id });
     return c.json({ ok: true }, 200);

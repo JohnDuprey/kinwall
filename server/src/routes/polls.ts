@@ -22,7 +22,8 @@ import { actorOf, changedBy, ownerBlock } from '../auth.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { MealDateSchema, MealSlotSchema } from '../meal-schemas.ts';
 import { readFeatures } from './settings.ts';
-import { loadSubs, recordNotification, sendToSub } from '../notify.ts';
+import { loadSubs, notBy, recordNotification, sendToSub } from '../notify.ts';
+import { familyLang, perLang, words } from '../i18n.ts';
 import { checkRate } from '../ratelimit.ts';
 
 export const pollsRoutes = createRouter();
@@ -121,9 +122,12 @@ function execCtx(c: Context<{ Bindings: Env }>): WaitCtx | undefined {
 function notifyPoll(c: Context<{ Bindings: Env }>, poll: Poll): void {
   waitUntil(execCtx(c), (async () => {
     const by = await changedBy(c); // not to whoever asked
-    const n = { title: `🗳 New poll: ${poll.question}`, body: poll.options.map((o) => o.label).join(' · '), url: `/#/home?poll=${encodeURIComponent(poll.id)}` };
-    await recordNotification(c.env.DB, { kind: 'poll', ...n, source: 'system', by });
-    for (const sub of await loadSubs(c.env.DB, by)) await sendToSub(c.env, c.env.DB, sub, { ...n, tag: `poll:${poll.id}` });
+    const n = perLang((lang) => {
+      const { t } = words(lang);
+      return { title: t('🗳 New poll: {question}', { question: poll.question }), body: poll.options.map((o) => o.label).join(' · '), url: `/#/home?poll=${encodeURIComponent(poll.id)}` };
+    });
+    await recordNotification(c.env.DB, { kind: 'poll', ...n(await familyLang(c.env.DB)), source: 'system', by });
+    for (const sub of await loadSubs(c.env.DB, ...notBy(by))) await sendToSub(c.env, c.env.DB, sub, (lang) => ({ ...n(lang), tag: `poll:${poll.id}` }));
   })());
 }
 

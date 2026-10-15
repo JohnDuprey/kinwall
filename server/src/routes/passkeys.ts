@@ -3,6 +3,7 @@
 // key (an api_keys row, kind='session') instead of the permanent admin key. See webauthn.ts for
 // the rpID/verify seam and SPEC.md "Security" for the key-scope model.
 import type { KinwallDb } from '../db.ts';
+import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
@@ -256,9 +257,12 @@ passkeysRoutes.openapi(
       db.prepare('INSERT INTO passkeys (id, credential_id, public_key, counter, transports, name, created_at) VALUES (?,?,?,?,?,?,?)')
         .bind(id, credential.id, bytesToBase64Url(credential.publicKey), credential.counter, JSON.stringify(credential.transports ?? []), name, now),
       // From a QR code's one-time token the new device has no key yet: nobody to credit.
-      ...securityEventStmts(db, { kind: 'passkey.added', summary: `Passkey "${name}" added${usedToken ? ' from a QR code' : ''}`, by: usedToken ? null : await actorOf(c), device: name }),
+      ...securityEventStmts(db, { kind: 'passkey.added', summary: stored('security', usedToken ? 'Passkey "{name}" added from a QR code' : 'Passkey "{name}" added', { name }), by: usedToken ? null : await actorOf(c), device: name }),
     ]);
-    pushGrownUps(c, { title: `🔑 New passkey: ${name}`, body: "It can sign in to Kinwall as a parent. If that wasn't you, remove it in Settings → Access." });
+    pushGrownUps(c, (lang) => {
+      const { t } = words(lang);
+      return { title: t('🔑 New passkey: {name}', { name }), body: t("It can sign in to Kinwall as a parent. If that wasn't you, remove it in Settings → Access.") };
+    });
     emit(c, 'settings.changed', {});
 
     // Always mint a session for the new passkey (not just for the token flow) - it lets any
@@ -397,7 +401,7 @@ export async function finishPasskeyLogin(
   const keyName = `Passkey: ${passkey.name}`;
   // Whose passkey it is (PUT /api/me/owner saves it here): the session is theirs, so it reads their private journal.
   const session = await createApiKey(env.DB, keyName, 'admin', { kind: 'session', expiresAt, passkeyId: passkey.id, owner: passkey.owner ?? null });
-  await recordSecurityEvent(env.DB, { kind: 'signin.passkey', summary: `Signed in with passkey "${passkey.name}"`, by: passkey.owner ? { memberId: passkey.owner, label: null } : null, device: passkey.name });
+  await recordSecurityEvent(env.DB, { kind: 'signin.passkey', summary: stored('security', 'Signed in with passkey "{name}"', { name: passkey.name }), by: passkey.owner ? { memberId: passkey.owner, label: null } : null, device: passkey.name });
   return { key: session.key, expiresAt, scope: 'admin', keyName };
 }
 
@@ -448,7 +452,7 @@ passkeysRoutes.openapi(
     if (name !== existing.name) {
       await db.batch([
         db.prepare('UPDATE passkeys SET name = ? WHERE id = ?').bind(name, id),
-        ...securityEventStmts(db, { kind: 'passkey.renamed', summary: `Passkey "${existing.name}" renamed to "${name}"`, by: await actorOf(c), device: name }),
+        ...securityEventStmts(db, { kind: 'passkey.renamed', summary: stored('security', 'Passkey "{old}" renamed to "{name}"', { old: existing.name, name }), by: await actorOf(c), device: name }),
       ]);
     }
     emit(c, 'settings.changed', {});
@@ -478,7 +482,7 @@ passkeysRoutes.openapi(
     await db.batch([
       db.prepare('DELETE FROM passkeys WHERE id = ?').bind(id),
       db.prepare("DELETE FROM api_keys WHERE kind = 'session' AND passkey_id = ?").bind(id),
-      ...securityEventStmts(db, { kind: 'passkey.removed', summary: `Passkey "${existing.name}" removed; its sign-ins ended`, by, device: existing.name }),
+      ...securityEventStmts(db, { kind: 'passkey.removed', summary: stored('security', 'Passkey "{name}" removed; its sign-ins ended', { name: existing.name }), by, device: existing.name }),
     ]);
     emit(c, 'settings.changed', {});
     return c.json({ ok: true }, 200);
@@ -500,7 +504,7 @@ passkeysRoutes.openapi(
       const db = c.env.DB;
       await db.batch([
         db.prepare('DELETE FROM api_keys WHERE id = ?').bind(resolved.id),
-        ...securityEventStmts(db, { kind: 'signout', summary: resolved.name.startsWith('Passkey: ') ? `Signed out (passkey "${resolved.name.slice(9)}")` : `Signed out (${resolved.name})`, by: await actorOf(c), device: resolved.name }),
+        ...securityEventStmts(db, { kind: 'signout', summary: resolved.name.startsWith('Passkey: ') ? stored('security', 'Signed out (passkey "{name}")', { name: resolved.name.slice(9) }) : stored('security', 'Signed out ({name})', { name: resolved.name }), by: await actorOf(c), device: resolved.name }),
       ]);
     }
     return c.json({ ok: true }, 200);

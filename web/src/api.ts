@@ -1,4 +1,4 @@
-import { msg, t, tm, type Lang } from './i18n.ts'
+import { lang, msg, t, tm, type Lang } from './i18n.ts'
 import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
@@ -283,6 +283,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
       headers: {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        'Accept-Language': lang(), // the server writes its text (errors, insights, the newscast) in the language shown
         ...init.headers,
       },
     })

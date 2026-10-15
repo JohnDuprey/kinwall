@@ -17,6 +17,7 @@ import { readSettings } from './settings.ts';
 import { choreRepeatError, insertChore } from './chores.ts';
 import { EmojiSchema, ErrorSchema } from '../schemas.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
+import { words } from '../i18n.ts';
 
 export const choreSuggestionsRoutes = createRouter();
 
@@ -169,8 +170,14 @@ choreSuggestionsRoutes.openapi(
       .run();
     emit(c, 'chore.suggestion.changed', { id: row.id, memberId, status: 'pending' });
     notifyChoreApproval(c.env, execCtx(c), 'parents', `suggest:${row.id}`, {
-      title: body.done ? `${member.name} did ${row.title} and suggests it as a chore` : `${member.name} suggests a chore: ${row.title}`,
-      body: `They think it's worth ${row.points} point${row.points === 1 ? '' : 's'}. Open Chores to say yes or not this time.`,
+      text: (lang) => {
+        const { t, tn } = words(lang);
+        const vars = { name: member.name, chore: row.title };
+        return {
+          title: body.done ? t('{name} did {chore} and suggests it as a chore', vars) : t('{name} suggests a chore: {chore}', vars),
+          body: tn(row.points, "They think it's worth {n} point. Open Chores to say yes or not this time.", "They think it's worth {n} points. Open Chores to say yes or not this time."),
+        };
+      },
       url: '/#/chores',
       memberIds: [memberId],
     });
@@ -251,10 +258,15 @@ choreSuggestionsRoutes.openapi(
     emit(c, 'chore.changed', { id: choreId });
     emit(c, 'chore.suggestion.changed', { id, memberId: s.member_id, status: 'approved', choreId });
     const who = s.decided_by_name ?? (by ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(by).first<{ name: string }>())?.name : null);
-    const worth = `${points} point${points === 1 ? '' : 's'}`;
     notifyChoreApproval(c.env, execCtx(c), { owner: s.member_id }, `suggest-yes:${id}`, {
-      title: `${who ?? 'A grown-up'} said yes: ${title}`,
-      body: note ? `${worth}. "${note}"` : `It's on your chores now, worth ${worth}.`,
+      text: (lang) => {
+        const { t, tn } = words(lang);
+        const worth = tn(points, '{n} point', '{n} points');
+        return {
+          title: t('{name} said yes: {chore}', { name: who ?? t('A grown-up'), chore: title }),
+          body: note ? t('{points}. "{note}"', { points: worth, note }) : t("It's on your chores now, worth {points}.", { points: worth }),
+        };
+      },
       url: '/#/chores',
       memberIds: [s.member_id],
     });
@@ -285,8 +297,10 @@ choreSuggestionsRoutes.openapi(
     if (!res.meta.changes) return c.json({ error: 'nothing waiting with that id' }, 404);
     emit(c, 'chore.suggestion.changed', { id, memberId: s.member_id, status: 'declined' });
     notifyChoreApproval(c.env, execCtx(c), { owner: s.member_id }, `suggest-no:${id}`, {
-      title: `Not this time: ${s.title}`,
-      body: note ?? 'Thanks for the idea!',
+      text: (lang) => {
+        const { t } = words(lang);
+        return { title: t('Not this time: {chore}', { chore: s.title }), body: note ?? t('Thanks for the idea!') };
+      },
       url: '/#/chores',
       memberIds: [s.member_id],
     });

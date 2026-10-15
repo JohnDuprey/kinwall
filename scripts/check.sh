@@ -17,6 +17,7 @@ step "server: tests";     (cd server && tests)
 step "web: typecheck";    (cd web && npx tsc --noEmit -p tsconfig.app.json)
 # Translations: en.json matches the t() calls, keys are literal, no new hard-coded copy (i18n-baseline.json).
 step "web: i18n";         (cd web && node scripts/i18n-check.mjs)
+step "server: i18n";      (cd web && node scripts/i18n-check.mjs --server) # the server's text, same rules (server/i18n-baseline.json)
 step "web: lint";         (cd web && npm run lint >/dev/null 2>&1 || { npm run lint 2>&1 | tail -30; exit 1; })
 step "web: tests";        (cd web && tests)
 step "web: build";        (cd web && npm run build >/dev/null 2>&1 || { npm run build 2>&1 | tail -30; exit 1; })

@@ -3,6 +3,7 @@
 // Household values win over env vars when present (see providers/config.ts's providerEnv), but a
 // provider the env configures and the household hasn't is read-only here ("Provided by your
 // host"). These routes never return a secret once saved.
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -29,15 +30,15 @@ const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
 function validateClientId(kind: ProviderKind, clientId: string): string | null {
-  if (kind === 'google' && !GOOGLE_CLIENT_ID_RE.test(clientId)) return 'Google client ID should end with .apps.googleusercontent.com';
-  if (kind === 'microsoft' && !GUID_RE.test(clientId)) return 'Microsoft client ID should be a GUID (Application (client) ID)';
+  if (kind === 'google' && !GOOGLE_CLIENT_ID_RE.test(clientId)) return stored('error', 'Google client ID should end with .apps.googleusercontent.com');
+  if (kind === 'microsoft' && !GUID_RE.test(clientId)) return stored('error', 'Microsoft client ID should be a GUID (Application (client) ID)');
   return null;
 }
 
 function validateTenant(tenant: string): string | null {
   if (['common', 'organizations', 'consumers'].includes(tenant)) return null;
   if (GUID_RE.test(tenant) || DOMAIN_RE.test(tenant)) return null;
-  return "tenant should be 'common', 'organizations', 'consumers', a GUID, or a domain";
+  return stored('error', "tenant should be 'common', 'organizations', 'consumers', a GUID, or a domain");
 }
 
 async function statusFor(c: Context<{ Bindings: Env }>, kind: ProviderKind) {

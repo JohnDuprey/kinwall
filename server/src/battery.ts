@@ -9,10 +9,13 @@
 // The weights are a rough guide picked by hand, not a measurement: keep them here, in one place,
 // and keep the docs' table in step with them.
 import { LATE_AFTER, type Sleep } from './insights.ts';
+import { msg, tm, words, type Lang } from './i18n.ts';
 
 export const SLEEP_CHARGE: Record<Sleep, number> = { great: 90, good: 75, ok: 60, poorly: 40, terrible: 25 };
 export const USUAL_CHARGE = 65; // no sleep answers in the last week to go on
 export const FEELING_COST: Record<string, number> = { tired: 10, awful: 10, sore: 5, bad: 5 };
+// The answers' words in a reason ("Sleep: good", "Feeling tired"): the ones that can show.
+const ANSWER_WORDS: Record<string, string> = { great: msg('great'), good: msg('good'), ok: msg('ok'), poorly: msg('poorly'), terrible: msg('terrible'), tired: msg('tired'), awful: msg('awful'), sore: msg('sore'), bad: msg('bad') };
 export const LATE_YESTERDAY = 10; // an event ended after 8 PM the day before
 export const RECENT_DAYS = 3; // busy days this far back lower the start...
 export const BUSY_DAY = 40; // ...a day that drained this much or more...
@@ -48,12 +51,11 @@ export type BatteryWarning = { date: string; text: string; suggestions: string[]
 // answered: their check-ins in the last 28 days; adjust: points added to each day's level (null until CALIBRATE_MIN).
 export type Calibration = { answered: number; adjust: number | null };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const minutes = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
 const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const lateEnd = (d: BatteryInput | undefined) => !!d?.events.some((e) => e.end > LATE_AFTER);
-const weekday = (date: string) => new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+const weekday = (date: string, locale: string) => new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
 
 /** What each of the day's events costs, in time order (long, back to back, the late evening on the one ending last). */
 function eventCosts(events: BatteryEvent[]) {
@@ -89,8 +91,11 @@ export function calibrate(days: Pick<BatteryDay, 'date' | 'level'>[], felt: Reco
 /** Each day's charge, drain and reasons for consecutive `inputs` (oldest first), and heads-ups for
  * today and after. Days after `today` are forecasts: no sleep or feelings yet, so they start from
  * the person's usual night (their average over the last week). `cal` (from `calibrate`) adds its
- * adjustment to every day's drain (never under 0), or says how many check-ins it has so far. */
-export function battery(inputs: BatteryInput[], today: string, cal: Calibration = { answered: 0, adjust: null }): { days: BatteryDay[]; warnings: BatteryWarning[] } {
+ * adjustment to every day's drain (never under 0), or says how many check-ins it has so far.
+ * The reasons and heads-ups are in `lang`. */
+export function battery(inputs: BatteryInput[], today: string, cal: Calibration = { answered: 0, adjust: null }, lang: Lang = 'en'): { days: BatteryDay[]; warnings: BatteryWarning[] } {
+  const { t, tn, list, locale } = words(lang);
+  const answer = (a: string) => tm(lang, ANSWER_WORDS[a] ?? a);
   const week = inputs.filter((d) => d.date <= today && d.date > addDays(today, -7) && d.sleep);
   const usual = week.length ? Math.round(week.reduce((s, d) => s + SLEEP_CHARGE[d.sleep!], 0) / week.length) : USUAL_CHARGE;
   const days: BatteryDay[] = [];
@@ -100,30 +105,31 @@ export function battery(inputs: BatteryInput[], today: string, cal: Calibration 
     const reasons: Reason[] = [];
     const add = (text: string, points: number) => { if (points) reasons.push({ text, points }); };
     // The start: sleep, feelings, and the days before.
-    if (d.sleep && !forecast) add(`Sleep: ${d.sleep}`, SLEEP_CHARGE[d.sleep]);
-    else add(forecast ? 'Sleep: usual' : 'Sleep: no answer yet', usual);
-    if (!forecast) for (const f of new Set(d.feelings.map((f) => f.toLowerCase()))) add(`Feeling ${f}`, -(FEELING_COST[f] ?? 0));
+    if (d.sleep && !forecast) add(t('Sleep: {sleep}', { sleep: answer(d.sleep) }), SLEEP_CHARGE[d.sleep]);
+    else add(forecast ? t('Sleep: usual') : t('Sleep: no answer yet'), usual);
+    if (!forecast) for (const f of new Set(d.feelings.map((f) => f.toLowerCase()))) add(t('Feeling {feeling}', { feeling: answer(f) }), -(FEELING_COST[f] ?? 0));
     const before = inputs[i - 1]?.date === addDays(d.date, -1) ? inputs[i - 1] : undefined;
-    if (lateEnd(before)) add('Late evening yesterday', -LATE_YESTERDAY);
+    if (lateEnd(before)) add(t('Late evening yesterday'), -LATE_YESTERDAY);
     const busy = days.slice(-RECENT_DAYS).filter((p) => p.date >= addDays(d.date, -RECENT_DAYS) && p.drain >= BUSY_DAY).length;
-    add(`${plural(busy, 'busy day')} before`, -busy * BUSY_COST);
+    add(tn(busy, '{n} busy day before', '{n} busy days before'), -busy * BUSY_COST);
     const start = clamp(reasons.reduce((s, r) => s + r.points, 0));
     // The drain: what the day asks.
     const costs = eventCosts(d.events);
     const goal = !forecast && d.goalSet;
-    add(plural(costs.length, 'event'), -costs.length * EVENT);
-    add('Long events', -costs.reduce((s, c) => s + c.long, 0) * LONG_HOUR);
-    add(`${costs.filter((c) => c.b2b).length} back-to-back`, -costs.filter((c) => c.b2b).length * BACK_TO_BACK);
-    add('Late evening', costs.some((c) => c.late) ? -LATE_EVENING : 0);
+    add(tn(costs.length, '{n} event', '{n} events'), -costs.length * EVENT);
+    add(t('Long events'), -costs.reduce((s, c) => s + c.long, 0) * LONG_HOUR);
+    const b2b = costs.filter((c) => c.b2b).length;
+    add(t('{n} back-to-back', { n: b2b }), -b2b * BACK_TO_BACK);
+    add(t('Late evening'), costs.some((c) => c.late) ? -LATE_EVENING : 0);
     const points = chorePoints(d, today);
     const chores = choreDrain(points);
-    add(`Chores: ${plural(points, 'point')}`, -chores);
-    add('Goal for today', goal ? -GOAL : 0);
+    add(t('Chores: {points}', { points: tn(points, '{n} point', '{n} points') }), -chores);
+    add(t('Goal for today'), goal ? -GOAL : 0);
     const planned = chores + (goal ? GOAL : 0) + costs.reduce((s, c) => s + c.cost, 0);
     // How they've felt lately: a positive adjustment takes off at most what the day drains.
     const adjust = cal.adjust === null ? 0 : Math.max(-planned, -cal.adjust);
-    add("Adjusted for how you've felt lately", -adjust);
-    if (cal.adjust === null && cal.answered && d.date === today) reasons.push({ text: `Learning: ${cal.answered} of ${CALIBRATE_MIN} check-ins`, points: 0 });
+    add(t("Adjusted for how you've felt lately"), -adjust);
+    if (cal.adjust === null && cal.answered && d.date === today) reasons.push({ text: t('Learning: {n} of {of} check-ins', { n: cal.answered, of: CALIBRATE_MIN }), points: 0 });
     const drain = planned + adjust;
     // The first event that takes it under LOW (chores, the goal and the adjustment count from the morning).
     let running = start - chores - (goal ? GOAL : 0) - adjust;
@@ -131,13 +137,12 @@ export function battery(inputs: BatteryInput[], today: string, cal: Calibration 
     const day = { date: d.date, forecast, start, drain, level: Math.max(0, start - drain), reasons, lowBefore };
     days.push(day);
     if (d.date < today || !drain || day.level >= LOW) return;
-    const parts = [costs.length && plural(costs.length, 'event'), chores && d.chores && plural(d.chores, 'chore'), costs.some((c) => c.late) && 'a late evening'].filter((p): p is string => !!p);
-    const when = d.date === today ? 'Today' : d.date === addDays(today, 1) ? 'Tomorrow' : weekday(d.date);
-    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? 'a goal';
+    const parts = [costs.length && tn(costs.length, '{n} event', '{n} events'), chores && d.chores && tn(d.chores, '{n} chore', '{n} chores'), costs.some((c) => c.late) && t('a late evening')].filter((p): p is string => !!p);
+    const when = d.date === today ? t('Today') : d.date === addDays(today, 1) ? t('Tomorrow') : weekday(d.date, locale);
     warnings.push({
       date: d.date,
-      text: `${when} looks full: ${list}. Maybe plan a rest or move something?`,
-      suggestions: [lowBefore ? `Rest before ${lowBefore}` : 'Plan a rest in the middle of the day', 'Pick one thing to skip'],
+      text: t('{when} looks full: {list}. Maybe plan a rest or move something?', { when, list: parts.length ? list(parts) : t('a goal') }),
+      suggestions: [lowBefore ? t('Rest before {event}', { event: lowBefore }) : t('Plan a rest in the middle of the day'), t('Pick one thing to skip')],
     });
   });
   return { days, warnings };

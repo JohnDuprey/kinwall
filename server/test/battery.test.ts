@@ -240,7 +240,7 @@ async function busyTomorrow(s: S) {
   assert.equal((await s.req('/api/chores', 'POST', { title: 'Walk the dog', points: 5, memberId: s.leo.id, rrule: 'FREQ=DAILY', dueDate: '2026-09-01' })).status, 201);
   assert.equal((await s.req('/api/chores', 'POST', { title: 'Anyone: dishes', points: 5, rrule: 'FREQ=DAILY', dueDate: '2026-09-01' })).status, 201);
 }
-const TOMORROW_TEXT = 'Tomorrow looks full: 5 events, 1 chore and a late evening. Maybe plan a rest or move something?';
+const TOMORROW_TEXT = 'Tomorrow looks full: 5 events, 1 chore, and a late evening. Maybe plan a rest or move something?';
 const bat = (id: string) => `/api/members/${id}/battery`;
 
 test('battery endpoint: a week back and 3 days ahead, from sealed check-ins, the calendar and chores in household time', async (t) => {
@@ -435,7 +435,7 @@ test('heads-up push: the evening before a heavy day, once, to their own devices 
   const sent = await tick(at('19:02'));
   assert.deepEqual(Object.keys(sent), ['maya-phone']);
   assert.equal(sent['maya-phone'][0].title, '🔋 Heads-up for tomorrow');
-  assert.match(sent['maya-phone'][0].body, /^Tomorrow looks full: 5 events, 1 chore and a late evening\./);
+  assert.match(sent['maya-phone'][0].body, /^Tomorrow looks full: 5 events, 1 chore, and a late evening\./);
   assert.doesNotMatch(JSON.stringify(sent), /sleep|poorly|tired|feel|zz-secret/i, 'never sleep or feelings');
   assert.deepEqual(await tick(at('19:10')), {}, 'once');
   await s.db.prepare("DELETE FROM settings WHERE key = 'notifyLastTick'").run(); // a restart
@@ -456,7 +456,7 @@ test('heads-up push: held through quiet hours until the morning, then "today"', 
   assert.deepEqual(await tick(at('19:02')), {}, 'quiet hours');
   assert.deepEqual(await tick(at('06:55', '2026-09-27')), {}, 'still quiet');
   assert.deepEqual(await tick(at('07:03', '2026-09-27')), {
-    'maya-phone': [{ title: '🔋 Heads-up for today', body: 'Today looks full: 5 events, 1 chore and a late evening. Maybe plan a rest or move something?' }],
+    'maya-phone': [{ title: '🔋 Heads-up for today', body: 'Today looks full: 5 events, 1 chore, and a late evening. Maybe plan a rest or move something?' }],
   });
   assert.deepEqual(await tick(at('07:30', '2026-09-27')), {}, 'once');
 });

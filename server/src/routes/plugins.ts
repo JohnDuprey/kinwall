@@ -18,6 +18,7 @@
 // who's playing, the theme, and per-person saved data through the routes below. No policy can stop
 // a page navigating its own frame elsewhere, carrying what it was told in the address; the web app
 // stops answering a frame once it does, and review (the catalog) is what keeps such plugins out.
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -193,13 +194,13 @@ async function packageFor(env: Env, repo: string): Promise<{ zip: Uint8Array; en
   const entry = catalog ? inCatalog(catalog, repo) : undefined;
   if (!entry) {
     if (catalogOnly(env)) throw new NotInCatalogError();
-    if (!catalog) throw new PackageError("The list of reviewed activities couldn't be loaded, so nothing was installed. Try again in a few minutes.");
+    if (!catalog) throw new PackageError(stored('error', "The list of reviewed activities couldn't be loaded, so nothing was installed. Try again in a few minutes."));
     const was = await env.DB.prepare('SELECT name FROM plugins WHERE reviewed = 1 AND lower(source) = lower(?)').bind(repo).first<{ name: string }>();
-    if (was) throw new PackageError(`${was.name} was taken off the list of reviewed activities, so it can't be updated or installed again. It keeps working as it is, or you can remove it.`);
+    if (was) throw new PackageError(stored('error', "{name} was taken off the list of reviewed activities, so it can't be updated or installed again. It keeps working as it is, or you can remove it.", { name: was.name }));
     return { zip: await fetchPackage(repo) };
   }
   const zip = await fetchPackage(entry.repo, `v${entry.version}`);
-  if ((await sha256(zip)) !== entry.sha256) throw new PackageError(`${entry.name} v${entry.version} on GitHub doesn't match the reviewed package, so it wasn't installed.`);
+  if ((await sha256(zip)) !== entry.sha256) throw new PackageError(stored('error', "{name} v{version} on GitHub doesn't match the reviewed package, so it wasn't installed.", { name: entry.name, version: entry.version }));
   return { zip, entry };
 }
 
@@ -210,12 +211,13 @@ const toApi = (r: Row): z.infer<typeof PluginSchema> => {
 };
 
 export class PackageError extends Error {}
-const NOT_IN_CATALOG = 'Only activities from the Kinwall catalog can be added here.';
+const NOT_IN_CATALOG = stored('error', 'Only activities from the Kinwall catalog can be added here.');
 class NotInCatalogError extends PackageError { constructor() { super(NOT_IN_CATALOG); } }
+const tooBig = () => stored('error', 'The package can be at most {n} MB', { n: PLUGIN_LIMITS.maxZipBytes / 1048576 });
 
 /** Unpacks and checks a plugin package; files keyed by their path inside the plugin. Exported for hosts' review consoles. */
 export async function unpack(zip: Uint8Array): Promise<{ manifest: Manifest; files: { path: string; mime: string; data: Uint8Array }[] }> {
-  if (zip.byteLength > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(`The package can be at most ${PLUGIN_LIMITS.maxZipBytes / 1048576} MB`);
+  if (zip.byteLength > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(tooBig());
   let entries;
   try {
     entries = readZip(zip, PLUGIN_LIMITS.maxFileBytes);
@@ -264,12 +266,12 @@ async function install(db: KinwallDb, zip: Uint8Array, source: string | null, en
   const existing = await db.prepare('SELECT source FROM plugins WHERE id = ?').bind(manifest.id).first<{ source: string | null }>();
   if (!existing) {
     const count = (await db.prepare('SELECT COUNT(*) AS n FROM plugins').first<{ n: number }>())?.n ?? 0;
-    if (count >= PLUGIN_LIMITS.maxPlugins) throw new PackageError(`A family can have at most ${PLUGIN_LIMITS.maxPlugins} plugins`);
+    if (count >= PLUGIN_LIMITS.maxPlugins) throw new PackageError(stored('error', 'A family can have at most {n} plugins', { n: PLUGIN_LIMITS.maxPlugins }));
   }
   // The family's total, not counting the files this install replaces.
   const others = (await db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM plugin_files WHERE plugin_id != ?').bind(manifest.id).first<{ n: number }>())?.n ?? 0;
   if (others + files.reduce((n, f) => n + f.data.length, 0) > PLUGIN_LIMITS.maxTotalBytes)
-    throw new PackageError(`All plugins together can take at most ${PLUGIN_LIMITS.maxTotalBytes / 1048576} MB. Remove one to make room.`);
+    throw new PackageError(stored('error', 'All plugins together can take at most {n} MB. Remove one to make room.', { n: PLUGIN_LIMITS.maxTotalBytes / 1048576 }));
   const now = new Date().toISOString();
   // Updating keeps its on/off state and everyone's saved data; the files are replaced wholesale.
   await db.batch([
@@ -308,7 +310,7 @@ export async function fetchPackage(repo: string, tag?: string): Promise<Uint8Arr
   let size = 0;
   for await (const part of res.body) {
     size += part.length;
-    if (size > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(`The package can be at most ${PLUGIN_LIMITS.maxZipBytes / 1048576} MB`);
+    if (size > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(tooBig());
     parts.push(part);
   }
   const out = new Uint8Array(size);
@@ -363,7 +365,7 @@ pluginsRoutes.openapi(
       let row: Row;
       if (type === 'application/zip' || type === 'application/x-zip-compressed') {
         if (catalogOnly(c.env)) throw new NotInCatalogError();
-        if (Number(c.req.header('Content-Length')) > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(`The package can be at most ${PLUGIN_LIMITS.maxZipBytes / 1048576} MB`);
+        if (Number(c.req.header('Content-Length')) > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(tooBig());
         row = await install(c.env.DB, new Uint8Array(await c.req.arrayBuffer()), null);
       } else {
         const { url } = (await c.req.json().catch(() => ({}))) as { url?: string };

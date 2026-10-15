@@ -1,3 +1,4 @@
+import { stored } from '../i18n.ts';
 import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
@@ -672,7 +673,7 @@ function eventInputError(start: string, end: string, allDay: boolean, rrule: str
 function rruleError(rrule: string | null | undefined, start: string, allDay: boolean, tz: string, keepStored = false): string | null {
   if (!rrule) return null;
   if (!isValidRrule(rrule)) return keepStored ? null : 'invalid rrule: a repeat needs a FREQ of DAILY, WEEKLY, MONTHLY or YEARLY';
-  return rruleOccurs(rrule, start, allDay, tz) ? null : 'That repeat never happens. Check the day and month.';
+  return rruleOccurs(rrule, start, allDay, tz) ? null : stored('error', 'That repeat never happens. Check the day and month.');
 }
 
 /** POST /api/events: write-through to the provider for a synced calendar, then the Kinwall row.

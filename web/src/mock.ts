@@ -17,7 +17,8 @@ import { setLogDay } from './reading.ts'
 import { DEMO_DRAWINGS, drawingPhoto } from './mock-drawings.ts'
 import { SECURITY_PAGE, matchesSecurityQuery } from './securityActivity.ts'
 import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
-import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
+import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS, NEWS_TITLES } from './mock-insights.ts'
+import { lang } from './i18n.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import { emptyContact } from './contact-types.ts'
 import { duplicateScore, parseVCards } from './vcard.ts'
@@ -919,7 +920,8 @@ function mockNewscast(q: { days?: number; before?: string }): Newscast {
   const items: NewscastItem[] = [
     ...DEMO_NEWS.filter(d => (!d.memberId || !hidden.has(d.memberId)) && (NEWS_FEATURE[d.kind]?.() ?? true)).map(({ ago, ...d }): NewscastItem => {
       const at = hoursAgo(ago)
-      return { detail: null, count: 1, photos: [], ...d, date: dateKey(new Date(at)), at, post: null, reactions: [] }
+      // The server writes its lines in the screen's language (mock-insights.ts has them per language).
+      return { detail: null, count: 1, photos: [], ...d, title: NEWS_TITLES[d.key]?.[lang()] ?? d.title, date: dateKey(new Date(at)), at, post: null, reactions: [] }
     }),
     ...newsPosts.map((p): NewscastItem => ({
       key: `post:${p.id}`, kind: 'post', date: dateKey(new Date(p.at)), at: p.at, memberId: p.memberId, emoji: '📣', title: p.removed ? 'Removed by a parent' : p.text, detail: null, count: 1,
@@ -1094,7 +1096,7 @@ export const mock = {
       const { ago: _ago, ...rest } = d
       return { ...rest, date, feelings: [...d.feelings], journalMoods: [...d.journalMoods] }
     })
-    const analysis = memberId === 'm3' ? MAYA_ANALYSIS[range] : { summary: [{ id: 'checkins', text: `Checked in on 0 of ${n} days` }], topFeelings: [], connections: { ready: false, daysWithCheckIns: 0, needed: 21, list: [] } }
+    const analysis = memberId === 'm3' ? MAYA_ANALYSIS[lang()][range] : { summary: [{ id: 'checkins', text: `Checked in on 0 of ${n} days` }], topFeelings: [], connections: { ready: false, daysWithCheckIns: 0, needed: 21, list: [] } }
     return { memberId, range, from: days[0].date, to: days[n - 1].date, days, ...analysis }
   },
   // Energy battery: Maya's made-up week and a full day tomorrow (mock-insights.ts, the server's own model); off for everyone else.
@@ -1102,8 +1104,8 @@ export const mock = {
     const on = memberId === 'm3'
     return {
       memberId, on, today: demoDay(0),
-      days: on ? MAYA_BATTERY.days.map(({ ago, ...d }) => ({ ...d, date: demoDay(-ago), reasons: d.reasons.map(r => ({ ...r })) })) : [],
-      warnings: on ? MAYA_BATTERY.warnings.map(({ ago, ...w }) => ({ ...w, date: demoDay(-ago), suggestions: [...w.suggestions] })) : [],
+      days: on ? MAYA_BATTERY[lang()].days.map(({ ago, ...d }) => ({ ...d, date: demoDay(-ago), reasons: d.reasons.map(r => ({ ...r })) })) : [],
+      warnings: on ? MAYA_BATTERY[lang()].warnings.map(({ ago, ...w }) => ({ ...w, date: demoDay(-ago), suggestions: [...w.suggestions] })) : [],
     }
   },
   addJournalEntry: async (memberId: string, b: { date?: string; text: string; mood?: string | null }): Promise<JournalEntry> => {

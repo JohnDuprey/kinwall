@@ -2,6 +2,7 @@
 // 8 codes is shown once; only SHA-256 hashes are stored. Using one mints the same 30-day admin
 // session key a passkey login does.
 import { createRoute, z } from '@hono/zod-openapi';
+import { stored, words } from '../i18n.ts';
 import { createRouter } from '../router.ts';
 import { actorOf, createApiKey, sha256Hex } from '../auth.ts';
 import { pushGrownUps, recordSecurityEvent, securityEventStmts } from './security-events.ts';
@@ -54,7 +55,7 @@ recoveryRoutes.openapi(
     await db.batch([
       db.prepare('DELETE FROM recovery_codes'),
       ...inserts,
-      ...securityEventStmts(db, { kind: 'recovery.generated', summary: first ? 'Recovery codes made' : 'New recovery codes made; the old ones stopped working', by: await actorOf(c) }),
+      ...securityEventStmts(db, { kind: 'recovery.generated', summary: first ? stored('security', 'Recovery codes made') : stored('security', 'New recovery codes made; the old ones stopped working'), by: await actorOf(c) }),
     ]);
     return c.json({ codes }, 200);
   },
@@ -115,8 +116,11 @@ recoveryRoutes.openapi(
     const row = await db.prepare('SELECT COUNT(*) AS n FROM recovery_codes WHERE used_at IS NULL').first<{ n: number }>();
     console.log(`Kinwall: signed in with a recovery code (${row?.n ?? 0} left)`);
     const left = row?.n ?? 0;
-    await recordSecurityEvent(db, { kind: 'signin.recovery', summary: `Recovery code used to sign in (${left} left)`, detail: { remaining: left } });
-    pushGrownUps(c, { title: '🔐 Recovery code used to sign in', body: `${left} of the codes are left. If that wasn't you, make new codes and check Settings → Access.` });
+    await recordSecurityEvent(db, { kind: 'signin.recovery', summary: stored('security', 'Recovery code used to sign in ({n} left)', { n: left }), detail: { remaining: left } });
+    pushGrownUps(c, (lang) => {
+      const { t, tn } = words(lang);
+      return { title: t('🔐 Recovery code used to sign in'), body: tn(left, "{n} of the codes is left. If that wasn't you, make new codes and check Settings → Access.", "{n} of the codes are left. If that wasn't you, make new codes and check Settings → Access.") };
+    });
     return c.json({ key: session.key, expiresAt, remaining: row?.n ?? 0 }, 200);
   },
 );

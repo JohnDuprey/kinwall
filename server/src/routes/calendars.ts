@@ -13,6 +13,7 @@ import { parseFilter } from '../calendar-filter.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { canChangeEvents, requestKey } from '../auth.ts';
 import { defaultCalendarId } from '../default-calendar.ts';
+import { requestLang, translateStored } from '../i18n.ts';
 
 export const calendarsRoutes = createRouter();
 
@@ -95,7 +96,8 @@ calendarsRoutes.openapi(
   }),
   async (c) => {
     const [{ results }, key, fallback] = await Promise.all([c.env.DB.prepare('SELECT * FROM calendars ORDER BY name').all<CalendarRow>(), requestKey(c), defaultCalendarId(c.env.DB)]);
-    return c.json(results.map((r) => toApi(r, canChangeEvents(key, r), r.id === fallback)), 200);
+    const lang = await requestLang(c); // last_error is stored in English
+    return c.json(results.map((r) => ({ ...toApi(r, canChangeEvents(key, r), r.id === fallback), lastError: r.last_error && translateStored(lang, 'error', r.last_error) })), 200);
   },
 );
 

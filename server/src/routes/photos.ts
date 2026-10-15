@@ -8,6 +8,7 @@
 // family = 0 and listed only by /api/coloring-pages; "coloring": true in the zip backup.
 // avatar = 1 (migration 0096): a member's profile picture (members.picture_id), family = 0, set and
 // cleared by PUT / DELETE /api/members/{id}/picture below; "picture": true in the zip backup.
+import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
@@ -512,9 +513,9 @@ photosRoutes.openapi(
 export const pictureUrl = (id: string) => `/api/photos/${id}/image`;
 
 async function pictureRefusal(c: Context<{ Bindings: Env }>, id: string): Promise<string | null> {
-  if (await isConnectedApp(c)) return "Connected apps can't change profile pictures. Do this from the family's own devices.";
+  if (await isConnectedApp(c)) return stored('error', "Connected apps can't change profile pictures. Do this from the family's own devices.");
   const key = await requestKey(c);
-  if (key?.scope === 'display' && (key.deviceKind === 'widgets' || (await deviceOwner(c)) !== id)) return "Only a parent's device or their own device can change this picture.";
+  if (key?.scope === 'display' && (key.deviceKind === 'widgets' || (await deviceOwner(c)) !== id)) return stored('error', "Only a parent's device or their own device can change this picture.");
   return null;
 }
 

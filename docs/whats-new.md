@@ -15,8 +15,10 @@ The full list of changes in every version is in the [changelog](https://github.c
   [Lists](using/lists.md).
 * **Kinwall speaks German.** Pick the family's language in Settings → General → Household, and
   anyone can pick their own for their own devices. A wall stays in the family's language when
-  someone taps their face; the activities they play use theirs. German covers every screen; some
-  text from the server (newscast lines, insights, error messages) is still English. Translation by
+  someone taps their face; the activities they play use theirs. German covers every screen and the
+  text the server writes: notifications and reminders, the newscast, insights, the battery, the
+  weather and error messages. A push goes out in the language of the person whose phone it is. The
+  phone apps' own screens are still English. Translation by
   [sudo-Foras666](https://github.com/sudo-Foras666). See
   [Language](settings/general.md#language), and [Translations](contributing/translations.md) to
   help add another language.

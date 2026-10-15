@@ -1,3 +1,5 @@
+import { stored } from './i18n.ts';
+
 // Strips secrets from anything that might get logged or returned to a client: last_error
 // columns, 502 error bodies. Never perfect (best-effort regex scrub), but covers the shapes
 // tokens/URLs actually take in this codebase.
@@ -18,7 +20,7 @@ export function errorMessage(err: unknown, fallback = 'unexpected error'): strin
 }
 
 /** What a client sees for any unexpected failure: nothing from the database, crypto or a library. */
-export const GENERIC_ERROR = 'Something went wrong. Please try again.';
+export const GENERIC_ERROR = stored('error', 'Something went wrong. Please try again.');
 
 /** For a handler that catches a setup failure (encryption) to answer a parent: the missing-key
  * guidance is deliberate, anything else is logged and kept off the wire. */

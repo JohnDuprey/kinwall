@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
 import type { MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { requestLang, translateError } from './i18n.ts';
 import { EncryptionKeyMissingError } from './crypto.ts';
 import { GENERIC_ERROR } from './redact.ts';
 import { createRouter } from './router.ts';
@@ -136,6 +137,22 @@ export function createApp() {
     return cors({ origin: origins })(c, next);
   });
 
+  // Errors in the language the screen shows (i18n.ts): every { error } a route (or onError, or auth)
+  // answers with goes out translated, so routes keep writing English.
+  app.use('/api/*', async (c, next) => {
+    await next();
+    c.header('Vary', 'Accept-Language', { append: true });
+    if (c.res.status < 400 || !c.res.headers.get('Content-Type')?.includes('application/json')) return;
+    const lang = await requestLang(c);
+    if (lang === 'en') return;
+    const body = await c.res.clone().json().catch(() => null) as { error?: unknown } | null;
+    if (typeof body?.error !== 'string') return;
+    const error = translateError(lang, body.error);
+    if (error === body.error) return;
+    const headers = new Headers(c.res.headers);
+    headers.delete('Content-Length');
+    c.res = new Response(JSON.stringify({ ...body, error }), { status: c.res.status, headers });
+  });
   app.use('/api/*', requireAuth);
   app.use('/api/*', bodyLimits); // after auth: nobody unauthenticated gets a big upload buffered
   app.use('/mcp', defaultLimit);

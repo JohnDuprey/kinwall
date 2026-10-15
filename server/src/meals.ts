@@ -3,6 +3,7 @@ import type { KinwallDb, KinwallStatement } from './db.ts';
 import type { Actor } from './auth.ts';
 import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type RecipeStep, type Projection } from './meal-schemas.ts';
 import { fillPlace, itemKey, recall } from './item-memory.ts';
+import { words, type Lang } from './i18n.ts';
 
 export function normalizeIngredient(value: string): string {
   return value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -197,7 +198,8 @@ export async function shoppingProjection(db: KinwallDb, from: string, to: string
 
 /** Each item insert and its source claims run in one transaction. The SQL rechecks the ledger,
  * so concurrent/overlapping previews add only still-unclaimed contributions, never duplicates. */
-export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean, includeKitItems = false, by: Actor = { memberId: null, label: null }): Promise<string[]> {
+export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean, includeKitItems = false, by: Actor = { memberId: null, label: null }, lang: Lang = 'en'): Promise<string[]> {
+  const { t } = words(lang); // the items' notes: list data, written in the family's language
   const omitted = new Set(omitKeys);
   const now = new Date().toISOString();
   // What ships in a meal kit is already in the box, so it stays off the list unless asked for.
@@ -209,7 +211,12 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
     suffix: `${item.unit ? ` ${item.unit}` : ''}${item.qualifier ? ` · ${item.qualifier}` : ''}`,
     sources: item.sources.map((s) => ({ ref: s.sourceRef, quantity: s.quantity, fingerprint: sourceFingerprint(s, item.key),
       // A basic's own ingredient always says which basic it's for.
-      note: includeNotes ? `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}${s.basicName ? ` · for ${s.basicName}` : ''}${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable && !s.basicName ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : s.basicName ? `For ${s.basicName}` : null,
+      note: includeNotes ? [
+        `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}`,
+        s.basicName && t('for {basic}', { basic: s.basicName }),
+        s.preparation,
+        !s.scalable && !s.basicName && t('check amount for {n} servings (recipe: {recipe})', { n: s.servings, recipe: s.defaultServings }),
+      ].filter(Boolean).join(' · ') : s.basicName ? t('For {basic}', { basic: s.basicName }) : null,
     })),
   }));
   // json_each keeps the batch's statement/parameter count small on D1 even for large plans.

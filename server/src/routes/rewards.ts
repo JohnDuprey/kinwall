@@ -7,6 +7,7 @@
 // row. On a parent's device everyone pays at once; elsewhere the asker pays now and the request
 // always waits for a parent, whose OK takes the others' shares (nobody's points go without their
 // own tap or a parent's).
+import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -47,7 +48,6 @@ const json = <T extends z.ZodTypeAny>(schema: T, description = 'ok') => ({ descr
 const err = (description: string) => json(ErrorSchema, description);
 const label = (r: { emoji: string | null; title: string }) => (r.emoji ? `${r.emoji} ${r.title}` : r.title);
 const pts = (n: number) => `${n} point${n === 1 ? '' : 's'}`;
-const and = (names: string[]) => new Intl.ListFormat('en-US').format(names);
 
 function execCtx(c: Context<{ Bindings: Env }>) {
   try {
@@ -211,10 +211,11 @@ const CHARGE = `INSERT INTO point_entries (id, member_id, amount, reason, ref, a
 
 /** What's wrong with a split, or null: the asker chips in, each person once, adding up to the cost. */
 export function splitProblem(shares: Share[], askerId: string, cost: number): string | null {
-  if (!shares.some((x) => x.memberId === askerId)) return 'The person asking chips in too';
-  if (new Set(shares.map((x) => x.memberId)).size !== shares.length) return 'Each person chips in once';
+  if (!shares.some((x) => x.memberId === askerId)) return stored('error', 'The person asking chips in too');
+  if (new Set(shares.map((x) => x.memberId)).size !== shares.length) return stored('error', 'Each person chips in once');
   const sum = shares.reduce((n, x) => n + x.points, 0);
-  return sum === cost ? null : `The shares add up to ${pts(sum)}, not ${cost}`;
+  if (sum === cost) return null;
+  return sum === 1 ? stored('error', 'The shares add up to 1 point, not {cost}', { cost }) : stored('error', 'The shares add up to {sum} points, not {cost}', { sum, cost });
 }
 
 rewardsRoutes.openapi(
@@ -267,7 +268,7 @@ rewardsRoutes.openapi(
     const h = await household(db);
     const from = periodStart(reward.limit_period, h);
     const max = reward.limit_count ?? 1;
-    const usedMsg = `That's all for ${reward.limit_period === 'day' ? 'today' : 'this week'}`;
+    const usedMsg = reward.limit_period === 'day' ? stored('error', "That's all for today") : stored('error', "That's all for this week");
     const used = async () => !!from && Number((await db.prepare(USED_SQL).bind(id, memberId, from).first<{ n: number }>())?.n) >= max;
     if (await used()) return c.json({ error: usedMsg }, 409);
     // The asker's share first.
@@ -280,7 +281,7 @@ rewardsRoutes.openapi(
         if (!t) return c.json({ error: 'member not found' }, 404);
         const name = (await memberName(c, x.memberId)) ?? 'Someone';
         if (!forMember(reward, x.memberId)) return c.json({ error: `This reward isn't for ${name}` }, 403);
-        if (t.earned - t.spent < x.points) return c.json({ error: `${name} doesn't have ${pts(x.points)}`, balance: t.earned - t.spent, cost: x.points }, 402);
+        if (t.earned - t.spent < x.points) return c.json({ error: x.points === 1 ? stored('error', "{name} doesn't have 1 point", { name }) : stored('error', "{name} doesn't have {n} points", { name, n: x.points }), balance: t.earned - t.spent, cost: x.points }, 402);
       }
     }
     const mine = shares ? shares[0].points : reward.cost;
@@ -315,11 +316,17 @@ rewardsRoutes.openapi(
     }
     emit(c, 'reward.redeemed', { id: row.id, rewardId: id, memberId, title: row.title, emoji: row.emoji, cost: row.cost, ...(shares ? { shares } : {}), status });
     if (status === 'pending') {
-      const name = (await memberName(c, memberId)) ?? 'Someone';
-      const others = shares ? await Promise.all(shares.slice(1).map(async (x) => (await memberName(c, x.memberId)) ?? 'someone')) : [];
+      const name = await memberName(c, memberId);
+      const others = shares ? await Promise.all(shares.slice(1).map((x) => memberName(c, x.memberId))) : [];
       notifyChoreApproval(c.env, execCtx(c), 'parents', `reward:${row.id}`, {
-        title: `${name} wants ${label(row)} (${pts(row.cost)})${others.length ? `, split with ${and(others)}` : ''}. Approve?`,
-        body: others.length ? `Approving takes everyone's share. Open Rewards to approve it or say not this time.` : 'Open Rewards to approve it or say not this time.',
+        text: (lang) => {
+          const { t, tn, list } = words(lang);
+          const vars = { name: name ?? t('Someone'), reward: label(row), points: tn(row.cost, '{n} point', '{n} points') };
+          return {
+            title: others.length ? t('{name} wants {reward} ({points}), split with {others}. Approve?', { ...vars, others: list(others.map((o) => o ?? t('someone'))) }) : t('{name} wants {reward} ({points}). Approve?', vars),
+            body: others.length ? t("Approving takes everyone's share. Open Rewards to approve it or say not this time.") : t('Open Rewards to approve it or say not this time.'),
+          };
+        },
         url: '/#/rewards',
         memberIds: shares ? shares.map((x) => x.memberId) : [memberId],
       });
@@ -458,7 +465,10 @@ rewardsRoutes.openapi(
       const short = (await db.prepare(UNPAID).bind(id).all<{ member_id: string; points: number }>()).results;
       for (const x of short) {
         const have = await balanceOf(db, x.member_id);
-        if (have < x.points) return c.json({ error: `${(await memberName(c, x.member_id)) ?? 'Someone'} has only ${pts(have)} now, not ${x.points}` }, 402);
+        if (have < x.points) {
+          const name = (await memberName(c, x.member_id)) ?? 'Someone';
+          return c.json({ error: have === 1 ? stored('error', '{name} has only 1 point now, not {points}', { name, points: x.points }) : stored('error', '{name} has only {n} points now, not {points}', { name, n: have, points: x.points }) }, 402);
+        }
       }
       const exists = await db.prepare('SELECT 1 FROM reward_redemptions WHERE id = ?').bind(id).first();
       return c.json({ error: exists ? 'Not waiting for approval' : 'not found' }, exists ? 409 : 404);
@@ -499,10 +509,12 @@ rewardsRoutes.openapi(
     const { results: back } = await c.env.DB.prepare("SELECT member_id, SUM(amount) AS n FROM point_entries WHERE reason = 'reward_refund' AND ref = ? GROUP BY member_id").bind(id).all<{ member_id: string; n: number }>();
     for (const x of shares ?? [{ memberId: row.member_id, points: row.cost }]) {
       const n = back.find((b) => b.member_id === x.memberId)?.n ?? 0;
-      const got = n ? `Your ${pts(n)} are back.` : 'None of your points were spent.';
       notifyChoreApproval(c.env, execCtx(c), { owner: x.memberId }, `reward-no:${id}${x.memberId === row.member_id ? '' : `:${x.memberId}`}`, {
-        title: `Not this time: ${label(row)}`,
-        body: note ? `${note} ${got}` : got,
+        text: (lang) => {
+          const { t, tn } = words(lang);
+          const got = n ? t('Your {points} are back.', { points: tn(n, '{n} point', '{n} points') }) : t('None of your points were spent.');
+          return { title: t('Not this time: {reward}', { reward: label(row) }), body: note ? `${note} ${got}` : got };
+        },
         url: `/#/rewards/${x.memberId}`,
         memberIds: [x.memberId],
       });
@@ -523,7 +535,7 @@ rewardsRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const r = await transition(c, id, ['approved'], 'given', 'given_at = ?', [new Date().toISOString()], 'Only an approved reward can be marked given');
+    const r = await transition(c, id, ['approved'], 'given', 'given_at = ?', [new Date().toISOString()], stored('error', 'Only an approved reward can be marked given'));
     if (!r.row) return c.json({ error: r.error }, r.status);
     emit(c, 'reward.given', { id, rewardId: r.row.reward_id, memberId: r.row.member_id, title: r.row.title, emoji: r.row.emoji, cost: r.row.cost });
     return c.json(toRedemptionApi(r.row), 200);

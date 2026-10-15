@@ -1,3 +1,4 @@
+import { familyLang, stored, words, type Lang } from '../i18n.ts';
 import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
@@ -228,27 +229,27 @@ export async function kidRefusal(c: Context<{ Bindings: Env }>, m: { id: string;
       EXISTS (SELECT 1 FROM journal_entries WHERE member_id = ? AND private = 2) OR EXISTS (SELECT 1 FROM temp_checks WHERE member_id = ? AND private = 2) AS journal,
       EXISTS (SELECT 1 FROM api_keys WHERE owner = ? AND scope = 'admin') OR EXISTS (SELECT 1 FROM passkeys WHERE owner = ?) OR EXISTS (SELECT 1 FROM oauth_grants WHERE owner = ? AND scope = 'admin') AS signin`)
     .bind(m.id, m.id, m.id, m.id, m.id).first<{ journal: number; signin: number }>();
-  const only = `so only ${m.name} can change this, from their own phone or computer.`;
-  return has?.journal ? `${m.name} has a private journal, ${only}` : has?.signin ? `${m.name} signs in with full access, ${only}` : null;
+  const name = m.name;
+  return has?.journal ? stored('error', '{name} has a private journal, so only {name} can change this, from their own phone or computer.', { name })
+    : has?.signin ? stored('error', '{name} signs in with full access, so only {name} can change this, from their own phone or computer.', { name }) : null;
 }
-const grownUpTitle = (name: string, grownUp: boolean) => (grownUp ? `${name} is now marked as a grown-up` : `${name} is no longer marked as a grown-up`);
 /** For the batch that changes member `id` to `grownUp`. A kid's journal starts at a kid's defaults. */
 export async function grownUpChangeStmts(c: Context<{ Bindings: Env }>, id: string, grownUp: boolean, name: string): Promise<KinwallStatement[]> {
   const db = c.env.DB;
   return [
     ...(grownUp ? [] : [db.prepare('UPDATE members SET journal_private = NULL, journal_private_allowed = 0 WHERE id = ?').bind(id)]),
-    ...securityEventStmts(db, { kind: 'member.grown_up', summary: grownUpTitle(name, grownUp), by: await actorOf(c), about: id }),
+    ...securityEventStmts(db, { kind: 'member.grown_up', summary: grownUp ? stored('security', '{name} is now marked as a grown-up', { name }) : stored('security', '{name} is no longer marked as a grown-up', { name }), by: await actorOf(c), about: id }),
   ];
 }
 /** After that batch: tell them, and parent devices. */
 export async function noteGrownUpChange(c: Context<{ Bindings: Env }>, id: string, name: string, grownUp: boolean): Promise<void> {
-  const note = {
-    title: grownUpTitle(name, grownUp),
-    body: grownUp
-      ? `Changed on a parent's device. ${name}'s private journal entries open only on ${name}'s own phone or computer.`
-      : `What ${name} wrote in private as a grown-up stays private. It opens again only on ${name}'s own phone or computer, once ${name} is a grown-up again. New entries aren't private unless a parent allows it.`,
+  const note = (lang: Lang) => {
+    const { t } = words(lang);
+    return grownUp
+      ? { title: t('{name} is now marked as a grown-up', { name }), body: t("Changed on a parent's device. {name}'s private journal entries open only on {name}'s own phone or computer.", { name }) }
+      : { title: t('{name} is no longer marked as a grown-up', { name }), body: t("What {name} wrote in private as a grown-up stays private. It opens again only on {name}'s own phone or computer, once {name} is a grown-up again. New entries aren't private unless a parent allows it.", { name }) };
   };
-  await recordNotification(c.env.DB, { kind: 'privacy', ...note, url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
+  await recordNotification(c.env.DB, { kind: 'privacy', ...note(await familyLang(c.env.DB)), url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
   pushGrownUps(c, note);
 }
 

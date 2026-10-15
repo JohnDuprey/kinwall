@@ -63,3 +63,23 @@ test('the ratchet: a file may not gain hard-coded strings; --write only lowers t
   assert.match(compareBaseline({}, { 'New.tsx': 1 })[0], /New\.tsx/)
   assert.deepEqual(lowerBaseline({ 'A.tsx': 3, 'B.tsx': 2, 'C.tsx': 5 }, { 'A.tsx': 1, 'B.tsx': 4, 'D.tsx': 2 }), { 'A.tsx': 1, 'B.tsx': 2 }, 'a new file starts at 0')
 })
+
+test('server: keys from words() destructuring, stored(), every `error:` (templates as {placeholders}), and no OpenAPI or SQL', () => {
+  const r = scanSource('routes/x.ts', `import { stored, words } from '../i18n.ts'
+    const PAIRING = stored('error', 'Pick whose device it is')
+    export function f(lang, m, n) {
+      const { t, tn } = words(lang)
+      const route = createRoute({ summary: 'Get household settings', description: 'Not copy at all here' })
+      db.prepare('SELECT id FROM members WHERE id = ?')
+      if (n > MAX_WAITING) return { status: 403, error: \`\${m.name} already has \${MAX_WAITING} ideas waiting for \${m.name}.\` }
+      return [t('Today'), tn(n, '{n} chore left', '{n} chores left'), { error: n ? 'Not enough points' : 'invalid_grant' }]
+    }`, { server: true })
+  assert.deepEqual(r.errors, [])
+  assert.deepEqual(r.keys.map((k: { key: string }) => k.key).sort(), ['Today', '{n} chore left', '{n} chores left', 'error|Not enough points', 'error|Pick whose device it is', 'error|{name} already has {n} ideas waiting for {name}.'].sort())
+  assert.equal(r.hardcoded, 0, 'OpenAPI text, SQL and an OAuth code are not copy')
+})
+
+test('server: a file that declares its own msg() (nudges.ts) has its English collected', () => {
+  const r = scanSource('nudges.ts', `const msg = (text: string) => text\nexport const HINTS = [msg('Shoes on?'), msg('Jacket?')]`, { server: true })
+  assert.deepEqual(r.keys.map((k: { key: string }) => k.key), ['Shoes on?', 'Jacket?'])
+})

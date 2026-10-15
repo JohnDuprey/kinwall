@@ -8,13 +8,14 @@ import { parseIcsEvents, fetchIcsConditional, icsFingerprint } from './providers
 import { decryptConfig, encryptConfig } from './crypto.ts';
 import { providerEnv } from './providers/config.ts';
 import { redact } from './redact.ts';
+import { stored } from './i18n.ts';
 import { deterministicEventIds } from './event-id.ts';
 import { parseMemberIds } from './calendar-members.ts';
 
 // Calendars imported from an export arrive as placeholders: no account, config = '' (the column is
 // NOT NULL). They keep their settings and per-event overrides but aren't synced until reconnected
 // (POST /api/calendars with the same account kind + remoteId, or PATCH { url } for ICS).
-export const RECONNECT_MESSAGE = 'Reconnect this calendar to resume syncing';
+export const RECONNECT_MESSAGE = stored('error', 'Reconnect this calendar to resume syncing');
 
 const SYNC_WINDOW_PAST_DAYS = 30;
 const SYNC_WINDOW_FUTURE_DAYS = 365;
@@ -51,21 +52,17 @@ type CalendarRow = {
   content_hash: string | null;
 };
 
-/** Whose calendar, in the family's words: "Leo's calendar" when it's one person's, else "the
- * Soccer calendar". Shared with notify.ts (the note to the grown-ups). */
-export async function calendarWho(db: KinwallDb, cal: { name: string; member_ids?: string | null }): Promise<string> {
-  const ids = parseMemberIds(cal.member_ids);
-  const one = ids.length === 1 ? await db.prepare('SELECT name FROM members WHERE id = ?').bind(ids[0]).first<{ name: string }>() : null;
-  return one ? `${one.name}'s calendar` : `the ${cal.name} calendar`;
-}
-
 const PROVIDER_NAME = { google: 'Google', microsoft: 'Microsoft' } as const;
 
 /** What a failed sync records: a revoked sign-in in plain words with code 'revoked' (only
  * reconnecting fixes it; the grown-ups get one note, notify.ts), anything else as it came. */
 async function failure(db: KinwallDb, cal: CalendarRow, err: unknown): Promise<{ message: string; code: string | null }> {
   if (err instanceof SignInRevoked) {
-    return { message: `${PROVIDER_NAME[err.provider]} stopped letting Kinwall see ${await calendarWho(db, cal)}. Reconnect it to start syncing again.`, code: 'revoked' };
+    // Stored in English, shown in the screen's language (routes/calendars.ts).
+    const ids = parseMemberIds(cal.member_ids);
+    const owner = ids.length === 1 ? (await db.prepare('SELECT name FROM members WHERE id = ?').bind(ids[0]).first<{ name: string }>())?.name : null;
+    const provider = PROVIDER_NAME[err.provider];
+    return { message: owner ? stored('error', "{provider} stopped letting Kinwall see {name}'s calendar. Reconnect it to start syncing again.", { provider, name: owner }) : stored('error', '{provider} stopped letting Kinwall see the {calendar} calendar. Reconnect it to start syncing again.', { provider, calendar: cal.name }), code: 'revoked' };
   }
   return { message: redact(err instanceof Error ? err.message : String(err)), code: null };
 }

@@ -17,6 +17,7 @@ import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.t
 import { parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
 import { checkRate } from '../ratelimit.ts';
+import { familyLang, msg, perLang, requestLang, tm, words } from '../i18n.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -149,7 +150,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url
   if ('error' in page) return c.json({ error: `${upper(page.error)}.` }, page.status);
   const recipe = parseRecipeHtml(page.html, page.url);
   if (!recipe) return c.json({ error: 'This page has no recipe data Kinwall can read. Paste the recipe text instead.' }, 422);
-  const warnings = previewWarnings(recipe);
+  const warnings = previewWarnings(recipe, await requestLang(c));
   if (!save) {
     // Saving replaces the recipe already imported from this address; say so, since a page can claim any address.
     const updates = recipe.sourceUrl ? await c.env.DB.prepare("SELECT id, name FROM recipes WHERE source = 'web' AND external_id = ?").bind(recipe.sourceUrl).first<{ id: string; name: string }>() : null;
@@ -163,7 +164,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/parse-text
   const { text, url } = c.req.valid('json');
   const recipe = parseRecipeText(text, url ?? null);
   if (!recipe) return c.json({ error: 'Add a line that says "Ingredients" above the ingredients and one that says "Directions" above the steps.' }, 422);
-  return c.json({ recipe, warnings: previewWarnings(recipe) }, 200);
+  return c.json({ recipe, warnings: previewWarnings(recipe, await requestLang(c)) }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Edit or archive a recipe without changing planned meal snapshots (admin)', security: [{ Bearer: [] }], request: { params, body: body(RecipeInputSchema.partial()) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
   const old = (await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
@@ -244,7 +245,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
   const { from, to, listId, omitKeys = [], includeNotes = false, includeKitItems = false, basics = {} } = c.req.valid('json');
   if (!await shoppingList(c.env.DB, listId)) return c.json({ error: 'active Groceries list not found' }, 400);
   const projection = await shoppingProjection(c.env.DB, from, to, listId, basics);
-  const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes, includeKitItems, await actorOf(c));
+  const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes, includeKitItems, await actorOf(c), await familyLang(c.env.DB));
   if (itemIds.length) emit(c, 'list.item.changed', { listId });
   return c.json({ added: itemIds.length, itemIds, projection: await shoppingProjection(c.env.DB, from, to, listId) }, 200);
 });
@@ -411,7 +412,8 @@ mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}/order
   emit(c, 'meal.changed', { id });
   return c.json(await readMeal(c.env.DB, id) as Meal, 200);
 });
-const ORDER_HOW = { dine_in: 'Eating there', pickup: 'Pickup', delivery: 'Delivery' } as const;
+const ORDER_HOW = { dine_in: msg('Eating there'), pickup: msg('Pickup'), delivery: msg('Delivery') } as const;
+const SLOT_WORDS: Record<string, string> = { breakfast: msg('breakfast'), lunch: msg('lunch'), dinner: msg('dinner'), snack: msg('snack') };
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-orders', tags: ['Meals'], summary: "Ask who's eating (everyone when nobody is picked) and hasn't ordered yet what they want: a bell notification and a push to their devices, opening the order sheet (admin)", security: [{ Bearer: [] }], request: { params },
   responses: { 200: { description: 'how many devices got the push', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } }, ...errors, 429: { description: 'asked too often this hour', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);
@@ -426,12 +428,19 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-ord
   if (eating.length && !ask.length) return c.json({ ok: true, sent: 0 }, 200);
   // Each ask notifies everyone eating, so a runaway app or script can't flood the family's phones.
   if (!(await checkRate(c.env.DB, 'meals:ask-orders', ASK_ORDERS_PER_HOUR, 3600_000))) return c.json({ error: `Everyone was already asked for their orders ${ASK_ORDERS_PER_HOUR} times this hour, so nobody was asked again. Try again in a while.` }, 429);
-  const day = new Date(`${meal.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-  const title = `${meal.title}, ${day} ${meal.slot}: what do you want?`;
-  const text = `${meal.orderType ? `${ORDER_HOW[meal.orderType]}. ` : ''}Tap to add your order.`;
   const url = `/#/meals?meal=${encodeURIComponent(meal.id)}&orders=1`;
-  await recordNotification(c.env.DB, { kind: 'meal', title, body: text, url, memberIds: ask, source: c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api' });
-  const sent = await pushToMembers(c.env, ask, { title, body: text, url, tag: `orders:${meal.id}` });
+  // In each device's language; the bell's note in the family's.
+  const words_ = perLang((lang) => {
+    const { t, locale } = words(lang);
+    const day = new Date(`${meal.date}T12:00:00Z`).toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' });
+    const slot = SLOT_WORDS[meal.slot] ? tm(lang, SLOT_WORDS[meal.slot]) : meal.slot;
+    return {
+      title: t('{meal}, {day} {slot}: what do you want?', { meal: meal.title ?? '', day, slot }),
+      body: meal.orderType ? t('{how}. Tap to add your order.', { how: tm(lang, ORDER_HOW[meal.orderType]) }) : t('Tap to add your order.'),
+    };
+  });
+  await recordNotification(c.env.DB, { kind: 'meal', ...words_(await familyLang(c.env.DB)), url, memberIds: ask, source: c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api' });
+  const sent = await pushToMembers(c.env, ask, (lang) => ({ ...words_(lang), url, tag: `orders:${meal.id}` }));
   return c.json({ ok: true, sent }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/events/{id}/meal', tags: ['Meals'], summary: "The planned meal linked to this calendar event, with its orders (null when there's none)", security: [{ Bearer: [] }], request: { params },

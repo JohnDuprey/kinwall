@@ -25,6 +25,7 @@
 //   turns it on or off from their own device. Disallowing stops new private entries; old ones stay private.
 // Every change writes a line in the family's notification feed (kind 'privacy'), never silently.
 import { createRoute, z } from '@hono/zod-openapi';
+import { familyLang, stored, words } from '../i18n.ts';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
@@ -285,7 +286,8 @@ journalRoutes.openapi(
     const body = c.req.valid('json');
     const own = (await journalOwner(c)) === id;
     const next = { ...m };
-    const log: { title: string; body: string }[] = [];
+    const log: { title: string; body: string; summary: string }[] = []; // summary: the security activity's line (English, translated when read)
+    const { t } = words(await familyLang(c.env.DB)); // the feed's note: the family's language
     if (body.allowed !== undefined) {
       if ((await requestKey(c))?.scope !== 'admin' || (await isConnectedApp(c))) return c.json({ error: "A parent decides this, from a parent's device." }, 403);
       if (m.grown_up) return c.json({ error: `${m.name} is a grown-up: they decide for themselves.` }, 400);
@@ -293,8 +295,8 @@ journalRoutes.openapi(
         next.journal_private_allowed = body.allowed ? 1 : 0;
         if (!body.allowed) next.journal_private = null; // allowing again starts off
         log.push(body.allowed
-          ? { title: `${m.name} can keep a private journal`, body: `${m.name} can turn it on from their own device. Parents will see the mood, not the words.` }
-          : { title: `${m.name}'s private journal is off`, body: 'New entries can be read on parent devices. Entries already private stay private.' });
+          ? { summary: stored('security', '{name} can keep a private journal', { name: m.name }), title: t('{name} can keep a private journal', { name: m.name }), body: t('{name} can turn it on from their own device. Parents will see the mood, not the words.', { name: m.name }) }
+          : { summary: stored('security', "{name}'s private journal is off", { name: m.name }), title: t("{name}'s private journal is off", { name: m.name }), body: t('New entries can be read on parent devices. Entries already private stay private.') });
       }
     }
     if (body.private !== undefined) {
@@ -302,8 +304,8 @@ journalRoutes.openapi(
       if (!m.grown_up && !next.journal_private_allowed) return c.json({ error: `A parent hasn't turned on a private journal for ${m.name}.` }, 403);
       if (privateNow(next) !== body.private) {
         log.push(body.private
-          ? { title: `${m.name}'s journal is private`, body: 'Only their own devices read new entries. Parents see the mood, not the words.' }
-          : { title: `${m.name}'s journal is shared again`, body: 'New entries can be read on parent devices. Entries written while it was private stay private.' });
+          ? { summary: stored('security', "{name}'s journal is private", { name: m.name }), title: t("{name}'s journal is private", { name: m.name }), body: t('Only their own devices read new entries. Parents see the mood, not the words.') }
+          : { summary: stored('security', "{name}'s journal is shared again", { name: m.name }), title: t("{name}'s journal is shared again", { name: m.name }), body: t('New entries can be read on parent devices. Entries written while it was private stay private.') });
       }
       next.journal_private = body.private ? 1 : 0;
     }
@@ -311,9 +313,9 @@ journalRoutes.openapi(
     const by = await actorOf(c);
     await db.batch([
       db.prepare('UPDATE members SET journal_private = ?, journal_private_allowed = ? WHERE id = ?').bind(next.journal_private, next.journal_private_allowed ?? 0, id),
-      ...log.flatMap((l) => securityEventStmts(db, { kind: 'journal.privacy', summary: l.title, by, about: id })),
+      ...log.flatMap((l) => securityEventStmts(db, { kind: 'journal.privacy', summary: l.summary, by, about: id })),
     ]);
-    for (const l of log) await recordNotification(c.env.DB, { kind: 'privacy', ...l, url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
+    for (const { summary: _, ...l } of log) await recordNotification(c.env.DB, { kind: 'privacy', ...l, url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
     emit(c, 'member.changed', { id });
     const p = privacyOf(next);
     return c.json({ ...p, mine: own, canChange: own && p.allowed }, 200);

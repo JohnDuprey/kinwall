@@ -3,6 +3,7 @@
 // on, so it adds to the balance, today/week, the leaderboard and the profile like chore points; it
 // isn't a chore completion, so chore counts and streaks don't move. Not in auth.ts's display
 // allow-list: wall screens and kids' devices can't reach these. Award-only: no deductions.
+import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -21,7 +22,7 @@ const toApi = (r: AwardRow): z.infer<typeof PointAwardSchema> => ({ id: r.id, me
 
 const json = <T extends z.ZodTypeAny>(schema: T, description = 'ok') => ({ description, content: { 'application/json': { schema } } });
 const err = (description: string) => json(ErrorSchema, description);
-const OFF = 'Chores and points are turned off';
+const OFF = stored('error', 'Chores and points are turned off');
 
 function execCtx(c: Context<{ Bindings: Env }>) {
   try {
@@ -63,8 +64,10 @@ bonusPointsRoutes.openapi(
     const award = toApi(row);
     emit(c, 'points.awarded', { id: award.id, memberId: award.memberId, points: award.points, note: award.note, date: award.date });
     notifyChoreApproval(c.env, execCtx(c), { owner: row.member_id }, `bonus:${row.id}`, {
-      title: `🎉 You got ${row.amount} bonus point${row.amount === 1 ? '' : 's'}`,
-      body: row.note ?? 'From a grown-up. Nice one!',
+      text: (lang) => {
+        const { t, tn } = words(lang);
+        return { title: tn(row.amount, '🎉 You got {n} bonus point', '🎉 You got {n} bonus points'), body: row.note ?? t('From a grown-up. Nice one!') };
+      },
       url: '/#/chores',
       memberIds: [row.member_id],
     });

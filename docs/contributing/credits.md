@@ -6,7 +6,7 @@ Kinwall is built on other people's open-source work and open data. Thank you to 
 
 | Language | By |
 |---|---|
-| German (Deutsch) | [sudo-Foras666](https://github.com/sudo-Foras666), whose [fork](https://github.com/sudo-Foras666/kinwall) also shaped how Kinwall handles translations |
+| German (Deutsch) | [sudo-Foras666](https://github.com/sudo-Foras666): the web app's and the server's German, from their [fork](https://github.com/sudo-Foras666/kinwall), which also shaped how Kinwall handles translations |
 
 Want to add a language or improve one? See [Translations](translations.md).
 

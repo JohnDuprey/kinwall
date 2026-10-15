@@ -27,6 +27,7 @@ import { openDrained, openTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openMood } from './journal.ts';
 import { eventInstances } from './events.ts';
 import { hour12For } from '../timeFormat.ts';
+import { requestLang, type Lang } from '../i18n.ts';
 
 export const insightsRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -172,7 +173,7 @@ insightsRoutes.openapi(
     const to = todayInTz(tz);
     const from = addDays(to, 1 - INSIGHT_RANGES[range]);
     const days = await insightDays(c, id, from, to, tz);
-    return c.json({ memberId: id, range, from, to, days, ...analyze(days, hour12For(settings.timeFormat, settings.location?.countryCode)) }, 200);
+    return c.json({ memberId: id, range, from, to, days, ...analyze(days, hour12For(settings.timeFormat, settings.location?.countryCode), await requestLang(c)) }, 200);
   },
 );
 
@@ -201,8 +202,9 @@ const BatterySchema = z
   })
   .openapi('Battery');
 
-/** A person's battery: the week up to today and the days ahead, in household time. */
-export async function batteryFor(env: Env, memberId: string, tz: string, now = new Date()): Promise<z.infer<typeof BatterySchema>> {
+/** A person's battery: the week up to today and the days ahead, in household time; its words in
+ * `lang` (a request's language, or for the heads-up push the device's). */
+export async function batteryFor(env: Env, memberId: string, tz: string, now = new Date(), lang: Lang = 'en'): Promise<z.infer<typeof BatterySchema>> {
   const today = todayInTz(tz, now);
   const member = await env.DB.prepare('SELECT temp_check FROM members WHERE id = ?').bind(memberId).first<{ temp_check: string | null }>();
   const s = parseTempCheck(member?.temp_check);
@@ -245,7 +247,7 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
   }
   // How it has matched how they felt, from its own guesses before any adjustment; then the real run.
   const inputs = [...days.values()];
-  const b = battery(inputs, today, calibrate(battery(inputs, today).days, felt, today));
+  const b = battery(inputs, today, calibrate(battery(inputs, today).days, felt, today), lang);
   const shown = b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)).map((d) => ({ ...d, felt: DRAINED_ANSWERS.find((a) => a === felt[d.date]) ?? null }));
   return { memberId, on: true, today, days: shown, warnings: b.warnings };
 }
@@ -269,6 +271,6 @@ insightsRoutes.openapi(
     const blocked = await block(c, id);
     if (blocked) return c.json(blocked, 403);
     if (!(await c.env.DB.prepare('SELECT 1 FROM members WHERE id = ?').bind(id).first())) return c.json({ error: 'member not found' }, 404);
-    return c.json(await batteryFor(c.env, id, (await readSettings(c.env.DB)).timezone ?? hostTimezone()), 200);
+    return c.json(await batteryFor(c.env, id, (await readSettings(c.env.DB)).timezone ?? hostTimezone(), undefined, await requestLang(c)), 200);
   },
 );
