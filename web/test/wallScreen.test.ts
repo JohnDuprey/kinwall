@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deviceKindOf, deviceKindValue, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { deviceKindOf, deviceKindValue, IDLE_CEILING_MS, idleWaitsForTyping, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -104,4 +104,10 @@ test('remindersHeld: at night while Hold reminders at night is on (on unless tur
   assert.equal(remindersHeld({ ...quiet }, at(23)), true)
   assert.equal(remindersHeld({ ...quiet, nightHoldReminders: false }, at(23)), false)
   assert.equal(remindersHeld({ ...quiet, nightHoldReminders: true }, at(12)), false, 'daytime')
+})
+
+test('idleWaitsForTyping: a wall waits for a focused text field up to 10 minutes; a phone always does', () => {
+  assert.equal(idleWaitsForTyping(true, 2 * 60 * 1000), true)
+  assert.equal(idleWaitsForTyping(true, IDLE_CEILING_MS), false, 'an abandoned form on the wall goes back Home')
+  assert.equal(idleWaitsForTyping(false, 60 * 60 * 1000), true, 'a parent typing slowly never loses it')
 })

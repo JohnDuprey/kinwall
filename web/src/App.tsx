@@ -26,7 +26,7 @@ import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery, usePhoneHeader } from './us
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme, type LockedView } from './useTheme.ts'
 import { lockedOut, meSlot, navBadgeCount, restingHash } from './calendarViews.ts'
-import { isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
+import { idleWaitsForTyping, isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
 import { pickAfterIdle } from './actingAs.ts'
 import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
 import { inkFor } from './color.ts'
@@ -1212,8 +1212,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   }, [wall])
 
   // idle reset: 2 min of no touch/pointer/keyboard activity -> back to Home's Board (or a locked display's calendar view), close sheets.
-  // Never while someone is in a text field: a slow typist or a screen-reader user reading a form
-  // mustn't lose it. Tabbing, typing and wheel-scrolling all count as activity.
+  // Not while someone is in a text field: a slow typist or a screen-reader user reading a form
+  // mustn't lose it; a wall screen waits only 10 minutes for that, then lets go of the field
+  // (wallScreen.ts idleWaitsForTyping). Tabbing, typing and wheel-scrolling all count as activity.
   // It's for the wall: on by default for wall screens and kids' devices, off for a parent's
   // phone or computer (Settings → This device can change either).
   const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
@@ -1224,10 +1225,16 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   useEffect(() => {
     if (!idleReset) return
     let timer: ReturnType<typeof setTimeout>
+    let last = Date.now()
+    const activity = () => { last = Date.now(); reset() }
     const reset = () => {
       clearTimeout(timer)
       timer = setTimeout(() => {
-        if (document.activeElement?.matches('input:not([type="checkbox"]), textarea, select, [contenteditable]')) { reset(); return }
+        const field = document.activeElement
+        if (field instanceof HTMLElement && field.matches('input:not([type="checkbox"]), textarea, select, [contenteditable]')) {
+          if (idleWaitsForTyping(wall, Date.now() - last)) { reset(); return }
+          field.blur() // the on-screen keyboard goes too
+        }
         // Never out of an open activity (Paint, the sticker book, an added game): a kid mid-picture
         // pauses, and taps inside an added activity's frame never reach this window anyway.
         // Nor out of shopping mode (the list is on screen in a store aisle, not on the wall), Get
@@ -1243,9 +1250,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     }
     reset()
     const events = ['pointerdown', 'touchstart', 'keydown', 'focusin', 'wheel']
-    events.forEach(ev => window.addEventListener(ev, reset, { passive: true }))
-    return () => { clearTimeout(timer); events.forEach(ev => window.removeEventListener(ev, reset)) }
-  }, [idleReset, lockView])
+    events.forEach(ev => window.addEventListener(ev, activity, { passive: true }))
+    return () => { clearTimeout(timer); events.forEach(ev => window.removeEventListener(ev, activity)) }
+  }, [idleReset, lockView, wall])
 
   // A toast with an action ("Event added · View") waits while it's hovered or focused, and for a
   // keyboard user it stays until the screen changes, so Tab can still reach its button.

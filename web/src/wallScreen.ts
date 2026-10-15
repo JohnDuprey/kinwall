@@ -20,6 +20,14 @@ export function inTimeWindow(from: string, to: string, now = new Date()): boolea
  * screen" switch is on, or when it's a cast screen (a Nest Hub, cast.ts). Display purposes only: it never changes what the device may do. */
 export const isWallScreen = (scope: string, device: { wallScreen?: boolean; cast?: boolean }) => scope === 'display' || !!device.wallScreen || !!device.cast
 
+/** How long a wall screen waits for someone in a text field before it goes back anyway. */
+export const IDLE_CEILING_MS = 10 * 60 * 1000
+
+/** Whether an idle reset waits because a text field has focus (`idleFor`: ms since the last touch):
+ * always on a personal device (a slow typist, a screen-reader user reading a form); on a wall screen
+ * only up to IDLE_CEILING_MS, so one abandoned tap can't leave the kitchen screen on a form. */
+export const idleWaitsForTyping = (wall: boolean, idleFor: number) => !wall || idleFor < IDLE_CEILING_MS
+
 /** Default for "Keep the screen on" and "Back to the calendar when idle" when this device hasn't
  * set them: on for wall screens and kids' devices, off for a parent's own phone or computer. */
 export const wallDefaultsOn = (parentDevice: boolean, device: { wallScreen?: boolean; cast?: boolean }) => !parentDevice || !!device.wallScreen || !!device.cast
