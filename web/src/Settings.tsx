@@ -129,6 +129,12 @@ export default function SettingsView() {
   }
   const search = (q: string) => { setQuery(q); if (!q.trim()) setSearchShut(new Set()) }
 
+  // Display keys get the everyday tabs; the admin-only ones (calendar accounts, displays,
+  // passkeys, API keys, webhooks) aren't rendered at all.
+  const isDisplay = me.scope === 'display'
+  const tabs = SETTINGS_TABS.filter(t => !t.admin || !isDisplay)
+  const current = tabs.some(t => t.key === tab) ? tab : 'general'
+
   // A link to one spot in a tab (#/settings?tab=general&section=board-layout, from the Board's
   // Manage layouts): once /api/me has answered (so the parent-only sections above it are in place
   // and don't push it back down), open the card it's in and scroll to it.
@@ -146,13 +152,6 @@ export default function SettingsView() {
     setJumpTo(null)
   }, [meReady, jumpTo, open, query]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Display keys get the everyday settings; admin-only sections (calendar accounts, displays,
-  // passkeys, API keys, webhooks) aren't rendered at all.
-  // Display keys get the everyday tabs; the admin-only ones (calendar accounts, displays,
-  // passkeys, API keys, webhooks) aren't rendered at all.
-  const isDisplay = me.scope === 'display'
-  const tabs = SETTINGS_TABS.filter(t => !t.admin || !isDisplay)
-  const current = tabs.some(t => t.key === tab) ? tab : 'general'
 
   // Search hides what doesn't match, straight in the page, and again whenever the page changes.
   const panelRef = useRef<HTMLDivElement>(null)
@@ -273,7 +272,7 @@ const AccordionCtx = createContext<{ open: Set<string>; toggle: (key: string) =>
  * from the page, so it lists just the cards this device shows. */
 function JumpChips({ panel }: { panel: React.RefObject<HTMLDivElement | null> }) {
   const [cards, setCards] = useState<{ id: string; title: string }[]>([])
-  useLayoutEffect(() => {
+  useEffect(() => { // not a layout effect: the panel (after this in the page) has its ref by now
     const el = panel.current
     if (!el) return
     const read = () => {
