@@ -13,6 +13,13 @@ The full list of changes in every version is in the [changelog](https://github.c
   **Edit lists** under the lists, then tap what you want to change. Tap **Done** to go back to
   ticking. Right-click still works on a computer. See [Chores](using/chores.md) and
   [Lists](using/lists.md).
+* **Kinwall speaks German.** Pick the family's language in Settings → General → Household, and
+  anyone can pick their own for their own devices. A wall stays in the family's language when
+  someone taps their face; the activities they play use theirs. German covers every screen; some
+  text from the server (newscast lines, insights, error messages) is still English. Translation by
+  [sudo-Foras666](https://github.com/sudo-Foras666). See
+  [Language](settings/general.md#language), and [Translations](contributing/translations.md) to
+  help add another language.
 
 ## 1.1.0
 

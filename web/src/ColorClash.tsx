@@ -5,6 +5,7 @@ import { useApp } from './AppContext.tsx'
 import { colorName, inkFor } from './color.ts'
 import { alikeUnder, firstClash, suggestColor, VISION_WORDS } from './colorVision.ts'
 import { MEMBER_PALETTE, type Member } from './types.ts'
+import { t, tm } from './i18n.ts'
 
 const Swatch = ({ m, color, label }: { m: Member; color: string; label: string }) => (
   <span className="color-clash-swatch">
@@ -20,19 +21,19 @@ export function ColorClashNote({ members, canManage, onChanged, toast }: { membe
   const pick = suggestColor(members.filter(m => m.id !== b.id).map(m => m.color), MEMBER_PALETTE)
   const use = async () => {
     if (!pick) return
-    try { await api.updateMember(b.id, { color: pick }); toast(`${b.name} is now ${colorName(pick)}`); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change the color', true) }
+    try { await api.updateMember(b.id, { color: pick }); toast(t('{name} is now {color}', { name: b.name, color: colorName(pick) })); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change the color'), true) }
   }
   return (
     <div className="color-clash" role="note">
-      <p><strong>{a.name} and {b.name} may look alike</strong> {VISION_WORDS[vision]}. Their avatars still tell them apart, but a different color helps on the calendar.</p>
+      <p><strong>{t('{a} and {b} may look alike', { a: a.name, b: b.name })}</strong> {tm(VISION_WORDS[vision])}. {t('Their avatars still tell them apart, but a different color helps on the calendar.')}</p>
       {pick && <>
         <div className="color-clash-swatches">
           <Swatch m={a} color={a.color} label={a.name} />
-          <Swatch m={b} color={b.color} label={`${b.name} now`} />
-          <Swatch m={b} color={pick} label={`Suggested for ${b.name}: ${colorName(pick)}`} />
+          <Swatch m={b} color={b.color} label={t('{name} now', { name: b.name })} />
+          <Swatch m={b} color={pick} label={t('Suggested for {name}: {color}', { name: b.name, color: colorName(pick) })} />
         </div>
-        {canManage && <button className="btn btn-primary" onClick={use}>Use the suggestion</button>}
+        {canManage && <button className="btn btn-primary" onClick={use}>{t('Use the suggestion')}</button>}
       </>}
     </div>
   )
@@ -46,8 +47,8 @@ export function ColorClashHint({ color, memberId, onPick }: { color: string; mem
   const pick = suggestColor(others.map(m => m.color), MEMBER_PALETTE)
   return (
     <div className="color-clash" role="status">
-      <p>May look like {like.m.name}'s color {VISION_WORDS[like.v!]}.</p>
-      {pick && <button type="button" className="btn btn-secondary" onClick={() => onPick(pick)}>Use {colorName(pick)}</button>}
+      <p>{t("May look like {name}'s color {vision}.", { name: like.m.name, vision: tm(VISION_WORDS[like.v!]) })}</p>
+      {pick && <button type="button" className="btn btn-secondary" onClick={() => onPick(pick)}>{t('Use {color}', { color: colorName(pick) })}</button>}
     </div>
   )
 }

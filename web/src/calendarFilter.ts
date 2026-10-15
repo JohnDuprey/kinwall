@@ -2,6 +2,8 @@
 // (server/src/calendar-filter.ts); this mirror only drives the settings preview, "Hide events like
 // this" and the demo. server/test/calendar-filters.test.ts checks the two agree.
 
+import { msg, t, tn } from './i18n.ts'
+
 export type CalendarFilter = {
   mode: 'all' | 'only' | 'except'
   keywords: string[]
@@ -42,11 +44,11 @@ export function filterShows(f: CalendarFilter, ev: FilterEvent): boolean {
 
 /** The calendar sheet's row: what the filter does now, opening the filter sheet. */
 export function filterSummary(f: CalendarFilter | undefined): string {
-  if (!f || !filterActive(f)) return 'All events'
-  const parts = [f.mode === 'only' ? 'Only matching' : 'All except matching']
-  if (f.keywords.length) parts.push(`${f.keywords.length} word${f.keywords.length === 1 ? '' : 's'}`)
-  if (f.allDay !== 'any') parts.push(f.allDay === 'allDay' ? 'all-day' : 'timed')
-  if (f.categoryIds.length) parts.push(`${f.categoryIds.length} categor${f.categoryIds.length === 1 ? 'y' : 'ies'}`)
+  if (!f || !filterActive(f)) return t('All events')
+  const parts = [f.mode === 'only' ? t('Only matching') : t('All except matching')]
+  if (f.keywords.length) parts.push(tn(f.keywords.length, '{n} word', '{n} words'))
+  if (f.allDay !== 'any') parts.push(f.allDay === 'allDay' ? t('all-day') : t('timed'))
+  if (f.categoryIds.length) parts.push(tn(f.categoryIds.length, '{n} category', '{n} categories'))
   return parts.join(' · ')
 }
 
@@ -62,7 +64,7 @@ const US_HOLIDAYS = ["New Year's Day", 'Martin Luther King', 'MLK', "Presidents'
 
 export const FILTER_PRESETS: { id: string; label: string; filter: CalendarFilter }[] = [
   {
-    id: 'school', label: 'School: days off & half days',
+    id: 'school', label: msg('School: days off & half days'),
     filter: {
       mode: 'only', allDay: 'allDay', categoryIds: [],
       keywords: ['no school', 'no classes', 'school closed', 'closed', 'day off', 'vacation', 'break', 'holiday', 'holidays', 'recess', 'half day', 'half-day',
@@ -71,13 +73,13 @@ export const FILTER_PRESETS: { id: string; label: string; filter: CalendarFilter
     },
   },
   {
-    id: 'holidays', label: 'Holidays only',
+    id: 'holidays', label: msg('Holidays only'),
     filter: {
       mode: 'only', allDay: 'any', categoryIds: [],
       keywords: ['holiday', 'holidays', ...US_HOLIDAYS, 'Christmas', 'Hanukkah', 'Kwanzaa', 'Easter', 'Passover', 'Halloween', "Valentine's Day", "Mother's Day", "Father's Day", 'Diwali', 'Eid', 'Rosh Hashanah', 'Yom Kippur', 'Lunar New Year'],
     },
   },
-  { id: 'birthdays', label: 'Hide birthdays', filter: { mode: 'except', allDay: 'any', categoryIds: [], keywords: ['birthday', 'bday', 'b-day'] } },
+  { id: 'birthdays', label: msg('Hide birthdays'), filter: { mode: 'except', allDay: 'any', categoryIds: [], keywords: ['birthday', 'bday', 'b-day'] } },
 ]
 
 type PreviewEvent = FilterEvent & { hidden?: 'event' | 'series' | 'filter' | null }

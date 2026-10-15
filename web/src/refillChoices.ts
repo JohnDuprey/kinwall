@@ -2,6 +2,7 @@
 // everyone else under "Other contacts", each group by name. "Medical" is the built-in category of that
 // name, or a doctor-like relationship; tags and names don't count (an animal clinic isn't a doctor).
 import type { Contact, ContactCategory } from './contact-types.ts'
+import { msg } from './i18n.ts'
 
 type Group = { label: string; list: Contact[] }
 const text = (c: Contact) => [c.name, c.organization, c.relationship].join(' ')
@@ -18,9 +19,9 @@ export function pharmacyChoices(contacts: Contact[], categories: ContactCategory
   const pharmacies = all.filter(isPharmacy)
   const medical = all.filter(c => !isPharmacy(c) && isMedical(c, ids) && c.kind !== 'person')
   return [
-    { label: 'Pharmacies', list: pharmacies },
-    { label: 'Medical', list: medical },
-    { label: 'Other contacts', list: all.filter(c => !pharmacies.includes(c) && !medical.includes(c) && c.kind !== 'person') },
+    { label: msg('Pharmacies'), list: pharmacies },
+    { label: msg('Medical'), list: medical },
+    { label: msg('Other contacts'), list: all.filter(c => !pharmacies.includes(c) && !medical.includes(c) && c.kind !== 'person') },
   ]
 }
 
@@ -30,7 +31,7 @@ export function askChoices(contacts: Contact[], categories: ContactCategory[]): 
   const all = byName(contacts)
   const med = all.filter(c => isPharmacy(c) || isMedical(c, ids))
   return [
-    { label: 'Doctors and pharmacies', list: med },
-    { label: 'Other contacts', list: all.filter(c => !med.includes(c)) },
+    { label: msg('Doctors and pharmacies'), list: med },
+    { label: msg('Other contacts'), list: all.filter(c => !med.includes(c)) },
   ]
 }

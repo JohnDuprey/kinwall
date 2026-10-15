@@ -1,3 +1,5 @@
+import { t, tn } from './i18n.ts'
+
 // A contact phone's menu as steps (PhoneMenu.tsx: the step editor and its preview): wait some seconds, press keys,
 // or wait for the caller. The dial string after the number ("," = a 2-second pause, ";" = the phone
 // asks before going on) and the written steps both come from them. The server has the same code
@@ -11,11 +13,11 @@ export const stepsToDial = (steps: DialStep[]): string =>
 /** "Wait 4 seconds, press 2 (Prescriptions), then press 1 (Refill line)." ('' with no steps). */
 export function stepsToWords(steps: DialStep[]): string {
   const parts = steps.map((s) => {
-    const what = s.kind === 'wait' ? `wait ${s.seconds} second${s.seconds === 1 ? '' : 's'}` : s.kind === 'press' ? `press ${s.digits}` : 'wait until you are ready to go on';
+    const what = s.kind === 'wait' ? tn(s.seconds, 'wait {n} second', 'wait {n} seconds') : s.kind === 'press' ? t('press {digits}', { digits: s.digits }) : t('wait until you are ready to go on');
     return s.label?.trim() ? `${what} (${s.label.trim()})` : what;
   });
   if (!parts.length) return '';
-  const text = parts.length > 1 ? `${parts.slice(0, -1).join(', ')}, then ${parts.at(-1)}` : parts[0];
+  const text = parts.length > 1 ? t('{steps}, then {last}', { steps: parts.slice(0, -1).join(', '), last: parts.at(-1)! }) : parts[0];
   return `${text[0].toUpperCase()}${text.slice(1)}.`;
 }
 

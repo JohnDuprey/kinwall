@@ -1,8 +1,9 @@
 // Order nights' pure helpers (web/test/orders.test.ts): who orders, the order read off by item, and its text.
 import type { Meal, MealOrder, OrderItem, OrderType, Restaurant } from './meal-types.ts'
 import type { Me } from './types.ts'
+import { msg, t, tm, tn } from './i18n.ts'
 
-export const ORDER_TYPE_LABEL: Record<OrderType, string> = { dine_in: 'Eating there', pickup: 'Pickup', delivery: 'Delivery' }
+export const ORDER_TYPE_LABEL: Record<OrderType, string> = { dine_in: msg('Eating there'), pickup: msg('Pickup'), delivery: msg('Delivery') }
 export const ORDER_TYPE_ICON: Record<OrderType, string> = { dine_in: '🍽️', pickup: '🛍️', delivery: '🚗' }
 type Person = { id: string; name: string }
 
@@ -18,14 +19,14 @@ export function orderPeople<P extends Person>(meal: Pick<Meal, 'eaterIds' | 'ord
 export function ordersLabel(meal: Pick<Meal, 'eaterIds' | 'orders'>): string {
   return ordersInLabel((meal.orders ?? []).filter(o => o.items.length).length, meal.eaterIds.length)
 }
-export const ordersInLabel = (n: number, eaters: number) => eaters ? `${n} of ${eaters} orders in` : `${n} order${n === 1 ? '' : 's'} in`
+export const ordersInLabel = (n: number, eaters: number) => eaters ? t('{n} of {total} orders in', { n, total: eaters }) : tn(n, '{n} order in', '{n} orders in')
 
 /** The order the way the caller reads it: the same item (and item note) added up, with who it's for. */
 export function orderLines(orders: MealOrder[], members: Person[]): { key: string; qty: number; name: string; note: string | null; who: string[] }[] {
   const lines = new Map<string, { key: string; qty: number; name: string; note: string | null; who: string[] }>()
   const rank = (id: string) => { const i = members.findIndex(m => m.id === id); return i < 0 ? members.length : i }
   for (const o of [...orders].sort((a, b) => rank(a.memberId) - rank(b.memberId))) {
-    const who = members.find(m => m.id === o.memberId)?.name ?? 'Someone'
+    const who = members.find(m => m.id === o.memberId)?.name ?? t('Someone')
     for (const item of o.items) {
       const key = JSON.stringify([item.name.trim().toLocaleLowerCase(), (item.note ?? '').trim().toLocaleLowerCase()])
       const line = lines.get(key) ?? { key, qty: 0, name: item.name, note: item.note, who: [] }
@@ -40,10 +41,10 @@ export function orderLines(orders: MealOrder[], members: Person[]): { key: strin
 /** Copy order: a plain-text order to paste into an ordering page's notes or a message. */
 export function orderText(meal: Pick<Meal, 'title' | 'orderType' | 'orders'>, members: Person[]): string {
   const orders = meal.orders ?? []
-  const head = [meal.title, meal.orderType ? ORDER_TYPE_LABEL[meal.orderType] : null].filter(Boolean).join(' · ')
+  const head = [meal.title, meal.orderType ? tm(ORDER_TYPE_LABEL[meal.orderType]) : null].filter(Boolean).join(' · ')
   const lines = orderLines(orders, members).map(l => `${l.qty} × ${l.name}${l.note ? `, ${l.note}` : ''} (${l.who.join(', ')})`)
-  const notes = orders.filter(o => o.note).map(o => `${members.find(m => m.id === o.memberId)?.name ?? 'Someone'}: ${o.note}`)
-  return [head, ...lines, ...(notes.length ? ['', 'Notes:', ...notes] : [])].join('\n')
+  const notes = orders.filter(o => o.note).map(o => `${members.find(m => m.id === o.memberId)?.name ?? t('Someone')}: ${o.note}`)
+  return [head, ...lines, ...(notes.length ? ['', t('Notes:'), ...notes] : [])].join('\n')
 }
 
 /** Someone's usual here: their latest order from another night, when it differs from what they have. */

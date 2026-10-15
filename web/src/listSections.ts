@@ -1,3 +1,4 @@
+import { msg } from './i18n.ts'
 import type { ListCatalog, ListKind } from './types.ts'
 
 /** What the Lists page and the edit sheet call a list's kind: a shopping list is Groceries or
@@ -12,7 +13,7 @@ export const listType = (l: Typed): ListType => (l.kind === 'shopping' ? l.catal
 export const typeFields = (t: ListType): { kind: ListKind; catalog?: ListCatalog } =>
   t === 'groceries' || t === 'shopping' ? { kind: 'shopping', catalog: t } : { kind: t }
 
-export const TYPE_LABEL: Record<ListType, string> = { groceries: 'Groceries', shopping: 'Shopping', todo: 'To-do', reusable: 'Reusable' }
+export const TYPE_LABEL: Record<ListType, string> = { groceries: msg('Groceries'), shopping: msg('Shopping'), todo: msg('To-do'), reusable: msg('Reusable') }
 const SECTIONS: { type: ListType; label: string }[] = [
   { type: 'groceries', label: 'Groceries' },
   { type: 'shopping', label: 'Shopping' },

@@ -6,6 +6,8 @@
 /** `left`: set while paused (ms to go); `endsAt` only counts while it's running. `seconds`: for
  * Reset. `title` and `detail`: what it's for ("Tuesday Tacos", "Step 3 · Simmer"). `key`: where it
  * was started (a recipe step), so that spot can show it. */
+import { t } from './i18n.ts'
+
 export interface Timer { id: number; label: string; seconds: number; endsAt: number; done: boolean; left?: number; title?: string; detail?: string; key?: string; check?: number; checked?: boolean }
 /** `check`: a range's low end ("5–6 min" checks at 5): seconds from the start when it chimes and
  * says "Check it", then runs on to `seconds`. `checked`: it chimed. Timers saved before ranges have neither. */
@@ -18,9 +20,9 @@ export const clock = (ms: number) => {
 
 /** 10 -> "10 min", 90 -> "1 hr 30 min", 0.5 -> "30 sec". */
 export function durationLabel(minutes: number) {
-  if (minutes < 1) return `${Math.round(minutes * 60)} sec`
+  if (minutes < 1) return t('{n} sec', { n: Math.round(minutes * 60) })
   const h = Math.floor(minutes / 60), m = Math.round(minutes % 60)
-  return h ? `${h} hr${m ? ` ${m} min` : ''}` : `${m} min`
+  return h ? (m ? t('{h} hr {m} min', { h, m }) : t('{n} hr', { n: h })) : t('{n} min', { n: m })
 }
 
 /** Never more than its full time: `now` can trail a just-started timer by a tick. */
@@ -58,12 +60,12 @@ export const soonestFirst = (ts: Timer[], now: number) =>
 export const checksDue = (ts: Timer[], at: number) => ts.filter(t => isRunning(t) && t.check !== undefined && !t.checked && t.endsAt - checkPart(t) <= at && t.endsAt > at)
 /** What a timer says: a range "Check at 5 min · done by 6", then "Check it" and "Up to 1 min more";
  * a single time its label. A name stays in front ("Veggies · Check it"). */
-export function timerWords(t: Timer, now: number): [string, string?] {
-  if (t.check === undefined) return [t.label]
-  const parts = t.label.split(' · '), range = parts.pop() ?? '', named = (s: string) => [...parts, s].join(' · ')
-  if (phase(t, now) === 'check') return [named('Check it'), `Up to ${durationLabel(checkPart(t) / 60000)} more`]
+export function timerWords(x: Timer, now: number): [string, string?] {
+  if (x.check === undefined) return [x.label]
+  const parts = x.label.split(' · '), range = parts.pop() ?? '', named = (s: string) => [...parts, s].join(' · ')
+  if (phase(x, now) === 'check') return [named(t('Check it')), t('Up to {time} more', { time: durationLabel(checkPart(x) / 60000) })]
   const m = range.match(/^(\d+(?:\.\d+)?)–(\d+(?:\.\d+)?) (\S+)$/)
-  return [named(m ? `Check at ${m[1]} ${m[3]} · done by ${m[2]}` : `Check at ${durationLabel(t.check / 60)} · done by ${durationLabel(t.seconds / 60)}`)]
+  return [named(m ? t('Check at {time} · done by {end}', { time: `${m[1]} ${m[3]}`, end: m[2] }) : t('Check at {time} · done by {end}', { time: durationLabel(x.check / 60), end: durationLabel(x.seconds / 60) }))]
 }
 
 /** A chore's timer (ChoreTimer.tsx) is keyed to it, so the chore can show it and "Mark done" can find it. */

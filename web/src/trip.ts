@@ -1,6 +1,7 @@
 // "Shopping at": a shopping list as walked in one store. Kept per device (not on the server);
 // server/src/routes/lists.ts tripView is the server's copy for the API and MCP - keep in step.
 import { compareAisles, type AisleOrder, type ListItem } from './types.ts'
+import { t } from './i18n.ts'
 
 type TripItem = Pick<ListItem, 'title' | 'store' | 'aisle' | 'places'> & { category?: string | null }
 
@@ -78,7 +79,7 @@ export function anyStoreView<T extends TripItem>(items: T[], order: AisleOrder) 
   for (const item of items) stores.set(item.store ?? '', [...(stores.get(item.store ?? '') ?? []), item])
   const cmp = (store: string) => (a: T, b: T) => compareAisles(store, a.aisle, b.aisle, order) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
   const names = [...stores.keys()].sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
-  return { aisles: names.map(s => ({ aisle: s || 'Anywhere', items: stores.get(s)!.sort(cmp(s)) })), unknown: [] as T[], other: [] as T[] }
+  return { aisles: names.map(s => ({ aisle: s || t('Anywhere'), items: stores.get(s)!.sort(cmp(s)) })), unknown: [] as T[], other: [] as T[] }
 }
 
 /** What a trip at `store` didn't get, at Checkout: the unchecked items planned for that store or for

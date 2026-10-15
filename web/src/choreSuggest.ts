@@ -3,9 +3,11 @@
 import type { ChoreSuggestion } from './types.ts'
 import { formatTime } from './timeFormat.ts'
 import { durationLabel } from './timers.ts'
+import { formatDate, msg, t } from './i18n.ts'
 
 const RR_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// A weekday's short name in the current language (0 = Sunday): 2023-01-01 was a Sunday.
+const dayShort = (d: number) => formatDate(new Date(2023, 0, 1 + d), { weekday: 'short' })
 
 /** Picked weekdays (0 = Sunday) as a repeat rule; none picked is no repeat. */
 export function weekdaysRrule(days: number[]): string | null {
@@ -29,16 +31,16 @@ export function rruleWeekdays(rrule: string | null): number[] {
 export function daysText(rrule: string | null): string | null {
   if (!rrule) return null
   const days = rruleWeekdays(rrule)
-  if (!days.length) return 'Repeats'
-  if (days.length === 7) return 'Every day'
+  if (!days.length) return t('Repeats')
+  if (days.length === 7) return t('Every day')
   const run = days.every((d, i) => i === 0 || d === days[i - 1] + 1)
-  if (run && days.length >= 3) return `${DAY_SHORT[days[0]]}–${DAY_SHORT[days[days.length - 1]]}`
-  return `Every ${days.map(d => DAY_SHORT[d]).join(', ')}` // "Thu" alone reads like a one-time day
+  if (run && days.length >= 3) return `${dayShort(days[0])}–${dayShort(days[days.length - 1])}`
+  return t('Every {days}', { days: days.map(dayShort).join(', ') }) // "Thu" alone reads like a one-time day
 }
 
 /** "Mon–Fri · 4:00 PM · 20 min timer · Already done" */
 export function suggestionDetails(s: Pick<ChoreSuggestion, 'rrule' | 'dueTime' | 'timerMinutes' | 'done'>): string {
-  return [daysText(s.rrule), s.dueTime && formatTime(s.dueTime), s.timerMinutes && `${durationLabel(s.timerMinutes)} timer`, s.done && 'Already done'].filter(Boolean).join(' · ')
+  return [daysText(s.rrule), s.dueTime && formatTime(s.dueTime), s.timerMinutes && t('{time} timer', { time: durationLabel(s.timerMinutes) }), s.done && t('Already done')].filter(Boolean).join(' · ')
 }
 
 /** The stepper's top: at least 10, room above the family's biggest chore, never past 100 (the server's cap). */
@@ -53,9 +55,10 @@ export function pointsStart(points: number[]): number {
   return Math.min(100, sorted[Math.floor(sorted.length / 2)])
 }
 
-/** Quick notes a parent can tap on a yes: practicing only for an idea with a timer (piano, reading). */
+/** Quick notes a parent can tap on a yes: practicing only for an idea with a timer (piano, reading).
+ * English, marked: show with tm(). */
 export const praiseFor = (s: Pick<ChoreSuggestion, 'timerMinutes'>) =>
-  ['Great idea!', 'Love the initiative!', s.timerMinutes ? 'Proud of you for practicing!' : 'Thanks for helping out!']
+  [msg('Great idea!'), msg('Love the initiative!'), s.timerMinutes ? msg('Proud of you for practicing!') : msg('Thanks for helping out!')]
 
-/** Kind quick notes for "Not this time". */
-export const NOT_NOW = ["Let's do it on Saturday.", "Let's talk about it at dinner.", 'Thanks for the idea!']
+/** Kind quick notes for "Not this time" (English, marked: show with tm()). */
+export const NOT_NOW = [msg("Let's do it on Saturday."), msg("Let's talk about it at dinner."), msg('Thanks for the idea!')]

@@ -3,6 +3,7 @@
 // person per day (server/src/routes/newscast.ts); this only lays them out.
 import { format } from 'date-fns'
 import type { NewscastItem } from './types.ts'
+import { formatDate, LONG_DAY, t } from './i18n.ts'
 
 export const PER_DAY = 8
 
@@ -17,8 +18,8 @@ export function daySections(items: NewscastItem[], today: string, showAll: Reado
   const days = new Map<string, NewscastItem[]>()
   for (const i of items) days.set(i.date, [...(days.get(i.date) ?? []), i])
   return [...days.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([date, all]) => {
-    const long = format(local(date), 'EEEE, MMMM d')
-    const label = date === today ? 'Today' : date === addDays(today, -1) ? 'Yesterday' : date >= addDays(today, -6) ? format(local(date), 'EEEE') : long
+    const long = formatDate(local(date), LONG_DAY)
+    const label = date === today ? t('Today') : date === addDays(today, -1) ? t('Yesterday') : date >= addDays(today, -6) ? formatDate(local(date), { weekday: 'long' }) : long
     const shown = showAll.has(date) ? all : all.slice(0, PER_DAY)
     return { date, label, long, items: shown, more: all.length - shown.length }
   })
@@ -51,4 +52,4 @@ export const asYou = (i: NewscastItem, me: string | null, name: string | undefin
 /** What a feed picture shows, for its alt text and full-size view. A single drawing has no detail,
  * so its title ("Maya saved a drawing: “Rocket”") says it. */
 export const pictureAlt = (i: NewscastItem) =>
-  (i.detail || (i.kind === 'drawings' ? i.title : '')).replace(/[“”]/g, '') || 'Family photo'
+  (i.detail || (i.kind === 'drawings' ? i.title : '')).replace(/[“”]/g, '') || t('Family photo')

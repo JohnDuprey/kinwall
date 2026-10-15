@@ -33,42 +33,46 @@ import { aisleGroup, canChangeItem, listSections, listType, reorderWithin, TYPE_
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 import { Face, ChipFace, InlineFaces } from './Face'
 import { useBackClose } from './backStack.ts'
+import { intlLocale, t, tn, msg, tm } from './i18n.ts'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
 const TYPE_ORDER: ListType[] = ['todo', 'groceries', 'shopping', 'reusable']
 /** A shopping list's catalog, by type: "Grocery catalog" / "Shopping catalog". */
-const catalogName = (catalog: ListCatalog) => (catalog === 'groceries' ? 'Grocery catalog' : 'Shopping catalog')
+const catalogName = (catalog: ListCatalog) => (catalog === 'groceries' ? t('Grocery catalog') : t('Shopping catalog'))
 
 /** "3 left" / "All done" summary shown on a list card, per SPEC. */
 function countLabel(list: List) {
-  if (list.itemCount === 0) return 'Empty'
-  if (list.openCount === 0) return 'All done'
-  return `${list.openCount} left${list.overdueCount ? `, ${list.overdueCount} overdue` : ''}`
+  if (list.itemCount === 0) return t('Empty')
+  if (list.openCount === 0) return t('All done')
+  return list.overdueCount ? t('{left} left, {overdue} overdue', { left: list.openCount, overdue: list.overdueCount }) : t('{n} left', { n: list.openCount })
 }
 /** "3 left · ⚠ 2 overdue": the overdue part in the danger color with an icon, so it's not color alone. */
 function CountLine({ list }: { list: List }) {
   if (!list.overdueCount || list.openCount === 0) return <>{countLabel(list)}</>
-  return <>{list.openCount} left · <span className="list-overdue">⚠ {list.overdueCount} overdue</span></>
+  return <>{t('{n} left', { n: list.openCount })} · <span className="list-overdue">⚠ {t('{n} overdue', { n: list.overdueCount })}</span></>
 }
 
-const SORT_LABEL: Record<ListSortBy, string> = { manual: 'Manual', added: 'Date added', due: 'Due date', priority: 'Priority', alpha: 'A–Z', aisle: 'Aisle' }
+const SORT_LABEL: Record<ListSortBy, string> = { manual: msg('Manual'), added: msg('Date added'), due: msg('Due date'), priority: msg('Priority'), alpha: msg('A–Z'), aisle: msg('Aisle') }
 const SORT_HINT: Record<ListSortBy, string> = {
-  manual: 'Your order, urgent and important first',
-  added: 'Newest first',
-  due: "Soonest first (a linked event's day counts), no date last",
-  priority: 'Urgent first, then by due date',
-  alpha: 'Alphabetical',
-  aisle: 'By store, in the order you walk the aisles',
+  manual: msg('Your order, urgent and important first'),
+  added: msg('Newest first'),
+  due: msg("Soonest first (a linked event's day counts), no date last"),
+  priority: msg('Urgent first, then by due date'),
+  alpha: msg('Alphabetical'),
+  aisle: msg('By store, in the order you walk the aisles'),
 }
-const GROUP_LABEL: Record<ListGroupBy, string> = { store: 'Store', category: 'Category', aisle: 'Aisle', none: 'None' }
+// The View button's summary, as whole phrases (a word can't be lowercased into a sentence in every language).
+const GROUPED_BY: Record<ListGroupBy, string> = { store: msg('Grouped by store'), category: msg('Grouped by category'), aisle: msg('Grouped by aisle'), none: msg('Not grouped') }
+const SORTED_BY: Record<ListSortBy, string> = { manual: msg('Your order'), added: msg('Sorted by date added'), due: msg('Sorted by due date'), priority: msg('Sorted by priority'), alpha: msg('Sorted by A–Z'), aisle: msg('Sorted by aisle') }
+const GROUP_LABEL: Record<ListGroupBy, string> = { store: msg('Store'), category: msg('Category'), aisle: msg('Aisle'), none: msg('None') }
 /** What a new list of this kind starts with (the server's defaults); anything else counts on the View button. */
 const listViewDefaults = (kind: ListKind): { groupBy: ListGroupBy; sortBy: ListSortBy } =>
   kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : { groupBy: 'none', sortBy: 'manual' }
 /** Reset on a reusable list (unchecks for next time), else Clear checked. A shopping trip's own
  * checkout says "Done shopping" instead (TRIP_DONE_LABEL). */
-const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: 'Clear checked', reusable: 'Reset', todo: 'Clear checked' }
-const TRIP_DONE_LABEL = 'Done shopping'
+const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: msg('Clear checked'), reusable: msg('Reset'), todo: msg('Clear checked') }
+const TRIP_DONE_LABEL = msg('Done shopping')
 const todayKey = () => dateKey(new Date())
 
 const dueLabel = (item: ListItem) => itemDueLabel(item, todayKey())
@@ -85,13 +89,13 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
   return (
     <div className={`list-card ${active ? 'active' : ''}`} {...pressable(onSelect)}
       aria-current={active || undefined} onContextMenu={onEdit && (e => { e.preventDefault(); onEdit() })}
-      aria-label={[list.name, countLabel(list), list.isDefault ? `default ${TYPE_LABEL[listType(list)]} list` : '', owners.length ? `for ${owners.map(m => m.name).join(' and ')}` : ''].filter(Boolean).join(', ')}
+      aria-label={[list.name, countLabel(list), list.isDefault ? t('default {type} list', { type: tm(TYPE_LABEL[listType(list)]) }) : '', owners.length ? t('for {names}', { names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(owners.map(m => m.name)) }) : ''].filter(Boolean).join(', ')}
       style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}>
       <div className="list-card-accent" />
       <div className="list-card-emoji">{list.emoji || '📝'}</div>
       <div className="list-card-body">
         <div className="list-card-name">{list.name}</div>
-        <div className="list-card-sub"><CountLine list={list} />{list.isDefault && <span className="list-card-default"> · ⭐ Default</span>}</div>
+        <div className="list-card-sub"><CountLine list={list} />{list.isDefault && <span className="list-card-default"> · ⭐ {t('Default')}</span>}</div>
       </div>
       {owners.length > 0 && (
         <div className="list-card-owners">
@@ -110,13 +114,13 @@ function ReorderCard({ list, handle, first, last, onMove, onEdit }: { list: List
     <div className="list-card list-card-reorder" style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}>
       <div className="list-card-accent" />
       {handle}
-      <button type="button" className="list-card-edit" aria-haspopup="dialog" aria-label={`Edit ${list.name}`} onClick={onEdit}>
+      <button type="button" className="list-card-edit" aria-haspopup="dialog" aria-label={t('Edit {name}', { name: list.name })} onClick={onEdit}>
         <span className="list-card-emoji" aria-hidden="true">{list.emoji || '📝'}</span>
         <span className="list-card-body"><span className="list-card-name">{list.name}</span></span>
         <EditIcon width={18} height={18} aria-hidden="true" />
       </button>
-      <button className="icon-btn" onClick={() => onMove(-1)} disabled={first} aria-label={`Move ${list.name} up`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
-      <button className="icon-btn" onClick={() => onMove(1)} disabled={last} aria-label={`Move ${list.name} down`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
+      <button className="icon-btn" onClick={() => onMove(-1)} disabled={first} aria-label={t('Move {name} up', { name: list.name })}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
+      <button className="icon-btn" onClick={() => onMove(1)} disabled={last} aria-label={t('Move {name} down', { name: list.name })}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
     </div>
   )
 }
@@ -156,80 +160,80 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
     try {
       if (existing) { await api.updateList(existing.id, body); onSaved() }
       else onSaved(await api.createList(body)) // opened next
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save list', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save list'), true) }
   }
   const archive = async () => {
     if (!existing) return
-    try { await api.updateList(existing.id, { archived: true }); announce(`${existing.name} archived`); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not archive list', true) }
+    try { await api.updateList(existing.id, { archived: true }); announce(t('{name} archived', { name: existing.name })); onSaved() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not archive list'), true) }
   }
   const del = async () => {
     if (!existing) return
-    if (!await dialog.confirm({ title: `Delete “${existing.name}”?`, body: 'This removes all its items too.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: t('Delete “{name}”?', { name: existing.name }), body: t('This removes all its items too.'), confirmLabel: t('Delete'), danger: true })) return
     try { await api.deleteList(existing.id); onDeleted() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete list', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete list'), true) }
   }
 
   return (
-    <Sheet title={existing ? 'Edit list' : 'New list'} onClose={onClose} dirty="auto"
+    <Sheet title={existing ? t('Edit list') : t('New list')} onClose={onClose} dirty="auto"
       actions={
         <>
-          <button className="btn btn-primary" onClick={submit} disabled={!name.trim() || !isSingleEmoji(emoji)}>{existing ? 'Save' : 'Add list'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!name.trim() || !isSingleEmoji(emoji)}>{existing ? t('Save') : t('Add list')}</button>
         </>
       }>
       <div className="field">
-        <label>Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="List name" autoComplete="off" autoFocus={!existing} />
+        <label>{t('Name')}</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('List name')} autoComplete="off" autoFocus={!existing} />
       </div>
       <div className="field">
-        <label>Type</label>
-        <Segmented label="Type" className="list-type-seg" value={type} onChange={setType}
-          options={TYPE_ORDER.map(t => { const Icon = TYPE_ICON[t]; return { key: t, label: <><Icon width={20} height={20} aria-hidden="true" />{TYPE_LABEL[t]}</> } })} />
+        <label>{t('Type')}</label>
+        <Segmented label={t('Type')} className="list-type-seg" value={type} onChange={setType}
+          options={TYPE_ORDER.map(ty => { const Icon = TYPE_ICON[ty]; return { key: ty, label: <><Icon width={20} height={20} aria-hidden="true" />{tm(TYPE_LABEL[ty])}</> } })} />
         {(type === 'groceries' || type === 'shopping') && (
-          <p className="field-hint">{type === 'groceries' ? 'Food and household groceries. Meals add ingredients here.' : 'Hardware, clothes, gifts and other shopping.'} It has its own catalog of things you buy.</p>
+          <p className="field-hint">{type === 'groceries' ? t('Food and household groceries. Meals add ingredients here. It has its own catalog of things you buy.') : t('Hardware, clothes, gifts and other shopping. It has its own catalog of things you buy.')}</p>
         )}
       </div>
       <div className="field">
         <div className="steps-head">
-          <label id="list-keep-checked">Keep checked items in place</label>
+          <label id="list-keep-checked">{t('Keep checked items in place')}</label>
           <button className={`switch ${keepChecked ? 'on' : ''}`} role="switch" aria-checked={keepChecked} aria-labelledby="list-keep-checked" aria-describedby="list-keep-checked-hint"
             onClick={() => setKeep(!keepChecked)}><span className="knob" /></button>
         </div>
         <p className="field-hint" id="list-keep-checked-hint">{keepChecked
-          ? `Checked items stay where they are, crossed off, until you tap ${CHECKOUT_LABEL[kind]}.`
-          : 'Checked items move to a Done section at the bottom.'}</p>
+          ? t('Checked items stay where they are, crossed off, until you tap {button}.', { button: tm(CHECKOUT_LABEL[kind]) })
+          : t('Checked items move to a Done section at the bottom.')}</p>
       </div>
       {defaultable && (
         <div className="field">
           <div className="steps-head">
-            <label id="list-default">Default {TYPE_LABEL[type]} list</label>
+            <label id="list-default">{t('Default {type} list', { type: tm(TYPE_LABEL[type]) })}</label>
             <button className={`switch ${isDefault ? 'on' : ''}`} role="switch" aria-checked={isDefault} aria-labelledby="list-default" aria-describedby="list-default-hint"
               onClick={() => setDefault(!isDefault)}><span className="knob" /></button>
           </div>
           <p className="field-hint" id="list-default-hint">{type === 'groceries'
-            ? "Scanned food, meal ingredients, and the app's widgets, Siri and tiles use this list."
-            : 'Scanned household and beauty items go to this list.'} Turning it on here turns it off on your other {TYPE_LABEL[type]} lists.</p>
+            ? t("Scanned food, meal ingredients, and the app's widgets, Siri and tiles use this list. Turning it on here turns it off on your other Groceries lists.")
+            : t('Scanned household and beauty items go to this list. Turning it on here turns it off on your other Shopping lists.')}</p>
         </div>
       )}
       <div className="field">
-        <label>Emoji</label>
+        <label>{t('Emoji')}</label>
         <div className="emoji-swatch-row">
           {LIST_EMOJI.map(e => <button key={e} className={`emoji-swatch ${emoji === e ? 'active' : ''}`} aria-pressed={emoji === e} onClick={() => setEmoji(e)}>{e}</button>)}
         </div>
         <AnyEmojiField value={emoji} onChange={setEmoji} />
       </div>
       <div className="field">
-        <label>Color</label>
+        <label>{t('Color')}</label>
         <div className="color-swatch-row">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
-          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label="Custom list color" />
+          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label={t('Custom list color')} />
         </div>
       </div>
-      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Owners" noneLabel="Everyone" />
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label={t('Owners')} noneLabel={t('Everyone')} />
       {existing && (
         <div className="sheet-danger-zone">
-          <button className="link-btn" onClick={archive}>Archive list</button>
-          <button className="link-btn link-danger" onClick={del}>Delete list</button>
+          <button className="link-btn" onClick={archive}>{t('Archive list')}</button>
+          <button className="link-btn link-danger" onClick={del}>{t('Delete list')}</button>
         </div>
       )}
     </Sheet>
@@ -240,7 +244,7 @@ const NEW_VALUE = '\u0000new'
 
 /** A real dropdown of the household's values (a native select: the iPhone wheel, a big list on a
  * wall screen), plus "None" and "New …", which reveals a text field for a value not seen before. */
-function ValuePicker({ id, label, value, options, onChange, newLabel, placeholder, noneLabel = 'None', className }: {
+function ValuePicker({ id, label, value, options, onChange, newLabel, placeholder, noneLabel, className }: {
   id: string; label: string; value: string; options: string[]; onChange: (v: string) => void; newLabel: string; placeholder: string; noneLabel?: string; className?: string
 }) {
   const [adding, setAdding] = useState(false)
@@ -250,13 +254,13 @@ function ValuePicker({ id, label, value, options, onChange, newLabel, placeholde
       <label htmlFor={id}>{label}</label>
       <select id={id} value={typing ? NEW_VALUE : value}
         onChange={e => { const v = e.target.value; setAdding(v === NEW_VALUE); onChange(v === NEW_VALUE ? '' : v) }}>
-        <option value="">{noneLabel}</option>
+        <option value="">{noneLabel ?? t('None')}</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
         <option value={NEW_VALUE}>{newLabel}</option>
       </select>
       {typing && (
         <input type="text" className="value-picker-new" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          aria-label={`${label} name`} autoFocus={adding} maxLength={60} autoComplete="off" />
+          aria-label={t('{label} name', { label })} autoFocus={adding} maxLength={60} autoComplete="off" />
       )}
     </div>
   )
@@ -279,18 +283,18 @@ function ItemPlaceFields({ shopping, quantity, onQuantity, store, onStore, aisle
   return (
     <>
       <div className="field">
-        <label htmlFor="item-quantity">Quantity</label>
-        <input id="item-quantity" type="text" value={quantity} onChange={e => onQuantity(e.target.value)} placeholder="e.g. 2, 1 lb, x3" />
+        <label htmlFor="item-quantity">{t('Quantity')}</label>
+        <input id="item-quantity" type="text" value={quantity} onChange={e => onQuantity(e.target.value)} placeholder={t('e.g. 2, 1 lb, x3')} />
       </div>
       {shopping && (
         <>
-          <ValuePicker id="item-store" label="Store" value={store} options={suggestions.stores} newLabel="New store…" placeholder="Store name" onChange={onStore} />
+          <ValuePicker id="item-store" label={t('Store')} value={store} options={suggestions.stores} newLabel={t('New store…')} placeholder={t('Store name')} onChange={onStore} />
           {!store.trim() && lastStore && (
-            <p className="field-hint item-last-store">Last bought at {lastStore}. <button type="button" className="link-btn" onClick={() => onStore(lastStore)}>Plan to buy it there</button></p>
+            <p className="field-hint item-last-store">{t('Last bought at {store}.', { store: lastStore })} <button type="button" className="link-btn" onClick={() => onStore(lastStore)}>{t('Plan to buy it there')}</button></p>
           )}
-          <ValuePicker id="item-aisle" label={aisleStore ? `Aisle at ${aisleStore}` : 'Aisle'} value={aisle}
-            options={storeAisles(suggestions, aisleStore, aisleOrder)} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={onAisle} />
-          {!aisle.trim() && deptAisle && <p className="field-hint item-dept-aisle">{deptAisle}, from its department</p>}
+          <ValuePicker id="item-aisle" label={aisleStore ? t('Aisle at {store}', { store: aisleStore }) : t('Aisle')} value={aisle}
+            options={storeAisles(suggestions, aisleStore, aisleOrder)} newLabel={t('New aisle…')} placeholder={t('e.g. Aisle 4, Produce, Back wall')} onChange={onAisle} />
+          {!aisle.trim() && deptAisle && <p className="field-hint item-dept-aisle">{t('{aisle}, from its department', { aisle: deptAisle })}</p>}
         </>
       )}
     </>
@@ -302,7 +306,7 @@ function SaleField({ id, on, onChange }: { id: string; on: boolean; onChange: (o
   return (
     <div className="field">
       <div className="steps-head">
-        <label id={id}>On sale</label>
+        <label id={id}>{t('On sale')}</label>
         <button type="button" className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby={id} onClick={() => onChange(!on)}><span className="knob" /></button>
       </div>
     </div>
@@ -323,8 +327,8 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const { toast, settings } = useApp()
   const [moving, setMoving] = useState(false)
   const moveTo = async (to: List) => {
-    try { await api.moveListItems(listId, [item.id], to.id); announce(`Moved ${item.title} to ${to.name}`); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not move it', true) }
+    try { await api.moveListItems(listId, [item.id], to.id); announce(t('Moved {item} to {list}', { item: item.title, list: to.name })); onSaved() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not move it'), true) }
   }
   const [title, setTitle] = useState(item.title)
   const [quantity, setQuantity] = useState(item.quantity ?? '')
@@ -366,12 +370,12 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       ...(eventId !== item.eventId ? { eventId } : {}), // only when changed: a link to a since-deleted event still saves
     }
     try { await api.queueUpdateListItem(listId, item.id, body); onSaved() } // offline too: syncs when back
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save item', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save item'), true) }
   }
   const del = async () => {
-    if (!await dialog.confirm({ title: `Delete “${item.title}”?`, confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: t('Delete “{name}”?', { name: item.title }), confirmLabel: t('Delete'), danger: true })) return
     try { await api.queueDeleteListItem(listId, item.id); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete item', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete item'), true) }
   }
   const move = async (dir: -1 | 1) => {
     const i = siblingIds.indexOf(item.id)
@@ -381,7 +385,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
     const next = [...siblingIds]
     ;[next[i], next[j]] = [next[j], next[i]]
     try { await api.reorderListItems(listId, next); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reorder'), true) }
   }
 
   const quantityAndPlace = (
@@ -396,18 +400,18 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
 
   const priorityField = (
     <div className="field">
-      <label id="item-priority-label">Priority</label>
-      <Segmented className="priority-seg" label="Priority" value={priority} onChange={setPriority}
+      <label id="item-priority-label">{t('Priority')}</label>
+      <Segmented className="priority-seg" label={t('Priority')} value={priority} onChange={setPriority}
         options={(['low', 'normal', 'high', 'urgent'] as ListItemPriority[]).map(p => ({
-          key: p, label: <>{p !== 'normal' && <span className={`prio-mark prio-${p}`} aria-hidden="true">{PRIORITY_MARK[p]}</span>}{PRIORITY_LABEL[p]}</>,
+          key: p, label: <>{p !== 'normal' && <span className={`prio-mark prio-${p}`} aria-hidden="true">{PRIORITY_MARK[p]}</span>}{tm(PRIORITY_LABEL[p])}</>,
         }))} />
     </div>
   )
   const assignField = (
     <div className="field">
-      <label>Assign to</label>
+      <label>{t('Assign to')}</label>
       <div className="chip-row">
-        <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>Nobody</button>
+        <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>{t('Nobody')}</button>
         {members.map(m => (
           <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
         ))}
@@ -416,47 +420,47 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   )
   const dueField = showDue && (
     <div className="field">
-      <label htmlFor="item-due">Due date</label>
+      <label htmlFor="item-due">{t('Due date')}</label>
       <div className="due-field">
         <input id="item-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-        {dueDate && <button type="button" className="btn btn-secondary" onClick={() => { setDueDate(''); announce('Due date cleared') }} aria-label="Clear due date">Clear</button>}
+        {dueDate && <button type="button" className="btn btn-secondary" onClick={() => { setDueDate(''); announce(t('Due date cleared')) }} aria-label={t('Clear due date')}>{t('Clear')}</button>}
       </div>
     </div>
   )
   const eventAndNotes = (
     <>
       <div className="field">
-        <label>Linked event</label>
+        <label>{t('Linked event')}</label>
         <button className="btn btn-secondary btn-block" style={{ justifyContent: 'flex-start', minHeight: 44 }} onClick={() => setPickingEvent(v => !v)} aria-expanded={pickingEvent}
-          aria-label={`Linked event: ${eventId ? (linked ? eventLabel(linked) : 'an event outside the next 30 days') : 'none'}`}>
-          <CalendarIcon width={16} height={16} />{eventId ? (linked ? eventLabel(linked) : 'An event outside the next 30 days') : 'None'}
+          aria-label={t('Linked event: {event}', { event: eventId ? (linked ? eventLabel(linked) : t('an event outside the next 30 days')) : t('none') })}>
+          <CalendarIcon width={16} height={16} />{eventId ? (linked ? eventLabel(linked) : t('An event outside the next 30 days')) : t('None')}
         </button>
         {pickingEvent && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto', marginTop: 6 }}>
-            <button className={`chip ${eventId === null ? 'active' : ''}`} aria-pressed={eventId === null} style={{ minHeight: 44 }} onClick={() => { setEventId(null); setPickingEvent(false) }}>None</button>
+            <button className={`chip ${eventId === null ? 'active' : ''}`} aria-pressed={eventId === null} style={{ minHeight: 44 }} onClick={() => { setEventId(null); setPickingEvent(false) }}>{t('None')}</button>
             {upcoming.map(e => (
               <button key={e.id} className={`chip ${eventId === e.id ? 'active' : ''}`} aria-pressed={eventId === e.id} style={{ minHeight: 44, justifyContent: 'flex-start', ['--chip-color' as string]: e.color }}
                 onClick={() => { setEventId(e.id); setPickingEvent(false) }}>{eventLabel(e)}</button>
             ))}
-            {upcoming.length === 0 && <div className="list-item-meta">No events in the next 30 days</div>}
+            {upcoming.length === 0 && <div className="list-item-meta">{t('No events in the next 30 days')}</div>}
           </div>
         )}
       </div>
       <div className="field">
-        <label>Notes</label>
+        <label>{t('Notes')}</label>
         <textarea className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
     </>
   )
 
   return (
-    <Sheet title={readOnly ? 'Item' : 'Edit item'} onClose={onClose} dirty={edited}
-      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Save</button>}>
-      {readOnly && <p className="field-hint item-read-only">{`This one is ${members.find(m => m.id === item.memberId)?.name ?? 'someone else'}'s.`}</p>}
+    <Sheet title={readOnly ? t('Item') : t('Edit item')} onClose={onClose} dirty={edited}
+      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>{t('Done')}</button> : <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>{t('Save')}</button>}>
+      {readOnly && <p className="field-hint item-read-only">{(name => name ? t("This one is {name}'s.", { name }) : t("This one is someone else's."))(members.find(m => m.id === item.memberId)?.name)}</p>}
       {/* Read-only: every field and button inside is disabled; the discussion below stays open. */}
       <fieldset className="item-sheet-fields" disabled={readOnly}>
       <div className="field">
-        <label htmlFor="item-title">Name</label>
+        <label htmlFor="item-title">{t('Name')}</label>
         {/* A textarea so a long title shows in full; Enter doesn't add a line break. */}
         <textarea id="item-title" className="item-title-input" rows={2} value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} />
@@ -465,7 +469,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
       {kind !== 'shopping' && assignField /* a to-do's: who and when come first */}
       {kind !== 'shopping' && dueField}
-      {showFor && <MemberPicker members={members} selected={forIds} onChange={setForIds} label="For" noneLabel="Everyone" />}
+      {showFor && <MemberPicker members={members} selected={forIds} onChange={setForIds} label={t('For')} noneLabel={t('Everyone')} />}
       {kind === 'shopping' && <SaleField id="item-sale" on={onSale} onChange={setOnSale} />}
       {kind !== 'shopping' && priorityField}
       <StepsEditor listId={listId} item={live} onChange={setLive} />
@@ -473,8 +477,8 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       {kind === 'shopping' ? (
         // Groceries: where it goes stays up front; the rest folds away, with what's set in the summary.
         <details className="settings-disclosure item-more">
-          <summary>{['More', category.trim(), priority !== 'normal' && `${PRIORITY_LABEL[priority]} priority`, eventId && 'Event', notes.trim() && 'Notes'].filter(Boolean).join(' · ')}</summary>
-          <ValuePicker id="item-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
+          <summary>{[t('More'), category.trim(), priority !== 'normal' && t('{priority} priority', { priority: tm(PRIORITY_LABEL[priority]) }), eventId && t('Event'), notes.trim() && t('Notes')].filter(Boolean).join(' · ')}</summary>
+          <ValuePicker id="item-category" label={t('Department')} value={category} options={suggestions.categories} newLabel={t('New department…')} placeholder={t('e.g. Produce')} onChange={setCategory} />
           {priorityField}
           {eventAndNotes}
         </details>
@@ -488,36 +492,36 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       </>}
       {moveTargets.length > 0 && (
         <div className="field">
-          <button className="btn btn-secondary btn-block" onClick={() => setMoving(true)} aria-haspopup="dialog">Move to another list…</button>
+          <button className="btn btn-secondary btn-block" onClick={() => setMoving(true)} aria-haspopup="dialog">{t('Move to another list…')}</button>
         </div>
       )}
       {moving && (
-        <Sheet title="Move to…" onClose={() => setMoving(false)}>
-          <p className="field-hint">{item.title} keeps everything on it: notes, steps and discussion.</p>
+        <Sheet title={t('Move to…')} onClose={() => setMoving(false)}>
+          <p className="field-hint">{t('{item} keeps everything on it: notes, steps and discussion.', { item: item.title })}</p>
           <div className="shop-store-options">
             {moveTargets.map(l => <button key={l.id} className="btn btn-secondary btn-block" onClick={() => moveTo(l)}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</button>)}
           </div>
         </Sheet>
       )}
       </fieldset>
-      {settings.features.notes && <NotesThread target={`list_item:${item.id}`} title="Discussion" />}
+      {settings.features.notes && <NotesThread target={`list_item:${item.id}`} title={t('Discussion')} />}
       {manual && !readOnly && (
         <div className="field">
-          <label>Order</label>
+          <label>{t('Order')}</label>
           <div className="chip-row">
-            <button className="btn btn-secondary" onClick={() => move(-1)} disabled={siblingIds.indexOf(item.id) <= 0}>Move up</button>
-            <button className="btn btn-secondary" onClick={() => move(1)} disabled={siblingIds.indexOf(item.id) >= siblingIds.length - 1}>Move down</button>
+            <button className="btn btn-secondary" onClick={() => move(-1)} disabled={siblingIds.indexOf(item.id) <= 0}>{t('Move up')}</button>
+            <button className="btn btn-secondary" onClick={() => move(1)} disabled={siblingIds.indexOf(item.id) >= siblingIds.length - 1}>{t('Move down')}</button>
           </div>
         </div>
       )}
-      {!readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={del}>Delete item</button></div>}
+      {!readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={del}>{t('Delete item')}</button></div>}
     </Sheet>
   )
 }
 
 /** "Added by Maya · Tue 4:12 PM" and, once ticked, "Checked off by Leo · 5:02 PM"; nothing when nobody is known. */
 function ItemByLines({ item, members }: { item: ListItem; members: Member[] }) {
-  const lines = [byLine('Added by', item.addedBy, item.createdAt, members), item.done ? byLine('Checked off by', item.checkedBy, item.doneAt, members) : null].filter(l => l !== null)
+  const lines = [byLine(t('Added by'), item.addedBy, item.createdAt, members), item.done ? byLine(t('Checked off by'), item.checkedBy, item.doneAt, members) : null].filter(l => l !== null)
   if (lines.length === 0) return null
   return <div className="item-by-lines">{lines.map(l => <div key={l}>{l}</div>)}</div>
 }
@@ -526,7 +530,8 @@ function ItemByLines({ item, members }: { item: ListItem; members: Member[] }) {
 function lastDoneLine(list: List, members: Member[]): string | null {
   if (list.kind !== 'reusable' || !list.lastDoneAt) return null
   const who = actorName(list.lastDoneBy, members)
-  return `Last done: ${who ? `${who} · ` : ''}${nowrap(whenLabel(list.lastDoneAt))}`
+  const when = nowrap(whenLabel(list.lastDoneAt))
+  return who ? t('Last done: {who} · {when}', { who, when }) : t('Last done: {when}', { when })
 }
 
 /** An item's steps as a checklist (tick, add, drag or Alt+arrow to reorder, delete), or - "One at a
@@ -539,41 +544,42 @@ function StepsEditor({ listId, item, onChange }: { listId: string; item: ListIte
   const { steps } = item
   const nextStep = steps.find(st => !st.done)
 
-  const run = async (req: Promise<ListItem>, what: string) => {
+  const run = async (req: Promise<ListItem>, failed: string) => {
     try { const next = await req; onChange(next); return next }
-    catch (e) { toast(e instanceof ApiError ? e.message : `Could not ${what}`, true); return null }
+    catch (e) { toast(e instanceof ApiError ? e.message : failed, true); return null }
   }
   const tick = async (step: ListItemStep) => {
     const wasDone = step.done, itemWasDone = item.done // read first: the demo's mock updates objects in place
-    const next = await run(api.updateListItemStep(listId, item.id, step.id, { done: !wasDone }), 'update step')
+    const next = await run(api.updateListItemStep(listId, item.id, step.id, { done: !wasDone }), t('Could not update step'))
     if (!next) return
     const upNext = next.steps.find(st => !st.done)
-    if (next.done && !itemWasDone) announce(`${step.title} done. All steps finished: ${item.title} is done`)
-    else if (!next.done && itemWasDone) announce(`${step.title} not done. ${item.title} is open again`)
-    else if (wasDone) announce(`${step.title} not done, ${next.stepsDone} of ${next.stepsTotal}`)
-    else announce(`${step.title} done, ${next.stepsDone} of ${next.stepsTotal}${oneAtATime && upNext ? `. Next: ${upNext.title}` : ''}`)
+    const counts = { step: step.title, done: next.stepsDone, total: next.stepsTotal }
+    if (next.done && !itemWasDone) announce(t('{step} done. All steps finished: {item} is done', { step: step.title, item: item.title }))
+    else if (!next.done && itemWasDone) announce(t('{step} not done. {item} is open again', { step: step.title, item: item.title }))
+    else if (wasDone) announce(t('{step} not done, {done} of {total}', counts))
+    else announce(oneAtATime && upNext ? t('{step} done, {done} of {total}. Next: {next}', { ...counts, next: upNext.title }) : t('{step} done, {done} of {total}', counts))
   }
   const add = async () => {
     const title = draft.trim()
     if (!title) return
     setDraft('')
-    if (await run(api.addListItemStep(listId, item.id, title), 'add step')) announce(`Added step ${title}`)
+    if (await run(api.addListItemStep(listId, item.id, title), t('Could not add step'))) announce(t('Added step {step}', { step: title }))
   }
   const remove = async (step: ListItemStep) => {
-    if (await run(api.deleteListItemStep(listId, item.id, step.id), 'delete step')) announce(`Deleted step ${step.title}`)
+    if (await run(api.deleteListItemStep(listId, item.id, step.id), t('Could not delete step'))) announce(t('Deleted step {step}', { step: step.title }))
   }
   const reorder = (ids: string[]) => {
     onChange({ ...item, steps: ids.map(id => steps.find(st => st.id === id)!) }) // shown at once, then saved
-    run(api.reorderListItemSteps(listId, item.id, ids), 'reorder steps')
+    run(api.reorderListItemSteps(listId, item.id, ids), t('Could not reorder steps'))
   }
 
   return (
     <div className="field">
       <div className="steps-head">
-        <label id={`steps-${item.id}`}>Steps{steps.length > 0 && ` · ${item.stepsDone} of ${item.stepsTotal}`}</label>
+        <label id={`steps-${item.id}`}>{steps.length > 0 ? t('Steps · {done} of {total}', { done: item.stepsDone, total: item.stepsTotal }) : t('Steps')}</label>
         {steps.length > 1 && (
           <div className="steps-mode">
-            <span id={`steps-one-${item.id}`}>One at a time</span>
+            <span id={`steps-one-${item.id}`}>{t('One at a time')}</span>
             <button className={`switch ${oneAtATime ? 'on' : ''}`} role="switch" aria-checked={oneAtATime} aria-labelledby={`steps-one-${item.id}`}
               onClick={() => setOneAtATime(v => !v)}><span className="knob" /></button>
           </div>
@@ -582,14 +588,14 @@ function StepsEditor({ listId, item, onChange }: { listId: string; item: ListIte
       {oneAtATime && steps.length > 1 ? (
         nextStep ? (
           <div className="step-focus">
-            <div className="step-focus-count">Step {steps.indexOf(nextStep) + 1} of {steps.length}</div>
+            <div className="step-focus-count">{t('Step {n} of {total}', { n: steps.indexOf(nextStep) + 1, total: steps.length })}</div>
             <div className="step-focus-title">{nextStep.title}</div>
             <button className="btn btn-primary step-focus-btn" onClick={() => tick(nextStep)}>
-              {steps.filter(st => !st.done).length === 1 ? 'Done — finish' : 'Done → next'}
+              {steps.filter(st => !st.done).length === 1 ? t('Done — finish') : t('Done → next')}
             </button>
           </div>
         ) : (
-          <div className="step-focus"><div className="step-focus-title"><span aria-hidden="true">✨ </span>All steps done!</div></div>
+          <div className="step-focus"><div className="step-focus-title"><span aria-hidden="true">✨ </span>{t('All steps done!')}</div></div>
         )
       ) : (
         <div role="group" aria-labelledby={`steps-${item.id}`}>
@@ -599,7 +605,7 @@ function StepsEditor({ listId, item, onChange }: { listId: string; item: ListIte
                 {st.done && <CheckIcon width={20} height={20} />}
               </button>
               <div className="list-item-body step-body"><div className="list-item-title">{st.title}</div></div>
-              <button className="icon-btn" onClick={() => remove(st)} aria-label={`Delete step ${st.title}`}><TrashIcon width={16} height={16} /></button>
+              <button className="icon-btn" onClick={() => remove(st)} aria-label={t('Delete step {step}', { step: st.title })}><TrashIcon width={16} height={16} /></button>
               {handle}
             </div>
           )} />
@@ -607,8 +613,8 @@ function StepsEditor({ listId, item, onChange }: { listId: string; item: ListIte
       )}
       <div className="list-add-bar step-add">
         <input type="text" value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }}
-          placeholder="Add a step…" aria-label={`Add a step to ${item.title}`} enterKeyHint="done" />
-        <button className="icon-btn" onClick={add} disabled={!draft.trim()} aria-label="Add step"><PlusIcon width={20} height={20} /></button>
+          placeholder={t('Add a step…')} aria-label={t('Add a step to {item}', { item: item.title })} enterKeyHint="done" />
+        <button className="icon-btn" onClick={add} disabled={!draft.trim()} aria-label={t('Add step')}><PlusIcon width={20} height={20} /></button>
       </div>
     </div>
   )
@@ -644,44 +650,44 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, s
   const dupe = name ? scanMatch(onList, name) : undefined
   const add = () => { if (name) onAdd(name, canSave && save, target, here && { aisle: aisle.trim(), category: dept.trim() }) }
   return (
-    <Sheet variant="dialog" title="Scanned product" onClose={onClose}
+    <Sheet variant="dialog" title={t('Scanned product')} onClose={onClose}
       actions={<>
-        <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={add} disabled={!name}>{checkOff ? 'Add and check off' : 'Add to list'}</button>
+        <button className="btn btn-secondary" onClick={onClose}>{t('Cancel')}</button>
+        <button className="btn btn-primary" onClick={add} disabled={!name}>{checkOff ? t('Add and check off') : t('Add to list')}</button>
       </>}>
       <p className="scan-source">
-        {found ? `Name from ${OPEN_FACTS_NAMES[found.source] ?? 'Open Food Facts'}. Check it before adding.` : "The Open Food Facts databases don't know this one. Type its name."}
-        {' '}<span className="scan-code">Barcode {code}</span>
+        {found ? t('Name from {source}. Check it before adding.', { source: OPEN_FACTS_NAMES[found.source] ?? 'Open Food Facts' }) : t("The Open Food Facts databases don't know this one. Type its name.")}
+        {' '}<span className="scan-code">{t('Barcode {code}', { code })}</span>
       </p>
       <div className="field">
-        <label htmlFor="scan-title">Name</label>
+        <label htmlFor="scan-title">{t('Name')}</label>
         {/* Typed (no name found) it opens with the keyboard; a found name opens without it. */}
-        <ItemAddField id="scan-title" value={title} onChange={setTitle} onAdd={t => (t.trim() === name ? add() : setTitle(t))} onPick={setTitle} suggestions={suggestions} onList={onListKeys}
-          inputRef={titleRef} autoFocus={!found} label="Name" placeholder="e.g. Paper towels" />
+        <ItemAddField id="scan-title" value={title} onChange={setTitle} onAdd={v => (v.trim() === name ? add() : setTitle(v))} onPick={setTitle} suggestions={suggestions} onList={onListKeys}
+          inputRef={titleRef} autoFocus={!found} label={t('Name')} placeholder={t('e.g. Paper towels')} />
         {dupe && (
           <p className="field-hint scan-dupe" role="status">
-            <span aria-hidden="true">⚠ </span>{dupe.title} is already on {dupe.listName}.
-            {checkOff && <> <button type="button" className="link-btn" onClick={() => onCheckOff(dupe)}>Check it off instead</button></>}
+            <span aria-hidden="true">⚠ </span>{t('{item} is already on {list}.', { item: dupe.title, list: dupe.listName })}
+            {checkOff && <> <button type="button" className="link-btn" onClick={() => onCheckOff(dupe)}>{t('Check it off instead')}</button></>}
           </p>
         )}
       </div>
       {lists.length > 1 && (
         <div className="field">
-          <label htmlFor="scan-list">Add to</label>
+          <label htmlFor="scan-list">{t('Add to')}</label>
           <select id="scan-list" className="settings-select" value={target} onChange={e => setTarget(e.target.value)}>
             {lists.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
           </select>
         </div>
       )}
       {here && <>
-        <ValuePicker id="scan-aisle" label={`Aisle at ${here.store}`} value={aisle} options={here.aisles} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} noneLabel="Not sure" />
-        <ValuePicker id="scan-dept" label="Department" value={dept} options={here.departments} newLabel="New department…" placeholder="e.g. Dairy, Pantry" onChange={setCategory} noneLabel="Not sure" />
+        <ValuePicker id="scan-aisle" label={t('Aisle at {store}', { store: here.store })} value={aisle} options={here.aisles} newLabel={t('New aisle…')} placeholder={t('e.g. Aisle 4, Produce, Back wall')} onChange={setAisle} noneLabel={t('Not sure')} />
+        <ValuePicker id="scan-dept" label={t('Department')} value={dept} options={here.departments} newLabel={t('New department…')} placeholder={t('e.g. Dairy, Pantry')} onChange={setCategory} noneLabel={t('Not sure')} />
       </>}
       {canSave && (
         <div className="scan-save">
           <div>
-            <div id="scan-save-label" className="settings-row-label">Also save to catalog</div>
-            <div className="settings-row-sub">Next time, scanning it adds {name ? `"${name}"` : 'it'} right away.</div>
+            <div id="scan-save-label" className="settings-row-label">{t('Also save to catalog')}</div>
+            <div className="settings-row-sub">{name ? t('Next time, scanning it adds “{name}” right away.', { name }) : t('Next time, scanning it adds it right away.')}</div>
           </div>
           <button className={`switch ${save ? 'on' : ''}`} role="switch" aria-checked={save} aria-labelledby="scan-save-label" onClick={() => setSave(v => !v)}><span className="knob" /></button>
         </div>
@@ -701,15 +707,15 @@ function PlaceSheet({ title, store, need, category: initialCategory, aisles, dep
   const [aisle, setAisle] = useState('')
   const [category, setCategory] = useState(initialCategory)
   return (
-    <Sheet variant="dialog" title="Where did you find it?" onClose={onClose}
+    <Sheet variant="dialog" title={t('Where did you find it?')} onClose={onClose}
       actions={<>
-        <button className="btn btn-secondary" onClick={onClose}>Skip</button>
-        <button className="btn btn-primary" onClick={() => onSave(aisle.trim(), category.trim())} disabled={!aisle.trim() && !category.trim()}>Save</button>
+        <button className="btn btn-secondary" onClick={onClose}>{t('Skip')}</button>
+        <button className="btn btn-primary" onClick={() => onSave(aisle.trim(), category.trim())} disabled={!aisle.trim() && !category.trim()}>{t('Save')}</button>
       </>}>
-      <p className="scan-source">Where was {title}? Next trip it'll be in the right {need.aisle && store ? 'aisle' : 'department'}.</p>
-      {need.aisle && store && <ValuePicker id="place-aisle" label={`Aisle at ${store}`} value={aisle} options={aisles} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} noneLabel="Pick an aisle" />}
-      {need.department && <ValuePicker id="place-dept" label="Department" value={category} options={departments} newLabel="New department…" placeholder="e.g. Dairy, Pantry" onChange={setCategory} noneLabel="Pick a department" />}
-      <button type="button" className="link-btn" onClick={onStop}>Stop asking on this trip</button>
+      <p className="scan-source">{need.aisle && store ? t("Where was {item}? Next trip it'll be in the right aisle.", { item: title }) : t("Where was {item}? Next trip it'll be in the right department.", { item: title })}</p>
+      {need.aisle && store && <ValuePicker id="place-aisle" label={t('Aisle at {store}', { store })} value={aisle} options={aisles} newLabel={t('New aisle…')} placeholder={t('e.g. Aisle 4, Produce, Back wall')} onChange={setAisle} noneLabel={t('Pick an aisle')} />}
+      {need.department && <ValuePicker id="place-dept" label={t('Department')} value={category} options={departments} newLabel={t('New department…')} placeholder={t('e.g. Dairy, Pantry')} onChange={setCategory} noneLabel={t('Pick a department')} />}
+      <button type="button" className="link-btn" onClick={onStop}>{t('Stop asking on this trip')}</button>
     </Sheet>
   )
 }
@@ -728,17 +734,17 @@ function ReorderGroupsSheet({ listId, groupBy, names, onClose, onSaved }: {
   }
   const save = async () => {
     try { await api.setListGroups(listId, order.map(name => ({ kind: groupBy, name }))); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save order', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save order'), true) }
   }
   return (
-    <Sheet title={`Reorder ${groupBy === 'store' ? 'stores' : 'categories'}`} onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={save}>Save</button>}>
+    <Sheet title={groupBy === 'store' ? t('Reorder stores') : t('Reorder categories')} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={save}>{t('Save')}</button>}>
       {order.map((name, i) => (
         <div key={name} className="settings-row">
           <div className="settings-row-label">{name}</div>
           <div className="chip-row">
-            <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${name} up`}>▲</button>
-            <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === order.length - 1} aria-label={`Move ${name} down`}>▼</button>
+            <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('Move {name} up', { name })}>▲</button>
+            <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === order.length - 1} aria-label={t('Move {name} down', { name })}>▼</button>
           </div>
         </div>
       ))}
@@ -755,31 +761,31 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
   const def = listViewDefaults(list.kind)
   const changed = list.groupBy !== def.groupBy || list.sortBy !== def.sortBy || store !== null
   return (
-    <Sheet title="Filter and sort" onClose={onClose} actions={<>
-      <button className="btn btn-secondary" disabled={!changed} onClick={() => { if (shopping && list.groupBy !== def.groupBy) onGroupBy(def.groupBy); if (list.sortBy !== def.sortBy) onSortBy(def.sortBy); onStore(null) }}>Reset</button>
-      <button className="btn btn-primary" onClick={onClose}>Done</button>
+    <Sheet title={t('Filter and sort')} onClose={onClose} actions={<>
+      <button className="btn btn-secondary" disabled={!changed} onClick={() => { if (shopping && list.groupBy !== def.groupBy) onGroupBy(def.groupBy); if (list.sortBy !== def.sortBy) onSortBy(def.sortBy); onStore(null) }}>{t('Reset')}</button>
+      <button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>
     </>}>
       {shopping && (
         <div className="field">
-          <label htmlFor={`list-group-${list.id}`}>Group by</label>
+          <label htmlFor={`list-group-${list.id}`}>{t('Group by')}</label>
           <select id={`list-group-${list.id}`} value={list.groupBy} onChange={e => onGroupBy(e.target.value as ListGroupBy)}>
-            {(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => <option key={g} value={g}>{GROUP_LABEL[g]}</option>) /* no category: a department fills in the aisle */}
+            {(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => <option key={g} value={g}>{tm(GROUP_LABEL[g])}</option>) /* no category: a department fills in the aisle */}
           </select>
-          {onReorder && <button className="link-btn" onClick={onReorder}>Reorder {list.groupBy === 'store' ? 'stores' : 'categories'}</button>}
+          {onReorder && <button className="link-btn" onClick={onReorder}>{list.groupBy === 'store' ? t('Reorder stores') : t('Reorder categories')}</button>}
         </div>
       )}
       <div className="field">
-        <label htmlFor={`list-sort-${list.id}`}>Sort</label>
+        <label htmlFor={`list-sort-${list.id}`}>{t('Sort')}</label>
         <select id={`list-sort-${list.id}`} value={list.sortBy} onChange={e => onSortBy(e.target.value as ListSortBy)}>
-          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due')) /* shopping items have no due dates */.map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
+          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due')) /* shopping items have no due dates */.map(k => <option key={k} value={k}>{tm(SORT_LABEL[k])}</option>)}
         </select>
-        <p className="field-hint">{SORT_HINT[list.sortBy]}{list.sortBy !== 'manual' && '. Switch to Manual to drag items into your own order.'}</p>
+        <p className="field-hint">{tm(SORT_HINT[list.sortBy])}{list.sortBy !== 'manual' && t('. Switch to Manual to drag items into your own order.')}</p>
       </div>
       {shopping && stores.length > 0 && (
         <div className="field">
-          <label htmlFor={`list-store-${list.id}`}>Show store</label>
+          <label htmlFor={`list-store-${list.id}`}>{t('Show store')}</label>
           <select id={`list-store-${list.id}`} value={store ?? ''} onChange={e => onStore(e.target.value || null)}>
-            <option value="">All stores</option>
+            <option value="">{t('All stores')}</option>
             {stores.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -797,7 +803,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
 }) {
   const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
   const forWho = members.filter(m => item.forMemberIds?.includes(m.id))
-  const forLabel = forWho.length ? `For ${new Intl.ListFormat('en-US').format(forWho.map(m => m.name))}` : null
+  const forLabel = forWho.length ? t('For {names}', { names: new Intl.ListFormat(intlLocale()).format(forWho.map(m => m.name)) }) : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && groupBy !== 'aisle' && item.store
   const showAisle = kind === 'shopping' && groupBy !== 'aisle' && item.aisle
   // A department that just repeats the aisle ("Produce · Produce") isn't shown twice.
@@ -806,36 +812,36 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   const prio = item.priority !== 'normal' ? item.priority : null
   const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
   const row = (
-    <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''} ${item.pending ? 'pending' : ''}`} title={item.pending ? 'Not synced yet' : undefined}>
+    <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''} ${item.pending ? 'pending' : ''}`} title={item.pending ? t('Not synced yet') : undefined}>
       <button className={`list-item-check ${item.done ? 'done' : ''} ${readOnly ? 'read-only' : ''}`} onClick={readOnly ? undefined : onToggle} role="checkbox" aria-checked={item.done} aria-disabled={readOnly || undefined}
-        aria-label={item.pending ? `${item.title}, not synced yet` : readOnly && assignee ? `${item.title}, ${assignee.name}'s` : item.title}>
+        aria-label={item.pending ? t('{item}, not synced yet', { item: item.title }) : readOnly && assignee ? t("{item}, {name}'s", { item: item.title, name: assignee.name }) : item.title}>
         {item.done && <CheckIcon width={20} height={20} />}
       </button>
       <div className="list-item-body" {...pressable(onOpen)}
-        aria-label={[`Edit ${item.title}`, item.done && 'checked off', prio && `${PRIORITY_LABEL[prio]} priority`, forLabel, due?.text, (item.notes || (notesOn && item.noteCount)) && 'has notes', item.stepsTotal > 0 && `${item.stepsDone} of ${item.stepsTotal} steps done`].filter(Boolean).join(', ')}>
+        aria-label={[t('Edit {title}', { title: item.title }), item.done && t('checked off'), prio && t('{priority} priority', { priority: tm(PRIORITY_LABEL[prio]) }), forLabel, due?.text, (item.notes || (notesOn && item.noteCount)) && t('has notes'), item.stepsTotal > 0 && t('{done} of {total} steps done', { done: item.stepsDone, total: item.stepsTotal })].filter(Boolean).join(', ')}>
         <div className="list-item-title-row">
           {prio && <PriorityBadge p={prio} />}
           <div className="list-item-title">{item.title}</div>
           {forLabel && <span className="list-item-for" role="img" aria-label={forLabel} title={forLabel}><InlineFaces who={forWho} /></span>}
           {from}
-          {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label="Has notes" />}
+          {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label={t('Has notes')} />}
         </div>
         {due && <div className={`list-item-meta list-item-due ${due.overdue ? 'overdue' : ''}`} aria-hidden="true">{due.text}</div>}
         {item.stepsTotal > 0 && (
           <div className="list-item-steps" aria-hidden="true">
-            <span>{item.stepsDone} of {item.stepsTotal}</span>
+            <span>{t('{done} of {total}', { done: item.stepsDone, total: item.stepsTotal })}</span>
             <div className="list-item-progress"><div style={{ width: `${(item.stepsDone / item.stepsTotal) * 100}%` }} /></div>
           </div>
         )}
         {(showStore || showAisle || showCategory) && (
           <div className="list-item-meta">{[showStore ? item.store : null, showAisle ? item.aisle : null, showCategory ? item.category : null].filter(Boolean).join(' · ')}</div>
         )}
-        {!!item.meals?.length && <div className="list-item-meta list-item-meals"><span aria-hidden="true">🍽️ </span>For {item.meals.join(', ')}</div>}
+        {!!item.meals?.length && <div className="list-item-meta list-item-meals"><span aria-hidden="true">🍽️ </span>{t('For {meals}', { meals: item.meals.join(', ') })}</div>}
         {event && <div className="list-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon width={12} height={12} style={{ flexShrink: 0 }} />{eventLabel(event)}</div>}
       </div>
-      {item.onSale && <div className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>Sale</div>}
+      {item.onSale && <div className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>{t('Sale')}</div>}
       {item.quantity && <div className="list-item-chip">{item.quantity}</div>}
-      {assignee && <Face m={assignee} className="member-avatar-sm" role="img" aria-label={`For ${assignee.name}`} />}
+      {assignee && <Face m={assignee} className="member-avatar-sm" role="img" aria-label={t('For {name}', { name: assignee.name })} />}
       {handle}
     </div>
   )
@@ -898,8 +904,8 @@ function SwipeRow({ title, onDelete, children }: { title: string; onDelete: () =
       <div className={`swipe-track ${dragging ? 'dragging' : ''}`} style={offset ? { transform: `translateX(${offset}px)` } : undefined}>
         {children}
         {offset < 0 && (
-          <button className="swipe-delete" style={{ width: Math.max(SWIPE_REVEAL, -offset) }} onClick={() => { settle('closed'); onDelete() }} aria-label={`Delete ${title}`}>
-            <TrashIcon width={20} height={20} /><span>Delete</span>
+          <button className="swipe-delete" style={{ width: Math.max(SWIPE_REVEAL, -offset) }} onClick={() => { settle('closed'); onDelete() }} aria-label={t('Delete {item}', { item: title })}>
+            <TrashIcon width={20} height={20} /><span>{t('Delete')}</span>
           </button>
         )}
       </div>
@@ -910,7 +916,7 @@ function SwipeRow({ title, onDelete, children }: { title: string; onDelete: () =
 /** On a combined trip, which other list an item is on: that type's icon and the list's name. */
 function FromTag({ name, catalog }: { name: string; catalog: ListCatalog }) {
   const Icon = catalog === 'groceries' ? BasketIcon : CartIcon
-  return <span className="list-from-tag"><Icon width={12} height={12} aria-hidden="true" /><span className="sr-only">On </span>{name}</span>
+  return <span className="list-from-tag"><Icon width={12} height={12} aria-hidden="true" /><span className="sr-only">{t('On')} </span>{name}</span>
 }
 
 /** A row in shopping mode: the whole row ticks the item; ⓘ (onOpen) opens it over shopping mode,
@@ -919,21 +925,21 @@ function ShopRow({ item, meta, onToggle, onOpen, from, readOnly }: { item: ListI
   const sub = [meta, item.notes?.split('\n')[0]].filter(Boolean).join(' · ')
   const row = (
     <button className={`shop-row ${item.done ? 'done' : ''} ${item.pending ? 'pending' : ''} ${readOnly ? 'read-only' : ''}`} role="checkbox" aria-checked={item.done} aria-disabled={readOnly || undefined}
-      onClick={readOnly ? undefined : onToggle} title={item.pending ? 'Not synced yet' : undefined}>
+      onClick={readOnly ? undefined : onToggle} title={item.pending ? t('Not synced yet') : undefined}>
       <span className="shop-check" aria-hidden="true">{item.done && <CheckIcon width={20} height={20} />}</span>
       <span className="shop-row-body">
         <span className="shop-row-title">{item.title}</span>
         {from}
         {sub && <span className="shop-row-note">{sub}</span>}
       </span>
-      {item.onSale && <span className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>Sale</span>}
+      {item.onSale && <span className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>{t('Sale')}</span>}
       {item.quantity && <span className="list-item-chip">{item.quantity}</span>}
     </button>
   )
   return !onOpen ? row : (
     <div className="shop-row-wrap">
       {row}
-      <button type="button" className="icon-btn shop-row-info" onClick={onOpen} aria-haspopup="dialog" aria-label={`${item.title} details`}><InfoIcon width={22} height={22} /></button>
+      <button type="button" className="icon-btn shop-row-info" onClick={onOpen} aria-haspopup="dialog" aria-label={t('{item} details', { item: item.title })}><InfoIcon width={22} height={22} /></button>
     </div>
   )
 }
@@ -966,11 +972,11 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
     e.preventDefault()
     const ids = items.map(i => i.id)
     const from = ids.indexOf(item.id), to = from + (e.key === 'ArrowUp' ? -1 : 1)
-    if (to < 0 || to >= ids.length) { announce(`${item.title} is already ${to < 0 ? 'first' : 'last'}`); return }
+    if (to < 0 || to >= ids.length) { announce(to < 0 ? t('{item} is already first', { item: item.title }) : t('{item} is already last', { item: item.title })); return }
     ids.splice(from, 1); ids.splice(to, 0, item.id)
     refocus.current = item.id
     onReorder(ids)
-    announce(`${item.title} moved to position ${to + 1} of ${ids.length}`)
+    announce(t('{item} moved to position {n} of {total}', { item: item.title, n: to + 1, total: ids.length }))
   }
 
   const start = (e: React.PointerEvent, id: string) => {
@@ -1029,7 +1035,7 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
       {items.map((item, i) => {
         const dragging = drag?.id === item.id
         const handle = fixed ? null : (
-          <button className="list-item-grip" data-grip={item.id} aria-label={`Reorder ${item.title}: drag, or Alt+Up and Alt+Down arrow`}
+          <button className="list-item-grip" data-grip={item.id} aria-label={t('Reorder {item}: drag, or Alt+Up and Alt+Down arrow', { item: item.title })}
             aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" onKeyDown={e => moveByKey(e, item)}
             onPointerDown={e => start(e, item.id)} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -1060,7 +1066,7 @@ function scrollParent(el: HTMLElement | null): HTMLElement {
   return (document.scrollingElement ?? document.documentElement) as HTMLElement
 }
 
-const OTHER_GROUP = 'Other'
+const OTHER_GROUP = msg('Other')
 
 /** Groups items by list.groupBy, ordered by the saved ListGroup order then alphabetically, with
  * null-valued items last under "Other"; each group in `cmp` order. Store groups in manual order keep
@@ -1091,7 +1097,8 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
     return (sa && sb ? saved(sa, sb) : sa ? -1 : sb ? 1 : 0) || compareAisles(sa || null, aa, ab, aisleOrder)
   })
   const label = (key: string) => {
-    if (groupBy !== 'aisle' || key === OTHER_GROUP) return key
+    if (key === OTHER_GROUP) return tm(OTHER_GROUP)
+    if (groupBy !== 'aisle') return key
     const [store, aisle] = key.split('\u0000')
     return store ? `${store} · ${aisle}` : aisle
   }
@@ -1118,18 +1125,21 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
   const rename = async (field: Field, from: string, to: string | null) => {
     try {
       const { updated } = await api.renameListValue({ field, from, to, catalog, ...(field === 'aisle' ? { store } : {}) })
-      announce(to ? `Renamed ${from} to ${to}${updated ? `, ${updated} item${updated === 1 ? '' : 's'} updated` : ''}` : `Removed ${from}`)
+      announce(!to ? t('Removed {name}', { name: from }) : updated ? tn(updated, 'Renamed {from} to {to}, {n} item updated', 'Renamed {from} to {to}, {n} items updated', { from, to }) : t('Renamed {from} to {to}', { from, to }))
       setEditing(null); setOverride(null); onChanged()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save'), true) }
   }
   const remove = async (field: Field, value: string) => {
-    if (!await dialog.confirm({ title: `Remove "${value}"?`, body: `Items that use it keep everything else; this ${field === 'category' ? 'department' : field} is cleared from them and forgotten.`, confirmLabel: 'Remove', danger: true })) return
+    const body = field === 'store' ? t('Items that use it keep everything else; this store is cleared from them and forgotten.')
+      : field === 'aisle' ? t('Items that use it keep everything else; this aisle is cleared from them and forgotten.')
+      : t('Items that use it keep everything else; this department is cleared from them and forgotten.')
+    if (!await dialog.confirm({ title: t('Remove “{name}”?', { name: value }), body, confirmLabel: t('Remove'), danger: true })) return
     rename(field, value, null)
   }
   const saveOrder = async (next: string[]) => {
     setOverride({ store, aisles: next })
     try { await api.setStoreAisles(store, next, catalog); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the aisle order', true); setOverride(null) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save the aisle order'), true); setOverride(null) }
   }
   // ↑/↓ on each aisle (as in Edit lists): reordering without dragging inside a scrolling sheet.
   const nudgeAisle = (i: number, dir: -1 | 1) => {
@@ -1138,23 +1148,23 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
     const next = [...aisles]
     ;[next[i], next[j]] = [next[j], next[i]]
     saveOrder(next)
-    announce(`${aisles[i]} moved to position ${j + 1} of ${aisles.length}`)
+    announce(t('{aisle} moved to position {n} of {total}', { aisle: aisles[i], n: j + 1, total: aisles.length }))
   }
   const aisleMoves = (a: string, i: number) => <>
-    <button className="icon-btn" onClick={() => nudgeAisle(i, -1)} disabled={i === 0} aria-label={`Move ${a} up`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
-    <button className="icon-btn" onClick={() => nudgeAisle(i, 1)} disabled={i === aisles.length - 1} aria-label={`Move ${a} down`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
+    <button className="icon-btn" onClick={() => nudgeAisle(i, -1)} disabled={i === 0} aria-label={t('Move {name} up', { name: a })}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
+    <button className="icon-btn" onClick={() => nudgeAisle(i, 1)} disabled={i === aisles.length - 1} aria-label={t('Move {name} down', { name: a })}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
   </>
   // The default store for this list type (the same setting as Settings → Family → Shopping): Shop starts there.
   const defaultKey = catalog === 'groceries' ? 'defaultGroceryStore' : 'defaultShoppingStore'
   const [defaultStore, setDefaultStore] = useState(suggestions.defaultStore ?? null)
   const makeDefault = async (st: string) => {
     const to = defaultStore === st ? null : st
-    try { await api.updateSettings({ [defaultKey]: to }); setDefaultStore(to); announce(to ? `${to} is the default store` : 'No default store'); reloadCore(); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the default store', true) }
+    try { await api.updateSettings({ [defaultKey]: to }); setDefaultStore(to); announce(to ? t('{store} is the default store', { store: to }) : t('No default store')); reloadCore(); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save the default store'), true) }
   }
   const star = (st: string) => (
-    <button className="icon-btn manage-star" onClick={() => makeDefault(st)} aria-pressed={defaultStore === st} aria-label={`Default store: ${st}`}
-      title={defaultStore === st ? 'Default store' : 'Make it the default store'}><span aria-hidden="true">{defaultStore === st ? '★' : '☆'}</span></button>
+    <button className="icon-btn manage-star" onClick={() => makeDefault(st)} aria-pressed={defaultStore === st} aria-label={t('Default store: {store}', { store: st })}
+      title={defaultStore === st ? t('Default store') : t('Make it the default store')}><span aria-hidden="true">{defaultStore === st ? '★' : '☆'}</span></button>
   )
   const addAisle = () => {
     const name = newAisle.trim()
@@ -1165,44 +1175,44 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
 
   const row = (field: Field, value: string, handle?: React.ReactNode) => editing?.field === field && editing.from === value ? (
     <div className="manage-row" key={value}>
-      <input type="text" value={draft} onChange={e => setDraft(e.target.value)} aria-label={`New name for ${value}`} maxLength={60} autoFocus
+      <input type="text" value={draft} onChange={e => setDraft(e.target.value)} aria-label={t('New name for {name}', { name: value })} maxLength={60} autoFocus
         onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) rename(field, value, draft.trim()); if (e.key === 'Escape') setEditing(null) }} />
-      <button className="btn btn-primary" disabled={!draft.trim() || draft.trim() === value} onClick={() => rename(field, value, draft.trim())}>Save</button>
-      <button className="btn btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
+      <button className="btn btn-primary" disabled={!draft.trim() || draft.trim() === value} onClick={() => rename(field, value, draft.trim())}>{t('Save')}</button>
+      <button className="btn btn-secondary" onClick={() => setEditing(null)}>{t('Cancel')}</button>
     </div>
   ) : (
     <div className="manage-row" key={value}>
       <span className="manage-row-name">{value}</span>
-      <button className="link-btn" onClick={() => { setEditing({ field, from: value }); setDraft(value) }} aria-label={`Rename ${value}`}>Rename</button>
-      <button className="icon-btn" onClick={() => remove(field, value)} aria-label={`Remove ${value}`}><TrashIcon width={16} height={16} /></button>
+      <button className="link-btn" onClick={() => { setEditing({ field, from: value }); setDraft(value) }} aria-label={t('Rename {name}', { name: value })}>{t('Rename')}</button>
+      <button className="icon-btn" onClick={() => remove(field, value)} aria-label={t('Remove {name}', { name: value })}><TrashIcon width={16} height={16} /></button>
       {handle}
     </div>
   )
 
   return (
-    <Sheet title="Stores & departments" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
-      <p className="field-hint">{catalog === 'groceries' ? 'For grocery lists.' : 'For shopping lists other than groceries.'} Renaming changes every item that uses the name on those lists. Removing clears it from those items.</p>
-      <h3 className="manage-head">Stores</h3>
-      {suggestions.stores.length > 0 && <p className="field-hint">★ marks the default store: Shop starts there without asking where you are. Tap a star to change it.</p>}
-      {suggestions.stores.length ? suggestions.stores.map(v => row('store', v, star(v))) : <p className="list-item-meta">No stores yet. Pick one on an item.</p>}
-      <h3 className="manage-head">Departments</h3>
-      <p className="field-hint">An item with no aisle at a store goes in the aisle named like its department, if the store has one.</p>
-      {suggestions.categories.length ? suggestions.categories.map(v => row('category', v)) : <p className="list-item-meta">No departments yet.</p>}
-      <h3 className="manage-head">Aisles</h3>
+    <Sheet title={t('Stores & departments')} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
+      <p className="field-hint">{catalog === 'groceries' ? t('For grocery lists.') : t('For shopping lists other than groceries.')} {t('Renaming changes every item that uses the name on those lists. Removing clears it from those items.')}</p>
+      <h3 className="manage-head">{t('Stores')}</h3>
+      {suggestions.stores.length > 0 && <p className="field-hint">{t('★ marks the default store: Shop starts there without asking where you are. Tap a star to change it.')}</p>}
+      {suggestions.stores.length ? suggestions.stores.map(v => row('store', v, star(v))) : <p className="list-item-meta">{t('No stores yet. Pick one on an item.')}</p>}
+      <h3 className="manage-head">{t('Departments')}</h3>
+      <p className="field-hint">{t('An item with no aisle at a store goes in the aisle named like its department, if the store has one.')}</p>
+      {suggestions.categories.length ? suggestions.categories.map(v => row('category', v)) : <p className="list-item-meta">{t('No departments yet.')}</p>}
+      <h3 className="manage-head">{t('Aisles')}</h3>
       {aisleStores.length > 1 && (
         <div className="field">
-          <label htmlFor="manage-aisle-store">Store</label>
+          <label htmlFor="manage-aisle-store">{t('Store')}</label>
           <select id="manage-aisle-store" value={store ?? ''} onChange={e => { setStore(e.target.value || null); setEditing(null) }}>
-            {aisleStores.map(st => <option key={st ?? ''} value={st ?? ''}>{st ?? 'No store'}</option>)}
+            {aisleStores.map(st => <option key={st ?? ''} value={st ?? ''}>{st ?? t('No store')}</option>)}
           </select>
         </div>
       )}
-      <p className="field-hint">Put the aisles in the order you walk {store ?? 'the store'} (drag them, or use ↑ and ↓). Aisle sort follows it.</p>
+      <p className="field-hint">{store ? t('Put the aisles in the order you walk {store} (drag them, or use ↑ and ↓). Aisle sort follows it.', { store }) : t('Put the aisles in the order you walk the store (drag them, or use ↑ and ↓). Aisle sort follows it.')}</p>
       <DragList items={aisles.map(a => ({ id: a, title: a }))} onReorder={saveOrder} renderRow={(a, handle) => row('aisle', a.id, <>{aisleMoves(a.id, aisles.indexOf(a.id))}{handle}</>)} />
       <div className="list-add-bar step-add">
         <input type="text" value={newAisle} onChange={e => setNewAisle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addAisle() }} maxLength={60}
-          placeholder={`Add an aisle${store ? ` at ${store}` : ''}…`} aria-label={`Add an aisle${store ? ` at ${store}` : ''}`} enterKeyHint="done" />
-        <button className="icon-btn" onClick={addAisle} disabled={!newAisle.trim()} aria-label="Add aisle"><PlusIcon width={20} height={20} /></button>
+          placeholder={`${store ? t('Add an aisle at {store}', { store }) : t('Add an aisle')}…`} aria-label={store ? t('Add an aisle at {store}', { store }) : t('Add an aisle')} enterKeyHint="done" />
+        <button className="icon-btn" onClick={addAisle} disabled={!newAisle.trim()} aria-label={t('Add aisle')}><PlusIcon width={20} height={20} /></button>
       </div>
     </Sheet>
   )
@@ -1226,12 +1236,12 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   const [view, setView] = useState(catalogView)
   const [filtering, setFiltering] = useState(false) // the Filter and sort sheet, over this one
   const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | 'stores' | null>(null)
-  const load = () => api.getRemembered(catalog).then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
+  const load = () => api.getRemembered(catalog).then(setItems).catch(() => { setItems([]); toast(t('Could not load the catalog'), true) })
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const all = items ?? []
   const stores = catalogStores(all), tags = catalogTags(all), departments = catalogDepartments(all)
   const atStore = store && stores.includes(store) ? store : null
-  const onlyTag = tags.find(t => t.name === tag)?.name ?? null
+  const onlyTag = tags.find(x => x.name === tag)?.name ?? null
   const onlyDept = departments.find(d => d.name === department)?.name ?? null
   const sort: CatalogSort = view.sort === 'aisle' && !atStore ? 'alpha' : view.sort // aisle order needs a store
   const shown = sortCatalog(filterCatalog(all, query, atStore, { tag: onlyTag, department: onlyDept }), sort, atStore, aisleOrder)
@@ -1243,8 +1253,8 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   const clearFilters = () => { setStore(null); setTag(null); setDepartment(null) }
   const add = async (i: RememberedItem) => {
     // Filtered to a store: planned for it (its aisle there comes along); else wherever it was last bought.
-    try { await api.queueAddListItem(listId, { title: i.title, ...(atStore ? { store: atStore } : {}) }); announce(`Added ${i.title} to ${listName}`); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
+    try { await api.queueAddListItem(listId, { title: i.title, ...(atStore ? { store: atStore } : {}) }); announce(t('Added {item} to {list}', { item: i.title, list: listName })); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add item'), true) }
   }
   const saved = () => { setEditing(null); load(); onChanged() }
   const chip = (label: string, on: boolean, pick: () => void, count?: number) => (
@@ -1256,12 +1266,12 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   if (editing === 'stores') return <ManageValuesSheet catalog={catalog} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => { setEditing(null); load() }} onChanged={onChanged} />
   if (editing === 'tags') return <CatalogTagsSheet catalog={catalog} tags={tags} onClose={() => setEditing(null)} onChanged={() => { load(); onChanged() }} />
   if (editing) return (
-    <CatalogItemSheet catalog={catalog} item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder} familyTags={tags.map(t => t.name)}
+    <CatalogItemSheet catalog={catalog} item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder} familyTags={tags.map(x => x.name)}
       onClose={() => setEditing(null)} onSaved={saved} />
   )
   const row = (i: RememberedItem) => (
     <div className="catalog-row" key={i.key}>
-      <button className="catalog-row-main" onClick={kid ? undefined : () => setEditing(i)} disabled={kid} aria-label={kid ? i.title : `Edit ${i.title}`}>
+      <button className="catalog-row-main" onClick={kid ? undefined : () => setEditing(i)} disabled={kid} aria-label={kid ? i.title : t('Edit {item}', { item: i.title })}>
         <span className="catalog-row-title">{i.title}</span>
         <span className="catalog-row-meta">{[i.category, i.tags.length ? `🏷️ ${i.tags.join(', ')}` : null, boughtLabel(i.uses)].filter(Boolean).join(' · ')}</span>
         {i.places.length > 0 && (
@@ -1271,72 +1281,72 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
         )}
       </button>
       {onList.has(i.key)
-        ? <span className="catalog-on-list"><CheckIcon width={16} height={16} aria-hidden="true" />On list</span>
-        : <button className="icon-btn catalog-add" onClick={() => add(i)} aria-label={`Add ${i.title} to ${listName}`} title={`Add to ${listName}`}><PlusIcon width={20} height={20} /></button>}
+        ? <span className="catalog-on-list"><CheckIcon width={16} height={16} aria-hidden="true" />{t('On list')}</span>
+        : <button className="icon-btn catalog-add" onClick={() => add(i)} aria-label={t('Add {item} to {list}', { item: i.title, list: listName })} title={t('Add to {list}', { list: listName })}><PlusIcon width={20} height={20} /></button>}
     </div>
   )
   return (
-    <Sheet title={catalogName(catalog)} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+    <Sheet title={catalogName(catalog)} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
       <div className="catalog-bar">
-        <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an item…" aria-label="Find an item" autoComplete="off" />
-        <button className="btn btn-secondary catalog-options-btn" onClick={() => setFiltering(true)} aria-haspopup="dialog" title="Filter and sort"
+        <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Find an item…')} aria-label={t('Find an item')} autoComplete="off" />
+        <button className="btn btn-secondary catalog-options-btn" onClick={() => setFiltering(true)} aria-haspopup="dialog" title={t('Filter and sort')}
           aria-label={filterSortLabel(active)}>
-          <FilterIcon width={18} height={18} /><span className="catalog-options-label">Filter and sort</span>{active > 0 && <span className="catalog-options-on" aria-hidden="true">{active}</span>}
+          <FilterIcon width={18} height={18} /><span className="catalog-options-label">{t('Filter and sort')}</span>{active > 0 && <span className="catalog-options-on" aria-hidden="true">{active}</span>}
         </button>
-        {!kid && <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>}
+        {!kid && <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />{t('New')}</button>}
       </div>
       {summary && (
         <div className="catalog-summary">
-          <button className="filter-summary" onClick={() => setFiltering(true)} aria-label={`Filters: ${summary}. Change filters`}>{summary}</button>
-          <button className="link-btn" onClick={clearFilters}>Clear</button>
+          <button className="filter-summary" onClick={() => setFiltering(true)} aria-label={t('Filters: {summary}. Change filters', { summary })}>{summary}</button>
+          <button className="link-btn" onClick={clearFilters}>{t('Clear')}</button>
         </div>
       )}
       {filtering && (
-        <Sheet title="Filter and sort" onClose={() => setFiltering(false)} actions={<>
-          <button className="btn btn-secondary" disabled={!active && sort === 'alpha' && view.group === 'none'} onClick={() => { clearFilters(); changeView({ sort: 'alpha', group: 'none' }) }}>Reset</button>
-          <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
+        <Sheet title={t('Filter and sort')} onClose={() => setFiltering(false)} actions={<>
+          <button className="btn btn-secondary" disabled={!active && sort === 'alpha' && view.group === 'none'} onClick={() => { clearFilters(); changeView({ sort: 'alpha', group: 'none' }) }}>{t('Reset')}</button>
+          <button className="btn btn-primary" onClick={() => setFiltering(false)}>{t('Done')}</button>
         </>}>
           {stores.length > 0 && <>
-            <h3 className="manage-head">Store</h3>
-            <div className="chip-row" role="group" aria-label="Store">
-              {[null, ...stores].map(st => chip(st ?? 'All stores', atStore === st, () => setStore(st)))}
+            <h3 className="manage-head">{t('Store')}</h3>
+            <div className="chip-row" role="group" aria-label={t('Store')}>
+              {[null, ...stores].map(st => chip(st ?? t('All stores'), atStore === st, () => setStore(st)))}
             </div>
           </>}
           {tags.length > 0 && <>
-            <h3 className="manage-head">Category</h3>
-            <div className="chip-row" role="group" aria-label="Category">
-              {chip('All categories', !onlyTag, () => setTag(null))}
-              {tags.map(t => chip(t.name, onlyTag === t.name, () => setTag(onlyTag === t.name ? null : t.name), t.count))}
+            <h3 className="manage-head">{t('Category')}</h3>
+            <div className="chip-row" role="group" aria-label={t('Category')}>
+              {chip(t('All categories'), !onlyTag, () => setTag(null))}
+              {tags.map(x => chip(x.name, onlyTag === x.name, () => setTag(onlyTag === x.name ? null : x.name), x.count))}
             </div>
           </>}
           {departments.length > 0 && <>
-            <h3 className="manage-head">Department</h3>
-            <div className="chip-row" role="group" aria-label="Department">
-              {chip('All departments', !onlyDept, () => setDepartment(null))}
+            <h3 className="manage-head">{t('Department')}</h3>
+            <div className="chip-row" role="group" aria-label={t('Department')}>
+              {chip(t('All departments'), !onlyDept, () => setDepartment(null))}
               {departments.map(d => chip(d.name, onlyDept === d.name, () => setDepartment(onlyDept === d.name ? null : d.name), d.count))}
             </div>
           </>}
           <div className="catalog-view">
             <div className="field">
-              <label htmlFor="catalog-sort">Sort</label>
+              <label htmlFor="catalog-sort">{t('Sort')}</label>
               <select id="catalog-sort" className="settings-select" value={sort} onChange={e => changeView({ sort: e.target.value as CatalogSort })}>
                 {(Object.keys(CATALOG_SORT_LABELS) as CatalogSort[]).filter(k => k !== 'aisle' || atStore).map(k =>
-                  <option key={k} value={k}>{k === 'aisle' ? `Aisle at ${atStore}` : CATALOG_SORT_LABELS[k]}</option>)}
+                  <option key={k} value={k}>{k === 'aisle' ? t('Aisle at {store}', { store: atStore ?? '' }) : tm(CATALOG_SORT_LABELS[k])}</option>)}
               </select>
             </div>
             <div className="field">
-              <label htmlFor="catalog-group">Group by</label>
+              <label htmlFor="catalog-group">{t('Group by')}</label>
               <select id="catalog-group" className="settings-select" value={view.group} onChange={e => changeView({ group: e.target.value as CatalogGroup })}>
-                {(Object.keys(CATALOG_GROUP_LABELS) as CatalogGroup[]).map(k => <option key={k} value={k}>{CATALOG_GROUP_LABELS[k]}</option>)}
+                {(Object.keys(CATALOG_GROUP_LABELS) as CatalogGroup[]).map(k => <option key={k} value={k}>{tm(CATALOG_GROUP_LABELS[k])}</option>)}
               </select>
             </div>
           </div>
-          {parentDevice && <button className="link-btn" onClick={() => { setFiltering(false); setEditing('tags') }}>Edit categories</button>} {/* renaming or removing one everywhere is parents only */}
+          {parentDevice && <button className="link-btn" onClick={() => { setFiltering(false); setEditing('tags') }}>{t('Edit categories')}</button>} {/* renaming or removing one everywhere is parents only */}
         </Sheet>
       )}
-      {parentDevice && <button className="btn btn-secondary btn-block catalog-stores-btn" onClick={() => setEditing('stores')}>Stores &amp; departments</button>} {/* renaming everywhere is parents only */}
-      {items === null ? <p className="list-item-meta">Loading…</p>
-        : !shown.length ? <p className="list-item-meta">{items.length ? (query.trim() ? 'Nothing by that name.' : 'Nothing matches these filters.') : 'Nothing yet. Items you add to a shopping list show up here.'}</p>
+      {parentDevice && <button className="btn btn-secondary btn-block catalog-stores-btn" onClick={() => setEditing('stores')}>{t('Stores & departments')}</button>} {/* renaming everywhere is parents only */}
+      {items === null ? <p className="list-item-meta">{t('Loading…')}</p>
+        : !shown.length ? <p className="list-item-meta">{items.length ? (query.trim() ? t('Nothing by that name.') : t('Nothing matches these filters.')) : t('Nothing yet. Items you add to a shopping list show up here.')}</p>
         : sections.map(sec => sec.name === null ? sec.items.map(row) : (
           <section key={sec.name} aria-label={sec.name}>
             <h3 className="manage-head catalog-group">{sec.name} <span className="catalog-group-count">{sec.items.length}</span></h3>
@@ -1357,30 +1367,30 @@ function CatalogTagsSheet({ catalog, tags, onClose, onChanged }: { catalog: List
   const rename = async (from: string, to: string | null) => {
     try {
       await api.renameCatalogTag(catalog, from, to)
-      announce(to ? `Renamed ${from} to ${to}` : `Removed ${from}`)
-      setList(to ? list.filter(t => t.name !== from && t.name.toLowerCase() !== to.toLowerCase()).concat({ name: to, count: 0 }).sort((a, b) => a.name.localeCompare(b.name)) : list.filter(t => t.name !== from))
+      announce(to ? t('Renamed {from} to {to}', { from, to }) : t('Removed {name}', { name: from }))
+      setList(to ? list.filter(x => x.name !== from && x.name.toLowerCase() !== to.toLowerCase()).concat({ name: to, count: 0 }).sort((a, b) => a.name.localeCompare(b.name)) : list.filter(x => x.name !== from))
       setEditing(null); onChanged()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save'), true) }
   }
-  const remove = async (t: string) => {
-    if (await dialog.confirm({ title: `Remove "${t}"?`, body: 'Items keep everything else; this category is taken off them.', confirmLabel: 'Remove', danger: true })) rename(t, null)
+  const remove = async (name: string) => {
+    if (await dialog.confirm({ title: t('Remove “{name}”?', { name }), body: t('Items keep everything else; this category is taken off them.'), confirmLabel: t('Remove'), danger: true })) rename(name, null)
   }
   return (
-    <Sheet title="Categories" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
-      <p className="field-hint">Renaming changes every catalog item in the category. Removing takes it off them.</p>
-      {!list.length && <p className="list-item-meta">No categories yet. Add one to an item.</p>}
+    <Sheet title={t('Categories')} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
+      <p className="field-hint">{t('Renaming changes every catalog item in the category. Removing takes it off them.')}</p>
+      {!list.length && <p className="list-item-meta">{t('No categories yet. Add one to an item.')}</p>}
       {list.map(({ name }) => editing === name ? (
         <div className="manage-row" key={name}>
-          <input type="text" value={draft} onChange={e => setDraft(e.target.value)} aria-label={`New name for ${name}`} maxLength={40} autoFocus
+          <input type="text" value={draft} onChange={e => setDraft(e.target.value)} aria-label={t('New name for {name}', { name })} maxLength={40} autoFocus
             onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) rename(name, draft.trim()); if (e.key === 'Escape') setEditing(null) }} />
-          <button className="btn btn-primary" disabled={!draft.trim() || draft.trim() === name} onClick={() => rename(name, draft.trim())}>Save</button>
-          <button className="btn btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
+          <button className="btn btn-primary" disabled={!draft.trim() || draft.trim() === name} onClick={() => rename(name, draft.trim())}>{t('Save')}</button>
+          <button className="btn btn-secondary" onClick={() => setEditing(null)}>{t('Cancel')}</button>
         </div>
       ) : (
         <div className="manage-row" key={name}>
           <span className="manage-row-name">{name}</span>
-          <button className="link-btn" onClick={() => { setEditing(name); setDraft(name) }} aria-label={`Rename ${name}`}>Rename</button>
-          <button className="icon-btn" onClick={() => remove(name)} aria-label={`Remove ${name}`}><TrashIcon width={16} height={16} /></button>
+          <button className="link-btn" onClick={() => { setEditing(name); setDraft(name) }} aria-label={t('Rename {name}', { name })}>{t('Rename')}</button>
+          <button className="icon-btn" onClick={() => remove(name)} aria-label={t('Remove {name}', { name })}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
     </Sheet>
@@ -1405,8 +1415,8 @@ function CatalogItemSheet({ catalog, item, newTitle, suggestions, aisleOrder, fa
   // The family's categories to pick from; until it has some, a few starters (one tap adds one).
   const starters = !familyTags.length
   const tagOptions = tagsInput([...(starters ? STARTER_TAGS : familyTags), ...tags], familyTags)
-  const has = (t: string) => tags.some(x => x.toLowerCase() === t.toLowerCase())
-  const toggleTag = (t: string) => setTags(has(t) ? tags.filter(x => x.toLowerCase() !== t.toLowerCase()) : tagsInput([...tags, t], familyTags).slice(0, 10))
+  const has = (tag: string) => tags.some(x => x.toLowerCase() === tag.toLowerCase())
+  const toggleTag = (tag: string) => setTags(has(tag) ? tags.filter(x => x.toLowerCase() !== tag.toLowerCase()) : tagsInput([...tags, tag], familyTags).slice(0, 10))
   const addTag = () => { if (newTag.trim()) setTags(tagsInput([...tags, newTag], familyTags).slice(0, 10)); setNewTag('') }
   const otherStores = suggestions.stores.filter(st => !rows.some(r => r.store === st))
   const addStore = (name: string) => {
@@ -1420,57 +1430,57 @@ function CatalogItemSheet({ catalog, item, newTitle, suggestions, aisleOrder, fa
     try {
       if (item) await api.updateRemembered(catalog, item.key, body)
       else await api.addRemembered(catalog, body)
-      announce(`Saved ${body.title}`); onSaved()
-    } catch (e) { toast(e instanceof Error && e.message ? e.message : 'Could not save', true) }
+      announce(t('Saved: {name}', { name: body.title })); onSaved()
+    } catch (e) { toast(e instanceof Error && e.message ? e.message : t('Could not save'), true) }
   }
   const forget = async () => {
-    if (!item || !await dialog.confirm({ title: `Forget "${item.title}"?`, body: 'It leaves the catalog, stops being suggested as you add, and where it goes is forgotten. Items on lists keep it.', confirmLabel: 'Forget', danger: true })) return
-    try { await api.forgetItemName(catalog, item.key); announce(`Forgot ${item.title}`); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not forget it', true) }
+    if (!item || !await dialog.confirm({ title: t('Forget “{name}”?', { name: item.title }), body: t('It leaves the catalog, stops being suggested as you add, and where it goes is forgotten. Items on lists keep it.'), confirmLabel: t('Forget'), danger: true })) return
+    try { await api.forgetItemName(catalog, item.key); announce(t('Forgot {name}', { name: item.title })); onSaved() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not forget it'), true) }
   }
   return (
-    <Sheet title={item ? 'Edit catalog item' : 'New catalog item'} onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={save} disabled={!title.trim()}>Save</button>}>
+    <Sheet title={item ? t('Edit catalog item') : t('New catalog item')} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={save} disabled={!title.trim()}>{t('Save')}</button>}>
       <div className="field">
-        <label htmlFor="catalog-title">Name</label>
-        <input id="catalog-title" type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoComplete="off" autoFocus={!item} placeholder="e.g. Oat milk" />
+        <label htmlFor="catalog-title">{t('Name')}</label>
+        <input id="catalog-title" type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoComplete="off" autoFocus={!item} placeholder={t('e.g. Oat milk')} />
       </div>
-      <ValuePicker id="catalog-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
-      <h3 className="manage-head">Categories</h3>
-      <p className="field-hint catalog-hint">{starters ? 'Your own groupings, like Breakfast or Lunchbox. Tap any that fit, or add your own.' : 'Your own groupings. Tap any that fit, or add a new one.'}</p>
-      <div className="chip-row catalog-tag-picks" role="group" aria-label="Categories">
-        {tagOptions.map(t => (
-          <button key={t} className={`chip ${has(t) ? 'active' : ''}`} aria-pressed={has(t)} onClick={() => toggleTag(t)} disabled={!has(t) && tags.length >= 10}>
-            {!has(t) && <PlusIcon width={14} height={14} aria-hidden="true" />}{t}
+      <ValuePicker id="catalog-category" label={t('Department')} value={category} options={suggestions.categories} newLabel={t('New department…')} placeholder={t('e.g. Produce')} onChange={setCategory} />
+      <h3 className="manage-head">{t('Categories')}</h3>
+      <p className="field-hint catalog-hint">{starters ? t('Your own groupings, like Breakfast or Lunchbox. Tap any that fit, or add your own.') : t('Your own groupings. Tap any that fit, or add a new one.')}</p>
+      <div className="chip-row catalog-tag-picks" role="group" aria-label={t('Categories')}>
+        {tagOptions.map(tag => (
+          <button key={tag} className={`chip ${has(tag) ? 'active' : ''}`} aria-pressed={has(tag)} onClick={() => toggleTag(tag)} disabled={!has(tag) && tags.length >= 10}>
+            {!has(tag) && <PlusIcon width={14} height={14} aria-hidden="true" />}{starters && STARTER_TAGS.includes(tag) ? tm(tag) : tag /* a starter shows translated, saves in English */}
           </button>
         ))}
       </div>
       <div className="catalog-place">
         <div className="field">
-          <label htmlFor="catalog-new-tag">New category</label>
+          <label htmlFor="catalog-new-tag">{t('New category')}</label>
           <input id="catalog-new-tag" type="text" value={newTag} onChange={e => setNewTag(e.target.value)} maxLength={40} list="catalog-tag-list" autoComplete="off"
-            placeholder="e.g. Snacks" enterKeyHint="done" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} />
-          <datalist id="catalog-tag-list">{familyTags.filter(t => !has(t)).map(t => <option key={t} value={t} />)}</datalist>
+            placeholder={t('e.g. Snacks')} enterKeyHint="done" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} />
+          <datalist id="catalog-tag-list">{familyTags.filter(tag => !has(tag)).map(tag => <option key={tag} value={tag} />)}</datalist>
         </div>
-        <button className="btn btn-secondary" onClick={addTag} disabled={!newTag.trim() || tags.length >= 10}>Add</button>
+        <button className="btn btn-secondary" onClick={addTag} disabled={!newTag.trim() || tags.length >= 10}>{t('Add')}</button>
       </div>
-      <h3 className="manage-head">Stores</h3>
-      <p className="field-hint catalog-hint">Where it's found. Adding it to a list at one of these stores puts it in that aisle.</p>
+      <h3 className="manage-head">{t('Stores')}</h3>
+      <p className="field-hint catalog-hint">{t("Where it's found. Adding it to a list at one of these stores puts it in that aisle.")}</p>
       {rows.map((r, n) => (
         <div className="catalog-place" key={r.store}>
-          <ValuePicker id={`catalog-aisle-${n}`} label={`Aisle at ${r.store}`} value={r.aisle} noneLabel="Not known" options={storeAisles(suggestions, r.store, aisleOrder)}
-            newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={v => setRows(rows.map((x, i) => i === n ? { ...x, aisle: v } : x))} />
-          <button className="icon-btn" onClick={() => setRows(rows.filter((_, i) => i !== n))} aria-label={`Remove ${r.store}`}><TrashIcon width={18} height={18} /></button>
+          <ValuePicker id={`catalog-aisle-${n}`} label={t('Aisle at {store}', { store: r.store })} value={r.aisle} noneLabel={t('Not known')} options={storeAisles(suggestions, r.store, aisleOrder)}
+            newLabel={t('New aisle…')} placeholder={t('e.g. Aisle 4, Produce, Back wall')} onChange={v => setRows(rows.map((x, i) => i === n ? { ...x, aisle: v } : x))} />
+          <button className="icon-btn" onClick={() => setRows(rows.filter((_, i) => i !== n))} aria-label={t('Remove {name}', { name: r.store })}><TrashIcon width={18} height={18} /></button>
         </div>
       ))}
       <div className="catalog-place">
-        <ValuePicker key={pickerKey} id="catalog-add-store" label="Add a store" value={newStore} options={otherStores} noneLabel="Pick a store…" newLabel="New store…" placeholder="Store name"
+        <ValuePicker key={pickerKey} id="catalog-add-store" label={t('Add a store')} value={newStore} options={otherStores} noneLabel={t('Pick a store…')} newLabel={t('New store…')} placeholder={t('Store name')}
           onChange={v => otherStores.includes(v) ? addStore(v) : setNewStore(v)} />
-        {newStore.trim() && <button className="btn btn-secondary" onClick={() => addStore(newStore)}>Add</button>}
+        {newStore.trim() && <button className="btn btn-secondary" onClick={() => addStore(newStore)}>{t('Add')}</button>}
       </div>
       {item && <>
-        <p className="field-hint catalog-stats">{boughtLabel(item.uses)}{item.lastStore ? `, last at ${item.lastStore}` : ''}.</p>
-        <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={forget}>Forget this item</button></div>
+        <p className="field-hint catalog-stats">{item.lastStore ? t('{bought}, last at {store}.', { bought: boughtLabel(item.uses), store: item.lastStore }) : `${boughtLabel(item.uses)}.`}</p>
+        <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={forget}>{t('Forget this item')}</button></div>
       </>}
     </Sheet>
   )
@@ -1486,13 +1496,13 @@ function LeftoversSheet({ items, trip, stores, onDone, onCancel }: {
   const moves = items.filter(i => picked[i.id].trim() !== (i.store ?? '')).map(item => ({ item, store: picked[item.id].trim() || null }))
   const leave = () => onDone([])
   return (
-    <Sheet title="Didn't find these?" onClose={onCancel} actions={<>
-      <button className="btn btn-secondary" onClick={leave}>Leave them as they are</button>
-      {moves.length > 0 && <button className="btn btn-primary" onClick={() => onDone(moves)}>Move {moves.length}</button>}
+    <Sheet title={t("Didn't find these?")} onClose={onCancel} actions={<>
+      <button className="btn btn-secondary" onClick={leave}>{t('Leave them as they are')}</button>
+      {moves.length > 0 && <button className="btn btn-primary" onClick={() => onDone(moves)}>{t('Move {n}', { n: moves.length })}</button>}
     </>}>
-      <p className="field-hint">Still on the list after {trip}. Pick where to look for them next time.</p>
+      <p className="field-hint">{t('Still on the list after {store}. Pick where to look for them next time.', { store: trip })}</p>
       {items.map(i => (
-        <ValuePicker key={i.id} id={`leftover-${i.id}`} label={i.title} className="leftover-pick" value={picked[i.id]} options={stores} newLabel="New store…" placeholder="Store name" noneLabel="Anywhere"
+        <ValuePicker key={i.id} id={`leftover-${i.id}`} label={i.title} className="leftover-pick" value={picked[i.id]} options={stores} newLabel={t('New store…')} placeholder={t('Store name')} noneLabel={t('Anywhere')}
           onChange={v => setPicked(p => ({ ...p, [i.id]: v }))} />
       ))}
     </Sheet>
@@ -1544,7 +1554,7 @@ function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList,
           'aria-controls': matches.length ? listId : undefined, 'aria-activedescendant': active >= 0 && matches[active] ? `${listId}-${active}` : undefined,
         } : {})} />
       {matches.length > 0 && (
-        <ul id={listId} role="listbox" aria-label="Suggestions" className="item-suggest">
+        <ul id={listId} role="listbox" aria-label={t('Suggestions')} className="item-suggest">
           {matches.map((s, i) => (
             <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === active} className={i === active ? 'active' : undefined}
               onMouseDown={keepFocus} onClick={() => pick(s.title, true)}>
@@ -1555,9 +1565,9 @@ function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList,
         </ul>
       )}
       {again.length > 0 && (
-        <div className="item-again" role="group" aria-label="Buy again">
-          <span className="item-again-label" aria-hidden="true">Buy again</span>
-          {again.map(s => <button key={s.key} type="button" className="chip" onMouseDown={keepFocus} onClick={() => pick(s.title, true)} aria-label={onPick ? s.title : `Add ${s.title}`}>{s.title}</button>)}
+        <div className="item-again" role="group" aria-label={t('Buy again')}>
+          <span className="item-again-label" aria-hidden="true">{t('Buy again')}</span>
+          {again.map(s => <button key={s.key} type="button" className="chip" onMouseDown={keepFocus} onClick={() => pick(s.title, true)} aria-label={onPick ? s.title : t('Add {item}', { item: s.title })}>{s.title}</button>)}
         </div>
       )}
     </div>
@@ -1585,17 +1595,17 @@ function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onLi
   const aisle = place?.aisle ?? (known?.place?.store === store.trim() ? known.place.aisle ?? '' : '')
 
   const add = async (name: string, another: boolean) => {
-    const t = name.replace(/\s+/g, ' ').trim()
-    if (!t) return
+    const clean = name.replace(/\s+/g, ' ').trim()
+    if (!clean) return
     const body: ListItemInput = {
-      id: crypto.randomUUID(), title: t, quantity: quantity.trim() || null, notes: notes.trim() || null,
+      id: crypto.randomUUID(), title: clean, quantity: quantity.trim() || null, notes: notes.trim() || null,
       ...(place ? { store: place.store.trim() || null } : trip ? { store: trip } : {}),
       ...(place?.aisle != null ? { aisle: place.aisle.trim() || null } : {}),
       ...(forIds.length ? { forMemberIds: forIds } : {}), ...(onSale ? { onSale } : {}),
     }
     try { onAdded(await api.queueAddListItem(listId, body)) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true); return }
-    announce(`Added ${t} to ${listName}`)
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add item'), true); return }
+    announce(t('Added {item} to {list}', { item: clean, list: listName }))
     if (!another) return onClose()
     setTitle(''); setQuantity(''); setForIds([]); setOnSale(false); setNotes('')
     setPlace(p => p && { store: p.store, aisle: null }) // a store picked stays for the next one
@@ -1603,22 +1613,22 @@ function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onLi
   }
 
   return (
-    <Sheet title="Add item" onClose={onClose} dirty={!!(title.trim() || quantity.trim() || notes.trim())} actions={<>
-      <button className="btn btn-secondary" onClick={() => add(title, true)} disabled={!title.trim()}>Add another</button>
-      <button className="btn btn-primary" onClick={() => add(title, false)} disabled={!title.trim()}>Add</button>
+    <Sheet title={t('Add item')} onClose={onClose} dirty={!!(title.trim() || quantity.trim() || notes.trim())} actions={<>
+      <button className="btn btn-secondary" onClick={() => add(title, true)} disabled={!title.trim()}>{t('Add another')}</button>
+      <button className="btn btn-primary" onClick={() => add(title, false)} disabled={!title.trim()}>{t('Add')}</button>
     </>}>
       <div className="field">
-        <label htmlFor={`add-name-${listId}`}>Name</label>
-        <ItemAddField id={`add-name-${listId}`} value={title} onChange={setTitle} onAdd={t => add(t, true)} onPick={setTitle} suggestions={suggestions.items} onList={onList}
-          inputRef={nameRef} buyAgain autoFocus label="Name" placeholder="e.g. Milk" />
+        <label htmlFor={`add-name-${listId}`}>{t('Name')}</label>
+        <ItemAddField id={`add-name-${listId}`} value={title} onChange={setTitle} onAdd={x => add(x, true)} onPick={setTitle} suggestions={suggestions.items} onList={onList}
+          inputRef={nameRef} buyAgain autoFocus label={t('Name')} placeholder={t('e.g. Milk')} />
       </div>
       <ItemPlaceFields shopping quantity={quantity} onQuantity={setQuantity} store={store} aisle={aisle} aisleStore={store.trim() || null}
         category={known?.category ?? ''} suggestions={suggestions} aisleOrder={aisleOrder}
         onStore={v => setPlace({ store: v, aisle: null })} onAisle={v => setPlace({ store, aisle: v })} />
-      <MemberPicker members={members} selected={forIds} onChange={setForIds} label="For" noneLabel="Everyone" />
+      <MemberPicker members={members} selected={forIds} onChange={setForIds} label={t('For')} noneLabel={t('Everyone')} />
       <SaleField id={`add-sale-${listId}`} on={onSale} onChange={setOnSale} />
       <div className="field">
-        <label htmlFor={`add-notes-${listId}`}>Notes</label>
+        <label htmlFor={`add-notes-${listId}`}>{t('Notes')}</label>
         <textarea id={`add-notes-${listId}`} className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
     </Sheet>
@@ -1658,7 +1668,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   useEffect(() => { setSelectedStore(null); setShowDone(false); setTrip(tripStore(listId)) }, [listId])
   const changeTrip = (store: string | null) => {
     setTripStore(listId, store); setTrip(store); shopScroll.current = 0; setQuiet(false)
-    announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Shopping ended')
+    announce(store ? t('Shopping at {store}', { store: store === ANY_STORE ? t('any store') : store }) : t('Shopping ended'))
   }
   // Walking this store backwards (trip.ts tripReverse): per store, on this device. Not for Any store.
   // #/lists/<id>/shop?store=<name> (Siri, a shortcut): start the trip at that store, skipping the
@@ -1683,7 +1693,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const flipReverse = () => {
     if (!trip || trip === ANY_STORE) return
     setTripReverse(trip, !reversed); setReversed(!reversed)
-    announce(reversed ? 'Aisles in walking order' : 'Aisles reversed')
+    announce(reversed ? t('Aisles in walking order') : t('Aisles reversed'))
   }
 
   // Shopping mode: the trip alone, full screen. "Back" leaves it with the trip still on
@@ -1737,7 +1747,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       const byList = new Map<string, string[]>()
       for (const i of checked) byList.set(i.listId || listId, [...(byList.get(i.listId || listId) ?? []), i.id])
       try { await Promise.all([...byList].map(([id, its]) => (reset ? api.resetList(id, its) : api.clearListCompleted(id, its, trip && trip !== ANY_STORE ? trip : undefined)))) }
-      catch (e) { toast(e instanceof ApiError ? e.message : reset ? 'Could not reset the list' : 'Could not clear checked items', true) }
+      catch (e) { toast(e instanceof ApiError ? e.message : reset ? t('Could not reset the list') : t('Could not clear checked items'), true) }
       setCheckout(null); load()
     }
     checkoutTimer.current = setTimeout(commitCheckout, 5000)
@@ -1754,16 +1764,16 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     setDeleting(item)
     pendingDelete.current = () => {
       setDetail(d => d && { ...d, items: d.items.filter(i => i.id !== item.id) }); setDeleting(null)
-      api.queueDeleteListItem(item.listId || listId, item.id).catch(e => { toast(e instanceof ApiError ? e.message : 'Could not delete item', true); load() })
+      api.queueDeleteListItem(item.listId || listId, item.id).catch(e => { toast(e instanceof ApiError ? e.message : t('Could not delete item'), true); load() })
     }
     deleteTimer.current = setTimeout(commitDelete, 5000)
   }
-  const undoDelete = () => { clearTimeout(deleteTimer.current); pendingDelete.current = null; setDeleting(null); announce('Undone') }
+  const undoDelete = () => { clearTimeout(deleteTimer.current); pendingDelete.current = null; setDeleting(null); announce(t('Undone')) }
   const undoCheckout = () => {
     clearTimeout(checkoutTimer.current); pendingCheckout.current = null
     if (checkout?.trip) { setTripStore(listId, checkout.trip); setTrip(checkout.trip) }
     if (checkout?.shop) enterShop() // back to the aisles
-    setCheckout(null); announce('Undone')
+    setCheckout(null); announce(t('Undone'))
   }
   useEffect(() => { load() }, [listId, refreshTick, trip]) // eslint-disable-line react-hooks/exhaustive-deps
   // The iPhone app's Live Activity for the trip (liveActivity.ts): what's left and what's next, in the
@@ -1794,7 +1804,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       const added = await api.queueAddListItem(to, { id, title, ...(barcode ? { barcode } : {}) })
       const ticked = checkOff ? await api.queueUpdateListItem(to, id, { done: true }) : null
       if (to === listId) { showQueued(added); if (checkOff) showQueued(ticked) }
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true); return null }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add item'), true); return null }
     if (!checkOff) inputRef.current?.focus() // keep the keyboard open for the next item
     return id
   }
@@ -1816,13 +1826,13 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     const body = { ...(placing.need.aisle && aisle && trip ? { aisle, aisleStore: trip } : {}), ...(placing.need.department && category ? { category } : {}) }
     setPlacing(null)
     if (!Object.keys(body).length) return
-    try { const op = await api.queueUpdateListItem(placing.listId, placing.id, body); if (placing.listId === listId) showQueued(op); announce(`Saved where ${placing.title} goes`) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save it', true) }
+    try { const op = await api.queueUpdateListItem(placing.listId, placing.id, body); if (placing.listId === listId) showQueued(op); announce(t('Saved where {item} goes', { item: placing.title })) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save it'), true) }
   }
   const placeSheet = placing && detail && (
     <PlaceSheet title={placing.title} store={trip && trip !== ANY_STORE ? trip : null} need={placing.need} category={placing.category}
       aisles={trip && trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, aisleOrderMap(detail)) : []} departments={detail.suggestions.categories}
-      onSave={savePlace} onClose={() => setPlacing(null)} onStop={() => { setPlacing(null); setQuiet(true); announce("Won't ask again on this trip") }} />
+      onSave={savePlace} onClose={() => setPlacing(null)} onStop={() => { setPlacing(null); setQuiet(true); announce(t("Won't ask again on this trip")) }} />
   )
 
   // The app's camera (shopping lists): a product saved in the catalog goes straight on the list
@@ -1834,24 +1844,24 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     if (!code) return
     let found = null
     try { found = await api.lookupBarcode(listId, code) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not look that up', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not look that up'), true) }
     if (shopMode && found) {
       const hit = scanMatch([...(detail?.items ?? []), ...(detail?.alsoAtStore ?? [])], found.title)
-      if (hit) { await toggle(hit); toast(`Checked off: ${hit.title}`); announce(`Checked off ${hit.title}`); askPlace(hit); return }
+      if (hit) { await toggle(hit); toast(t('Checked off: {item}', { item: hit.title })); announce(t('Checked off {item}', { item: hit.title })); askPlace(hit); return }
       if (found.source === 'family') {
         const id = await addItem(found.title, code, { checkOff: true })
-        toast(`Added and checked off: ${found.title}`); announce(`Added and checked off ${found.title}`)
+        toast(t('Added and checked off: {item}', { item: found.title })); announce(t('Added and checked off {item}', { item: found.title }))
         if (id) askPlace({ id, title: found.title })
         return
       }
     }
     if (found?.source === 'family') {
       if (detail?.items.some(i => !i.done && itemKey(i.title) === itemKey(found.title))) {
-        toast(`${found.title} is already on the list`); announce(`${found.title} is already on the list`)
+        toast(t('{item} is already on the list', { item: found.title })); announce(t('{item} is already on the list', { item: found.title }))
         return
       }
       await addItem(found.title, code)
-      toast(`Added: ${found.title}`); announce(`Added ${found.title}`)
+      toast(t('Added: {item}', { item: found.title })); announce(t('Added {item}', { item: found.title }))
       return
     }
     setScanned({ code, found })
@@ -1866,10 +1876,11 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     const id = await addItem(title, barcode, { checkOff: shopMode, to: target })
     if (id && place && tripAt && (place.aisle || place.category)) { // where it was found, from the scan sheet
       try { showQueued(await api.queueUpdateListItem(target, id, { ...(place.aisle ? { aisle: place.aisle, aisleStore: tripAt } : {}), ...(place.category ? { category: place.category } : {}) })) }
-      catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save where it goes', true) }
+      catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save where it goes'), true) }
     } else if (id && !place && shopMode && target === listId) askPlace({ id, title })
-    const where = target === listId ? '' : ` to ${shoppingLists.find(l => l.id === target)?.name ?? 'the other list'}`
-    const said = `${shopMode ? 'Added and checked off' : 'Added'}${where}: ${title}`
+    const other = shoppingLists.find(l => l.id === target)?.name ?? t('the other list')
+    const said = target === listId ? (shopMode ? t('Added and checked off: {item}', { item: title }) : t('Added: {item}', { item: title }))
+      : shopMode ? t('Added and checked off to {list}: {item}', { list: other, item: title }) : t('Added to {list}: {item}', { list: other, item: title })
     toast(said); announce(said)
   }
   const tripAt = detail?.list.kind === 'shopping' && trip !== ANY_STORE ? trip : null // one store: its aisles, in its order
@@ -1879,10 +1890,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       suggestions={detail.suggestions.items} onListKeys={new Set(detail.items.filter(i => !i.done).map(i => itemKey(i.title)))}
       onList={[...detail.items.map(i => ({ ...i, listName: detail.list.name })), ...(detail.alsoAtStore ?? [])]}
       place={shopMode && tripAt ? { store: tripAt, aisles: storeAisles(detail.suggestions, tripAt, aisleOrderMap(detail)), departments: detail.suggestions.categories } : undefined}
-      onCheckOff={async it => { setScanned(null); await toggle(it); toast(`Checked off: ${it.title}`); announce(`Checked off ${it.title}`) }} />
+      onCheckOff={async it => { setScanned(null); await toggle(it); toast(t('Checked off: {item}', { item: it.title })); announce(t('Checked off {item}', { item: it.title })) }} />
   )
   const scanBtn = detail?.list.kind === 'shopping' && appBarcodeScanner() && (
-    <button className="icon-btn list-scan-btn" onClick={scan} aria-label="Scan a barcode"><span aria-hidden="true">📷</span></button>
+    <button className="icon-btn list-scan-btn" onClick={scan} aria-label={t('Scan a barcode')}><span aria-hidden="true">📷</span></button>
   )
 
   // A drag reorders one group's rows; slot them back into the positions that group held in the whole
@@ -1896,18 +1907,18 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     // Sorted too: grouped views keep array order, so without it the move only showed after a refetch.
     setDetail({ ...detail, items: detail.items.map(i => ({ ...i, sort: order.indexOf(i.id) })).sort(compareItems(detail.list.sortBy, todayKey(), { keepChecked: detail.list.keepChecked, aisleOrder: aisleOrderMap(detail), eventDue: eventDueMap(byId) })) })
     try { await api.reorderListItems(listId, order) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder', true); load() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reorder'), true); load() }
   }
 
   const toggle = async (item: ListItem) => {
     if (item.listId && item.listId !== listId) { // the other list's, on a combined trip: ticked there
       setDetail(d => d && { ...d, alsoAtStore: d.alsoAtStore?.map(i => (i.id === item.id ? { ...i, done: !item.done } : i)) })
       try { await api.queueUpdateListItem(item.listId, item.id, { done: !item.done }); askAisle(item) }
-      catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true); load() }
+      catch (e) { toast(e instanceof ApiError ? e.message : t('Could not update item'), true); load() }
       return
     }
     try { showQueued(await api.queueUpdateListItem(listId, item.id, { done: !item.done })); askAisle(item) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not update item'), true) }
   }
   // Ticking something off while shopping at a store that doesn't know its aisle yet asks where it
   // was found (only the aisle: a tap shouldn't also quiz for the department), so the next trip
@@ -1915,12 +1926,12 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const askAisle = (item: ListItem) => { if (shopMode && !item.done) askPlace(item, true) }
 
   const setSortBy = async (sortBy: ListSortBy) => {
-    try { await api.updateList(listId, { sortBy }); announce(`Sorted by ${SORT_LABEL[sortBy]}`); load() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change sort', true) }
+    try { await api.updateList(listId, { sortBy }); announce(t('Sorted by {sort}', { sort: tm(SORT_LABEL[sortBy]) })); load() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change sort'), true) }
   }
   const setGroupBy = async (groupBy: ListGroupBy) => {
     try { await api.updateList(listId, { groupBy }); load() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change grouping', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change grouping'), true) }
   }
 
   const shopping = shopMode && detail?.list.kind === 'shopping'
@@ -1939,9 +1950,9 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   useEffect(() => { if (shopping && freshLink.current && !trip && storeLink === null && defaultStore) changeTrip(defaultStore) }, [shopping, defaultStore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error || !detail) {
-    const card = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
+    const card = <div className="state-card">{error ? t("Couldn't load this list.") : t('Loading…')}</div>
     return shopMode
-      ? createPortal(<div className="shop-mode"><div className="shop-bar"><div className="shop-bar-title" /><button className="btn btn-secondary shop-done" onClick={exitShop}>Back</button></div>{card}</div>, document.body)
+      ? createPortal(<div className="shop-mode"><div className="shop-bar"><div className="shop-bar-title" /><button className="btn btn-secondary shop-done" onClick={exitShop}>{t('Back')}</button></div>{card}</div>, document.body)
       : <div className="list-detail">{card}</div>
   }
 
@@ -1975,10 +1986,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const manual = list.sortBy === 'manual'
   const reorderable = list.groupBy === 'store' || list.groupBy === 'category'
   const reorderableNames = reorderable ? [...new Set(items.map(i => (list.groupBy === 'store' ? i.store : i.category)).filter((v): v is string => !!v))] : []
-  const checkoutLabel = CHECKOUT_LABEL[list.kind]
+  const checkoutLabel = tm(CHECKOUT_LABEL[list.kind])
   // On a trip: everything, walked in that store's aisle order; checked items always stay in place.
   const activeTrip = list.kind === 'shopping' ? trip : null
-  const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
+  const storeLabel = activeTrip === ANY_STORE ? t('Any store') : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
   const addSheet = adding && (
     <ItemAddSheet listId={listId} listName={list.name} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt}
@@ -2013,19 +2024,19 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     for (const { item, store } of moves) {
       // The aisle goes with the store: the one known there, if any.
       try { showQueued(await api.queueUpdateListItem(listId, item.id, { store, aisle: item.places?.find(p => p.store === store)?.aisle ?? null })) }
-      catch (e) { toast(e instanceof ApiError ? e.message : `Could not move ${item.title}`, true) }
+      catch (e) { toast(e instanceof ApiError ? e.message : t('Could not move {item}', { item: item.title }), true) }
     }
-    if (moves.length) announce(`Moved ${moves.length} item${moves.length === 1 ? '' : 's'}`)
+    if (moves.length) announce(tn(moves.length, 'Moved {n} item', 'Moved {n} items'))
     checkoutTrip(true)
   }
   const leftoversSheet = leftovers && tripAt && (
-    <LeftoversSheet items={leftovers} trip={tripAt} stores={suggestions.stores} onDone={finishLeftovers} onCancel={() => { setLeftovers(null); announce('Still shopping') }} />
+    <LeftoversSheet items={leftovers} trip={tripAt} stores={suggestions.stores} onDone={finishLeftovers} onCancel={() => { setLeftovers(null); announce(t('Still shopping')) }} />
   )
   // End: the trip stops at once, with Undo (the store and its reversed walk come back with it).
   const endTrip = () => {
     const was = trip
     changeTrip(null)
-    toast('Shopping ended', false, { label: 'Undo', run: () => changeTrip(was) })
+    toast(t('Shopping ended'), false, { label: t('Undo'), run: () => changeTrip(was) })
   }
   const pickStore = (store: string) => {
     if (store !== trip) changeTrip(store)
@@ -2040,15 +2051,15 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   }
   // No store yet (Shop, or a link straight in): ask first; backing out of shopping mode leaves it.
   const storeSheet = (picking || (shopping && !trip && storeLink === null)) && (
-    <Sheet title="Where are you shopping?" onClose={() => { setPicking(false); if (shopping && !trip) exitShop() }}>
+    <Sheet title={t('Where are you shopping?')} onClose={() => { setPicking(false); if (shopping && !trip) exitShop() }}>
       <div className="shop-store-options">
         {[...tripStores, ANY_STORE].map(st => (
           <button key={st} className={`btn ${st === trip ? 'btn-primary' : 'btn-secondary'} btn-block`} aria-pressed={st === trip} onClick={() => pickStore(st)}>
-            {st === ANY_STORE ? 'Any store' : st}
+            {st === ANY_STORE ? t('Any store') : st}
           </button>
         ))}
       </div>
-      <p className="field-hint">{tripStores.length ? "Items go in that store's aisle order. Any store goes store by store." : 'Add stores to items to walk them in aisle order.'}</p>
+      <p className="field-hint">{tripStores.length ? t("Items go in that store's aisle order. Any store goes store by store.") : t('Add stores to items to walk them in aisle order.')}</p>
     </Sheet>
   )
 
@@ -2069,34 +2080,34 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       <div className="shop-mode" role="dialog" aria-modal="true" aria-labelledby={`shop-title-${listId}`}>
         <div className="shop-bar">
           <div className="shop-bar-title">
-            <h2 id={`shop-title-${listId}`} ref={shopHeading} tabIndex={-1}>{list.name}<span className="sr-only">, shopping mode</span></h2>
-            <button className="shop-store-btn" onClick={() => setPicking(true)} aria-label={`Shopping at ${storeLabel ?? 'no store yet'}. Change store`}>
-              <CartIcon width={16} height={16} /><span>{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span></span>
+            <h2 id={`shop-title-${listId}`} ref={shopHeading} tabIndex={-1}>{list.name}<span className="sr-only">{t(', shopping mode')}</span></h2>
+            <button className="shop-store-btn" onClick={() => setPicking(true)} aria-label={t('Shopping at {store}. Change store', { store: storeLabel ?? t('no store yet') })}>
+              <CartIcon width={16} height={16} /><span>{storeLabel ?? t('Pick a store')} <span aria-hidden="true">▾</span></span>
             </button>
           </div>
-          {view && <div className="shop-left">{tripLeft} left{tripAt && reversed && <span className="chip chip-static shop-reversed">Reversed</span>}</div>}
+          {view && <div className="shop-left">{t('{n} left', { n: tripLeft })}{tripAt && reversed && <span className="chip chip-static shop-reversed">{t('Reversed')}</span>}</div>}
           {tripAt && (
-            <button className="icon-btn shop-reverse-btn" onClick={flipReverse} aria-pressed={reversed} aria-label="Walk the aisles in reverse">
+            <button className="icon-btn shop-reverse-btn" onClick={flipReverse} aria-pressed={reversed} aria-label={t('Walk the aisles in reverse')}>
               <span aria-hidden="true">⇅</span>
             </button>
           )}
-          <button className="btn btn-secondary shop-done" onClick={exitShop} aria-label="Back to the list. The trip stays on">Back</button>
+          <button className="btn btn-secondary shop-done" onClick={exitShop} aria-label={t('Back to the list. The trip stays on')}>{t('Back')}</button>
         </div>
         <div className="shop-items scroll-y" ref={shopList} onScroll={saveShopScroll}>
-          {items.length === 0 && <div className="empty-card"><span className="emoji">🛒</span>Nothing on the list yet.</div>}
+          {items.length === 0 && <div className="empty-card"><span className="emoji">🛒</span>{t('Nothing on the list yet.')}</div>}
           {view?.aisles.map(g => group(g.aisle, g.items.map(i => row(i))))}
-          {!!view?.unknown.length && group('Aisle unknown', view.unknown.map(i => row(i)))}
-          {!!view?.other.length && group('At other stores', view.other.map(i => row(i, true)), 'list-trip-other')}
+          {!!view?.unknown.length && group(t('Aisle unknown'), view.unknown.map(i => row(i)))}
+          {!!view?.other.length && group(t('At other stores'), view.other.map(i => row(i, true)), 'list-trip-other')}
         </div>
         <div className="shop-dock">
           <div className="shop-dock-row">
             {scanBtn /* scan to check off (or add) without opening Add an item */}
-            <button className="btn btn-secondary shop-add-btn" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label="Add an item">
-              <PlusIcon width={18} height={18} />{!tripChecked.length && <span aria-hidden="true">Add an item</span>}
+            <button className="btn btn-secondary shop-add-btn" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add an item')}>
+              <PlusIcon width={18} height={18} />{!tripChecked.length && <span aria-hidden="true">{t('Add an item')}</span>}
             </button>
             {tripChecked.length > 0 && (
               <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
-                {TRIP_DONE_LABEL} ({tripChecked.length})
+                {t('{label} ({n})', { label: tm(TRIP_DONE_LABEL), n: tripChecked.length })}
               </button>
             )}
           </div>
@@ -2118,9 +2129,9 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const sortChanged = list.sortBy !== viewDef.sortBy
   const viewCount = [groupChanged, sortChanged, !!selectedStore].filter(Boolean).length
   const viewSummary = [
-    groupChanged && (list.groupBy === 'none' ? 'Not grouped' : `Grouped by ${GROUP_LABEL[list.groupBy].toLowerCase()}`),
-    sortChanged && (list.sortBy === 'manual' ? 'Your order' : `Sorted by ${SORT_LABEL[list.sortBy].replace(/^[A-Z](?=[a-z])/, c => c.toLowerCase())}`),
-    selectedStore && `${selectedStore} only`,
+    groupChanged && tm(GROUPED_BY[list.groupBy]),
+    sortChanged && tm(SORTED_BY[list.sortBy]),
+    selectedStore && t('{store} only', { store: selectedStore }),
   ].filter(Boolean).join(' · ')
   const viewButton = (
     <button className={`icon-btn filter-btn list-view-btn ${viewCount ? 'active' : ''}`} onClick={() => setViewing(true)} aria-haspopup="dialog"
@@ -2133,21 +2144,21 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   return (
     <div className="list-detail">
       <div className="list-detail-header">
-        {isPhone && <button className="icon-btn" onClick={onBack} aria-label="Back to lists"><ChevronLeft width={20} height={20} /></button>}
+        {isPhone && <button className="icon-btn" onClick={onBack} aria-label={t('Back to lists')}><ChevronLeft width={20} height={20} /></button>}
         <div className="list-detail-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
         <div className="list-detail-title">
           <h2 className="list-detail-name">{list.name}</h2>
-          <div className="list-detail-sub">{TYPE_LABEL[listType(list)]} · <CountLine list={list} /></div>
+          <div className="list-detail-sub">{tm(TYPE_LABEL[listType(list)])} · <CountLine list={list} /></div>
           {lastDoneLine(list, members) && <div className="list-detail-sub list-last-done">{lastDoneLine(list, members)}</div>}
         </div>
-        {parentDevice && <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>} {/* a list's settings, archive and delete are for parent devices; View stays */}
+        {parentDevice && <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={t('Edit list {name}', { name: list.name })}>{t('Edit')}</button>} {/* a list's settings, archive and delete are for parent devices; View stays */}
       </div>
 
       {list.kind !== 'shopping' && (
         <div className="list-add-bar">
           <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
-            label={`Add to ${list.name}`} placeholder="Add something…" />
-          <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+            label={t('Add to {list}', { list: list.name })} placeholder={t('Add something…')} />
+          <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label={t('Add item')}><PlusIcon width={20} height={20} /></button>
           {items.length > 0 && viewButton /* no Shop button to share a row with */}
         </div>
       )}
@@ -2155,36 +2166,36 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       {/* Shopping lists: Add (the Add item sheet), scan, Shop (or the trip and End), and View once there's something to view. */}
       {list.kind === 'shopping' && (
         <div className="list-actions">
-          <button className={`btn ${activeTrip ? 'btn-secondary' : 'btn-primary'} list-add-btn`} onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label="Add an item"><PlusIcon width={18} height={18} />Add</button>
+          <button className={`btn ${activeTrip ? 'btn-secondary' : 'btn-primary'} list-add-btn`} onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add an item')}><PlusIcon width={18} height={18} />{t('Add')}</button>
           {scanBtn}
           {activeTrip ? <>
-            <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={`Shopping at ${storeLabel}, ${tripLeft} left. Resume shopping`}>
-              <CartIcon width={18} height={18} /><span className="list-shop-label">{storeLabel}<span className="list-shop-sub"> · {tripLeft} left</span></span>
+            <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={t('Shopping at {store}, {n} left. Resume shopping', { store: storeLabel ?? '', n: tripLeft })}>
+              <CartIcon width={18} height={18} /><span className="list-shop-label">{storeLabel}<span className="list-shop-sub"> · {t('{n} left', { n: tripLeft })}</span></span>
             </button>
-            <button className="btn btn-secondary list-end-btn" onClick={endTrip} aria-label={`End shopping at ${storeLabel}`}>End</button>
+            <button className="btn btn-secondary list-end-btn" onClick={endTrip} aria-label={t('End shopping at {store}', { store: storeLabel ?? '' })}>{t('End')}</button>
           </> : (
             <button className="btn btn-secondary list-shop-btn" onClick={startShop} aria-haspopup={tripStores.length > 1 ? 'dialog' : undefined}>
-              <CartIcon width={18} height={18} />Shop
+              <CartIcon width={18} height={18} />{t('Shop')}
             </button>
           )}
-          {!activeTrip && <button className="btn btn-secondary list-catalog-btn" onClick={() => setCataloging(true)} aria-haspopup="dialog" aria-label={catalogName(list.catalog ?? 'groceries')}>Catalog</button>}
+          {!activeTrip && <button className="btn btn-secondary list-catalog-btn" onClick={() => setCataloging(true)} aria-haspopup="dialog" aria-label={catalogName(list.catalog ?? 'groceries')}>{t('Catalog')}</button>}
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
       {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop). */}
       {list.kind !== 'shopping' && items.length > 0 && (
         <div className="list-actions">
-          <button className="btn btn-secondary list-do-btn" onClick={() => setGsd(listId)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />Get stuff done</button>
+          <button className="btn btn-secondary list-do-btn" onClick={() => setGsd(listId)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />{t('Get stuff done')}</button>
         </div>
       )}
       {doing && <GetStuffDone listId={listId} onClose={() => { setGsd(null); load() }} />}
       {!activeTrip && viewSummary && items.length > 0 && (
-        <button className="filter-summary list-view-summary" onClick={() => setViewing(true)} aria-label={`View: ${viewSummary}. Change view`}>{viewSummary}</button>
+        <button className="filter-summary list-view-summary" onClick={() => setViewing(true)} aria-label={t('View: {summary}. Change view', { summary: viewSummary })}>{viewSummary}</button>
       )}
 
       <div className="list-items scroll-y">
         {items.length === 0 ? (
-          <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : '📝'}</span>Nothing here yet — add your first item above.</div>
+          <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : '📝'}</span>{t('Nothing here yet — add your first item above.')}</div>
         ) : view ? (
           <>
             {view.aisles.map(g => (
@@ -2195,26 +2206,26 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             ))}
             {view.unknown.length > 0 && (
               <div className="list-group">
-                <h3 className="list-group-title" style={{ margin: 0 }}>Aisle unknown</h3>
+                <h3 className="list-group-title" style={{ margin: 0 }}>{t('Aisle unknown')}</h3>
                 {view.unknown.map(item => tripRow(item))}
               </div>
             )}
             {view.other.length > 0 && (
               <div className="list-group list-trip-other">
-                <h3 className="list-group-title" style={{ margin: 0 }}>At other stores</h3>
+                <h3 className="list-group-title" style={{ margin: 0 }}>{t('At other stores')}</h3>
                 {view.other.map(item => tripRow(item, true))}
               </div>
             )}
           </>
         ) : list.groupBy === 'none' ? (
           openItems.length === 0 ? (
-            <div className="empty-card"><span className="emoji">✨</span>All done!</div>
+            <div className="empty-card"><span className="emoji">✨</span>{t('All done!')}</div>
           ) : (
             <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} fixed={!manual}
               renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
           )
         ) : groupedOpen.length === 0 ? (
-          <div className="empty-card"><span className="emoji">✨</span>All done!</div>
+          <div className="empty-card"><span className="emoji">✨</span>{t('All done!')}</div>
         ) : (
           groupedOpen.map(g => (
             <div key={g.name} className="list-group">
@@ -2230,8 +2241,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             {/* Clear/Reset only matter once something is checked, so they live here rather than
                 in a permanent footer that cost a phone a row of items. */}
             <div className="list-done-head">
-              <button className="list-done-toggle" onClick={() => setShowDone(s => !s)} aria-expanded={showDone}><span aria-hidden="true">{showDone ? '▾' : '▸'}</span> Done ({doneItems.length})</button>
-              <button className="link-btn" onClick={() => startCheckout(doneItems.filter(mine), list.kind)}>{list.kind === 'reusable' ? 'Reset list' : 'Clear checked'}</button>
+              <button className="list-done-toggle" onClick={() => setShowDone(s => !s)} aria-expanded={showDone}><span aria-hidden="true">{showDone ? '▾' : '▸'}</span> {t('Done ({n})', { n: doneItems.length })}</button>
+              <button className="link-btn" onClick={() => startCheckout(doneItems.filter(mine), list.kind)}>{list.kind === 'reusable' ? t('Reset list') : t('Clear checked')}</button>
             </div>
             {showDone && doneItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
               <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} readOnly={!mine(item)} onDelete={delFor(item)} />
@@ -2243,7 +2254,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         {activeTrip ? tripChecked.length > 0 && (
           <div className="list-checkout-bar">
             <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
-              {TRIP_DONE_LABEL} ({tripChecked.length})
+              {t('{label} ({n})', { label: tm(TRIP_DONE_LABEL), n: tripChecked.length })}
             </button>
           </div>
         ) : keep && checked.length > 0 && (
@@ -2259,14 +2270,14 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       {leftoversSheet}
       {checkout && (
         <div className="toast list-undo-toast" role="status">
-          <span>{checkout.reset ? `Reset ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : checkout.trip ? `Took ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'} off the list.${checkout.left ? ` ${checkout.left} ${checkout.left === 1 ? 'is' : 'are'} left for next time.` : ''}` : `Cleared ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}`}</span>
-          <button className="list-undo-btn" onClick={undoCheckout}>Undo</button>
+          <span>{checkout.reset ? tn(checkout.ids.length, 'Reset {n} item', 'Reset {n} items') : checkout.trip ? `${tn(checkout.ids.length, 'Took {n} item off the list.', 'Took {n} items off the list.')}${checkout.left ? ` ${tn(checkout.left, '{n} is left for next time.', '{n} are left for next time.')}` : ''}` : tn(checkout.ids.length, 'Cleared {n} item', 'Cleared {n} items')}</span>
+          <button className="list-undo-btn" onClick={undoCheckout}>{t('Undo')}</button>
         </div>
       )}
       {deleting && (
         <div className="toast list-undo-toast" role="status">
-          <span>Deleted {deleting.title}</span>
-          <button className="list-undo-btn" onClick={undoDelete}>Undo</button>
+          <span>{t('Deleted {item}', { item: deleting.title })}</span>
+          <button className="list-undo-btn" onClick={undoDelete}>{t('Undo')}</button>
         </div>
       )}
 
@@ -2298,23 +2309,23 @@ function ArchivedLists({ lists, onChanged }: { lists: List[]; onChanged: () => v
   const { toast } = useApp()
   if (lists.length === 0) return null
   const restore = async (l: List) => {
-    try { await api.updateList(l.id, { archived: false }); announce(`${l.name} restored`); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not restore list', true) }
+    try { await api.updateList(l.id, { archived: false }); announce(t('{name} restored', { name: l.name })); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not restore list'), true) }
   }
   const del = async (l: List) => {
-    if (!await dialog.confirm({ title: `Delete "${l.name}"?`, body: 'This removes all its items too.', confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteList(l.id); announce(`${l.name} deleted`); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete list', true) }
+    if (!await dialog.confirm({ title: t('Delete “{name}”?', { name: l.name }), body: t('This removes all its items too.'), confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteList(l.id); announce(t('{name} deleted', { name: l.name })); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete list'), true) }
   }
   return (
     <details className="lists-archived">
-      <summary>Archived ({lists.length})</summary>
+      <summary>{t('Archived ({n})', { n: lists.length })}</summary>
       {lists.map(l => (
         <div key={l.id} className="lists-archived-row">
           <span className="list-card-emoji" aria-hidden="true">{l.emoji || '📝'}</span>
           <span className="list-card-name">{l.name}</span>
-          <button className="btn btn-secondary" onClick={() => restore(l)} aria-label={`Restore ${l.name}`}>Restore</button>
-          <button className="icon-btn" onClick={() => del(l)} aria-label={`Delete ${l.name}`}><TrashIcon width={16} height={16} /></button>
+          <button className="btn btn-secondary" onClick={() => restore(l)} aria-label={t('Restore {name}', { name: l.name })}>{t('Restore')}</button>
+          <button className="icon-btn" onClick={() => del(l)} aria-label={t('Delete {item}', { item: l.name })}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
     </details>
@@ -2344,7 +2355,7 @@ export default function Lists() {
     const order = reorderWithin(allLists, ids)
     setLists(ls => ls.map(l => ({ ...l, sort: order.indexOf(l.id) })))
     try { await api.reorderLists(order) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder lists', true); load() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reorder lists'), true); load() }
   }
   const nudge = (ids: string[], list: List, dir: -1 | 1) => {
     const i = ids.indexOf(list.id), j = i + dir
@@ -2352,7 +2363,7 @@ export default function Lists() {
     const next = [...ids]
     ;[next[i], next[j]] = [next[j], next[i]]
     reorder(next)
-    announce(`${list.name} moved to position ${j + 1} of ${ids.length}`)
+    announce(t('{item} moved to position {n} of {total}', { item: list.name, n: j + 1, total: ids.length }))
   }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -2407,13 +2418,13 @@ export default function Lists() {
     if (gone || (!selectedId && !isPhone)) setSelectedId(isPhone ? null : sections[0]?.lists[0]?.id ?? null)
   }, [lists, sections, loading, selectedId, isPhone, shopId])
 
-  if (error) return <div className="content"><div className="state-card">Couldn't load lists.</div></div>
+  if (error) return <div className="content"><div className="state-card">{t("Couldn't load lists.")}</div></div>
 
   if (!loading && lists.length === 0 && archived.length === 0) {
     return (
       <div className="content">
-        <div className="empty-card"><span className="emoji">📝</span>No lists yet — start a shopping list, to-do list, or packing list.</div>
-        <button className="fab" onClick={() => setEditList('new')} aria-label="New list"><PlusIcon /></button>
+        <div className="empty-card"><span className="emoji">📝</span>{t('No lists yet — start a shopping list, to-do list, or packing list.')}</div>
+        <button className="fab" onClick={() => setEditList('new')} aria-label={t('New list')}><PlusIcon /></button>
         {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={created => { setEditList(null); load(); if (created) openList(created.id) }} onDeleted={() => { setEditList(null); load() }} />}
       </div>
     )
@@ -2421,21 +2432,21 @@ export default function Lists() {
 
   const cards = (
     <div className="lists-col">
-      {missing && <div className="state-card">That isn't here anymore.</div>}
+      {missing && <div className="state-card">{t("That isn't here anymore.")}</div>}
       {reordering && (
         <div className="edit-mode-bar" role="status">
-          <span>Tap a list to edit it, or drag to reorder.</span>
-          <button type="button" className="btn btn-primary" onClick={() => setReordering(false)}>Done</button>
+          <span>{t('Tap a list to edit it, or drag to reorder.')}</span>
+          <button type="button" className="btn btn-primary" onClick={() => setReordering(false)}>{t('Done')}</button>
         </div>
       )}
       {sections.map(s => {
         const open = reordering || !collapsed.includes(s.type)
         const ids = s.lists.map(l => l.id)
         return (
-          <section key={s.type} className="lists-section" aria-label={s.label}>
+          <section key={s.type} className="lists-section" aria-label={tm(s.label)}>
             <button className="lists-section-head" aria-expanded={open} onClick={() => toggleSection(s.type)} disabled={reordering}>
               <ChevronRight width={18} height={18} aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }} />
-              <span className="lists-section-label">{s.label}</span>
+              <span className="lists-section-label">{tm(s.label)}</span>
               <span className="lists-section-count">{s.lists.length}</span>
             </button>
             {open && (reordering
@@ -2449,8 +2460,8 @@ export default function Lists() {
       })}
       {!reordering && (
         <div className="lists-col-actions">
-          <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> New list</button>
-          {parentDevice && <button className="btn btn-secondary" onClick={() => setReordering(true)}><EditIcon width={18} height={18} aria-hidden="true" /> Edit lists</button>}
+          <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> {t('New list')}</button>
+          {parentDevice && <button className="btn btn-secondary" onClick={() => setReordering(true)}><EditIcon width={18} height={18} aria-hidden="true" /> {t('Edit lists')}</button>}
         </div>
       )}
       {!reordering && parentDevice && <ArchivedLists lists={archived} onChanged={load} />}
@@ -2470,7 +2481,7 @@ export default function Lists() {
           {cards}
           {selectedId
             ? <ListDetailPane listId={selectedId} lists={lists} isPhone={false} shopMode={shopId === selectedId} onBack={toOverview} onArchivedOrDeleted={() => { toOverview(); setSelectedId(null); load() }} onLoaded={syncCard} />
-            : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>Pick a list to open it.</div></div>}
+            : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>{t('Pick a list to open it.')}</div></div>}
         </div>
       )}
       {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={created => { setEditList(null); load(); if (created) openList(created.id) }} onDeleted={() => { setEditList(null); load() }} />}

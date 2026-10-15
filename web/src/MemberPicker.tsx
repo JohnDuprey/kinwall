@@ -1,9 +1,10 @@
 import type { Member } from './types.ts'
 import { ChipFace } from './Face'
+import { t } from './i18n.ts'
 
 /** Multi-select toggle chips for assigning a calendar to family members. "Nobody" clears the
  * selection. Reuses the existing `.chip`/`--chip-color` styling (see RemoteCalendarPicker). */
-export function MemberPicker({ members, selected, onChange, label = 'Who is this for?', noneLabel = 'Nobody' }: {
+export function MemberPicker({ members, selected, onChange, label = t('Who is this for?'), noneLabel = t('Nobody') }: {
   members: Pick<Member, 'id' | 'name' | 'color' | 'avatar' | 'picture'>[]
   selected: string[]
   onChange: (ids: string[]) => void

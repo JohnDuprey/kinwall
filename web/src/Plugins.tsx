@@ -30,6 +30,7 @@ import { useKeyboard } from './keyboard.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
 import { useBackClose } from './backStack.ts'
+import { intlLocale, lang, playerLang, t, tc, tn } from './i18n.ts'
 
 type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean; text?: unknown; rate?: unknown; lang?: unknown; item?: unknown }
 
@@ -114,7 +115,9 @@ export function PluginPlayer({ id }: { id: string }) {
           kinwall: 1, type: 'context',
           context: {
             member: player ? { id: player.id, name: player.name, avatar: player.avatar, color: player.color } : null,
-            theme: themeForPlugin(), textScale: settings.textScale, reducedMotion: reducedMotion(), locale: navigator.language,
+            theme: themeForPlugin(), textScale: settings.textScale, reducedMotion: reducedMotion(),
+            // The player's own language (the wall keeps the family's for itself), regional when the browser's matches.
+            locale: intlLocale(navigator.language, playerLang(player?.language, lang())),
             // A parent's device (full access), whoever is playing: lets a plugin offer grown-up
             // settings, like a kid's spelling list. Wall screens and kids' devices say false.
             parent: parentDevice,
@@ -182,7 +185,7 @@ export function PluginPlayer({ id }: { id: string }) {
         setChores(list); sent()
         const done = list.filter(c => c.justCompleted)
         if (!done.length) return
-        const msg = `🎉 ${done.map(c => c.title).join(' and ')} done!`
+        const msg = `🎉 ${t('{titles} done!', { titles: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(done.map(c => c.title)) })}`
         toast(msg); announce(msg); setBurst(b => b + 1); reloadCore()
       }).catch(sent) // the next heartbeat carries on; a lost one only costs those seconds
     }
@@ -217,15 +220,15 @@ export function PluginPlayer({ id }: { id: string }) {
   const resetChip = async () => {
     if (!plugin || !player || !chip) return
     if (!await dialog.confirm({
-      title: `Reset ${player.name}'s ${plugin.name} time for today?`,
-      body: chip.completed ? `"${chip.title}" stays done. Untick it on Chores if it shouldn't count.` : `${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min goes back to 0. Time counts again while ${plugin.name} is open.`,
-      confirmLabel: 'Reset time',
+      title: t("Reset {name}'s {activity} time for today?", { name: player.name, activity: plugin.name }),
+      body: chip.completed ? t("\"{title}\" stays done. Untick it on Chores if it shouldn't count.", { title: chip.title }) : t('{done} of {need} min goes back to 0. Time counts again while {activity} is open.', { done: Math.floor(chipDone / 60), need: chip.needSeconds / 60, activity: plugin.name }),
+      confirmLabel: t('Reset time'),
     })) return
     try {
       zeroed.current = true
       setChores(await api.resetPlaytime(plugin.id, player.id)); setUnsent(0); setStepShown(0)
-      toast(`Time reset: ${chip.title}`); announce(`Time reset: ${chip.title}`)
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reset the time', true) }
+      const said = t('Time reset: {title}', { title: chip.title }); toast(said); announce(said)
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reset the time'), true) }
   }
 
   // Focus mode: while an activity is open, Kinwall's header, tabs, rail and now/next are hidden
@@ -283,9 +286,9 @@ export function PluginPlayer({ id }: { id: string }) {
     asking.current = true
     const n = chip && !chip.completed ? chip.needSeconds / 60 : 0
     const ok = await dialog.confirm({
-      title: `Leave ${plugin.name}?`,
-      body: n ? `Your ${n} minute${n === 1 ? '' : 's'} of ${chip!.title} will stop counting.` : undefined,
-      confirmLabel: 'Leave', cancelLabel: 'Stay',
+      title: t('Leave {name}?', { name: plugin.name }),
+      body: n ? tn(n, 'Your {n} minute of {title} will stop counting.', 'Your {n} minutes of {title} will stop counting.', { title: chip!.title }) : undefined,
+      confirmLabel: t('Leave'), cancelLabel: t('Stay'),
     })
     asking.current = false
     if (ok) leave()
@@ -294,14 +297,14 @@ export function PluginPlayer({ id }: { id: string }) {
   useBackClose(() => askLeaveRef.current(), !!playing) // the app's Back button: like Escape
 
   if (plugin === undefined) return null
-  if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to leave Kinwall, so it was stopped. <a href="#/activities">Back to Activities</a></div>
-  if (plugin === null) return <div className="state-card">This activity isn't installed or is turned off. <a href="#/activities">Back to Activities</a></div>
+  if (left) return <div className="state-card">{t('{name} tried to leave Kinwall, so it was stopped.', { name: plugin?.name ?? t('This activity') })} <a href="#/activities">{t('Back to Activities')}</a></div>
+  if (plugin === null) return <div className="state-card">{t("This activity isn't installed or is turned off.")} <a href="#/activities">{t('Back to Activities')}</a></div>
   if (player === undefined) {
     return (
       // Closing goes back where the activity was opened from (Activities, a chore), stepping back
       // over the sheet's own history entry first (sheetHistory.ts), so Back never reopens it.
-      <Sheet title="Who's playing?" onClose={() => history.back()}>
-        <p className="settings-row-sub">{plugin.emoji} {plugin.name} saves progress for each person.</p>
+      <Sheet title={t("Who's playing?")} onClose={() => history.back()}>
+        <p className="settings-row-sub">{plugin.emoji} {t('{name} saves progress for each person.', { name: plugin.name })}</p>
         <div className="who-grid">
           {members.map(m => (
             <button key={m.id} className="who-btn" onClick={() => setPlayer(m)}>
@@ -310,30 +313,30 @@ export function PluginPlayer({ id }: { id: string }) {
             </button>
           ))}
         </div>
-        <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setPlayer(null)}>Just playing</button>
+        <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setPlayer(null)}>{t('Just playing')}</button>
       </Sheet>
     )
   }
   return (
     <div className="plugin-player" style={keyboard ? { paddingBottom: keyboard } : undefined}>
       <div className="plugin-bar">
-        <button type="button" className="btn btn-secondary" aria-label="Back to Activities" onClick={() => askLeaveRef.current()}><ChevronLeft width={20} height={20} /><span className="plugin-bar-word"> Activities</span></button>
+        <button type="button" className="btn btn-secondary" aria-label={t('Back to Activities')} onClick={() => askLeaveRef.current()}><ChevronLeft width={20} height={20} /><span className="plugin-bar-word"> {t('Activities')}</span></button>
         <span className="plugin-bar-title"><span aria-hidden="true">{plugin.emoji}</span> {plugin.name}</span>
         {chip && (() => {
           const inner = <>
             <ActivityRing done={chipDone} need={chip.needSeconds} complete={chip.completed} />
             <span>
               {chip.emoji && <span aria-hidden="true">{chip.emoji} </span>}
-              {chip.completed ? `${chip.title}: done ✓` : `${chip.title}: ${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min`}
+              {chip.completed ? t('{title}: done ✓', { title: chip.title }) : t('{title}: {done} of {need} min', { title: chip.title, done: Math.floor(chipDone / 60), need: chip.needSeconds / 60 })}
             </span>
             {burst > 0 && <Confetti key={burst} />}
           </>
           const cls = `plugin-chore-chip ${chip.completed ? 'done' : ''}`
           return parentDevice
-            ? <button type="button" className={cls} onClick={() => void resetChip()} aria-label={`${chip.title}: ${chip.completed ? 'done' : `${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min`}. Reset today's time`}>{inner}</button>
+            ? <button type="button" className={cls} onClick={() => void resetChip()} aria-label={chip.completed ? t("{title}: done. Reset today's time", { title: chip.title }) : t("{title}: {done} of {need} min. Reset today's time", { title: chip.title, done: Math.floor(chipDone / 60), need: chip.needSeconds / 60 })}>{inner}</button>
             : <span className={cls} role="status">{inner}</span>
         })()}
-        {player && members.length > 1 && <button className="btn btn-secondary" aria-label={`${player.name} is playing. Switch`} onClick={() => { setPresetId(null); setPlayer(undefined) }}>{player.avatar || ''} {player.name}<span className="plugin-bar-word"> · Switch</span></button>}
+        {player && members.length > 1 && <button className="btn btn-secondary" aria-label={t('{name} is playing. Switch', { name: player.name })} onClick={() => { setPresetId(null); setPlayer(undefined) }}>{player.avatar || ''} {player.name}<span className="plugin-bar-word"> · {t('Switch')}</span></button>}
       </div>
       {/* key: switching players restarts the plugin with the new person's progress */}
       <iframe key={player?.id ?? 'nobody'} ref={frame} className="plugin-frame" title={plugin.name} src={api.pluginUrl(plugin)}
@@ -342,6 +345,9 @@ export function PluginPlayer({ id }: { id: string }) {
     </div>
   )
 }
+
+/** "Ages 4–8" or "Ages 6+". */
+const ages = (a: { min: number; max?: number }) => a.max ? t('Ages {min}–{max}', { min: a.min, max: a.max }) : t('Ages {min}+', { min: a.min })
 
 /** Activities → Get more activities (admins): install from GitHub or a package, update, turn off, remove. */
 export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
@@ -359,12 +365,12 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
 
   const run = async (label: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(label)
-    try { await fn(); toast(done); announce(done); load(); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : 'Something went wrong', true) } finally { setBusy(null) }
+    try { await fn(); toast(done); announce(done); load(); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : t('Something went wrong'), true) } finally { setBusy(null) }
   }
   return (
-    <Sheet title="Get more activities" onClose={onClose}>
+    <Sheet title={t('Get more activities')} onClose={onClose}>
       {catalog && catalog.plugins.length > 0 && <>
-        <h3 className="plugin-list-title">Reviewed by Kinwall</h3>
+        <h3 className="plugin-list-title">{t('Reviewed by Kinwall')}</h3>
         <ul className="plugin-list">
           {catalog.plugins.map(e => {
             const installed = plugins.find(p => p.id === e.id)
@@ -373,11 +379,11 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
                 <span className="plugin-row-icon" aria-hidden="true" style={{ background: e.color ?? 'var(--bg-alt)' }}>{e.emoji}</span>
                 <div className="plugin-row-info">
                   <div className="settings-row-label">{e.name} <span className="plugin-version">v{e.version}</span></div>
-                  <div className="settings-row-sub">{[e.description, e.ages ? `Ages ${e.ages.min}${e.ages.max ? `–${e.ages.max}` : '+'}` : '', e.categories.join(', ')].filter(Boolean).join(' · ')}</div>
+                  <div className="settings-row-sub">{[e.description, e.ages ? ages(e.ages) : '', e.categories.join(', ')].filter(Boolean).join(' · ')}</div>
                   <div className="plugin-row-actions">
                     {installed
-                      ? <span className="settings-row-sub">✓ Installed</span>
-                      : <button className="btn btn-primary" disabled={!!busy} onClick={() => run(e.id, () => api.installPlugin(`https://github.com/${e.repo}`), `${e.name} installed`)}>{busy === e.id ? 'Installing…' : 'Install'}</button>}
+                      ? <span className="settings-row-sub">✓ {t('Installed')}</span>
+                      : <button className="btn btn-primary" disabled={!!busy} onClick={() => run(e.id, () => api.installPlugin(`https://github.com/${e.repo}`), t('{name} installed', { name: e.name }))}>{busy === e.id ? t('Installing…') : t('Install')}</button>}
                   </div>
                 </div>
               </li>
@@ -386,27 +392,27 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
         </ul>
       </>}
       {catalog && !catalog.catalogOnly && <>
-        <h3 className="plugin-list-title">From anywhere</h3>
-        <p className="settings-row-sub">Any GitHub repository whose release has a <code>kinwall-plugin.zip</code> package can be added. Activities run in a sandbox and see only who's playing and their own saved progress, but these haven't been reviewed: only add ones you trust.</p>
-        <form className="plugin-install" onSubmit={e => { e.preventDefault(); if (url.trim()) run('install', async () => { const p = await api.installPlugin(url.trim()); setUrl(''); return p }, 'Activity installed') }}>
-          <label htmlFor="plugin-url" className="settings-row-label">GitHub repository</label>
+        <h3 className="plugin-list-title">{t('From anywhere')}</h3>
+        <p className="settings-row-sub">{t("Any GitHub repository whose release has a {file} package can be added. Activities run in a sandbox and see only who's playing and their own saved progress, but these haven't been reviewed: only add ones you trust.").split('{file}').flatMap((part, i) => i ? [<code key={i}>kinwall-plugin.zip</code>, part] : [part])}</p>
+        <form className="plugin-install" onSubmit={e => { e.preventDefault(); if (url.trim()) run('install', async () => { const p = await api.installPlugin(url.trim()); setUrl(''); return p }, t('Activity installed')) }}>
+          <label htmlFor="plugin-url" className="settings-row-label">{t('GitHub repository')}</label>
           <div className="plugin-install-row">
             <input id="plugin-url" type="url" inputMode="url" placeholder="https://github.com/owner/kinwall-plugin-name" value={url} onChange={e => setUrl(e.target.value)} />
-            <button className="btn btn-primary" disabled={!url.trim() || !!busy}>{busy === 'install' ? 'Installing…' : 'Install'}</button>
+            <button className="btn btn-primary" disabled={!url.trim() || !!busy}>{busy === 'install' ? t('Installing…') : t('Install')}</button>
           </div>
         </form>
         <div className="plugin-upload">
           <input ref={fileRef} type="file" accept=".zip,application/zip" hidden onChange={e => {
             const f = e.target.files?.[0]; e.target.value = ''
-            if (f) run('upload', () => api.uploadPlugin(f), 'Activity installed')
+            if (f) run('upload', () => api.uploadPlugin(f), t('Activity installed'))
           }} />
-          <button className="btn btn-secondary" disabled={!!busy} onClick={() => fileRef.current?.click()}>{busy === 'upload' ? 'Installing…' : 'Upload a kinwall-plugin.zip'}</button>
+          <button className="btn btn-secondary" disabled={!!busy} onClick={() => fileRef.current?.click()}>{busy === 'upload' ? t('Installing…') : t('Upload a {file}', { file: 'kinwall-plugin.zip' })}</button>
         </div>
       </>}
-      {catalog?.catalogOnly && catalog.plugins.length === 0 && <p className="settings-row-sub">No reviewed activities yet. Check back soon.</p>}
+      {catalog?.catalogOnly && catalog.plugins.length === 0 && <p className="settings-row-sub">{t('No reviewed activities yet. Check back soon.')}</p>}
 
-      <h3 className="plugin-list-title">Installed</h3>
-      {plugins.length === 0 && <p className="settings-row-sub">None yet.</p>}
+      <h3 className="plugin-list-title">{t('Installed')}</h3>
+      {plugins.length === 0 && <p className="settings-row-sub">{t('None yet.')}</p>}
       <ul className="plugin-list">
         {plugins.map(p => (
           <li key={p.id} className="plugin-row">
@@ -414,25 +420,25 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
             <div className="plugin-row-info">
               <div className="settings-row-label">{p.name} <span className="plugin-version">v{p.version}</span></div>
               <div className="settings-row-sub">
-                {[p.description, p.ages ? `Ages ${p.ages.min}${p.ages.max ? `–${p.ages.max}` : '+'}` : '', p.categories.join(', '), reviewed(p) ? 'Reviewed' : p.source ? `github.com/${p.source}` : 'Uploaded'].filter(Boolean).join(' · ')}
+                {[p.description, p.ages ? ages(p.ages) : '', p.categories.join(', '), reviewed(p) ? t('Reviewed') : p.source ? `github.com/${p.source}` : t('Uploaded')].filter(Boolean).join(' · ')}
               </div>
               <div className="plugin-row-actions">
                 <div className="toggle-row">
-                  <label id={`plugin-on-${p.id}`}>On</label>
+                  <label id={`plugin-on-${p.id}`}>{tc('switch', 'On')}</label>
                   <button className={`switch ${p.enabled ? 'on' : ''}`} role="switch" aria-checked={p.enabled} aria-labelledby={`plugin-on-${p.id}`} disabled={!!busy}
-                    onClick={() => run(p.id, () => api.setPluginEnabled(p.id, !p.enabled), p.enabled ? `${p.name} turned off` : `${p.name} turned on`)}><span className="knob" /></button>
+                    onClick={() => run(p.id, () => api.setPluginEnabled(p.id, !p.enabled), p.enabled ? t('{name} turned off', { name: p.name }) : t('{name} turned on', { name: p.name }))}><span className="knob" /></button>
                 </div>
                 {(() => {
                   // A reviewed plugin updates only to the catalog's version; others to their latest release.
                   const e = reviewed(p)
-                  if (e) return e.version !== p.version && <button className="btn btn-primary" disabled={!!busy} onClick={() => run(p.id, () => api.updatePlugin(p.id), `${p.name} updated to v${e.version}`)}>Update to v{e.version}</button>
+                  if (e) return e.version !== p.version && <button className="btn btn-primary" disabled={!!busy} onClick={() => run(p.id, () => api.updatePlugin(p.id), t('{name} updated to v{version}', { name: p.name, version: e.version }))}>{t('Update to v{version}', { version: e.version })}</button>
                   // Reviewed once, now off the list: it never falls back to an unreviewed release.
-                  if (p.reviewed && catalog) return <p className="settings-row-sub">Taken off the list of reviewed activities, so it can't be updated. It keeps working as it is.</p>
-                  return p.source && !catalog?.catalogOnly && <button className="btn btn-secondary" disabled={!!busy} onClick={() => run(p.id, () => api.updatePlugin(p.id), `${p.name} is up to date`)}>Update</button>
+                  if (p.reviewed && catalog) return <p className="settings-row-sub">{t("Taken off the list of reviewed activities, so it can't be updated. It keeps working as it is.")}</p>
+                  return p.source && !catalog?.catalogOnly && <button className="btn btn-secondary" disabled={!!busy} onClick={() => run(p.id, () => api.updatePlugin(p.id), t('{name} is up to date', { name: p.name }))}>{t('Update')}</button>
                 })()}
                 <button className="btn btn-danger" disabled={!!busy} onClick={async () => {
-                  if (await dialog.confirm({ title: `Remove ${p.name}?`, body: 'Its saved progress for everyone is deleted too.', confirmLabel: 'Remove', danger: true })) run(p.id, () => api.deletePlugin(p.id), `${p.name} removed`)
-                }}>Remove</button>
+                  if (await dialog.confirm({ title: t('Remove {name}?', { name: p.name }), body: t('Its saved progress for everyone is deleted too.'), confirmLabel: t('Remove'), danger: true })) run(p.id, () => api.deletePlugin(p.id), t('{name} removed', { name: p.name }))
+                }}>{t('Remove')}</button>
               </div>
             </div>
           </li>

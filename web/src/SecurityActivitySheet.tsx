@@ -5,6 +5,7 @@ import { useApp } from './AppContext.tsx'
 import { api } from './api.ts'
 import Sheet from './Sheet.tsx'
 import { formatTime } from './timeFormat.ts'
+import { t, tm, tn } from './i18n.ts'
 import { SECURITY_FILTERS, SECURITY_PAGE, groupByDay, securityLine, type SecurityFilter } from './securityActivity.ts'
 import type { SecurityEvent } from './types.ts'
 
@@ -13,7 +14,7 @@ export default function SecurityActivitySheet({ onClose }: { onClose: () => void
   const searchId = useId()
   const [query, setQuery] = useState('')
   const [q, setQ] = useState('') // query, once typing pauses
-  useEffect(() => { const t = setTimeout(() => setQ(query.trim()), 250); return () => clearTimeout(t) }, [query])
+  useEffect(() => { const timer = setTimeout(() => setQ(query.trim()), 250); return () => clearTimeout(timer) }, [query])
   const [filter, setFilter] = useState<SecurityFilter>('all')
   const kinds = SECURITY_FILTERS.find(f => f.key === filter)!.kinds
   const [events, setEvents] = useState<SecurityEvent[] | null>(null)
@@ -54,19 +55,19 @@ export default function SecurityActivitySheet({ onClose }: { onClose: () => void
   }, [events, more]) // eslint-disable-line react-hooks/exhaustive-deps -- loadMore reads only these
 
   const narrowed = q !== '' || filter !== 'all'
-  const status = events === null ? 'Loading…'
-    : events.length === 0 ? (narrowed ? 'Nothing matches' : 'No security activity yet')
-    : `${events.length}${more ? '+' : ''} ${events.length === 1 ? 'event' : 'events'}`
+  const status = events === null ? t('Loading…')
+    : events.length === 0 ? (narrowed ? t('Nothing matches') : t('No security activity yet'))
+    : more ? tn(events.length, '{n}+ event', '{n}+ events') : tn(events.length, '{n} event', '{n} events')
 
   return (
-    <Sheet title="Security activity" onClose={onClose}>
+    <Sheet title={t('Security activity')} onClose={onClose}>
       <div className="field">
-        <label htmlFor={searchId} className="sr-only">Search security activity</label>
-        <input id={searchId} type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search names, devices, passkeys…" autoComplete="off" />
+        <label htmlFor={searchId} className="sr-only">{t('Search security activity')}</label>
+        <input id={searchId} type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Search names, devices, passkeys…')} autoComplete="off" />
       </div>
-      <div className="chip-row security-filters" role="group" aria-label="Show">
+      <div className="chip-row security-filters" role="group" aria-label={t('Show')}>
         {SECURITY_FILTERS.map(f => (
-          <button key={f.key} type="button" className={`chip ${filter === f.key ? 'active' : ''}`} aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>{f.label}</button>
+          <button key={f.key} type="button" className={`chip ${filter === f.key ? 'active' : ''}`} aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>{tm(f.label)}</button>
         ))}
       </div>
       <p className="sr-only" role="status" aria-live="polite">{status}</p>
@@ -92,7 +93,7 @@ export default function SecurityActivitySheet({ onClose }: { onClose: () => void
           </ul>
         </section>
       ))}
-      {more && <button ref={sentinel} type="button" className="btn btn-secondary" onClick={loadMore}>Load more</button>}
+      {more && <button ref={sentinel} type="button" className="btn btn-secondary" onClick={loadMore}>{t('Load more')}</button>}
       </div>
     </Sheet>
   )

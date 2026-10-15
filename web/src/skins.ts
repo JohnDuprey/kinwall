@@ -5,6 +5,7 @@
 // combination - see assertSkinsAA() below, and useTheme.ts's applyAppearance for where these land
 // on <html> as CSS custom properties.
 import { accentFill, contrastRatio, readableOn } from './color.ts'
+import { msg, t, tm } from './i18n.ts'
 
 export type SkinBase = {
   bg: string; bgAlt: string; card: string
@@ -15,60 +16,60 @@ export type SkinTokens = SkinBase & { accentStrong: string; accentInk: string; a
 export type Skin = { id: string; name: string; emoji: string; light: SkinBase; dark: SkinBase }
 
 export const SKINS: Skin[] = [
-  { id: 'meadow', name: 'Peach', emoji: '🍑', // the original look (shown as Peach; the id stays 'meadow' so stored choices keep working) - must stay byte-for-byte the pre-skin colors
+  { id: 'meadow', name: msg('Peach'), emoji: '🍑', // the original look (shown as Peach; the id stays 'meadow' so stored choices keep working) - must stay byte-for-byte the pre-skin colors
     light: { bg: '#FFFBF5', bgAlt: '#FFF4E8', card: '#FFFFFF', border: '#F1E4D6', text: '#3A2E27', textDim: '#7A6B60', accent: '#FF9E7A' },
     dark: { bg: '#1C1712', bgAlt: '#241D17', card: '#2A221B', border: '#3A3028', text: '#F3EAE0', textDim: '#B3A395', accent: '#FF9E7A' } },
-  { id: 'field', name: 'Meadow', emoji: '🌿', // soft greens (id 'field': 'meadow' is Peach's id from before the rename)
+  { id: 'field', name: msg('Meadow'), emoji: '🌿', // soft greens (id 'field': 'meadow' is Peach's id from before the rename)
     light: { bg: '#F3F7EE', bgAlt: '#E8F0E0', card: '#FFFFFF', border: '#D5E2CA', text: '#1F2E1C', textDim: '#51634B', accent: '#4A8A3A' },
     dark: { bg: '#111A11', bgAlt: '#172217', card: '#1C281B', border: '#2C3B2A', text: '#E6F0E1', textDim: '#A7BC9F', accent: '#6FB35C' } },
-  { id: 'autumn', name: 'Autumn', emoji: '🍂',
+  { id: 'autumn', name: msg('Autumn'), emoji: '🍂',
     light: { bg: '#FDF3E7', bgAlt: '#F7E8D4', card: '#FFFFFF', border: '#EAD9BE', text: '#3B2A18', textDim: '#7A5C3E', accent: '#C2571C' },
     dark: { bg: '#211509', bgAlt: '#2B1C0E', card: '#32220F', border: '#4A3520', text: '#F5E6D3', textDim: '#C7A87E', accent: '#C2571C' } },
-  { id: 'winter', name: 'Winter', emoji: '❄️',
+  { id: 'winter', name: msg('Winter'), emoji: '❄️',
     light: { bg: '#F3F8FC', bgAlt: '#E7F1F9', card: '#FFFFFF', border: '#D7E6F2', text: '#1B2A38', textDim: '#55707F', accent: '#2E7DD1' },
     dark: { bg: '#0F1722', bgAlt: '#16212F', card: '#1C2938', border: '#2B3C4E', text: '#E8F1FA', textDim: '#9FB4C6', accent: '#2E7DD1' } },
-  { id: 'spring', name: 'Spring', emoji: '🌸',
+  { id: 'spring', name: msg('Spring'), emoji: '🌸',
     light: { bg: '#FBF3F6', bgAlt: '#F6E6ED', card: '#FFFFFF', border: '#ECD3DE', text: '#3A2430', textDim: '#7A566A', accent: '#3F8F56' },
     dark: { bg: '#1A1420', bgAlt: '#221A29', card: '#281F31', border: '#3A2E44', text: '#F1E4EC', textDim: '#C0A6B8', accent: '#3F8F56' } },
-  { id: 'summer', name: 'Summer', emoji: '☀️',
+  { id: 'summer', name: msg('Summer'), emoji: '☀️',
     light: { bg: '#FFFDF0', bgAlt: '#FFF6D9', card: '#FFFFFF', border: '#F0E2A8', text: '#3A3210', textDim: '#7A6E3A', accent: '#E0A100' },
     dark: { bg: '#101A1F', bgAlt: '#16242B', card: '#1C2E36', border: '#2B4753', text: '#E9F5F7', textDim: '#9FC1C9', accent: '#E0A100' } },
-  { id: 'ocean', name: 'Ocean', emoji: '🌊',
+  { id: 'ocean', name: msg('Ocean'), emoji: '🌊',
     light: { bg: '#EFF8FA', bgAlt: '#E1F1F5', card: '#FFFFFF', border: '#C9E4EB', text: '#10333A', textDim: '#4C7078', accent: '#0E86A8' },
     dark: { bg: '#071A20', bgAlt: '#0D2530', card: '#123241', border: '#1E4A5B', text: '#DCF1F5', textDim: '#8FBAC5', accent: '#0E86A8' } },
-  { id: 'midnight', name: 'Midnight', emoji: '🌌', // dark-first: same deep navy whatever the mode
+  { id: 'midnight', name: msg('Midnight'), emoji: '🌌', // dark-first: same deep navy whatever the mode
     light: { bg: '#0B1020', bgAlt: '#121A33', card: '#171F3D', border: '#263261', text: '#E7ECFA', textDim: '#9FADD1', accent: '#6C8CFF' },
     dark: { bg: '#0B1020', bgAlt: '#121A33', card: '#171F3D', border: '#263261', text: '#E7ECFA', textDim: '#9FADD1', accent: '#6C8CFF' } },
-  { id: 'lavender', name: 'Lavender', emoji: '💜',
+  { id: 'lavender', name: msg('Lavender'), emoji: '💜',
     light: { bg: '#F7F4FC', bgAlt: '#EFE8F9', card: '#FFFFFF', border: '#DCCEF0', text: '#2E2140', textDim: '#6B5A85', accent: '#8657D6' },
     dark: { bg: '#170F24', bgAlt: '#1E152E', card: '#251A38', border: '#382952', text: '#EDE6F7', textDim: '#B8A8D0', accent: '#8657D6' } },
-  { id: 'harvest', name: 'Harvest', emoji: '🎃',
+  { id: 'harvest', name: msg('Harvest'), emoji: '🎃',
     light: { bg: '#FAF1E4', bgAlt: '#F3E4CB', card: '#FFFFFF', border: '#E4CFA3', text: '#33270F', textDim: '#705A31', accent: '#B5651D' },
     dark: { bg: '#1D1409', bgAlt: '#26190C', card: '#2F2110', border: '#493018', text: '#F2E4CC', textDim: '#C6A876', accent: '#B5651D' } },
-  { id: 'festive', name: 'Festive', emoji: '🎄',
+  { id: 'festive', name: msg('Festive'), emoji: '🎄',
     light: { bg: '#FBF3F1', bgAlt: '#F5E5E1', card: '#FFFFFF', border: '#E8CFC8', text: '#331A16', textDim: '#6E4038', accent: '#A5342E' },
     dark: { bg: '#16100E', bgAlt: '#1F1512', card: '#261A16', border: '#3D2823', text: '#F3E4DE', textDim: '#C8A199', accent: '#A5342E' } },
   // Modern: clean and calm, each surface softly tinted with the scheme's color (not gray) and one
   // confident accent. Built in OKLCH from one hue per scheme; skins.test.ts keeps them tinted.
-  { id: 'slate', name: 'Slate', emoji: '🩶',
+  { id: 'slate', name: msg('Slate'), emoji: '🩶',
     light: { bg: '#E9F4FC', bgAlt: '#D9EBF7', card: '#F9FDFF', border: '#C6DBEA', text: '#14242E', textDim: '#445F70', accent: '#285CCE' },
     dark: { bg: '#0D1B24', bgAlt: '#12232D', card: '#192D39', border: '#2B4353', text: '#E5EEF5', textDim: '#A0BACC', accent: '#749FF9' } },
-  { id: 'ink', name: 'Ink', emoji: '🖋️',
+  { id: 'ink', name: msg('Ink'), emoji: '🖋️',
     light: { bg: '#EDF2FF', bgAlt: '#E0E7FE', card: '#FBFDFF', border: '#CED7F2', text: '#1B2033', textDim: '#50597A', accent: '#D84B00' },
     dark: { bg: '#141829', bgAlt: '#1A1F33', card: '#232940', border: '#363E5B', text: '#E9ECF9', textDim: '#ABB5D5', accent: '#F88A3D' } },
-  { id: 'sage', name: 'Sage', emoji: '🪴',
+  { id: 'sage', name: msg('Sage'), emoji: '🪴',
     light: { bg: '#E9F6EF', bgAlt: '#D9EEE2', card: '#F9FEFB', border: '#C6DED1', text: '#14261D', textDim: '#446353', accent: '#00774B' },
     dark: { bg: '#0D1D15', bgAlt: '#11251C', card: '#193025', border: '#2B4739', text: '#E5F0EA', textDim: '#A0BEAE', accent: '#44C28D' } },
-  { id: 'eucalyptus', name: 'Eucalyptus', emoji: '🍃', // the default before Peacock (migration 0094 keeps it for those families)
+  { id: 'eucalyptus', name: msg('Eucalyptus'), emoji: '🍃', // the default before Peacock (migration 0094 keeps it for those families)
     light: { bg: '#EAF2EF', bgAlt: '#DBE8E3', card: '#F9FCFB', border: '#C4D8D0', text: '#13262A', textDim: '#455F62', accent: '#1F6B63' },
     dark: { bg: '#0E1A1A', bgAlt: '#132222', card: '#1A2D2C', border: '#2C4544', text: '#E3EEEC', textDim: '#9EB9B6', accent: '#5CC2B3' } },
-  { id: 'peacock', name: 'Peacock', emoji: '🦚', // the logo's peacock #123857 is the light fill; dark derives its fill from the sky blue
+  { id: 'peacock', name: msg('Peacock'), emoji: '🦚', // the logo's peacock #123857 is the light fill; dark derives its fill from the sky blue
     light: { bg: '#EEF3F8', bgAlt: '#DFE8F1', card: '#FAFCFE', border: '#C6D5E4', text: '#102A43', textDim: '#4A6078', accent: '#123857' },
     dark: { bg: '#0B1622', bgAlt: '#101E2D', card: '#16273A', border: '#2A3F57', text: '#E4ECF5', textDim: '#9DB2C8', accent: '#6CB4EE' } },
-  { id: 'graphite', name: 'Graphite', emoji: '✏️',
+  { id: 'graphite', name: msg('Graphite'), emoji: '✏️',
     light: { bg: '#EFF3F8', bgAlt: '#E3E8F0', card: '#FBFDFF', border: '#D1D8E1', text: '#1D2228', textDim: '#535C66', accent: '#D42F37' },
     dark: { bg: '#161A1F', bgAlt: '#1C2127', card: '#252B32', border: '#39404A', text: '#EAEDF1', textDim: '#AEB7C1', accent: '#FC6568' } },
-  { id: 'berry', name: 'Berry', emoji: '🫐',
+  { id: 'berry', name: msg('Berry'), emoji: '🫐',
     light: { bg: '#F1F1FF', bgAlt: '#E6E5FB', card: '#FCFCFF', border: '#D5D5EE', text: '#201F31', textDim: '#595776', accent: '#683CD2' },
     dark: { bg: '#181727', bgAlt: '#1F1E30', card: '#29273D', border: '#3E3C57', text: '#ECEBF7', textDim: '#B3B2D1', accent: '#A082FF' } },
 ]
@@ -80,14 +81,16 @@ export const DEFAULT_SKIN_ID = 'peacock'
 /** The household background presets from before color schemes (styles.css's old [data-bg] rules).
  * Warm and Cocoa are Peach's own colors; any other one is offered as "Save as a scheme". */
 export const OLD_BACKGROUNDS: Record<string, { name: string; bg: string; card: string; text: string }> = {
-  warm: { name: 'Warm', bg: '#FFFBF5', card: '#FFFFFF', text: '#3A2E27' },
-  white: { name: 'White', bg: '#FFFFFF', card: '#FFFFFF', text: '#232323' },
-  gray: { name: 'Gray', bg: '#F1F2F4', card: '#FFFFFF', text: '#25282C' },
-  sage: { name: 'Sage', bg: '#F3F6F1', card: '#FFFFFF', text: '#263024' },
-  cocoa: { name: 'Cocoa', bg: '#1C1712', card: '#2A221B', text: '#F3EAE0' },
-  charcoal: { name: 'Charcoal', bg: '#191A1C', card: '#25272B', text: '#EDEEF0' },
-  midnight: { name: 'Midnight', bg: '#0F1420', card: '#1B2333', text: '#E7ECF7' },
+  warm: { name: msg('Warm'), bg: '#FFFBF5', card: '#FFFFFF', text: '#3A2E27' },
+  white: { name: msg('White'), bg: '#FFFFFF', card: '#FFFFFF', text: '#232323' },
+  gray: { name: msg('Gray'), bg: '#F1F2F4', card: '#FFFFFF', text: '#25282C' },
+  sage: { name: msg('Sage'), bg: '#F3F6F1', card: '#FFFFFF', text: '#263024' },
+  cocoa: { name: msg('Cocoa'), bg: '#1C1712', card: '#2A221B', text: '#F3EAE0' },
+  charcoal: { name: msg('Charcoal'), bg: '#191A1C', card: '#25272B', text: '#EDEEF0' },
+  midnight: { name: msg('Midnight'), bg: '#0F1420', card: '#1B2333', text: '#E7ECF7' },
 }
+/** A skin's name in the current language (a family's own scheme keeps the name they gave it). */
+export const skinName = (s: Pick<Skin, 'id' | 'name'>) => s.id.startsWith('custom-') ? s.name : tm(s.name)
 export const getSkin = (id?: string): Skin => SKINS.find(s => s.id === id) ?? SKINS.find(s => s.id === DEFAULT_SKIN_ID)!
 
 // ---- The family's own schemes (Settings -> Appearance -> Customize) ----
@@ -130,10 +133,10 @@ export const paletteOf = (skin: Skin, dark: boolean): Palette => {
 export function paletteChecks(p: Palette, dark: boolean): { label: string; ratio: number }[] {
   const b = baseFromPalette(p, dark)
   return [
-    { label: 'Text on background', ratio: contrastRatio(b.text, b.bg) },
-    { label: 'Text on cards', ratio: contrastRatio(b.text, b.card) },
-    { label: 'Dim text on background', ratio: contrastRatio(b.textDim, b.bg) },
-    { label: 'Dim text on cards', ratio: contrastRatio(b.textDim, b.card) },
+    { label: msg('Text on background'), ratio: contrastRatio(b.text, b.bg) },
+    { label: msg('Text on cards'), ratio: contrastRatio(b.text, b.card) },
+    { label: msg('Dim text on background'), ratio: contrastRatio(b.textDim, b.bg) },
+    { label: msg('Dim text on cards'), ratio: contrastRatio(b.textDim, b.card) },
   ]
 }
 
@@ -151,37 +154,37 @@ export function seasonalSkinId(d = new Date()): string {
 
 /** The Color scheme sheet's groups, in order (Settings -> Appearance). Every built-in skin is in one. */
 export const SCHEME_GROUPS: { label: string; ids: string[] }[] = [
-  { label: 'Automatic', ids: ['seasonal'] },
-  { label: 'Everyday', ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
-  { label: 'Modern', ids: ['peacock', 'eucalyptus', 'slate', 'ink', 'sage', 'graphite', 'berry'] },
-  { label: 'Seasons', ids: ['spring', 'summer', 'autumn', 'winter'] },
-  { label: 'Holidays', ids: ['harvest', 'festive'] },
+  { label: msg('Automatic'), ids: ['seasonal'] },
+  { label: msg('Everyday'), ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
+  { label: msg('Modern'), ids: ['peacock', 'eucalyptus', 'slate', 'ink', 'sage', 'graphite', 'berry'] },
+  { label: msg('Seasons'), ids: ['spring', 'summer', 'autumn', 'winter'] },
+  { label: msg('Holidays'), ids: ['harvest', 'festive'] },
 ]
 
 /** One short line per built-in skin, under its name in the Color scheme sheet. */
 export const SCHEME_BLURBS: Record<string, string> = {
-  meadow: 'Warm cream with soft peach accents',
-  field: 'Soft greens with a grass-green accent',
-  ocean: 'Cool sea blues and teal',
-  lavender: 'Gentle lilac with a violet accent',
-  midnight: 'Deep navy, calm at night. Always dark',
-  slate: 'Cool blue-gray with a clear blue accent',
-  ink: 'Crisp navy ink with an orange accent',
-  sage: 'Soft sage green with a leafy accent',
-  eucalyptus: 'Cool gray-teal with a deep blue-green accent',
-  peacock: 'Deep peacock blue with a sky-blue accent',
-  graphite: 'Crisp pencil gray with a red accent',
-  berry: 'Soft blueberry tint with a violet accent',
-  spring: 'Blossom pink with a fresh green accent',
-  summer: 'Sunny yellow by day, sea blue at night',
-  autumn: 'Warm tan with a burnt-orange accent',
-  winter: 'Icy blue, crisp and clean',
-  harvest: 'Pumpkin and wheat. Seasonal uses it Nov 15 to 30',
-  festive: 'Holiday red on warm white. Seasonal uses it Dec 15 to Jan 2',
+  meadow: msg('Warm cream with soft peach accents'),
+  field: msg('Soft greens with a grass-green accent'),
+  ocean: msg('Cool sea blues and teal'),
+  lavender: msg('Gentle lilac with a violet accent'),
+  midnight: msg('Deep navy, calm at night. Always dark'),
+  slate: msg('Cool blue-gray with a clear blue accent'),
+  ink: msg('Crisp navy ink with an orange accent'),
+  sage: msg('Soft sage green with a leafy accent'),
+  eucalyptus: msg('Cool gray-teal with a deep blue-green accent'),
+  peacock: msg('Deep peacock blue with a sky-blue accent'),
+  graphite: msg('Crisp pencil gray with a red accent'),
+  berry: msg('Soft blueberry tint with a violet accent'),
+  spring: msg('Blossom pink with a fresh green accent'),
+  summer: msg('Sunny yellow by day, sea blue at night'),
+  autumn: msg('Warm tan with a burnt-orange accent'),
+  winter: msg('Icy blue, crisp and clean'),
+  harvest: msg('Pumpkin and wheat. Seasonal uses it Nov 15 to 30'),
+  festive: msg('Holiday red on warm white. Seasonal uses it Dec 15 to Jan 2'),
 }
 
 /** Seasonal's line in the sheet, naming the skin it uses on `d`. */
-export const seasonalNote = (d = new Date()) => `Changes with the season. Now: ${getSkin(seasonalSkinId(d)).name}`
+export const seasonalNote = (d = new Date()) => t('Changes with the season. Now: {name}', { name: skinName(getSkin(seasonalSkinId(d))) })
 
 /** Re-exported WCAG contrast ratio, used by the Settings custom-color badges too. */
 export const contrast = contrastRatio

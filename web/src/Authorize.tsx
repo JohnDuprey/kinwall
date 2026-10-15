@@ -5,6 +5,11 @@ import Setup from './Setup.tsx'
 import type { Member } from './types.ts'
 import { Brand } from './Brand.tsx'
 import { ChipFace } from './Face'
+import { t } from './i18n.ts'
+
+/** A translated sentence with its {placeholders} shown in bold. */
+const bold = (text: string, vars: Record<string, string>) =>
+  text.split(/\{(\w+)\}/).map((part, i) => i % 2 ? <b key={i}>{vars[part]}</b> : part)
 
 /** OAuth consent for MCP clients and the Kinwall apps (#/authorize?..., reached via the server's
  * /oauth/authorize). Signs in with a passkey, a recovery code, or an admin key held for this
@@ -39,7 +44,7 @@ export default function AuthorizeScreen() {
       if (r.deviceApp) setMembers(await api.getMembers(true).catch(() => []))
     } catch (e) {
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) setNeedsSignIn(true)
-      else setError(e instanceof ApiError ? e.message : 'Could not load this request')
+      else setError(e instanceof ApiError ? e.message : t('Could not load this request'))
     }
   }
   useEffect(() => {
@@ -54,7 +59,7 @@ export default function AuthorizeScreen() {
       else if (adminKeyValue.trim()) { setAdminKey(adminKeyValue.trim()); setOfferPasskey(passkeysSupported()) }
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed')
+      setError(e instanceof Error ? e.message : t('Sign-in failed'))
     } finally {
       setBusy(false)
     }
@@ -63,10 +68,10 @@ export default function AuthorizeScreen() {
   const addPasskey = async () => {
     setBusy(true); setError('')
     try {
-      await registerPasskey(/iPad/.test(navigator.userAgent) ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : 'This device', undefined, true)
+      await registerPasskey(/iPad/.test(navigator.userAgent) ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : t('This device'), undefined, true)
       setPasskeyAdded(true); setOfferPasskey(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create a passkey')
+      setError(e instanceof Error ? e.message : t('Could not create a passkey'))
     } finally {
       setBusy(false)
     }
@@ -85,7 +90,7 @@ export default function AuthorizeScreen() {
       })
       location.href = redirect
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not complete this request')
+      setError(e instanceof ApiError ? e.message : t('Could not complete this request'))
       setBusy(false)
     }
   }
@@ -99,53 +104,53 @@ export default function AuthorizeScreen() {
         <Brand />
         {needsSignIn ? (
           <>
-            <h1>Sign in to continue</h1>
-            <p>An app wants to connect to Kinwall. Sign in as a parent to review it.</p>
-            {passkeysSupported() && <button className="btn btn-primary btn-block" onClick={() => signIn('passkey')} disabled={busy}>{busy ? 'Checking…' : 'Sign in with passkey'}</button>}
+            <h1>{t('Sign in to continue')}</h1>
+            <p>{t('An app wants to connect to Kinwall. Sign in as a parent to review it.')}</p>
+            {passkeysSupported() && <button className="btn btn-primary btn-block" onClick={() => signIn('passkey')} disabled={busy}>{busy ? t('Checking…') : t('Sign in with passkey')}</button>}
             <div className="field" style={{ textAlign: 'left', marginTop: 16 }}>
-              <label htmlFor="authorize-recovery">No passkey here? Use a recovery code</label>
+              <label htmlFor="authorize-recovery">{t('No passkey here? Use a recovery code')}</label>
               <input id="authorize-recovery" type="text" value={recoveryValue} onChange={e => setRecoveryValue(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
             </div>
-            <button className="btn btn-secondary btn-block" onClick={() => signIn('recovery')} disabled={busy || !recoveryValue.trim()}>Continue</button>
+            <button className="btn btn-secondary btn-block" onClick={() => signIn('recovery')} disabled={busy || !recoveryValue.trim()}>{t('Continue')}</button>
             <details className="authorize-more">
-              <summary>Use an admin API key</summary>
+              <summary>{t('Use an admin API key')}</summary>
               <div className="field" style={{ textAlign: 'left', marginTop: 8 }}>
-                <label htmlFor="authorize-key">Admin API key</label>
+                <label htmlFor="authorize-key">{t('Admin API key')}</label>
                 <input id="authorize-key" type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)} autoComplete="off" />
               </div>
-              <button className="btn btn-secondary btn-block" onClick={() => signIn('key')} disabled={busy || !adminKeyValue.trim()}>Continue</button>
+              <button className="btn btn-secondary btn-block" onClick={() => signIn('key')} disabled={busy || !adminKeyValue.trim()}>{t('Continue')}</button>
             </details>
           </>
         ) : !info ? (
-          <p>{error || 'Loading…'}</p>
+          <p>{error || t('Loading…')}</p>
         ) : (
           <>
-            <h1>Connect {info.clientName}?</h1>
-            <p><b>{info.clientName}</b> wants to use Kinwall. You'll return to <b>{info.redirectHost}</b> afterwards.</p>
+            <h1>{t('Connect {name}?', { name: info.clientName })}</h1>
+            <p>{bold(t("{name} wants to use Kinwall. You'll return to {host} afterwards."), { name: info.clientName, host: info.redirectHost })}</p>
             {offerPasskey && (
               <div className="authorize-passkey">
-                <b>Sign in faster next time</b>
-                <span>Create a passkey on this device, so you won't need a recovery code again.</span>
+                <b>{t('Sign in faster next time')}</b>
+                <span>{t("Create a passkey on this device, so you won't need a recovery code again.")}</span>
                 <div className="authorize-passkey-actions">
-                  <button className="btn btn-secondary" onClick={addPasskey} disabled={busy}>Create a passkey</button>
-                  <button className="link-btn" onClick={() => setOfferPasskey(false)} disabled={busy}>Not now</button>
+                  <button className="btn btn-secondary" onClick={addPasskey} disabled={busy}>{t('Create a passkey')}</button>
+                  <button className="link-btn" onClick={() => setOfferPasskey(false)} disabled={busy}>{t('Not now')}</button>
                 </div>
               </div>
             )}
-            {passkeyAdded && <p className="authorize-passkey-done" role="status">Passkey created. Use it next time you sign in.</p>}
-            <div className="authorize-scopes" role="group" aria-label="Access level">
+            {passkeyAdded && <p className="authorize-passkey-done" role="status">{t('Passkey created. Use it next time you sign in.')}</p>}
+            <div className="authorize-scopes" role="group" aria-label={t('Access level')}>
               <button className={`authorize-scope ${scope === 'admin' ? 'active' : ''}`} aria-pressed={scope === 'admin'} onClick={() => setScope('admin')}>
-                <b>Full access</b><span>Everything you can do as an admin, including members and settings.</span>
+                <b>{t('Full access')}</b><span>{t('Everything you can do as an admin, including members and settings.')}</span>
               </button>
               <button className={`authorize-scope ${scope === 'display' ? 'active' : ''}`} aria-pressed={scope === 'display'} onClick={() => setScope('display')}>
-                <b>Everyday access</b><span>Calendar, chores and lists. No members, settings or keys.</span>
+                <b>{t('Everyday access')}</b><span>{t('Calendar, chores and lists. No members, settings or keys.')}</span>
               </button>
             </div>
             {info.deviceApp && (
               <div className="field authorize-owner">
-                <label id="authorize-owner">Whose device is this?</label>
+                <label id="authorize-owner">{t('Whose device is this?')}</label>
                 <div className="chip-row" role="group" aria-labelledby="authorize-owner">
-                  <button type="button" className={`chip ${owner === 'shared' ? 'active' : ''}`} aria-pressed={owner === 'shared'} onClick={() => setOwner('shared')}>👪 Shared</button>
+                  <button type="button" className={`chip ${owner === 'shared' ? 'active' : ''}`} aria-pressed={owner === 'shared'} onClick={() => setOwner('shared')}>👪 {t('Shared')}</button>
                   {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
                   {members.filter(m => scope === 'admin' || !m.grownUp).map(m => (
                     <button key={m.id} type="button" className={`chip ${owner === m.id ? 'active' : ''}`} aria-pressed={owner === m.id}
@@ -153,13 +158,13 @@ export default function AuthorizeScreen() {
                   ))}
                 </div>
                 <p className="settings-row-sub">{scope === 'admin'
-                  ? 'Picks whose reminders and defaults it uses. Everyone stays visible.'
-                  : owner === 'shared' ? 'Shows the whole family.' : 'Shows only their events, chores and lists.'}</p>
+                  ? t('Picks whose reminders and defaults it uses. Everyone stays visible.')
+                  : owner === 'shared' ? t('Shows the whole family.') : t('Shows only their events, chores and lists.')}</p>
               </div>
             )}
-            <button className="btn btn-primary btn-block" onClick={() => decide('approve')} disabled={busy}>{busy ? 'Connecting…' : 'Allow'}</button>
-            <button className="link-btn" style={{ marginTop: 8 }} onClick={() => decide('deny')} disabled={busy}>Deny</button>
-            <p className="settings-row-sub" style={{ marginTop: 12 }}>You can disconnect it any time in Settings → Access.</p>
+            <button className="btn btn-primary btn-block" onClick={() => decide('approve')} disabled={busy}>{busy ? t('Connecting…') : t('Allow')}</button>
+            <button className="link-btn" style={{ marginTop: 8 }} onClick={() => decide('deny')} disabled={busy}>{t('Deny')}</button>
+            <p className="settings-row-sub" style={{ marginTop: 12 }}>{t('You can disconnect it any time in Settings → Access.')}</p>
           </>
         )}
         {error && info && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}

@@ -1,4 +1,5 @@
 // Which devices act as a wall screen, and when their Night screen shows. Pure, so node tests load it.
+import { t } from './i18n.ts'
 
 /** A tap keeps the Night screen away this long during night hours. */
 export const WAKE_MS = 5 * 60 * 1000
@@ -109,5 +110,5 @@ export function parseDeviceKind(value: string): { kind: DeviceKind; owner?: stri
 export function deviceKindSaid(name: string, value: string, members: { id: string; name: string }[]): string {
   const { kind, owner } = parseDeviceKind(value)
   const who = kind === 'kid' ? members.find(m => m.id === owner)?.name : undefined
-  return who ? `${name} is now ${who}'s device` : `${name} is now a shared wall screen`
+  return who ? t("{name} is now {who}'s device", { name, who }) : t('{name} is now a shared wall screen', { name })
 }

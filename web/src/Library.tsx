@@ -23,10 +23,14 @@ import LibraryShelf from './LibraryShelf.tsx'
 import BookCover from './BookCover.tsx'
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { STATUS_EMOJI } from './reading.ts'
+import { msg, t, tm, tn } from './i18n.ts'
 
-const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
-const SHELF_WORD: Record<BookShelf, string> = { kids: 'Kids', grownups: 'Grown-ups', everyone: 'Everyone' }
-const LISTEN_WORD: Record<ReadingStatus, string> = { want: 'wants to listen', reading: 'listening', finished: 'listened' }
+// Marked labels (msg): shown with tm().
+const STATUS_WORD: Record<ReadingStatus, string> = { want: msg('wants to read'), reading: msg('reading'), finished: msg('read') }
+/** A reader chip's tooltip: "Leo reading". */
+const STATUS_TITLE: Record<ReadingStatus, string> = { want: msg('{name} wants to read'), reading: msg('{name} reading'), finished: msg('{name} read') }
+const SHELF_WORD: Record<BookShelf, string> = { kids: msg('Kids'), grownups: msg('Grown-ups'), everyone: msg('Everyone') }
+const LISTEN_WORD: Record<ReadingStatus, string> = { want: msg('wants to listen'), reading: msg('listening'), finished: msg('listened') }
 /** Between book scans: long enough to see what was added and pick up the next book. */
 const SCAN_PAUSE_MS = 2000
 // This device's choice of list or covers (covers until it picks list). The filters aren't kept: a wall that opens on a filtered
@@ -41,7 +45,7 @@ const FORMATS = Object.keys(FORMAT_LABEL) as LibraryFormat[]
 const SORTS = Object.keys(SORT_LABEL) as LibrarySort[]
 const stored = (key: string) => { try { return localStorage.getItem(key) } catch { return null } }
 const store = (key: string, v: string) => { try { localStorage.setItem(key, v) } catch { /* storage blocked: just this visit */ } }
-const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
+const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
 export default function Library({ bar, adding, onAdded, onStarted }: {
   bar?: HTMLElement | null // where the search and Filters go (the row with the view picker); null until it's there
@@ -80,7 +84,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     const more = (old: string[], add: (string | null)[]) => [...new Set([...old, ...add.filter((l): l is string => !!l)])].sort((a, z) => a.localeCompare(z))
     setPlaces(p => more(p, b.map(x => x.location)))
     setSources(s => more(s, b.map(x => x.borrowedFrom)))
-  }).catch(e => { setAll([]); toast(msg(e, "Couldn't load the library"), true) })
+  }).catch(e => { setAll([]); toast(errMsg(e, t("Couldn't load the library")), true) })
   useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, need.returned, need.wanted, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
   const shelved = all && all.filter(b => onShelf(b, shelf))
   const books = shelved && (sort ? sortLibrary(filterLibrary(shelved, filters), sort) : filterLibrary(shelved, filters))
@@ -120,14 +124,14 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
         if (code !== last) {
           last = code
           const isbn = isbnFromScan(code)
-          if (!isbn) toast("That's not a book's barcode")
-          else try { const b = await api.addToLibrary({ isbn }); seen.push(b); toast(`Added: ${b.title}`); announce(`Added ${b.title}`) }
+          if (!isbn) toast(t("That's not a book's barcode"))
+          else try { const b = await api.addToLibrary({ isbn }); seen.push(b); toast(t('Added: {title}', { title: b.title })); announce(t('Added {title}', { title: b.title })) }
           catch (e) {
             const have = e instanceof ApiError && e.status === 409
               ? (await Promise.all([{}, { returned: true }, { wanted: true }].map(f => api.getLibrary(f))).catch(() => [[]])).flat().find(b => b.isbn === isbn)
               : undefined
-            if (have) { seen.push(have); toast(`Already in the library: ${have.title}`) }
-            else toast(msg(e, "Couldn't add that book"))
+            if (have) { seen.push(have); toast(t('Already in the library: {title}', { title: have.title })) }
+            else toast(errMsg(e, t("Couldn't add that book")))
           }
         }
         await new Promise(r => setTimeout(r, SCAN_PAUSE_MS))
@@ -141,10 +145,10 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   const people = members
   // What's on, as chips under the search (✕ drops one): Show, then Format, then Where, then Who, then Genre.
   const active = [
-    ...filters.show.map(s => ({ k: 'show' as const, v: s as string, label: STATUS_LABEL[s] })),
-    ...filters.formats.map(f => ({ k: 'formats' as const, v: f as string, label: FORMAT_LABEL[f] })),
+    ...filters.show.map(s => ({ k: 'show' as const, v: s as string, label: tm(STATUS_LABEL[s]) })),
+    ...filters.formats.map(f => ({ k: 'formats' as const, v: f as string, label: tm(FORMAT_LABEL[f]) })),
     ...filters.places.map(p => ({ k: 'places' as const, v: p, label: `📍 ${p}` })),
-    ...filters.who.map(id => ({ k: 'who' as const, v: id, label: people.find(m => m.id === id)?.name ?? 'Family' })),
+    ...filters.who.map(id => ({ k: 'who' as const, v: id, label: people.find(m => m.id === id)?.name ?? t('Family') })),
     ...filters.genres.map(g => ({ k: 'genres' as const, v: g, label: `🏷️ ${g}` })),
   ].map(a => ({ ...a, face: a.k === 'who' ? people.find(m => m.id === a.v) : undefined }))
   const on = active.length
@@ -164,31 +168,31 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     return <button key={v} type="button" className={`chip ${pressed ? 'active' : ''}`} aria-pressed={pressed} style={color ? { ['--chip-color' as string]: color } : undefined} onClick={() => toggle(k, v)}>{label}</button>
   }
   const shown = books?.length ?? 0
-  const scan = appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>
+  const scan = appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? t('Scan books') : undefined}>📷{isPhone ? '' : ` ${t('Scan books')}`}</button>
   // One row: the count, small, the filters that are on (wrapping if there are many), and the
   // view switch, icons only on a phone (Library view words from 700px); on a phone 📷 Scan joins it.
   const head = <div className="lib-head">
-    <Segmented className="lib-shelf-pick" label="Shelf" value={shelf} onChange={pickShelf} options={SHELF_PICKS.map(k => ({ key: k, label: SHELF_LABEL[k] }))} />
+    <Segmented className="lib-shelf-pick" label={t('Shelf')} value={shelf} onChange={pickShelf} options={SHELF_PICKS.map(k => ({ key: k, label: tm(SHELF_LABEL[k]) }))} />
     <span className="lib-count">{(() => {
       const a = books?.filter(isAudio).length ?? 0, p = shown - a
       const part = (emoji: string, text: string) => <><span className="lib-count-emoji" aria-hidden="true">{emoji} </span>{text}</>
-      return <>{(p || !a) && part('📚', `${p} ${p === 1 ? 'book' : 'books'}`)}{p > 0 && a > 0 && ' · '}{a > 0 && part('🎧', `${a} ${a === 1 ? 'audiobook' : 'audiobooks'}`)}</>
+      return <>{(p || !a) && part('📚', tn(p, '{n} book', '{n} books'))}{p > 0 && a > 0 && ' · '}{a > 0 && part('🎧', tn(a, '{n} audiobook', '{n} audiobooks'))}</>
     })()}</span>
     {on > 0 && (
-      <div className="chip-row lib-active" role="group" aria-label="Sort and filters on">
-        {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={`Remove filter: ${a.label}`} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
+      <div className="chip-row lib-active" role="group" aria-label={t('Sort and filters on')}>
+        {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={t('Remove filter: {filter}', { filter: a.label })} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
       </div>
     )}
     {isPhone && scan}
-    <Segmented className="lib-view" label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
+    <Segmented className="lib-view" label={t('Library view')} value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
       options={[
-        { key: 'covers', label: <><span aria-hidden="true">📚</span><span className="lib-view-word"> Covers</span></>, ariaLabel: 'Covers', title: 'Covers' },
-        { key: 'list', label: <><span aria-hidden="true">☰</span><span className="lib-view-word"> List</span></>, ariaLabel: 'List', title: 'List' },
+        { key: 'covers', label: <><span aria-hidden="true">📚</span><span className="lib-view-word"> {t('Covers')}</span></>, ariaLabel: t('Covers'), title: t('Covers') },
+        { key: 'list', label: <><span aria-hidden="true">☰</span><span className="lib-view-word"> {t('List')}</span></>, ariaLabel: t('List'), title: t('List') },
       ]} />
   </div>
   // The search row; on a phone it goes up beside the view picker (Trackers' bar slot).
   const searchBar = <div className="lib-bar">
-    <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, genres'} value={q} onChange={e => setQ(e.target.value)} />
+    <input type="search" className="lib-search" aria-label={t('Search the library')} placeholder={isPhone ? t('Search the library') : t('Search titles, authors, genres')} value={q} onChange={e => setQ(e.target.value)} />
     <button type="button" className={`icon-btn filter-btn lib-filter-btn ${badge ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={filterSortLabel(badge)}>
       <FilterIcon width={20} height={20} />
       {badge > 0 && <span className="filter-badge" aria-hidden="true">{badge}</span>}
@@ -199,27 +203,27 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     <div className="lib">
       {bar === undefined ? searchBar : bar && createPortal(searchBar, bar)}
       {filtering && (
-        <Sheet title="Filter and sort" onClose={() => setFiltering(false)} actions={<>
-          {on > 0 && <button className="btn btn-secondary" onClick={() => setFilters(NO_FILTERS)}>Clear</button>}
-          <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
+        <Sheet title={t('Filter and sort')} onClose={() => setFiltering(false)} actions={<>
+          {on > 0 && <button className="btn btn-secondary" onClick={() => setFilters(NO_FILTERS)}>{t('Clear')}</button>}
+          <button className="btn btn-primary" onClick={() => setFiltering(false)}>{t('Done')}</button>
         </>}>
-          {group('lib-f-sort', 'Sort by', SORTS.map(k => {
+          {group('lib-f-sort', t('Sort by'), SORTS.map(k => {
             const pressed = (sort ?? 'title') === k
-            return <button key={k} type="button" className={`chip ${pressed ? 'active' : ''}`} aria-pressed={pressed} onClick={() => pickSort(k)}>{SORT_LABEL[k]}</button>
-          }), 'Title keeps a series together, in order. This device remembers the sort.')}
-          {group('lib-f-show', 'Show', STATUSES.map(s => chip('show', s, STATUS_LABEL[s])),
-            filters.show.length ? 'Books that match any of these.' : 'None picked: the books you have, without returned, wishlist or want-to-read-only ones.')}
-          {group('lib-f-format', 'Format', FORMATS.map(f => chip('formats', f, FORMAT_LABEL[f])), 'Paper books, audiobooks, or both.')}
-          {places.length > 0 && group('lib-f-where', 'Where', places.map(p => chip('places', p, `📍 ${p}`)), 'Where it lives: any of these.')}
-          {people.length > 0 && group('lib-f-who', 'Who', people.map(m => chip('who', m.id, <><ChipFace m={m} /> {m.name}</>, m.color)), 'On their reading shelf: reading, finished or want to read.')}
-          {genres.length > 0 && group('lib-f-genre', 'Genre', genres.map(({ genre, count }) => chip('genres', genre, <>{genre} <span className="chip-count">{count}</span></>)), 'Any of these genres. Most common first.')}
+            return <button key={k} type="button" className={`chip ${pressed ? 'active' : ''}`} aria-pressed={pressed} onClick={() => pickSort(k)}>{tm(SORT_LABEL[k])}</button>
+          }), t('Title keeps a series together, in order. This device remembers the sort.'))}
+          {group('lib-f-show', t('Show'), STATUSES.map(s => chip('show', s, tm(STATUS_LABEL[s]))),
+            filters.show.length ? t('Books that match any of these.') : t('None picked: the books you have, without returned, wishlist or want-to-read-only ones.'))}
+          {group('lib-f-format', t('Format'), FORMATS.map(f => chip('formats', f, tm(FORMAT_LABEL[f]))), t('Paper books, audiobooks, or both.'))}
+          {places.length > 0 && group('lib-f-where', t('Where'), places.map(p => chip('places', p, `📍 ${p}`)), t('Where it lives: any of these.'))}
+          {people.length > 0 && group('lib-f-who', t('Who'), people.map(m => chip('who', m.id, <><ChipFace m={m} /> {m.name}</>, m.color)), t('On their reading shelf: reading, finished or want to read.'))}
+          {genres.length > 0 && group('lib-f-genre', t('Genre'), genres.map(({ genre, count }) => chip('genres', genre, <>{genre} <span className="chip-count">{count}</span></>)), t('Any of these genres. Most common first.'))}
         </Sheet>
       )}
       {head}
-      {books === null ? <div className="state-card">Loading…</div>
+      {books === null ? <div className="state-card">{t('Loading…')}</div>
         : view === 'covers' && shown ? <LibraryShelf books={books} members={people} today={today} onOpen={setOpen} split={shelf === 'all'} />
         : !books.length ? (
-          <div className="empty-card"><span className="emoji">📚</span>{filters.show.length === 1 && filters.show[0] === 'wishlist' && !q && !on ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || on ? 'No books match.' : shelf !== 'all' && all?.length ? `Nothing on the ${SHELF_LABEL[shelf]} shelf yet. A parent can put a book there from its details.` : all?.length ? 'Nothing here yet. Open Filters for the wishlist, returned books or want to read.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
+          <div className="empty-card"><span className="emoji">📚</span>{filters.show.length === 1 && filters.show[0] === 'wishlist' && !q && !on ? t('Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.') : q || on ? t('No books match.') : shelf !== 'all' && all?.length ? t('Nothing on the {shelf} shelf yet. A parent can put a book there from its details.', { shelf: tm(SHELF_LABEL[shelf]) }) : all?.length ? t('Nothing here yet. Open Filters for the wishlist, returned books or want to read.') : t('No books in the library yet. Tap + to add the books you own or borrow, or scan them in.')}</div>
         ) : (
           <ul className="lib-grid">
             {books.map(b => {
@@ -230,19 +234,19 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
               const narrator = audio ? b.readers.find(r => r.narrator)?.narrator : null
               return (
                 <li key={b.id}>
-                  <button type="button" className="lib-book" onClick={() => setOpen(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ', not read yet'}. Details`}>
+                  <button type="button" className="lib-book" onClick={() => setOpen(b)} aria-label={t('{book}. Details', { book: [b.author ? t('{title} by {author}', { title: b.title, author: b.author }) : b.title, audio ? t('audiobook') : '', b.readers.length ? '' : t('not read yet')].filter(Boolean).join(', ') })}>
                     <BookCover className="lib-cover" src={cover} title={b.title} audio={audio} />
                     <span className="lib-book-text">
                       {/* An audiobook as on the Reading shelves: 🎧 before the title, then who reads it. */}
                       <span className="lib-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
-                      {(b.author || narrator) && <span className="trk-sub">{[b.author, narrator ? `read by ${narrator}` : ''].filter(Boolean).join(' · ')}</span>}
+                      {(b.author || narrator) && <span className="trk-sub">{[b.author, narrator ? t('read by {name}', { name: narrator }) : ''].filter(Boolean).join(' · ')}</span>}
                       {details && <span className="trk-sub">{details}</span>}
                       {!!b.genres.length && <span className="trk-sub lib-genres">{b.genres.join(' · ')}</span>}
-                      {b.borrowedFrom && <span className={`trk-sub lib-where ${isOverdue(b, today) ? 'lib-overdue' : ''}`}>{[`📅 ${due ?? 'Borrowed'}`, `from ${b.borrowedFrom}`].join(' · ')}</span>}
+                      {b.borrowedFrom && <span className={`trk-sub lib-where ${isOverdue(b, today) ? 'lib-overdue' : ''}`}>{[`📅 ${due ?? t('Borrowed')}`, t('from {place}', { place: b.borrowedFrom })].join(' · ')}</span>}
                       {(b.location || b.lentTo) && <span className="trk-sub lib-where">{[b.lentTo ? `🤝 ${lentLabel(b, today)}` : '', b.location ? `📍 ${b.location}` : ''].filter(Boolean).join(' · ')}</span>}
                       <span className="lib-readers">{b.readers.length
-                        ? [...new Map(b.readers.map(r => [r.memberId, r])).values()].slice(0, 4).map(r => { const m = people.find(x => x.id === r.memberId); return <span key={r.entryId} className="chip-static" title={`${m?.name ?? 'Family'} ${STATUS_WORD[r.status]}`}>{m?.avatar ?? '🏠'} {STATUS_EMOJI[r.status]}</span> })
-                        : <span className="trk-tag">{b.wanted ? '⭐ Wishlist' : 'Not read yet'}</span>}</span>
+                        ? [...new Map(b.readers.map(r => [r.memberId, r])).values()].slice(0, 4).map(r => { const m = people.find(x => x.id === r.memberId); return <span key={r.entryId} className="chip-static" title={tm(STATUS_TITLE[r.status], { name: m?.name ?? t('Family') })}>{m?.avatar ?? '🏠'} {STATUS_EMOJI[r.status]}</span> })
+                        : <span className="trk-tag">{b.wanted ? t('⭐ Wishlist') : t('Not read yet')}</span>}</span>
                     </span>
                   </button>
                 </li>
@@ -272,18 +276,18 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   const pickWhose = (v: string) => {
     setPicking(null)
     if (v === 'borrowed') { if (!book.borrowedFrom) setPicking('borrowed') }
-    else if (v === 'wanted') save({ wanted: true, ...(book.borrowedFrom && { borrowedFrom: null }) }, `On the wishlist: ${book.title}`)
-    else if (book.borrowedFrom) save({ borrowedFrom: null }, `${book.title} is ours now`)
-    else if (book.wanted) save({ wanted: false }, `Got it: ${book.title}`)
+    else if (v === 'wanted') save({ wanted: true, ...(book.borrowedFrom && { borrowedFrom: null }) }, t('On the wishlist: {title}', { title: book.title }))
+    else if (book.borrowedFrom) save({ borrowedFrom: null }, t('{title} is ours now', { title: book.title }))
+    else if (book.wanted) save({ wanted: false }, t('Got it: {title}', { title: book.title }))
   }
   const save = async (changes: Parameters<typeof api.updateLibraryBook>[1], said: string) => {
     try { const b = await api.updateLibraryBook(book.id, changes); toast(said); announce(said); onSaved(b) }
-    catch (e) { toast(msg(e, "Couldn't save it"), true) }
+    catch (e) { toast(errMsg(e, t("Couldn't save it")), true) }
   }
   const long = (book.description?.length ?? 0) > 220 // about four lines
   const cover = api.libraryCoverUrl(book)
   const series = seriesLabel(book)
-  const facts = [book.year ? `First published ${book.year}` : '', book.pages ? `${book.pages} pages` : ''].filter(Boolean).join(' · ')
+  const facts = [book.year ? t('First published {year}', { year: book.year }) : '', book.pages ? tn(book.pages, '{n} page', '{n} pages') : ''].filter(Boolean).join(' · ')
   const level = readingLevel(book.lexile)
   const listen = listenLabel(book)
   const rating = ratingLabel(book)
@@ -294,8 +298,8 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   // A parent's "Look up details": Open Library now, filling only what's empty.
   const lookUp = async () => {
     setLooking(true)
-    try { const b = await api.lookUpLibraryBook(book.id); toast(`Looked up: ${b.title}`); announce(`Looked up ${b.title}`); onSaved(b) }
-    catch (e) { toast(msg(e, "Couldn't look it up"), true) }
+    try { const b = await api.lookUpLibraryBook(book.id); toast(t('Looked up: {title}', { title: b.title })); announce(t('Looked up {title}', { title: b.title })); onSaved(b) }
+    catch (e) { toast(errMsg(e, t("Couldn't look it up")), true) }
     finally { setLooking(false) }
   }
   const readIt = async (m: Member) => {
@@ -304,115 +308,117 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       const have = existingRead(await api.getTrackers('reading'), m.id, book)
       if (have) {
         const d = have.data as ReadingData
-        if (d.bookId === book.id && d.status === 'reading') { toast(`${m.name} is already reading ${book.title}`); return }
+        if (d.bookId === book.id && d.status === 'reading') { toast(t('{name} is already reading {title}', { name: m.name, title: book.title })); return }
         await api.updateTracker(have.id, { data: { bookId: book.id, status: 'reading', ...(!d.coverUrl && book.coverUrl && { coverUrl: book.coverUrl }), ...(!d.totalPages && book.pages && { totalPages: book.pages }) } })
-        toast(`${m.name} is reading ${book.title}`); announce(`${m.name} is reading ${book.title}`); onStarted(); return
+        const said = t('{name} is reading {title}', { name: m.name, title: book.title })
+        toast(said); announce(said); onStarted(); return
       }
       await api.addTracker({ kind: 'reading', memberId: m.id, title: book.title, data: {
         format: audio ? 'audiobook' : 'book', status: 'reading', bookId: book.id, ...(book.author && { author: book.author }), ...(!audio && book.pages && { totalPages: book.pages }), ...(book.coverUrl && { coverUrl: book.coverUrl }),
       } })
-      toast(`${m.name} is reading ${book.title}`); announce(`${m.name} is reading ${book.title}`); onStarted()
-    } catch (e) { toast(msg(e, "Couldn't start it"), true) }
+      const said = t('{name} is reading {title}', { name: m.name, title: book.title })
+      toast(said); announce(said); onStarted()
+    } catch (e) { toast(errMsg(e, t("Couldn't start it")), true) }
   }
   const remove = async () => {
-    try { await api.deleteLibraryBook(book.id); toast(`Removed: ${book.title}`); onChanged() }
-    catch (e) { toast(msg(e, "Couldn't remove it"), true) }
+    try { await api.deleteLibraryBook(book.id); toast(t('Removed: {title}', { title: book.title })); onChanged() }
+    catch (e) { toast(errMsg(e, t("Couldn't remove it")), true) }
   }
   return (
-    <Sheet title={book.title} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+    <Sheet title={book.title} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
       <div className="lib-detail">
         <BookCover className="lib-detail-cover" src={cover} title={book.title} audio={audio} />
         <div className="lib-detail-text">
           {book.author && <div className="lib-detail-author">{book.author}</div>}
           {series && <div className="lib-detail-series">📚 {series}</div>}
           {facts && <div className="trk-sub">{facts}</div>}
-          {level && <div className="trk-sub">Reading level {level}</div>}
+          {level && <div className="trk-sub">{t('Reading level {level}', { level })}</div>}
           {listen && <div className="trk-sub">{listen}</div>}
-          {rating && <div className="trk-sub" aria-label={`Rated ${rating.slice(2)} on Open Library`}>{rating}</div>}
+          {rating && <div className="trk-sub" aria-label={t('Rated {rating} on Open Library', { rating: rating.slice(2) })}>{rating}</div>}
           {!!book.genres.length && <div className="chip-row lib-genre-chips">{book.genres.slice(0, 5).map(g => <span key={g} className="chip chip-static">{g}</span>)}</div>}
         </div>
       </div>
       {book.description && <>
         <p className={`lib-description ${long && !more ? 'lib-description-clamp' : ''}`}>{book.description}</p>
-        {long && <button type="button" className="link-btn lib-more" onClick={() => setMore(v => !v)} aria-expanded={more}>{more ? 'Less' : 'More'}</button>}
+        {long && <button type="button" className="link-btn lib-more" onClick={() => setMore(v => !v)} aria-expanded={more}>{more ? t('Less') : t('More')}</button>}
       </>}
       {(book.isbn || (olUrl && canRemove)) && (
         <p className="trk-sub lib-detail-links">
-          {book.isbn && <span>ISBN {book.isbn}</span>}
-          {libro && canRemove && <a className="text-link" href={libro} target="_blank" rel="noopener noreferrer">🎧 Listen on Libro.fm ↗</a>}
-          {olUrl && canRemove && <a className="text-link" href={olUrl} target="_blank" rel="noopener noreferrer">View on Open Library ↗</a>}{/* parent devices: walls and kids stay in the app */}
+          {book.isbn && <span>{t('ISBN {isbn}', { isbn: book.isbn })}</span>}
+          {libro && canRemove && <a className="text-link" href={libro} target="_blank" rel="noopener noreferrer">{t('🎧 Listen on Libro.fm ↗')}</a>}
+          {olUrl && canRemove && <a className="text-link" href={olUrl} target="_blank" rel="noopener noreferrer">{t('View on Open Library ↗')}</a>}{/* parent devices: walls and kids stay in the app */}
         </p>
       )}
       <div className="field">
-        <label htmlFor="lib-whose">Whose book</label>
+        <label htmlFor="lib-whose">{t('Whose book')}</label>
         <select id="lib-whose" value={whose} onChange={e => pickWhose(e.target.value)}>
-          <option value="ours">Ours</option>
-          <option value="borrowed">Borrowed</option>
-          <option value="wanted">Wishlist (don't have it yet)</option>
+          <option value="ours">{t('Ours')}</option>
+          <option value="borrowed">{t('Borrowed')}</option>
+          <option value="wanted">{t("Wishlist (don't have it yet)")}</option>
         </select>
-        {book.wanted && !picking && <p className="field-hint">Got it? Pick Ours.</p>}
+        {book.wanted && !picking && <p className="field-hint">{t('Got it? Pick Ours.')}</p>}
       </div>
       <div className="field">
-        <label htmlFor="lib-shelf">Shelf</label>
-        <select id="lib-shelf" value={book.shelf ?? ''} disabled={!canRemove} onChange={e => { const v = (e.target.value || null) as BookShelf | null; save({ shelf: v }, `Shelf: ${v ? SHELF_WORD[v] : 'Auto'}`) }}>
-          <option value="">{book.shelf ? 'Auto' : `Auto (${SHELF_WORD[book.effectiveShelf ?? 'grownups']})`}</option>
-          {(Object.keys(SHELF_WORD) as BookShelf[]).map(k => <option key={k} value={k}>{SHELF_WORD[k]}</option>)}
+        <label htmlFor="lib-shelf">{t('Shelf')}</label>
+        <select id="lib-shelf" value={book.shelf ?? ''} disabled={!canRemove} onChange={e => { const v = (e.target.value || null) as BookShelf | null; save({ shelf: v }, t('Shelf: {shelf}', { shelf: v ? tm(SHELF_WORD[v]) : t('Auto') })) }}>
+          <option value="">{book.shelf ? t('Auto') : t('Auto ({shelf})', { shelf: tm(SHELF_WORD[book.effectiveShelf ?? 'grownups']) })}</option>
+          {(Object.keys(SHELF_WORD) as BookShelf[]).map(k => <option key={k} value={k}>{tm(SHELF_WORD[k])}</option>)}
         </select>
-        <p className="field-hint">{canRemove ? "Who it's for. Auto goes by its genres, reading level, length and who reads it." : "Who it's for. A parent can change it."}</p>
+        <p className="field-hint">{canRemove ? t("Who it's for. Auto goes by its genres, reading level, length and who reads it.") : t("Who it's for. A parent can change it.")}</p>
       </div>
       {picking === 'borrowed' && <BorrowFields sources={sources} today={today} onCancel={() => setPicking(null)}
-        onSave={(from, due) => { setPicking(null); save({ borrowedFrom: from, dueOn: due }, `Borrowed from ${from}`) }} />}
+        onSave={(from, due) => { setPicking(null); save({ borrowedFrom: from, dueOn: due }, t('Borrowed from {place}', { place: from })) }} />}
       {/* An audiobook doesn't live on a shelf or go out on loan. */}
-      {!book.wanted && !audio && <PlacePicker value={book.location ?? ''} places={places} onChange={v => save({ location: v || null }, v ? `Where it lives: ${v}` : `Place cleared: ${book.title}`)} />}
+      {!book.wanted && !audio && <PlacePicker value={book.location ?? ''} places={places} onChange={v => save({ location: v || null }, v ? t('Where it lives: {place}', { place: v }) : t('Place cleared: {title}', { title: book.title }))} />}
       {book.wanted || picking ? null : book.borrowedFrom ? (
         <div className="field">
-          <label htmlFor="lib-due">Due back to {book.borrowedFrom}</label>
+          <label htmlFor="lib-due">{t('Due back to {place}', { place: book.borrowedFrom })}</label>
           {book.returnedOn ? (
             <div className="lib-lent">
               <span>↩️ {dueLabel(book, today)}</span>
-              <button type="button" className="btn btn-secondary lib-back" onClick={() => save({ returnedOn: null, dueOn: addDayKeys(today, LOAN_DAYS) }, `Borrowed ${book.title} again`)}>Borrow again</button>
+              <button type="button" className="btn btn-secondary lib-back" onClick={() => save({ returnedOn: null, dueOn: addDayKeys(today, LOAN_DAYS) }, t('Borrowed {title} again', { title: book.title }))}>{t('Borrow again')}</button>
             </div>
           ) : (
             <div className="lib-lent">
-              <input id="lib-due" type="date" aria-label="Due back" value={book.dueOn ?? ''} onChange={e => save({ dueOn: e.target.value || null }, e.target.value ? `Due back: ${dueLabel({ ...book, dueOn: e.target.value }, today)?.replace(/^Due back /, '')}` : 'Due date cleared')} />
-              <button type="button" className="btn btn-secondary lib-back" onClick={() => save({ returnedOn: today }, `Returned: ${book.title}`)}>Returned it</button>
+              <input id="lib-due" type="date" aria-label={t('Due back')} value={book.dueOn ?? ''} onChange={e => save({ dueOn: e.target.value || null }, e.target.value ? dueLabel({ ...book, dueOn: e.target.value }, today) ?? '' : t('Due date cleared'))} />
+              <button type="button" className="btn btn-secondary lib-back" onClick={() => save({ returnedOn: today }, t('Returned: {title}', { title: book.title }))}>{t('Returned it')}</button>
             </div>
           )}
           {isOverdue(book, today) && <p className="field-hint lib-overdue">{dueLabel(book, today)}</p>}
         </div>
       ) : audio ? null : <div className="field">
-        <label htmlFor="lib-lend">Lending</label>
+        <label htmlFor="lib-lend">{t('Lending')}</label>
         {book.lentTo ? (
           <div className="lib-lent">
             <span>🤝 {lentLabel(book, today)}</span>
-            <button type="button" className="btn btn-secondary lib-back" onClick={() => save({ lentTo: null }, `Back home: ${book.title}`)}>It's back</button>
+            <button type="button" className="btn btn-secondary lib-back" onClick={() => save({ lentTo: null }, t('Back home: {title}', { title: book.title }))}>{t("It's back")}</button>
           </div>
         ) : (
           <div className="weather-search-row">
-            <input id="lib-lend" type="text" value={borrower} onChange={e => setBorrower(e.target.value)} placeholder="Lend it to… (Grandma, a friend)" autoComplete="off" maxLength={80}
-              onKeyDown={e => { if (e.key === 'Enter' && borrower.trim()) save({ lentTo: borrower.trim() }, `Lent ${book.title} to ${borrower.trim()}`) }} />
-            <button type="button" className="btn btn-secondary" disabled={!borrower.trim()} onClick={() => save({ lentTo: borrower.trim() }, `Lent ${book.title} to ${borrower.trim()}`)}>Lend</button>
+            <input id="lib-lend" type="text" value={borrower} onChange={e => setBorrower(e.target.value)} placeholder={t('Lend it to… (Grandma, a friend)')} autoComplete="off" maxLength={80}
+              onKeyDown={e => { if (e.key === 'Enter' && borrower.trim()) save({ lentTo: borrower.trim() }, t('Lent {title} to {name}', { title: book.title, name: borrower.trim() })) }} />
+            <button type="button" className="btn btn-secondary" disabled={!borrower.trim()} onClick={() => save({ lentTo: borrower.trim() }, t('Lent {title} to {name}', { title: book.title, name: borrower.trim() }))}>{t('Lend')}</button>
           </div>
         )}
       </div>}
       <div className="field">
-        <label id="lib-readers">{audio ? 'Listened to by' : 'Read by'}</label>
+        <label id="lib-readers">{audio ? t('Listened to by') : t('Read by')}</label>
         {book.readers.length ? (
           <ul className="lib-reader-list" aria-labelledby="lib-readers">
-            {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? 'Family'} <span className="trk-sub">{STATUS_EMOJI[r.status]} {(audio ? LISTEN_WORD : STATUS_WORD)[r.status]}</span></li> })}
+            {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? t('Family')} <span className="trk-sub">{STATUS_EMOJI[r.status]} {tm((audio ? LISTEN_WORD : STATUS_WORD)[r.status])}</span></li> })}
           </ul>
-        ) : <p className="trk-sub">Nobody yet.</p>}
+        ) : <p className="trk-sub">{t('Nobody yet.')}</p>}
       </div>
       <div className="field">
-        <label id="lib-read-it">{audio ? 'Listen to it' : 'Read it'}</label>
+        <label id="lib-read-it">{audio ? t('Listen to it') : t('Read it')}</label>
         <div className="chip-row" role="group" aria-labelledby="lib-read-it">
           {members.map(m => <button key={m.id} type="button" className="chip" style={{ ['--chip-color' as string]: m.color }} onClick={() => readIt(m)}><ChipFace m={m} /> {m.name}</button>)}
         </div>
-        <p className="field-hint">Puts it on their Reading shelf, linked to this book.</p>
+        <p className="field-hint">{t('Puts it on their Reading shelf, linked to this book.')}</p>
       </div>
       {canRemove && <div className="lib-detail-actions">
-        <button type="button" className="btn btn-secondary" onClick={lookUp} disabled={looking}>{looking ? 'Looking up…' : '🔎 Look up details'}</button>
-        <button type="button" className="btn btn-danger" onClick={remove}>Remove from library</button>
+        <button type="button" className="btn btn-secondary" onClick={lookUp} disabled={looking}>{looking ? t('Looking up…') : t('🔎 Look up details')}</button>
+        <button type="button" className="btn btn-danger" onClick={remove}>{t('Remove from library')}</button>
       </div>}
     </Sheet>
   )
@@ -425,18 +431,18 @@ function PlacePicker({ value, places, onChange }: { value: string; places: strin
   const options = [...new Set([...places, ...(value ? [value] : [])])]
   return (
     <div className="field">
-      <label htmlFor="lib-place">Where it lives</label>
+      <label htmlFor="lib-place">{t('Where it lives')}</label>
       {typing ? (
         <div className="weather-search-row">
-          <input id="lib-place" type="text" value={draft} onChange={e => setDraft(e.target.value)} placeholder="Maya's room, living room shelf…" autoComplete="off" maxLength={80} autoFocus
+          <input id="lib-place" type="text" value={draft} onChange={e => setDraft(e.target.value)} placeholder={t("Maya's room, living room shelf…")} autoComplete="off" maxLength={80} autoFocus
             onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) { onChange(draft.trim()); setTyping(false) } }} />
-          <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={() => { onChange(draft.trim()); setTyping(false) }}>Save</button>
+          <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={() => { onChange(draft.trim()); setTyping(false) }}>{t('Save')}</button>
         </div>
       ) : (
         <select id="lib-place" value={value} onChange={e => { if (e.target.value === '\u0000new') { setDraft(''); setTyping(true) } else onChange(e.target.value) }}>
-          <option value="">Not set</option>
+          <option value="">{t('Not set')}</option>
           {options.map(p => <option key={p} value={p}>{p}</option>)}
-          <option value={'\u0000new'}>New place…</option>
+          <option value={'\u0000new'}>{t('New place…')}</option>
         </select>
       )}
     </div>
@@ -452,19 +458,19 @@ function BorrowFields({ sources, today, onSave, onCancel, onChange }: { sources:
   return (
     <>
       <div className="field">
-        <label htmlFor="lib-from">Borrowed from</label>
-        <input id="lib-from" type="text" list="lib-sources" value={from} onChange={e => setFrom(e.target.value)} placeholder="Town library, a friend…" autoComplete="off" maxLength={80} />
+        <label htmlFor="lib-from">{t('Borrowed from')}</label>
+        <input id="lib-from" type="text" list="lib-sources" value={from} onChange={e => setFrom(e.target.value)} placeholder={t('Town library, a friend…')} autoComplete="off" maxLength={80} />
         <datalist id="lib-sources">{sources.map(s => <option key={s} value={s} />)}</datalist>
       </div>
       <div className="field">
-        <label htmlFor="lib-due-new">Due back</label>
+        <label htmlFor="lib-due-new">{t('Due back')}</label>
         <div className="weather-search-row">
           <input id="lib-due-new" type="date" value={due} onChange={e => setDue(e.target.value)} />
         </div>
       </div>
       {onSave && <div className="lib-borrow-actions">
-        {onCancel && <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>}
-        <button type="button" className="btn btn-primary" disabled={!from.trim()} onClick={() => onSave(from.trim(), due || null)}>Save</button>
+        {onCancel && <button type="button" className="btn btn-secondary" onClick={onCancel}>{t('Cancel')}</button>}
+        <button type="button" className="btn btn-primary" disabled={!from.trim()} onClick={() => onSave(from.trim(), due || null)}>{t('Save')}</button>
       </div>}
     </>
   )
@@ -493,27 +499,27 @@ export function AddBookSheet({ places, sources, today, from, onClose, onAdded }:
       const fromLookup = picked && picked.title === title.trim() ? { isbn: picked.isbn, pages: picked.pages, coverUrl: picked.coverUrl, year: picked.year, series: picked.series, seriesNumber: picked.seriesNumber, lexile: picked.lexile, genres: picked.genres, workKey: picked.workKey } : {}
       const fromEntry = from ? { pages: from.pages, coverUrl: from.coverUrl } : {}
       const b = await api.addToLibrary({ title: title.trim(), author: author.trim() || null, ...(location ? { location } : {}), ...(borrowing ? { borrowedFrom: loan.from, dueOn: loan.due } : {}), ...(whose === 'wanted' ? { wanted: true } : {}), ...Object.fromEntries(Object.entries({ ...fromEntry, ...fromLookup }).filter(([, v]) => v !== undefined && v !== null)) })
-      const said = b.wanted ? `On the wishlist: ${b.title}` : `Added: ${b.title}`; toast(said); announce(said); onAdded(b)
+      const said = b.wanted ? t('On the wishlist: {title}', { title: b.title }) : t('Added: {title}', { title: b.title }); toast(said); announce(said); onAdded(b)
     } catch (e) {
       // Already there (the looked-up ISBN): hand back that book, returned ones too.
       const have = e instanceof ApiError && e.status === 409 && picked?.isbn
         ? (await Promise.all([api.getLibrary({ q: title.trim() }), api.getLibrary({ q: title.trim(), returned: true })]).catch(() => [[]])).flat().find(b => b.isbn === picked.isbn)
         : undefined
-      if (have) { toast(`Already in the library: ${have.title}`); onAdded(have) }
-      else toast(msg(e, "Couldn't add it"), true)
+      if (have) { toast(t('Already in the library: {title}', { title: have.title })); onAdded(have) }
+      else toast(errMsg(e, t("Couldn't add it")), true)
     } finally { setBusy(false) }
   }
   return (
-    <Sheet title="Add a book" onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={add} disabled={!title.trim() || busy || (borrowing && !loan.from)}>Add to library</button>}>
-      <Segmented label="Whose book" value={whose} onChange={setWhose} options={[{ key: 'ours', label: 'Ours' }, { key: 'borrowed', label: 'Borrowed' }, { key: 'wanted', label: 'Wishlist' }]} />
+    <Sheet title={t('Add a book')} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={add} disabled={!title.trim() || busy || (borrowing && !loan.from)}>{t('Add to library')}</button>}>
+      <Segmented label={t('Whose book')} value={whose} onChange={setWhose} options={[{ key: 'ours', label: t('Ours') }, { key: 'borrowed', label: t('Borrowed') }, { key: 'wanted', label: t('Wishlist') }]} />
       <BookLookup initial={title} onPick={b => { setPicked(b); setTitle(b.title); setAuthor(b.author ?? '') }} />
-      <div className="field"><label htmlFor="lib-title">Title</label><input id="lib-title" type="text" value={title} onChange={e => setTitle(e.target.value)} autoComplete="off" /></div>
-      <div className="field"><label htmlFor="lib-author">Author</label><input id="lib-author" type="text" value={author} onChange={e => setAuthor(e.target.value)} autoComplete="off" /></div>
+      <div className="field"><label htmlFor="lib-title">{t('Title')}</label><input id="lib-title" type="text" value={title} onChange={e => setTitle(e.target.value)} autoComplete="off" /></div>
+      <div className="field"><label htmlFor="lib-author">{t('Author')}</label><input id="lib-author" type="text" value={author} onChange={e => setAuthor(e.target.value)} autoComplete="off" /></div>
       {borrowing && <BorrowFields sources={sources} today={today} onChange={(from, due) => setLoan({ from, due })} />}
       {whose !== 'wanted' && <PlacePicker value={location} places={places} onChange={setLocation} />}
       {picked && picked.title === title.trim() && bookDetails({ series: picked.series ?? null, seriesNumber: picked.seriesNumber ?? null, year: picked.year ?? null, lexile: picked.lexile ?? null, pages: picked.pages ?? null }) && (
-        <p className="field-hint">{bookDetails({ series: picked.series ?? null, seriesNumber: picked.seriesNumber ?? null, year: picked.year ?? null, lexile: picked.lexile ?? null, pages: picked.pages ?? null })}{picked.workKey ? '. Its description comes too.' : ''}</p>
+        <p className="field-hint">{(d => picked.workKey ? t('{details}. Its description comes too.', { details: d }) : d)(bookDetails({ series: picked.series ?? null, seriesNumber: picked.seriesNumber ?? null, year: picked.year ?? null, lexile: picked.lexile ?? null, pages: picked.pages ?? null }))}</p>
       )}
     </Sheet>
   )

@@ -12,6 +12,7 @@ import { leaveByActivity } from './liveActivity.ts'
 import { rememberNudge, type NudgeSeen } from './nudges.ts'
 import { endAppActivity, tellAppActivity, tellAppLeaveByPush } from './native.ts'
 import { useDeviceAppearance } from './useTheme.ts'
+import { t, tc, tn } from './i18n.ts'
 
 const MIN = 60000
 
@@ -28,9 +29,9 @@ function useNow(ms: number) {
 /** "42 min" / "1 h 10 min" / "2 h". */
 export function durationLabel(ms: number): string {
   const m = Math.max(1, Math.ceil(ms / MIN))
-  if (m < 60) return `${m} min`
+  if (m < 60) return t('{n} min', { n: m })
   const h = Math.floor(m / 60), r = m % 60
-  return r ? `${h} h ${r} min` : `${h} h`
+  return r ? t('{h} h {m} min', { h, m: r }) : t('{n} h', { n: h })
 }
 
 const timed = (evs: EventInstance[]) => evs.filter(blocksTime)
@@ -53,29 +54,29 @@ export function NowNextCard({ events, tz, placeholder, warnMinutes = [] }: { eve
   const lastSaid = useRef<string | null>(null)
   useEffect(() => {
     if (!target || mins === null || mins > soonMins) return
-    const msg = `${target.what} in ${mins} minute${mins === 1 ? '' : 's'}`
+    const msg = tn(mins, '{what} in {n} minute', '{what} in {n} minutes', { what: target.what })
     if (msg !== lastSaid.current) { lastSaid.current = msg; announce(msg) }
   }, [target?.what, mins]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // On phones the card is a fixed slot (`placeholder`), so the header never shifts as the day
   // empties out; the wall keeps hiding it when there's nothing to say.
-  if (!current && !next) return placeholder ? <section className="now-next empty" aria-label="Now and next">Nothing more today</section> : null
+  if (!current && !next) return placeholder ? <section className="now-next empty" aria-label={t('Now and next')}>{t('Nothing more today')}</section> : null
   return (
-    <section className="now-next" aria-label="Now and next">
+    <section className="now-next" aria-label={t('Now and next')}>
       {current && (
         <div className="now-next-row">
-          <span className="now-next-tag">Now</span>
+          <span className="now-next-tag">{tc('now-next', 'Now')}</span>
           <span className="now-next-title">{current.title}</span>
-          <span className="now-next-meta">· ends in {durationLabel(Date.parse(current.end) - now)}</span>
+          <span className="now-next-meta">· {t('ends in {time}', { time: durationLabel(Date.parse(current.end) - now) })}</span>
         </div>
       )}
       {next && (
         <div className={`now-next-row ${mins !== null && mins <= soonMins ? 'now-next-soon' : ''}`}>
-          <span className="now-next-tag next">Next</span>
+          <span className="now-next-tag next">{tc('now-next', 'Next')}</span>
           <span className="now-next-title">{next.title}</span>
           {/* A phone drops "at" and "by", never "in" and "leave": "1 h 12 min" alone reads like a length. */}
-          <span className="now-next-meta"><span className="nn-long">at </span>{formatTime(next.start, tz)} · in {durationLabel(Date.parse(next.start) - now)}</span>
-          {lead && <span className="now-next-meta">· {leadIcon(lead)} {lead.prep ? 'start prep' : 'leave'}<span className="nn-long"> by</span> {formatTime(lead.at, tz)}</span>}
+          <span className="now-next-meta"><span className="nn-long">{t('at')} </span>{formatTime(next.start, tz)} · {t('in')} {durationLabel(Date.parse(next.start) - now)}</span>
+          {lead && <span className="now-next-meta">· {leadIcon(lead)} {lead.prep ? tc('now-next', 'start prep') : tc('now-next', 'leave')}<span className="nn-long"> {tc('now-next', 'by')}</span> {formatTime(lead.at, tz)}</span>}
         </div>
       )}
     </section>
@@ -119,15 +120,15 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
       const targets = [{ at: Date.parse(e.start), label: e.title }]
       const lead = leadOf(e)
       if (lead) targets.push({ at: Date.parse(lead.at), label: leadFor(lead, e.title) })
-      for (const t of targets) {
+      for (const tg of targets) {
         for (const m of minutes) {
-          const key = `${e.id}:${t.at}:${m}`
-          const due = t.at - m * MIN
+          const key = `${e.id}:${tg.at}:${m}`
+          const due = tg.at - m * MIN
           // Inside the minute the warning is for; fired once, even if skipped (held/stacked).
           if (now < due || now >= due + MIN || fired.current.has(key)) continue
           fired.current.add(key)
           if (held || (banner && banner.until > now)) continue
-          const msg = `${t.label} in ${m} minute${m === 1 ? '' : 's'}`
+          const msg = tn(m, '{what} in {n} minute', '{what} in {n} minutes', { what: tg.label })
           setBanner({ msg, until: now + BANNER_MS })
           announce(msg)
           if (sound) chime()
@@ -144,9 +145,9 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
 
   if (!banner) return null
   return (
-    <button type="button" className="transition-banner" onClick={() => setBanner(null)} aria-label={`${banner.msg}. Dismiss`}>
+    <button type="button" className="transition-banner" onClick={() => setBanner(null)} aria-label={t('{message}. Dismiss', { message: banner.msg })}>
       <span className="transition-banner-msg">{banner.msg}</span>
-      <span className="transition-banner-hint" aria-hidden="true">Tap to dismiss</span>
+      <span className="transition-banner-hint" aria-hidden="true">{t('Tap to dismiss')}</span>
     </button>
   )
 }

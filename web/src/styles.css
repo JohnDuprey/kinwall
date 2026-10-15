@@ -1095,6 +1095,8 @@ button.month-cell .month-daynum { flex: none; }
 }
 .chore-title.done { text-decoration: line-through; }
 .chore-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; } /* wraps: the checklist progress at its end is what a kid looks for */
+/* Longer words (German "Wöchentlich") break with a hyphen when they wrap. */
+:root:not([lang="en"]) .chore-pts { hyphens: auto; }
 .who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
 .who-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; padding: 14px 8px; border: none; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; }
 .who-btn:active { transform: scale(0.96); }

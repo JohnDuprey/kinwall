@@ -1,3 +1,4 @@
+import { tm, msg } from './i18n.ts'
 // WCAG relative-luminance / contrast helpers, used to pick readable ink (dark vs white) for text
 // drawn over an arbitrary member/accent color - so a very light or very dark custom color still
 // stays legible on avatars, event chips, and accent-colored buttons.
@@ -57,9 +58,9 @@ export const logoHeads = (skinId: string, accent: string, bg: string) =>
 // Spoken names for the preset swatches (MEMBER_PALETTE in types.ts): a screen
 // reader saying "#FF9E7A" helps nobody. Custom colors fall back to their hex.
 const COLOR_NAMES: Record<string, string> = {
-  '#FF9E7A': 'Peach', '#FFD166': 'Amber', '#7ED9A6': 'Mint', '#7AB8FF': 'Sky blue', '#B39DFF': 'Lavender',
-  '#FF8FA3': 'Pink', '#8FE0D6': 'Aqua', '#FFB6D9': 'Rose', '#C7E27A': 'Lime', '#A0AEC0': 'Slate',
-  '#FF6B6B': 'Coral red', '#6FCF97': 'Green', '#4DA3FF': 'Blue', '#2FBFB0': 'Teal',
-  '#222222': 'Black', '#FFFFFF': 'White', '#8B5A2B': 'Brown', '#8A8A8A': 'Gray', // Paint's basics
+  '#FF9E7A': msg('Peach'), '#FFD166': msg('Amber'), '#7ED9A6': msg('Mint'), '#7AB8FF': msg('Sky blue'), '#B39DFF': msg('Lavender'),
+  '#FF8FA3': msg('Pink'), '#8FE0D6': msg('Aqua'), '#FFB6D9': msg('Rose'), '#C7E27A': msg('Lime'), '#A0AEC0': msg('Slate'),
+  '#FF6B6B': msg('Coral red'), '#6FCF97': msg('Green'), '#4DA3FF': msg('Blue'), '#2FBFB0': msg('Teal'),
+  '#222222': msg('Black'), '#FFFFFF': msg('White'), '#8B5A2B': msg('Brown'), '#8A8A8A': msg('Gray'), // Paint's basics
 }
-export const colorName = (hex: string) => COLOR_NAMES[hex.toUpperCase()] ?? hex
+export const colorName = (hex: string) => { const n = COLOR_NAMES[hex.toUpperCase()]; return n ? tm(n) : hex } // marked with msg() above

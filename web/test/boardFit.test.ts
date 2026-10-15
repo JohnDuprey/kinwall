@@ -25,8 +25,8 @@ test('moreLabel: counts rows, not headings', () => {
   assert.equal(moreLabel(r, 2), '+2 more')
   assert.equal(moreLabel(r, 5), 'More')
   assert.equal(moreLabel(r, 0), '+3 more') // nothing fit above the button
-  assert.equal(moreLabel(r, 0, ['meal', 'meals']), '3 meals', 'a card that says what its rows are')
-  assert.equal(moreLabel(r.slice(0, 2), 0, ['meal', 'meals']), '1 meal')
+  assert.equal(moreLabel(r, 0, ['{n} meal', '{n} meals']), '3 meals', 'a card that says what its rows are')
+  assert.equal(moreLabel(r.slice(0, 2), 0, ['{n} meal', '{n} meals']), '1 meal')
 })
 
 const chore = (memberId: string | null, remaining: number) => ({ memberId, name: memberId, avatar: null, color: null, remaining, total: remaining })

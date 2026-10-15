@@ -13,6 +13,7 @@ import { MAX_PHOTO_BYTES } from './photos.ts'
 import { openPdf } from './pdf.ts'
 import { PlusIcon, TrashIcon } from './icons.tsx'
 import type { FamilyColoringPage } from './types.ts'
+import { msg, t, tm } from './i18n.ts'
 
 type Img = HTMLImageElement & { width: number; height: number }
 
@@ -37,24 +38,24 @@ export default function ColoringBook({ onClose, onPick }: { onClose: () => void;
   const choose = async (name: string, url: string) => {
     if (busy) return
     setBusy(true)
-    try { onPick(name, await loadUrl(url)) } catch { toast("Couldn't open that page. Try again.", true) } finally { setBusy(false) }
+    try { onPick(name, await loadUrl(url)) } catch { toast(t("Couldn't open that page. Try again."), true) } finally { setBusy(false) }
   }
   const remove = async (p: FamilyColoringPage) => {
-    if (!await dialog.confirm({ title: `Delete "${p.name}"?`, body: 'Pictures already colored on it keep their lines.', confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteColoringPage(p.id); announce(`Deleted ${p.name}`); setTick(t => t + 1) }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete that page", true) }
+    if (!await dialog.confirm({ title: t('Delete "{title}"?', { title: p.name }), body: t('Pictures already colored on it keep their lines.'), confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteColoringPage(p.id); announce(t('Deleted {name}', { name: p.name })); setTick(n => n + 1) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't delete that page"), true) }
   }
 
-  if (adding) return <AddPage onClose={() => setAdding(false)} onAdded={p => { setAdding(false); setTick(t => t + 1); toast(`Added: ${p.name}`) }} />
+  if (adding) return <AddPage onClose={() => setAdding(false)} onAdded={p => { setAdding(false); setTick(n => n + 1); toast(t('Added: {name}', { name: p.name })) }} />
   return (
-    <Sheet title="Coloring pages" onClose={onClose}>
-      <p className="paint-gallery-note">Pick a page to color. Its lines stay on top, and Fill stays inside them.</p>
+    <Sheet title={t('Coloring pages')} onClose={onClose}>
+      <p className="paint-gallery-note">{t('Pick a page to color. Its lines stay on top, and Fill stays inside them.')}</p>
       {PAGE_CATEGORIES.map(cat => <section key={cat} aria-label={cat}>
         <h3 className="paint-palette-title">{cat}</h3>
         <ul className="paint-gallery paint-pages">
           {COLORING_PAGES.filter(p => p.category === cat).map(p => (
             <li key={p.id} className="paint-gallery-item">
-              <button className="paint-gallery-open" disabled={busy} onClick={() => choose(p.name, pageUrl(p.svg))} aria-label={`Color the ${p.name} page`}>
+              <button className="paint-gallery-open" disabled={busy} onClick={() => choose(p.name, pageUrl(p.svg))} aria-label={t('Color the {name} page', { name: p.name })}>
                 <img src={pageUrl(p.svg)} alt="" loading="lazy" />
                 <span className="paint-gallery-name"><span aria-hidden="true">{p.emoji}</span> {p.name}</span>
               </button>
@@ -63,17 +64,17 @@ export default function ColoringBook({ onClose, onPick }: { onClose: () => void;
         </ul>
       </section>)}
       {!!pages?.length && <>
-        <h3 className="paint-palette-title">Our pages</h3>
+        <h3 className="paint-palette-title">{t('Our pages')}</h3>
         <ul className="paint-gallery paint-pages">
           {pages.map(p => (
             <li key={p.id} className="paint-gallery-item">
-              <button className="paint-gallery-open" disabled={busy} onClick={() => choose(p.name, api.photoImageUrl(p))} aria-label={`Color the ${p.name} page`}>
+              <button className="paint-gallery-open" disabled={busy} onClick={() => choose(p.name, api.photoImageUrl(p))} aria-label={t('Color the {name} page', { name: p.name })}>
                 <img src={api.photoImageUrl(p)} alt="" />
                 <span className="paint-gallery-name">{p.name}</span>
               </button>
               {parentDevice && (
                 <div className="paint-gallery-actions">
-                  <button className="icon-btn" onClick={() => remove(p)} aria-label={`Delete ${p.name}`}><TrashIcon width={20} height={20} /></button>
+                  <button className="icon-btn" onClick={() => remove(p)} aria-label={t('Delete {name}', { name: p.name })}><TrashIcon width={20} height={20} /></button>
                 </div>
               )}
             </li>
@@ -82,7 +83,7 @@ export default function ColoringBook({ onClose, onPick }: { onClose: () => void;
       </>}
       {parentDevice && (
         <button className="btn btn-secondary btn-block" style={{ marginTop: 16 }} onClick={() => setAdding(true)}>
-          <PlusIcon width={20} height={20} /> Add a page from a picture
+          <PlusIcon width={20} height={20} /> {t('Add a page from a picture')}
         </button>
       )}
     </Sheet>
@@ -93,7 +94,7 @@ export default function ColoringBook({ onClose, onPick }: { onClose: () => void;
 
 const MAX_EDGE = 1400 // px: crisp on a wall screen, small enough to clean up quickly on an iPad
 const CLEANUP = [0, 12, 40, 120, 300] // smallest speck kept, in pixels
-const CLEANUP_NAMES = ['Off', 'Light', 'Medium', 'Strong', 'Strongest']
+const CLEANUP_NAMES = [msg('Off'), msg('Light'), msg('Medium'), msg('Strong'), msg('Strongest')]
 const INK = [0x22, 0x22, 0x22]
 
 const canvasOf = (w: number, h: number) => {
@@ -158,8 +159,8 @@ function AddPage({ onClose, onAdded }: { onClose: () => void; onAdded: (p: Famil
   // Redraw the preview a moment after a slider stops moving (cleaning up a big page takes a beat).
   useEffect(() => {
     if (!src || !preview.current) return
-    const t = setTimeout(() => drawLineArt(preview.current!, src, level, CLEANUP[clean]), 120)
-    return () => clearTimeout(t)
+    const id = setTimeout(() => drawLineArt(preview.current!, src, level, CLEANUP[clean]), 120)
+    return () => clearTimeout(id)
   }, [src, level, clean])
 
   const pick = async (file?: File) => {
@@ -170,7 +171,7 @@ function AddPage({ onClose, onAdded }: { onClose: () => void; onAdded: (p: Famil
       const base = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim().slice(0, 60)
       setName(n => n || base.charAt(0).toUpperCase() + base.slice(1))
     } catch {
-      setError("That file can't be read here. Try a PNG, JPEG, SVG or PDF.")
+      setError(t("That file can't be read here. Try a PNG, JPEG, SVG or PDF."))
     } finally { setWorking(false) }
   }
 
@@ -188,36 +189,36 @@ function AddPage({ onClose, onAdded }: { onClose: () => void; onAdded: (p: Famil
         out.getContext('2d')!.drawImage(c, 0, 0, out.width, out.height)
         png = await pngOf(out)
       }
-      if (!png || png.size > MAX_PHOTO_BYTES) throw new Error('That page has too much detail to save. Try a stronger clean up.')
-      onAdded(await api.addColoringPage(png, out.width, out.height, name.trim() || 'Coloring page'))
+      if (!png || png.size > MAX_PHOTO_BYTES) throw new Error(t('That page has too much detail to save. Try a stronger clean up.'))
+      onAdded(await api.addColoringPage(png, out.width, out.height, name.trim() || t('Coloring page')))
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't add that page")
+      setError(e instanceof Error ? e.message : t("Couldn't add that page"))
     } finally { setWorking(false) }
   }
 
   return (
-    <Sheet title="Add a coloring page" onClose={onClose}
-      actions={src ? <button className="btn btn-primary btn-block" disabled={working} onClick={save}>{working ? 'Saving…' : 'Add page'}</button> : undefined}>
-      <p className="paint-gallery-note">Pick a picture with clear outlines: a printed coloring page, a photo of one, a drawing, or a PDF (its first page). Only the dark lines are kept.</p>
+    <Sheet title={t('Add a coloring page')} onClose={onClose}
+      actions={src ? <button className="btn btn-primary btn-block" disabled={working} onClick={save}>{working ? t('Saving…') : t('Add page')}</button> : undefined}>
+      <p className="paint-gallery-note">{t('Pick a picture with clear outlines: a printed coloring page, a photo of one, a drawing, or a PDF (its first page). Only the dark lines are kept.')}</p>
       <input ref={input} type="file" accept="image/png,image/jpeg,image/svg+xml,application/pdf,.pdf,.svg" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; void pick(f) }} />
-      <button className="btn btn-secondary btn-block" disabled={working} onClick={() => input.current?.click()}>{src ? 'Choose a different picture' : 'Choose a picture'}</button>
+      <button className="btn btn-secondary btn-block" disabled={working} onClick={() => input.current?.click()}>{src ? t('Choose a different picture') : t('Choose a picture')}</button>
       {error && <p className="field-error" role="alert" style={{ marginTop: 12 }}>{error}</p>}
       {src && <>
-        <canvas ref={preview} className="paint-page-preview" role="img" aria-label="Preview of the coloring page" />
+        <canvas ref={preview} className="paint-page-preview" role="img" aria-label={t('Preview of the coloring page')} />
         <div className="field">
-          <label htmlFor="cp-name">Name</label>
-          <input id="cp-name" type="text" maxLength={60} value={name} onChange={e => setName(e.target.value)} placeholder="Coloring page" />
+          <label htmlFor="cp-name">{t('Name')}</label>
+          <input id="cp-name" type="text" maxLength={60} value={name} onChange={e => setName(e.target.value)} placeholder={t('Coloring page')} />
         </div>
         <div className="field">
-          <label htmlFor="cp-lines">Lines</label>
+          <label htmlFor="cp-lines">{t('Lines')}</label>
           <input id="cp-lines" className="paint-range" type="range" min={70} max={230} step={5} value={level} onChange={e => setLevel(+e.target.value)}
-            aria-valuetext={level < 130 ? 'Only dark lines' : level > 180 ? 'Light lines too' : 'Most lines'} />
-          <p className="field-hint">Slide right to keep lighter lines, left for only the darkest.</p>
+            aria-valuetext={level < 130 ? t('Only dark lines') : level > 180 ? t('Light lines too') : t('Most lines')} />
+          <p className="field-hint">{t('Slide right to keep lighter lines, left for only the darkest.')}</p>
         </div>
         <div className="field">
-          <label htmlFor="cp-clean">Clean up: {CLEANUP_NAMES[clean]}</label>
-          <input id="cp-clean" className="paint-range" type="range" min={0} max={CLEANUP.length - 1} step={1} value={clean} onChange={e => setClean(+e.target.value)} aria-valuetext={CLEANUP_NAMES[clean]} />
-          <p className="field-hint">Removes specks and smudges. Too strong can drop small details.</p>
+          <label htmlFor="cp-clean">{t('Clean up: {level}', { level: tm(CLEANUP_NAMES[clean]) })}</label>
+          <input id="cp-clean" className="paint-range" type="range" min={0} max={CLEANUP.length - 1} step={1} value={clean} onChange={e => setClean(+e.target.value)} aria-valuetext={tm(CLEANUP_NAMES[clean])} />
+          <p className="field-hint">{t('Removes specks and smudges. Too strong can drop small details.')}</p>
         </div>
       </>}
     </Sheet>

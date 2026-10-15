@@ -1,4 +1,5 @@
 import type { Features } from './types.ts'
+import { msg } from './i18n.ts'
 // Board layouts (Board.tsx): which cards a screen shows, in which column, how much of the column's
 // height each takes and how big its text is. A screen shows the default arrangement (boardAreas in
 // boardFit.ts), a preset (built in, or one a parent saved for the family: settings.boardPresets),
@@ -8,16 +9,16 @@ import type { Features } from './types.ts'
 export const BOARD_CARDS = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit', 'tidbit2', 'tidbit3', 'checklist'] as const
 export type BoardCardId = typeof BOARD_CARDS[number]
 export const CARD_NAMES: Record<BoardCardId, string> = {
-  clock: 'Clock & weather', today: 'Today', meals: 'Today’s meals', photo: 'Picture', coming: 'Coming up',
-  due: 'Due soon', chores: 'Chores today', tidbit: 'Quote or fact', tidbit2: 'Quote or fact 2', tidbit3: 'Quote or fact 3',
-  checklist: 'Get stuff done',
+  clock: msg('Clock & weather'), today: msg('Today'), meals: msg('Today’s meals'), photo: msg('Picture'), coming: msg('Coming up'),
+  due: msg('Due soon'), chores: msg('Chores today'), tidbit: msg('Quote or fact'), tidbit2: msg('Quote or fact 2'), tidbit3: msg('Quote or fact 3'),
+  checklist: msg('Get stuff done'),
 }
 export const CARD_SIZES = ['s', 'm', 'l'] as const
 export type CardSize = typeof CARD_SIZES[number]
-export const SIZE_NAMES: Record<CardSize, string> = { s: 'Short', m: 'Medium', l: 'Tall' }
+export const SIZE_NAMES: Record<CardSize, string> = { s: msg('Short'), m: msg('Medium'), l: msg('Tall') }
 export const CARD_DENSITIES = ['big', 'normal', 'small'] as const
 export type CardDensity = typeof CARD_DENSITIES[number]
-export const DENSITY_NAMES: Record<CardDensity, string> = { big: 'Big text', normal: 'Normal', small: 'Small text' }
+export const DENSITY_NAMES: Record<CardDensity, string> = { big: msg('Big text'), normal: msg('Normal'), small: msg('Small text') }
 
 /** `listId`: the Checklist card's list (absent: the first reusable list). */
 export interface BoardCardSpec { id: BoardCardId; size: CardSize; density: CardDensity; listId?: string }
@@ -30,10 +31,10 @@ const c = (id: BoardCardId, size: CardSize = 'm', density: CardDensity = 'normal
 /** Starting points for who looks at the screen. The family's default arrangement isn't one of these:
  * it's no preset at all (DEFAULT_CHOICE), and adapts to the screen on its own. */
 export const BUILT_IN_PRESETS: BoardPreset[] = [
-  { id: 'kids', name: 'Kids', layout: { tiles: false, columns: [[c('clock', 'm', 'big'), c('photo', 'l')], [c('today', 'l', 'big'), c('chores', 'm', 'big')], [c('tidbit', 'm', 'big'), c('coming', 'm', 'big')]] } },
-  { id: 'kitchen', name: 'Kitchen', layout: { tiles: true, columns: [[c('clock', 's'), c('meals', 'l', 'big')], [c('today', 'l'), c('photo', 'm')], [c('coming', 'l'), c('tidbit', 's')]] } },
-  { id: 'parents', name: 'Parents', layout: { tiles: true, columns: [[c('clock', 's', 'small'), c('today', 'l', 'small')], [c('coming', 'l', 'small'), c('due', 'm', 'small')], [c('chores', 'm', 'small'), c('meals', 's', 'small')]] } },
-  { id: 'simple', name: 'Simple', layout: { tiles: false, columns: [[c('clock', 'm', 'big'), c('photo', 'l')], [c('today', 'l', 'big')]] } },
+  { id: 'kids', name: msg('Kids'), layout: { tiles: false, columns: [[c('clock', 'm', 'big'), c('photo', 'l')], [c('today', 'l', 'big'), c('chores', 'm', 'big')], [c('tidbit', 'm', 'big'), c('coming', 'm', 'big')]] } },
+  { id: 'kitchen', name: msg('Kitchen'), layout: { tiles: true, columns: [[c('clock', 's'), c('meals', 'l', 'big')], [c('today', 'l'), c('photo', 'm')], [c('coming', 'l'), c('tidbit', 's')]] } },
+  { id: 'parents', name: msg('Parents'), layout: { tiles: true, columns: [[c('clock', 's', 'small'), c('today', 'l', 'small')], [c('coming', 'l', 'small'), c('due', 'm', 'small')], [c('chores', 'm', 'small'), c('meals', 's', 'small')]] } },
+  { id: 'simple', name: msg('Simple'), layout: { tiles: false, columns: [[c('clock', 'm', 'big'), c('photo', 'l')], [c('today', 'l', 'big')]] } },
 ]
 /** The layout the family's default arrangement roughly matches, to start editing from. */
 export const DEFAULT_LAYOUT: BoardLayout = {

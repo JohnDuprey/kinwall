@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Member, Note, NoteTarget } from './types.ts'
@@ -7,18 +6,19 @@ import { readableOn } from './color.ts'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { Face, ChipFace } from './Face'
+import { formatDate, intlLocale, MONTH_DAY, t } from './i18n.ts'
 
 const POST_AS_KEY = 'kinwall.notePostAs' // member the last note was posted as
 const MAX = 2000
 
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'short' })
 function relTime(iso: string): string {
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'auto', style: 'short' })
   const min = Math.round((Date.now() - Date.parse(iso)) / 60000)
-  if (min < 1) return 'just now'
+  if (min < 1) return t('just now')
   if (min < 60) return rtf.format(-min, 'minute')
   if (min < 24 * 60) return rtf.format(-Math.round(min / 60), 'hour')
   if (min < 7 * 24 * 60) return rtf.format(-Math.round(min / 1440), 'day')
-  return format(new Date(iso), 'MMM d')
+  return formatDate(new Date(iso), MONTH_DAY)
 }
 
 // Plain text with http(s) links made clickable. React escapes the text, so nothing in a note is ever HTML.
@@ -36,7 +36,8 @@ function readPostAs(): string | null {
 /** The notes thread on an event or list item: who said what, in their color. Tap a note to edit or
  * delete it; "+ Add note" (folded, like "+ Add to-do") posts a new one as the chosen member (on a
  * kid's own device, always as the kid). */
-export default function NotesThread({ target, title = 'Notes' }: { target: NoteTarget; title?: string }) {
+export default function NotesThread({ target, title: heading }: { target: NoteTarget; title?: string }) {
+  const title = heading ?? t('Notes')
   const { members, selectedMemberId, meMemberId, refreshTick, toast, parentDevice, focusLocked } = useApp()
   // A kid's own device posts as the kid and changes only their notes; a wall screen only Someone's (the server refuses the rest).
   const kid = !parentDevice && focusLocked ? meMemberId : null
@@ -56,12 +57,12 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
   // Names are drawn in the member's color, darkened/lightened just enough to read on the sheet.
   const cardBg = getComputedStyle(document.documentElement).getPropertyValue('--card').trim()
   const nameInk = (m: Member | undefined) => m && /^#[0-9a-f]{6}$/i.test(cardBg) ? readableOn(m.color, cardBg) : undefined
-  const who = (n: Note) => byId.get(n.memberId ?? '')?.name ?? 'Someone'
+  const who = (n: Note) => byId.get(n.memberId ?? '')?.name ?? t('Someone')
 
   const load = () => api.getNotes(target).then(setNotes).catch(() => setNotes([]))
   useEffect(() => { load() }, [target, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fail = (e: unknown, what: string) => toast(e instanceof ApiError ? e.message : `Could not ${what}`, true)
+  const fail = (e: unknown, fallback: string) => toast(e instanceof ApiError ? e.message : fallback, true)
   const collapse = () => { setAdding(false); setDraft(''); setTimeout(() => addBtnRef.current?.focus()) }
   const post = async () => {
     const body = draft.trim()
@@ -70,8 +71,8 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
       await api.addNote(target, body, kid ?? postAs)
       try { if (postAs) localStorage.setItem(POST_AS_KEY, postAs) } catch { /* private mode */ }
       collapse(); load()
-      announce(`Note posted${!kid && postAs ? ` as ${byId.get(postAs)?.name}` : ''}`)
-    } catch (e) { fail(e, 'post note') }
+      announce(!kid && postAs ? t('Note posted as {name}', { name: byId.get(postAs)?.name ?? '' }) : t('Note posted'))
+    } catch (e) { fail(e, t('Could not post note')) }
   }
   const startEdit = (n: Note) => { setEditing(n.id); setEditDraft(n.body) }
   // Leaving edit mode removes the focused textarea: put focus back on that note's Edit (or, once
@@ -84,13 +85,13 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
   const saveEdit = async (n: Note) => {
     const body = editDraft.trim()
     if (!body) return
-    try { await api.updateNote(n.id, body); stopEdit(n.id); load(); announce('Note saved') }
-    catch (e) { fail(e, 'save note') }
+    try { await api.updateNote(n.id, body); stopEdit(n.id); load(); announce(t('Note saved')) }
+    catch (e) { fail(e, t('Could not save note')) }
   }
   const remove = async (n: Note) => {
-    if (!await dialog.confirm({ title: 'Delete this note?', body: `${who(n)}: “${n.body.length > 80 ? n.body.slice(0, 80) + '…' : n.body}”`, confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteNote(n.id); stopEdit(n.id); load(); announce('Note deleted') }
-    catch (e) { fail(e, 'delete note') }
+    if (!await dialog.confirm({ title: t('Delete this note?'), body: `${who(n)}: “${n.body.length > 80 ? n.body.slice(0, 80) + '…' : n.body}”`, confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteNote(n.id); stopEdit(n.id); load(); announce(t('Note deleted')) }
+    catch (e) { fail(e, t('Could not delete note')) }
   }
   const escape = (fn: () => void) => (e: React.KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); fn() } } // before the sheet's own Escape
 
@@ -110,17 +111,17 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
                 <div className="note-head">
                   {m ? <Face m={m} className="note-avatar" aria-hidden="true" /> : <span className="note-avatar" aria-hidden="true">?</span>}
                   <span className="note-name" style={{ color: nameInk(m) }}>{who(n)}</span>
-                  <span className="note-time"><time dateTime={n.createdAt} title={new Date(n.createdAt).toLocaleString()}>{relTime(n.createdAt)}</time>{edited && ' · edited'}</span>
-                  {editing !== n.id && canChange(n) && <button type="button" className="link-btn note-edit" onClick={() => startEdit(n)} aria-label={`Edit note by ${who(n)}`}>Edit</button>}
+                  <span className="note-time"><time dateTime={n.createdAt} title={new Date(n.createdAt).toLocaleString(intlLocale())}>{relTime(n.createdAt)}</time>{edited && ` · ${t('edited')}`}</span>
+                  {editing !== n.id && canChange(n) && <button type="button" className="link-btn note-edit" onClick={() => startEdit(n)} aria-label={t('Edit note by {name}', { name: who(n) })}>{t('Edit')}</button>}
                 </div>
                 {editing === n.id ? (
                   <div className="note-form" onKeyDownCapture={escape(() => stopEdit(n.id))}>
-                    <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} maxLength={MAX} autoFocus aria-label={`Edit note by ${who(n)}`} rows={3} />
+                    <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} maxLength={MAX} autoFocus aria-label={t('Edit note by {name}', { name: who(n) })} rows={3} />
                     <div className="note-actions">
-                      <button type="button" className="btn btn-danger" onClick={() => remove(n)}>Delete</button>
+                      <button type="button" className="btn btn-danger" onClick={() => remove(n)}>{t('Delete')}</button>
                       <span style={{ flex: 1 }} />
-                      <button type="button" className="btn btn-secondary" onClick={() => stopEdit(n.id)}>Cancel</button>
-                      <button type="button" className="btn btn-primary" onClick={() => saveEdit(n)} disabled={!editDraft.trim()}>Save</button>
+                      <button type="button" className="btn btn-secondary" onClick={() => stopEdit(n.id)}>{t('Cancel')}</button>
+                      <button type="button" className="btn btn-primary" onClick={() => saveEdit(n)} disabled={!editDraft.trim()}>{t('Save')}</button>
                     </div>
                   </div>
                 ) : (
@@ -133,24 +134,24 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
       )}
       {!adding ? (
         <button ref={addBtnRef} type="button" className="link-btn" style={{ alignSelf: 'flex-start' }} aria-expanded={false} aria-controls={formId}
-          onClick={() => { setPostAs(p => selectedMemberId ?? p); setAdding(true) }}>+ Add note</button>
+          onClick={() => { setPostAs(p => selectedMemberId ?? p); setAdding(true) }}>{t('+ Add note')}</button>
       ) : (
         <div id={formId} className="note-form" onKeyDownCapture={escape(collapse)}>
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} maxLength={MAX} autoFocus rows={3} placeholder="Add a note" aria-label="New note" />
+          <textarea value={draft} onChange={e => setDraft(e.target.value)} maxLength={MAX} autoFocus rows={3} placeholder={t('Add a note')} aria-label={t('New note')} />
           {members.length > 0 && !kid && (
-            <div className="chip-row note-post-as" role="radiogroup" aria-label="Post as">
-              <span className="note-post-as-label" aria-hidden="true">Post as</span>
+            <div className="chip-row note-post-as" role="radiogroup" aria-label={t('Post as')}>
+              <span className="note-post-as-label" aria-hidden="true">{t('Post as')}</span>
               {members.map(m => (
                 <button key={m.id} type="button" role="radio" aria-checked={postAs === m.id} className={`chip ${postAs === m.id ? 'active' : ''}`}
                   style={{ ['--chip-color' as string]: m.color }} onClick={() => setPostAs(m.id)}><ChipFace m={m} /> {m.name}</button>
               ))}
-              <button type="button" role="radio" aria-checked={postAs === null} className={`chip ${postAs === null ? 'active' : ''}`} onClick={() => setPostAs(null)}>Someone</button>
+              <button type="button" role="radio" aria-checked={postAs === null} className={`chip ${postAs === null ? 'active' : ''}`} onClick={() => setPostAs(null)}>{t('Someone')}</button>
             </div>
           )}
           <div className="note-actions">
             <span style={{ flex: 1 }} />
-            <button type="button" className="btn btn-secondary" onClick={collapse}>Cancel</button>
-            <button type="button" className="btn btn-primary" onClick={post} disabled={!draft.trim()}>Post</button>
+            <button type="button" className="btn btn-secondary" onClick={collapse}>{t('Cancel')}</button>
+            <button type="button" className="btn btn-primary" onClick={post} disabled={!draft.trim()}>{t('Post')}</button>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { isSingleEmoji, lastGrapheme } from './emoji.ts'
 import { MEMBER_EMOJI } from './types.ts'
+import { t } from './i18n.ts'
 
 /** "Any emoji" picker to pair with a curated emoji-swatch grid: shows the current choice as a
  * selected tile (custom emojis aren't in the grid, so this is the only place they're visible) next
@@ -13,16 +14,16 @@ export function AnyEmojiField({ value, onChange, allowInitials }: { value: strin
   const errorId = useId()
   return (
     <div className="any-emoji">
-      <div className="emoji-swatch active any-emoji-current" role="img" aria-label={value ? `Current: ${value}` : 'None picked'}>{value || '?'}</div>
+      <div className="emoji-swatch active any-emoji-current" role="img" aria-label={value ? t('Current: {value}', { value }) : t('None picked')}>{value || '?'}</div>
       <label className="any-emoji-field">
-        <span>{allowInitials ? 'Any emoji or initial' : 'Any emoji'}</span>
+        <span>{allowInitials ? t('Any emoji or initial') : t('Any emoji')}</span>
         <input
           type="text"
           inputMode="text"
           enterKeyHint="done"
           aria-invalid={!!error || undefined}
           aria-describedby={error ? errorId : undefined}
-          placeholder="Type or paste one"
+          placeholder={t('Type or paste one')}
           value={draft}
           onChange={e => {
             const raw = e.target.value.trim()
@@ -30,14 +31,14 @@ export function AnyEmojiField({ value, onChange, allowInitials }: { value: strin
             if (/^[A-Za-z]+$/.test(raw)) {
               setDraft(raw)
               if (allowInitials && raw.length <= 2) { onChange(raw); setError('') }
-              else setError(allowInitials ? 'Initials are 1-2 letters' : 'Pick a single emoji')
+              else setError(allowInitials ? t('Initials are 1-2 letters') : t('Pick a single emoji'))
               return
             }
             // Anything else: keep the newest character, which replaces the value if it's an emoji.
             const v = lastGrapheme(e.target.value)
             if (v && isSingleEmoji(v)) { onChange(v); setDraft(''); setError(''); return }
             setDraft(v)
-            setError(v ? (allowInitials ? 'Pick one emoji, or a 1-2 letter initial' : 'Pick a single emoji') : '')
+            setError(v ? (allowInitials ? t('Pick one emoji, or a 1-2 letter initial') : t('Pick a single emoji')) : '')
           }}
         />
       </label>
@@ -51,7 +52,7 @@ export function AnyEmojiField({ value, onChange, allowInitials }: { value: strin
 export function AvatarPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="field">
-      <label>Avatar</label>
+      <label>{t('Avatar')}</label>
       <div className="emoji-swatch-row">
         {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${value === e ? 'active' : ''}`} aria-pressed={value === e} onClick={() => onChange(e)}>{e}</button>)}
       </div>

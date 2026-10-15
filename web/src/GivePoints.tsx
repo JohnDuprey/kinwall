@@ -8,6 +8,7 @@ import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { BONUS_MAX, BONUS_NOTE_MAX, BONUS_QUICK, bonusPoints, gaveText } from './bonus.ts'
 import { ChipFace } from './Face'
+import { t } from './i18n.ts'
 
 const UNDO_MS = 6000
 
@@ -32,10 +33,10 @@ export function GivePoints({ memberId, className, label, children }: { memberId?
     setUndo(null)
     try {
       await api.deletePointAward(undo.id)
-      announce('Undone')
+      announce(t('Undone'))
       reloadCore()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Couldn't undo that.", true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't undo that."), true)
     }
   }
 
@@ -47,7 +48,7 @@ export function GivePoints({ memberId, className, label, children }: { memberId?
       {undo && (
         <div className="toast list-undo-toast" role="status">
           <span>{undo.text}</span>
-          <button className="list-undo-btn" onClick={takeBack}>Undo</button>
+          <button className="list-undo-btn" onClick={takeBack}>{t('Undo')}</button>
         </div>
       )}
     </>
@@ -73,17 +74,17 @@ function GiveSheet({ memberId, onClose, onGiven }: { memberId: string | null; on
       const { award } = await api.givePoints({ memberId: person.id, points, note: note.trim() || undefined, date: date === today ? undefined : date })
       onGiven(award.id, gaveText(person.name, points))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Couldn't give the points.", true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't give the points."), true)
       setSaving(false)
     }
   }
 
   return (
-    <Sheet title="Give points" onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={give} disabled={saving || !person || !points}>{person && points ? `Give ${person.name} ${points}` : 'Give'}</button>}>
-      <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>A bonus for something that isn't a chore. It counts toward their points, not their streak.</p>
+    <Sheet title={t('Give points')} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={give} disabled={saving || !person || !points}>{person && points ? t('Give {name} {n}', { name: person.name, n: points }) : t('Give')}</button>}>
+      <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{t("A bonus for something that isn't a chore. It counts toward their points, not their streak.")}</p>
       <div className="field">
-        <label>Who</label>
+        <label>{t('Who')}</label>
         <div className="chip-row">
           {members.map(m => (
             <button key={m.id} type="button" className={`chip ${who === m.id ? 'active' : ''}`} aria-pressed={who === m.id}
@@ -92,21 +93,21 @@ function GiveSheet({ memberId, onClose, onGiven }: { memberId: string | null; on
         </div>
       </div>
       <div className="field">
-        <label htmlFor="give-points">Points</label>
+        <label htmlFor="give-points">{t('Points')}</label>
         <div className="chip-row" style={{ marginBottom: 8 }}>
           {BONUS_QUICK.map(n => (
             <button key={n} type="button" className={`chip ${points === n ? 'active' : ''}`} aria-pressed={points === n} onClick={() => setRaw(String(n))}>+{n}</button>
           ))}
         </div>
         <input id="give-points" type="text" inputMode="numeric" value={raw} onChange={e => setRaw(e.target.value.replace(/[^\d]/g, ''))} aria-describedby="give-points-hint" />
-        <p id="give-points-hint" className="settings-row-sub">{raw && !points ? `From 1 to ${BONUS_MAX}.` : `Any amount from 1 to ${BONUS_MAX}.`}</p>
+        <p id="give-points-hint" className="settings-row-sub">{raw && !points ? t('From 1 to {max}.', { max: BONUS_MAX }) : t('Any amount from 1 to {max}.', { max: BONUS_MAX })}</p>
       </div>
       <div className="field">
-        <label htmlFor="give-note">What for? <span className="settings-row-sub">(optional)</span></label>
-        <input id="give-note" type="text" value={note} maxLength={BONUS_NOTE_MAX} onChange={e => setNote(e.target.value)} placeholder="Helped carry groceries" autoComplete="off" />
+        <label htmlFor="give-note">{t('What for?')} <span className="settings-row-sub">{t('(optional)')}</span></label>
+        <input id="give-note" type="text" value={note} maxLength={BONUS_NOTE_MAX} onChange={e => setNote(e.target.value)} placeholder={t('Helped carry groceries')} autoComplete="off" />
       </div>
       <div className="field">
-        <label htmlFor="give-date">Day</label>
+        <label htmlFor="give-date">{t('Day')}</label>
         <input id="give-date" type="date" value={date} max={today} onChange={e => setDate(e.target.value && e.target.value <= today ? e.target.value : today)} />
       </div>
     </Sheet>

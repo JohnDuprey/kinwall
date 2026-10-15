@@ -4,6 +4,7 @@ import { openPdf } from './pdf.ts'
 import { api } from './api.ts'
 import Sheet from './Sheet.tsx'
 import { ExternalIcon, MinusIcon, PlusIcon } from './icons.tsx'
+import { t, tn } from './i18n.ts'
 
 const ZOOMS = [1, 1.5, 2, 3]
 const MAX_CANVAS_PIXELS = 16_000_000 // iOS refuses to draw a bigger canvas
@@ -21,8 +22,8 @@ export default function RecipeCardSheet({ path, url, title, onClose }: { path: s
   useEffect(() => {
     let live = true
     let task: PDFDocumentLoadingTask | null = null
-    api.recipeCardPdf(path).then(openPdf).then(t => { task = t; if (!live) void t.destroy(); return t.promise }).then(d => { if (live) setDoc(d) })
-      .catch(e => { if (live) setError(e instanceof Error && e.message ? e.message : 'Could not open the recipe card.') })
+    api.recipeCardPdf(path).then(openPdf).then(loading => { task = loading; if (!live) void loading.destroy(); return loading.promise }).then(d => { if (live) setDoc(d) })
+      .catch(e => { if (live) setError(e instanceof Error && e.message ? e.message : t('Could not open the recipe card.')) })
     return () => { live = false; void task?.destroy() }
   }, [path])
 
@@ -58,22 +59,22 @@ export default function RecipeCardSheet({ path, url, title, onClose }: { path: s
         tasks.push(task)
         await task.promise.catch(() => {}) // cancelled by a newer zoom
       }
-    })().catch(e => { if (live) setError(e instanceof Error ? e.message : 'Could not show the recipe card.') })
-    return () => { live = false; tasks.forEach(t => t.cancel()) }
+    })().catch(e => { if (live) setError(e instanceof Error ? e.message : t('Could not show the recipe card.')) })
+    return () => { live = false; tasks.forEach(task => task.cancel()) }
   }, [doc, width, zoom])
 
-  const browser = <a className="btn btn-secondary" href={url} target="_blank" rel="noopener noreferrer"><ExternalIcon width={18} height={18} /> Open in browser</a>
+  const browser = <a className="btn btn-secondary" href={url} target="_blank" rel="noopener noreferrer"><ExternalIcon width={18} height={18} /> {t('Open in browser')}</a>
   return <Sheet title={title} onClose={onClose} variant="full" actions={error ? undefined : <div className="pdf-toolbar">
-    <button className="icon-btn" aria-label="Zoom out" disabled={!doc || zoom === 0} onClick={() => setZoom(z => z - 1)}><MinusIcon width={20} height={20} /></button>
-    <button className="icon-btn" aria-label="Zoom in" disabled={!doc || zoom === ZOOMS.length - 1} onClick={() => setZoom(z => z + 1)}><PlusIcon width={20} height={20} /></button>
-    <span className="pdf-count" aria-live="polite">{doc ? `${doc.numPages} page${doc.numPages === 1 ? '' : 's'}${zoom ? ` · ${ZOOMS[zoom] * 100}%` : ''}` : ''}</span>
+    <button className="icon-btn" aria-label={t('Zoom out')} disabled={!doc || zoom === 0} onClick={() => setZoom(z => z - 1)}><MinusIcon width={20} height={20} /></button>
+    <button className="icon-btn" aria-label={t('Zoom in')} disabled={!doc || zoom === ZOOMS.length - 1} onClick={() => setZoom(z => z + 1)}><PlusIcon width={20} height={20} /></button>
+    <span className="pdf-count" aria-live="polite">{doc ? `${tn(doc.numPages, '{n} page', '{n} pages')}${zoom ? ` · ${ZOOMS[zoom] * 100}%` : ''}` : ''}</span>
     {browser}
   </div>}>
     <div ref={bodyRef}>
-      {error ? <div className="pdf-state" role="alert"><p>This recipe card couldn’t be shown here ({error}).</p>{browser}</div>
-        : !doc ? <p className="pdf-state" role="status">Loading recipe card…</p>
+      {error ? <div className="pdf-state" role="alert"><p>{t('This recipe card couldn’t be shown here ({error}).', { error })}</p>{browser}</div>
+        : !doc ? <p className="pdf-state" role="status">{t('Loading recipe card…')}</p>
         : <div className="pdf-pages" onDoubleClick={() => setZoom(z => z ? 0 : 2)}>
-          {Array.from({ length: doc.numPages }, (_, i) => <canvas key={i} ref={el => { canvases.current[i] = el }} role="img" aria-label={`Page ${i + 1} of ${doc.numPages}`} />)}
+          {Array.from({ length: doc.numPages }, (_, i) => <canvas key={i} ref={el => { canvases.current[i] = el }} role="img" aria-label={t('Page {n} of {total}', { n: i + 1, total: doc.numPages })} />)}
         </div>}
     </div>
   </Sheet>

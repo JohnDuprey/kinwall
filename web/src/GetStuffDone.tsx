@@ -14,6 +14,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { Face } from './Face'
 import { useBackClose } from './backStack.ts'
+import { t, tn } from './i18n.ts'
 
 /** Opened from a chore with this checklist: only its person's items (and nobody's), and once
  * they're all ticked the chore completes the usual way (`onComplete`: approval, points, reset).
@@ -81,20 +82,20 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   const { done, total } = progress(items)
   const finished = allDone(items)
   useEffect(() => { if (!finished) setReview(false) }, [finished])
-  useEffect(() => { if (finished && !chore?.done) announce(`All done! ${list?.name ?? ''} is finished.`) }, [finished]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (finished && !chore?.done) announce(t('All done! {name} is finished.', { name: list?.name ?? '' })) }, [finished]) // eslint-disable-line react-hooks/exhaustive-deps
   // From a chore that knows who gets the points: the last tick completes it, so nobody walks away with 0.
   useEffect(() => {
     if (!finished || !chore?.done || completed) return
     setCompleted(chore.done)
     chore.onComplete()
-    announce(`All done! ${chore.title}: ${chore.done}`)
+    announce(t('All done! {title}: {done}', { title: chore.title, done: chore.done }))
   }, [finished]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = (id: string, next: Partial<ListItem>) => setDetail(d => d && { ...d, items: d.items.map(i => (i.id === id ? { ...i, ...next } : i)) })
   const setDone = async (it: ListItem, on: boolean) => {
     patch(it.id, { done: on, steps: it.steps.map(st => ({ ...st, done: on })), stepsDone: on ? it.stepsTotal : 0 }) // ticking an item ticks its steps
     try { await api.queueUpdateListItem(listId, it.id, { done: on }) } // offline too: syncs when back
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true); load() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not update item'), true); load() }
   }
   const tickStep = async (it: ListItem, stepId: string, on: boolean) => {
     const steps = it.steps.map(st => (st.id === stepId ? { ...st, done: on } : st))
@@ -102,38 +103,39 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
     try {
       const next = await api.updateListItemStep(listId, it.id, stepId, { done: on }) // the whole item back: done once every step is
       patch(it.id, next)
-      if (next.done && !it.done) { announce(`${it.title} done`); goNext(next) }
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update', true); load() }
+      if (next.done && !it.done) { announce(t('{title} done', { title: it.title })); goNext(next) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not update'), true); load() }
   }
 
-  const go = (i: number, said = '') => {
+  const go = (i: number, ticked?: string) => {
     const to = items[i]
     if (!to) return
     setCur(to.id)
-    announce(`${said}${i + 1} of ${total}: ${to.title}${to.done ? ', done' : ''}`)
+    const at = { done: ticked ?? '', i: i + 1, total, title: to.title }
+    announce((ticked ? t('{done} done. Next, {i} of {total}: {title}', at) : t('{i} of {total}: {title}', at)) + (to.done ? t(', done') : ''))
   }
   // After a tick: on to the next open one (with the ticked one counted done).
   const goNext = (ticked: ListItem) => {
     const after = items.map(i => (i.id === ticked.id ? { ...i, done: true } : i))
     const n = nextOpen(after, index)
-    if (n >= 0) go(n, `${ticked.title} done. Next, `)
+    if (n >= 0) go(n, ticked.title)
   }
   const doneNow = () => { if (!item) return; setDone(item, true); goNext(item) }
   const skip = nextOpen(items, index)
-  const pickView = (v: DoView) => { setView(v); saveView(v); announce(v === 'step' ? 'One at a time' : 'Whole list') }
+  const pickView = (v: DoView) => { setView(v); saveView(v); announce(v === 'step' ? t('One at a time') : t('Whole list')) }
 
   const reset = async () => {
     const ids = items.filter(i => i.done).map(i => i.id)
-    try { await api.resetList(listId, ids); toast(`Reset for next time: ${list?.name}`); exit() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reset the list', true) }
+    try { await api.resetList(listId, ids); toast(t('Reset for next time: {name}', { name: list?.name ?? '' })); exit() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reset the list'), true) }
   }
 
   const avatar = (memberId: string | null, size: 'big' | 'small') => {
     const m = memberId ? members.find(x => x.id === memberId) : undefined
-    return m && <Face m={m} className={`gsd-avatar gsd-avatar-${size}`} role="img" aria-label={`For ${m.name}`} />
+    return m && <Face m={m} className={`gsd-avatar gsd-avatar-${size}`} role="img" aria-label={t('For {name}', { name: m.name })} />
   }
   const stepRows = (it: ListItem) => it.steps.length > 0 && (
-    <div className="gsd-steps" role="group" aria-label={`${it.title} steps`}>
+    <div className="gsd-steps" role="group" aria-label={t('{title} steps', { title: it.title })}>
       {it.steps.map(st => (
         <button key={st.id} type="button" className={`shop-row gsd-row ${st.done ? 'done' : ''}`} role="checkbox" aria-checked={st.done} onClick={() => tickStep(it, st.id, !st.done)}>
           <span className="shop-check" aria-hidden="true">{st.done && <CheckIcon width={20} height={20} />}</span>
@@ -143,18 +145,18 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
     </div>
   )
 
-  const name = list?.name ?? 'Checklist'
+  const name = list?.name ?? t('Checklist')
   let body: React.ReactNode
-  if (error || !detail) body = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
-  else if (!items.length) body = <div className="empty-card gsd-empty"><span className="emoji">📝</span>Nothing on {name} {chore || kid ? 'for you ' : ''}yet.</div>
+  if (error || !detail) body = <div className="state-card">{error ? t("Couldn't load this list.") : t('Loading…')}</div>
+  else if (!items.length) body = <div className="empty-card gsd-empty"><span className="emoji">📝</span>{chore || kid ? t('Nothing on {name} for you yet.', { name }) : t('Nothing on {name} yet.', { name })}</div>
   else if (completed && chore) {
     body = (
       <div className="gsd-main scroll-y">
         <div className="gsd-celebrate">
           <span className="gsd-party" aria-hidden="true">🎉</span>
-          <p className="gsd-title">All done!</p>
+          <p className="gsd-title">{t('All done!')}</p>
           <p className="gsd-sub">{chore.title}: {completed}</p>
-          <div className="gsd-finish"><button type="button" className="btn btn-primary" onClick={onClose}>Finish</button></div>
+          <div className="gsd-finish"><button type="button" className="btn btn-primary" onClick={onClose}>{t('Finish')}</button></div>
         </div>
       </div>
     )
@@ -164,11 +166,11 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
       <div className="gsd-main scroll-y">
         <div className="gsd-celebrate">
           <span className="gsd-party" aria-hidden="true">⭐</span>
-          <p className="gsd-title">One more tap!</p>
-          <p className="gsd-sub">Every step of {name} is ticked.</p>
+          <p className="gsd-title">{t('One more tap!')}</p>
+          <p className="gsd-sub">{t('Every step of {name} is ticked.', { name })}</p>
           <div className="gsd-finish">
-            <button type="button" className="btn btn-primary" onClick={() => { onClose(); chore.onComplete() }}>⭐ Get the {chore.points} points</button>
-            <button type="button" className="link-btn" onClick={() => setReview(true)}>Look over the list</button>
+            <button type="button" className="btn btn-primary" onClick={() => { onClose(); chore.onComplete() }}>⭐ {tn(chore.points, 'Get the {n} point', 'Get the {n} points')}</button>
+            <button type="button" className="link-btn" onClick={() => setReview(true)}>{t('Look over the list')}</button>
           </div>
         </div>
       </div>
@@ -178,12 +180,12 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
       <div className="gsd-main scroll-y">
         <div className="gsd-celebrate">
           <span className="gsd-party" aria-hidden="true">🎉</span>
-          <p className="gsd-title">All done!</p>
-          <p className="gsd-sub">{name} is finished.</p>
+          <p className="gsd-title">{t('All done!')}</p>
+          <p className="gsd-sub">{t('{name} is finished.', { name })}</p>
           <div className="gsd-finish">
-            {list?.kind === 'reusable' && <button type="button" className="btn btn-secondary" onClick={reset}>Reset for next time</button>}
-            <button type="button" className="btn btn-primary" onClick={exit}>{pinned ? 'Back to the Board' : 'Finish'}</button>
-            <button type="button" className="link-btn" onClick={() => setReview(true)}>Look over the list</button>
+            {list?.kind === 'reusable' && <button type="button" className="btn btn-secondary" onClick={reset}>{t('Reset for next time')}</button>}
+            <button type="button" className="btn btn-primary" onClick={exit}>{pinned ? t('Back to the Board') : t('Finish')}</button>
+            <button type="button" className="link-btn" onClick={() => setReview(true)}>{t('Look over the list')}</button>
           </div>
         </div>
       </div>
@@ -194,11 +196,11 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
         <div className="gsd-list" role="group" aria-label={name}>
           {listOrder(items).map(it => (
             <button key={it.id} type="button" className={`shop-row gsd-row ${it.done ? 'done' : ''}`} role="checkbox" aria-checked={it.done}
-              onClick={() => { setDone(it, !it.done); announce(`${it.title} ${it.done ? 'not done' : 'done'}`) }}>
+              onClick={() => { setDone(it, !it.done); announce(it.done ? t('{title} not done', { title: it.title }) : t('{title} done', { title: it.title })) }}>
               <span className="shop-check" aria-hidden="true">{it.done && <CheckIcon width={24} height={24} />}</span>
               <span className="shop-row-body">
                 <span className="shop-row-title">{it.title}</span>
-                {it.stepsTotal > 0 && <span className="shop-row-note">{it.stepsDone} of {it.stepsTotal} steps</span>}
+                {it.stepsTotal > 0 && <span className="shop-row-note">{t('{done} of {total} steps', { done: it.stepsDone, total: it.stepsTotal })}</span>}
               </span>
               {avatar(it.memberId, 'small')}
             </button>
@@ -211,7 +213,7 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
       <div className="gsd-main scroll-y">
         <div className="gsd-step">
           <div className="gsd-dots" aria-hidden="true">{items.map((it, i) => <span key={it.id} className={`${it.done ? 'done' : ''} ${i === index ? 'here' : ''}`} />)}</div>
-          <p className="cook-step-num gsd-count">Item {index + 1} of {total}{item.done ? ' · ✓ Done' : ''}</p>
+          <p className="cook-step-num gsd-count">{t('Item {i} of {total}', { i: index + 1, total })}{item.done ? ` · ✓ ${t('Done')}` : ''}</p>
           {avatar(item.memberId, 'big')}
           <p className={`gsd-title ${item.done ? 'done' : ''}`}>{item.title}</p>
           {(due || linked || item.priority !== 'normal') && (
@@ -226,11 +228,11 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
         </div>
       </div>
       <footer className="cook-nav gsd-nav">
-        <button type="button" className="btn btn-secondary" disabled={index === 0} onClick={() => go(index - 1)}><ChevronLeft width={24} height={24} /> Back</button>
-        <button type="button" className="btn btn-secondary" disabled={skip < 0} onClick={() => go(skip)}>{item.done ? 'Next' : 'Skip'} <ChevronRight width={24} height={24} /></button>
+        <button type="button" className="btn btn-secondary" disabled={index === 0} onClick={() => go(index - 1)}><ChevronLeft width={24} height={24} /> {t('Back')}</button>
+        <button type="button" className="btn btn-secondary" disabled={skip < 0} onClick={() => go(skip)}>{item.done ? t('Next') : t('Skip')} <ChevronRight width={24} height={24} /></button>
         {item.done
-          ? <button type="button" className="btn btn-secondary gsd-done" onClick={() => { setDone(item, false); announce(`${item.title} not done`) }}>Not done</button>
-          : <button type="button" className="btn btn-primary gsd-done" onClick={doneNow}><CheckIcon width={28} height={28} /> Done</button>}
+          ? <button type="button" className="btn btn-secondary gsd-done" onClick={() => { setDone(item, false); announce(t('{title} not done', { title: item.title })) }}>{t('Not done')}</button>
+          : <button type="button" className="btn btn-primary gsd-done" onClick={doneNow}><CheckIcon width={28} height={28} /> {t('Done')}</button>}
       </footer>
     </>
   }
@@ -239,14 +241,14 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
     <div ref={root} className="cook-mode gsd-mode" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <header className="cook-bar gsd-bar">
         {pinned
-          ? <button type="button" className="btn btn-secondary gsd-exit" onClick={exit}><HomeIcon width={20} height={20} /> Board</button>
-          : <button type="button" className="icon-btn" aria-label="Exit Get stuff done" onClick={exit}><XIcon width={24} height={24} /></button>}
+          ? <button type="button" className="btn btn-secondary gsd-exit" onClick={exit}><HomeIcon width={20} height={20} /> {t('Board')}</button>
+          : <button type="button" className="icon-btn" aria-label={t('Exit Get stuff done')} onClick={exit}><XIcon width={24} height={24} /></button>}
         <div className="gsd-head">
-          <h2 id={titleId} ref={heading} tabIndex={-1} className="cook-title">Get stuff done: {list?.emoji ? `${list.emoji} ` : ''}{name}</h2>
-          {total > 0 && !completed && <span className="gsd-progress-text">{done} of {total} done</span>}
+          <h2 id={titleId} ref={heading} tabIndex={-1} className="cook-title">{t('Get stuff done: {name}', { name: `${list?.emoji ? `${list.emoji} ` : ''}${name}` })}</h2>
+          {total > 0 && !completed && <span className="gsd-progress-text">{t('{done} of {total} done', { done, total })}</span>}
         </div>
-        <Segmented label="Show" value={view} onChange={pickView} className="gsd-toggle"
-          options={[{ key: 'step', label: 'One at a time' }, { key: 'list', label: 'Whole list' }]} />
+        <Segmented label={t('Show')} value={view} onChange={pickView} className="gsd-toggle"
+          options={[{ key: 'step', label: t('One at a time') }, { key: 'list', label: t('Whole list') }]} />
       </header>
       <div className="cook-progress" aria-hidden="true"><div style={{ width: `${completed ? 100 : total ? done / total * 100 : 0}%` }} /></div>
       {body}

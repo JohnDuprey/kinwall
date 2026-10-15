@@ -9,6 +9,17 @@ Each card is folded to its title (and its summary, when it has one); tap the tit
 
 The Kinwall version ("Kinwall v…") shows at the bottom.
 
+## Language
+
+The **Language** card at the top picks the language this screen shows: **English** or **Deutsch** (German), each written in its own language so you can find yours. Nothing picked means **🏠 Use the family's**, the family's language from [Household](#household).
+
+* On someone's own device (their phone, or a kid's tablet), the pick is saved in their profile, so it follows them to all their devices. A kid can change their own here.
+* On a wall screen or a shared device, it's saved on that device only.
+
+A wall stays in its language when someone taps their face on it: only the [activities](../using/activities.md) they play use their own language. The phone apps' own screens (widgets, Siri, the share sheet) follow the phone's language for now.
+
+German covers every screen. Some text the server writes (newscast lines, insights, error messages) is still English, and what your family typed (chore and event names) stays as typed. Want to help translate? See [Translations](../contributing/translations.md).
+
 ## For the whole family
 
 ### Household
@@ -16,6 +27,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 | Setting | Notes |
 |---|---|
 | **Family name** | Shown in the header. Default "Our Family". Saves when you leave the field. |
+| **Language** | The family's language: **English** (the default) or **Deutsch**. Wall screens and shared screens use it, and so does anyone who hasn't picked their own under [Language](#language). Dates and times follow it too (German: "Do., 8. Okt."). API: `language` `en` / `de`. |
 | **Timezone** | The household timezone. Chores, reminders, summaries and "today" use it. If it's not set, the first device to load the app sets it from its own timezone. Every screen shows its clock in this timezone; a device can show its own instead under [Appearance on this device](this-display.md#appearance-on-this-device). Clocks change right on the minute. Tap it to choose from a list: this device's timezone and the current one come first, each row shows the time there and its UTC offset ("8:04 PM · UTC−4"), and the search finds a city or region ("New York", "America/New_York"). |
 | **Week starts on** | Sunday or Monday. Applies to the Week and Month views and the weekly leaderboard. |
 | **Time format** | **Automatic** (the default), **12-hour (3:40 PM)** or **24-hour (15:40)**. Every clock time in the app follows it: the Board's clock, the calendar's hour labels and events, Now / Next, meals, medicines, the night screen and leave-by times. Automatic uses each device's language and region, and a device can pick its own under [Appearance on this device](this-display.md#appearance-on-this-device). Notifications and Live Activity headlines the server writes use this setting too; on Automatic they go by the weather location's country (12-hour in the US, Canada, Australia, New Zealand, the Philippines, India, Pakistan, Bangladesh, Egypt, Saudi Arabia and Malaysia, 24-hour everywhere else) and stay 12-hour with no location. Time fields you type into (night hours, meal times) use the device's own clock style, which the browser decides. API: `timeFormat` `auto` / `12` / `24`. |

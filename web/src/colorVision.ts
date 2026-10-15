@@ -1,3 +1,4 @@
+import { msg } from './i18n.ts'
 // Color vision: how a color looks with color blindness, and whether two people's colors would look
 // alike. Simulation uses the Machado, Oliveira and Fernandes (2009) matrices at full severity, applied
 // in linear RGB. Distance is CIE76 ΔE (straight-line distance in CIELAB): the question here is coarse
@@ -78,10 +79,10 @@ export function suggestColor(taken: readonly string[], palette: readonly string[
 
 /** Words for the warning: "to someone with red-green color blindness". */
 export const VISION_WORDS: Record<Vision, string> = {
-  typical: 'at a glance',
-  protan: 'to someone with red-green color blindness',
-  deutan: 'to someone with red-green color blindness',
-  tritan: 'to someone with blue-yellow color blindness',
+  typical: msg('at a glance'),
+  protan: msg('to someone with red-green color blindness'),
+  deutan: msg('to someone with red-green color blindness'),
+  tritan: msg('to someone with blue-yellow color blindness'),
 }
 
 /** The first pair (in list order) whose colors look alike, with the vision it's under, or null. */

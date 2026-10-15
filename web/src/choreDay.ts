@@ -1,5 +1,6 @@
 // A day of chores on the Chores tab (Chores.tsx): whose points they are, the order a column reads in,
 // and which start times have passed.
+import { tn } from './i18n.ts'
 type Done = { points: number; completed: boolean; completedBy: string | null; memberId: string | null }
 
 /** Points a person earned from the day's chores: whoever it was credited to, so an Anyone chore
@@ -30,4 +31,4 @@ export const waitsForOk = (c: { needsApproval?: boolean | null; activity?: { ava
 
 /** What completing a checklist chore earns, for its All done! screen. */
 export const earnedText = (points: number, name: string, waits: boolean) =>
-  waits ? `a grown-up will OK it, then ${name} gets ${points} point${points === 1 ? '' : 's'}` : `⭐ ${points} point${points === 1 ? '' : 's'} for ${name}`
+  waits ? tn(points, 'a grown-up will OK it, then {name} gets {n} point', 'a grown-up will OK it, then {name} gets {n} points', { name }) : tn(points, '⭐ {n} point for {name}', '⭐ {n} points for {name}', { name })

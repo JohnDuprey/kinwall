@@ -3,6 +3,7 @@
 // the calendar's day cells, and keyboard activation for tappable non-button elements.
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { loadErrorText } from './failureMessage.ts'
+import { t } from './i18n.ts'
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -149,9 +150,9 @@ if (firstLoad) {
  * same on every screen. The server's own message only goes to the console. */
 export function LoadError({ what, onRetry, error }: { what: string; onRetry: () => void; error?: unknown }) {
   useEffect(() => { if (error) console.error(`Couldn't load ${what}:`, error) }, [error, what])
-  return <div className="state-card" role="alert">{loadErrorText(what)} <button className="btn btn-secondary" onClick={onRetry}>Try again</button></div>
+  return <div className="state-card" role="alert">{loadErrorText(what)} <button className="btn btn-secondary" onClick={onRetry}>{t('Try again')}</button></div>
 }
 
 /** The filter button's name on Calendar, Contacts, Lists, Library and Outings (their sheets are
  * titled "Filter and sort"): "Filter and sort, 2 on". */
-export const filterSortLabel = (on: number) => (on ? `Filter and sort, ${on} on` : 'Filter and sort')
+export const filterSortLabel = (on: number) => (on ? t('Filter and sort, {n} on', { n: on }) : t('Filter and sort'))

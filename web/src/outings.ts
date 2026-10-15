@@ -3,8 +3,9 @@
 // (the same file as the server's).
 import { addDays, forBoxes, hiddenFromKid, isPast, matchesFilter, onBetween, weekendOf, type ForBox, type OutingFilter, type PersonFacts } from './outing-rules.ts'
 import type { Member, Outing } from './types.ts'
+import { DAY, formatDate, t } from './i18n.ts'
 
-const day = (d: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-US', options).format(new Date(`${d}T12:00:00`))
+const day = (d: string, options: Intl.DateTimeFormatOptions) => formatDate(new Date(`${d}T12:00:00`), options)
 const clock = (t: string) => {
   const [h, m] = t.split(':').map(Number)
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`
@@ -15,26 +16,26 @@ export const timeLabel = (o: Pick<Outing, 'startTime' | 'endTime'>) => o.startTi
 /** When it's on, short: "Sat 10 AM – 4 PM" this week, "Sat, Oct 24, 1 PM" later, "Until Oct 31" for
  * a run that's open, "Date not announced yet", "Any time" for a place. */
 export function whenLabel(o: Outing, today: string): string {
-  if (o.kind === 'place') return 'Any time'
-  if (!o.startsOn) return 'Date not announced yet'
-  const t = timeLabel(o)
+  if (o.kind === 'place') return t('Any time')
+  if (!o.startsOn) return t('Date not announced yet')
+  const time = timeLabel(o)
   if (o.endsOn && o.endsOn !== o.startsOn) {
-    const range = o.startsOn <= today ? `Until ${day(o.endsOn, { month: 'short', day: 'numeric' })}` : `${day(o.startsOn, { month: 'short', day: 'numeric' })} to ${day(o.endsOn, { month: 'short', day: 'numeric' })}`
-    return [range, o.hours ?? t].filter(Boolean).join(' · ')
+    const range = o.startsOn <= today ? t('Until {date}', { date: day(o.endsOn, { month: 'short', day: 'numeric' }) }) : t('{from} to {to}', { from: day(o.startsOn, { month: 'short', day: 'numeric' }), to: day(o.endsOn, { month: 'short', day: 'numeric' }) })
+    return [range, o.hours ?? time].filter(Boolean).join(' · ')
   }
   const soon = o.startsOn >= today && o.startsOn <= addDays(today, 6)
-  const d = o.startsOn === today ? 'Today' : o.startsOn === addDays(today, 1) ? 'Tomorrow' : day(o.startsOn, soon ? { weekday: 'short' } : { weekday: 'short', month: 'short', day: 'numeric', ...(o.startsOn.slice(0, 4) !== today.slice(0, 4) && { year: 'numeric' }) })
-  return t ? `${d}, ${t}` : d
+  const d = o.startsOn === today ? t('Today') : o.startsOn === addDays(today, 1) ? t('Tomorrow') : day(o.startsOn, soon ? { weekday: 'short' } : { weekday: 'short', month: 'short', day: 'numeric', ...(o.startsOn.slice(0, 4) !== today.slice(0, 4) && { year: 'numeric' }) })
+  return time ? `${d}, ${time}` : d
 }
 
-export const priceLabel = (o: Pick<Outing, 'priceCents'>) => o.priceCents === null ? null : o.priceCents === 0 ? 'Free' : `$${(o.priceCents / 100).toFixed(o.priceCents % 100 ? 2 : 0)}`
+export const priceLabel = (o: Pick<Outing, 'priceCents'>) => o.priceCents === null ? null : o.priceCents === 0 ? t('Free') : `$${(o.priceCents / 100).toFixed(o.priceCents % 100 ? 2 : 0)}`
 
 /** Who it's for, in a few words: "Family", "Kids 7–10", "Grown-ups", "For Maya". */
 export function audienceLabel(o: Pick<Outing, 'audience' | 'memberIds' | 'ageMin' | 'ageMax'>, members: Pick<Member, 'id' | 'name'>[]): string {
-  const ages = o.ageMin !== null && o.ageMax !== null ? ` ${o.ageMin}–${o.ageMax}` : o.ageMin !== null ? ` ${o.ageMin} and up` : o.ageMax !== null ? ` up to ${o.ageMax}` : ''
-  const parts = [o.audience.includes('family') && 'Family', o.audience.includes('kids') && `Kids${ages}`, o.audience.includes('grownups') && 'Grown-ups'].filter(Boolean) as string[]
+  const kids = o.ageMin !== null && o.ageMax !== null ? t('Kids {min}–{max}', { min: o.ageMin, max: o.ageMax }) : o.ageMin !== null ? t('Kids {min} and up', { min: o.ageMin }) : o.ageMax !== null ? t('Kids up to {max}', { max: o.ageMax }) : t('Kids')
+  const parts = [o.audience.includes('family') && t('Family'), o.audience.includes('kids') && kids, o.audience.includes('grownups') && t('Grown-ups')].filter(Boolean) as string[]
   const names = members.filter(m => o.memberIds.includes(m.id)).map(m => m.name)
-  if (names.length) parts.push(`For ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}`)
+  if (names.length) parts.push(t('For {names}', { names: names.length > 1 ? t('{list} and {last}', { list: names.slice(0, -1).join(', '), last: names.at(-1)! }) : names[0] }))
   return parts.join(' · ')
 }
 
@@ -48,13 +49,13 @@ export function upcomingSections(outings: Outing[], today: string): { key: strin
   const out = new Map<string, { key: string; title: string; outings: Outing[] }>()
   const add = (key: string, title: string, o: Outing) => { if (!out.has(key)) out.set(key, { key, title, outings: [] }); out.get(key)!.outings.push(o) }
   const sorted = [...outings].sort((a, b) => (a.startsOn ?? '9').localeCompare(b.startsOn ?? '9') || (a.startTime ?? '').localeCompare(b.startTime ?? '') || a.title.localeCompare(b.title))
-  for (const o of sorted.filter(o => !o.startsOn)) add('tba', 'Date not announced yet', o)
+  for (const o of sorted.filter(o => !o.startsOn)) add('tba', t('Date not announced yet'), o)
   for (const o of sorted.filter(o => o.startsOn)) {
     const s = o.startsOn!
-    if (o.endsOn && s < today) add('open', 'Open now', o)
-    else if (s < sat) add('week', 'This week', o)
-    else if (s <= sun) add('weekend', `This weekend · ${day(sat, { month: 'short', day: 'numeric' })}–${sat.slice(0, 7) === sun.slice(0, 7) ? day(sun, { day: 'numeric' }) : day(sun, { month: 'short', day: 'numeric' })}`, o)
-    else if (s <= monthEnd) add('month', 'Later this month', o)
+    if (o.endsOn && s < today) add('open', t('Open now'), o)
+    else if (s < sat) add('week', t('This week'), o)
+    else if (s <= sun) add('weekend', t('This weekend · {dates}', { dates: `${day(sat, { month: 'short', day: 'numeric' })}–${sat.slice(0, 7) === sun.slice(0, 7) ? day(sun, { day: 'numeric' }) : day(sun, { month: 'short', day: 'numeric' })}` }), o)
+    else if (s <= monthEnd) add('month', t('Later this month'), o)
     else add(s.slice(0, 7), day(s, { month: 'long', ...(s.slice(0, 4) !== today.slice(0, 4) && { year: 'numeric' }) }), o)
   }
   const order = (k: string) => ({ week: 0, weekend: 1, month: 2, open: 1e9, tba: 1e9 + 1 } as Record<string, number>)[k] ?? 3 + Number(k.replace('-', ''))
@@ -65,8 +66,8 @@ export function upcomingSections(outings: Outing[], today: string): { key: strin
 export function placeSections(outings: Outing[]): { key: string; title: string; outings: Outing[] }[] {
   const byName = (list: Outing[]) => [...list].sort((a, b) => a.title.localeCompare(b.title))
   return [
-    { key: 'want', title: 'Want to go', outings: byName(outings.filter(o => o.visitStatus !== 'been')) },
-    { key: 'been', title: 'Been there', outings: byName(outings.filter(o => o.visitStatus === 'been')) },
+    { key: 'want', title: t('Want to go'), outings: byName(outings.filter(o => o.visitStatus !== 'been')) },
+    { key: 'been', title: t('Been there'), outings: byName(outings.filter(o => o.visitStatus === 'been')) },
   ].filter(s => s.outings.length)
 }
 
@@ -101,22 +102,22 @@ export function shownOutings(outings: Outing[], kind: Outing['kind'], f: Filters
 /** Each filter that's on, as a chip: its words and the filters without it. */
 export function filterChips(f: Filters, members: Pick<Member, 'id' | 'name' | 'grownUp'>[], categories: { id: string; name: string }[]): { label: string; without: Filters }[] {
   const chips: { label: string; without: Filters }[] = []
-  const WHEN: Record<When, string> = { any: '', weekend: 'This weekend', week: 'Next 7 days', month: 'Next 30 days', past: 'Past' }
+  const WHEN: Record<When, string> = { any: '', weekend: t('This weekend'), week: t('Next 7 days'), month: t('Next 30 days'), past: t('Past') }
   if (f.when !== 'any') chips.push({ label: WHEN[f.when], without: { ...f, when: 'any' } })
   const who = members.find(m => m.id === f.who)
   if (who) {
-    const words = f.boxes.map(b => b === 'just' ? who.name : b === 'age' ? (who.grownUp ? 'grown-ups' : 'kids') : 'family')
-    chips.push({ label: `For ${words.join(', ') || who.name}`, without: { ...f, who: '' } })
+    const words = f.boxes.map(b => b === 'just' ? who.name : b === 'age' ? (who.grownUp ? t('grown-ups') : t('kids')) : t('family'))
+    chips.push({ label: t('For {names}', { names: words.join(', ') || who.name }), without: { ...f, who: '' } })
   }
-  if (f.categoryIds.length) chips.push({ label: categories.filter(c => f.categoryIds.includes(c.id)).map(c => c.name).join(', ') || 'Categories', without: { ...f, categoryIds: [] } })
-  if (f.markedBy) chips.push({ label: f.markedBy === 'any' ? 'Marked by someone' : f.markedBy === 'really' ? '⭐ only' : `Marked by ${members.find(m => m.id === f.markedBy)?.name ?? 'someone'}`, without: { ...f, markedBy: '' } })
-  if (f.cost !== 'any') chips.push({ label: f.cost === 'free' ? 'Free' : `Under $${f.cost}`, without: { ...f, cost: 'any' } })
+  if (f.categoryIds.length) chips.push({ label: categories.filter(c => f.categoryIds.includes(c.id)).map(c => c.name).join(', ') || t('Categories'), without: { ...f, categoryIds: [] } })
+  if (f.markedBy) chips.push({ label: f.markedBy === 'any' ? t('Marked by someone') : f.markedBy === 'really' ? t('⭐ only') : t('Marked by {name}', { name: members.find(m => m.id === f.markedBy)?.name ?? t('someone') }), without: { ...f, markedBy: '' } })
+  if (f.cost !== 'any') chips.push({ label: f.cost === 'free' ? t('Free') : t('Under ${amount}', { amount: f.cost }), without: { ...f, cost: 'any' } })
   return chips
 }
 
 /** The "Who it's for" boxes' words for a person: "Just for Maya", "For kids (Maya's age)", "For the family". */
 export const boxLabel = (b: ForBox, m: Pick<Member, 'name' | 'grownUp'>) =>
-  b === 'just' ? `Just for ${m.name}` : b === 'age' ? (m.grownUp ? 'For grown-ups' : `For kids (${m.name}’s age)`) : 'For the family'
+  b === 'just' ? t('Just for {name}', { name: m.name }) : b === 'age' ? (m.grownUp ? t('For grown-ups') : t('For kids ({name}’s age)', { name: m.name })) : t('For the family')
 
 /** Why an outing is for someone, for the sheet ("For Maya: kids 7–10"). Exposed for tests. */
 export const whyForPerson = (o: Outing, m: Pick<Member, 'id' | 'grownUp' | 'birthday'>, today: string) => forBoxes(o, { id: m.id, grownUp: !!m.grownUp, birthday: m.birthday ?? null }, today)
@@ -134,8 +135,8 @@ export function trayRows(outings: Outing[], today: string, kidId: string | null)
   for (const o of live) {
     if (weekend.includes(o) || o.kind === 'place') continue
     const sale = o.ticketsOnSaleAt?.slice(0, 10)
-    if (!o.gotTickets && sale && sale >= today && sale <= end) coming.push({ outing: o, note: `Tickets go on sale ${day(sale, { weekday: 'short', month: 'short', day: 'numeric' })}`, on: sale })
-    else if (!o.gotTickets && o.buyBy && o.buyBy >= today && o.buyBy <= end) coming.push({ outing: o, note: `Get tickets by ${day(o.buyBy, { weekday: 'short', month: 'short', day: 'numeric' })}`, on: o.buyBy })
+    if (!o.gotTickets && sale && sale >= today && sale <= end) coming.push({ outing: o, note: t('Tickets go on sale {date}', { date: day(sale, DAY) }), on: sale })
+    else if (!o.gotTickets && o.buyBy && o.buyBy >= today && o.buyBy <= end) coming.push({ outing: o, note: t('Get tickets by {date}', { date: day(o.buyBy, DAY) }), on: o.buyBy })
     else if (reallyCount(o) > 0 && o.startsOn && o.startsOn > sun && o.startsOn <= end) coming.push({ outing: o, note: null, on: o.startsOn })
   }
   return { weekend, coming: coming.sort((a, b) => a.on.localeCompare(b.on)).slice(0, 5) }

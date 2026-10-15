@@ -8,6 +8,7 @@ import { warningTimes, type TransitionReminders } from './transitions.ts'
 import { cardLabel } from './medications.ts'
 import { formatTime } from './timeFormat.ts'
 import { clock } from './timers.ts'
+import { t } from './i18n.ts'
 import type { AisleOrder, DueDose, EventInstance, ListItem } from './types.ts'
 
 const MIN = 60000
@@ -34,18 +35,18 @@ export const timerName = (label: string) => label.split(' · ')[0]
  * rang ("Done: Rice") until it's dismissed. Null when there are none. */
 export function timerActivity(timers: ActivityTimer[]): TimerActivity | null {
   // A paused timer isn't counting down, so it's not on the Lock Screen and doesn't ring.
-  const running = timers.filter(t => !t.done && !t.paused).sort((a, b) => a.endsAt - b.endsAt)
-  const shown = running[0] ?? timers.filter(t => t.done).sort((a, b) => b.endsAt - a.endsAt)[0]
+  const running = timers.filter(x => !x.done && !x.paused).sort((a, b) => a.endsAt - b.endsAt)
+  const shown = running[0] ?? timers.filter(x => x.done).sort((a, b) => b.endsAt - a.endsAt)[0]
   if (!shown) return null
-  const title = (t: ActivityTimer) => t.title ?? 'Timer'
-  const body = (t: ActivityTimer) => [title(t), t.detail].filter(Boolean).join(' · ')
-  const alarms = running.map(t => ({ at: t.endsAt, title: `Time's up: ${timerName(t.label)}`, body: body(t) }))
+  const title = (x: ActivityTimer) => x.title ?? t('Timer')
+  const body = (x: ActivityTimer) => [title(x), x.detail].filter(Boolean).join(' · ')
+  const alarms = running.map(x => ({ at: x.endsAt, title: t("Time's up: {timer}", { timer: timerName(x.label) }), body: body(x) }))
   // A range's check, ms before its end (both from timers.ts: `check` and `seconds` in seconds).
-  const after = (t: ActivityTimer) => t.check !== undefined && t.seconds !== undefined ? (t.seconds - t.check) * 1000 : null
-  const checks = running.filter(t => after(t) !== null).map(t => ({ at: t.endsAt - after(t)!, title: `Check it: ${timerName(t.label)}`, body: body(t) }))
-  const a: TimerActivity = { recipe: title(shown), timer: timerName(shown.label), step: shown.detail ?? '', endsAt: shown.endsAt, done: shown.done, more: running.filter(t => t !== shown).length, alarms, checks }
+  const after = (x: ActivityTimer) => x.check !== undefined && x.seconds !== undefined ? (x.seconds - x.check) * 1000 : null
+  const checks = running.filter(x => after(x) !== null).map(x => ({ at: x.endsAt - after(x)!, title: t('Check it: {timer}', { timer: timerName(x.label) }), body: body(x) }))
+  const a: TimerActivity = { recipe: title(shown), timer: timerName(shown.label), step: shown.detail ?? '', endsAt: shown.endsAt, done: shown.done, more: running.filter(x => x !== shown).length, alarms, checks }
   const rest = after(shown)
-  if (!shown.done && rest !== null) a.check = { at: shown.endsAt - rest, before: `Check at ${clock(shown.check! * 1000)}`, after: `Check now · up to ${clock(rest)} more` }
+  if (!shown.done && rest !== null) a.check = { at: shown.endsAt - rest, before: t('Check at {time}', { time: clock(shown.check! * 1000) }), after: t('Check now · up to {time} more', { time: clock(rest) }) }
   return a
 }
 
@@ -63,7 +64,7 @@ export function shoppingActivity(listId: string, store: string, items: TripItem[
   const view = store === ANY_STORE ? anyStoreView(items, order) : tripView(items, store, order, storeAisles, reverse)
   const walk = [...view.aisles.flatMap(g => g.items.map(i => ({ i, aisle: store === ANY_STORE ? i.aisle ?? null : g.aisle }))), ...view.unknown.map(i => ({ i, aisle: null }))].filter(x => !x.i.done)
   const upcoming = walk.slice(0, 5).map(({ i, aisle }) => ({ id: i.id, title: i.title, aisle, ...(i.listId && i.listId !== listId ? { listId: i.listId } : {}) }))
-  return { listId, store: store === ANY_STORE ? 'Any store' : store, left: walk.length, next: upcoming[0] ?? null, upcoming }
+  return { listId, store: store === ANY_STORE ? t('Any store') : store, left: walk.length, next: upcoming[0] ?? null, upcoming }
 }
 
 // ---- The next leave-by or start-prep time (transition reminders) ----
@@ -146,13 +147,13 @@ export function medicationActivity(doses: DueDose[], me: { id: string; name: str
   const late = end - start > FOLLOW_UP_AFTER_MS && now >= start + (end - start) / 2
   const who = whose(d.memberId)!.name.split(' ')[0]
   const named = names && !!d.name
-  const more = due.length > 1 ? ` · +${due.length - 1} more` : ''
+  const more = due.length > 1 ? ` · ${t('+{n} more', { n: due.length - 1 })}` : ''
   const headline = d.memberId === me.id
-    ? (late ? `Still time for ${who}'s medicine` : `Time for ${who}'s medicine`)
-    : `${who} · ${named ? cardLabel(d) : d.time === 'wake' ? 'Start-of-day medicine' : `${formatTime(d.time)} medicine`}`
+    ? (late ? t("Still time for {name}'s medicine", { name: who }) : t("Time for {name}'s medicine", { name: who }))
+    : `${who} · ${named ? cardLabel(d) : d.time === 'wake' ? t('Start-of-day medicine') : t('{time} medicine', { time: formatTime(d.time) })}`
   return {
     medicationId: d.medicationId, date: d.date, time: d.time, memberName: who,
-    label: named ? cardLabel(d) : `${who}'s medicine`,
+    label: named ? cardLabel(d) : t("{name}'s medicine", { name: who }),
     headline: headline + more,
     dueAt: d.dueAt, windowEndsAt: d.until, stage: late ? 'late' : 'due',
   }

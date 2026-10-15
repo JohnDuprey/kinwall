@@ -2,6 +2,7 @@
 // has or mentions, the ingredients it uses, and where you left off.
 import { itemKey } from './itemSuggest.ts'
 import type { RecipeStep } from './meal-types.ts'
+import { t } from './i18n.ts'
 
 /** Structured steps, or the plain instructions one line per step ("1." / "Step 1:" numbering
  * dropped); a single paragraph splits into its sentences. */
@@ -14,15 +15,16 @@ export function cookingSteps(recipe: { steps?: RecipeStep[] | null; instructions
 
 /** `check`: a range's low end in seconds ("5–7 min": check at 5, done at 7); `seconds` is its high end. */
 export interface Duration { label: string; seconds: number; check?: number }
-const UNITS: Record<string, [string, number]> = { h: ['hr', 3600], m: ['min', 60], s: ['sec', 1] }
+const UNITS: Record<string, number> = { h: 3600, m: 60, s: 1 }
+const unitLabel = (unit: string, n: string) => unit === 'h' ? t('{n} hr', { n }) : unit === 'm' ? t('{n} min', { n }) : t('{n} sec', { n })
 /** "10 minutes", "5-7 min", "1 hour", "30 seconds" as timers. A range runs to its high end and
  * chimes at its low end, when it's time to check. */
 export function findDurations(text: string): Duration[] {
   const found = new Map<string, Duration>()
   for (const m of text.matchAll(/(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?\s*-?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/gi)) {
-    const [unit, size] = UNITS[m[3][0].toLowerCase()]
+    const unit = m[3][0].toLowerCase(), size = UNITS[unit]
     const low = Math.round(Number(m[1]) * size), high = m[2] ? Math.round(Number(m[2]) * size) : 0
-    const label = `${m[2] ? `${m[1]}–${m[2]}` : m[1]} ${unit}`
+    const label = unitLabel(unit, m[2] ? `${m[1]}–${m[2]}` : m[1])
     if (low > 0) found.set(label, high > low ? { label, seconds: high, check: low } : { label, seconds: low })
   }
   return [...found.values()]
@@ -35,11 +37,11 @@ export function stepTimers(step: RecipeStep): Duration[] {
   const found = findDurations([step.text, ...step.bullets].join('\n'))
   const named = durationNames(step)
   if (!step.timers?.length) return found.map(d => named.has(d.label) ? { ...d, label: `${named.get(d.label)} · ${d.label}` } : d)
-  return step.timers.map(t => {
-    const seconds = Math.round(t.minutes * 60)
+  return step.timers.map(timer => {
+    const seconds = Math.round(timer.minutes * 60)
     const range = found.find(d => d.check === seconds), same = range ?? found.find(d => d.seconds === seconds && d.check === undefined)
-    const label = t.name ?? (same && named.get(same.label)), name = label ? `${label} · ` : ''
-    return range ? { ...range, label: name + range.label } : { label: `${name}${t.minutes} min`, seconds }
+    const label = timer.name ?? (same && named.get(same.label)), name = label ? `${label} · ` : ''
+    return range ? { ...range, label: name + range.label } : { label: name + t('{n} min', { n: timer.minutes }), seconds }
   })
 }
 

@@ -19,11 +19,12 @@ import { followupThanks, OUTCOMES, outcomeOf } from './journal.ts'
 import { DRAINED, drainedOf } from './battery.ts'
 import { lastNightTitle } from './tempCheck.ts'
 import type { Drained, FollowupOutcome, Member, TempCheck } from './types.ts'
+import { msg, t, tm } from './i18n.ts'
 
 const NOTES = [
-  { key: 'helped', label: 'What helped?' },
-  { key: 'hindered', label: 'What got in the way?' },
-  { key: 'next', label: 'Next time I’ll…' },
+  { key: 'helped', label: msg('What helped?') },
+  { key: 'hindered', label: msg('What got in the way?') },
+  { key: 'next', label: msg('Next time I’ll…') },
 ] as const
 type Notes = Record<(typeof NOTES)[number]['key'], string>
 const EMPTY: Notes = { helped: '', hindered: '', next: '' }
@@ -44,11 +45,11 @@ export default function GoalFollowUp({ member, onSaved, lastNight }: { member: M
       setNight(n)
       return api.getTempCheck(member.id, n.date)
     }
-    load().then(t => {
-      if (canceled || !t) return
-      setTc(t)
-      if (t.followup) setNotes({ helped: t.followup.helped ?? '', hindered: t.followup.hindered ?? '', next: t.followup.next ?? '' })
-      setStep(t.answered.followup ? 'done' : 'ask')
+    load().then(x => {
+      if (canceled || !x) return
+      setTc(x)
+      if (x.followup) setNotes({ helped: x.followup.helped ?? '', hindered: x.followup.hindered ?? '', next: x.followup.next ?? '' })
+      setStep(x.answered.followup ? 'done' : 'ask')
     }).catch(() => { /* no card rather than an error at the end of their day */ })
     return () => { canceled = true }
   }, [member.id, lastNight])
@@ -58,66 +59,66 @@ export default function GoalFollowUp({ member, onSaved, lastNight }: { member: M
 
   const save = async (outcome: FollowupOutcome, withNotes: boolean) => {
     try {
-      const t = await api.putTempCheck(member.id, { followup: { outcome, ...(withNotes ? notes : {}) } }, date)
-      setTc(t)
-      if (!withNotes && t.settings.journal && !t.private) { setStep('notes'); return }
+      const x = await api.putTempCheck(member.id, { followup: { outcome, ...(withNotes ? notes : {}) } }, date)
+      setTc(x)
+      if (!withNotes && x.settings.journal && !x.private) { setStep('notes'); return }
       setStep('done'); announce(followupThanks(outcome, member.name)); onSaved?.()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
   }
   const saveDrained = async (drained: Drained | 'skip') => {
     try {
       setTc(await api.putTempCheck(member.id, { drained }, date))
-      setChangeDrained(false); announce(drained === 'skip' ? 'Skipped' : `Thanks for checking in, ${member.name} ✓`); onSaved?.()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+      setChangeDrained(false); announce(drained === 'skip' ? t('Skipped') : t('Thanks for checking in, {name} ✓', { name: member.name })); onSaved?.()
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
   }
   const skipLastNight = async () => {
     try {
       setTc(await api.putTempCheck(member.id, { lastNightSkipped: true }, date))
-      announce("Skipped last night's check-in"); onSaved?.()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+      announce(t("Skipped last night's check-in")); onSaved?.()
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
   }
   const outcome = tc.followup?.outcome
   const picked = outcome && outcomeOf(outcome)
   const felt = drainedOf(tc.drained)
 
   return (
-    <section className="snap-temp snap-goalcheck" aria-label={date ? "Last night's check-in" : tc.followupOpen ? 'Goal check' : 'Evening check'}>
-      <h3 className="snap-heading">{date ? "🌙 Last night's check-in" : tc.followupOpen ? '🎯 Goal check' : '🔋 Evening check'}</h3>
-      {date && <p className="snap-dim">{lastNightTitle(date)}{pending ? ' · Finish last night’s check-in?' : ''}</p>}
+    <section className="snap-temp snap-goalcheck" aria-label={date ? t("Last night's check-in") : tc.followupOpen ? t('Goal check') : t('Evening check')}>
+      <h3 className="snap-heading">{date ? `🌙 ${t("Last night's check-in")}` : tc.followupOpen ? `🎯 ${t('Goal check')}` : `🔋 ${t('Evening check')}`}</h3>
+      {date && <p className="snap-dim">{lastNightTitle(date)}{pending ? ` · ${t('Finish last night’s check-in?')}` : ''}</p>}
       {!tc.followupOpen ? null : step === 'done' ? (
         <div className="snap-temp-done">
           <p role="status">
-            <strong>{tc.private || !outcome ? `Answered ✓` : followupThanks(outcome, member.name)}</strong>
-            {!tc.private && picked && <span className="snap-meta">{picked.emoji} {picked.label}: {tc.goal}{tc.followupHidden ? ' · 🔒 notes are private' : [tc.followup?.helped, tc.followup?.hindered, tc.followup?.next].some(Boolean) ? ' · notes saved' : ''}</span>}
+            <strong>{tc.private || !outcome ? t('Answered ✓') : followupThanks(outcome, member.name)}</strong>
+            {!tc.private && picked && <span className="snap-meta">{picked.emoji} {t('{outcome}: {goal}', { outcome: tm(picked.label), goal: tc.goal ?? '' })}{tc.followupHidden ? ` · 🔒 ${t('notes are private')}` : [tc.followup?.helped, tc.followup?.hindered, tc.followup?.next].some(Boolean) ? ` · ${t('notes saved')}` : ''}</span>}
           </p>
-          {!tc.followupHidden && <button className="btn btn-secondary" onClick={() => { if (tc.private) setNotes(EMPTY); setStep('ask') }}>Change</button>}
+          {!tc.followupHidden && <button className="btn btn-secondary" onClick={() => { if (tc.private) setNotes(EMPTY); setStep('ask') }}>{t('Change')}</button>}
         </div>
       ) : (
         <div className="snap-temp-q">
-          <p className="snap-temp-ask">Did you finish your goal?</p>
+          <p className="snap-temp-ask">{t('Did you finish your goal?')}</p>
           <p className="snap-goalcheck-goal">🎯 {tc.goal}</p>
-          <div className="snap-goalcheck-choices" role="group" aria-label="Did you finish your goal?">
+          <div className="snap-goalcheck-choices" role="group" aria-label={t('Did you finish your goal?')}>
             {OUTCOMES.map(o => {
               const on = !tc.private && outcome === o.key
               return (
                 <button key={o.key} className={`snap-temp-face ${on ? 'active' : ''}`} aria-pressed={on} onClick={() => save(o.key, false)}>
-                  <span aria-hidden="true">{o.emoji}</span>{o.label}
+                  <span aria-hidden="true">{o.emoji}</span>{tm(o.label)}
                 </button>
               )
             })}
           </div>
           {step === 'notes' && outcome && (
             <form className="snap-goalcheck-notes" onSubmit={e => { e.preventDefault(); save(outcome, true) }}>
-              <p className="snap-dim">Want to add a note? <span>Any, all or none.</span></p>
+              <p className="snap-dim">{t('Want to add a note?')} <span>{t('Any, all or none.')}</span></p>
               {NOTES.map(n => (
                 <label key={n.key} className="snap-goalcheck-note">
-                  <span>{n.label}</span>
+                  <span>{tm(n.label)}</span>
                   <input type="text" maxLength={500} value={notes[n.key]} onChange={e => setNotes(v => ({ ...v, [n.key]: e.target.value }))} />
                 </label>
               ))}
               <div className="snap-temp-row">
-                <button type="button" className="btn btn-secondary" onClick={() => { setStep('done'); announce(followupThanks(outcome, member.name)); onSaved?.() }}>No notes</button>
-                <button className="btn btn-primary">Save</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setStep('done'); announce(followupThanks(outcome, member.name)); onSaved?.() }}>{t('No notes')}</button>
+                <button className="btn btn-primary">{t('Save')}</button>
               </div>
             </form>
           )}
@@ -126,34 +127,34 @@ export default function GoalFollowUp({ member, onSaved, lastNight }: { member: M
       {tc.drainedOpen && (tc.answered.drained && !changeDrained ? (
         <div className="snap-temp-done">
           <p role="status">
-            <strong>{felt ? `Thanks for checking in, ${member.name} ✓` : 'Skipped for today'}</strong>
-            {felt && <span className="snap-meta">{felt.emoji} Feeling {felt.label.toLowerCase()}</span>}
+            <strong>{felt ? t('Thanks for checking in, {name} ✓', { name: member.name }) : t('Skipped for today')}</strong>
+            {felt && <span className="snap-meta">{felt.emoji} {tm(felt.feeling)}</span>}
           </p>
-          <button className="btn btn-secondary" onClick={() => setChangeDrained(true)}>Change</button>
+          <button className="btn btn-secondary" onClick={() => setChangeDrained(true)}>{t('Change')}</button>
         </div>
       ) : (
         <div className="snap-temp-q">
-          <p className="snap-temp-ask">How drained do you feel?</p>
-          <div className="snap-goalcheck-choices snap-drained-choices" role="group" aria-label="How drained do you feel?">
+          <p className="snap-temp-ask">{t('How drained do you feel?')}</p>
+          <div className="snap-goalcheck-choices snap-drained-choices" role="group" aria-label={t('How drained do you feel?')}>
             {DRAINED.map(d => {
               const on = tc.drained === d.key
               return (
                 <button key={d.key} className={`snap-temp-face ${on ? 'active' : ''}`} aria-pressed={on} onClick={() => saveDrained(d.key)}>
-                  <span aria-hidden="true">{d.emoji}</span>{d.label}
+                  <span aria-hidden="true">{d.emoji}</span>{tm(d.label)}
                 </button>
               )
             })}
           </div>
           {!date && (
             <div className="snap-temp-row">
-              <button className="btn btn-secondary" onClick={() => saveDrained('skip')}>Skip</button>
+              <button className="btn btn-secondary" onClick={() => saveDrained('skip')}>{t('Skip')}</button>
             </div>
           )}
         </div>
       ))}
       {date && pending && (
         <div className="snap-temp-row">
-          <button className="btn btn-secondary" onClick={skipLastNight}>Skip last night</button>
+          <button className="btn btn-secondary" onClick={skipLastNight}>{t('Skip last night')}</button>
         </div>
       )}
     </section>

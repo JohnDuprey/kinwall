@@ -6,6 +6,7 @@
 //   if (!await dialog.confirm({ title: 'Delete "Milk"?', confirmLabel: 'Delete', danger: true })) return
 import { createContext, useContext, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import Sheet from './Sheet.tsx'
+import { t } from './i18n.ts'
 
 export interface ConfirmOptions { title: string; body?: ReactNode; confirmLabel?: string; cancelLabel?: string; danger?: boolean }
 export interface PromptOptions {
@@ -75,8 +76,8 @@ function DialogView({ req, onDone }: { req: Request; onDone: () => void }) {
   const error = req.kind === 'prompt' ? (value.trim() ? req.opts.validate?.(value.trim()) ?? null : '') : null
   const invalid = error !== null
   const { title, body } = req.opts
-  const confirmLabel = req.opts.confirmLabel ?? 'OK'
-  const cancelLabel = req.kind === 'alert' ? null : req.opts.cancelLabel ?? 'Cancel'
+  const confirmLabel = req.opts.confirmLabel ?? t('OK')
+  const cancelLabel = req.kind === 'alert' ? null : req.opts.cancelLabel ?? t('Cancel')
   const danger = req.kind === 'confirm' && req.opts.danger
 
   return (

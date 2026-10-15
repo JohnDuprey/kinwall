@@ -1,3 +1,4 @@
+import type { Lang } from './i18n.ts'
 import { useEffect, useState } from 'react'
 import type { BoardLayout } from './boardLayout.ts'
 import type { ClockPos } from './nightClock.ts'
@@ -36,6 +37,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: Typeface // this device's typeface ('default' = Nunito); absent = the family's
   timeFormat?: '12' | '24' // this device's clock times; absent = the family's (timeFormat.ts)
+  language?: Lang // this device's language, under its owner's own; absent = the family's (i18n.ts pickLang)
   clockZone?: 'device' // the clock and date show this device's own time zone; absent = the family's (timezone.ts clockTimeZone)
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices

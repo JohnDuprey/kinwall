@@ -12,7 +12,8 @@ import { todayKeyInTz } from './date.ts'
 import { hoursMinutes } from './reading.ts'
 import { useIsPhone } from './useIsPhone.ts'
 import { goalsThisWeek } from './journal.ts'
-import { birthdayText, chartLabels, compareText, duration, periodWord, unknownMember, WEEKDAYS } from './profile.ts'
+import { birthdayText, chartLabels, compareText, duration, periodWord, unknownMember, weekdayName } from './profile.ts'
+import { formatDate, intlLocale, msg, t, tc, tm, tn } from './i18n.ts'
 import type { ChoreDay, Member, MemberStats, StatsPeriod } from './types.ts'
 import { rewardsOn } from './types.ts'
 import type { PointEntry } from './types.ts'
@@ -22,13 +23,11 @@ import { bonusLine } from './bonus.ts'
 import { Face } from './Face'
 
 const PERIODS: { key: StatsPeriod; label: string }[] = [
-  { key: 'today', label: 'Today' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }, { key: 'year', label: 'Year' }, { key: 'all', label: 'All time' },
+  { key: 'today', label: msg('Today') }, { key: 'week', label: msg('Week') }, { key: 'month', label: msg('Month') }, { key: 'year', label: msg('Year') }, { key: 'all', label: msg('All time') },
 ]
 const SPINES = ['#F7B2A0', '#A9D8F5', '#C7E6A3', '#F8D57E', '#D5B8F2', '#F5A9C9', '#9FE0D0', '#FFC48C']
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 /** Journal, insights and medicines: a kid's are hidden from the other kids; a grown-up's from everyone else. */
-const privateTag = (m: Member) => m.grownUp ? 'Private' : "Private (other kids can't see)"
-const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`
+const privateTag = (m: Member) => m.grownUp ? t('Private') : t("Private (other kids can't see)")
 
 export default function Profile({ memberId }: { memberId?: string }) {
   const { members, settings, refreshTick, meMemberId, parentDevice } = useApp()
@@ -47,12 +46,12 @@ export default function Profile({ memberId }: { memberId?: string }) {
     let canceled = false
     api.getMemberStats(member.id, period)
       .then(s => { if (!canceled) { setStats(s); setError('') } })
-      .catch(e => { if (!canceled) setError(e instanceof ApiError ? e.message : "Couldn't load this profile.") })
+      .catch(e => { if (!canceled) setError(e instanceof ApiError ? e.message : t("Couldn't load this profile.")) })
     return () => { canceled = true }
   }, [member?.id, period, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (unknown) return <div className="state-card">That isn't here anymore.</div>
-  if (!member) return <div className="state-card">No one in the family yet.</div>
+  if (unknown) return <div className="state-card">{t("That isn't here anymore.")}</div>
+  if (!member) return <div className="state-card">{t('No one in the family yet.')}</div>
   // Parents change anyone's picture; a kid's own device, theirs. Never a wall screen.
   const canChange = parentDevice || meMemberId === member.id
   const own = meMemberId === member.id
@@ -62,7 +61,7 @@ export default function Profile({ memberId }: { memberId?: string }) {
   return (
     <div className="profile scroll-y" style={{ ['--m' as string]: member.color }}>
       {!isPhone && members.length > 1 && (
-        <div className="profile-people" role="group" aria-label="Whose profile">
+        <div className="profile-people" role="group" aria-label={t('Whose profile')}>
           {members.map(m => (
             <a key={m.id} href={`#/profile/${m.id}`} className={`profile-person ${m.id === member.id ? 'active' : ''}`} aria-current={m.id === member.id ? 'page' : undefined}>
               <Face m={m} className="member-avatar-sm" aria-hidden="true" />
@@ -74,7 +73,7 @@ export default function Profile({ memberId }: { memberId?: string }) {
       <section className="profile-top">
         <div className="profile-hero">
           {canChange
-            ? <button className="profile-avatar-btn" onClick={() => setPicking(true)} aria-label={own ? 'Change your picture' : `Change ${member.name}'s picture`}>
+            ? <button className="profile-avatar-btn" onClick={() => setPicking(true)} aria-label={own ? t('Change your picture') : t("Change {name}'s picture", { name: member.name })}>
                 <Face m={member} className="profile-avatar" aria-hidden="true" />
                 <span className="profile-avatar-edit" aria-hidden="true">✏️</span>
               </button>
@@ -83,14 +82,14 @@ export default function Profile({ memberId }: { memberId?: string }) {
             <h2 className="profile-name">{member.name}</h2>
             <p className="profile-meta">
               {shown?.birthday && birthdayText(shown.birthday) && <>{birthdayText(shown.birthday)}<br /></>}
-              {shown && <>On Kinwall since {MONTHS[Number(shown.joined.slice(5, 7)) - 1]} {shown.joined.slice(0, 4)}</>}
+              {shown && t('On Kinwall since {month}', { month: formatDate(new Date(Number(shown.joined.slice(0, 4)), Number(shown.joined.slice(5, 7)) - 1, 1), { month: 'long', year: 'numeric' }) })}
             </p>
           </div>
         </div>
-        {f.chores && <Segmented className="profile-period" label="Period" value={period} onChange={setPeriod} options={PERIODS} />}
+        {f.chores && <Segmented className="profile-period" label={t('Period')} value={period} onChange={setPeriod} options={PERIODS.map(p => ({ ...p, label: tm(p.label) }))} />}
       </section>
       {error && <p className="snap-empty" role="alert">{error}</p>}
-      {!shown && !error && <p className="snap-empty">Loading…</p>}
+      {!shown && !error && <p className="snap-empty">{t('Loading…')}</p>}
       {shown && <ProfileBody member={member} s={shown} />}
       {picking && <PictureSheet member={member} withEmoji onClose={() => setPicking(false)} />}
     </div>
@@ -108,12 +107,12 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
     <>
       <div className="profile-tiles">
         {f.chores && <>
-          <Tile label="Chores done" value={s.choresDone.toLocaleString()} note={compareText(s.choresDone, s.previous, s.period, s.joined)} up={!!s.previous && s.choresDone > s.previous.choresDone} />
-          <Tile label="Points earned" value={s.pointsEarned.toLocaleString()} note={word} />
+          <Tile label={t('Chores done')} value={s.choresDone.toLocaleString()} note={compareText(s.choresDone, s.previous, s.period, s.joined)} up={!!s.previous && s.choresDone > s.previous.choresDone} />
+          <Tile label={t('Points earned')} value={s.pointsEarned.toLocaleString()} note={word} />
         </>}
-        {books && <Tile label="Books finished" value={String(s.books.finished)} note={[s.books.pages ? plural(s.books.pages, 'page') : '', s.books.minutesListened ? `${hoursMinutes(s.books.minutesListened)} listened` : ''].filter(Boolean).join(' · ') || word} />}
-        {f.chores && <Tile label="Streak" value={<>🔥 {s.streak.current} <small>{s.streak.current === 1 ? 'day' : 'days'}</small></>} note={`Best ever: ${plural(s.streak.best, 'day')}`} />}
-        {f.chores && f.checkIns && (settings.checkInPoints > 0 || s.checkIns > 0) && <Tile label="Check-ins" value={<>☀️ {s.checkIns}</>} note={word} />}
+        {books && <Tile label={t('Books finished')} value={String(s.books.finished)} note={[s.books.pages ? tn(s.books.pages, '{n} page', '{n} pages') : '', s.books.minutesListened ? t('{time} listened', { time: hoursMinutes(s.books.minutesListened) }) : ''].filter(Boolean).join(' · ') || word} />}
+        {f.chores && <Tile label={t('Streak')} value={<>🔥 {s.streak.current} <small>{s.streak.current === 1 ? tc('streak', 'day') : tc('streak', 'days')}</small></>} note={t('Best ever: {days}', { days: tn(s.streak.best, '{n} day', '{n} days') })} />}
+        {f.chores && f.checkIns && (settings.checkInPoints > 0 || s.checkIns > 0) && <Tile label={t('Check-ins')} value={<>☀️ {s.checkIns}</>} note={word} />}
       </div>
       <div className="profile-grid">
         {/* Their journal and insights lead: the reason most people open a profile. */}
@@ -124,26 +123,26 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
         {books && <BooksCard s={s} />}
         {s.activities.length > 0 && (
           <section className="board-card profile-card" aria-labelledby="pf-activities">
-            <h3 id="pf-activities" className="snap-heading">Activities <span>{duration(s.activities.reduce((t, a) => t + a.seconds, 0))} {word}</span></h3>
+            <h3 id="pf-activities" className="snap-heading">{t('Activities')} <span>{duration(s.activities.reduce((sum, a) => sum + a.seconds, 0))} {word}</span></h3>
             {s.activities.map(a => <Bar key={a.pluginId} label={`${a.emoji ?? '🎮'} ${a.name}`} value={a.seconds} max={s.activities[0].seconds} text={duration(a.seconds)} />)}
           </section>
         )}
         <section className="board-card profile-card" aria-labelledby="pf-badges">
-          <h3 id="pf-badges" className="snap-heading">Badges <span>{earned} of {s.badges.length}</span></h3>
+          <h3 id="pf-badges" className="snap-heading">{t('Badges')} <span>{t('{done} of {total}', { done: earned, total: s.badges.length })}</span></h3>
           <ul className="profile-badges">
             {s.badges.map(b => (
               <li key={b.id} className={`profile-badge ${b.earned ? '' : 'locked'}`}>
-                <span className="profile-badge-emoji" aria-hidden="true">{b.emoji}</span>{b.title}{!b.earned && <span className="sr-only"> (not yet)</span>}
+                <span className="profile-badge-emoji" aria-hidden="true">{b.emoji}</span>{b.title}{!b.earned && <span className="sr-only">{t(' (not yet)')}</span>}
               </li>
             ))}
           </ul>
         </section>
         {stickers && (
           <section className="board-card profile-card" aria-labelledby="pf-stickers">
-            <h3 id="pf-stickers" className="snap-heading">Sticker book <span>{s.stickers.packsOwned} of {s.stickers.packsTotal} packs</span></h3>
+            <h3 id="pf-stickers" className="snap-heading">{t('Sticker book')} <span>{t('{done} of {total} packs', { done: s.stickers.packsOwned, total: s.stickers.packsTotal })}</span></h3>
             <span className="board-meter profile-meter" aria-hidden="true"><span style={{ width: `${(s.stickers.packsOwned / s.stickers.packsTotal) * 100}%`, background: member.color }} /></span>
-            <p className="profile-note">{plural(s.stickers.placed, 'sticker')} on the page.</p>
-            <a className="btn btn-secondary profile-link" href="#/activities/stickers">Open the sticker book</a>
+            <p className="profile-note">{tn(s.stickers.placed, '{n} sticker on the page.', '{n} stickers on the page.')}</p>
+            <a className="btn btn-secondary profile-link" href="#/activities/stickers">{t('Open the sticker book')}</a>
           </section>
         )}
         {parentDevice && f.chores && <WaitingCard member={member} />}
@@ -184,14 +183,14 @@ function ChoresCard({ member, s }: { member: Member; s: MemberStats }) {
   if (s.period === 'today') {
     return (
       <section className="board-card profile-card profile-wide" aria-labelledby="pf-chores">
-        <h3 id="pf-chores" className="snap-heading">Today's chores {today && <span>{today.filter(c => c.completed).length} of {today.length}</span>}</h3>
-        {today && today.length === 0 && <p className="profile-note">Nothing due today.</p>}
+        <h3 id="pf-chores" className="snap-heading">{t("Today's chores")} {today && <span>{t('{done} of {total}', { done: today.filter(c => c.completed).length, total: today.length })}</span>}</h3>
+        {today && today.length === 0 && <p className="profile-note">{t('Nothing due today.')}</p>}
         <ul className="profile-today">
           {today?.map(c => (
             <li key={c.id}>
               <span className={`profile-check ${c.completed ? 'done' : ''}`} aria-hidden="true">{c.completed ? '✓' : ''}</span>
-              <span className="profile-today-title">{c.emoji} {c.title}<span className="sr-only">{c.completed ? ', done' : c.pending ? ', waiting for a grown-up' : ', not yet'}</span></span>
-              <span className="profile-today-pts">{c.completed ? `+${c.points}` : c.points} pts</span>
+              <span className="profile-today-title">{c.emoji} {c.title}<span className="sr-only">{c.completed ? t(', done') : c.pending ? t(', waiting for a grown-up') : t(', not yet')}</span></span>
+              <span className="profile-today-pts">{c.completed ? tn(c.points, '+{n} pt', '+{n} pts') : tn(c.points, '{n} pt', '{n} pts')}</span>
             </li>
           ))}
         </ul>
@@ -201,13 +200,13 @@ function ChoresCard({ member, s }: { member: Member; s: MemberStats }) {
   const perDay = s.period === 'week' || s.period === 'month'
   return (
     <section className="board-card profile-card profile-wide" aria-labelledby="pf-chores">
-      <h3 id="pf-chores" className="snap-heading">Chores done <span>{perDay ? 'per day' : 'per month'}</span></h3>
+      <h3 id="pf-chores" className="snap-heading">{t('Chores done')} <span>{perDay ? t('per day') : t('per month')}</span></h3>
       <Chart values={s.chart.map(b => b.count)} labels={chartLabels(s.chart.map(b => b.key), s.period)} color={member.color}
-        label={`Chores done per ${perDay ? 'day' : 'month'}: ${s.chart.map(b => b.count).join(', ')}`} />
+        label={perDay ? t('Chores done per day: {counts}', { counts: s.chart.map(b => b.count).join(', ') }) : t('Chores done per month: {counts}', { counts: s.chart.map(b => b.count).join(', ') })} />
       {s.favoriteChore && (
         <div className="profile-facts">
-          {s.busiestWeekday !== null && <span className="profile-fact">Busiest day: {WEEKDAYS[s.busiestWeekday]}</span>}
-          <span className="profile-fact">Favorite: {s.favoriteChore.emoji} {s.favoriteChore.title} ×{s.favoriteChore.count}</span>
+          {s.busiestWeekday !== null && <span className="profile-fact">{t('Busiest day: {day}', { day: weekdayName(s.busiestWeekday) })}</span>}
+          <span className="profile-fact">{t('Favorite: {chore} ×{count}', { chore: `${s.favoriteChore.emoji} ${s.favoriteChore.title}`, count: s.favoriteChore.count })}</span>
         </div>
       )}
     </section>
@@ -239,19 +238,19 @@ function PointsCard({ member, s, word }: { member: Member; s: MemberStats; word:
   const goal = rewards ? member.rewardGoal : null
   return (
     <section className="board-card profile-card" aria-labelledby="pf-points">
-      <h3 id="pf-points" className="snap-heading">Points <span>{word}</span></h3>
-      <Bar label="Earned" value={s.pointsEarned} max={max} text={s.pointsEarned.toLocaleString()} />
-      <Bar label="Stickers" value={s.pointsSpent.stickers} max={max} text={s.pointsSpent.stickers.toLocaleString()} color="var(--accent)" />
-      {rewards && <Bar label="Rewards" value={s.pointsSpent.rewards} max={max} text={s.pointsSpent.rewards.toLocaleString()} color="var(--prio-high)" />}
+      <h3 id="pf-points" className="snap-heading">{t('Points')} <span>{word}</span></h3>
+      <Bar label={t('Earned')} value={s.pointsEarned} max={max} text={s.pointsEarned.toLocaleString()} />
+      <Bar label={t('Stickers')} value={s.pointsSpent.stickers} max={max} text={s.pointsSpent.stickers.toLocaleString()} color="var(--accent)" />
+      {rewards && <Bar label={t('Rewards')} value={s.pointsSpent.rewards} max={max} text={s.pointsSpent.rewards.toLocaleString()} color="var(--prio-high)" />}
       {goal ? (
         <a className="profile-goal" href={`#/rewards/${member.id}`}>
           <span className="profile-goal-emoji" aria-hidden="true">{goal.emoji ?? '🎁'}</span>
           <span className="profile-goal-text">
-            Saving for {goal.title}: {Math.min(member.balance, goal.cost)} of {goal.cost}
+            {t('Saving for {title}: {done} of {total}', { title: goal.title, done: Math.min(member.balance, goal.cost), total: goal.cost })}
             <span className="board-meter" aria-hidden="true"><span style={{ width: `${Math.min(100, (Math.max(0, member.balance) / goal.cost) * 100)}%`, background: 'var(--accent)' }} /></span>
           </span>
         </a>
-      ) : <p className="profile-note">{plural(member.balance, 'point')} to spend.</p>}
+      ) : <p className="profile-note">{tn(member.balance, '{n} point to spend.', '{n} points to spend.')}</p>}
       <BonusList member={member} />
     </section>
   )
@@ -269,31 +268,31 @@ function BonusList({ member }: { member: Member }) {
     return () => { canceled = true }
   }, [member.id, refreshTick])
   const takeBack = async (e: PointEntry) => {
-    if (!await dialog.confirm({ title: `Take back ${plural(e.amount, 'point')} from ${member.name}?`, body: e.note ?? undefined, confirmLabel: 'Take back', danger: true })) return
+    if (!await dialog.confirm({ title: tn(e.amount, 'Take back {n} point from {name}?', 'Take back {n} points from {name}?', { name: member.name }), body: e.note ?? undefined, confirmLabel: t('Take back'), danger: true })) return
     try {
       await api.deletePointAward(e.id)
       setBonus(list => list.filter(x => x.id !== e.id))
       reloadCore()
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Couldn't take those points back.", true)
+      toast(err instanceof ApiError ? err.message : t("Couldn't take those points back."), true)
     }
   }
   if (!parentDevice && bonus.length === 0) return null
   return (
     <div className="profile-bonus">
-      {bonus.length > 0 && <h4 className="profile-bonus-head">Bonus points</h4>}
+      {bonus.length > 0 && <h4 className="profile-bonus-head">{t('Bonus points')}</h4>}
       {bonus.length > 0 && (
         <ul className="profile-bonus-list">
           {bonus.map(e => (
             <li key={e.id}>
               {parentDevice
-                ? <button type="button" className="profile-bonus-row" onClick={() => takeBack(e)} aria-label={`${bonusLine({ points: e.amount, note: e.note ?? null })}. Take back`}>🎉 {bonusLine({ points: e.amount, note: e.note ?? null })}</button>
+                ? <button type="button" className="profile-bonus-row" onClick={() => takeBack(e)} aria-label={t('{bonus}. Take back', { bonus: bonusLine({ points: e.amount, note: e.note ?? null }) })}>🎉 {bonusLine({ points: e.amount, note: e.note ?? null })}</button>
                 : <span className="profile-bonus-row">🎉 {bonusLine({ points: e.amount, note: e.note ?? null })}</span>}
             </li>
           ))}
         </ul>
       )}
-      {parentDevice && <GivePoints memberId={member.id} className="btn btn-secondary profile-link" label={`Give ${member.name} points`}>⭐ Give points</GivePoints>}
+      {parentDevice && <GivePoints memberId={member.id} className="btn btn-secondary profile-link" label={t('Give {name} points', { name: member.name })}>⭐ {t('Give points')}</GivePoints>}
     </div>
   )
 }
@@ -304,16 +303,16 @@ function BooksCard({ s }: { s: MemberStats }) {
   const loved = [...shelf].reverse().find(b => b.rating === 5)
   return (
     <section className="board-card profile-card" aria-labelledby="pf-books">
-      <h3 id="pf-books" className="snap-heading">Bookshelf <span>{s.books.shelfScope === 'year' ? 'This year' : 'All time'}: {plural(shelf.length, 'book')}</span></h3>
-      <ul className="profile-shelf" aria-label={shelf.length ? `Books: ${shelf.map(b => b.title).join(', ')}` : 'No books finished yet'}>
-        {shelf.length === 0 && <li className="profile-note">No books finished yet.</li>}
+      <h3 id="pf-books" className="snap-heading">{t('Bookshelf')} <span>{s.books.shelfScope === 'year' ? tn(shelf.length, 'This year: {n} book', 'This year: {n} books') : tn(shelf.length, 'All time: {n} book', 'All time: {n} books')}</span></h3>
+      <ul className="profile-shelf" aria-label={shelf.length ? t('Books: {titles}', { titles: shelf.map(b => b.title).join(', ') }) : t('No books finished yet')}>
+        {shelf.length === 0 && <li className="profile-note">{t('No books finished yet.')}</li>}
         {shelf.map((b, i) => <li key={b.id} className="profile-spine" title={b.title} style={{ height: 46 + Math.min(40, (b.pages ?? 100) / 5), background: SPINES[i % SPINES.length] }} />)}
       </ul>
       <div className="profile-facts">
-        {shelf.some(b => b.pages) && <span className="profile-fact">{plural(shelf.reduce((t, b) => t + (b.pages ?? 0), 0), 'page')}</span>}
-        {shelf.some(b => b.minutes) && <span className="profile-fact">{hoursMinutes(shelf.reduce((t, b) => t + (b.minutes ?? 0), 0))} listened</span>}
-        {rated.length > 0 && <span className="profile-fact">Avg {(rated.reduce((t, b) => t + (b.rating ?? 0), 0) / rated.length).toFixed(1)} ★</span>}
-        {loved && <span className="profile-fact">Loved: {loved.title}</span>}
+        {shelf.some(b => b.pages) && <span className="profile-fact">{tn(shelf.reduce((sum, b) => sum + (b.pages ?? 0), 0), '{n} page', '{n} pages')}</span>}
+        {shelf.some(b => b.minutes) && <span className="profile-fact">{t('{time} listened', { time: hoursMinutes(shelf.reduce((sum, b) => sum + (b.minutes ?? 0), 0)) })}</span>}
+        {rated.length > 0 && <span className="profile-fact">{t('Avg {rating} ★', { rating: (rated.reduce((sum, b) => sum + (b.rating ?? 0), 0) / rated.length).toLocaleString(intlLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</span>}
+        {loved && <span className="profile-fact">{t('Loved: {title}', { title: loved.title })}</span>}
       </div>
       {s.books.reading.map(b => (
         <div key={b.id} className="profile-bar">
@@ -337,9 +336,11 @@ function WaitingCard({ member }: { member: Member }) {
   if (!counts || counts[0] + counts[1] === 0) return null
   return (
     <section className="board-card profile-card" aria-labelledby="pf-waiting">
-      <h3 id="pf-waiting" className="snap-heading">Waiting for your OK <span>Grown-ups only</span></h3>
-      <p className="profile-note">{[counts[0] && plural(counts[0], 'chore'), counts[1] && plural(counts[1], 'reward')].filter(Boolean).join(' and ')} from {member.name}.</p>
-      <a className="btn btn-secondary profile-link" href={counts[0] ? '#/chores' : `#/rewards/${member.id}`}>{counts[0] ? 'Open Chores' : 'Open Rewards'}</a>
+      <h3 id="pf-waiting" className="snap-heading">{t('Waiting for your OK')} <span>{t('Grown-ups only')}</span></h3>
+      <p className="profile-note">{counts[0] && counts[1]
+        ? t('{chores} and {rewards} from {name}.', { chores: tn(counts[0], '{n} chore', '{n} chores'), rewards: tn(counts[1], '{n} reward', '{n} rewards'), name: member.name })
+        : t('{things} from {name}.', { things: counts[0] ? tn(counts[0], '{n} chore', '{n} chores') : tn(counts[1], '{n} reward', '{n} rewards'), name: member.name })}</p>
+      <a className="btn btn-secondary profile-link" href={counts[0] ? '#/chores' : `#/rewards/${member.id}`}>{counts[0] ? t('Open Chores') : t('Open Rewards')}</a>
     </section>
   )
 }
@@ -356,10 +357,10 @@ function JournalCard({ member }: { member: Member }) {
   }, [member.id, evening, settings.timezone, refreshTick])
   return (
     <section className="board-card profile-card" aria-labelledby="pf-journal">
-      <h3 id="pf-journal" className="snap-heading">Journal <span>🔒 {privateTag(member)}</span></h3>
-      {evening && week && week.of > 0 && <p className="profile-note">🎯 Goals met this week: <strong>{week.met} of {week.of}</strong></p>}
-      <p className="profile-note">Check-ins, goals and {member.name}'s own notes, day by day.</p>
-      <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>Open the journal</a>
+      <h3 id="pf-journal" className="snap-heading">{t('Journal')} <span>🔒 {privateTag(member)}</span></h3>
+      {evening && week && week.of > 0 && <p className="profile-note">🎯 {t('Goals met this week:')} <strong>{t('{done} of {total}', { done: week.met, total: week.of })}</strong></p>}
+      <p className="profile-note">{t("Check-ins, goals and {name}'s own notes, day by day.", { name: member.name })}</p>
+      <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>{t('Open the journal')}</a>
     </section>
   )
 }
@@ -368,9 +369,9 @@ function JournalCard({ member }: { member: Member }) {
 function InsightsCard({ member }: { member: Member }) {
   return (
     <section className="board-card profile-card" aria-labelledby="pf-insights">
-      <h3 id="pf-insights" className="snap-heading">Insights <span>🔒 {privateTag(member)}</span></h3>
-      <p className="profile-note">How sleep, feelings and goals have been going, next to chores and busy days.</p>
-      <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>Open insights</a>
+      <h3 id="pf-insights" className="snap-heading">{t('Insights')} <span>🔒 {privateTag(member)}</span></h3>
+      <p className="profile-note">{t('How sleep, feelings and goals have been going, next to chores and busy days.')}</p>
+      <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>{t('Open insights')}</a>
     </section>
   )
 }
@@ -379,9 +380,9 @@ function InsightsCard({ member }: { member: Member }) {
 function MedicationsCard({ member }: { member: Member }) {
   return (
     <section className="board-card profile-card" aria-labelledby="pf-meds">
-      <h3 id="pf-meds" className="snap-heading">Medicines <span>🔒 {privateTag(member)}</span></h3>
-      <p className="profile-note">Today's doses and the last 7 days.</p>
-      <a className="btn btn-secondary profile-link" href={`#/medications/${member.id}`}>Open medicines</a>
+      <h3 id="pf-meds" className="snap-heading">{t('Medicines')} <span>🔒 {privateTag(member)}</span></h3>
+      <p className="profile-note">{t("Today's doses and the last 7 days.")}</p>
+      <a className="btn btn-secondary profile-link" href={`#/medications/${member.id}`}>{t('Open medicines')}</a>
     </section>
   )
 }

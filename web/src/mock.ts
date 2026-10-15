@@ -126,6 +126,7 @@ const settings: Settings = {
   density: 'comfortable',
   typeface: 'default',
   timeFormat: 'auto',
+  language: 'en',
   defaultCalendarId: null,
   defaultGroceryStore: null,
   defaultShoppingStore: null,

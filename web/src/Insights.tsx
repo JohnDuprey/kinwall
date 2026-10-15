@@ -15,6 +15,7 @@ import { chartMax, confidenceLabel, keepCheckingIn, RANGES, shortDate, sleepPath
 import { formatTime } from './timeFormat.ts'
 import type { InsightDay, InsightRange, Insights as InsightsData, Member } from './types.ts'
 import { Face } from './Face'
+import { msg, t, tm, tn } from './i18n.ts'
 
 export default function Insights({ memberId }: { memberId?: string }) {
   const { members, meMemberId, refreshTick } = useApp()
@@ -28,11 +29,11 @@ export default function Insights({ memberId }: { memberId?: string }) {
     let canceled = false
     api.getInsights(member.id, range)
       .then(d => { if (!canceled) { setData(d); setError('') } })
-      .catch(e => { if (!canceled) setError(e instanceof ApiError && e.status === 403 ? `${member.name}'s insights are private. They open on ${member.name}'s own device and parents' devices.` : e instanceof ApiError ? e.message : "Couldn't load insights.") })
+      .catch(e => { if (!canceled) setError(e instanceof ApiError && e.status === 403 ? t("{name}'s insights are private. They open on {name}'s own device and parents' devices.", { name: member.name }) : e instanceof ApiError ? e.message : t("Couldn't load insights.")) })
     return () => { canceled = true }
   }, [member?.id, range, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!member) return <div className="state-card">No one in the family yet.</div>
+  if (!member) return <div className="state-card">{t('No one in the family yet.')}</div>
   const shown = data?.memberId === member.id && data.range === range ? data : null
   return (
     <div className="profile insights scroll-y" style={{ ['--m' as string]: member.color }}>
@@ -40,21 +41,21 @@ export default function Insights({ memberId }: { memberId?: string }) {
         <div className="profile-hero">
           <Face m={member} className="profile-avatar" aria-hidden="true" />
           <div>
-            <h2 className="profile-name">{member.name}'s insights</h2>
-            <p className="profile-meta">🔒 {member.grownUp ? `Private to ${member.name}'s own devices and parent devices.` : `Just for ${member.name}, and parents can see it too.`}</p>
+            <h2 className="profile-name">{t("{name}'s insights", { name: member.name })}</h2>
+            <p className="profile-meta">🔒 {member.grownUp ? t("Private to {name}'s own devices and parent devices.", { name: member.name }) : t('Just for {name}, and parents can see it too.', { name: member.name })}</p>
           </div>
         </div>
         {!error && (
           <div className="profile-actions">
-            <label htmlFor="insights-range" className="sr-only">Time range</label>
+            <label htmlFor="insights-range" className="sr-only">{t('Time range')}</label>
             <select id="insights-range" className="settings-select" value={range} onChange={e => setRange(e.target.value as InsightRange)}>
-              {RANGES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+              {RANGES.map(r => <option key={r.key} value={r.key}>{tm(r.label)}</option>)}
             </select>
           </div>
         )}
       </section>
       {error && <p className="snap-empty" role="alert">{error}</p>}
-      {!shown && !error && <p className="snap-empty">Loading…</p>}
+      {!shown && !error && <p className="snap-empty">{t('Loading…')}</p>}
       {shown && <Body member={member} d={shown} />}
     </div>
   )
@@ -67,13 +68,13 @@ function Body({ member, d }: { member: Member; d: InsightsData }) {
   return (
     <div className="profile-grid">
       {batteryOn(member.tempCheck) && <BatteryCard member={member} full />}
-      <Card id="in-summary" title="In short" note={`${shortDate(d.from)} to today`}>
+      <Card id="in-summary" title={t('In short')} note={t('{day} to today', { day: shortDate(d.from) })}>
         <ul className="insights-summary">{d.summary.map(s => <li key={s.id}>{s.text}</li>)}</ul>
-        {!member.tempCheck?.on && !any(x => x.checkedIn) && <p className="profile-note">Temp check is off for {member.name}. A parent can turn it on in Settings → Family.</p>}
+        {!member.tempCheck?.on && !any(x => x.checkedIn) && <p className="profile-note">{t('Temp check is off for {name}. A parent can turn it on in Settings → Family.', { name: member.name })}</p>}
       </Card>
-      {(member.tempCheck?.on || c.daysWithCheckIns > 0) && <Card id="in-connections" title="Connections" note={c.ready && c.list.length ? `${c.daysWithCheckIns} days with check-ins` : undefined}>
+      {(member.tempCheck?.on || c.daysWithCheckIns > 0) && <Card id="in-connections" title={t('Connections')} note={c.ready && c.list.length ? tn(c.daysWithCheckIns, '{n} day with check-ins', '{n} days with check-ins') : undefined}>
         {!c.ready && <p className="insights-wait">🌱 {keepCheckingIn(c.daysWithCheckIns)}</p>}
-        {c.ready && c.list.length === 0 && <p className="insights-wait">No clear connections yet. They show up here when a difference is big enough to notice.</p>}
+        {c.ready && c.list.length === 0 && <p className="insights-wait">{t('No clear connections yet. They show up here when a difference is big enough to notice.')}</p>}
         {c.list.length > 0 && (
           <ul className="insights-connections">
             {c.list.map(x => (
@@ -85,22 +86,22 @@ function Body({ member, d }: { member: Member; d: InsightsData }) {
             ))}
           </ul>
         )}
-        {c.list.length > 0 && <p className="profile-note">These are things that happened together, not proof that one causes the other.</p>}
+        {c.list.length > 0 && <p className="profile-note">{t('These are things that happened together, not proof that one causes the other.')}</p>}
       </Card>}
-      {any(x => !!x.sleep) && <Card id="in-sleep" title="Sleep" wide><SleepChart days={d.days} /></Card>}
-      {d.topFeelings.length > 0 && <Card id="in-feelings" title="Feelings"><Feelings d={d} weeks={weeks} /></Card>}
-      {any(x => x.goalSet) && <Card id="in-goals" title="Goals" note="per week"><GoalWeeks weeks={weeks} /></Card>}
+      {any(x => !!x.sleep) && <Card id="in-sleep" title={t('Sleep')} wide><SleepChart days={d.days} /></Card>}
+      {d.topFeelings.length > 0 && <Card id="in-feelings" title={t('Feelings')}><Feelings d={d} weeks={weeks} /></Card>}
+      {any(x => x.goalSet) && <Card id="in-goals" title={t('Goals')} note={t('per week')}><GoalWeeks weeks={weeks} /></Card>}
       {any(x => x.chores > 0) && (
-        <Card id="in-chores" title="Chores done" note="per week">
-          <WeekBars weeks={weeks} value={w => w.chores} label={n => `${n} ${n === 1 ? 'chore' : 'chores'}`} />
+        <Card id="in-chores" title={t('Chores done')} note={t('per week')}>
+          <WeekBars weeks={weeks} value={w => w.chores} label={n => tn(n, '{n} chore', '{n} chores')} />
         </Card>
       )}
       {any(x => x.activityMinutes > 0) && (
-        <Card id="in-activity" title="Activity time" note="per week">
+        <Card id="in-activity" title={t('Activity time')} note={t('per week')}>
           <WeekBars weeks={weeks} value={w => w.activityMinutes} label={n => duration(n * 60)} />
         </Card>
       )}
-      {any(x => x.events > 0) && <Card id="in-busy" title="Busy days" note="events per day" wide><BusyChart days={d.days} /></Card>}
+      {any(x => x.events > 0) && <Card id="in-busy" title={t('Busy days')} note={t('events per day')} wide><BusyChart days={d.days} /></Card>}
     </div>
   )
 }
@@ -129,14 +130,14 @@ function SleepChart({ days }: { days: InsightDay[] }) {
   return (
     <>
       <div className="insights-sleep">
-        <ul className="insights-sleep-axis" aria-hidden="true">{SLEEP.map(s => <li key={s.key} style={{ height: SLEEP_ROW }}>{s.emoji} {s.label}</li>)}</ul>
+        <ul className="insights-sleep-axis" aria-hidden="true">{SLEEP.map(s => <li key={s.key} style={{ height: SLEEP_ROW }}>{s.emoji} {tm(s.label)}</li>)}</ul>
         <svg className="insights-plot" viewBox={`0 0 ${SLEEP_W} ${h}`} preserveAspectRatio="none" style={{ height: h }} role="img"
-          aria-label={`Sleep over ${days.length} days: well or great on ${well} of ${answered.length} nights answered.`}>
+          aria-label={t('Sleep over {days} days: well or great on {well} of {n} nights answered.', { days: days.length, well, n: answered.length })}>
           {SLEEP.map((s, i) => <line key={s.key} x1="0" x2={SLEEP_W} y1={SLEEP_ROW / 2 + i * SLEEP_ROW} y2={SLEEP_ROW / 2 + i * SLEEP_ROW} />)}
           <path d={sleepPath(days, SLEEP_W, h - SLEEP_ROW)} transform={`translate(0 ${SLEEP_ROW / 2})`} />
         </svg>
       </div>
-      <Axis from={shortDate(days[0].date)} to="Today" />
+      <Axis from={shortDate(days[0].date)} to={t('Today')} />
     </>
   )
 }
@@ -146,13 +147,13 @@ function Feelings({ d, weeks }: { d: InsightsData; weeks: Week[] }) {
   const trend = top.slice(0, 4)
   return (
     <>
-      {top.map(f => <Bar key={f.feeling} label={f.feeling} value={f.days} max={top[0].days} text={`${f.days} ${f.days === 1 ? 'day' : 'days'}`} />)}
+      {top.map(f => <Bar key={f.feeling} label={f.feeling} value={f.days} max={top[0].days} text={tn(f.days, '{n} day', '{n} days')} />)}
       {weeks.length > 1 && (
         <>
-          <p className="profile-note">Each week</p>
+          <p className="profile-note">{t('Each week')}</p>
           <div className="insights-trend">
             {trend.map(f => (
-              <div key={f.feeling} className="insights-trend-row" role="img" aria-label={`${f.feeling}, days each week: ${weeks.map(w => w.feelings[f.feeling] ?? 0).join(', ')}`}>
+              <div key={f.feeling} className="insights-trend-row" role="img" aria-label={t('{feeling}, days each week: {list}', { feeling: f.feeling, list: weeks.map(w => w.feelings[f.feeling] ?? 0).join(', ') })}>
                 <span className="insights-trend-label">{f.feeling}</span>
                 <span className="insights-mini">{weeks.map(w => <span key={w.from} style={{ height: `${((w.feelings[f.feeling] ?? 0) / 7) * 100}%` }} />)}</span>
               </div>
@@ -165,17 +166,17 @@ function Feelings({ d, weeks }: { d: InsightsData; weeks: Week[] }) {
 }
 
 const OUTCOME_PARTS = [
-  { key: 'met', label: 'Met', cls: 'met' },
-  { key: 'partly', label: 'Partly', cls: 'partly' },
-  { key: 'no', label: 'Not this time', cls: 'no' },
-  { key: 'open', label: 'No check', cls: 'open' },
+  { key: 'met', label: msg('Met'), cls: 'met' },
+  { key: 'partly', label: msg('Partly'), cls: 'partly' },
+  { key: 'no', label: msg('Not this time'), cls: 'no' },
+  { key: 'open', label: msg('No check'), cls: 'open' },
 ] as const
 
 function GoalWeeks({ weeks }: { weeks: Week[] }) {
   const set = weeks.reduce((s, w) => s + w.goals.set, 0)
   return (
     <>
-      <div className="insights-bars" role="img" aria-label={`Goals set each week, out of 7 days: ${weeks.map(w => `${w.goals.set} set, ${w.goals.met} met`).join('; ')}. ${set} in all.`}>
+      <div className="insights-bars" role="img" aria-label={t('Goals set each week, out of 7 days: {weeks}. {n} in all.', { weeks: weeks.map(w => t('{set} set, {met} met', { set: w.goals.set, met: w.goals.met })).join('; '), n: set })}>
         {weeks.map(w => (
           <span key={w.from} className="insights-col">
             <span className="insights-stack">
@@ -184,8 +185,8 @@ function GoalWeeks({ weeks }: { weeks: Week[] }) {
           </span>
         ))}
       </div>
-      <Axis from={shortDate(weeks[0].from)} to="This week" />
-      <ul className="insights-legend" aria-hidden="true">{OUTCOME_PARTS.map(p => <li key={p.key}><span className={`insights-seg ${p.cls}`} />{p.label}</li>)}</ul>
+      <Axis from={shortDate(weeks[0].from)} to={t('This week')} />
+      <ul className="insights-legend" aria-hidden="true">{OUTCOME_PARTS.map(p => <li key={p.key}><span className={`insights-seg ${p.cls}`} />{tm(p.label)}</li>)}</ul>
     </>
   )
 }
@@ -195,14 +196,14 @@ function WeekBars({ weeks, value, label }: { weeks: Week[]; value: (w: Week) => 
   const few = weeks.length <= 13
   return (
     <>
-      <div className="insights-bars" role="img" aria-label={`Each week: ${weeks.map(w => label(value(w))).join(', ')}.`}>
+      <div className="insights-bars" role="img" aria-label={t('Each week: {list}.', { list: weeks.map(w => label(value(w))).join(', ') })}>
         {weeks.map(w => (
           <span key={w.from} className="insights-col">
             <span className="insights-seg met" style={{ height: `${(value(w) / max) * 100}%` }}>{few && value(w) > 0 && <span className="insights-val">{value(w)}</span>}</span>
           </span>
         ))}
       </div>
-      <Axis from={shortDate(weeks[0].from)} to="This week" />
+      <Axis from={shortDate(weeks[0].from)} to={t('This week')} />
     </>
   )
 }
@@ -215,15 +216,15 @@ function BusyChart({ days }: { days: InsightDay[] }) {
   return (
     <>
       <svg className="insights-plot insights-busy" viewBox={`0 0 1000 ${H + 12}`} preserveAspectRatio="none" role="img"
-        aria-label={`Events each day, up to ${Math.max(...days.map(x => x.events))}. ${lates} ${lates === 1 ? 'evening' : 'evenings'} with an event ending after ${formatTime('20:00', undefined, { hourOnly: true })}.`}>
+        aria-label={`${t('Events each day, up to {n}.', { n: Math.max(...days.map(x => x.events)) })} ${tn(lates, '{n} evening with an event ending after {time}.', '{n} evenings with an event ending after {time}.', { time: formatTime('20:00', undefined, { hourOnly: true }) })}`}>
         <line x1="0" x2="1000" y1={H} y2={H} />
         {days.map((x, i) => x.events > 0 && <rect key={x.date} className="bar" x={i * w + w * 0.15} width={w * 0.7} y={H - (x.events / max) * H} height={(x.events / max) * H} />)}
         {days.map((x, i) => x.lastEventEnd && x.lastEventEnd > '20:00' && <rect key={`l${x.date}`} className="late" x={i * w + w * 0.15} width={w * 0.7} y={H + 4} height={8} />)}
       </svg>
-      <Axis from={shortDate(days[0].date)} to="Today" />
+      <Axis from={shortDate(days[0].date)} to={t('Today')} />
       <ul className="insights-legend" aria-hidden="true">
-        <li><span className="insights-seg met" />Events (top: {max})</li>
-        <li><span className="insights-seg late" />Ended after {formatTime('20:00', undefined, { hourOnly: true })}</li>
+        <li><span className="insights-seg met" />{t('Events (top: {n})', { n: max })}</li>
+        <li><span className="insights-seg late" />{t('Ended after {time}', { time: formatTime('20:00', undefined, { hourOnly: true }) })}</li>
       </ul>
     </>
   )

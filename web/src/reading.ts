@@ -2,9 +2,10 @@
 // audiobook; an entry without a format is a book. Pure, so web/test/reading.test.ts covers it.
 // server/src/reading.ts is the server's copy - keep in step.
 import type { ReadingData, ReadingDay, ReadingStatus } from './types.ts'
+import { msg, t, tn } from './i18n.ts'
 
-/** A reading status in words and its emoji, the same on the Reading shelves and in the library. */
-export const STATUS_WORDS: Record<ReadingStatus, string> = { want: 'Want to read', reading: 'Reading now', finished: 'Finished' }
+/** A reading status in words (marked: show with tm()) and its emoji, the same on the Reading shelves and in the library. */
+export const STATUS_WORDS: Record<ReadingStatus, string> = { want: msg('Want to read'), reading: msg('Reading now'), finished: msg('Finished') }
 export const STATUS_EMOJI: Record<ReadingStatus, string> = { want: '🔖', reading: '📖', finished: '📗' }
 
 export const isAudiobook = (d: Pick<ReadingData, 'format'>) => d.format === 'audiobook'
@@ -24,17 +25,17 @@ export const logReachesEnd = (d: ReadingData, n: number) => {
 /** 130 → "2h 10m", 60 → "1h", 45 → "45m". */
 export const hoursMinutes = (min: number) => {
   const h = Math.floor(min / 60), m = min % 60
-  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`
+  return h ? (m ? t('{h}h {m}m', { h, m }) : t('{h}h', { h })) : t('{m}m', { m })
 }
 
 /** A shelf row's progress: "2h 10m left" for an audiobook with a length, else the percent or page. */
 export function left(d: ReadingData): string {
   if (isAudiobook(d)) {
-    if (d.totalMinutes) return `${hoursMinutes(Math.max(0, d.totalMinutes - (d.minutesListened ?? 0)))} left`
+    if (d.totalMinutes) return t('{time} left', { time: hoursMinutes(Math.max(0, d.totalMinutes - (d.minutesListened ?? 0))) })
     return d.minutesListened ? hoursMinutes(d.minutesListened) : ''
   }
   const pct = readingPercent(d)
-  return pct !== null ? `${pct}%` : d.pagesRead ? `p. ${d.pagesRead}` : ''
+  return pct !== null ? `${pct}%` : d.pagesRead ? t('p. {n}', { n: d.pagesRead }) : ''
 }
 
 /** Hours and minutes fields to minutes (digits only; minutes past 59 carry over). Both blank = null. */
@@ -61,8 +62,8 @@ export function shelfTotals(books: ReadingData[], year: string) {
   return { finished, pages, minutes }
 }
 
-export const shelfLine = (year: string, t: { finished: number; pages: number; minutes: number }) =>
-  [`${t.finished} book${t.finished === 1 ? '' : 's'} finished in ${year}`, t.pages ? `${t.pages.toLocaleString('en-US')} pages` : '', t.minutes ? `${hoursMinutes(t.minutes)} listened` : '']
+export const shelfLine = (year: string, s: { finished: number; pages: number; minutes: number }) =>
+  [tn(s.finished, '{n} book finished in {year}', '{n} books finished in {year}', { year }), s.pages ? tn(s.pages, '{n} page', '{n} pages') : '', s.minutes ? t('{time} listened', { time: hoursMinutes(s.minutes) }) : '']
     .filter(Boolean).join(' · ')
 
 /** The last `n` days up to `today` (YYYY-MM-DD), each with what was read then (0 when nothing). */
@@ -77,7 +78,7 @@ export function recentDays(log: ReadingDay[] | undefined, today: string, n = 14)
 
 /** One day's reading in words: "12 pages", "1 page", or "1h 15m" for an audiobook. */
 export const dayAmount = (d: Pick<ReadingData, 'format'>, amount: number) =>
-  isAudiobook(d) ? hoursMinutes(amount) : `${amount} page${amount === 1 ? '' : 's'}`
+  isAudiobook(d) ? hoursMinutes(amount) : tn(amount, '{n} page', '{n} pages')
 
 /** Finished books a shelf shows before "Show all". */
 export const FINISHED_SHOWN = 3

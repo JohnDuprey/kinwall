@@ -10,8 +10,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { announce, reducedMotion } from './a11y.tsx'
+import { t } from './i18n.ts'
 import { Face } from './Face'
-import { bookLean, clothColor, dueTag, isAudio, listening, pickBook } from './library.ts'
+import { bookLean, clothColor, dueTag, isAudio, isOverdue, listening, pickBook } from './library.ts'
 import type { LibraryBook, Member } from './types.ts'
 
 const SCAN_STEPS = 12
@@ -29,9 +30,9 @@ export default function LibraryShelf({ books, members, today, onOpen, split = fa
 
   const paper = books.filter(b => !isAudio(b))
   const kids = paper.filter(b => b.effectiveShelf === 'kids' || b.effectiveShelf === 'everyone')
-  const cases: [key: string, emoji: string, name: string, list: LibraryBook[]][] = split && kids.length && kids.length < paper.length
-    ? [['kids', '🧸', "Kids' books", kids], ['grownups', '📚', "Grown-ups' books", paper.filter(b => !kids.includes(b))]]
-    : [['books', '📚', 'Books', paper]]
+  const cases: [key: string, emoji: string, name: string, list: LibraryBook[], pickLabel: string][] = split && kids.length && kids.length < paper.length
+    ? [['kids', '🧸', t("Kids' books"), kids, t("Pick one of the kids' books for me")], ['grownups', '📚', t("Grown-ups' books"), paper.filter(b => !kids.includes(b)), t("Pick one of the grown-ups' books for me")]]
+    : [['books', '📚', t('Books'), paper, t('Pick one book for me')]]
   const audio = books.filter(isAudio)
   const pick = (from: LibraryBook[]) => {
     const shelf = from.filter(b => !b.wanted && !b.returnedOn)
@@ -40,7 +41,7 @@ export default function LibraryShelf({ books, members, today, onOpen, split = fa
     timers.current.forEach(clearTimeout); timers.current = []
     setPicked(null)
     const land = () => {
-      setLit(null); setPicked(chosen.id); announce(`Picked: ${chosen.title}`)
+      setLit(null); setPicked(chosen.id); announce(t('Picked: {title}', { title: chosen.title }))
       document.getElementById(`lib-shelf-${chosen.id}`)?.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' })
       later(() => { setPicked(null); onOpen(chosen) }, LAND_MS)
     }
@@ -53,14 +54,14 @@ export default function LibraryShelf({ books, members, today, onOpen, split = fa
   const record = (b: LibraryBook) => <CrateRecord key={b.id} b={b} members={members} today={today} lit={lit === b.id} picked={picked === b.id} onOpen={onOpen} />
   const can = (list: LibraryBook[]) => list.some(b => !b.wanted && !b.returnedOn)
   const pickBtn = (from: LibraryBook[], name: string) =>
-    <button type="button" className="btn btn-secondary lib-pick-btn" aria-label={name} title={name} onClick={() => pick(from)} disabled={!!lit}>🎲 Pick one</button>
+    <button type="button" className="btn btn-secondary lib-pick-btn" aria-label={name} title={name} onClick={() => pick(from)} disabled={!!lit}>{t('🎲 Pick one')}</button>
   return (
     <div className="lib-shelves">
-      {cases.filter(([, , , list]) => list.length).map(([key, emoji, name, list]) => (
+      {cases.filter(([, , , list]) => list.length).map(([key, emoji, name, list, pickLabel]) => (
         <section key={key} className="lib-case" aria-labelledby={`lib-shelf-title-${key}`}>
           <div className="lib-sec-head">
             <h3 id={`lib-shelf-title-${key}`} className="lib-sec-title">{emoji} {name}</h3>
-            {can(list) && pickBtn(list, key === 'books' ? 'Pick one book for me' : `Pick one of the ${name.toLowerCase()} for me`)}
+            {can(list) && pickBtn(list, pickLabel)}
           </div>
           <ul className="lib-shelf" aria-label={name}>{list.map(book)}</ul>
         </section>
@@ -68,10 +69,10 @@ export default function LibraryShelf({ books, members, today, onOpen, split = fa
       {!!audio.length && (
         <section className="lib-crate" aria-labelledby="lib-crate-title">
           <div className="lib-sec-head">
-            <h3 id="lib-crate-title" className="lib-sec-title">🎧 Audiobooks</h3>
-            {can(audio) && pickBtn(audio, 'Pick one audiobook for me')}
+            <h3 id="lib-crate-title" className="lib-sec-title">{t('🎧 Audiobooks')}</h3>
+            {can(audio) && pickBtn(audio, t('Pick one audiobook for me'))}
           </div>
-          <ul className="lib-crate-rows" aria-label="Audiobooks">{audio.map(record)}</ul>
+          <ul className="lib-crate-rows" aria-label={t('Audiobooks')}>{audio.map(record)}</ul>
         </section>
       )}
     </div>
@@ -88,9 +89,9 @@ function ShelfBook({ b, members, today, lit, picked, onOpen }: {
   const readers = [...new Set(b.readers.filter(r => r.status === 'reading').map(r => r.memberId))]
     .map(id => members.find(m => m.id === id)).filter((m): m is Member => !!m).slice(0, 2)
   const name = [
-    `${b.title}${b.author ? ` by ${b.author}` : ''}`,
-    due, b.wanted ? 'on the wishlist' : null,
-    readers.length ? `${readers.map(m => m.name).join(' and ')} ${readers.length > 1 ? 'are' : 'is'} reading it` : null,
+    b.author ? t('{title} by {author}', { title: b.title, author: b.author }) : b.title,
+    due, b.wanted ? t('on the wishlist') : null,
+    readers.length > 1 ? t('{name} and {other} are reading it', { name: readers[0].name, other: readers[1].name }) : readers.length ? t('{name} is reading it', { name: readers[0].name }) : null,
   ].filter(Boolean).join(', ')
   return (
     <li id={`lib-shelf-${b.id}`} className="lib-slot">
@@ -110,7 +111,7 @@ function ShelfBook({ b, members, today, lit, picked, onOpen }: {
           </span>
         )}
         {b.wanted && <span className="lib-ribbon" aria-hidden="true">⭐</span>}
-        {due && <span className={`lib-card-tag ${due === 'Overdue' ? 'lib-overdue' : ''}`} aria-hidden="true">{due}</span>}
+        {due && <span className={`lib-card-tag ${isOverdue(b, today) ? 'lib-overdue' : ''}`} aria-hidden="true">{due}</span>}
       </button>
     </li>
   )
@@ -129,9 +130,9 @@ function CrateRecord({ b, members, today, lit, picked, onOpen }: {
   const now = listening(b)
   const who = now && members.find(m => m.id === now.memberId)
   const name = [
-    `${b.title}${b.author ? ` by ${b.author}` : ''}, audiobook`,
-    due, b.wanted ? 'on the wishlist' : null,
-    now ? `${who?.name ?? 'Someone'} is listening${now.progress !== null ? `, ${Math.round(now.progress * 100)}% in` : ''}` : null,
+    b.author ? t('{title} by {author}', { title: b.title, author: b.author }) : b.title, t('audiobook'),
+    due, b.wanted ? t('on the wishlist') : null,
+    now ? (now.progress !== null ? t('{name} is listening, {pct}% in', { name: who?.name ?? t('Someone'), pct: Math.round(now.progress * 100) }) : t('{name} is listening', { name: who?.name ?? t('Someone') })) : null,
   ].filter(Boolean).join(', ')
   return (
     <li id={`lib-shelf-${b.id}`} className="lib-crate-slot">
@@ -156,7 +157,7 @@ function CrateRecord({ b, members, today, lit, picked, onOpen }: {
             )}
           <span className="lib-sleeve-badge" aria-hidden="true">🎧</span>
           {b.wanted && <span className="lib-ribbon" aria-hidden="true">⭐</span>}
-          {due && <span className={`lib-card-tag ${due === 'Overdue' ? 'lib-overdue' : ''}`} aria-hidden="true">{due}</span>}
+          {due && <span className={`lib-card-tag ${isOverdue(b, today) ? 'lib-overdue' : ''}`} aria-hidden="true">{due}</span>}
         </span>
       </button>
     </li>

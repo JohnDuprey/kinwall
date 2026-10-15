@@ -1,3 +1,4 @@
+import { msg } from './i18n.ts'
 // The grocery catalog (GET /api/lists/remembered): pure helpers for its search, filters, sort, groups and labels.
 import { itemKey } from './itemSuggest.ts'
 import { compareAisles, type AisleOrder, type BarcodeLookup, type List, type RememberedItem } from './types.ts'
@@ -25,7 +26,7 @@ export const catalogTags = (items: RememberedItem[]) => counted(items.map(i => i
 export const catalogDepartments = (items: RememberedItem[]) => counted(items.map(i => (i.category ? [i.category] : [])))
 
 /** Offered in the edit sheet until the family has categories of its own. */
-export const STARTER_TAGS = ['Breakfast', 'Snacks', 'Lunchbox', 'Pantry staples', 'Cleaning', 'Baby', 'Pet']
+export const STARTER_TAGS = [msg('Breakfast'), msg('Snacks'), msg('Lunchbox'), msg('Pantry staples'), msg('Cleaning'), msg('Baby'), msg('Pet')]
 
 /** Items whose name (or matching key: "tomatoes" finds Tomato) has the search, found at `store`, in
  * category `tag` and department `department` when given (case ignored). All of them combine. */
@@ -56,8 +57,8 @@ export function sortCatalog(items: RememberedItem[], sort: CatalogSort, store: s
   return [...items].sort((a, b) => cmp(a, b) || byName(a.title, b.title))
 }
 
-export const CATALOG_SORT_LABELS: Record<CatalogSort, string> = { alpha: 'A–Z', bought: 'Most bought', department: 'Department', aisle: 'Aisle', recent: 'Recently used' }
-export const CATALOG_GROUP_LABELS: Record<CatalogGroup, string> = { none: 'None', department: 'Department', category: 'Category' }
+export const CATALOG_SORT_LABELS: Record<CatalogSort, string> = { alpha: msg('A–Z'), bought: msg('Most bought'), department: msg('Department'), aisle: msg('Aisle'), recent: msg('Recently used') }
+export const CATALOG_GROUP_LABELS: Record<CatalogGroup, string> = { none: msg('None'), department: msg('Department'), category: msg('Category') }
 export type CatalogFilters = { store: string | null; tag: string | null; department: string | null }
 
 /** How many of store, category and department are picked (the Filter & sort button's badge). */

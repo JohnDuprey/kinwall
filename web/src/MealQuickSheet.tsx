@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { isOrderNight, mealDayLabel, mealRecipe, SLOT_LABEL, statusLabel } from './meal-date.ts'
+import { isOrderNight, mealDayLabel, mealRecipe, SLOT_WORD, statusLabel } from './meal-date.ts'
 import { formatTime } from './timeFormat.ts'
 import { OrderNightFacts, OrderSheet, OrderSummary, OrderNightSheet, useMealRestaurant } from './Orders.tsx'
 import { CheckIcon, EditIcon } from './icons.tsx'
@@ -9,6 +9,7 @@ import MealSheet, { EaterAvatars } from './MealSheet.tsx'
 import RecipeSheet, { ratingOwner } from './RecipeSheet.tsx'
 import type { Meal, Recipe } from './meal-types.ts'
 import type { Me } from './types.ts'
+import { t, tm } from './i18n.ts'
 
 /** A tapped planned meal: an order night's order view, its recipe read-only with "Edit meal" (admins)
  * or "Meal details" (an assignee's notes and status), or the meal's own sheet for simple meals.
@@ -32,7 +33,7 @@ export function PlannedMealSheet({ meal: initial, recipes, me, startOrders, star
       ? <MealSheet meal={meal} initial={{ date: meal.date, slot: meal.slot }} recipes={recipes} admin={admin} owner={me?.owner} me={me} startOrders={orderNight ? false : startOrders} onClose={orderNight && !startDetails ? () => setDetails(false) : onClose} onSaved={onSaved} onRecipe={setViewing} onChanged={onRated} />
       : <RecipeSheet key={recipe.id} recipe={recipe} library={recipes} admin={false} owner={ratingOwner(me)} onRated={onRated} onClose={onClose} onSaved={onSaved}
         meal={<MealStrip meal={meal} me={me} onChanged={ordersChanged} />}
-        onEditMeal={{ label: admin ? 'Edit meal' : 'Meal details', open: () => setDetails(true) }} />}
+        onEditMeal={{ label: admin ? t('Edit meal') : t('Meal details'), open: () => setDetails(true) }} />}
     {viewing && <RecipeSheet key={viewing.id} recipe={viewing} library={recipes} admin={false} owner={ratingOwner(me)} onRated={onRated} onClose={() => setViewing(null)} onSaved={onSaved} />}
   </>
 }
@@ -48,14 +49,15 @@ function MealStrip({ meal, me, onChanged }: { meal: Meal; me: Me | null; onChang
     setBusy(true)
     try {
       onChanged(await api.updateMeal(meal.id, { status }))
-      if (status === 'prepared') toast('Marked cooked', false, { label: 'Undo', run: () => void mark('planned') })
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
+      if (status === 'prepared') toast(t('Marked cooked'), false, { label: t('Undo'), run: () => void mark('planned') })
+    } catch (e) { toast(e instanceof Error ? e.message : t('Could not save.'), true) } finally { setBusy(false) }
   }
+  const when = { day: mealDayLabel(meal.date, { weekday: 'short', month: 'short', day: 'numeric' }), meal: tm(SLOT_WORD[meal.slot]) }
   return <div className="meal-strip">
-    <span className="meal-strip-when">{mealDayLabel(meal.date, { weekday: 'short', month: 'short', day: 'numeric' })}, {SLOT_LABEL[meal.slot].toLowerCase()}{time ? ` at ${formatTime(time)}` : ''}</span>
+    <span className="meal-strip-when">{time ? t('{day}, {meal} at {time}', { ...when, time: formatTime(time) }) : t('{day}, {meal}', when)}</span>
     <EaterAvatars ids={meal.eaterIds} members={members} />
     {meal.status !== 'planned' ? <span className="chip chip-static">✓ {statusLabel(meal)}</span>
-      : canMark ? <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void mark('prepared')}><CheckIcon width={20} height={20} /> Mark cooked</button>
+      : canMark ? <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void mark('prepared')}><CheckIcon width={20} height={20} /> {t('Mark cooked')}</button>
       : <span className="chip chip-static">{statusLabel(meal)}</span>}
   </div>
 }
@@ -92,11 +94,11 @@ export function EventOrders({ eventId }: { eventId: string }) {
   }, [eventId, tick])
   const restaurant = useMealRestaurant(meal)
   if (!meal) return null
-  return <section className="event-order-night" aria-label="Order night">
+  return <section className="event-order-night" aria-label={t('Order night')}>
     <OrderNightFacts meal={meal} restaurant={restaurant} notes={false} />
     <OrderSummary meal={meal} restaurant={restaurant} me={me} onChanged={setMeal} onOrder={() => setOrdering(true)} />
-    {me?.scope === 'admin' && <div className="meal-actions"><button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> Edit meal</button></div>}
+    {me?.scope === 'admin' && <div className="meal-actions"><button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> {t('Edit meal')}</button></div>}
     {ordering && <OrderSheet meal={meal} restaurant={restaurant} me={me} onClose={() => setOrdering(false)} onSaved={setMeal} />}
-    {editing && <MealQuickSheet meal={meal} startDetails onClose={() => setEditing(false)} onSaved={() => setTick(t => t + 1)} />}
+    {editing && <MealQuickSheet meal={meal} startDetails onClose={() => setEditing(false)} onSaved={() => setTick(n => n + 1)} />}
   </section>
 }

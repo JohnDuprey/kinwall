@@ -6,6 +6,7 @@ import { useKeyboard } from './keyboard.ts'
 import { sheetHistory, unsavedChanges } from './sheetHistory.ts'
 import { useDialogMaybe } from './dialog.tsx'
 import { useBackClose } from './backStack.ts'
+import { t } from './i18n.ts'
 
 let nextToken = 0
 
@@ -43,7 +44,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
     if (!close || asking.current) return
     if (changed && dialog) {
       asking.current = true
-      const discard = await dialog.confirm({ title: 'Discard changes?', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
+      const discard = await dialog.confirm({ title: t('Discard changes?'), confirmLabel: t('Discard'), cancelLabel: t('Keep editing'), danger: true })
       asking.current = false
       if (!discard) return
     }
@@ -171,7 +172,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
           <div className="sheet-grabber" />
           <div className="sheet-header">
             <h2 className="sheet-title" id={titleId}>{title}</h2>
-            <button className="icon-btn" onClick={() => void dismissRef.current(onCancel ?? onClose)} aria-label={onCancel ? 'Cancel' : 'Close'}><XIcon width={20} height={20} /></button>
+            <button className="icon-btn" onClick={() => void dismissRef.current(onCancel ?? onClose)} aria-label={onCancel ? t('Cancel') : t('Close')}><XIcon width={20} height={20} /></button>
           </div>
         </div>
         <div className="sheet-body scroll-y">{children}</div>

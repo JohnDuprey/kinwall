@@ -3,6 +3,7 @@
 // "iPhone" added by 🦊 Alex" with "4:12 PM" under it.
 import type { Member, SecurityEvent } from './types.ts'
 import { actorName, whenLabel } from './addedBy.ts'
+import { DAY, formatDate, msg, t } from './i18n.ts'
 
 export const SECURITY_PAGE = 20 // events per page (GET /api/security-events?limit=)
 
@@ -15,25 +16,25 @@ export function securityLine(e: Pick<SecurityEvent, 'kind' | 'summary' | 'by' | 
   const who = actorName(e.by, members)
   return {
     icon: ICONS.find(([p]) => e.kind.startsWith(p))?.[1] ?? '🛡️',
-    text: who ? `${e.summary} by ${who}` : e.summary,
+    text: who ? t('{summary} by {who}', { summary: e.summary, who }) : e.summary,
     when: whenLabel(e.at, now),
   }
 }
 
 /** The row's hint: `Passkey "iPhone" added · 9:00 AM`, or "Nothing yet". */
 export function securityHint(latest: Pick<SecurityEvent, 'summary' | 'at'> | undefined, now = new Date()): string {
-  return latest ? `${latest.summary} · ${whenLabel(latest.at, now)}` : 'Nothing yet'
+  return latest ? `${latest.summary} · ${whenLabel(latest.at, now)}` : t('Nothing yet')
 }
 
 /** The sheet's filter chips; each sends its kinds (GET /api/security-events?kinds=). All sends none. */
 export const SECURITY_FILTERS = [
-  { key: 'all', label: 'All', kinds: [] },
-  { key: 'signins', label: 'Sign-ins', kinds: ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'support.link_issued', 'support.link_revoked', 'support.signin'] },
-  { key: 'passkeys', label: 'Passkeys', kinds: ['passkey.added', 'passkey.renamed', 'passkey.removed'] },
-  { key: 'devices', label: 'Devices', kinds: ['device.paired', 'device.owner', 'widgets.added', 'widgets.removed'] },
-  { key: 'keys', label: 'Keys & apps', kinds: ['key.created', 'key.removed', 'app.connected', 'app.disconnected'] },
-  { key: 'pin', label: 'PIN', kinds: ['pin.set', 'pin.removed'] },
-  { key: 'journal', label: 'Journal', kinds: ['journal.privacy', 'member.grown_up'] },
+  { key: 'all', label: msg('All'), kinds: [] },
+  { key: 'signins', label: msg('Sign-ins'), kinds: ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'support.link_issued', 'support.link_revoked', 'support.signin'] },
+  { key: 'passkeys', label: msg('Passkeys'), kinds: ['passkey.added', 'passkey.renamed', 'passkey.removed'] },
+  { key: 'devices', label: msg('Devices'), kinds: ['device.paired', 'device.owner', 'widgets.added', 'widgets.removed'] },
+  { key: 'keys', label: msg('Keys & apps'), kinds: ['key.created', 'key.removed', 'app.connected', 'app.disconnected'] },
+  { key: 'pin', label: msg('PIN'), kinds: ['pin.set', 'pin.removed'] },
+  { key: 'journal', label: msg('Journal'), kinds: ['journal.privacy', 'member.grown_up'] },
 ] as const satisfies readonly { key: string; label: string; kinds: readonly string[] }[]
 export type SecurityFilter = (typeof SECURITY_FILTERS)[number]['key']
 
@@ -42,9 +43,9 @@ export function securityDay(iso: string, now = new Date()): string {
   const d = new Date(iso)
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
   const days = Math.round((day(now) - day(d)) / 86_400_000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })
+  if (days === 0) return t('Today')
+  if (days === 1) return t('Yesterday')
+  return formatDate(d, { ...DAY, ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })
 }
 
 /** Newest-first events in runs by local day, for the sheet's day headings. */

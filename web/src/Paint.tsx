@@ -21,18 +21,19 @@ import { preparePhoto } from './photos.ts'
 import { api, ApiError } from './api.ts'
 import { beginStroke, endStroke, floodFill, packRGBA, PAPER, parseSizes, SIZE_NAMES, SIZES, sizeFor, STAMPS, strokeTo, drawStroke, type Brush, type Stroke } from './paintTools.ts'
 import ColoringBook from './ColoringBook.tsx'
+import { intlLocale, msg, t, tm } from './i18n.ts'
 
 // The Colors sheet, one row each: bright, pastel (the member palette), dark, skin tones and browns,
 // grays and extras. Names are what screen readers say.
 const PALETTE: [hex: string, name: string][][] = [
-  [['#FF3B30', 'Red'], ['#FF9500', 'Orange'], ['#FFCC00', 'Yellow'], ['#34C759', 'Green'], ['#2FBFB0', 'Teal'], ['#4DA3FF', 'Blue'], ['#8E5CF7', 'Purple'], ['#FF5FA2', 'Hot pink']],
-  [['#FF9E7A', 'Peach'], ['#FFD166', 'Amber'], ['#C7E27A', 'Lime'], ['#7ED9A6', 'Mint'], ['#8FE0D6', 'Aqua'], ['#7AB8FF', 'Sky blue'], ['#B39DFF', 'Lavender'], ['#FF8FA3', 'Pink']],
-  [['#B3261E', 'Dark red'], ['#C2570C', 'Rust'], ['#B8860B', 'Mustard'], ['#1E7B3A', 'Forest green'], ['#0F766E', 'Dark teal'], ['#1D4ED8', 'Royal blue'], ['#5B21B6', 'Deep purple'], ['#9D174D', 'Berry']],
-  [['#FDDBB4', 'Light skin'], ['#E8B98A', 'Tan'], ['#C68A5A', 'Caramel'], ['#8D5A3B', 'Brown skin'], ['#5C3A21', 'Dark brown'], ['#8B5A2B', 'Brown'], ['#FFB6D9', 'Rose'], ['#A0AEC0', 'Slate']],
-  [['#FFFFFF', 'White'], ['#D9D9D9', 'Light gray'], ['#8A8A8A', 'Gray'], ['#4A4A4A', 'Dark gray'], ['#222222', 'Black'], ['#FF6B6B', 'Coral red'], ['#F5B301', 'Gold'], ['#1E3A5F', 'Navy']],
+  [['#FF3B30', msg('Red')], ['#FF9500', msg('Orange')], ['#FFCC00', msg('Yellow')], ['#34C759', msg('Green')], ['#2FBFB0', msg('Teal')], ['#4DA3FF', msg('Blue')], ['#8E5CF7', msg('Purple')], ['#FF5FA2', msg('Hot pink')]],
+  [['#FF9E7A', msg('Peach')], ['#FFD166', msg('Amber')], ['#C7E27A', msg('Lime')], ['#7ED9A6', msg('Mint')], ['#8FE0D6', msg('Aqua')], ['#7AB8FF', msg('Sky blue')], ['#B39DFF', msg('Lavender')], ['#FF8FA3', msg('Pink')]],
+  [['#B3261E', msg('Dark red')], ['#C2570C', msg('Rust')], ['#B8860B', msg('Mustard')], ['#1E7B3A', msg('Forest green')], ['#0F766E', msg('Dark teal')], ['#1D4ED8', msg('Royal blue')], ['#5B21B6', msg('Deep purple')], ['#9D174D', msg('Berry')]],
+  [['#FDDBB4', msg('Light skin')], ['#E8B98A', msg('Tan')], ['#C68A5A', msg('Caramel')], ['#8D5A3B', msg('Brown skin')], ['#5C3A21', msg('Dark brown')], ['#8B5A2B', msg('Brown')], ['#FFB6D9', msg('Rose')], ['#A0AEC0', msg('Slate')]],
+  [['#FFFFFF', msg('White')], ['#D9D9D9', msg('Light gray')], ['#8A8A8A', msg('Gray')], ['#4A4A4A', msg('Dark gray')], ['#222222', msg('Black')], ['#FF6B6B', msg('Coral red')], ['#F5B301', msg('Gold')], ['#1E3A5F', msg('Navy')]],
 ]
 const PRESETS = PALETTE.flat().map(([hex]) => hex)
-const nameOf = (hex: string) => PALETTE.flat().find(([h]) => h.toLowerCase() === hex.toLowerCase())?.[1] ?? 'Your color'
+const nameOf = (hex: string) => tm(PALETTE.flat().find(([h]) => h.toLowerCase() === hex.toLowerCase())?.[1] ?? msg('Your color'))
 const RECENT_KEY = 'kinwall.paint.recentColors' // this device's last few "any color" picks
 const loadRecent = (): string[] => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] } }
 const MAX_PX = 2048 // longest canvas side: keeps flood fill and PNG encoding quick on an iPad
@@ -43,21 +44,21 @@ const AUTOSAVE_EVERY = 3 // strokes
 type Tool = Brush | 'fill'
 // The Brushes sheet. Eraser and Fill have their own toolbar buttons.
 const BRUSHES: { key: Brush; name: string; emoji: string }[] = [
-  { key: 'pencil', name: 'Pencil', emoji: '✏️' },
-  { key: 'marker', name: 'Marker', emoji: '🖊️' },
-  { key: 'crayon', name: 'Crayon', emoji: '🖍️' },
-  { key: 'soft', name: 'Highlighter', emoji: '🖌️' },
-  { key: 'spray', name: 'Spray', emoji: '💨' },
-  { key: 'rainbow', name: 'Rainbow', emoji: '🌈' },
-  { key: 'stamp', name: 'Stamps', emoji: '⭐' },
+  { key: 'pencil', name: msg('Pencil'), emoji: '✏️' },
+  { key: 'marker', name: msg('Marker'), emoji: '🖊️' },
+  { key: 'crayon', name: msg('Crayon'), emoji: '🖍️' },
+  { key: 'soft', name: msg('Highlighter'), emoji: '🖌️' },
+  { key: 'spray', name: msg('Spray'), emoji: '💨' },
+  { key: 'rainbow', name: msg('Rainbow'), emoji: '🌈' },
+  { key: 'stamp', name: msg('Stamps'), emoji: '⭐' },
 ]
-const toolName = (t: Tool, stamp: string) => t === 'fill' ? 'Fill bucket' : t === 'eraser' ? 'Eraser'
-  : t === 'stamp' ? `${STAMPS.find(([s]) => s === stamp)?.[1] ?? 'Star'} stamp` : BRUSHES.find(b => b.key === t)!.name
+const toolName = (tool: Tool, stamp: string) => tool === 'fill' ? t('Fill bucket') : tool === 'eraser' ? t('Eraser')
+  : tool === 'stamp' ? t('{name} stamp', { name: tm(STAMPS.find(([s]) => s === stamp)?.[1] ?? msg('Star')) }) : tm(BRUSHES.find(b => b.key === tool)!.name)
 /** A stylus's pressure; a finger or mouse has none worth using (they report a flat 0.5 or 0/1). */
 const pressureOf = (e: PointerEvent) => e.pointerType === 'pen' && e.pressure > 0 ? e.pressure : undefined
 /** One undo step: the paint, and the coloring page's lines at the same size (or none). */
 type Step = { paint: Blob; lines: Blob | null }
-const ownColor = (t: Tool) => t !== 'eraser' && t !== 'rainbow' // tools that use the chosen color
+const ownColor = (tool: Tool) => tool !== 'eraser' && tool !== 'rainbow' // tools that use the chosen color
 
 const ls = {
   get: (k: string) => { try { return localStorage.getItem(k) } catch { return null } },
@@ -69,7 +70,7 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 const COUNT_KEY = 'kinwall:paint:n' // numbers "Drawing 3"; bumped when a drawing is first stored, so blank pages don't use one up
 function newMeta(): Meta {
   const n = Number(ls.get(COUNT_KEY) ?? 0) + 1
-  return { id: newId(), name: `Drawing ${n}`, memberId: null, created: Date.now(), updated: Date.now() }
+  return { id: newId(), name: t('Drawing {n}', { n }), memberId: null, created: Date.now(), updated: Date.now() }
 }
 
 // ---------- Canvas helpers ----------
@@ -106,7 +107,7 @@ async function makeThumb(png: Blob) {
 }
 
 const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-const fmtDate = (t: number, long = false) => new Date(t).toLocaleDateString(undefined, long ? { year: 'numeric', month: 'long', day: 'numeric' } : { month: 'short', day: 'numeric' })
+const fmtDate = (ms: number, long = false) => new Date(ms).toLocaleDateString(intlLocale(), long ? { year: 'numeric', month: 'long', day: 'numeric' } : { month: 'short', day: 'numeric' })
 
 export default function Paint() {
   const { members, toast, selectedMemberId } = useApp()
@@ -168,7 +169,7 @@ export default function Paint() {
       r.lines = l
       r.hist = [...r.hist.slice(0, r.idx + 1), { paint, lines: l }].slice(-(UNDO_DEPTH + 1))
       r.idx = r.hist.length - 1
-      setHistTick(t => t + 1)
+      setHistTick(n => n + 1)
     }).catch(() => {})
     if (!edit) return
     r.dirty = true
@@ -230,7 +231,7 @@ export default function Paint() {
       await r.queue
       if (!r.stored && await countDrawings() >= MAX_DRAWINGS) {
         r.dirty = true
-        if (!r.fullWarned) toast(`My drawings is full (${MAX_DRAWINGS} pictures). Delete a few to keep this one.`, true)
+        if (!r.fullWarned) toast(t('My drawings is full ({n} pictures). Delete a few to keep this one.', { n: MAX_DRAWINGS }), true)
         r.fullWarned = true
         return false
       }
@@ -245,7 +246,7 @@ export default function Paint() {
     } catch (err) {
       console.warn('Paint: save failed', err)
       r.dirty = true
-      toast('Could not save the drawing on this device.', true)
+      toast(t('Could not save the drawing on this device.'), true)
       return false
     }
   }
@@ -274,7 +275,7 @@ export default function Paint() {
     setMeta({ id: d.id, name: d.name, memberId: d.memberId, created: d.created, updated: d.updated })
     r.stored = true; r.fullWarned = false; r.dirty = false; r.sinceSave = 0
     r.hist = [{ paint: d.paint ?? d.png, lines: d.lines ?? null }]; r.idx = 0
-    setHistTick(t => t + 1)
+    setHistTick(n => n + 1)
   }
 
   // Full screen like an added activity: Kinwall's header, tabs and rail hide (styles.css,
@@ -330,13 +331,13 @@ export default function Paint() {
     await r.queue
     if (r.idx <= 0) return
     r.idx--; r.dirty = true
-    await showStep(r.hist[r.idx]); setHistTick(t => t + 1); announce('Undone')
+    await showStep(r.hist[r.idx]); setHistTick(n => n + 1); announce(t('Undone'))
   }
   const redo = async () => {
     await r.queue
     if (r.idx >= r.hist.length - 1) return
     r.idx++; r.dirty = true
-    await showStep(r.hist[r.idx]); setHistTick(t => t + 1); announce('Redone')
+    await showStep(r.hist[r.idx]); setHistTick(n => n + 1); announce(t('Redone'))
   }
   const undoRef = useRef({ undo, redo })
   undoRef.current = { undo, redo }
@@ -352,10 +353,10 @@ export default function Paint() {
   }, [])
 
   const clear = async () => {
-    if (!await dialog.confirm({ title: 'Clear the whole picture?', body: 'You can still undo this.', confirmLabel: 'Clear', danger: true })) return
+    if (!await dialog.confirm({ title: t('Clear the whole picture?'), body: t('You can still undo this.'), confirmLabel: t('Clear'), danger: true })) return
     drawContained(canvasRef.current!)
     snapshot()
-    announce('Picture cleared')
+    announce(t('Picture cleared'))
   }
 
   // ---------- Drawing ----------
@@ -413,15 +414,15 @@ export default function Paint() {
     if (!isIOS()) {
       const a = document.createElement('a')
       a.href = url; a.download = file.name; a.click()
-      toast('Picture downloaded'); return
+      toast(t('Picture downloaded')); return
     }
     // iOS: a download lands in Files, not Photos. The share sheet has "Save Image".
     if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: r.meta.name }); announce('Shared'); return }
+      try { await navigator.share({ files: [file], title: r.meta.name }); announce(t('Shared')); return }
       catch (err) { if ((err as Error).name === 'AbortError') return }
     }
     window.open(url, '_blank')
-    toast('Press and hold the picture, then choose Save to Photos.', true)
+    toast(t('Press and hold the picture, then choose Save to Photos.'), true)
   }
   // The family photo library lives on the server, so this is how a drawing leaves this device:
   // same downscale/WebP path as an upload, captioned with the picture's name and artist.
@@ -433,10 +434,10 @@ export default function Paint() {
       const png = await current()
       const { blob, width, height } = await preparePhoto(new File([png], `${r.meta.name}.png`, { type: 'image/png' }))
       const by = members.find(x => x.id === r.meta?.memberId)
-      await api.uploadPhoto(blob, width, height, by ? `${r.meta.name} by ${by.name}` : r.meta.name, true, { drawing: true, by: by?.id })
-      toast('Saved to family photos'); announce('Saved to family photos')
+      await api.uploadPhoto(blob, width, height, by ? t('{name} by {artist}', { name: r.meta.name, artist: by.name }) : r.meta.name, true, { drawing: true, by: by?.id })
+      toast(t('Saved to family photos')); announce(t('Saved to family photos'))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not save to family photos', true)
+      toast(e instanceof ApiError ? e.message : t('Could not save to family photos'), true)
     } finally { setSavingPhoto(false) }
   }
   const print = async () => {
@@ -453,7 +454,7 @@ export default function Paint() {
 
   const rename = async () => {
     if (!r.meta) return
-    const name = await dialog.prompt({ title: 'Name this drawing', label: 'Name', defaultValue: r.meta.name, confirmLabel: 'Save' })
+    const name = await dialog.prompt({ title: t('Name this drawing'), label: t('Name'), defaultValue: r.meta.name, confirmLabel: t('Save') })
     if (!name) return
     setMeta({ ...r.meta, name })
     if (r.stored) { r.dirty = true; save() }
@@ -475,9 +476,9 @@ export default function Paint() {
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* private mode: just not remembered */ }
   }
   const painting = ownColor(tool)
-  const pickTool = (t: Tool, s = stamp) => {
-    setTool(t); setStamp(s); setBrushes(false); announce(toolName(t, s))
-    if (t !== 'fill' && ownColor(t)) r.lastBrush = t
+  const pickTool = (next: Tool, s = stamp) => {
+    setTool(next); setStamp(s); setBrushes(false); announce(toolName(next, s))
+    if (next !== 'fill' && ownColor(next)) r.lastBrush = next
   }
   const brush = BRUSHES.find(b => b.key === tool)
   // Sizes belong to a brush (the eraser too); Fill has none, so the size button shows the last brush's.
@@ -486,7 +487,7 @@ export default function Paint() {
   const pickSize = (i: number) => {
     const next = { ...sizes, [sized]: i }
     setSizes(next); ls.set(SIZES_KEY, JSON.stringify(next))
-    setSizing(false); announce(`${SIZE_NAMES[i]} ${toolName(sized, stamp).toLowerCase()}`)
+    setSizing(false); announce(t('{size} {tool}', { size: tm(SIZE_NAMES[i]), tool: toolName(sized, stamp).toLowerCase() }))
   }
   // How wide each brush really draws at a size (the highlighter, spray and stamps go wider than the
   // marker), so the dots match the picture; capped so the biggest still fit the sheet.
@@ -500,99 +501,99 @@ export default function Paint() {
     snapshot(false) // the first step has the page, so undo never takes it away
     setBook(false)
     if (tool === 'eraser') setTool('fill')
-    announce(`Coloring page: ${name}`)
+    announce(t('Coloring page: {name}', { name }))
   }
 
   return (
     <div className="paint">
-      <div className="paint-toolbar" role="toolbar" aria-label="Paint tools">
+      <div className="paint-toolbar" role="toolbar" aria-label={t('Paint tools')}>
         <div className="paint-group">
-          <a className="paint-btn" href="#/activities" aria-label="Back to activities"><ChevronLeft /></a>
-          <button className={`paint-btn ${brush ? 'active' : ''}`} aria-haspopup="dialog" aria-label={`Brushes: ${brush ? toolName(tool, stamp) : 'pick one'}`} title="Brushes"
+          <a className="paint-btn" href="#/activities" aria-label={t('Back to activities')}><ChevronLeft /></a>
+          <button className={`paint-btn ${brush ? 'active' : ''}`} aria-haspopup="dialog" aria-label={t('Brushes: {name}', { name: brush ? toolName(tool, stamp) : t('pick one') })} title={t('Brushes')}
             onClick={() => setBrushes(true)}>
             <span className="paint-brush-emoji" aria-hidden="true">{tool === 'stamp' ? <span style={{ color }}>{stamp}</span> : (brush ?? BRUSHES.find(b => b.key === r.lastBrush)!).emoji}</span>
           </button>
-          <button className={`paint-btn ${tool === 'eraser' ? 'active' : ''}`} aria-pressed={tool === 'eraser'} aria-label="Eraser" title="Eraser" onClick={() => pickTool('eraser')}><EraserIcon /></button>
-          <button className={`paint-btn ${tool === 'fill' ? 'active' : ''}`} aria-pressed={tool === 'fill'} aria-label="Fill bucket" title="Fill bucket" onClick={() => pickTool('fill')}><BucketIcon /></button>
-          <button className="paint-btn paint-color-btn" aria-label={`Colors: ${nameOf(color)}`} title="Colors" aria-haspopup="dialog" onClick={() => setColors(true)}>
+          <button className={`paint-btn ${tool === 'eraser' ? 'active' : ''}`} aria-pressed={tool === 'eraser'} aria-label={t('Eraser')} title={t('Eraser')} onClick={() => pickTool('eraser')}><EraserIcon /></button>
+          <button className={`paint-btn ${tool === 'fill' ? 'active' : ''}`} aria-pressed={tool === 'fill'} aria-label={t('Fill bucket')} title={t('Fill bucket')} onClick={() => pickTool('fill')}><BucketIcon /></button>
+          <button className="paint-btn paint-color-btn" aria-label={t('Colors: {name}', { name: nameOf(color) })} title={t('Colors')} aria-haspopup="dialog" onClick={() => setColors(true)}>
             <span className="paint-color-dot" style={{ background: color }} aria-hidden="true" />
           </button>
-          <button className="paint-btn" aria-haspopup="dialog" aria-label={tool === 'fill' ? 'Size (Fill has no size)' : `Size: ${SIZE_NAMES[size]}`} title="Size"
+          <button className="paint-btn" aria-haspopup="dialog" aria-label={tool === 'fill' ? t('Size (Fill has no size)') : t('Size: {name}', { name: tm(SIZE_NAMES[size]) })} title={t('Size')}
             disabled={tool === 'fill'} onClick={() => setSizing(true)}>
             <span className="paint-size-dot" style={{ width: Math.max(4, Math.min(SIZES[size], 34)), height: Math.max(4, Math.min(SIZES[size], 34)), background: dotColor }} aria-hidden="true" />
           </button>
-          <button className="paint-btn" aria-haspopup="dialog" aria-label="Coloring pages" title="Coloring pages" onClick={() => setBook(true)}><BookIcon /></button>
+          <button className="paint-btn" aria-haspopup="dialog" aria-label={t('Coloring pages')} title={t('Coloring pages')} onClick={() => setBook(true)}><BookIcon /></button>
         </div>
         <div className="paint-group">
-          <button className="paint-btn" aria-label="Undo" title="Undo" disabled={!canUndo} onClick={undo}><UndoIcon /></button>
-          <button className="paint-btn" aria-label="Redo" title="Redo" disabled={!canRedo} onClick={redo}><RedoIcon /></button>
-          <button className="paint-btn" aria-label="Clear picture" title="Clear" onClick={clear}><TrashIcon /></button>
-          <button className="paint-btn" aria-label="My drawings" title="My drawings" onClick={async () => { await save(); setGallery(true) }}><ImagesIcon /></button>
+          <button className="paint-btn" aria-label={t('Undo')} title={t('Undo')} disabled={!canUndo} onClick={undo}><UndoIcon /></button>
+          <button className="paint-btn" aria-label={t('Redo')} title={t('Redo')} disabled={!canRedo} onClick={redo}><RedoIcon /></button>
+          <button className="paint-btn" aria-label={t('Clear picture')} title={t('Clear')} onClick={clear}><TrashIcon /></button>
+          <button className="paint-btn" aria-label={t('My drawings')} title={t('My drawings')} onClick={async () => { await save(); setGallery(true) }}><ImagesIcon /></button>
           {/* Phones: Save, Save to family photos and Print go behind More so the actions fit one row. */}
           <span className="paint-extra">
-            <button className="paint-btn" aria-label="Save picture" title="Save" onClick={exportPng}><DownloadIcon /></button>
-            <button className="paint-btn" aria-label="Save to family photos" title="Save to family photos" disabled={savingPhoto} onClick={saveToPhotos}><HeartIcon /></button>
-            <button className="paint-btn" aria-label="Print picture" title="Print" onClick={print}><PrinterIcon /></button>
+            <button className="paint-btn" aria-label={t('Save picture')} title={t('Save')} onClick={exportPng}><DownloadIcon /></button>
+            <button className="paint-btn" aria-label={t('Save to family photos')} title={t('Save to family photos')} disabled={savingPhoto} onClick={saveToPhotos}><HeartIcon /></button>
+            <button className="paint-btn" aria-label={t('Print picture')} title={t('Print')} onClick={print}><PrinterIcon /></button>
           </span>
-          <button className="paint-btn paint-more" aria-haspopup="dialog" aria-label="More: save or print" title="More" onClick={() => setMore(true)}><MoreIcon /></button>
+          <button className="paint-btn paint-more" aria-haspopup="dialog" aria-label={t('More: save or print')} title={t('More')} onClick={() => setMore(true)}><MoreIcon /></button>
           {members.length > 0 && (
-            <button className={`paint-btn paint-who${member?.picture ? ' face-has-pic' : ''}`} aria-label={member ? `Drawing by ${member.name} (change)` : "Who's drawing?"} title="Who's drawing?" onClick={() => setWho(true)}
+            <button className={`paint-btn paint-who${member?.picture ? ' face-has-pic' : ''}`} aria-label={member ? t('Drawing by {name} (change)', { name: member.name }) : t("Who's drawing?")} title={t("Who's drawing?")} onClick={() => setWho(true)}
               style={member ? { background: member.color, color: inkFor(member.color) } : undefined}>
               {member ? <>{member.avatar || member.name[0]}<FacePic m={member} /></> : <span aria-hidden="true">🙂</span>}
             </button>
           )}
-          <button className="paint-name" onClick={rename} aria-label={`Rename ${meta?.name ?? 'drawing'}`}>
+          <button className="paint-name" onClick={rename} aria-label={t('Rename {name}', { name: meta?.name ?? t('drawing') })}>
             <span>{meta?.name}</span><EditIcon width={18} height={18} />
           </button>
         </div>
       </div>
       <div className="paint-canvas-wrap" ref={wrapRef}>
-        <canvas ref={canvasRef} className={`paint-canvas paint-tool-${tool}`} role="img" aria-label={`Drawing canvas: ${meta?.name ?? ''}`}
+        <canvas ref={canvasRef} className={`paint-canvas paint-tool-${tool}`} role="img" aria-label={t('Drawing canvas: {name}', { name: meta?.name ?? '' })}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
         <canvas ref={wetRef} className="paint-layer paint-wet" aria-hidden="true" />
         <canvas ref={linesRef} className="paint-layer" aria-hidden="true" />
       </div>
 
       {brushes && (
-        <Sheet title="Brushes" onClose={() => setBrushes(false)}>
+        <Sheet title={t('Brushes')} onClose={() => setBrushes(false)}>
           <div className="paint-brushes">
             {BRUSHES.filter(b => b.key !== 'stamp').map(b => (
               <button key={b.key} className={`paint-brush-tile ${tool === b.key ? 'active' : ''}`} aria-pressed={tool === b.key} onClick={() => pickTool(b.key)}>
                 <BrushSample brush={b.key} color={color} />
-                <span><span aria-hidden="true">{b.emoji}</span> {b.name}</span>
+                <span><span aria-hidden="true">{b.emoji}</span> {tm(b.name)}</span>
               </button>
             ))}
           </div>
-          <h3 className="paint-palette-title">Stamps</h3>
+          <h3 className="paint-palette-title">{t('Stamps')}</h3>
           <div className="paint-stamps">
             {STAMPS.map(([s, name], i) => (
               <button key={s} className={`paint-stamp ${tool === 'stamp' && stamp === s ? 'active' : ''}`} aria-pressed={tool === 'stamp' && stamp === s}
-                aria-label={`${name} stamp`} title={name} style={i < 4 ? { color } : undefined} onClick={() => pickTool('stamp', s)}>{s}</button>
+                aria-label={t('{name} stamp', { name: tm(name) })} title={tm(name)} style={i < 4 ? { color } : undefined} onClick={() => pickTool('stamp', s)}>{s}</button>
             ))}
           </div>
-          <p className="paint-gallery-note" style={{ marginTop: 12 }}>Tap the picture to stamp. Star, heart, dot and diamond use your color.</p>
+          <p className="paint-gallery-note" style={{ marginTop: 12 }}>{t('Tap the picture to stamp. Star, heart, dot and diamond use your color.')}</p>
         </Sheet>
       )}
 
       {sizing && (
-        <Sheet title={`${toolName(sized, stamp)} size`} onClose={() => setSizing(false)}>
-          <div className="paint-sizes" role="group" aria-label="Sizes">
+        <Sheet title={t('{tool} size', { tool: toolName(sized, stamp) })} onClose={() => setSizing(false)}>
+          <div className="paint-sizes" role="group" aria-label={t('Sizes')}>
             {SIZES.map((px, i) => (
-              <button key={px} className={`paint-size ${size === i ? 'active' : ''}`} aria-pressed={size === i} aria-label={SIZE_NAMES[i]} title={SIZE_NAMES[i]} onClick={() => pickSize(i)}>
+              <button key={px} className={`paint-size ${size === i ? 'active' : ''}`} aria-pressed={size === i} aria-label={tm(SIZE_NAMES[i])} title={tm(SIZE_NAMES[i])} onClick={() => pickSize(i)}>
                 <span className="paint-size-dot" style={{ width: drawn(px), height: drawn(px), background: dotColor }} aria-hidden="true" />
               </button>
             ))}
           </div>
-          <p className="paint-gallery-note" style={{ marginTop: 12 }}>Each dot shows how big it draws. Every brush, and the eraser, keeps its own size on this device.</p>
+          <p className="paint-gallery-note" style={{ marginTop: 12 }}>{t('Each dot shows how big it draws. Every brush, and the eraser, keeps its own size on this device.')}</p>
         </Sheet>
       )}
 
       {more && (
-        <Sheet title="Save or print" onClose={() => setMore(false)}>
+        <Sheet title={t('Save or print')} onClose={() => setMore(false)}>
           <div style={{ display: 'grid', gap: 10 }}>
-            <button className="btn btn-secondary btn-block" onClick={() => { setMore(false); exportPng() }}><DownloadIcon /> Save picture</button>
-            <button className="btn btn-secondary btn-block" disabled={savingPhoto} onClick={() => { setMore(false); saveToPhotos() }}><HeartIcon /> Save to family photos</button>
-            <button className="btn btn-secondary btn-block" onClick={() => { setMore(false); print() }}><PrinterIcon /> Print</button>
+            <button className="btn btn-secondary btn-block" onClick={() => { setMore(false); exportPng() }}><DownloadIcon /> {t('Save picture')}</button>
+            <button className="btn btn-secondary btn-block" disabled={savingPhoto} onClick={() => { setMore(false); saveToPhotos() }}><HeartIcon /> {t('Save to family photos')}</button>
+            <button className="btn btn-secondary btn-block" onClick={() => { setMore(false); print() }}><PrinterIcon /> {t('Print')}</button>
           </div>
         </Sheet>
       )}
@@ -600,36 +601,36 @@ export default function Paint() {
       {book && <ColoringBook onClose={() => setBook(false)} onPick={pickPage} />}
 
       {gallery && <Gallery currentId={meta?.id} onClose={() => setGallery(false)}
-        onOpen={async d => { await save(); await open(d); setGallery(false); announce(`Opened ${d.name}`) }}
-        onNew={async () => { await save(); startNew(); setGallery(false); announce('New drawing') }}
+        onOpen={async d => { await save(); await open(d); setGallery(false); announce(t('Opened {name}', { name: d.name })) }}
+        onNew={async () => { await save(); startNew(); setGallery(false); announce(t('New drawing')) }}
         onColoring={async () => { await save(); setGallery(false); setBook(true) }}
         onDeleted={id => { if (id === r.meta?.id) startNew() }} />}
 
       {colors && (
-        <Sheet title="Colors" onClose={() => setColors(false)}>
+        <Sheet title={t('Colors')} onClose={() => setColors(false)}>
           <div className="paint-palette">
             {PALETTE.map((row, i) => (
-              <div key={i} className="paint-palette-row" role="group" aria-label={['Bright', 'Pastel', 'Dark', 'Skin and browns', 'Grays'][i]}>
+              <div key={i} className="paint-palette-row" role="group" aria-label={[t('Bright'), t('Pastel'), t('Dark'), t('Skin and browns'), t('Grays')][i]}>
                 {row.map(([c, name]) => {
                   const on = painting && color.toLowerCase() === c.toLowerCase()
-                  return <button key={c} className={`color-swatch ${on ? 'active' : ''} ${c === '#FFFFFF' ? 'paint-swatch-light' : ''}`} style={{ backgroundColor: c }} aria-pressed={on} aria-label={name} title={name} onClick={() => pickColor(c)} />
+                  return <button key={c} className={`color-swatch ${on ? 'active' : ''} ${c === '#FFFFFF' ? 'paint-swatch-light' : ''}`} style={{ backgroundColor: c }} aria-pressed={on} aria-label={tm(name)} title={tm(name)} onClick={() => pickColor(c)} />
                 })}
               </div>
             ))}
           </div>
-          <h3 className="paint-palette-title">Any color</h3>
+          <h3 className="paint-palette-title">{t('Any color')}</h3>
           <div className="paint-palette-row">
-            <CustomColorSwatch value={color} presets={PRESETS} onChange={pickCustom} label="Pick any color" />
+            <CustomColorSwatch value={color} presets={PRESETS} onChange={pickCustom} label={t('Pick any color')} />
             {recent.map(c => (
               <button key={c} className={`color-swatch ${painting && color === c ? 'active' : ''}`} style={{ backgroundColor: c }} aria-pressed={painting && color === c}
-                aria-label={`Your color ${c}`} title={c} onClick={() => pickColor(c)} />
+                aria-label={t('Your color {hex}', { hex: c })} title={c} onClick={() => pickColor(c)} />
             ))}
           </div>
         </Sheet>
       )}
 
       {who && (
-        <Sheet title="Who's drawing?" onClose={() => setWho(false)}>
+        <Sheet title={t("Who's drawing?")} onClose={() => setWho(false)}>
           <div className="who-grid">
             {members.map(m => (
               <button key={m.id} className={`who-btn ${meta?.memberId === m.id ? 'active' : ''}`} aria-pressed={meta?.memberId === m.id} onClick={() => setMember(m.id)}>
@@ -638,7 +639,7 @@ export default function Paint() {
               </button>
             ))}
           </div>
-          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMember(null)}>Skip</button>
+          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMember(null)}>{t('Skip')}</button>
         </Sheet>
       )}
 
@@ -684,38 +685,38 @@ function Gallery({ currentId, onClose, onOpen, onNew, onColoring, onDeleted }: {
   }, [tick])
 
   const duplicate = async (d: Drawing) => {
-    if ((items?.length ?? 0) >= MAX_DRAWINGS) { toast(`My drawings is full (${MAX_DRAWINGS} pictures). Delete a few first.`, true); return }
-    await putDrawing({ ...d, id: newId(), name: `${d.name} (copy)`, created: Date.now(), updated: Date.now() })
-    announce(`Copied ${d.name}`); setTick(t => t + 1)
+    if ((items?.length ?? 0) >= MAX_DRAWINGS) { toast(t('My drawings is full ({n} pictures). Delete a few first.', { n: MAX_DRAWINGS }), true); return }
+    await putDrawing({ ...d, id: newId(), name: t('{name} (copy)', { name: d.name }), created: Date.now(), updated: Date.now() })
+    announce(t('Copied {name}', { name: d.name })); setTick(n => n + 1)
   }
   const remove = async (d: Drawing) => {
-    if (!await dialog.confirm({ title: `Delete "${d.name}"?`, body: 'This picture will be gone from this device.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: t('Delete "{title}"?', { title: d.name }), body: t('This picture will be gone from this device.'), confirmLabel: t('Delete'), danger: true })) return
     await deleteDrawing(d.id)
     onDeleted(d.id)
-    announce(`Deleted ${d.name}`); setTick(t => t + 1)
+    announce(t('Deleted {name}', { name: d.name })); setTick(n => n + 1)
   }
 
   return (
-    <Sheet title="My drawings" onClose={onClose}>
-      <p className="paint-gallery-note">Saved on this device only{items ? ` · ${items.length} of ${MAX_DRAWINGS}` : ''}.</p>
+    <Sheet title={t('My drawings')} onClose={onClose}>
+      <p className="paint-gallery-note">{items ? t('Saved on this device only · {n} of {max}.', { n: items.length, max: MAX_DRAWINGS }) : t('Saved on this device only.')}</p>
       <div className="paint-gallery-new">
-        <button className="btn btn-primary" onClick={onNew}><PlusIcon width={20} height={20} /> New drawing</button>
-        <button className="btn btn-secondary" onClick={onColoring}><BookIcon width={20} height={20} /> Coloring page</button>
+        <button className="btn btn-primary" onClick={onNew}><PlusIcon width={20} height={20} /> {t('New drawing')}</button>
+        <button className="btn btn-secondary" onClick={onColoring}><BookIcon width={20} height={20} /> {t('Coloring page')}</button>
       </div>
-      {items?.length === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">🎨</span>No drawings yet</div>}
+      {items?.length === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">🎨</span>{t('No drawings yet')}</div>}
       <ul className="paint-gallery">
         {items?.map(d => {
           const m = members.find(x => x.id === d.memberId)
           return (
             <li key={d.id} className={`paint-gallery-item ${d.id === currentId ? 'current' : ''}`}>
-              <button className="paint-gallery-open" onClick={() => onOpen(d)} aria-label={`Open ${d.name}${m ? ` by ${m.name}` : ''}, ${fmtDate(d.updated)}`}>
+              <button className="paint-gallery-open" onClick={() => onOpen(d)} aria-label={m ? t('Open {name} by {artist}, {date}', { name: d.name, artist: m.name, date: fmtDate(d.updated) }) : t('Open {name}, {date}', { name: d.name, date: fmtDate(d.updated) })}>
                 <img src={d.thumbUrl} alt="" />
                 <span className="paint-gallery-name">{d.name}</span>
                 <span className="paint-gallery-sub">{m ? `${m.avatar || ''} ${m.name} · ` : ''}{fmtDate(d.updated)}</span>
               </button>
               <div className="paint-gallery-actions">
-                <button className="btn btn-secondary" onClick={() => duplicate(d)} aria-label={`Duplicate ${d.name}`}>Copy</button>
-                <button className="icon-btn" onClick={() => remove(d)} aria-label={`Delete ${d.name}`}><TrashIcon width={20} height={20} /></button>
+                <button className="btn btn-secondary" onClick={() => duplicate(d)} aria-label={t('Duplicate {name}', { name: d.name })}>{t('Copy')}</button>
+                <button className="icon-btn" onClick={() => remove(d)} aria-label={t('Delete {name}', { name: d.name })}><TrashIcon width={20} height={20} /></button>
               </div>
             </li>
           )

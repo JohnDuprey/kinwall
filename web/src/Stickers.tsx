@@ -12,11 +12,13 @@ import { ChevronLeft } from './icons.tsx'
 import type { StickerPack, StickerPatch, StickerPlacement } from './types.ts'
 import { rewardsOn } from './types.ts'
 import { Face } from './Face'
+import { t, tn } from './i18n.ts'
+import { rich } from './rich.tsx'
 
 const SAVE_DELAY_MS = 400
 const MIN_SCALE = 0.4, MAX_SCALE = 3.6, SCALE_STEP = 1.25, ROTATE_STEP = 15
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+/** A translated sentence with its {placeholders} filled by elements (a bold name, a link). */
 
 type Tab = 'book' | 'shop'
 
@@ -48,7 +50,7 @@ export default function Stickers() {
     if (!e) return
     clearTimeout(e.timer)
     pending.current.delete(id)
-    api.updateSticker(e.memberId, id, e.patch).catch(() => toast("Couldn't save that sticker.", true))
+    api.updateSticker(e.memberId, id, e.patch).catch(() => toast(t("Couldn't save that sticker."), true))
   }
   const flushAll = () => [...pending.current.keys()].forEach(flush)
   const flushRef = useRef(flushAll)
@@ -71,7 +73,7 @@ export default function Stickers() {
     let canceled = false
     Promise.all([api.getStickerPacks(memberId), api.getScrapbook(memberId)])
       .then(([p, s]) => { if (!canceled) { setPacks(p); setPlaced(s) } })
-      .catch(() => { if (!canceled) toast("Couldn't load the sticker book.", true) })
+      .catch(() => { if (!canceled) toast(t("Couldn't load the sticker book."), true) })
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId, refreshTick])
@@ -81,14 +83,14 @@ export default function Stickers() {
     flushAll()
     setMemberId(id); setSelId(null); setPacks(null); setPlaced([]); setUnlocked(null)
     const m = members.find(x => x.id === id)
-    if (m) announce(`${m.name}'s sticker book`)
+    if (m) announce(t("{name}'s sticker book", { name: m.name }))
   }
 
   if (!settings.stickersEnabled) {
-    return <div className="stickers stickers-empty"><p>The sticker book is turned off. A grown-up can turn it on in Settings → Family → Chores.</p></div>
+    return <div className="stickers stickers-empty"><p>{t('The sticker book is turned off. A grown-up can turn it on in Settings → Family → Chores.')}</p></div>
   }
   if (!member) {
-    return <div className="stickers stickers-empty"><p>Add a family member in Settings to start a sticker book.</p></div>
+    return <div className="stickers stickers-empty"><p>{t('Add a family member in Settings to start a sticker book.')}</p></div>
   }
 
   const sel = placed.find(s => s.id === selId) ?? null
@@ -102,22 +104,22 @@ export default function Stickers() {
       setPlaced(ps => [...ps, s])
       setSelId(s.id)
       focusSticker(s.id)
-      announce(`Placed ${sticker}. Drag it, or use the arrow keys, to move it.`)
+      announce(t('Placed {sticker}. Drag it, or use the arrow keys, to move it.', { sticker }))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Couldn't place that sticker.", true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't place that sticker."), true)
     }
   }
-  const bigger = (s: StickerPlacement) => { const scale = clamp(s.scale * SCALE_STEP, MIN_SCALE, MAX_SCALE); change(s.id, { scale }); announce(scale === MAX_SCALE ? 'Biggest' : 'Bigger') }
-  const smaller = (s: StickerPlacement) => { const scale = clamp(s.scale / SCALE_STEP, MIN_SCALE, MAX_SCALE); change(s.id, { scale }); announce(scale === MIN_SCALE ? 'Smallest' : 'Smaller') }
-  const rotate = (s: StickerPlacement) => { change(s.id, { rotation: ((s.rotation + ROTATE_STEP + 180) % 360) - 180 }); announce('Turned') }
-  const toFront = (s: StickerPlacement) => { change(s.id, { z: topZ() + 1 }); announce('Moved to the front') }
+  const bigger = (s: StickerPlacement) => { const scale = clamp(s.scale * SCALE_STEP, MIN_SCALE, MAX_SCALE); change(s.id, { scale }); announce(scale === MAX_SCALE ? t('Biggest') : t('Bigger')) }
+  const smaller = (s: StickerPlacement) => { const scale = clamp(s.scale / SCALE_STEP, MIN_SCALE, MAX_SCALE); change(s.id, { scale }); announce(scale === MIN_SCALE ? t('Smallest') : t('Smaller')) }
+  const rotate = (s: StickerPlacement) => { change(s.id, { rotation: ((s.rotation + ROTATE_STEP + 180) % 360) - 180 }); announce(t('Turned')) }
+  const toFront = (s: StickerPlacement) => { change(s.id, { z: topZ() + 1 }); announce(t('Moved to the front')) }
   const remove = async (s: StickerPlacement) => {
     const e = pending.current.get(s.id)
     if (e) { clearTimeout(e.timer); pending.current.delete(s.id) }
     setPlaced(ps => ps.filter(x => x.id !== s.id))
     setSelId(null)
-    announce(`Removed ${s.sticker}`)
-    try { await api.removeSticker(member.id, s.id) } catch { toast("Couldn't remove that sticker.", true) }
+    announce(t('Removed {sticker}', { sticker: s.sticker }))
+    try { await api.removeSticker(member.id, s.id) } catch { toast(t("Couldn't remove that sticker."), true) }
   }
 
   // Drag: the grab offset keeps the sticker from jumping its center to the finger.
@@ -174,28 +176,28 @@ export default function Stickers() {
   const notEnough = async (pack: StickerPack, have: number) => {
     const short = pack.price - have
     await dialog.alert({
-      title: 'Not quite enough points yet',
-      body: `${member.name} needs ${plural(short, 'more point')} for ${pack.name}. That's about ${plural(await choresWorth(short), 'more chore')}!`,
-      confirmLabel: 'OK',
+      title: t('Not quite enough points yet'),
+      body: t("{name} needs {points} for {pack}. That's about {chores}!", { name: member.name, points: tn(short, '{n} more point', '{n} more points'), pack: pack.name, chores: tn(await choresWorth(short), '{n} more chore', '{n} more chores') }),
+      confirmLabel: t('OK'),
     })
   }
   const buy = async (pack: StickerPack) => {
     if (pack.price > balance) return notEnough(pack, balance)
     if (pack.price > 0 && !await dialog.confirm({
-      title: `Spend ${plural(pack.price, 'point')} on ${pack.name}?`,
-      body: `${member.name} will have ${balance - pack.price} left.`,
-      confirmLabel: 'Buy',
+      title: t('Spend {points} on {reward}?', { points: tn(pack.price, '{n} point', '{n} points'), reward: pack.name }),
+      body: t('{name} will have {n} left.', { name: member.name, n: balance - pack.price }),
+      confirmLabel: t('Buy'),
     })) return
     try {
       const res = await api.buyStickerPack(pack.id, member.id)
       setBalance(res.balance)
       setPacks(ps => ps?.map(p => p.id === pack.id ? res.pack : p) ?? ps)
       setUnlocked(res.pack)
-      announce(`${pack.name} unlocked! ${member.name} has ${plural(res.balance, 'point')} left.`)
+      announce(t('{pack} unlocked! {name} has {points} left.', { pack: pack.name, name: member.name, points: tn(res.balance, '{n} point', '{n} points') }))
       reloadCore() // members' balances
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) return notEnough(pack, balance)
-      toast(e instanceof ApiError ? e.message : `Couldn't buy ${pack.name}.`, true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't buy {pack}.", { pack: pack.name }), true)
     }
   }
 
@@ -205,8 +207,8 @@ export default function Stickers() {
   return (
     <div className="stickers">
       <div className="stickers-head">
-        <a className="paint-btn" href="#/activities" aria-label="Back to activities"><ChevronLeft /></a>
-        <div className="chip-row stickers-members" role="group" aria-label="Whose sticker book?">
+        <a className="paint-btn" href="#/activities" aria-label={t('Back to activities')}><ChevronLeft /></a>
+        <div className="chip-row stickers-members" role="group" aria-label={t('Whose sticker book?')}>
           {members.map(m => (
             <button key={m.id} className={`chip ${m.id === memberId ? 'active' : ''}`} aria-pressed={m.id === memberId}
               style={{ ['--chip-color' as string]: m.color }} onClick={() => pickMember(m.id)}>
@@ -214,78 +216,78 @@ export default function Stickers() {
             </button>
           ))}
         </div>
-        <Segmented tabs idBase="stickers-tab" label="Sticker book" value={tab} onChange={v => { flushAll(); setSelId(null); setTab(v) }}
-          options={[{ key: 'book', label: 'Book' }, { key: 'shop', label: 'Shop' }]} />
+        <Segmented tabs idBase="stickers-tab" label={t('Sticker book')} value={tab} onChange={v => { flushAll(); setSelId(null); setTab(v) }}
+          options={[{ key: 'book', label: t('Book') }, { key: 'shop', label: t('Shop') }]} />
       </div>
 
       {tab === 'book' ? (
         <div className="stickers-book" role="tabpanel" aria-labelledby="stickers-tab-book">
           <div className="sticker-stage">
-            <div className="sticker-page" ref={pageRef} role="group" aria-label={`${member.name}'s sticker page, ${plural(placed.length, 'sticker')}`}
+            <div className="sticker-page" ref={pageRef} role="group" aria-label={t("{name}'s sticker page, {stickers}", { name: member.name, stickers: tn(placed.length, '{n} sticker', '{n} stickers') })}
               onPointerDown={() => setSelId(null)}>
               {sorted.map(s => (
                 <button key={s.id} data-sticker-id={s.id} className={`sticker ${s.id === selId ? 'selected' : ''}`}
                   style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, zIndex: s.z, ['--sticker-t' as string]: `translate(-50%, -50%) rotate(${s.rotation}deg) scale(${s.scale})` }}
-                  aria-label={`${s.sticker} sticker${s.id === selId ? ', selected' : ''}`} aria-describedby="sticker-keys"
+                  aria-label={s.id === selId ? t('{sticker} sticker, selected', { sticker: s.sticker }) : t('{sticker} sticker', { sticker: s.sticker })} aria-describedby="sticker-keys"
                   onClick={() => setSelId(s.id)} onKeyDown={e => onStickerKey(e, s)}
                   onPointerDown={e => onStickerDown(e, s)} onPointerMove={onStickerMove} onPointerUp={onStickerUp} onPointerCancel={onStickerUp}>
                   <span aria-hidden="true">{s.sticker}</span>
                 </button>
               ))}
-              {placed.length === 0 && packs && <p className="sticker-page-hint">Tap a sticker below to stick it here.</p>}
+              {placed.length === 0 && packs && <p className="sticker-page-hint">{t('Tap a sticker below to stick it here.')}</p>}
             </div>
-            <span id="sticker-keys" hidden>Arrow keys move it, plus and minus resize, R turns it, Delete removes it.</span>
+            <span id="sticker-keys" hidden>{t('Arrow keys move it, plus and minus resize, R turns it, Delete removes it.')}</span>
             {sel && (
-              <div className="sticker-toolbar" role="toolbar" aria-label={`${sel.sticker} sticker`}>
-                <button className="btn btn-secondary" onClick={() => bigger(sel)} disabled={sel.scale >= MAX_SCALE}>Bigger</button>
-                <button className="btn btn-secondary" onClick={() => smaller(sel)} disabled={sel.scale <= MIN_SCALE}>Smaller</button>
-                <button className="btn btn-secondary" onClick={() => rotate(sel)}>Rotate</button>
-                <button className="btn btn-secondary" onClick={() => toFront(sel)} disabled={sel.z >= topZ() && placed.filter(p => p.z === sel.z).length === 1}>To front</button>
-                <button className="btn btn-danger" onClick={() => remove(sel)}>Remove</button>
+              <div className="sticker-toolbar" role="toolbar" aria-label={t('{sticker} sticker', { sticker: sel.sticker })}>
+                <button className="btn btn-secondary" onClick={() => bigger(sel)} disabled={sel.scale >= MAX_SCALE}>{t('Bigger')}</button>
+                <button className="btn btn-secondary" onClick={() => smaller(sel)} disabled={sel.scale <= MIN_SCALE}>{t('Smaller')}</button>
+                <button className="btn btn-secondary" onClick={() => rotate(sel)}>{t('Rotate')}</button>
+                <button className="btn btn-secondary" onClick={() => toFront(sel)} disabled={sel.z >= topZ() && placed.filter(p => p.z === sel.z).length === 1}>{t('To front')}</button>
+                <button className="btn btn-danger" onClick={() => remove(sel)}>{t('Remove')}</button>
               </div>
             )}
           </div>
-          <div className="sticker-tray" role="group" aria-label={`${member.name}'s stickers`}>
+          <div className="sticker-tray" role="group" aria-label={t("{name}'s stickers", { name: member.name })}>
             {owned.map(p => (
               <div key={p.id} className="sticker-tray-pack" role="group" aria-label={p.name}>
                 <span className="sticker-tray-label" aria-hidden="true">{p.cover} {p.name}</span>
                 <div className="sticker-tray-row">
                   {p.stickers.map(st => (
-                    <button key={st} className="sticker-tray-btn" aria-label={`Stick on ${st}`} onClick={() => place(st)}>{st}</button>
+                    <button key={st} className="sticker-tray-btn" aria-label={t('Stick on {sticker}', { sticker: st })} onClick={() => place(st)}>{st}</button>
                   ))}
                 </div>
               </div>
             ))}
             {packs && (
               <button className="sticker-tray-more" onClick={() => { setSelId(null); setTab('shop') }}>
-                <span aria-hidden="true">🛍️</span> More stickers
+                <span aria-hidden="true">🛍️</span> {t('More stickers')}
               </button>
             )}
           </div>
         </div>
       ) : (
         <div className="stickers-shop scroll-y" role="tabpanel" aria-labelledby="stickers-tab-shop">
-          <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend.{rewardsOn(settings) && <> <a className="text-link" href={`#/rewards/${member.id}`}>See {member.name}'s rewards</a></>}</p>
+          <p className="stickers-balance">{rich(t('{name} has {points} to spend.'), { name: <strong>{member.name}</strong>, points: <strong>{tn(balance, '{n} point', '{n} points')}</strong> })}{rewardsOn(settings) && <> <a className="text-link" href={`#/rewards/${member.id}`}>{t("See {name}'s rewards", { name: member.name })}</a></>}</p>
           {unlocked && (
             <div className="sticker-unlocked" role="status">
               <span className="sticker-unlocked-cover" aria-hidden="true">{unlocked.cover}</span>
-              <span className="sticker-unlocked-text"><strong>{unlocked.name}</strong> unlocked!</span>
-              <button className="btn btn-primary" onClick={() => { setUnlocked(null); setTab('book') }}>Open the book</button>
+              <span className="sticker-unlocked-text">{rich(t('{pack} unlocked!'), { pack: <strong>{unlocked.name}</strong> })}</span>
+              <button className="btn btn-primary" onClick={() => { setUnlocked(null); setTab('book') }}>{t('Open the book')}</button>
             </div>
           )}
-          <ul className="sticker-packs" aria-label="Sticker packs">
+          <ul className="sticker-packs" aria-label={t('Sticker packs')}>
             {(packs ?? []).map(p => (
               <li key={p.id} className={`sticker-pack ${p.unlocked ? 'owned' : ''}`}>
                 <span className="sticker-pack-cover" aria-hidden="true">{p.cover}</span>
                 <span className="sticker-pack-name">{p.name}</span>
-                <span className="sticker-pack-peek" aria-label={`${plural(p.stickers.length, 'sticker')}, like ${p.stickers.slice(0, 5).join(' ')}`}>
+                <span className="sticker-pack-peek" aria-label={t('{stickers}, like {some}', { stickers: tn(p.stickers.length, '{n} sticker', '{n} stickers'), some: p.stickers.slice(0, 5).join(' ') })}>
                   <span aria-hidden="true">{p.stickers.slice(0, 5).join(' ')}</span>
                 </span>
                 {p.unlocked
-                  ? <span className="sticker-pack-owned">✓ Owned</span>
+                  ? <span className="sticker-pack-owned">✓ {t('Owned')}</span>
                   : <button className={`btn ${p.price <= balance ? 'btn-primary' : 'btn-secondary'}`} onClick={() => buy(p)}
-                      aria-label={p.price === 0 ? `Get ${p.name}, free` : `Buy ${p.name} for ${plural(p.price, 'point')}`}>
-                      {p.price === 0 ? 'Free' : `${p.price} pts`}
+                      aria-label={p.price === 0 ? t('Get {pack}, free', { pack: p.name }) : t('Buy {pack} for {points}', { pack: p.name, points: tn(p.price, '{n} point', '{n} points') })}>
+                      {p.price === 0 ? t('Free') : t('{n} pts', { n: p.price })}
                     </button>}
               </li>
             ))}

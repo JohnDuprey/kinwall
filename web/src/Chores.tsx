@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useHashParam } from './hashQuery.ts'
-import { addDays, format, isSameDay } from 'date-fns'
+import { addDays, isSameDay } from 'date-fns'
 import { GivePoints } from './GivePoints.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
@@ -29,6 +29,7 @@ import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 import { latestOnly } from './latest.ts'
+import { DAY, formatDate, LONG_DAY, MONTH_DAY, msg, t, tn, tm } from './i18n.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -45,7 +46,7 @@ function saveLbPeriod(p: LeaderboardPeriod) {
   try { localStorage.setItem(LB_PERIOD_STORAGE, p) } catch { /* ignore */ }
 }
 
-const LB_PERIOD_LABEL: Record<LeaderboardPeriod, string> = { today: 'Today', week: 'This week', month: 'This month' }
+const LB_PERIOD_LABEL: Record<LeaderboardPeriod, string> = { today: msg('Today'), week: msg('This week'), month: msg('This month') }
 
 /** The pills, led by the period they count (Today / This week / This month). The period only
  * changes the leaderboard, so it lives here rather than above the chores. */
@@ -77,14 +78,14 @@ function Leaderboard() {
 
   return (
     <div className="leaderboard-strip">
-      <select className="settings-select lb-period" aria-label="Leaderboard period" value={period} onChange={e => setPeriod(e.target.value as LeaderboardPeriod)}>
-        {LB_PERIODS.map(p => <option key={p} value={p}>{LB_PERIOD_LABEL[p]}</option>)}
+      <select className="settings-select lb-period" aria-label={t('Leaderboard period')} value={period} onChange={e => setPeriod(e.target.value as LeaderboardPeriod)}>
+        {LB_PERIODS.map(p => <option key={p} value={p}>{tm(LB_PERIOD_LABEL[p])}</option>)}
       </select>
-      <div className="leaderboard-pills" role="list" aria-label="Leaderboard">
+      <div className="leaderboard-pills" role="list" aria-label={t('Leaderboard')}>
         {board.map(e => (
           <div key={e.memberId} role="listitem" className="leaderboard-item">
           <a className="leaderboard-pill" href={`#/profile/${e.memberId}`}
-            aria-label={[e.points > 0 ? `${e.name}, rank ${e.rank}, ${e.points} points` : `${e.name}, no points yet`, e.rank === 1 && e.points > 0 && 'leader', e.streak >= 2 && `${e.streak} day streak`, spendable(e.memberId) !== null && `${spendable(e.memberId)} to spend`].filter(Boolean).join(', ')}>
+            aria-label={[e.points > 0 ? tn(e.points, '{name}, rank {rank}, {n} point', '{name}, rank {rank}, {n} points', { name: e.name, rank: e.rank }) : t('{name}, no points yet', { name: e.name }), e.rank === 1 && e.points > 0 && t('leader'), e.streak >= 2 && t('{n} day streak', { n: e.streak }), spendable(e.memberId) !== null && t('{n} to spend', { n: spendable(e.memberId) ?? 0 })].filter(Boolean).join(', ')}>
             <div className="lb-rank">{e.points > 0 && `#${e.rank}`}</div>{/* no rank until they have points, not everyone "#1" at 0 */}
             <Face
               m={{ ...e, picture: members.find(m => m.id === e.memberId)?.picture }}
@@ -94,13 +95,13 @@ function Leaderboard() {
             <div className="lb-info">
               <div className="lb-name-row">
                 <span className="lb-name">{e.name}</span>
-                {e.rank === 1 && e.points > 0 && <span className="lb-crown" aria-label="Leader">👑</span>}
-                {e.streak >= 2 && <span className="lb-streak" aria-label={`${e.streak} day streak`}>🔥{e.streak}</span>}
+                {e.rank === 1 && e.points > 0 && <span className="lb-crown" aria-label={t('Leader')}>👑</span>}
+                {e.streak >= 2 && <span className="lb-streak" aria-label={t('{n} day streak', { n: e.streak })}>🔥{e.streak}</span>}
               </div>
               <div className="lb-bar-track"><div className="lb-bar-fill" style={{ width: `${(e.points / maxPoints) * 100}%`, background: e.color }} /></div>
-              {spendable(e.memberId) !== null && <div className="lb-spend" aria-hidden="true">{spendable(e.memberId)} to spend</div>}
+              {spendable(e.memberId) !== null && <div className="lb-spend" aria-hidden="true">{t('{n} to spend', { n: spendable(e.memberId) ?? 0 })}</div>}
             </div>
-            <div className="lb-points">{e.points} pts</div>
+            <div className="lb-points">{t('{n} pts', { n: e.points })}</div>
           </a>
           </div>
         ))}
@@ -147,8 +148,9 @@ function ProgressRing({ pct, m, label }: { pct: number; m: FaceMember; label: st
 // Chore schedule <-> rrule. Only the subset the sheet edits: FREQ=DAILY|WEEKLY, BYDAY, date-only UNTIL.
 // Anything else (INTERVAL, COUNT, MONTHLY - e.g. set via MCP) is reported as `custom` and left untouched.
 const RR_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const DAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+// A weekday's name in the current language (0 = Sunday): 2023-01-01 was a Sunday.
+const dayName = (d: number, weekday: 'short' | 'long' | 'narrow') => formatDate(new Date(2023, 0, 1 + d), { weekday }) // 2023-01-01 was a Sunday
+const REPEAT_LABELS = { once: msg('Once'), daily: msg('Daily'), weekly: msg('Weekly') }
 type Repeat = 'once' | 'daily' | 'weekly'
 type ScheduleForm = { repeat: Repeat; days: number[]; until: string; custom: boolean }
 
@@ -188,36 +190,36 @@ function firstScheduledDay(f: ScheduleForm, dueDate: string): Date | undefined {
 
 function scheduleLabel(rrule: string | null): string {
   const f = rruleToForm(rrule)
-  if (f.repeat === 'once') return f.custom ? 'Repeats' : ''
-  const what = f.repeat === 'daily' || f.days.length === 7 ? 'Daily'
-    : !f.days.length ? 'Weekly'
-    : f.days.length <= 3 ? f.days.map(d => DAY_SHORT[d]).join(', ') : `${f.days.length}×/wk`
+  if (f.repeat === 'once') return f.custom ? t('Repeats') : ''
+  const what = f.repeat === 'daily' || f.days.length === 7 ? t('Daily')
+    : !f.days.length ? t('Weekly')
+    : f.days.length <= 3 ? f.days.map(d => dayName(d, 'short')).join(', ') : t('{n}×/wk', { n: f.days.length })
   if (!f.until) return what
   const [y, m, d] = f.until.split('-').map(Number)
-  return `${what} · until ${format(new Date(y, m - 1, d), 'MMM d')}`
+  return t('{what} · until {date}', { what, date: formatDate(new Date(y, m - 1, d), MONTH_DAY) })
 }
 
 function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
   const schedule = scheduleLabel(chore.rrule)
   // An Anyone chore says who got the points once it's done.
-  const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? 'nobody in particular') : null
+  const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? t('nobody in particular')) : null
   // Waiting for a parent's OK: ticked (tapping unticks it) but not done.
   const pending = !!chore.pending
   const ticked = chore.completed || pending
-  const notYet = !ticked && chore.rejection ? `Not yet${chore.rejection.note ? `: ${chore.rejection.note}` : ''}` : ''
+  const notYet = !ticked && chore.rejection ? (chore.rejection.note ? t('Not yet: {note}', { note: chore.rejection.note }) : t('Not yet')) : ''
   const cl = chore.checklist
   const checklist = cl && !ticked ? `☑ ${cl.done}/${cl.total} ${cl.name}` : '' // a reusable list resets once done: "0/1" would look unfinished
   // A linked activity: tapping the card plays it (as the chore's person), the check still ticks it.
   // Removed or turned off, it's a plain chore that says so.
   const act = chore.activity?.available ? chore.activity : null
-  const actLabel = act ? `${act.emoji ?? ''} ${act.needSeconds / 60} min of ${act.name}`.trim() : chore.activity ? activityGoneText(chore.activity, parentDevice) : ''
-  const actProgress = act && !chore.completed && act.doneSeconds > 0 ? `${Math.floor(act.doneSeconds / 60)} of ${act.needSeconds / 60} min` : ''
+  const actLabel = act ? `${act.emoji ?? ''} ${t('{n} min of {name}', { n: act.needSeconds / 60, name: act.name ?? t('activity') })}`.trim() : chore.activity ? activityGoneText(chore.activity, parentDevice) : ''
+  const actProgress = act && !chore.completed && act.doneSeconds > 0 ? t('{done} of {need} min', { done: Math.floor(act.doneSeconds / 60), need: act.needSeconds / 60 }) : ''
   const player = chore.memberId ?? selectedMemberId
   const play = () => { location.hash = `#/activities/plugin/${act!.pluginId}${player ? `?member=${player}` : ''}` }
   // A timer (not on an activity chore, which times itself): tapping the card starts it, the check ticks it.
   const timer = !act && !ticked && chore.timerMinutes ? chore.timerMinutes : 0
-  const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? `${formatTime(chore.dueTime)}${late && !ticked ? ' (late)' : ''}` : ''
+  const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? late && !ticked ? t('{time} (late)', { time: formatTime(chore.dueTime) }) : formatTime(chore.dueTime) : ''
   const [burst, setBurst] = useState(false)
   // Toggle on click, not pointerup: a sheet the toggle opens (Who did it?, a checklist) would
   // otherwise catch the click a touch sends right after lifting the finger.
@@ -230,9 +232,9 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
       <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
       <div className="chore-info">
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-        <div className="chore-pts">{[startsAt, by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
+        <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}</div>
         {timer > 0 && <div className="chore-pts chore-activity"><ChoreTimerText chore={chore} /></div>}
-        {pending && <div className="chore-waiting">Waiting for OK</div>}
+        {pending && <div className="chore-waiting">{t('Waiting for OK')}</div>}
         {notYet && <div className="chore-notyet">{notYet}</div>}
         {actLabel && <div className="chore-pts chore-activity">{actLabel}</div>}
         {actProgress && <div className="chore-pts chore-activity-progress"><ActivityRing done={act!.doneSeconds} need={act!.needSeconds} />{actProgress}</div>}
@@ -240,12 +242,12 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
     </>
   )
   const check = <div className={`chore-check ${chore.completed ? 'done' : pending ? 'pending' : ''}`}>{chore.completed ? <CheckIcon width={18} height={18} /> : pending && <span aria-hidden="true">⏳</span>}</div>
-  const said = [pending && "waiting for a parent's OK", notYet].filter(Boolean)
+  const said = [pending && t("waiting for a parent's OK"), notYet].filter(Boolean)
   const editOnRightClick = (e: React.MouseEvent) => { e.preventDefault(); onEdit() }
   // Edit chores mode (parent devices): the whole card opens the editor, a pencil where the check was.
   if (editing) {
     return (
-      <button type="button" className="chore-card chore-card-edit" aria-haspopup="dialog" aria-label={`Edit ${chore.title}`} onClick={onEdit}>
+      <button type="button" className="chore-card chore-card-edit" aria-haspopup="dialog" aria-label={t('Edit {title}', { title: chore.title })} onClick={onEdit}>
         {info}
         <span className="chore-edit-mark" aria-hidden="true"><EditIcon width={18} height={18} /></span>
       </button>
@@ -256,13 +258,13 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
     return (
       <>
         <div className={`chore-card ${chore.completed ? 'done' : ''}`} onContextMenu={editOnRightClick}>
-          <button className="chore-play" aria-label={act ? [`Play ${act.name} for ${chore.title}`, actLabel, actProgress && `${actProgress} played`].filter(Boolean).join(', ') : [`Start a ${durationLabel(timer)} timer for ${chore.title}`, startsAt && `starts at ${startsAt}`].filter(Boolean).join(', ')}
+          <button className="chore-play" aria-label={act ? [t('Play {activity} for {chore}', { activity: act.name ?? t('activity'), chore: chore.title }), actLabel, actProgress && t('{progress} played', { progress: actProgress })].filter(Boolean).join(', ') : [t('Start a {time} timer for {chore}', { time: durationLabel(timer), chore: chore.title }), startsAt && t('starts at {time}', { time: startsAt })].filter(Boolean).join(', ')}
             onClick={() => { if (act) play(); else startChoreTimer(chore, members.find(m => m.id === player)?.name) }}>{info}</button>
           <button className="chore-check-btn" role="checkbox" aria-checked={pending ? 'mixed' : chore.completed}
-            aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`, ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
+            aria-label={[t('{title} done', { title: chore.title }), by && t('by {name}', { name: by }), tn(chore.points, '{n} point', '{n} points'), ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
         </div>
-        {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>}
+        {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
       </>
     )
   }
@@ -278,14 +280,14 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={pending ? 'mixed' : chore.completed} tabIndex={0}
-        aria-label={[chore.title, startsAt && `starts at ${startsAt}`, by && `done by ${by}`, `${chore.points} points`, schedule, checklist && `checklist ${cl!.name} ${cl!.done} of ${cl!.total} done`, actLabel, ...said].filter(Boolean).join(', ')}
+        aria-label={[chore.title, startsAt && t('starts at {time}', { time: startsAt }), by && t('done by {name}', { name: by }), tn(chore.points, '{n} point', '{n} points'), schedule, checklist && t('checklist {name} {done} of {total} done', { name: cl!.name, done: cl!.done, total: cl!.total }), actLabel, ...said].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={editOnRightClick} onClick={handleClick}>
         {info}
         {check}
         {burst && <Confetti />}
       </div>
-      {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>}
-      {chore.activity && !act && parentDevice && <a className="chore-activity-fix" href="#/activities?more=1">{chore.activity.name ? 'Turn it on in Get more activities' : 'Install it from Get more activities'}</a>}
+      {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
+      {chore.activity && !act && parentDevice && <a className="chore-activity-fix" href="#/activities?more=1">{chore.activity.name ? t('Turn it on in Get more activities') : t('Install it from Get more activities')}</a>}
     </>
   )
 }
@@ -293,8 +295,10 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
 /** What an activity chore says when its activity was removed or turned off. A parent gets a link
  * to fix it; anyone else can still do it and tick it, and a parent okays it (the server holds it). */
 function activityGoneText(a: NonNullable<ChoreDay['activity']>, parentDevice: boolean): string {
-  if (parentDevice) return a.name ? `${a.name} is turned off.` : "This chore's activity isn't installed."
-  return `${a.name ? `${a.name} isn't` : "This chore's activity isn't"} here right now. Do it with a grown-up, and a parent will okay it.`
+  if (parentDevice) return a.name ? t('{name} is turned off.', { name: a.name }) : t("This chore's activity isn't installed.")
+  return a.name
+    ? t("{name} isn't here right now. Do it with a grown-up, and a parent will okay it.", { name: a.name })
+    : t("This chore's activity isn't here right now. Do it with a grown-up, and a parent will okay it.")
 }
 
 /** Parent devices: chores ticked on a wall screen or kid's device that wait for an OK. Approve
@@ -318,7 +322,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
     else setRewards([]) // Rewards turned off: requests wait, out of sight
   }
   useEffect(fetchItems, [refreshTick, rewardsShown]) // eslint-disable-line react-hooks/exhaustive-deps
-  const name = (p: { memberId: string | null }) => members.find(m => m.id === p.memberId)?.name ?? 'Someone'
+  const name = (p: { memberId: string | null }) => members.find(m => m.id === p.memberId)?.name ?? t('Someone')
   const decide = async (r: Redemption, action: 'approve' | 'decline' | 'given', done: string, note?: string) => {
     setRewards(list => action === 'approve' ? list.map(x => x === r ? { ...x, status: 'approved' } : x) : list.filter(x => x !== r)) // optimistic
     try {
@@ -327,16 +331,16 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
       announce(done)
       reloadCore()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not update reward', true)
+      toast(e instanceof ApiError ? e.message : t('Could not update reward'), true)
       fetchItems()
     }
   }
   const sendRewardBack = () => {
     const r = notThisTime!
     setNotThisTime(null)
-    decide(r, 'decline', `${r.title}: points back to ${r.shares ? 'everyone' : name(r)}`, note.trim() || undefined)
+    decide(r, 'decline', r.shares ? t('{title}: points back to everyone', { title: r.title }) : t('{title}: points back to {name}', { title: r.title, name: name(r) }), note.trim() || undefined)
   }
-  const whenR = (r: Redemption) => r.date === dateKey(new Date()) ? '' : format(new Date(r.requestedAt), 'EEE, MMM d')
+  const whenR = (r: Redemption) => r.date === dateKey(new Date()) ? '' : formatDate(new Date(r.requestedAt), DAY)
   const count = items.length + ideas.length + rewards.filter(r => r.status === 'pending').length
   // On Chores, two rows and "Show all (N)", so a busy day doesn't push the chores off screen.
   const SHOWN = only ? Infinity : 2
@@ -345,7 +349,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
   const when = (p: PendingApproval) => {
     if (p.date === dateKey(new Date())) return ''
     const [y, m, d] = p.date.split('-').map(Number)
-    return format(new Date(y, m - 1, d), 'EEE, MMM d')
+    return formatDate(new Date(y, m - 1, d), DAY)
   }
   const act = async (p: PendingApproval, call: () => Promise<unknown>, done: string) => {
     setItems(list => list.filter(x => x !== p)) // optimistic
@@ -356,31 +360,31 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
       onChanged()
       reloadCore()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
+      toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
       fetchItems()
     }
   }
   const sendBack = () => {
     const p = notYet!
     setNotYet(null)
-    act(p, () => api.rejectChore(p.choreId, p.date, note.trim() || undefined), `${p.title} sent back to ${name(p)}`)
+    act(p, () => api.rejectChore(p.choreId, p.date, note.trim() || undefined), t('{title} sent back to {name}', { title: p.title, name: name(p) }))
   }
   return (
     <>
       {(items.length > 0 || ideas.length > 0 || rewards.length > 0) && (
         <section className="approve-card" aria-labelledby="approve-heading">
-          <h3 id="approve-heading" className="approve-heading">{only ? 'Reward requests' : 'To approve'} {count > 0 && <span className="approve-count">{count}</span>}</h3>
+          <h3 id="approve-heading" className="approve-heading">{only ? t('Reward requests') : t('To approve')} {count > 0 && <span className="approve-count">{count}</span>}</h3>
           <ul className="approve-list">
             {[...items.map(p => (
               <li key={`${p.choreId}:${p.date}`} className="approve-row">
                 <span className="approve-emoji" aria-hidden="true">{p.emoji}</span>
                 <div className="approve-info">
                   <div className="approve-title">{p.title}</div>
-                  <div className="approve-sub">{[name(p), when(p), `${p.points} pts`].filter(Boolean).join(' · ')}</div>
+                  <div className="approve-sub">{[name(p), when(p), t('{n} pts', { n: p.points })].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div className="approve-actions">
-                  <button className="btn btn-secondary" onClick={() => { setNote(''); setNotYet(p) }} aria-label={`Not yet: ${p.title} by ${name(p)}`}>Not yet</button>
-                  <button className="btn btn-primary" onClick={() => act(p, () => api.approveChore(p.choreId, p.date), `Approved: +${p.points} for ${name(p)}`)} aria-label={`Approve ${p.title} by ${name(p)}`}>Approve</button>
+                  <button className="btn btn-secondary" onClick={() => { setNote(''); setNotYet(p) }} aria-label={t('Not yet: {title} by {name}', { title: p.title, name: name(p) })}>{t('Not yet')}</button>
+                  <button className="btn btn-primary" onClick={() => act(p, () => api.approveChore(p.choreId, p.date), t('Approved: +{points} for {name}', { points: p.points, name: name(p) }))} aria-label={t('Approve {title} by {name}', { title: p.title, name: name(p) })}>{t('Approve')}</button>
                 </div>
               </li>
             )), ...ideas.map(s => (
@@ -388,11 +392,11 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                 <span className="approve-emoji" aria-hidden="true">{s.emoji ?? '💡'}</span>
                 <div className="approve-info">
                   <div className="approve-title">{s.title}</div>
-                  <div className="approve-sub">{[`${name(s)}'s idea`, `asks ${s.points} pts`, suggestionDetails(s)].filter(Boolean).join(' · ')}</div>
+                  <div className="approve-sub">{[t("{name}'s idea", { name: name(s) }), t('asks {n} pts', { n: s.points }), suggestionDetails(s)].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div className="approve-actions">
-                  <button className="btn btn-secondary" onClick={() => setAnswer({ s, mode: 'no' })} aria-label={`Not this time: ${s.title}, ${name(s)}'s idea`}>Not this time</button>
-                  <button className="btn btn-primary" onClick={() => setAnswer({ s, mode: 'yes' })} aria-label={`Say yes to ${s.title}, ${name(s)}'s idea`}>Say yes…</button>
+                  <button className="btn btn-secondary" onClick={() => setAnswer({ s, mode: 'no' })} aria-label={t("Not this time: {title}, {name}'s idea", { title: s.title, name: name(s) })}>{t('Not this time')}</button>
+                  <button className="btn btn-primary" onClick={() => setAnswer({ s, mode: 'yes' })} aria-label={t("Say yes to {title}, {name}'s idea", { title: s.title, name: name(s) })}>{t('Say yes…')}</button>
                 </div>
               </li>
             )), ...rewards.map(r => (
@@ -400,22 +404,22 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
                 <span className="approve-emoji" aria-hidden="true">{r.emoji ?? '🎁'}</span>
                 <div className="approve-info">
                   <div className="approve-title">{r.title}</div>
-                  <div className="approve-sub">{[r.shares ? `Split: ${shareText(r.shares, id => name({ memberId: id }))}` : name(r), whenR(r), `${r.cost} pts`, r.status === 'approved' && 'approved, not given yet'].filter(Boolean).join(' · ')}</div>
+                  <div className="approve-sub">{[r.shares ? t('Split: {shares}', { shares: shareText(r.shares, id => name({ memberId: id })) }) : name(r), whenR(r), t('{n} pts', { n: r.cost }), r.status === 'approved' && t('approved, not given yet')].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div className="approve-actions">
                   {r.status === 'pending' ? <>
-                    <button className="btn btn-secondary" onClick={() => { setNote(''); setNotThisTime(r) }} aria-label={`Not this time: ${r.title} for ${name(r)}`}>Not this time</button>
-                    <button className="btn btn-primary" onClick={() => decide(r, 'approve', `Approved: ${r.title} for ${name(r)}`)} aria-label={`Approve ${r.title} for ${name(r)}`}>Approve</button>
+                    <button className="btn btn-secondary" onClick={() => { setNote(''); setNotThisTime(r) }} aria-label={t('Not this time: {title} for {name}', { title: r.title, name: name(r) })}>{t('Not this time')}</button>
+                    <button className="btn btn-primary" onClick={() => decide(r, 'approve', t('Approved: {title} for {name}', { title: r.title, name: name(r) }))} aria-label={t('Approve {title} for {name}', { title: r.title, name: name(r) })}>{t('Approve')}</button>
                   </> : <>
-                    <button className="btn btn-secondary" onClick={() => { setNote(''); setNotThisTime(r) }} aria-label={`Cancel ${r.title} for ${name(r)} and give the points back`}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => decide(r, 'given', `Given: ${r.title} to ${name(r)}`)} aria-label={`${r.title} given to ${name(r)}`}>Given</button>
+                    <button className="btn btn-secondary" onClick={() => { setNote(''); setNotThisTime(r) }} aria-label={t('Cancel {title} for {name} and give the points back', { title: r.title, name: name(r) })}>{t('Cancel')}</button>
+                    <button className="btn btn-primary" onClick={() => decide(r, 'given', t('Given: {title} to {name}', { title: r.title, name: name(r) }))} aria-label={t('{title} given to {name}', { title: r.title, name: name(r) })}>{t('Given')}</button>
                   </>}
                 </div>
               </li>
             ))].filter((_, i) => showAll || i < SHOWN)}
           </ul>
           {total > SHOWN && (
-            <button type="button" className="link-btn approve-more" aria-expanded={showAll} onClick={() => setShowAll(v => !v)}>{showAll ? 'Show fewer' : `Show all (${total})`}</button>
+            <button type="button" className="link-btn approve-more" aria-expanded={showAll} onClick={() => setShowAll(v => !v)}>{showAll ? t('Show fewer') : t('Show all ({n})', { n: total })}</button>
           )}
         </section>
       )}
@@ -424,24 +428,24 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
           onDone={msg => { setIdeas(l => l.filter(x => x.id !== answer.s.id)); setAnswer(null); toast(msg); announce(msg); onChanged(); reloadCore() }} />
       )}
       {notThisTime && (
-        <Sheet title={notThisTime.status === 'pending' ? 'Not this time' : 'Cancel reward'} onClose={() => setNotThisTime(null)} actions={<button className="btn btn-primary" onClick={sendRewardBack}>Give points back</button>}>
-          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.title}: {notThisTime.shares ? 'everyone chipping in gets their points back' : `${name(notThisTime)} gets their ${notThisTime.cost} points back`}. They'll see your note.</p>
+        <Sheet title={notThisTime.status === 'pending' ? t('Not this time') : t('Cancel reward')} onClose={() => setNotThisTime(null)} actions={<button className="btn btn-primary" onClick={sendRewardBack}>{t('Give points back')}</button>}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.shares ? t("{title}: everyone chipping in gets their points back. They'll see your note.", { title: notThisTime.title }) : t("{title}: {name} gets their {n} points back. They'll see your note.", { title: notThisTime.title, name: name(notThisTime), n: notThisTime.cost })}</p>
           <div className="field">
-            <label htmlFor="notthistime-note">Note (optional)</label>
+            <label htmlFor="notthistime-note">{t('Note (optional)')}</label>
             <div className="chip-row suggest-praise">
-              {NOT_NOW.map(p => <button key={p} type="button" className="chip" onClick={() => setNote(p)}>{p}</button>)}
+              {NOT_NOW.map(p => <button key={p} type="button" className="chip" onClick={() => setNote(tm(p))}>{tm(p)}</button>)}
             </div>
-            <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Let's do it on Saturday" autoComplete="off"
+            <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder={t("Let's do it on Saturday")} autoComplete="off"
               onKeyDown={e => { if (e.key === 'Enter') sendRewardBack() }} />
           </div>
         </Sheet>
       )}
       {notYet && (
-        <Sheet title="Not yet" onClose={() => setNotYet(null)} actions={<button className="btn btn-primary" onClick={sendBack}>Send back</button>}>
-          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notYet.emoji} {notYet.title} goes back to {name(notYet)}, unticked. They'll see your note on the chore.</p>
+        <Sheet title={t('Not yet')} onClose={() => setNotYet(null)} actions={<button className="btn btn-primary" onClick={sendBack}>{t('Send back')}</button>}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notYet.emoji} {t("{title} goes back to {name}, unticked. They'll see your note on the chore.", { title: notYet.title, name: name(notYet) })}</p>
           <div className="field">
-            <label htmlFor="notyet-note">Note (optional)</label>
-            <input id="notyet-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Please make the bed properly" autoComplete="off"
+            <label htmlFor="notyet-note">{t('Note (optional)')}</label>
+            <input id="notyet-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder={t('Please make the bed properly')} autoComplete="off"
               onKeyDown={e => { if (e.key === 'Enter') sendBack() }} />
           </div>
         </Sheet>
@@ -501,20 +505,22 @@ export default function Chores() {
   const editDay = editChore && editChore !== 'new' ? chores.find(c => c.id === editChore.id) : undefined
   const resetMember = parentDevice && editDay?.activity && editDay.activity.doneSeconds > 0 ? editDay.memberId ?? selectedMemberId : null
   const isToday = key === dateKey(new Date())
-  const now = format(new Date(), 'HH:mm') // late start times, as of this render (refreshTick re-renders)
+  const now = new Date().toTimeString().slice(0, 5) // late start times, as of this render (refreshTick re-renders)
   const resetTime = async (c: ChoreDay, member: string) => {
     const act = c.activity!
-    const who = members.find(m => m.id === member)?.name ?? 'Someone'
+    const who = members.find(m => m.id === member)?.name ?? t('Someone')
     if (!await dialog.confirm({
-      title: `Reset ${who}'s ${act.name ?? 'activity'} time ${isToday ? 'for today' : `for ${format(selectedDate, 'EEE, MMM d')}`}?`,
-      body: c.completed ? `"${c.title}" stays done. Untick it if it shouldn't count.` : `${Math.floor(act.doneSeconds / 60)} of ${act.needSeconds / 60} min goes back to 0.`,
-      confirmLabel: 'Reset time',
+      title: isToday
+        ? t("Reset {name}'s {activity} time for today?", { name: who, activity: act.name ?? t('activity') })
+        : t("Reset {name}'s {activity} time for {date}?", { name: who, activity: act.name ?? t('activity'), date: formatDate(selectedDate, DAY) }),
+      body: c.completed ? t('"{title}" stays done. Untick it if it shouldn\'t count.', { title: c.title }) : t('{done} of {need} min goes back to 0.', { done: Math.floor(act.doneSeconds / 60), need: act.needSeconds / 60 }),
+      confirmLabel: t('Reset time'),
     })) return
     try {
       await api.resetPlaytime(act.pluginId, member, key)
       setEditChore(null); load()
-      toast(`Time reset: ${c.title}`); announce(`Time reset: ${c.title}`)
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reset the time', true) }
+      toast(t('Time reset: {title}', { title: c.title })); announce(t('Time reset: {title}', { title: c.title }))
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reset the time'), true) }
   }
 
   // "Who did it?" for an Anyone chore when the tab isn't filtered or pinned to one person.
@@ -523,9 +529,9 @@ export default function Chores() {
     const ticked = c.completed || !!c.pending // a pending tick unticks like a done one
     // Unticking is deliberate: a stray tap on a done chore shouldn't quietly take points back.
     if (ticked && !await dialog.confirm({
-      title: `Mark "${c.title}" not done?`,
-      body: c.pending ? 'It goes back on the list, and the parent approval request is withdrawn.' : 'It goes back on the list, and the points it earned come off.',
-      confirmLabel: 'Mark not done',
+      title: t('Mark "{title}" not done?', { title: c.title }),
+      body: c.pending ? t('It goes back on the list, and the parent approval request is withdrawn.') : t('It goes back on the list, and the points it earned come off.'),
+      confirmLabel: t('Mark not done'),
     })) return
     // A checklist with open items gates completion: open it here to tick off instead.
     if (!ticked && c.checklist && c.checklist.done < c.checklist.total) { setChecklistId(c.id); return }
@@ -545,18 +551,20 @@ export default function Chores() {
     const late = !ticked && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points
     const who = !c.memberId && creditTo ? members.find(m => m.id === creditTo)?.name : undefined
-    announce(ticked ? `${c.title} not done` : waits ? `${c.title} done${who ? ` by ${who}` : ''}, waiting for a parent's OK` : `${c.title} done${who ? ` by ${who}` : ''}, ${pts} point${pts === 1 ? '' : 's'}${late ? ', late' : ''}`)
+    announce(ticked ? t('{title} not done', { title: c.title })
+      : waits ? (who ? t("{title} done by {name}, waiting for a parent's OK", { title: c.title, name: who }) : t("{title} done, waiting for a parent's OK", { title: c.title }))
+      : (who ? tn(pts, '{title} done by {name}, {n} point', '{title} done by {name}, {n} points', { title: c.title, name: who }) : tn(pts, '{title} done, {n} point', '{title} done, {n} points', { title: c.title })) + (late ? t(', late') : ''))
     try {
       // Queued, so a tick works offline and syncs later; replays are idempotent (complete/undo for a date).
       if (ticked) await api.queueUncompleteChore(c.id, key)
       else await api.queueCompleteChore(c.id, key, creditTo)
       // Credited to the picked person without asking: say who, with a way back.
-      if (picked) toast(`${waits ? 'Sent for a parent’s OK' : 'Done!'} ✓ ${picked.name}${late && !waits ? ` · +${pts} (late)` : ''}`, false, { label: 'Undo', run: () => { void api.queueUncompleteChore(c.id, key).then(() => { load(); reloadCore() }, () => toast('Could not undo that', true)) } })
-      else if (late && !waits) toast(`+${pts} (late)`)
+      if (picked) toast(`${waits ? t('Sent for a parent’s OK') : t('Done!')} ✓ ${picked.name}${late && !waits ? ` · ${t('+{n} (late)', { n: pts })}` : ''}`, false, { label: t('Undo'), run: () => { void api.queueUncompleteChore(c.id, key).then(() => { load(); reloadCore() }, () => toast(t('Could not undo that'), true)) } })
+      else if (late && !waits) toast(t('+{n} (late)', { n: pts }))
       reloadCore()
     } catch (e) {
       setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection } : x)) // revert
-      toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
+      toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
     }
   }
 
@@ -574,7 +582,7 @@ export default function Chores() {
   // chore that would be ticked off straight away asks first.
   const [hashTick, setHashTick] = useState(0) // the app may set the link while this tab is already open
   useEffect(() => {
-    const onHash = () => setHashTick(t => t + 1)
+    const onHash = () => setHashTick(n => n + 1)
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -590,10 +598,10 @@ export default function Chores() {
     // sure=1: "Mark done" on the chore's own timer, which already asked.
     if (opensSheet || params.get('sure') === '1') { toggle(c); return }
     const who = members.find(m => m.id === (c.memberId ?? selectedMemberId))?.name
-    dialog.confirm({ title: `Mark "${c.title}" done${who ? ` for ${who}` : ''}?`, confirmLabel: 'Mark done' }).then(ok => { if (ok) toggle(c) })
+    dialog.confirm({ title: who ? t('Mark "{title}" done for {name}?', { title: c.title, name: who }) : t('Mark "{title}" done?', { title: c.title }), confirmLabel: t('Mark done') }).then(ok => { if (ok) toggle(c) })
   }, [loading, chores, hashTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const columns = [...members, { id: '__anyone', name: 'Anyone', color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
+  const columns = [...members, { id: '__anyone', name: t('Anyone'), color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
   const visibleColumns = selectedMemberId
     // Anyone's chores stay beside the filtered person; only a display pinned to someone can hide them.
     ? columns.filter(m => m.id === selectedMemberId || (m.id === '__anyone' && (!focusMemberId || focusShowsShared)))
@@ -617,19 +625,19 @@ export default function Chores() {
       <div className="chores-header">
         {/* The date and the buttons share a row (a phone: short date and short words, wrapping
             when they don't fit). Off a phone the leaderboard takes the next row. */}
-        <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
+        <h2 className="period-label" aria-label={formatDate(selectedDate, LONG_DAY)}>{formatDate(selectedDate, isPhone ? DAY : LONG_DAY)}</h2>
         {!isPhone && leaderboard}
-        {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label="Give points"><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">Give points</span><span className="chores-short-label">Give</span></GivePoints>}
-        {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label="Edit chores" onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">Edit chores</span><span className="chores-short-label">Edit</span></button>}
-        {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span><span className="chores-short-label">Library</span></button>}
-        {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">Suggest a chore</span><span className="chores-short-label">Idea</span></button>}
-        {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span><span className="chores-short-label">Rewards</span></a>}
+        {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label={t('Give points')}><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">{t('Give points')}</span><span className="chores-short-label">{t('Give')}</span></GivePoints>}
+        {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label={t('Edit chores')} onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">{t('Edit chores')}</span><span className="chores-short-label">{t('Edit')}</span></button>}
+        {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">{t('Library')}</span><span className="chores-short-label">{t('Library')}</span></button>}
+        {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">{t('Suggest a chore')}</span><span className="chores-short-label">{t('Idea')}</span></button>}
+        {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">{t('Rewards')}</span><span className="chores-short-label">{t('Rewards')}</span></a>}
       </div>
-      <div className="date-strip" role="group" aria-label="Day">
+      <div className="date-strip" role="group" aria-label={t('Day')}>
         {strip.map(d => (
-          <button key={d.toISOString()} className={`date-chip ${isSameDay(d, selectedDate) ? 'active' : ''}`} aria-pressed={isSameDay(d, selectedDate)} aria-label={format(d, 'EEEE, MMMM d')} onClick={() => setSelectedDate(d)}>
-            <div className="wd">{format(d, 'EEE')}</div>
-            <div className="dn">{format(d, 'd')}</div>
+          <button key={d.toISOString()} className={`date-chip ${isSameDay(d, selectedDate) ? 'active' : ''}`} aria-pressed={isSameDay(d, selectedDate)} aria-label={formatDate(d, LONG_DAY)} onClick={() => setSelectedDate(d)}>
+            <div className="wd">{formatDate(d, { weekday: 'short' })}</div>
+            <div className="dn">{d.getDate()}</div>
           </button>
         ))}
       </div>
@@ -641,15 +649,15 @@ export default function Chores() {
 
       {editing && (
         <div className="edit-mode-bar chores-edit-bar" role="status">
-          <span>Tap a chore to edit it.</span>
-          <button type="button" className="btn btn-primary" onClick={() => setEditing(false)}>Done</button>
+          <span>{t('Tap a chore to edit it.')}</span>
+          <button type="button" className="btn btn-primary" onClick={() => setEditing(false)}>{t('Done')}</button>
         </div>
       )}
 
       {error ? (
-        <div className="state-card">Couldn't load chores.</div>
+        <div className="state-card">{t("Couldn't load chores.")}</div>
       ) : !loading && chores.length === 0 ? (
-        <div className="empty-card"><span className="emoji">✨</span>No chores for this day.</div>
+        <div className="empty-card"><span className="emoji">✨</span>{t('No chores for this day.')}</div>
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
           {active.map(col => {
@@ -659,11 +667,11 @@ export default function Chores() {
             return (
               <div key={col.id} className="chore-column">
                 <div className="chore-col-head">
-                  <ProgressRing pct={pct} m={col} label={`${col.name}: ${done} of ${list.length} done`} />
+                  <ProgressRing pct={pct} m={col} label={t('{name}: {done} of {total} done', { name: col.name, done, total: list.length })} />
                   <h3 className="chore-col-name" style={{ margin: 0 }}>{col.name}</h3>
-                  <div className="chore-col-pts">{col.id === '__anyone' ? `${pointsGivenOut(list)} pts given out` : `${pointsEarned(chores, col.id)} pts${isToday ? ' today' : ''}`}</div>
+                  <div className="chore-col-pts">{col.id === '__anyone' ? t('{n} pts given out', { n: pointsGivenOut(list) }) : isToday ? t('{n} pts today', { n: pointsEarned(chores, col.id) }) : t('{n} pts', { n: pointsEarned(chores, col.id) })}</div>
                   {rewardsShown && col.id !== '__anyone' && 'balance' in col && (
-                    <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={`${col.name} has ${col.balance} points to spend. See rewards`}>⭐ {col.balance} to spend</a>
+                    <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={t('{name} has {n} points to spend. See rewards', { name: col.name, n: col.balance })}>⭐ {t('{n} to spend', { n: col.balance })}</a>
                   )}
                 </div>
                 {list.map(c => (
@@ -673,13 +681,13 @@ export default function Chores() {
             )
           })}
           {idle.length > 0 && (
-            <ul className="chores-idle" aria-label="Nothing due">
+            <ul className="chores-idle" aria-label={t('Nothing due')}>
               {idle.map(m => (
                 <li key={m.id} className="chores-idle-item">
                   <Face m={m} className="chores-idle-avatar" aria-hidden="true" />
-                  <span><span className="chores-idle-name">{m.name}</span> · nothing due</span>
+                  <span><span className="chores-idle-name">{m.name}</span> · {t('nothing due')}</span>
                   {rewardsShown && m.id !== '__anyone' && 'balance' in m && (
-                    <a className="chore-col-spend" href={`#/rewards/${m.id}`} aria-label={`${m.name} has ${m.balance} points to spend. See rewards`}>⭐ {m.balance} to spend</a>
+                    <a className="chore-col-spend" href={`#/rewards/${m.id}`} aria-label={t('{name} has {n} points to spend. See rewards', { name: m.name, n: m.balance })}>⭐ {t('{n} to spend', { n: m.balance })}</a>
                   )}
                 </li>
               ))}
@@ -689,10 +697,10 @@ export default function Chores() {
       )}
       </div>
 
-      {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>}
+      {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label={t('Add chore')}><PlusIcon /></button>}
 
       {suggestFor === 'who' && (
-        <Sheet title="Who has an idea?" onClose={() => setSuggestFor(null)}>
+        <Sheet title={t('Who has an idea?')} onClose={() => setSuggestFor(null)}>
           <div className="who-grid">
             {(members.some(m => !m.grownUp) ? members.filter(m => !m.grownUp) : members).map(m => (
               <button key={m.id} className="who-btn" onClick={() => setSuggestFor(m.id)}>
@@ -705,8 +713,8 @@ export default function Chores() {
       )}
       {suggestFor && suggestFor !== 'who' && <SuggestChoreSheet memberId={suggestFor} onClose={() => setSuggestFor(null)} onSent={() => { setSuggestFor(null); setSentTick(t => t + 1) }} />}
       {whoFor && (
-        <Sheet title="Who did it?" onClose={() => setWhoFor(null)}>
-          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{whoFor.emoji} {whoFor.title} · {whoFor.points} pts go to whoever you pick.</p>
+        <Sheet title={t('Who did it?')} onClose={() => setWhoFor(null)}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{whoFor.emoji} {t('{title} · {n} pts go to whoever you pick.', { title: whoFor.title, n: whoFor.points })}</p>
           <div className="who-grid">
             {members.map(m => (
               <button key={m.id} className="who-btn" onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, m.id) }}>
@@ -715,7 +723,7 @@ export default function Chores() {
               </button>
             ))}
           </div>
-          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, null) }}>Nobody in particular</button>
+          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, null) }}>{t('Nobody in particular')}</button>
         </Sheet>
       )}
       {/* A chore's checklist opens straight into Get stuff done; all ticked, it completes the chore here. */}
@@ -732,12 +740,12 @@ export default function Chores() {
         <ChoreEditSheet
           chore={editChore && editChore !== 'new' ? editChore : null}
           draft={repeatDraft}
-          resetTime={resetMember && editDay ? { label: `Reset ${isToday ? "today's" : "this day's"} time…`, run: () => void resetTime(editDay, resetMember) } : undefined}
+          resetTime={resetMember && editDay ? { label: isToday ? t("Reset today's time…") : t("Reset this day's time…"), run: () => void resetTime(editDay, resetMember) } : undefined}
           onClose={() => { setEditChore(null); setRepeatDraft(null) }}
           onSaved={first => {
             setEditChore(null); setRepeatDraft(null)
             // A new chore that isn't scheduled for the day on screen would otherwise vanish on save.
-            if (first && !isSameDay(first, selectedDate)) { setSelectedDate(first); toast(`Added — first on ${format(first, 'EEE, MMM d')}`) }
+            if (first && !isSameDay(first, selectedDate)) { setSelectedDate(first); toast(t('Added — first on {date}', { date: formatDate(first, DAY) })) }
             load(); reloadCore()
           }}
         />
@@ -794,38 +802,38 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
       else await api.createChore(body)
       onSaved(chore ? undefined : firstScheduledDay(sched, dueDate))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not save chore', true)
+      toast(e instanceof ApiError ? e.message : t('Could not save chore'), true)
     }
   }
   const saveToLibrary = async () => {
     if (!chore) return
-    try { await api.createLibraryChore({ fromChoreId: chore.id }); toast(`Saved to the library: ${chore.title}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save it to the library', true) }
+    try { await api.createLibraryChore({ fromChoreId: chore.id }); toast(t('Saved to the library: {title}', { title: chore.title })) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save it to the library'), true) }
   }
   const del = async () => {
     if (!chore) return
-    if (!await dialog.confirm({ title: `Delete "${chore.title}"?`, body: 'It leaves the list. Points already earned from it stay.', confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteChore(chore.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete chore', true) }
+    if (!await dialog.confirm({ title: t('Delete "{title}"?', { title: chore.title }), body: t('It leaves the list. Points already earned from it stay.'), confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteChore(chore.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete chore'), true) }
   }
 
   return (
-    <Sheet title={chore ? 'Edit chore' : draft ? 'Make it repeat' : 'New chore'} onClose={onClose} dirty="auto"
+    <Sheet title={chore ? t('Edit chore') : draft ? t('Make it repeat') : t('New chore')} onClose={onClose} dirty="auto"
       actions={
         <>
-          {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary(); if (e.target.value === 'reset') resetTime?.run() }}>
-            <option value="" disabled hidden>More…</option>
-            {!chore.libraryId && <option value="library">Save to library</option>}
+          {chore && <select className="settings-select actions-select" aria-label={t('Chore actions')} value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary(); if (e.target.value === 'reset') resetTime?.run() }}>
+            <option value="" disabled hidden>{t('More…')}</option>
+            {!chore.libraryId && <option value="library">{t('Save to library')}</option>}
             {resetTime && <option value="reset">{resetTime.label}</option>}
-            <option value="delete">Delete chore…</option>
+            <option value="delete">{t('Delete chore…')}</option>
           </select>}
-          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? 'Save' : 'Add chore'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? t('Save') : t('Add chore')}</button>
         </>
       }>
       <div className="field">
-        <label>Title</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Chore title" autoComplete="off" autoFocus={!chore} />
+        <label>{t('Title')}</label>
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Chore title')} autoComplete="off" autoFocus={!chore} />
       </div>
       <div className="field">
-        <label>Emoji</label>
+        <label>{t('Emoji')}</label>
         <div className="emoji-swatch-row">
           {['🛏️', '🐕', '🗑️', '🪴', '🧹', '🍽️', '🧺', '📚', '🧼', '🚿'].map(e => (
             <button key={e} className={`emoji-swatch ${emoji === e ? 'active' : ''}`} aria-pressed={emoji === e} onClick={() => setEmoji(e)}>{e}</button>
@@ -834,107 +842,109 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         <AnyEmojiField value={emoji} onChange={setEmoji} />
       </div>
       <div className="field">
-        <label>Points</label>
-        <PointsStepper value={points} max={1000} onChange={setPoints} label="Points" />
+        <label>{t('Points')}</label>
+        <PointsStepper value={points} max={1000} onChange={setPoints} label={t('Points')} />
       </div>
       <div className="field">
-        <label>Assign to</label>
+        <label>{t('Assign to')}</label>
         <div className="chip-row">
-          <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>🌟 Anyone</button>
+          <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>🌟 {t('Anyone')}</button>
           {members.map(m => (
             <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
       </div>
       {settings.features.lists && <div className="field">
-        <label htmlFor="chore-checklist">Checklist (optional)</label>
+        <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>
         <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
-          <option value="">None</option>
-          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${l.kind})`}</option>)}
+          <option value="">{t('None')}</option>
+          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
         </select>
-        <p className="field-hint">Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.</p>
+        <p className="field-hint">{t('Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.')}</p>
       </div>}
       {(activities.length > 0 || pluginId) && (
         <div className="field">
-          <label htmlFor="chore-activity">Do an activity (optional)</label>
+          <label htmlFor="chore-activity">{t('Do an activity (optional)')}</label>
           <select id="chore-activity" value={pluginId ?? ''} onChange={e => setPluginId(e.target.value || null)}>
-            <option value="">None</option>
-            {activities.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.name}{p.enabled ? '' : ' (off)'}</option>)}
-            {pluginId && !activities.some(p => p.id === pluginId) && <option value={pluginId}>Activity not available</option>}
+            <option value="">{t('None')}</option>
+            {activities.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.enabled ? p.name : t('{name} (off)', { name: p.name })}</option>)}
+            {pluginId && !activities.some(p => p.id === pluginId) && <option value={pluginId}>{t('Activity not available')}</option>}
           </select>
           {pluginId && (
             <div className="chore-minutes">
-              <label htmlFor="chore-minutes">Minutes</label>
+              <label htmlFor="chore-minutes">{t('Minutes')}</label>
               <input id="chore-minutes" type="number" inputMode="numeric" min={1} max={60} value={minutes}
                 onChange={e => setMinutes(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setMinutes(m => Math.max(1, m))} />
             </div>
           )}
-          <p className="field-hint">Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.</p>
+          <p className="field-hint">{t("Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.")}</p>
           {pluginId && (
             <div className="toggle-row">
-              <label id="chore-approve-play-label">Needs a parent's OK even for timed play</label>
+              <label id="chore-approve-play-label">{t("Needs a parent's OK even for timed play")}</label>
               <button className={`switch ${approveTimedPlay ? 'on' : ''}`} role="switch" aria-checked={approveTimedPlay} aria-labelledby="chore-approve-play-label" onClick={() => setApproveTimedPlay(v => !v)}><span className="knob" /></button>
             </div>
           )}
         </div>
       )}
       <div className="field">
-        <label htmlFor="chore-start">Start time (optional)</label>
+        <label htmlFor="chore-start">{t('Start time (optional)')}</label>
         <div className="timer-custom-row">
           <input id="chore-start" type="time" value={startTime} aria-describedby="chore-start-hint" onChange={e => setStartTime(e.target.value)} />
-          {startTime && <button type="button" className="btn btn-secondary" onClick={() => setStartTime('')}>No start time</button>}
+          {startTime && <button type="button" className="btn btn-secondary" onClick={() => setStartTime('')}>{t('No start time')}</button>}
         </div>
-        <p className="field-hint" id="chore-start-hint">When it should start, every day it's due. It shows on Today on the Board.</p>
+        <p className="field-hint" id="chore-start-hint">{t("When it should start, every day it's due. It shows on Today on the Board.")}</p>
       </div>
       {!pluginId && <div className="field">
-        <label htmlFor="chore-timer">Timer (optional)</label>
+        <label htmlFor="chore-timer">{t('Timer (optional)')}</label>
         <select id="chore-timer" value={timerMinutes ?? ''} onChange={e => setTimerMinutes(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">None</option>
+          <option value="">{t('None')}</option>
           {[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
         </select>
-        <p className="field-hint">Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.</p>
+        <p className="field-hint">{t('Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.')}</p>
       </div>}
       <div className="field">
-        <label htmlFor="chore-approval">Needs a parent's OK</label>
+        <label htmlFor="chore-approval">{t("Needs a parent's OK")}</label>
         <select id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>
-          <option value="default">{assignee ? `Default (${defaultApproval ? 'yes' : 'no'})` : 'Default'}</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
+          <option value="default">{assignee ? (defaultApproval ? t('Default (yes)') : t('Default (no)')) : t('Default')}</option>
+          <option value="yes">{t('Yes')}</option>
+          <option value="no">{t('No')}</option>
         </select>
-        <p className="field-hint">Ticks from wall screens and kids' devices wait for a parent to approve before the points count. Default follows {assignee ? `${assignee.name}'s setting` : 'the setting of whoever does it'} in Settings → Family{pluginId ? '; timed play approves itself unless the switch above is on' : ''}.</p>
+        <p className="field-hint">{t("Ticks from wall screens and kids' devices wait for a parent to approve before the points count.")} {assignee
+          ? (pluginId ? t("Default follows {name}'s setting in Settings → Family; timed play approves itself unless the switch above is on.", { name: assignee.name }) : t("Default follows {name}'s setting in Settings → Family.", { name: assignee.name }))
+          : (pluginId ? t('Default follows the setting of whoever does it in Settings → Family; timed play approves itself unless the switch above is on.') : t('Default follows the setting of whoever does it in Settings → Family.'))}</p>
       </div>
       <div className="field">
-        <label htmlFor="chore-repeat">Repeat</label>
+        <label htmlFor="chore-repeat">{t('Repeat')}</label>
         <select id="chore-repeat" value={repeat ?? 'custom'} onChange={e => editSched({ repeat: e.target.value as NonNullable<typeof repeat> })}>
-          {repeat === null && <option value="custom" disabled>Custom</option>}
-          {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}
+          {repeat === null && <option value="custom" disabled>{t('Custom')}</option>}
+          {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{tm(REPEAT_LABELS[r])}</option>)}
         </select>
-        {sched.custom && <p className="field-hint">Custom schedule ({repeatText(storedRrule)}). Picking an option replaces it.</p>}
+        {sched.custom && <p className="field-hint">{t('Custom schedule ({rule}). Picking an option replaces it.', { rule: repeatText(storedRrule) })}</p>}
       </div>
       {repeat === 'weekly' && (
         <div className="field">
-          <label id="chore-days-label">On</label>
+          <label id="chore-days-label">{t('On')}</label>
           <div className="day-toggles" role="group" aria-labelledby="chore-days-label">
             {weekOrder.map(d => {
               const on = sched.days.includes(d)
               return (
-                <button key={d} type="button" className={on ? 'active' : ''} aria-pressed={on} aria-label={DAY_LONG[d]}
-                  onClick={() => editSched({ days: on ? sched.days.filter(x => x !== d) : [...sched.days, d] })}>{DAY_SHORT[d]}</button>
+                <button key={d} type="button" className={on ? 'active' : ''} aria-pressed={on} aria-label={dayName(d, 'long')}
+                  onClick={() => editSched({ days: on ? sched.days.filter(x => x !== d) : [...sched.days, d] })}>{dayName(d, 'short')}</button>
               )
             })}
           </div>
-          {!sched.days.length && <p className="field-hint">No days picked: repeats on the weekday it was created.</p>}
+          {!sched.days.length && <p className="field-hint">{t('No days picked: repeats on the weekday it was created.')}</p>}
         </div>
       )}
       {(repeat === 'daily' || repeat === 'weekly') && (
         <div className="field">
-          <label htmlFor="chore-until">Ends (optional)</label>
+          <label htmlFor="chore-until">{t('Ends (optional)')}</label>
           <input id="chore-until" type="date" value={sched.until} min={today} onChange={e => editSched({ until: e.target.value })} />
         </div>
       )}
       {(repeat === 'once' || (draft && !schedTouched)) && (
         <div className="field">
-          <label>{repeat === 'once' ? 'Due date' : 'Starts'}</label>
+          <label>{repeat === 'once' ? t('Due date') : t('Starts')}</label>
           <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
         </div>
       )}

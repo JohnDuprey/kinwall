@@ -5,6 +5,10 @@ import { useEffect, useState } from 'react'
 import Sheet from './Sheet.tsx'
 import { MOCK } from './api.ts'
 import { inNativeApp } from './native.ts'
+import { t } from './i18n.ts'
+import { rich } from './rich.tsx'
+
+/** A translated sentence with React nodes (bold words) for its {placeholders}. */
 
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
 
@@ -60,14 +64,14 @@ const snooze = () => { try { localStorage.setItem(SNOOZE_KEY, String(Date.now() 
 /** How to add Kinwall on iPhone / iPad, where no install prompt exists. */
 export function InstallHowToSheet({ onClose }: { onClose: () => void }) {
   return (
-    <Sheet title="Add Kinwall to your Home Screen" onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+    <Sheet title={t('Add Kinwall to your Home Screen')} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
       <ol className="install-steps">
-        <li><span className="install-step-icon" aria-hidden="true"><ShareIcon /></span><span>Tap <strong>Share</strong>. In Safari it's in the toolbar; in Chrome it's next to the address.</span></li>
-        <li><span className="install-step-icon" aria-hidden="true">＋</span><span>Scroll down and tap <strong>Add to Home Screen</strong>.</span></li>
-        <li><span className="install-step-icon" aria-hidden="true">✓</span><span>Tap <strong>Add</strong>, then open Kinwall from its icon.</span></li>
+        <li><span className="install-step-icon" aria-hidden="true"><ShareIcon /></span><span>{rich(t("Tap {share}. In Safari it's in the toolbar; in Chrome it's next to the address."), { share: <strong>{t('Share')}</strong> })}</span></li>
+        <li><span className="install-step-icon" aria-hidden="true">＋</span><span>{rich(t('Scroll down and tap {add}.'), { add: <strong>{t('Add to Home Screen')}</strong> })}</span></li>
+        <li><span className="install-step-icon" aria-hidden="true">✓</span><span>{rich(t('Tap {add}, then open Kinwall from its icon.'), { add: <strong>{t('Add')}</strong> })}</span></li>
       </ol>
-      <p className="settings-row-sub">From the Home Screen, Kinwall opens full screen, and on iPhone it's the only way to get notifications.</p>
+      <p className="settings-row-sub">{t("From the Home Screen, Kinwall opens full screen, and on iPhone it's the only way to get notifications.")}</p>
     </Sheet>
   )
 }
@@ -92,17 +96,17 @@ export function InstallNudge() {
   const dismiss = () => { snooze(); setHidden(true) }
   return (
     <>
-      <div className="install-card" role="region" aria-label="Add Kinwall to your Home Screen">
+      <div className="install-card" role="region" aria-label={t('Add Kinwall to your Home Screen')}>
         <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" width="40" height="40" />
         <div className="install-card-text">
-          <strong>Add Kinwall to your Home Screen</strong>
-          <span>Full screen, one tap away{install.ios ? ', and notifications on iPhone' : ''}.</span>
+          <strong>{t('Add Kinwall to your Home Screen')}</strong>
+          <span>{install.ios ? t('Full screen, one tap away, and notifications on iPhone.') : t('Full screen, one tap away.')}</span>
         </div>
         <div className="install-card-actions">
           {install.canPrompt
-            ? <button className="btn btn-primary" onClick={async () => { if (await install.prompt()) setHidden(true) }}>Install</button>
-            : <button className="btn btn-primary" onClick={() => setHowTo(true)}>Show me how</button>}
-          <button className="link-btn" onClick={dismiss}>Not now</button>
+            ? <button className="btn btn-primary" onClick={async () => { if (await install.prompt()) setHidden(true) }}>{t('Install')}</button>
+            : <button className="btn btn-primary" onClick={() => setHowTo(true)}>{t('Show me how')}</button>}
+          <button className="link-btn" onClick={dismiss}>{t('Not now')}</button>
         </div>
       </div>
       {howTo && <InstallHowToSheet onClose={() => { setHowTo(false); dismiss() }} />}
@@ -117,13 +121,13 @@ export function InstallRow() {
   if (install.installed) return null
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-      <div className="settings-row-label">Add to Home Screen</div>
+      <div className="settings-row-label">{t('Add to Home Screen')}</div>
       {install.canPrompt
-        ? <button className="btn btn-secondary" onClick={() => install.prompt()}>Install Kinwall</button>
+        ? <button className="btn btn-secondary" onClick={() => install.prompt()}>{t('Install Kinwall')}</button>
         : install.ios
-          ? <button className="btn btn-secondary" onClick={() => setHowTo(true)}>Show me how</button>
-          : <div className="settings-row-sub">Use your browser's menu to install Kinwall or add it to your Home Screen.</div>}
-      <div className="settings-row-sub">Kinwall opens full screen from its own icon{install.ios ? ', and iPhone only sends notifications to the Home Screen app' : ''}.</div>
+          ? <button className="btn btn-secondary" onClick={() => setHowTo(true)}>{t('Show me how')}</button>
+          : <div className="settings-row-sub">{t("Use your browser's menu to install Kinwall or add it to your Home Screen.")}</div>}
+      <div className="settings-row-sub">{install.ios ? t('Kinwall opens full screen from its own icon, and iPhone only sends notifications to the Home Screen app.') : t('Kinwall opens full screen from its own icon.')}</div>
       {howTo && <InstallHowToSheet onClose={() => setHowTo(false)} />}
     </div>
   )

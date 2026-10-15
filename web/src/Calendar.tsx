@@ -38,6 +38,7 @@ import { dedupeEvents, eventPeople, gridTop, hourPx, layoutDay, newEventDay, new
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
+import { DAY, LONG_DAY, formatDate, intlLocale, t, tc, tm, tn } from './i18n.ts'
 import { InlineFaces, ChipFace } from './Face'
 
 const PHONE_WEEK_DAYS = 3
@@ -259,7 +260,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
     if (!draft || !calendarsLoaded) return
     setDraft(null)
     if (parentDevice && canAdd) setEditState({ event: null, ...draft })
-    else toast("Open this link on a parent's phone to add the event", true)
+    else toast(t("Open this link on a parent's phone to add the event"), true)
   }, [draft, calendarsLoaded, parentDevice, canAdd, toast])
   // #/home?checkin=<member> (the check-in widget): their day, at the check-in. Only for someone this
   // device could tap in the header (a display pinned to one person: just them); anyone else, just the calendar.
@@ -342,13 +343,13 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
   const periodLabel = useMemo(() => {
     if (viewMode === 'week') {
       const from = weekDays[0], to = weekDays[weekDays.length - 1]
-      if (isPhone) return isSameMonth(from, to) ? `${format(from, 'MMM d')} – ${format(to, 'd')}` : `${format(from, 'MMM d')} – ${format(to, 'MMM d')}`
+      if (isPhone) return new Intl.DateTimeFormat(intlLocale(), { month: 'short', day: 'numeric' }).formatRange(from, to)
       const weekEnd = endOfWeek(anchor, { weekStartsOn: settings.weekStart })
-      return isSameMonth(from, weekEnd) ? format(from, 'MMMM yyyy') : `${format(from, 'MMM')} – ${format(weekEnd, 'MMM yyyy')}`
+      return isSameMonth(from, weekEnd) ? formatDate(from, { month: 'long', year: 'numeric' }) : new Intl.DateTimeFormat(intlLocale(), { month: 'short', year: 'numeric' }).formatRange(from, weekEnd)
     }
-    if (viewMode === 'day') return format(anchor, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d') // "Thu, Oct 15" fits a phone's toolbar
-    if (viewMode === 'month') return format(anchor, 'MMMM yyyy')
-    return `Next 30 days`
+    if (viewMode === 'day') return formatDate(anchor, isPhone ? DAY : LONG_DAY) // "Thu, Oct 15" fits a phone's toolbar
+    if (viewMode === 'month') return formatDate(anchor, { month: 'long', year: 'numeric' })
+    return t('Next 30 days')
   }, [viewMode, anchor, settings.weekStart, weekDays, isPhone])
 
   const openAdd = (prefill?: Partial<EventInstance>) => { if (canAdd) setEditState({ event: null, prefill }) }
@@ -375,9 +376,9 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       setEvents(evs => [...evs]) // no-op to be explicit; real refetch happens via refreshTick after reloadCore bump isn't guaranteed for mock — force refetch:
       loadEvents().then(setEvents).catch(() => {})
       // View opens it the way a notification does (#/calendar?event=…), from here or any other tab.
-      toast(id ? 'Event updated' : 'Event added', false, { label: 'View', run: () => { location.hash = `#/calendar?${new URLSearchParams({ event: saved.id, at: saved.start })}` } })
+      toast(id ? t('Event updated') : t('Event added'), false, { label: t('View'), run: () => { location.hash = `#/calendar?${new URLSearchParams({ event: saved.id, at: saved.start })}` } })
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not save event', true)
+      toast(e instanceof ApiError ? e.message : t('Could not save event'), true)
     }
   }
   // Member chips in the detail sheet save immediately via a memberIds-only PATCH - works even on
@@ -395,12 +396,12 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
     try {
       await save(memberIds)
       // Saved at once, so a stray tap (a kid brushing the wall) says what it did and can be undone.
-      const name = members.find(m => m.id === memberId)?.name ?? 'Someone'
-      toast(removed ? `Removed ${name} from ${detail.title}` : `Added ${name} to ${detail.title}`, false, {
-        label: 'Undo', run: () => { save(was).catch(e => toast(e instanceof ApiError ? e.message : 'Could not update members', true)) },
+      const name = members.find(m => m.id === memberId)?.name ?? t('Someone')
+      toast(removed ? t('Removed {name} from {event}', { name, event: detail.title }) : t('Added {name} to {event}', { name, event: detail.title }), false, {
+        label: t('Undo'), run: () => { save(was).catch(e => toast(e instanceof ApiError ? e.message : t('Could not update members'), true)) },
       })
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not update members', true)
+      toast(e instanceof ApiError ? e.message : t('Could not update members'), true)
     }
   }
   // Used once the user picks "This event" / "All events in the series" for a recurring synced event.
@@ -410,7 +411,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       setDetail(updated)
       setEvents(evs => evs.map(e => e.id === updated.id ? updated : e))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not update members', true)
+      toast(e instanceof ApiError ? e.message : t('Could not update members'), true)
     }
   }
 
@@ -422,42 +423,42 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       const updated = await api.updateEvent(detail.id, { travelMinutes, remindBeforeLeave })
       setDetail(updated)
       setEvents(evs => evs.map(e => e.id === updated.id ? updated : e))
-      announce(travelMinutes ? `Travel time ${travelMinutes} minutes${updated.leaveAt ? `, leave by ${formatTime(updated.leaveAt, tz)}` : ''}` : 'Travel time removed')
+      announce(!travelMinutes ? t('Travel time removed') : updated.leaveAt ? tn(travelMinutes, 'Travel time {n} minute, leave by {time}', 'Travel time {n} minutes, leave by {time}', { time: formatTime(updated.leaveAt, tz) }) : tn(travelMinutes, 'Travel time {n} minute', 'Travel time {n} minutes'))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not save travel time', true)
+      toast(e instanceof ApiError ? e.message : t('Could not save travel time'), true)
     }
   }
 
   const deleteEvent = async ({ id, title }: EventInstance) => {
-    if (!await dialog.confirm({ title: `Delete “${title}”?`, body: 'If it came from Google or Outlook it is deleted there too.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: t('Delete “{title}”?', { title }), body: t('If it came from Google or Outlook it is deleted there too.'), confirmLabel: t('Delete'), danger: true })) return
     try {
       await api.deleteEvent(id)
       setDetail(null)
       setEvents(evs => evs.filter(e => e.id !== id))
-      toast('Event deleted')
+      toast(t('Event deleted'))
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not delete event', true)
+      toast(e instanceof ApiError ? e.message : t('Could not delete event'), true)
     }
   }
 
   // Hiding (parents' devices): gone for the whole family until shown again (docs/using/calendar.md "Hiding events").
   const afterHide = (message: string) => { setDetail(null); reloadCore(); loadEvents().then(setEvents).catch(() => {}); toast(message) }
   const hideEvent = async (ev: EventInstance, scope: 'occurrence' | 'series') => {
-    try { await api.hideEvent(ev.id, scope, ev.occurrenceStart); afterHide(scope === 'series' ? `Hidden: every ${ev.title}` : `Hidden: ${ev.title}`) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not hide the event', true) }
+    try { await api.hideEvent(ev.id, scope, ev.occurrenceStart); afterHide(scope === 'series' ? t('Hidden: every {title}', { title: ev.title }) : t('Hidden: {title}', { title: ev.title })) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not hide the event'), true) }
   }
   const unhideEvent = async (ev: EventInstance) => {
-    try { await api.unhideEvent(ev.id, ev.hidden === 'series' ? 'series' : 'occurrence', ev.occurrenceStart); afterHide(`Showing again: ${ev.title}`) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not show the event', true) }
+    try { await api.unhideEvent(ev.id, ev.hidden === 'series' ? 'series' : 'occurrence', ev.occurrenceStart); afterHide(t('Showing again: {title}', { title: ev.title })) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not show the event'), true) }
   }
   const hideEventsLike = async (ev: EventInstance, filter: CalendarFilter) => {
     const cal = calendars.find(c => c.id === ev.calendarId)
-    if (!cal || !await dialog.confirm({ title: `Hide every "${ev.title}"?`, body: `Every event on ${cal.name} with "${ev.title}" in its title stays hidden, including new ones. Change it any time in Settings → Calendars → ${cal.name} → Filter.`, confirmLabel: 'Hide them' })) return
+    if (!cal || !await dialog.confirm({ title: t('Hide every "{title}"?', { title: ev.title }), body: t('Every event on {calendar} with "{title}" in its title stays hidden, including new ones. Change it any time in Settings → Calendars → {calendar} → Filter.', { calendar: cal.name, title: ev.title }), confirmLabel: t('Hide them') })) return
     try {
       await api.updateCalendar(cal.id, { filter })
       setCalendars(cs => cs.map(c => c.id === cal.id ? { ...c, filter } : c))
-      afterHide(`Hidden: events like ${ev.title}`)
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change the filter', true) }
+      afterHide(t('Hidden: events like {title}', { title: ev.title }))
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change the filter'), true) }
   }
 
   const onlyMember = selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined
@@ -470,7 +471,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
         // Home: Board | Newscast, the Board's count chips, Polls, Outings and Layout and filter. Locked
         // to a view, just the category filter (when the family has categories).
         <div className="calendar-toolbar home-toolbar">
-          {tabsShown && <Segmented tabs idBase="homeview" label="View" className="view-switch" value={viewMode} onChange={pickView}
+          {tabsShown && <Segmented tabs idBase="homeview" label={t('View')} className="view-switch" value={viewMode} onChange={pickView}
             options={HOME_VIEWS.map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />}
           {viewMode === 'board' && !isPhone && <div className="board-chips" ref={setChipHost} />}
           <div className="toolbar-end">
@@ -479,7 +480,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
             {viewMode === 'board' && (
               <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)} aria-haspopup="dialog"
                 aria-label={locked ? filterSortLabel(activeCategoryFilter.length)
-                  : activeCategoryFilter.length ? `Layout and filter: ${activeCategoryFilter.length} categories` : 'Layout and filter'}>
+                  : activeCategoryFilter.length ? tn(activeCategoryFilter.length, 'Layout and filter: {n} category', 'Layout and filter: {n} categories') : t('Layout and filter')}>
                 {locked ? <FilterIcon width={20} height={20} /> : <SlidersIcon width={20} height={20} />}
                 {activeCategoryFilter.length > 0 && <span className="filter-badge" aria-hidden="true">{activeCategoryFilter.length}</span>}
               </button>
@@ -490,26 +491,26 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
         // Calendar: Day | Week | Month | Schedule, paging and the period, then Show hidden and the filter.
         <div className={`calendar-toolbar cal-toolbar ${locked ? 'locked' : tabsShown ? '' : 'no-switch'}`}>
           {!locked && (tabsShown
-            ? <Segmented tabs idBase="calview" label="Calendar view" className="view-switch" value={viewMode} onChange={pickView}
+            ? <Segmented tabs idBase="calview" label={t('Calendar view')} className="view-switch" value={viewMode} onChange={pickView}
                 options={CALENDAR_VIEWS.map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
             : <ViewPicker value={viewMode as CalendarView} onChange={pickView} />)}
           <div className="toolbar-nav">
-            <button className="icon-btn" onClick={() => step(-1)} aria-label={`Previous ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronLeft width={20} height={20} /></button>
-            <button className="today-btn" onClick={() => { setSlideDir(0); setAnchor(new Date()) }}>Today</button>
-            <button className="icon-btn" onClick={() => step(1)} aria-label={`Next ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronRight width={20} height={20} /></button>
+            <button className="icon-btn" onClick={() => step(-1)} aria-label={viewMode === 'schedule' ? t('Previous 30 days') : viewMode === 'week' && isPhone ? t('Previous 3 days') : viewMode === 'week' ? t('Previous week') : viewMode === 'day' ? t('Previous day') : t('Previous month')}><ChevronLeft width={20} height={20} /></button>
+            <button className="today-btn" onClick={() => { setSlideDir(0); setAnchor(new Date()) }}>{t('Today')}</button>
+            <button className="icon-btn" onClick={() => step(1)} aria-label={viewMode === 'schedule' ? t('Next 30 days') : viewMode === 'week' && isPhone ? t('Next 3 days') : viewMode === 'week' ? t('Next week') : viewMode === 'day' ? t('Next day') : t('Next month')}><ChevronRight width={20} height={20} /></button>
             <h2 className="period-label" aria-live="polite" ref={periodRef} tabIndex={-1}>{periodLabel}</h2>
           </div>
           {/* Show hidden and the filter sit together at the end, same size and gap. */}
           <div className="toolbar-end">
             {/* A day opened from Month on a phone: Back to it. With the switch inline, its Month is that one tap already. */}
             {isPhone && viewMode === 'day' && dayFrom && !locked && !tabsShown && (
-              <button type="button" className="btn btn-secondary day-back" aria-label={`Back to ${viewLabel(dayFrom, true)}`} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>
+              <button type="button" className="btn btn-secondary day-back" aria-label={t('Back to {view}', { view: viewLabel(dayFrom, true) })} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>
                 <ChevronLeft width={18} height={18} />{viewLabel(dayFrom, true)}
               </button>
             )}
             {parentDevice && (
               <button className={`icon-btn hidden-toggle ${showHidden ? 'active' : ''}`} onClick={() => setShowHidden(v => !v)} aria-pressed={showHidden}
-                aria-label="Show hidden events" title="Show hidden events">
+                aria-label={t('Show hidden events')} title={t('Show hidden events')}>
                 {showHidden ? <EyeIcon width={20} height={20} /> : <EyeOffIcon width={20} height={20} />}
               </button>
             )}
@@ -527,20 +528,20 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       {filterOpen && (
         // Home's is Layout and filter: this screen's Board layout, then the categories. Calendar's
         // (and a locked Home's) is the categories alone. One category filter per device, for both.
-        <Sheet title={home && !locked ? 'Layout and filter' : 'Filter and sort'} onClose={() => setFilterOpen(false)}
+        <Sheet title={home && !locked ? t('Layout and filter') : t('Filter and sort')} onClose={() => setFilterOpen(false)}
           actions={<>
-            {categories.length > 0 && <button className="btn btn-secondary" onClick={() => setCategoryFilter([])} disabled={activeCategoryFilter.length === 0}>Show all</button>}
-            <button className="btn btn-primary" onClick={() => setFilterOpen(false)}>Done</button>
+            {categories.length > 0 && <button className="btn btn-secondary" onClick={() => setCategoryFilter([])} disabled={activeCategoryFilter.length === 0}>{t('Show all')}</button>}
+            <button className="btn btn-primary" onClick={() => setFilterOpen(false)}>{t('Done')}</button>
           </>}>
           {home && !locked && <>
-            <h3 className="scheme-group-title">Layout on this screen</h3>
+            <h3 className="scheme-group-title">{t('Layout on this screen')}</h3>
             <LayoutChips onLeave={() => setFilterOpen(false)} />
           </>}
           {categories.length > 0 && <>
-            {home && !locked && <h3 className="scheme-group-title sheet-group-gap">Categories</h3>}
-            <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>Pick one or more. With none picked, every event shows.</p>
-            <div className="chip-row" role="group" aria-label="Categories">
-              {[...categories.map(c => ({ id: c.id, label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}`, color: c.color })), { id: NO_CATEGORY, label: 'No category', color: undefined }].map(c => {
+            {home && !locked && <h3 className="scheme-group-title sheet-group-gap">{t('Categories')}</h3>}
+            <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{t('Pick one or more. With none picked, every event shows.')}</p>
+            <div className="chip-row" role="group" aria-label={t('Categories')}>
+              {[...categories.map(c => ({ id: c.id, label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}`, color: c.color })), { id: NO_CATEGORY, label: t('No category'), color: undefined }].map(c => {
                 const on = activeCategoryFilter.includes(c.id)
                 return (
                   <button key={c.id} className={`chip ${on ? 'active' : ''}`} aria-pressed={on} style={c.color ? { ['--chip-color' as string]: c.color } : undefined}
@@ -557,15 +558,15 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       {/* Picked in the header (not a display pinned to them): say so, or events just look missing. */}
       {!focusMemberId && onlyMember && (
         <div className="only-row">
-          <button className="chip only-chip" onClick={() => setSelectedMemberId(null)} aria-label={`Showing only ${onlyMember.name}. Show everyone`}>
-            <ChipFace m={onlyMember} /> Showing only {onlyMember.name} <span aria-hidden="true">✕</span>
+          <button className="chip only-chip" onClick={() => setSelectedMemberId(null)} aria-label={t('Showing only {name}. Show everyone', { name: onlyMember.name })}>
+            <ChipFace m={onlyMember} /> {t('Showing only {name}', { name: onlyMember.name })} <span aria-hidden="true">✕</span>
           </button>
         </div>
       )}
-      {calendarish && goalLine && <p className="cal-goal"><span className="sr-only">{goalLine.name}'s goal: </span><span aria-hidden="true">🎯</span> {goalLine.goal}</p>}
+      {calendarish && goalLine && <p className="cal-goal"><span className="sr-only">{t("{name}'s goal:", { name: goalLine.name })} </span><span aria-hidden="true">🎯</span> {goalLine.goal}</p>}
 
       <div className="swipe-area" {...(calendarish ? swipe : {})} role={tabsShown ? 'tabpanel' : 'region'}
-        aria-labelledby={tabsShown ? `${home ? 'homeview' : 'calview'}-${viewMode}` : undefined} aria-label={tabsShown ? undefined : `${viewLabel(viewMode, isPhone)} view`}>
+        aria-labelledby={tabsShown ? `${home ? 'homeview' : 'calview'}-${viewMode}` : undefined} aria-label={tabsShown ? undefined : t('{view} view', { view: viewLabel(viewMode, isPhone) })}>
         {/* Keyed by view + period so each change re-mounts and plays the slide/fade in. */}
         <div key={calendarish ? `${viewMode}:${dateKey(range.from)}` : viewMode} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
         {viewMode === 'board' ? (
@@ -575,7 +576,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
         ) : error ? (
           <LoadError what="events" onRetry={() => setRetry(r => r + 1)} />
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
-          <div className="empty-card"><span className="emoji">🗓️</span>{activeCategoryFilter.length ? 'No events in the next 30 days match the category filter.' : 'No events in the next 30 days.'}</div>
+          <div className="empty-card"><span className="emoji">🗓️</span>{activeCategoryFilter.length ? t('No events in the next 30 days match the category filter.') : t('No events in the next 30 days.')}</div>
         ) : viewMode === 'week' ? (
           <WeekView days={weekDays} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onSlotTap={openAdd} onDayTap={openDay} />
         ) : viewMode === 'day' ? (
@@ -592,10 +593,10 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
 
       {/* The Board too (not Newscast, which is for reading): its cards keep their rows clear of it
           (Board.tsx FitBody, and room to scroll past it where the Board scrolls). */}
-      {(calendarish || viewMode === 'board') && canAdd ? <button className="fab" onClick={addOnShownDay} aria-label="Add event"><PlusIcon /></button>
+      {(calendarish || viewMode === 'board') && canAdd ? <button className="fab" onClick={addOnShownDay} aria-label={t('Add event')}><PlusIcon /></button>
         : calendarish && (kidDevice && calendars.length > 0 && <p className="fab-hint">{calendars.some(c => c.memberIds.includes(meMemberId!))
-          ? 'Ask a parent to let this device change your calendar in Settings → Calendars.'
-          : 'Ask a parent to give you a calendar in Settings → Calendars.'}</p>)}
+          ? t('Ask a parent to let this device change your calendar in Settings → Calendars.')
+          : t('Ask a parent to give you a calendar in Settings → Calendars.')}</p>)}
 
       {linkedPoll && settings.features.polls !== false && <PollSheet id={linkedPoll} onClose={() => setLinkedPoll(null)} />}
       {detail && (
@@ -641,9 +642,10 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 
 /** What a screen reader hears for an event block: "4:00 PM Soccer Practice, Sam, Park field". */
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[]): string {
-  const who = members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name).join(' and ')
+  const who = new Intl.ListFormat(intlLocale()).format(members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name))
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  return [`${ev.hidden ? 'Hidden: ' : ''}${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, ev.busy === false && 'free', who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`, ev.meal && `meal: ${mealEventStatus(ev.meal).text.replace('✓ ', '')}`].filter(Boolean).join(', ')
+  const head = `${ev.allDay ? t('All day') : formatTime(ev.start, tz)} ${ev.title}`
+  return [ev.hidden ? t('Hidden: {event}', { event: head }) : head, ev.busy === false && t('free'), who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && tn(ev.noteCount, '{n} note', '{n} notes'), ev.meal && t('meal: {status}', { status: mealEventStatus(ev.meal).text.replace('✓ ', '') })].filter(Boolean).join(', ')
 }
 
 /** Solid category color (overrides member color entirely) when the event has one, else: solid
@@ -709,9 +711,9 @@ function EventTitle({ title, avatars, emoji, pill, hidden, free, meal, maxFaces 
 }
 
 /** A hidden event, shown with Show hidden: faded (.ev-hidden) and marked, never by color alone. */
-const HiddenMark = () => <span className="ev-hidden-mark"><EyeOffIcon width={12} height={12} />Hidden ·</span>
+const HiddenMark = () => <span className="ev-hidden-mark"><EyeOffIcon width={12} height={12} />{t('Hidden ·')}</span>
 /** Show as free: outlined and striped instead of filled (.ev-free), and says "Free" (never color alone). */
-const FreeMark = () => <span className="ev-free-mark">Free ·</span>
+const FreeMark = () => <span className="ev-free-mark">{t('Free ·')}</span>
 const evClass = (ev: EventInstance) => (ev.hidden ? ' ev-hidden' : '') + (ev.busy === false ? ' ev-free' : '')
 
 function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventInstance; tz: string; members: ChipMember[]; categories: ChipCategory[]; small?: boolean; onTap: () => void }) {
@@ -727,7 +729,7 @@ function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventIns
  * only where there's room (Day view). Planned says nothing; the 🍽 already marks it. */
 function timedMealText(meal: NonNullable<EventInstance['meal']>, wide: boolean) {
   const { done, text } = mealEventStatus(meal)
-  return done || (wide && text !== 'Planned') ? ` · ${text}` : ''
+  return done || (wide && text !== t('Planned')) ? ` · ${text}` : ''
 }
 
 /** Renders an N-day time grid (all-day row, now-line, auto-scroll, overlap columns). Used for
@@ -778,9 +780,9 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
             return (
               <button key={i} type="button" data-roving className={`week-header-cell ${dateKey(d) === todayStr ? 'today' : ''}`} tabIndex={roving.tabIndex(i)}
                 aria-current={dateKey(d) === todayStr ? 'date' : undefined}
-                aria-label={`${format(d, 'EEEE, MMMM d')}, ${count} event${count === 1 ? '' : 's'}. Open day`} onClick={() => onDayTap(d)}>
-                <div className="wd">{format(d, 'EEE')}</div>
-                <div className="dn">{format(d, 'd')}</div>
+                aria-label={tn(count, '{day}, {n} event. Open day', '{day}, {n} events. Open day', { day: formatDate(d, LONG_DAY) })} onClick={() => onDayTap(d)}>
+                <div className="wd">{formatDate(d, { weekday: 'short' })}</div>
+                <div className="dn">{d.getDate()}</div>
               </button>
             )
           })}
@@ -890,7 +892,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
       <div className="month-grid" ref={gridRef} style={{ height: '100%', gridTemplateRows: `24px repeat(${weeks}, minmax(0, 1fr))` }} onKeyDown={roving.onKeyDown}>
         {/* From the real first week, so a Monday-start week is labeled M T W… (was always S M T…). */}
         {days.slice(0, 7).map((d, i) => (
-          <div key={i} aria-hidden="true" style={{ textAlign: 'center', fontSize: '0.6875rem', fontWeight: 800, color: 'var(--text-dim)', paddingTop: 4 }}>{format(d, 'EEEEE')}</div>
+          <div key={i} aria-hidden="true" style={{ textAlign: 'center', fontSize: '0.6875rem', fontWeight: 800, color: 'var(--text-dim)', paddingTop: 4 }}>{formatDate(d, { weekday: 'narrow' })}</div>
         ))}
         {days.map((d, i) => {
           const key = dateKey(d)
@@ -901,7 +903,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
           if (dayOnly) return (
             <button key={i} type="button" data-roving tabIndex={roving.tabIndex(i)} className={`month-cell ${isSameMonth(d, anchor) ? '' : 'dim'}`}
               aria-current={key === todayStr ? 'date' : undefined} aria-label={monthDayLabel(d, dayEvents.length)} onClick={() => onDayTap(d)}>
-              <span aria-hidden="true" className={`month-daynum ${key === todayStr ? 'today' : ''}`}>{format(d, 'd')}</span>
+              <span aria-hidden="true" className={`month-daynum ${key === todayStr ? 'today' : ''}`}>{d.getDate()}</span>
               {shown.map(ev => {
                 const { background, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 6)
                 return (
@@ -910,15 +912,15 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                   </span>
                 )
               })}
-              {hidden > 0 && <span className="month-more" aria-hidden="true">+{hidden} more</span>}
+              {hidden > 0 && <span className="month-more" aria-hidden="true">{t('+{n} more', { n: hidden })}</span>}
             </button>
           )
           return (
             <div key={i} className={`month-cell ${isSameMonth(d, anchor) ? '' : 'dim'}`} onClick={() => onDayTap(d)}>
               <button type="button" data-roving tabIndex={roving.tabIndex(i)} className={`month-daynum ${key === todayStr ? 'today' : ''}`}
                 aria-current={key === todayStr ? 'date' : undefined}
-                aria-label={`${format(d, 'EEEE, MMMM d')}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}. Open day`}
-                onClick={e => { e.stopPropagation(); onDayTap(d) }}>{format(d, 'd')}</button>
+                aria-label={tn(dayEvents.length, '{day}, {n} event. Open day', '{day}, {n} events. Open day', { day: formatDate(d, LONG_DAY) })}
+                onClick={e => { e.stopPropagation(); onDayTap(d) }}>{d.getDate()}</button>
               {shown.map(ev => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 6)
                 return (
@@ -928,7 +930,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                   </div>
                 )
               })}
-              {hidden > 0 && <div className="month-more" aria-hidden="true">+{hidden} more</div>}
+              {hidden > 0 && <div className="month-more" aria-hidden="true">{t('+{n} more', { n: hidden })}</div>}
             </div>
           )
         })}
@@ -949,13 +951,13 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
     return map
   }, [anchor, events, tz])
 
-  if (byDay.size === 0) return <div className="empty-card"><span className="emoji">🗓️</span>No events in the next 30 days.</div>
+  if (byDay.size === 0) return <div className="empty-card"><span className="emoji">🗓️</span>{t('No events in the next 30 days.')}</div>
 
   return (
     <div className="scroll-y schedule-list">
       {[...byDay.entries()].map(([key, list]) => (
         <div key={key}>
-          <div className="schedule-day-label">{format(new Date(key + 'T00:00:00'), 'EEEE, MMMM d')}</div>
+          <div className="schedule-day-label">{formatDate(new Date(key + 'T00:00:00'), LONG_DAY)}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
             {list.map(ev => {
               const { background, avatars, emoji } = eventVisual(ev, members, categories, 8)
@@ -963,7 +965,7 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
               // The whole row is tappable; its title is the real button (the location link can't nest in one).
               <div key={ev.id} className={`schedule-item${evClass(ev)}`} onClick={() => onTap(ev)}>
                 <div className="schedule-color-bar" style={{ background }} />
-                <div className="schedule-time" aria-hidden="true">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
+                <div className="schedule-time" aria-hidden="true">{ev.allDay ? t('All day') : formatTime(ev.start, tz)}</div>
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
                     onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{ev.meal && <><span className="event-emoji">🍽️</span> </>}{emoji && !(ev.meal && emoji.startsWith('🍽')) && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <InlineFaces who={avatars} className="event-avatars schedule-avatars" />}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}{ev.meal && <span className={`chip chip-static schedule-meal${ev.meal.status === 'prepared' ? ' done' : ''}`} aria-hidden="true">{mealEventStatus(ev.meal).text}</span>}</button>
@@ -986,9 +988,9 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
 
 // Text for "where did these tags come from" - shown when the chips aren't mid-edit.
 function memberScopeLabel(scope: EventInstance['memberScope']): string | null {
-  if (scope === 'series') return 'Tagged for the whole series'
-  if (scope === 'occurrence') return 'Tagged for this event'
-  if (scope === 'calendar') return 'From the calendar'
+  if (scope === 'series') return t('Tagged for the whole series')
+  if (scope === 'occurrence') return t('Tagged for this event')
+  if (scope === 'calendar') return t('From the calendar')
   return null
 }
 
@@ -1034,17 +1036,17 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
     else onToggleMember(memberId)
   }
   const { background: detailBar } = eventVisual(event, members, categories, 10)
-  const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? 'another calendar'
+  const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? t('another calendar')
   const scopeLabel = memberScopeLabel(event.memberScope)
   const catLabel = categoryLabel(event, categories)
   return (
     <Sheet title={event.title} onClose={onClose}
-      actions={canEdit && !event.readOnly ? <button className="btn btn-secondary" onClick={onEdit}><EditIcon width={18} height={18} />Edit</button> : undefined}>
+      actions={canEdit && !event.readOnly ? <button className="btn btn-secondary" onClick={onEdit}><EditIcon width={18} height={18} />{t('Edit')}</button> : undefined}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="detail-color-bar" style={{ background: detailBar }} />
         <div style={{ fontWeight: 800, fontSize: '0.9375rem' }}>
-          {event.allDay ? `${format(new Date(event.start + 'T00:00:00'), 'EEE, MMM d')}${event.end !== addDays(new Date(event.start + 'T00:00:00'), 1).toISOString().slice(0, 10) ? ' – ' + format(addDays(new Date(event.end + 'T00:00:00'), -1), 'EEE, MMM d') : ''} · All day`
-            : `${format(new Date(event.start), 'EEE, MMM d')} · ${formatTime(event.start, tz)} – ${formatTime(event.end, tz)}`}
+          {event.allDay ? `${formatDate(new Date(event.start + 'T00:00:00'), DAY)}${event.end !== addDays(new Date(event.start + 'T00:00:00'), 1).toISOString().slice(0, 10) ? ' – ' + formatDate(addDays(new Date(event.end + 'T00:00:00'), -1), DAY) : ''} · ${t('All day')}`
+            : `${formatDate(new Date(event.start), DAY)} · ${formatTime(event.start, tz)} – ${formatTime(event.end, tz)}`}
         </div>
         {event.meal && event.meal.mealKind !== 'dining_out' && <div className="chip-row"><span className="chip chip-static">🍽️ {mealEventStatus(event.meal).text}</span></div>}
         {event.location && (() => {
@@ -1058,14 +1060,14 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
         })()}
         {event.rrule && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
-            <RepeatIcon width={18} height={18} />Repeats
+            <RepeatIcon width={18} height={18} />{t('Repeats')}
           </div>
         )}
         {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>{catLabel}</div>}
-        {event.busy === false && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>Free: doesn't block time</div>}
+        {event.busy === false && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>{t("Free: doesn't block time")}</div>}
         {reminderLabel(event.reminders) && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
-            🔔 {reminderLabel(event.reminders)}{event.remindBeforeLeave && event.leaveAt ? ' leaving' : ''}{event.reminderSource === 'default' ? ' · default' : ''}
+            🔔 {(() => { const reminder = event.remindBeforeLeave && event.leaveAt ? t('{reminder} leaving', { reminder: reminderLabel(event.reminders)! }) : reminderLabel(event.reminders)!; return event.reminderSource === 'default' ? t('{reminder} · default', { reminder }) : reminder })()}
           </div>
         )}
         {leadOf(event) && <div className="leave-by">{leadText(event, t => formatTime(t, tz))}</div>}
@@ -1092,22 +1094,22 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
                   style={{ minHeight: 56 }}
                   onClick={() => { onSaveScopedMembers(event.id, pendingMemberIds, 'occurrence'); setPendingMemberIds(null) }}
                 >
-                  This event
+                  {t('This event')}
                 </button>
                 <button
                   className="btn btn-primary btn-block"
                   style={{ minHeight: 56 }}
                   onClick={() => { onSaveScopedMembers(event.id, pendingMemberIds, 'series'); setPendingMemberIds(null) }}
                 >
-                  All events in the series
+                  {t('All events in the series')}
                 </button>
               </div>
             )}
           </div>
         )}
         {event.description && (
-          <section className="notes-thread" aria-label="Notes">
-            <h3 className="notes-title">Notes</h3>
+          <section className="notes-thread" aria-label={t('Notes')}>
+            <h3 className="notes-title">{t('Notes')}</h3>
             <div className="event-notes"><Linkified text={stripHtmlToText(event.description)} /></div>
           </section>
         )}
@@ -1117,19 +1119,19 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
         {parent && trackerKinds(settings).includes('health') && <EventHealthVisit event={event} />}
         {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}
         {/* The family's back-and-forth, kept apart from the event's own Notes above. */}
-        {settings.features.notes && <NotesThread target={`event:${event.id}`} title="Discussion" />}
+        {settings.features.notes && <NotesThread target={`event:${event.id}`} title={t('Discussion')} />}
         {!canEdit && (
           <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
-            This device can't change events on {calendarName}.
+            {t("This device can't change events on {calendar}.", { calendar: calendarName })}
           </div>
         )}
         {canEdit && event.readOnly && (
           <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
-            Only the family members and travel time are saved in Kinwall — the event itself comes from {calendarName}.
+            {t('Only the family members and travel time are saved in Kinwall — the event itself comes from {calendar}.', { calendar: calendarName })}
           </div>
         )}
         {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} choosing={hiding} setChoosing={setHiding} />}
-        {canEdit && !event.readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={() => { setHiding(false); onDelete() }}>Delete event</button></div>}
+        {canEdit && !event.readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={() => { setHiding(false); onDelete() }}>{t('Delete event')}</button></div>}
       </div>
     </Sheet>
   )
@@ -1146,7 +1148,7 @@ function SyncAlert({ calendars }: { calendars: CalendarEntry[] }) {
   return (
     <div className="sync-alert" role="status">
       <span aria-hidden="true">⚠️</span>
-      <span>{broken.length === 1 ? `The ${names[0]} calendar isn't syncing` : `${broken.length} calendars aren't syncing: ${names.join(', ')}`}. <a className="text-link" href="#/settings?tab=calendars">Repair the connection</a></span>
+      <span>{broken.length === 1 ? t("The {name} calendar isn't syncing.", { name: names[0] }) : t("{n} calendars aren't syncing: {names}.", { n: broken.length, names: names.join(', ') })} <a className="text-link" href="#/settings?tab=calendars">{t('Repair the connection')}</a></span>
     </div>
   )
 }
@@ -1156,31 +1158,31 @@ function HideSection({ event, calendar, onHide, onUnhide, onHideLike, choosing, 
   event: EventInstance; calendar?: CalendarEntry; onHide: (scope: 'occurrence' | 'series') => void; onUnhide: () => void; onHideLike: (filter: CalendarFilter) => void
   choosing: boolean; setChoosing: (open: boolean) => void // the sheet's: Delete closes the choices
 }) {
-  const name = calendar?.name ?? 'this calendar'
+  const name = calendar?.name ?? t('this calendar')
   if (event.hidden === 'filter') return (
     <div className="hidden-note"><EyeOffIcon width={20} height={20} />
-      <span>Hidden by {name}'s filter. <a className="text-link" href="#/settings?tab=calendars">Change it in Settings → Calendars</a></span>
+      <span>{t("Hidden by {name}'s filter.", { name })} <a className="text-link" href="#/settings?tab=calendars">{t('Change it in Settings → Calendars')}</a></span>
     </div>
   )
   if (event.hidden) return (
     <div className="hidden-note"><EyeOffIcon width={20} height={20} />
-      <span>{event.hidden === 'series' ? 'Hidden: every one in the series' : 'Hidden'}</span>
-      <button type="button" className="btn btn-secondary" onClick={onUnhide}><EyeIcon width={18} height={18} />Show again</button>
+      <span>{event.hidden === 'series' ? t('Hidden: every one in the series') : t('Hidden')}</span>
+      <button type="button" className="btn btn-secondary" onClick={onUnhide}><EyeIcon width={18} height={18} />{t('Show again')}</button>
     </div>
   )
-  if (!choosing) return <button type="button" className="btn btn-secondary hide-open" onClick={() => setChoosing(true)} aria-expanded={false}><EyeOffIcon width={18} height={18} />Hide…</button>
+  if (!choosing) return <button type="button" className="btn btn-secondary hide-open" onClick={() => setChoosing(true)} aria-expanded={false}><EyeOffIcon width={18} height={18} />{t('Hide…')}</button>
   const likeThis = calendar ? hideLikeThis(calendar.filter ?? NO_FILTER, event) : null
   const recurring = !!(event.seriesId || event.rrule)
   return (
-    <div className="hide-choices" role="group" aria-label={`Hide ${event.title}`}>
-      <p className="settings-row-sub">Hidden events are gone for the whole family: the calendar, the Board, reminders and connected apps. Show them again any time from Settings → Calendars → {name}.</p>
+    <div className="hide-choices" role="group" aria-label={t('Hide {title}', { title: event.title })}>
+      <p className="settings-row-sub">{t('Hidden events are gone for the whole family: the calendar, the Board, reminders and connected apps. Show them again any time from Settings → Calendars → {name}.', { name })}</p>
       {recurring ? <>
-        <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>Just this one</button>
-        <button type="button" className="btn btn-secondary" onClick={() => onHide('series')}>Every one in the series</button>
-      </> : <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>Hide this event</button>}
-      {likeThis ? <button type="button" className="btn btn-secondary" onClick={() => onHideLike(likeThis)}>Hide events like this</button>
-        : calendar?.filter?.mode === 'only' && <p className="settings-row-sub">{name} shows only events that match its filter. To hide more like this one, change the filter in Settings → Calendars.</p>}
-      <button type="button" className="link-btn" onClick={() => setChoosing(false)}>Cancel</button>
+        <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>{t('Just this one')}</button>
+        <button type="button" className="btn btn-secondary" onClick={() => onHide('series')}>{t('Every one in the series')}</button>
+      </> : <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>{t('Hide this event')}</button>}
+      {likeThis ? <button type="button" className="btn btn-secondary" onClick={() => onHideLike(likeThis)}>{t('Hide events like this')}</button>
+        : calendar?.filter?.mode === 'only' && <p className="settings-row-sub">{t('{name} shows only events that match its filter. To hide more like this one, change the filter in Settings → Calendars.', { name })}</p>}
+      <button type="button" className="link-btn" onClick={() => setChoosing(false)}>{t('Cancel')}</button>
     </div>
   )
 }
@@ -1206,20 +1208,20 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
   }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = async (item: ListItem) => {
     try { await api.updateListItem(item.listId, item.id, { done: !item.done }); load() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update task', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not update task'), true) }
   }
   const add = async () => {
     const title = draft.trim()
     if (!title || !listId) return
     setDraft('')
     try { localStorage.setItem(TASK_LIST_KEY, listId) } catch { /* private mode */ }
-    try { await api.addListItems(listId, { title, eventId }); load(); announce(`Added ${title}`) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add task', true) }
+    try { await api.addListItems(listId, { title, eventId }); load(); announce(t('Added {title}', { title })) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add task'), true) }
   }
   if ((lists.length === 0 || !canAdd) && items.length === 0) return null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {items.length > 0 && <h3 style={{ fontWeight: 800, fontSize: '0.8125rem', color: 'var(--text-dim)', margin: 0 }}>Tasks</h3>}
+      {items.length > 0 && <h3 style={{ fontWeight: 800, fontSize: '0.8125rem', color: 'var(--text-dim)', margin: 0 }}>{t('Tasks')}</h3>}
       {items.map(i => (
         <div key={i.id} className={`list-item-row ${i.done ? 'done' : ''}`}>
           <button className={`list-item-check ${i.done ? 'done' : ''}`} onClick={() => toggle(i)} role="checkbox" aria-checked={i.done} aria-label={i.title}>{i.done && <CheckIcon width={20} height={20} />}</button>
@@ -1231,7 +1233,7 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
       ))}
       {canAdd && lists.length > 0 && !adding && (
         <button ref={addBtnRef} className="link-btn" style={{ alignSelf: 'flex-start' }} aria-expanded={adding} aria-controls={`tasks-add-${eventId}`}
-          onClick={() => setAdding(true)}>+ Add to-do</button>
+          onClick={() => setAdding(true)}>{t('+ Add to-do')}</button>
       )}
       {canAdd && lists.length > 0 && adding && (
         // One composite field: text, list chip, go. Escape or leaving it empty folds it back. Capture
@@ -1240,10 +1242,10 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
           onKeyDownCapture={e => { if (e.key === 'Escape') { e.stopPropagation(); collapse() } }}>
           <div className="task-add-field">
             <input type="text" value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }} autoFocus
-              enterKeyHint="done" placeholder="New task" aria-label="New task" />
-            <button type="button" className="task-add-go" onClick={add} disabled={!draft.trim()} aria-label="Add to-do"><PlusIcon width={20} height={20} /></button>
+              enterKeyHint="done" placeholder={t('New task')} aria-label={t('New task')} />
+            <button type="button" className="task-add-go" onClick={add} disabled={!draft.trim()} aria-label={t('Add to-do')}><PlusIcon width={20} height={20} /></button>
           </div>
-          <div className="chip-row task-add-lists" role="radiogroup" aria-label="Add to list">
+          <div className="chip-row task-add-lists" role="radiogroup" aria-label={t('Add to list')}>
             {lists.map(l => (
               <button key={l.id} type="button" role="radio" aria-checked={listId === l.id} className={`chip ${listId === l.id ? 'active' : ''}`} onClick={() => setListId(l.id)}>
                 {l.emoji ? <span aria-hidden="true">{l.emoji} </span> : null}{l.name}
@@ -1271,7 +1273,7 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
   return (
     <>
       <div className="field">
-        <label>Travel time</label>
+        <label>{t('Travel time')}</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <select value={custom ? 'custom' : minutes === null ? 'none' : String(minutes)} style={{ flex: 1, minWidth: 0 }}
             onChange={e => {
@@ -1280,20 +1282,20 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
               setCustom(false)
               onChange(v === 'none' ? null : Number(v), v === 'none' ? false : remind)
             }}>
-            <option value="none">None</option>
-            {TRAVEL_PRESETS.map(m => <option key={m} value={m}>{m} min</option>)}
-            <option value="custom">Custom…</option>
+            <option value="none">{t('None')}</option>
+            {TRAVEL_PRESETS.map(m => <option key={m} value={m}>{t('{n} min', { n: m })}</option>)}
+            <option value="custom">{t('Custom…')}</option>
           </select>
           {custom && (
-            <input type="number" inputMode="numeric" min={1} max={600} value={draft} placeholder="Minutes" aria-label="Travel time in minutes"
+            <input type="number" inputMode="numeric" min={1} max={600} value={draft} placeholder={t('Minutes')} aria-label={t('Travel time in minutes')}
               style={{ width: '7em' }} autoFocus onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }} />
           )}
         </div>
-        <div className="settings-row-sub">Only in Kinwall — not added to Google/Outlook.</div>
+        <div className="settings-row-sub">{t('Only in Kinwall — not added to Google/Outlook.')}</div>
       </div>
       {minutes !== null && (
         <div className="toggle-row">
-          <label id="travel-remind-label">Remind me before I need to leave</label>
+          <label id="travel-remind-label">{t('Remind me before I need to leave')}</label>
           <button className={`switch ${remind ? 'on' : ''}`} role="switch" aria-checked={remind} aria-labelledby="travel-remind-label" onClick={() => onChange(minutes, !remind)}><span className="knob" /></button>
         </div>
       )}
@@ -1391,7 +1393,7 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
       })
       toast(res.summary)
       onClose()
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save to Outings.', true) } finally { setSavingOuting(false) }
+    } catch (e) { toast(e instanceof Error ? e.message : t('Could not save to Outings.'), true) } finally { setSavingOuting(false) }
   }
 
   const submit = () => {
@@ -1441,64 +1443,64 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
   }
 
   return (
-    <Sheet title={event ? 'Edit event' : 'New event'} onClose={onClose} dirty="auto"
+    <Sheet title={event ? t('Edit event') : t('New event')} onClose={onClose} dirty="auto"
       actions={<>
-        {shared && outingsOn && <button className="btn btn-secondary" onClick={() => void saveToOutings()} disabled={endBeforeStart || !title.trim() || savingOuting}>🎟 Save to Outings</button>}
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save' : 'Add event'}</button>
+        {shared && outingsOn && <button className="btn btn-secondary" onClick={() => void saveToOutings()} disabled={endBeforeStart || !title.trim() || savingOuting}>🎟 {t('Save to Outings')}</button>}
+        <button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? t('Save') : t('Add event')}</button>
       </>}>
       <div className="field">
-        <label htmlFor="event-title">Title</label>
-        <input id="event-title" ref={titleInput} type="text" value={title} onChange={e => { setTitle(e.target.value); setNoTitle(false) }} placeholder="Event title" autoFocus={!event} /* new events only: on a phone, opening Edit shouldn't throw up the keyboard */
+        <label htmlFor="event-title">{t('Title')}</label>
+        <input id="event-title" ref={titleInput} type="text" value={title} onChange={e => { setTitle(e.target.value); setNoTitle(false) }} placeholder={t('Event title')} autoFocus={!event} /* new events only: on a phone, opening Edit shouldn't throw up the keyboard */
           aria-invalid={noTitle || undefined} aria-describedby={noTitle ? 'event-title-error' : undefined} />
-        {noTitle && <p className="field-error" id="event-title-error" role="alert">Add a title.</p>}
+        {noTitle && <p className="field-error" id="event-title-error" role="alert">{t('Add a title.')}</p>}
       </div>
       <div className="toggle-row">
-        <label id="event-allday-label">All day</label>
+        <label id="event-allday-label">{t('All day')}</label>
         <button className={`switch ${allDay ? 'on' : ''}`} role="switch" aria-checked={allDay} aria-labelledby="event-allday-label" onClick={() => setAllDay(v => !v)}><span className="knob" /></button>
       </div>
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">
-          <label>Starts</label>
+          <label>{t('Starts')}</label>
           <input type="date" value={startDate} onChange={e => { if (e.target.value) moveStart(e.target.value, startTime) }} />
         </div>
         {!allDay && (
           <div className="field">
             <label>&nbsp;</label>
-            <input type="time" value={startTime} onChange={e => { if (e.target.value) moveStart(startDate, e.target.value) }} aria-label="Start time" />
+            <input type="time" value={startTime} onChange={e => { if (e.target.value) moveStart(startDate, e.target.value) }} aria-label={t('Start time')} />
           </div>
         )}
         <div className="field">
-          <label>Ends</label>
+          <label>{t('Ends')}</label>
           <input type="date" value={endDate} min={startDate} onChange={e => { setEndDate(e.target.value); setEndPicked(true) }}
             aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? 'event-end-error' : undefined} />
         </div>
         {!allDay && (
           <div className="field">
             <label>&nbsp;</label>
-            <input type="time" value={endTime} onChange={e => { setEndTime(e.target.value); setEndPicked(true) }} aria-label="End time"
+            <input type="time" value={endTime} onChange={e => { setEndTime(e.target.value); setEndPicked(true) }} aria-label={t('End time')}
               aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? 'event-end-error' : undefined} />
           </div>
         )}
       </div>
-      {endBeforeStart && <p className="field-error" id="event-end-error" role="alert">The end has to be after the start.</p>}
+      {endBeforeStart && <p className="field-error" id="event-end-error" role="alert">{t('The end has to be after the start.')}</p>}
       {!event && <div className="field">
-        <label>Calendar</label>
+        <label>{t('Calendar')}</label>
         <select value={calendarId} onChange={e => setCalendarId(e.target.value)}>
           {writable.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           {/* No local calendar yet: offer one, created on save, for events that live only in Kinwall */}
-          {!event && offerNewLocal && <option value={NEW_LOCAL_CALENDAR}>Kinwall only (not synced)</option>}
+          {!event && offerNewLocal && <option value={NEW_LOCAL_CALENDAR}>{t('Kinwall only (not synced)')}</option>}
         </select>
       </div>}
       <div className="field">
-        <label htmlFor="event-location">Location (optional)</label>
+        <label htmlFor="event-location">{t('Location (optional)')}</label>
         <input id="event-location" type="text" value={location} onChange={e => setLocation(e.target.value)} />
       </div>
       <div className="field">
-        <label htmlFor="event-notes">Notes (optional)</label>
-        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="What to bring, a link, a gate code" />
+        <label htmlFor="event-notes">{t('Notes (optional)')}</label>
+        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('What to bring, a link, a gate code')} />
       </div>
       <div className="field">
-        <label>Who</label>
+        <label>{t('Who')}</label>
         <div className="chip-row">
           {members.map(m => (
             <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}>
@@ -1509,47 +1511,47 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
       </div>
       {/* Most events need only a title, a time and who: the rest folds away, saying what's set. */}
       <details className="settings-disclosure event-more">
-        <summary>{['More options', rrule && `Repeats ${rrule}`, !busy && 'Free', !allDay && travel.minutes && `${travel.minutes} min travel`,
+        <summary>{[t('More options'), rrule && { daily: t('Repeats daily'), weekly: t('Repeats weekly'), monthly: t('Repeats monthly'), yearly: t('Repeats yearly') }[rrule], !busy && tc('busy', 'Free'), !allDay && travel.minutes && t('{n} min travel', { n: travel.minutes }),
           categories.find(c => c.id === categoryId)?.name].filter(Boolean).join(' · ')}</summary>
       {remindersEditable && (
         <div className="field">
-          <label>Reminder</label>
+          <label>{t('Reminder')}</label>
           <select value={reminder} onChange={e => setReminder(e.target.value)}>
             {initialReminder === 'keep' && <option value="keep">{reminderLabel(ownReminders)}</option>}
             {/* Outlook has no "use the default" setting to write back */}
-            {calKind !== 'microsoft' && <option value="default">{calKind === 'google' ? 'Google calendar default' : 'Family default'}</option>}
-            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {calKind !== 'microsoft' && <option value="default">{calKind === 'google' ? t('Google calendar default') : t('Family default')}</option>}
+            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{tm(o.label)}</option>)}
           </select>
         </div>
       )}
       <div className="field">
-        <label htmlFor="event-show-as">Show as</label>
+        <label htmlFor="event-show-as">{t('Show as')}</label>
         <select id="event-show-as" value={busy ? 'busy' : 'free'} onChange={e => setBusy(e.target.value === 'busy')}>
-          <option value="busy">Busy</option>
-          <option value="free">Free (doesn't block time)</option>
+          <option value="busy">{t('Busy')}</option>
+          <option value="free">{t("Free (doesn't block time)")}</option>
         </select>
       </div>
       {!allDay && <TravelFields minutes={travel.minutes} remind={travel.remind} onChange={(minutes, remind) => setTravel({ minutes, remind })} />}
       <div className="field">
-        <label>Repeat</label>
+        <label>{t('Repeat')}</label>
         <select value={rrule} onChange={e => setRrule(e.target.value as RepeatChoice)}>
-          <option value="">Does not repeat</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
+          <option value="">{t('Does not repeat')}</option>
+          <option value="daily">{t('Daily')}</option>
+          <option value="weekly">{t('Weekly')}</option>
+          <option value="monthly">{t('Monthly')}</option>
+          <option value="yearly">{t('Yearly')}</option>
         </select>
       </div>
       <div className="field">
-        <label>Category</label>
+        <label>{t('Category')}</label>
         <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)}>
-          <option value="">Automatic</option>
+          <option value="">{t('Automatic')}</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>)}
         </select>
         {autoHint && <div className="settings-row-sub">{autoHint}</div>}
         {inSeries && categoryChanged && (
-          <Segmented label="Apply the category to" style={{ marginTop: 10 }} value={categoryScope} onChange={setCategoryScope}
-            options={[{ key: 'series', label: 'All events' }, { key: 'occurrence', label: 'This event' }]} />
+          <Segmented label={t('Apply the category to')} style={{ marginTop: 10 }} value={categoryScope} onChange={setCategoryScope}
+            options={[{ key: 'series', label: t('All events') }, { key: 'occurrence', label: t('This event') }]} />
         )}
       </div>
       </details>
@@ -1566,11 +1568,11 @@ function ViewPicker({ value, onChange }: { value: CalendarView; onChange: (v: Ca
   const Icon = VIEW_ICONS[value]
   return (
     <>
-      <button type="button" className="btn btn-secondary view-pick" aria-haspopup="dialog" aria-label={`Calendar view: ${viewLabel(value, true)}`} onClick={() => setOpen(true)}>
+      <button type="button" className="btn btn-secondary view-pick" aria-haspopup="dialog" aria-label={t('Calendar view: {view}', { view: viewLabel(value, true) })} onClick={() => setOpen(true)}>
         <Icon width={18} height={18} /><span>{viewLabel(value, true)}</span><ChevronDown width={16} height={16} />
       </button>
       {open && (
-        <Sheet title="Calendar view" onClose={() => setOpen(false)}>
+        <Sheet title={t('Calendar view')} onClose={() => setOpen(false)}>
           <div className="sheet-links">
             {CALENDAR_VIEWS.map(v => {
               const VIcon = VIEW_ICONS[v]

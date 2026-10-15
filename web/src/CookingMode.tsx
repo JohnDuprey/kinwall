@@ -11,6 +11,7 @@ import { holdAwake } from './wakeLock.ts'
 import { start, TimerList, useNow, useTimers } from './Timers.tsx'
 import { clock, isRunning, phase, soonestFirst, untilNext } from './timers.ts'
 import { useBackClose } from './backStack.ts'
+import { t } from './i18n.ts'
 
 /** Full-screen cooking: one step at a time in big type, its ingredients (scaled to `servings`) and
  * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
@@ -39,7 +40,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
     if (i === index) return
     if (i === 0 && document.activeElement === backBtn.current) nextBtn.current?.focus() // Back is about to be disabled
     setIndex(i); saveStep(recipe.id, i === steps.length - 1 ? null : i) // the last step: nearly done, so it starts over next time
-    announce(`Step ${i + 1} of ${steps.length}. ${[steps[i].title, steps[i].text].filter(Boolean).join('. ')}`)
+    announce(`${t('Step {n} of {total}.', { n: i + 1, total: steps.length })} ${[steps[i].title, steps[i].text].filter(Boolean).join('. ')}`)
   }
   const finish = () => { saveStep(recipe.id, null); onClose() }
 
@@ -72,7 +73,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
   const openDrawer = () => { setShowAll(true); setTimeout(() => drawer.current?.focus()) }
   const closeDrawer = () => { setShowAll(false); allBtn.current?.focus() }
 
-  const stepLine = (i: number) => `Step ${i + 1}${steps[i]?.title ? ` · ${steps[i].title}` : ''}`
+  const stepLine = (i: number) => `${t('Step {n}', { n: i + 1 })}${steps[i]?.title ? ` · ${steps[i].title}` : ''}`
   const timerKey = (label: string) => `${recipe.id}:${index}:${label}`
 
   const onPointerDown = (e: ReactPointerEvent) => { swipe.current = e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY } }
@@ -85,8 +86,8 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
 
   const used = stepIngredients(step, recipe.ingredients)
   const durations = stepTimers(step)
-  const ingredients = used.length > 0 && <section className="cook-ingredients" aria-label="This step's ingredients">
-    <h4>This step's ingredients</h4>
+  const ingredients = used.length > 0 && <section className="cook-ingredients" aria-label={t("This step's ingredients")}>
+    <h4>{t("This step's ingredients")}</h4>
     <IngredientList recipe={{ ...recipe, ingredients: used }} servings={servings} makeIt onBasic={id => setBasic(library.find(r => r.id === id) ?? null)} />
   </section>
   // A basic without steps still opens, on one step that points at its ingredients.
@@ -94,13 +95,13 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
   return createPortal(
     <div ref={root} className="cook-mode" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <header className="cook-bar">
-        <button type="button" className="icon-btn" aria-label="Exit cooking mode" onClick={onClose}><XIcon width={24} height={24} /></button>
+        <button type="button" className="icon-btn" aria-label={t('Exit cooking mode')} onClick={onClose}><XIcon width={24} height={24} /></button>
         <h2 id={titleId} className="cook-title">{recipe.name}</h2>
-        <button type="button" ref={allBtn} className="btn btn-secondary cook-all-btn" aria-expanded={showAll} aria-controls={drawerId} onClick={() => showAll ? closeDrawer() : openDrawer()}>All ingredients</button>
+        <button type="button" ref={allBtn} className="btn btn-secondary cook-all-btn" aria-expanded={showAll} aria-controls={drawerId} onClick={() => showAll ? closeDrawer() : openDrawer()}>{t('All ingredients')}</button>
       </header>
       <div className="cook-progress" aria-hidden="true"><div style={{ width: `${(index + 1) / steps.length * 100}%` }} /></div>
       {/* Every running timer, a quick one from the header too: the app's header is out of view here. */}
-      {timers.some(t => !t.done) && <TimerList timers={soonestFirst(timers, now)} now={now} className="cook-timer-bar" recipe={recipe.name} />}
+      {timers.some(timer => !timer.done) && <TimerList timers={soonestFirst(timers, now)} now={now} className="cook-timer-bar" recipe={recipe.name} />}
       <div className="cook-main scroll-y" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null }}>
         <div className="cook-step">
           {/* This step's ingredients right under the photo (beside the text when there's room); on a phone or a
@@ -111,17 +112,17 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
           </div>}
           <div className="cook-step-body">
             <div className="cook-step-head">
-              <h3 ref={heading} tabIndex={-1} className="cook-step-num">Step {index + 1} of {steps.length}</h3>
-              {index > 0 && <button type="button" className="link-btn" onClick={() => go(0)}>Start over</button>}
+              <h3 ref={heading} tabIndex={-1} className="cook-step-num">{t('Step {n} of {total}', { n: index + 1, total: steps.length })}</h3>
+              {index > 0 && <button type="button" className="link-btn" onClick={() => go(0)}>{t('Start over')}</button>}
             </div>
             {/* The step's timers sit on its title line, where you look first. */}
             {(step.title || durations.length > 0) && <div className="cook-title-row">
               {step.title && <h4 className="cook-step-title">{step.title}</h4>}
               {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
-                const on = timers.find(t => !t.done && t.key === timerKey(d.label))
+                const on = timers.find(timer => !timer.done && timer.key === timerKey(d.label))
                 const p = on && phase(on, now)
-                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start({ label: d.label, seconds: d.seconds, check: d.check, title: recipe.name, detail: stepLine(index), key: timerKey(d.label) })}>
-                  ⏱ {on ? <>{d.label} · {p === 'check' && 'Check it · '}{clock(untilNext(on, now))} {on.left !== undefined ? 'paused' : on.check !== undefined && p === 'counting' ? 'to check' : 'left'}</> : d.label}
+                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : t('Start {time} timer', { time: d.label })} onClick={() => start({ label: d.label, seconds: d.seconds, check: d.check, title: recipe.name, detail: stepLine(index), key: timerKey(d.label) })}>
+                  ⏱ {on ? <>{d.label} · {p === 'check' && `${t('Check it')} · `}{on.left !== undefined ? t('{time} paused', { time: clock(untilNext(on, now)) }) : on.check !== undefined && p === 'counting' ? t('{time} to check', { time: clock(untilNext(on, now)) }) : t('{time} left', { time: clock(untilNext(on, now)) })}</> : d.label}
                 </button>
               })}</div>}
             </div>}
@@ -132,19 +133,19 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
         </div>
       </div>
       <footer className="cook-nav">
-        <button type="button" ref={backBtn} className="btn btn-secondary" disabled={index === 0} onClick={() => go(index - 1)}><ChevronLeft width={24} height={24} /> Back</button>
+        <button type="button" ref={backBtn} className="btn btn-secondary" disabled={index === 0} onClick={() => go(index - 1)}><ChevronLeft width={24} height={24} /> {t('Back')}</button>
         <button type="button" ref={nextBtn} className="btn btn-primary" onClick={() => last ? finish() : go(index + 1)}>
-          {last ? <><CheckIcon width={24} height={24} /> Done</> : <>Next <ChevronRight width={24} height={24} /></>}
+          {last ? <><CheckIcon width={24} height={24} /> {t('Done')}</> : <>{t('Next')} <ChevronRight width={24} height={24} /></>}
         </button>
       </footer>
-      {showAll && <div className="cook-drawer scroll-y" id={drawerId} ref={drawer} tabIndex={-1} role="region" aria-label="All ingredients">
+      {showAll && <div className="cook-drawer scroll-y" id={drawerId} ref={drawer} tabIndex={-1} role="region" aria-label={t('All ingredients')}>
         <div className="cook-drawer-head">
-          <h3>All ingredients <small>{servingsLabel(servings)}</small></h3>
-          <button type="button" className="icon-btn" aria-label="Close ingredients" onClick={closeDrawer}><XIcon width={20} height={20} /></button>
+          <h3>{t('All ingredients')} <small>{servingsLabel(servings)}</small></h3>
+          <button type="button" className="icon-btn" aria-label={t('Close ingredients')} onClick={closeDrawer}><XIcon width={20} height={20} /></button>
         </div>
         <IngredientList recipe={recipe} servings={servings} />
       </div>}
-      {basic && <CookingMode key={basic.id} recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: 'No steps written yet. Its ingredients are under All ingredients.', bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
+      {basic && <CookingMode key={basic.id} recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: t('No steps written yet. Its ingredients are under All ingredients.'), bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
     </div>,
     document.body,
   )

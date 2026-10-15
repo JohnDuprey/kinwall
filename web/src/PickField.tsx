@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import Sheet from './Sheet.tsx'
 import { CheckIcon, ChevronRight } from './icons.tsx'
 import { pickMatches, pickSummary, type Pickable } from './pick.ts'
+import { lang, t } from './i18n.ts'
 
 export type PickOption = Pickable & { lead?: ReactNode } // lead: a color swatch, emoji or avatar
 
@@ -12,7 +13,7 @@ export const PickSwatch = ({ color }: { color: string }) => <span className="pic
  * current choice and opens a sheet of checkable rows (like the meal sheet's recipe picker).
  * Single choice picks and closes; multiple toggles, with Clear and Done. Search shows for long
  * lists. `top` rows (a detected timezone) are listed first, with the rest in `options` order. */
-export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = 'Search', none = 'None', summary }: {
+export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = t('Search'), none = t('None'), summary }: {
   id?: string
   label: string // what the row is for, read with its value: "Categories: Medical, School"
   title?: string
@@ -49,11 +50,11 @@ export default function PickField({ id, label, title = label, options: given, va
       {lead}<span className="pick-text">{text}</span><ChevronRight />
     </button>
     {open && <Sheet title={title} onClose={close} actions={<>
-      {multiple && <button type="button" className="btn btn-secondary" disabled={!value.length} onClick={() => onChange([])}>Clear</button>}
-      <button type="button" className="btn btn-primary" onClick={close}>Done</button>
+      {multiple && <button type="button" className="btn btn-secondary" disabled={!value.length} onClick={() => onChange([])}>{t('Clear')}</button>}
+      <button type="button" className="btn btn-primary" onClick={close}>{t('Done')}</button>
     </>}>
       <div className={searchable ? 'pick-sheet pick-sheet-search' : 'pick-sheet'} onKeyDown={onKey}>
-        {searchable && <div className="field"><input type="search" aria-label={`Search ${title.toLocaleLowerCase()}`} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
+        {searchable && <div className="field"><input type="search" aria-label={t('Search {what}', { what: lang() === 'de' ? title : title.toLocaleLowerCase() })} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); choose(shown[0].value) } }} /></div>}
         <div className="sheet-links">
           {shown.map(o => {
@@ -63,7 +64,7 @@ export default function PickField({ id, label, title = label, options: given, va
             </button>
           })}
         </div>
-        {!shown.length && <p className="state-card">{options.length ? 'Nothing matches' : 'Nothing to choose yet'}</p>}
+        {!shown.length && <p className="state-card">{options.length ? t('Nothing matches') : t('Nothing to choose yet')}</p>}
       </div>
     </Sheet>}
   </>

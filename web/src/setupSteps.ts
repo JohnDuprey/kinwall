@@ -1,6 +1,7 @@
 // The setup wizard's (Setup.tsx) choices, resume and error copy. Pure, so it's tested in
 // test/setupSteps.test.ts.
 import type { Features, Member } from './types.ts'
+import { msg, t } from './i18n.ts'
 
 export type Step = 'welcome' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'features' | 'calendars' | 'chores' | 'done'
 export type DeviceRole = 'admin'
@@ -21,10 +22,10 @@ export function resumeFor(step: Step, deviceRole: DeviceRole | null): SetupResum
 
 /** Wizard error copy from an API error's status: never the server's raw words. */
 export function setupErrorText(status: number | undefined, fallback: string): string {
-  if (status === 0) return "You're offline. Check your connection and try again."
-  if (status === 401 || status === 403) return "This device can't do this part of setup. Skip it for now and finish it later in Settings."
-  if (status === 409) return 'This Kinwall is already set up. Reload the page to sign in.'
-  if (status === 429) return 'Too many tries. Wait a few minutes and try again.'
+  if (status === 0) return t("You're offline. Check your connection and try again.")
+  if (status === 401 || status === 403) return t("This device can't do this part of setup. Skip it for now and finish it later in Settings.")
+  if (status === 409) return t('This Kinwall is already set up. Reload the page to sign in.')
+  if (status === 429) return t('Too many tries. Wait a few minutes and try again.')
   return fallback
 }
 
@@ -67,21 +68,22 @@ export const landOn = (step: Step, f: Features | null): Step => skipped(step, f)
 export const progressSteps = (f: Features | null): Step[] => ORDER.filter(s => s !== 'owner' && !skipped(s, f))
 
 /** The features step's cards: what a family wants Kinwall for, in their words. Together they cover
- * every switch in Features, each exactly once, so the cards and "Show all features" never disagree. */
+ * every switch in Features, each exactly once, so the cards and "Show all features" never disagree.
+ * title and sub are msg()-marked English: show them with tm(). */
 export interface FeatureCard { id: string; emoji: string; title: string; sub: string; keys: (keyof Features)[]; kids?: boolean }
 export const FEATURE_CARDS: readonly FeatureCard[] = [
-  { id: 'chores', emoji: '🧹', title: 'Chores and rewards for the kids', sub: 'Chores, points, rewards and the sticker book.', keys: ['chores'], kids: true },
-  { id: 'meals', emoji: '🍽️', title: 'Meal planning and recipes', sub: "The week's meals, recipes, cooking mode and restaurant nights.", keys: ['meals'] },
-  { id: 'lists', emoji: '🛒', title: 'Shopping and to-do lists', sub: 'Groceries, shopping mode and lists for anything.', keys: ['lists'] },
-  { id: 'health', emoji: '🩺', title: 'Doctor visits and health', sub: 'Checkups, vaccines and growth. Only on phones and computers, never the wall.', keys: ['trackersHealth'] },
-  { id: 'reading', emoji: '📚', title: 'Reading log and library', sub: "Who's reading what, and the books you own or borrowed.", keys: ['trackersReading'] },
-  { id: 'paint', emoji: '🎨', title: 'Painting and coloring', sub: 'Drawing and coloring pages in Activities.', keys: ['paint'], kids: true },
-  { id: 'outings', emoji: '🎟️', title: 'Outings and places to go', sub: 'Things to do nearby, who wants to go and ticket dates.', keys: ['outings'] },
-  { id: 'polls', emoji: '🗳️', title: 'Family polls', sub: 'Everyone votes, like "Which movie tonight?"', keys: ['polls'] },
-  { id: 'photos', emoji: '📸', title: 'Photos and memories', sub: 'Family photos on the wall and moments worth keeping.', keys: ['photos', 'trackersMemories'] },
-  { id: 'news', emoji: '📰', title: 'Family news and messages', sub: "Newscast, messages and notes on events and lists.", keys: ['newscast', 'messages', 'notes'] },
-  { id: 'checkIns', emoji: '💭', title: 'Check-ins and journals', sub: 'How everyone feels today, goals and private journals.', keys: ['checkIns'] },
-  { id: 'contacts', emoji: '📇', title: 'Family contacts', sub: 'Doctors, sitters, schools and friends in one place.', keys: ['contacts'] },
+  { id: 'chores', emoji: '🧹', title: msg('Chores and rewards for the kids'), sub: msg('Chores, points, rewards and the sticker book.'), keys: ['chores'], kids: true },
+  { id: 'meals', emoji: '🍽️', title: msg('Meal planning and recipes'), sub: msg("The week's meals, recipes, cooking mode and restaurant nights."), keys: ['meals'] },
+  { id: 'lists', emoji: '🛒', title: msg('Shopping and to-do lists'), sub: msg('Groceries, shopping mode and lists for anything.'), keys: ['lists'] },
+  { id: 'health', emoji: '🩺', title: msg('Doctor visits and health'), sub: msg('Checkups, vaccines and growth. Only on phones and computers, never the wall.'), keys: ['trackersHealth'] },
+  { id: 'reading', emoji: '📚', title: msg('Reading log and library'), sub: msg("Who's reading what, and the books you own or borrowed."), keys: ['trackersReading'] },
+  { id: 'paint', emoji: '🎨', title: msg('Painting and coloring'), sub: msg('Drawing and coloring pages in Activities.'), keys: ['paint'], kids: true },
+  { id: 'outings', emoji: '🎟️', title: msg('Outings and places to go'), sub: msg('Things to do nearby, who wants to go and ticket dates.'), keys: ['outings'] },
+  { id: 'polls', emoji: '🗳️', title: msg('Family polls'), sub: msg('Everyone votes, like "Which movie tonight?"'), keys: ['polls'] },
+  { id: 'photos', emoji: '📸', title: msg('Photos and memories'), sub: msg('Family photos on the wall and moments worth keeping.'), keys: ['photos', 'trackersMemories'] },
+  { id: 'news', emoji: '📰', title: msg('Family news and messages'), sub: msg("Newscast, messages and notes on events and lists."), keys: ['newscast', 'messages', 'notes'] },
+  { id: 'checkIns', emoji: '💭', title: msg('Check-ins and journals'), sub: msg('How everyone feels today, goals and private journals.'), keys: ['checkIns'] },
+  { id: 'contacts', emoji: '📇', title: msg('Family contacts'), sub: msg('Doctors, sitters, schools and friends in one place.'), keys: ['contacts'] },
 ]
 /** A card is on when every switch it stands for is on. */
 export const cardOn = (f: Features, c: FeatureCard) => c.keys.every(k => f[k])

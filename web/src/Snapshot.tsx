@@ -24,6 +24,7 @@ import MealQuickSheet from './MealQuickSheet.tsx'
 import type { Meal } from './meal-types.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { Face } from './Face'
+import { intlLocale, t, tc, tm, tn } from './i18n.ts'
 
 type Range = 'day' | 'week'
 
@@ -37,7 +38,7 @@ function markSeen(memberId: string, today: string) {
 }
 
 export const dayName = (date: string, opts: Intl.DateTimeFormatOptions) =>
-  new Intl.DateTimeFormat(undefined, { ...opts, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
+  new Intl.DateTimeFormat(intlLocale(), { ...opts, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
 
 /** Deep links: close the sheet, then go where a tap in the app would. */
 function go(hash: string, close: () => void) { close(); location.hash = hash }
@@ -58,7 +59,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
     let canceled = false
     api.getSnapshot(member.id, range)
       .then(s => { if (!canceled) { setSnap(s); setError('') } })
-      .catch(e => { if (!canceled) setError(e instanceof ApiError ? e.message : "Couldn't load this snapshot.") })
+      .catch(e => { if (!canceled) setError(e instanceof ApiError ? e.message : t("Couldn't load this snapshot.")) })
     return () => { canceled = true }
   }, [member.id, range, refreshTick])
 
@@ -69,18 +70,18 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
     const temp = '.snap-temp:not(.snap-goalcheck)'
     const order = { evening: ['.snap-goalcheck', temp, '.snap-checkin'], temp: [temp, '.snap-checkin'], checkin: ['.snap-checkin', temp] }[checkInFocus(member.tempCheck, minutesSinceMidnight(new Date().toISOString(), tz))]
     const started = Date.now()
-    const t = setInterval(() => {
+    const id = setInterval(() => {
       const waited = Date.now() - started
       const el = (waited > 2500 ? order : order.slice(0, 1)).map(sel => document.querySelector(`.sheet ${sel}`)).find(Boolean)
-      if (el || waited > 6000) { clearInterval(t); el?.scrollIntoView({ block: 'start' }) }
+      if (el || waited > 6000) { clearInterval(id); el?.scrollIntoView({ block: 'start' }) }
     }, 150)
-    return () => clearInterval(t)
+    return () => clearInterval(id)
   }, [toCheckIn, member.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = selectedMemberId === member.id
   const toggleFilter = () => {
     setSelectedMemberId(filtered ? null : member.id)
-    announce(filtered ? 'Showing everyone' : `Showing only ${member.name}`)
+    announce(filtered ? t('Showing everyone') : t('Showing only {name}', { name: member.name }))
   }
   // The books they're in the middle of (Trackers), for "Reading: Charlotte's Web — 45%".
   const [books, setBooks] = useState<TrackerEntry<ReadingData>[]>([])
@@ -110,7 +111,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
       if (ticked) await api.uncompleteChore(c.id, c.date)
       else waits = !!((await api.completeChore(c.id, c.date, member.id)) as { pending?: boolean }).pending
       if (waits) setDone(c.id, false, true)
-      announce(ticked ? `${c.title} not done` : waits ? `${c.title} done, waiting for a parent's OK` : `${c.title} done, ${c.points} point${c.points === 1 ? '' : 's'}`)
+      announce(ticked ? t('{title} not done', { title: c.title }) : waits ? t("{title} done, waiting for a parent's OK", { title: c.title }) : tn(c.points, '{title} done, {n} point', '{title} done, {n} points', { title: c.title }))
       reloadCore()
     } catch (e) {
       setDone(c.id, c.done, c.pending)
@@ -119,30 +120,30 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
         const full = day.find(x => x.id === c.id)
         if (full?.checklist) { setChecklistFor(full); return }
       }
-      toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
+      toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
     }
   }
 
   return (
-    <Sheet title={range === 'day' ? `${member.name}'s day` : `${member.name}'s week`} onClose={onClose}>
+    <Sheet title={range === 'day' ? t("{name}'s day", { name: member.name }) : t("{name}'s week", { name: member.name })} onClose={onClose}>
       <div className="snap-hero">
         <Face m={member} className="snap-avatar" aria-hidden="true" />
         <div>
           <p className="snap-greeting">{shown?.greeting ?? ' '}</p>
-          {hello && range === 'day' && <p className="snap-sub">☀️ Here's your day</p>}
+          {hello && range === 'day' && <p className="snap-sub">{t("☀️ Here's your day")}</p>}
           {settings.features.chores && rewardsOn(settings) && <a className="snap-sub snap-points" href={`#/rewards/${member.id}`} onClick={onClose}>{pointsLine(members.find(m => m.id === member.id) ?? member)}</a>}
         </div>
-        <a className="btn btn-secondary snap-profile" href={`#/profile/${member.id}`} onClick={onClose}>Profile</a>
+        <a className="btn btn-secondary snap-profile" href={`#/profile/${member.id}`} onClick={onClose}>{t('Profile')}</a>
       </div>
       {!focusMemberId && (
         <button className="btn btn-secondary snap-filter" aria-pressed={filtered} onClick={toggleFilter}>
-          {filtered ? 'Show everyone' : `Show only ${member.name}`}
+          {filtered ? t('Show everyone') : t('Show only {name}', { name: member.name })}
         </button>
       )}
-      <Segmented label="Show" value={range} onChange={setRange} className="snap-range"
-        options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />
+      <Segmented label={t('Show')} value={range} onChange={setRange} className="snap-range"
+        options={[{ key: 'day', label: t('Day') }, { key: 'week', label: t('Week') }]} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
-      {!shown && !error && <p className="snap-empty">Loading…</p>}
+      {!shown && !error && <p className="snap-empty">{t('Loading…')}</p>}
       {range === 'day' && <TakeNow memberId={member.id} className="meds-now-day" />}
       {/* Their battery: private, so only on their own device and parents' devices (never a shared wall). */}
       {range === 'day' && settings.features.checkIns && batteryOn(member.tempCheck) && (parentDevice || meMemberId === member.id) && <BatteryCard member={member} />}
@@ -176,10 +177,10 @@ function TempCheck({ member }: { member: Member }) {
   const [other, setOther] = useState<string | null>(null) // "Other…" being typed
   useEffect(() => {
     let canceled = false
-    api.getTempCheck(member.id).then(t => {
+    api.getTempCheck(member.id).then(x => {
       if (canceled) return
-      setTc(t); setSleep(t.sleep); setPicked(t.feelings ?? []); setGoal(t.goal ?? '')
-      setOpen(!tempCheckDone(t.settings, t.answered))
+      setTc(x); setSleep(x.sleep); setPicked(x.feelings ?? []); setGoal(x.goal ?? '')
+      setOpen(!tempCheckDone(x.settings, x.answered))
     }).catch(() => { /* no card rather than an error at the end of their day */ })
     return () => { canceled = true }
   }, [member.id])
@@ -187,12 +188,12 @@ function TempCheck({ member }: { member: Member }) {
   const s = tc.settings
   const save = async (body: TempCheckInput, finishing = false) => {
     try {
-      const t = await api.putTempCheck(member.id, body)
-      setTc(t)
-      if (t.goal !== null) setGoal(t.goal)
+      const x = await api.putTempCheck(member.id, body)
+      setTc(x)
+      if (x.goal !== null) setGoal(x.goal)
       if ('goal' in body || 'goalSkipped' in body) reloadCore() // their goal on the Board and calendar
-      if (finishing && tempCheckDone(t.settings, t.answered)) { setOpen(false); announce(`Thanks, ${member.name}`) }
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+      if (finishing && tempCheckDone(x.settings, x.answered)) { setOpen(false); announce(t('Thanks, {name}', { name: member.name })) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
   }
   const pickSleep = (k: string) => { setSleep(k); save({ sleep: k }, true) }
   const pickFeeling = (f: string) => { const next = toggleFeeling(picked, f); setPicked(next); save({ feelings: next }) }
@@ -204,24 +205,24 @@ function TempCheck({ member }: { member: Member }) {
   const change = () => { if (tc.private) { setSleep(null); setPicked([]) } setOpen(true) }
   const done = tempCheckDone(s, tc.answered)
   const sleepLabel = SLEEP.find(x => x.key === tc.sleep)
-  const summary = tc.private ? 'Answered ✓' : [
-    s.sleep && sleepLabel && `${sleepLabel.emoji} Slept ${sleepLabel.label.toLowerCase()}`,
-    s.feelings && tc.feelings?.length && `Feeling ${tc.feelings.join(', ')}`,
-    s.goal && (tc.goal ? `🎯 ${tc.goal}` : tc.goalSkipped && 'No goal today'),
+  const summary = tc.private ? t('Answered ✓') : [
+    s.sleep && sleepLabel && `${sleepLabel.emoji} ${t('Slept {how}', { how: sleepLabel.label.toLowerCase() })}`,
+    s.feelings && tc.feelings?.length && t('Feeling {feelings}', { feelings: tc.feelings.join(', ') }),
+    s.goal && (tc.goal ? `🎯 ${tc.goal}` : tc.goalSkipped && t('No goal today')),
   ].filter(Boolean).join(' · ')
 
   return (
-    <section className="snap-temp" aria-label="Temp check">
-      <h3 className="snap-heading">🌡️ Temp check</h3>
+    <section className="snap-temp" aria-label={t('Temp check')}>
+      <h3 className="snap-heading">{t('🌡️ Temp check')}</h3>
       {!open ? (
         <div className="snap-temp-done">
-          <p role="status"><strong>Thanks, {member.name} ✓</strong><span className="snap-meta">{summary}</span></p>
-          <button className="btn btn-secondary" onClick={change}>Change</button>
+          <p role="status"><strong>{t('Thanks, {name} ✓', { name: member.name })}</strong><span className="snap-meta">{summary}</span></p>
+          <button className="btn btn-secondary" onClick={change}>{t('Change')}</button>
         </div>
       ) : <>
         {s.sleep && (
           <div className="snap-temp-q" role="group" aria-labelledby={`tc-sleep-${member.id}`}>
-            <p id={`tc-sleep-${member.id}`} className="snap-temp-ask">How did you sleep last night?</p>
+            <p id={`tc-sleep-${member.id}`} className="snap-temp-ask">{t('How did you sleep last night?')}</p>
             <div className="snap-temp-sleep">
               {SLEEP.map(x => (
                 <button key={x.key} className={`snap-temp-face ${sleep === x.key ? 'active' : ''}`} aria-pressed={sleep === x.key} onClick={() => pickSleep(x.key)}>
@@ -233,35 +234,35 @@ function TempCheck({ member }: { member: Member }) {
         )}
         {s.feelings && (
           <div className="snap-temp-q" role="group" aria-labelledby={`tc-feel-${member.id}`}>
-            <p id={`tc-feel-${member.id}`} className="snap-temp-ask">How are you feeling today? <span className="snap-dim">Pick any</span></p>
+            <p id={`tc-feel-${member.id}`} className="snap-temp-ask">{t('How are you feeling today?')} <span className="snap-dim">{t('Pick any')}</span></p>
             <div className="chip-row">
               {feelingOptions([...(tc.custom ?? []), ...picked]).map(f => {
                 const on = picked.some(p => p.toLowerCase() === f.toLowerCase())
                 return <button key={f} className={`chip ${on ? 'active' : ''}`} aria-pressed={on} onClick={() => pickFeeling(f)}>{f}</button>
               })}
-              {other === null && <button className="chip" onClick={() => setOther('')}>Other…</button>}
+              {other === null && <button className="chip" onClick={() => setOther('')}>{t('Other…')}</button>}
             </div>
             {other !== null && (
               <form className="snap-temp-row" onSubmit={e => { e.preventDefault(); addOther() }}>
-                <input type="text" aria-label="Another feeling" placeholder="How else?" maxLength={40} value={other} onChange={e => setOther(e.target.value)} autoFocus />
-                <button className="btn btn-primary" disabled={!other.trim()}>Add</button>
+                <input type="text" aria-label={t('Another feeling')} placeholder={t('How else?')} maxLength={40} value={other} onChange={e => setOther(e.target.value)} autoFocus />
+                <button className="btn btn-primary" disabled={!other.trim()}>{t('Add')}</button>
               </form>
             )}
           </div>
         )}
         {s.goal && (
           <form className="snap-temp-q" onSubmit={e => { e.preventDefault(); if (goal.trim()) save({ goal: goal.trim() }, true) }}>
-            <label htmlFor={`tc-goal-${member.id}`} className="snap-temp-ask">Goal for today</label>
+            <label htmlFor={`tc-goal-${member.id}`} className="snap-temp-ask">{t('Goal for today')}</label>
             <div className="snap-temp-row">
-              <input id={`tc-goal-${member.id}`} type="text" maxLength={GOAL_MAX} placeholder="One thing I want to do" value={goal} onChange={e => setGoal(e.target.value)} />
+              <input id={`tc-goal-${member.id}`} type="text" maxLength={GOAL_MAX} placeholder={t('One thing I want to do')} value={goal} onChange={e => setGoal(e.target.value)} />
             </div>
             <div className="snap-temp-row">
-              <button type="button" className="btn btn-secondary" onClick={() => { setGoal(''); save({ goalSkipped: true }, true) }}>Skip</button>
-              <button className="btn btn-primary" disabled={!goal.trim() || goal.trim() === tc.goal}>Save goal</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setGoal(''); save({ goalSkipped: true }, true) }}>{t('Skip')}</button>
+              <button className="btn btn-primary" disabled={!goal.trim() || goal.trim() === tc.goal}>{t('Save goal')}</button>
             </div>
           </form>
         )}
-        {done && <button className="btn btn-primary btn-block" onClick={() => { setOpen(false); announce(`Thanks, ${member.name}`) }}>Done ✓</button>}
+        {done && <button className="btn btn-primary btn-block" onClick={() => { setOpen(false); announce(t('Thanks, {name}', { name: member.name })) }}>{t('Done ✓')}</button>}
       </>}
     </section>
   )
@@ -290,12 +291,12 @@ function CheckIn({ snap, onDone }: { snap: Snapshot; onDone: () => void }) {
       onDone()
       if (r.awarded) {
         setBurst(true)
-        announce(`Checked in, ${r.awarded} point${r.awarded === 1 ? '' : 's'}`)
-        toast(`+${r.awarded} point${r.awarded === 1 ? '' : 's'} for ${snap.member.name} 🎉`)
+        announce(tn(r.awarded, 'Checked in, {n} point', 'Checked in, {n} points'))
+        toast(tn(r.awarded, '+{n} point for {name} 🎉', '+{n} points for {name} 🎉', { name: snap.member.name }))
       }
       reloadCore()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Couldn't check in", true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't check in"), true)
     } finally { setBusy(false) }
   }
   return (
@@ -314,10 +315,10 @@ function WeatherStrip({ snap }: { snap: Snapshot }) {
   if (!w || !today) return null
   const deg = '°'
   return (
-    <div className="snap-weather" role="group" aria-label={`Weather in ${w.location}`}>
-      {w.now && <span className="snap-weather-now"><span className="snap-emoji" aria-hidden="true">{w.now.emoji}</span> <strong>{w.now.temp}{deg}</strong> <span className="snap-dim">now · {w.now.text}</span></span>}
-      <span><span className="snap-emoji" aria-hidden="true">{today.emoji}</span> <span className="sr-only">{today.text}, </span>High {today.high}{deg} · Low {today.low}{deg}</span>
-      {today.rainChance != null && today.rainChance > 0 && <span>💧 {today.rainChance}% rain</span>}
+    <div className="snap-weather" role="group" aria-label={t('Weather in {place}', { place: w.location })}>
+      {w.now && <span className="snap-weather-now"><span className="snap-emoji" aria-hidden="true">{w.now.emoji}</span> <strong>{w.now.temp}{deg}</strong> <span className="snap-dim">{t('now')} · {w.now.text}</span></span>}
+      <span><span className="snap-emoji" aria-hidden="true">{today.emoji}</span> <span className="sr-only">{today.text}, </span>{t('High {n}', { n: `${today.high}${deg}` })} · {t('Low {n}', { n: `${today.low}${deg}` })}</span>
+      {today.rainChance != null && today.rainChance > 0 && <span>💧 {t('{n}% rain', { n: today.rainChance })}</span>}
       <span className="snap-dim snap-weather-where">{w.location}</span>
     </div>
   )
@@ -336,11 +337,11 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
   return (
     <li>
       <button className="snap-row" onClick={() => go(eventHash(e), close)}>
-        <span className="snap-time">{e.allDay ? 'All day' : formatTime(e.start, tz)}</span>
+        <span className="snap-time">{e.allDay ? t('All day') : formatTime(e.start, tz)}</span>
         <span className="snap-main">
-          <span className="snap-title"><span className="snap-swatch" aria-hidden="true" style={{ background: e.color }} />{e.busy === false && <span className="ev-free-mark">Free ·</span>}{e.title}</span>
+          <span className="snap-title"><span className="snap-swatch" aria-hidden="true" style={{ background: e.color }} />{e.busy === false && <span className="ev-free-mark">{tc('busy', 'Free')} ·</span>}{e.title}</span>
           {(leadOf(e) || e.location) && (
-            <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>
+            <span className="snap-meta">{[leadText(e, iso => formatTime(iso, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>
           )}
         </span>
       </button>
@@ -351,21 +352,22 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
 /** "⭐ 18 to spend · Saving for 🍦 Ice cream trip, 18 / 50" under the greeting. */
 function pointsLine(m: Member) {
   const g = m.rewardGoal
-  return [`⭐ ${m.balance} to spend`, g && `Saving for ${g.emoji ? `${g.emoji} ` : ''}${g.title}, ${m.balance >= g.cost ? 'ready!' : `${Math.max(0, m.balance)} / ${g.cost}`}`].filter(Boolean).join(' · ')
+  const title = `${g?.emoji ? `${g.emoji} ` : ''}${g?.title}`
+  return [`⭐ ${t('{n} to spend', { n: m.balance })}`, g && (m.balance >= g.cost ? t('Saving for {title}, ready!', { title }) : t('Saving for {title}, {done} / {total}', { title, done: Math.max(0, m.balance), total: g.cost }))].filter(Boolean).join(' · ')
 }
 
 function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotChore) => void }) {
   const { members } = useApp()
   // An Anyone chore says who got the points once it's done.
-  const by = c.shared && c.done ? (members.find(m => m.id === c.doneBy)?.name ?? 'nobody in particular') : null
+  const by = c.shared && c.done ? (members.find(m => m.id === c.doneBy)?.name ?? t('nobody in particular')) : null
   return (
     <li>
       <button className={`snap-row snap-chore ${c.done ? 'done' : ''}`} role="checkbox" aria-checked={c.pending ? 'mixed' : c.done} onClick={() => onToggle(c)}
-        aria-label={[c.title, c.dueTime && `starts at ${formatTime(c.dueTime)}`, c.shared && 'anyone', by && `done by ${by}`, c.points > 0 && `${c.points} points`, c.pending && "waiting for a parent's OK"].filter(Boolean).join(', ')}>
+        aria-label={[c.title, c.dueTime && t('starts at {time}', { time: formatTime(c.dueTime) }), c.shared && t('anyone'), by && t('done by {name}', { name: by }), c.points > 0 && t('{n} points', { n: c.points }), c.pending && t("waiting for a parent's OK")].filter(Boolean).join(', ')}>
         <span className="snap-time snap-emoji" aria-hidden="true">{c.emoji || '⭐'}</span>
         <span className="snap-main" aria-hidden="true">
           <span className="snap-title">{c.title}</span>
-          <span className="snap-meta">{[c.dueTime && formatTime(c.dueTime), c.shared && 'Anyone', by && `Done by ${by}`, c.points > 0 && `${c.points} pts`, c.pending && 'Waiting for OK'].filter(Boolean).join(' · ')}</span>
+          <span className="snap-meta">{[c.dueTime && formatTime(c.dueTime), c.shared && t('Anyone'), by && t('Done by {name}', { name: by }), c.points > 0 && t('{n} pts', { n: c.points }), c.pending && t('Waiting for OK')].filter(Boolean).join(' · ')}</span>
         </span>
         <span className={`chore-check ${c.done ? 'done' : c.pending ? 'pending' : ''}`} aria-hidden="true">{c.done ? <CheckIcon width={18} height={18} /> : c.pending && '⏳'}</span>
       </button>
@@ -375,9 +377,9 @@ function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotCho
 
 function dueText(i: SnapshotItem, today: string): string | null {
   if (!i.dueDate) return null
-  if (i.overdue) return `Overdue (${dayName(i.dueDate, { month: 'short', day: 'numeric' })})`
-  if (i.dueDate === today) return 'Due today'
-  return `Due ${dayName(i.dueDate, { weekday: 'short', month: 'short', day: 'numeric' })}`
+  if (i.overdue) return t('Overdue ({date})', { date: dayName(i.dueDate, { month: 'short', day: 'numeric' }) })
+  if (i.dueDate === today) return t('Due today')
+  return t('Due {date}', { date: dayName(i.dueDate, { weekday: 'short', month: 'short', day: 'numeric' }) })
 }
 
 /** `after`: extra content at the row's end (the Board puts the owner's avatar there). */
@@ -388,7 +390,7 @@ export function ItemRow({ i, today, close, after }: { i: SnapshotItem; today: st
         <span className="snap-time snap-emoji" aria-hidden="true">{i.overdue ? '⚠️' : i.listEmoji || '📝'}{/* a ✅ list's emoji read as done */}</span>
         <span className="snap-main">
           <span className="snap-title">{i.priority !== 'normal' && <PriorityBadge p={i.priority} />}{i.title}</span>
-          <span className={`snap-meta ${i.overdue ? 'snap-overdue' : ''}`}>{[dueText(i, today), i.listName, i.stepsTotal > 0 && `${i.stepsDone}/${i.stepsTotal} steps`].filter(Boolean).join(' · ')}</span>
+          <span className={`snap-meta ${i.overdue ? 'snap-overdue' : ''}`}>{[dueText(i, today), i.listName, i.stepsTotal > 0 && t('{done}/{total} steps', { done: i.stepsDone, total: i.stepsTotal })].filter(Boolean).join(' · ')}</span>
         </span>
         {after}
       </button>
@@ -397,8 +399,8 @@ export function ItemRow({ i, today, close, after }: { i: SnapshotItem; today: st
 }
 
 function birthdayLine(b: SnapshotBirthday, you?: string) {
-  const who = b.memberId === you ? 'Your birthday 🎉' : b.memberId ? `${b.name}'s birthday` : b.name
-  return `${b.avatar ? `${b.avatar} ` : ''}${who}${b.age != null ? ` — ${b.memberId === you ? "you're" : 'turns'} ${b.age}` : ''}`
+  const who = b.memberId === you ? t('Your birthday 🎉') : b.memberId ? t("{name}'s birthday", { name: b.name }) : b.name
+  return `${b.avatar ? `${b.avatar} ` : ''}${who}${b.age != null ? ` — ${b.memberId === you ? t("you're {age}", { age: b.age }) : t('turns {age}', { age: b.age })}` : ''}`
 }
 export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: string; close: () => void }) {
   const text = <><span className="snap-time snap-emoji" aria-hidden="true">🎂</span><span className="snap-main"><span className="snap-title">{birthdayLine(b, you)}</span></span></>
@@ -409,41 +411,41 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
   const { features, mealTimes } = useApp().settings
   const [meal, setMeal] = useState<Meal | null>(null)
   const today = snap.from
-  const t = snap.tomorrow
-  const tw = snap.weather?.days.find(d => d.date === t?.date)
-  const glance = t ? [
+  const next = snap.tomorrow
+  const tw = snap.weather?.days.find(d => d.date === next?.date)
+  const glance = next ? [
     tw && `${tw.emoji} ${tw.text}, ${tw.high}°/${tw.low}°${tw.rainChance ? ` · 💧 ${tw.rainChance}%` : ''}`,
-    ...t.birthdays.map(b => `🎂 ${birthdayLine(b, snap.member.id)}`),
-    t.events.length ? `🗓 ${t.events.slice(0, 3).map(e => `${e.allDay ? '' : `${formatTime(e.start, tz)} `}${e.title}`).join(', ')}${t.events.length > 3 ? ` +${t.events.length - 3} more` : ''}` : '🗓 Nothing on the calendar',
-    t.items.length > 0 && `📝 Due: ${t.items.slice(0, 3).map(i => i.title).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3} more` : ''}`,
-    features.meals && t.meals.length > 0 && `🍽 ${byMealTime(t.meals, mealTimes).map(m => `${SLOT_LABEL[m.slot]}: ${m.title}`).join(', ')}`,
+    ...next.birthdays.map(b => `🎂 ${birthdayLine(b, snap.member.id)}`),
+    next.events.length ? `🗓 ${next.events.slice(0, 3).map(e => `${e.allDay ? '' : `${formatTime(e.start, tz)} `}${e.title}`).join(', ')}${next.events.length > 3 ? ` ${t('+{n} more', { n: next.events.length - 3 })}` : ''}` : `🗓 ${t('Nothing on the calendar')}`,
+    next.items.length > 0 && `📝 ${t('Due: {items}', { items: next.items.slice(0, 3).map(i => i.title).join(', ') })}${next.items.length > 3 ? ` ${t('+{n} more', { n: next.items.length - 3 })}` : ''}`,
+    features.meals && next.meals.length > 0 && `🍽 ${byMealTime(next.meals, mealTimes).map(m => `${tm(SLOT_LABEL[m.slot])}: ${m.title}`).join(', ')}`,
   ].filter(Boolean) as string[] : []
   const meals = !features.meals ? [] : byMealTime(snap.meals.filter(m => m.date === today), mealTimes) // by time: a 3:30 snack before a 6:00 dinner
   const openChores = snap.chores.filter(c => !c.done).length
   return (
     <>
       <WeatherStrip snap={snap} />
-      <Section title="Today">
+      <Section title={t('Today')}>
         {snap.events.length === 0
-          ? <p className="snap-empty">Nothing on the calendar — enjoy it.</p>
+          ? <p className="snap-empty">{t('Nothing on the calendar — enjoy it.')}</p>
           : <ul className="snap-list">{snap.events.map(e => <EventRow key={`${e.id}:${e.start}`} e={e} tz={tz} close={close} />)}</ul>}
       </Section>
-      {features.chores && <Section title={snap.chores.length ? `Chores · ${openChores ? `${openChores} left` : 'all done 🎉'}` : 'Chores'}>
+      {features.chores && <Section title={snap.chores.length ? `${t('Chores')} · ${openChores ? tn(openChores, '{n} left', '{n} left') : t('all done 🎉')}` : t('Chores')}>
         {snap.chores.length === 0
-          ? <p className="snap-empty">No chores today.</p>
+          ? <p className="snap-empty">{t('No chores today.')}</p>
           : <ul className="snap-list">{snap.chores.map(c => <ChoreRow key={c.id} c={c} onToggle={onToggle} />)}</ul>}
       </Section>}
-      {features.lists && <Section title="To do">
+      {features.lists && <Section title={t('To do')}>
         {snap.items.length === 0
-          ? <p className="snap-empty">Nothing due — all caught up.</p>
+          ? <p className="snap-empty">{t('Nothing due — all caught up.')}</p>
           : <ul className="snap-list">{snap.items.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}</ul>}
       </Section>}
       {meals.length > 0 && (
-        <Section title="Meals">
+        <Section title={t('Meals')}>
           <ul className="snap-list">{meals.map(m => (
             <li key={m.id}>
               <button className="snap-row" onClick={() => setMeal(m)}>
-                <span className="snap-time">{m.plannedTime ? formatTime(m.plannedTime) : SLOT_LABEL[m.slot]}</span>
+                <span className="snap-time">{m.plannedTime ? formatTime(m.plannedTime) : tm(SLOT_LABEL[m.slot])}</span>
                 <span className="snap-main"><span className="snap-title">{m.title}</span></span>
               </button>
             </li>
@@ -452,12 +454,12 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
         </Section>
       )}
       {snap.birthdays.length > 0 && (
-        <Section title="Birthdays 🎂">
+        <Section title={t('Birthdays 🎂')}>
           <ul className="snap-list">{snap.birthdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you={snap.member.id} close={close} />)}</ul>
         </Section>
       )}
       {books.length > 0 && (
-        <Section title="Reading 📚">
+        <Section title={t('Reading 📚')}>
           <ul className="snap-list">{books.map(b => (
             <li key={b.id}>
               <button className="snap-row" onClick={() => go('#/trackers/reading', close)}>
@@ -468,8 +470,8 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
           ))}</ul>
         </Section>
       )}
-      {t && (
-        <Section title="Tomorrow at a glance">
+      {next && (
+        <Section title={t('Tomorrow at a glance')}>
           <ul className="snap-glance">{glance.map((line, i) => <li key={i}>{line}</li>)}</ul>
         </Section>
       )}
@@ -485,7 +487,7 @@ function WeekView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () =
   return (
     <>
       {undated.length > 0 && (
-        <Section title="Keep in mind">
+        <Section title={t('Keep in mind')}>
           <ul className="snap-list">{undated.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}</ul>
         </Section>
       )}
@@ -495,7 +497,7 @@ function WeekView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () =
         const items = snap.items.filter(i => i.dueDate === date)
         const birthdays = snap.birthdays.filter(b => b.date === date)
         const chores = snap.chores.filter(c => c.date === date)
-        const label = date === today ? 'Today' : dayName(date, { weekday: 'long', month: 'short', day: 'numeric' })
+        const label = date === today ? t('Today') : dayName(date, { weekday: 'long', month: 'short', day: 'numeric' })
         const empty = !events.length && !items.length && !birthdays.length
         return (
           <section key={date} className="snap-section snap-weekday" aria-label={label}>
@@ -508,10 +510,10 @@ function WeekView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () =
               {events.map(e => <EventRow key={`${e.id}:${e.start}`} e={e} tz={tz} close={close} />)}
               {items.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}
             </ul>
-            {empty && <p className="snap-empty snap-empty-sm">Nothing planned.</p>}
+            {empty && <p className="snap-empty snap-empty-sm">{t('Nothing planned.')}</p>}
             {chores.length > 0 && (
               <button className="snap-chores-line" onClick={() => go('#/chores', close)}>
-                {chores.slice(0, 4).map(c => c.emoji || '⭐').join(' ')} {chores.length} chore{chores.length === 1 ? '' : 's'}
+                {chores.slice(0, 4).map(c => c.emoji || '⭐').join(' ')} {tn(chores.length, '{n} chore', '{n} chores')}
               </button>
             )}
           </section>

@@ -6,7 +6,8 @@ import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
+import { t, tm, tn } from './i18n.ts'
+import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet, { Stars, ratingOwner } from './RecipeSheet.tsx'
 import Sheet from './Sheet.tsx'
@@ -90,22 +91,22 @@ export default function Meals() {
   }, [])
   useEffect(() => {
     let canceled = false
-    api.meStrict().then(value => { if (!canceled) { setMe(value); setAuthError('') } }).catch(() => { if (!canceled) { setMe(null); setAuthError('Could not verify editing access. Retry to enable editing.') } })
+    api.meStrict().then(value => { if (!canceled) { setMe(value); setAuthError('') } }).catch(() => { if (!canceled) { setMe(null); setAuthError(t('Could not verify editing access. Retry to enable editing.')) } })
     return () => { canceled = true }
   }, [tick, refreshTick])
   useEffect(() => {
     let canceled = false
-    api.getMeals(from, to).then(meals => { if (!canceled) setData({ from, to, meals }) }).catch(e => { if (!canceled) setData({ from, to, meals: [], error: e instanceof Error ? e.message : 'Could not load meals.' }) })
+    api.getMeals(from, to).then(meals => { if (!canceled) setData({ from, to, meals }) }).catch(e => { if (!canceled) setData({ from, to, meals: [], error: e instanceof Error ? e.message : t('Could not load meals.') }) })
     return () => { canceled = true }
   }, [from, to, tick, refreshTick])
   useEffect(() => {
     let canceled = false
-    api.getRecipes(true).then(values => { if (!canceled) { setRecipes(values); setRecipesLoaded(true); setRecipeError('') } }).catch(e => { if (!canceled) setRecipeError(e instanceof Error ? e.message : 'Could not load recipes.') })
+    api.getRecipes(true).then(values => { if (!canceled) { setRecipes(values); setRecipesLoaded(true); setRecipeError('') } }).catch(e => { if (!canceled) setRecipeError(e instanceof Error ? e.message : t('Could not load recipes.')) })
     return () => { canceled = true }
   }, [tick, refreshTick])
   useEffect(() => {
     let canceled = false
-    api.getRestaurants(true).then(values => { if (!canceled) { setRestaurants(values); setRestaurantsLoaded(true); setRestaurantError('') } }).catch(e => { if (!canceled) setRestaurantError(e instanceof Error ? e.message : 'Could not load restaurants.') })
+    api.getRestaurants(true).then(values => { if (!canceled) { setRestaurants(values); setRestaurantsLoaded(true); setRestaurantError('') } }).catch(e => { if (!canceled) setRestaurantError(e instanceof Error ? e.message : t('Could not load restaurants.')) })
     return () => { canceled = true }
   }, [tick, refreshTick])
   // A linked recipe opens like a tap in the recipe library, once the library has loaded; an unknown id just shows Meals.
@@ -121,7 +122,7 @@ export default function Meals() {
     if (restaurant) { setView('restaurants'); setPlace({ restaurant, editing: false }) }
     setPendingPlace(null)
   }, [pendingPlace, restaurantsLoaded, restaurants])
-  const saved = () => { setEditing(null); setOpenMeal(null); setPendingMeal(null); setRecipeSheet(null); setTick(t => t + 1); reloadCore() }
+  const saved = () => { setEditing(null); setOpenMeal(null); setPendingMeal(null); setRecipeSheet(null); setTick(n => n + 1); reloadCore() }
   const meals = data?.from === from && data.to === to ? data.meals : null
   const mealError = data?.from === from && data.to === to ? data.error : undefined
   // A linked meal (#/meals?meal=: notifications, Spotlight, Siri) opens like a tap here, once access and the library are known.
@@ -135,75 +136,75 @@ export default function Meals() {
   if (sort === 'rating') shownRecipes.sort((a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0) || (b.rating?.count ?? 0) - (a.rating?.count ?? 0))
   const filterCount = [kind, filter !== 'active', category, loved, sort !== 'name'].filter(Boolean).length
   const filters = <>
-    <div className="field"><label htmlFor="recipe-kind">Type</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">All</option><option value="meal">Meals</option><option value="basic">Basics</option></select></div>
-    <div className="field"><label htmlFor="recipe-filter">Show</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">Active recipes</option><option value="archived">Archived recipes</option><option value="all">All recipes</option></select></div>
-    <div className="field"><label htmlFor="recipe-category">Ingredient category</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>
-    <div className="field"><label htmlFor="recipe-loved">Favorites</label><select id="recipe-loved" value={loved} onChange={e => setLoved(e.target.value)}><option value="">All recipes</option><option value="any">Anyone's favorites</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}'s favorites</option>)}</select></div>
-    <div className="field"><label htmlFor="recipe-sort">Sort</label><select id="recipe-sort" value={sort} onChange={e => setSort(e.target.value as 'name' | 'rating')}><option value="name">Name</option><option value="rating">Top rated</option></select></div>
+    <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">{t('All')}</option><option value="meal">{t('Meals')}</option><option value="basic">{t('Basics')}</option></select></div>
+    <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">{t('Active recipes')}</option><option value="archived">{t('Archived recipes')}</option><option value="all">{t('All recipes')}</option></select></div>
+    <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">{t('All categories')}</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>
+    <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><select id="recipe-loved" value={loved} onChange={e => setLoved(e.target.value)}><option value="">{t('All recipes')}</option><option value="any">{t("Anyone's favorites")}</option>{members.map(m => <option key={m.id} value={m.id}>{t("{name}'s favorites", { name: m.name })}</option>)}</select></div>
+    <div className="field"><label htmlFor="recipe-sort">{t('Sort')}</label><select id="recipe-sort" value={sort} onChange={e => setSort(e.target.value as 'name' | 'rating')}><option value="name">{t('Name')}</option><option value="rating">{t('Top rated')}</option></select></div>
   </>
   // Phone Week: a day's empty slots fold into one "+" row (the slot to plan: dinner when it's free).
   const compactWeek = isPhone && span === 'week'
   const freeSlot = (date: string) => ['dinner', ...MEAL_SLOTS].find(slot => !bySlot.has(`${date}:${slot}`)) as typeof MEAL_SLOTS[number] | undefined
   return <div className="meals-view scroll-y">
-    <div className="meals-heading"><div><h1>Meals</h1><p className="field-hint">What are we eating, and what do we need to buy?</p></div>
-      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> Groceries</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> Import from a link</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : view === 'recipes' ? setRecipeSheet({ recipe: null }) : setPlace({ restaurant: null, editing: true })}><PlusIcon /> {view === 'week' ? 'Plan meal' : view === 'recipes' ? 'New recipe' : 'New restaurant'}</button>}</div>
+    <div className="meals-heading"><div><h1>{t('Meals')}</h1><p className="field-hint">{t('What are we eating, and what do we need to buy?')}</p></div>
+      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> {t('Groceries')}</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> {t('Import from a link')}</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : view === 'recipes' ? setRecipeSheet({ recipe: null }) : setPlace({ restaurant: null, editing: true })}><PlusIcon /> {view === 'week' ? t('Plan meal') : view === 'recipes' ? t('New recipe') : t('New restaurant')}</button>}</div>
     </div>
-    <Segmented tabs idBase="meals-tab" label="Meals sections" value={view} onChange={setView} options={[{ key: 'week', label: 'Week planner' }, { key: 'recipes', label: 'Recipe library' }, { key: 'restaurants', label: 'Restaurants' }]} />
-    {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
-    {me && !admin && <p className="field-hint">A grown-up plans the meals. You can rate recipes, add your order on a takeout night and mark a meal you cook as done.</p>}
+    <Segmented tabs idBase="meals-tab" label={t('Meals sections')} value={view} onChange={setView} options={[{ key: 'week', label: t('Week planner') }, { key: 'recipes', label: t('Recipe library') }, { key: 'restaurants', label: t('Restaurants') }]} />
+    {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
+    {me && !admin && <p className="field-hint">{t('A grown-up plans the meals. You can rate recipes, add your order on a takeout night and mark a meal you cook as done.')}</p>}
     {view === 'week' ? <section role="tabpanel" aria-labelledby="meals-tab-week">
       <div className="meals-toolbar">
-        {isPhone && <Segmented label="Show" value={span} onChange={setSpan} options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />}
-        <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? 'Previous day' : 'Previous meal week'} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{dayView ? 'Today' : 'This week'}</button><button className="icon-btn" aria-label={dayView ? 'Next day' : 'Next meal week'} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
-        <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : <>{mealDayLabel(from, { month: 'short', day: 'numeric' })} – {mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' })}</>}</h2>
+        {isPhone && <Segmented label={t('Show')} value={span} onChange={setSpan} options={[{ key: 'day', label: t('Day') }, { key: 'week', label: t('Week') }]} />}
+        <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? t('Previous day') : t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{dayView ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={dayView ? t('Next day') : t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
+        <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : t('{from} – {to}', { from: mealDayLabel(from, { month: 'short', day: 'numeric' }), to: mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' }) })}</h2>
       </div>
-      {recipeError && <p className="field-error" role="alert">The recipe library could not refresh. <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
-      {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(t => t + 1)} /> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan">
-        <table className={`meal-grid${compactWeek ? ' meal-grid-compact' : ''}`}><caption className="sr-only">Meals from {from} through {to}</caption><thead><tr><th scope="col">Date</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{SLOT_LABEL[slot]}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
-          <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">Today</span>}</th>
-          {MEAL_SLOTS.map(slot => <td key={slot} data-slot={SLOT_LABEL[slot]}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
+      {recipeError && <p className="field-error" role="alert">{t('The recipe library could not refresh.')} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
+      {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(n => n + 1)} /> : !meals ? <p role="status">{t('Loading meals…')}</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label={t('Weekly meal plan')}>
+        <table className={`meal-grid${compactWeek ? ' meal-grid-compact' : ''}`}><caption className="sr-only">{t('Meals from {from} through {to}', { from, to })}</caption><thead><tr><th scope="col">{t('Date')}</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{tm(SLOT_LABEL[slot])}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
+          <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">{t('Today')}</span>}</th>
+          {MEAL_SLOTS.map(slot => <td key={slot} data-slot={tm(SLOT_LABEL[slot])}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
             const recipe = recipes.find(r => r.id === meal.recipeId)
             const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipe?.totalMinutes
-            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setOpenMeal(meal)} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${statusLabel(meal)}${assignee ? `, cooked by ${assignee.name}` : ''}${meal.eaterIds?.length ? `, for ${members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ')}` : ''}`}>
+            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setOpenMeal(meal)} aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, statusLabel(meal), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
               {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
-              <strong>{meal.mealKind === 'dining_out' && <span aria-label="Eating out">↗ </span>}{meal.title}</strong>
+              <strong>{meal.mealKind === 'dining_out' && <span aria-label={t('Eating out')}>↗ </span>}{meal.title}</strong>
               <span>{meal.plannedTime ? `${formatTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
-              {assignee && <span>Cooking: {assignee.avatar} {assignee.name}</span>}
+              {assignee && <span>{t('Cooking: {who}', { who: `${assignee.avatar} ${assignee.name}` })}</span>}
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
-              {meal.mealKind === 'dining_out' && !!(meal.orderType || meal.orders?.length) && <span>{[meal.orderType && ORDER_TYPE_LABEL[meal.orderType], meal.status === 'planned' && ordersLabel(meal)].filter(Boolean).join(' · ')}</span>}
+              {meal.mealKind === 'dining_out' && !!(meal.orderType || meal.orders?.length) && <span>{[meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.status === 'planned' && ordersLabel(meal)].filter(Boolean).join(' · ')}</span>}
               {meal.status !== 'planned' && <span>✓ {statusLabel(meal)}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
             </button>
-          })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> Vote open</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={`Plan ${SLOT_LABEL[slot].toLowerCase()} for ${mealDayLabel(date)}`} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">Plan meal</span></button> : !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label="No meal planned">—</span>}</td>)}
-          {compactWeek && admin && freeSlot(date) && <td className="meal-day-add"><button className="meal-add" onClick={() => setEditing({ meal: null, initial: { date, slot: freeSlot(date)! } })}><PlusIcon width={16} height={16} /> Plan a meal<span className="sr-only"> for {mealDayLabel(date)}</span></button></td>}
+          })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> {t('Vote open')}</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={t('Plan {meal} for {day}', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">{t('Plan meal')}</span></button> : !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label={t('No meal planned')}>—</span>}</td>)}
+          {compactWeek && admin && freeSlot(date) && <td className="meal-day-add"><button className="meal-add" aria-label={t('Plan a meal for {day}', { day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot: freeSlot(date)! } })}><PlusIcon width={16} height={16} /> {t('Plan a meal')}</button></td>}
         </tr>)}</tbody></table>
       </div>}
-    </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(t => t + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
+    </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       <div className="meals-toolbar">
-        <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Tacos, rice…" value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="field meals-search"><label htmlFor="recipe-search">{t('Find a recipe')}</label><input id="recipe-search" type="search" placeholder={t('Tacos, rice…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
         {/* A phone: the search alone, the rest a tap away in a sheet. */}
         {isPhone ? <button type="button" className={`icon-btn filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
           <FilterIcon width={20} height={20} />{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}</button> : filters}
       </div>
-      {showFilters && isPhone && <Sheet title="Filter and sort" onClose={() => setShowFilters(false)} actions={<>
-        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setSort('name') }}>Clear filters</button>}
-        <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>Show {shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</button>
+      {showFilters && isPhone && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
+        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setSort('name') }}>{t('Clear filters')}</button>}
+        <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>{tn(shownRecipes.length, 'Show {n} recipe', 'Show {n} recipes')}</button>
       </>}>{filters}</Sheet>}
-      {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(t => t + 1)} />}
-      {!recipesLoaded && !recipeError ? <p role="status">Loading recipes…</p> : <>
-        <p className="field-hint" role="status">{shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</p>
-        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
+      {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(n => n + 1)} />}
+      {!recipesLoaded && !recipeError ? <p role="status">{t('Loading recipes…')}</p> : <>
+        <p className="field-hint" role="status">{tn(shownRecipes.length, '{n} recipe', '{n} recipes')}</p>
+        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || filter !== 'active' ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
-          <strong>{recipe.name}{recipe.kind === 'basic' && <span className="kit-tag">Basic</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && `Makes ${recipe.makes}` : servingsLabel(recipe.defaultServings), `${recipe.ingredients.length} ingredients`, recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{!!recipe.favoritedBy?.length && <span className="recipe-loved"><span aria-hidden="true">♥</span><EaterAvatars ids={recipe.favoritedBy} members={members} label="Favorite of" /></span>}{recipe.description && <p>{recipe.description}</p>}
+          <strong>{recipe.name}{recipe.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && t('Makes {amount}', { amount: recipe.makes }) : servingsLabel(recipe.defaultServings), tn(recipe.ingredients.length, '{n} ingredient', '{n} ingredients'), recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && t('Archived')].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{!!recipe.favoritedBy?.length && <span className="recipe-loved"><span aria-hidden="true">♥</span><EaterAvatars ids={recipe.favoritedBy} members={members} label={t('Favorite of')} /></span>}{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}
     </section>}
-    {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(t => t + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
-    {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(t => t + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly || !admin ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
-    {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
+    {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(n => n + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
+    {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(n => n + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
+    {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(n => n + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly || !admin ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(n => n + 1); setRecipeSheet({ recipe }) }} />}
     {place && !place.editing && place.restaurant && <RestaurantSheet key={place.restaurant.id} restaurant={place.restaurant} admin={admin} onClose={() => setPlace(null)} onEdit={() => setPlace({ ...place, editing: true })}
       onPlan={async restaurant => {
         // A night out is for a dinner coming up: the first one in the next two weeks with nothing planned.
@@ -212,9 +213,9 @@ export default function Meals() {
         setPlace(null); setEditing({ meal: null, initial: { date, slot: 'dinner', restaurant } })
       }}
       onOpenMeal={(id, date) => { setPlace(null); location.hash = `#/meals?date=${date}&meal=${encodeURIComponent(id)}` }}
-      onSaved={saved => { setTick(t => t + 1); setPlace(saved && !saved.archived ? { restaurant: saved, editing: false } : null) }} />}
-    {place?.editing && <RestaurantEditSheet restaurant={place.restaurant} onClose={() => setPlace(place.restaurant ? { ...place, editing: false } : null)} onSaved={saved => { setTick(t => t + 1); setPlace({ restaurant: saved, editing: false }) }} />}
-    {openPoll && <PollSheet id={openPoll} onClose={() => { setOpenPoll(null); setTick(t => t + 1) }} />}
+      onSaved={saved => { setTick(n => n + 1); setPlace(saved && !saved.archived ? { restaurant: saved, editing: false } : null) }} />}
+    {place?.editing && <RestaurantEditSheet restaurant={place.restaurant} onClose={() => setPlace(place.restaurant ? { ...place, editing: false } : null)} onSaved={saved => { setTick(n => n + 1); setPlace({ restaurant: saved, editing: false }) }} />}
+    {openPoll && <PollSheet id={openPoll} onClose={() => { setOpenPoll(null); setTick(n => n + 1) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>
 }

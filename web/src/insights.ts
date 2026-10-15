@@ -1,9 +1,11 @@
 // The Insights page's chart helpers (Insights.tsx). Pure, so web/test/insights.test.ts covers them.
 // The numbers themselves come from the server (server/src/insights.ts); these only bucket and scale.
 import type { InsightDay, InsightRange } from './types.ts'
+import { formatDate, msg, MONTH_DAY, t, tn } from './i18n.ts'
 
+/** Labels marked: show with tm(). */
 export const RANGES: { key: InsightRange; label: string }[] = [
-  { key: '4w', label: 'Last 4 weeks' }, { key: '3m', label: 'Last 3 months' }, { key: '1y', label: 'Last year' },
+  { key: '4w', label: msg('Last 4 weeks') }, { key: '3m', label: msg('Last 3 months') }, { key: '1y', label: msg('Last year') },
 ]
 export const SLEEP_LEVEL = { terrible: 0, poorly: 1, ok: 2, good: 3, great: 4 } as const
 
@@ -58,10 +60,9 @@ export function sleepPath(days: InsightDay[], w: number, h: number): string {
   return path
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 /** "2026-09-03" -> "Sep 3". */
-export const shortDate = (date: string) => `${MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}`
+export const shortDate = (date: string) => formatDate(new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))), MONTH_DAY)
 
-export const confidenceLabel = (c: 'early' | 'clear') => (c === 'clear' ? 'Clear pattern' : 'Early sign')
+export const confidenceLabel = (c: 'early' | 'clear') => (c === 'clear' ? t('Clear pattern') : t('Early sign'))
 
-export const keepCheckingIn = (n: number) => `Keep checking in: patterns show up after about 3 weeks (${n} ${n === 1 ? 'day' : 'days'} so far).`
+export const keepCheckingIn = (n: number) => tn(n, 'Keep checking in: patterns show up after about 3 weeks ({n} day so far).', 'Keep checking in: patterns show up after about 3 weeks ({n} days so far).')

@@ -1,3 +1,4 @@
+import { t } from './i18n.ts'
 import type { Skin } from './skins.ts'
 import type { CustomColors, ThemeMode } from './types.ts'
 
@@ -141,11 +142,11 @@ export function appLiveActivities(): boolean | null {
 export function liveActivitiesLine(on: boolean | null, platform: 'ios' | 'android' = 'ios'): string | null {
   if (on === null) return null
   if (platform === 'android') return on
-    ? 'Countdowns show as ongoing notifications. Turn them off in Android Settings → Apps → Kinwall → Notifications.'
-    : 'Countdowns as ongoing notifications: Off in Android Settings. Turn them on in Android Settings → Apps → Kinwall → Notifications.'
+    ? t('Countdowns show as ongoing notifications. Turn them off in Android Settings → Apps → Kinwall → Notifications.')
+    : t('Countdowns as ongoing notifications: Off in Android Settings. Turn them on in Android Settings → Apps → Kinwall → Notifications.')
   return on
-    ? 'Countdowns and timers show on the Lock Screen. Turn them off in iPhone Settings → Kinwall → Live Activities.'
-    : 'Countdowns and timers on the Lock Screen: Off in iPhone Settings. Turn them on in iPhone Settings → Kinwall → Live Activities.'
+    ? t('Countdowns and timers show on the Lock Screen. Turn them off in iPhone Settings → Kinwall → Live Activities.')
+    : t('Countdowns and timers on the Lock Screen: Off in iPhone Settings. Turn them on in iPhone Settings → Kinwall → Live Activities.')
 }
 
 let lastLeaveByPush: boolean | undefined

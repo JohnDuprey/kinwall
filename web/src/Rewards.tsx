@@ -4,7 +4,6 @@
 // waiting for a grown-up, and a way into the sticker shop. Several people can split one reward. Parents also decide on requests (the
 // same queue as Chores' "To approve") and add, edit and archive rewards here.
 import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -18,20 +17,22 @@ import { Face, ChipFace } from './Face'
 import { evenSplit, movePoints, shareText } from './rewardSplit.ts'
 import { PointsStepper } from './ChoreSuggest.tsx'
 import { MinusIcon, PlusIcon } from './icons.tsx'
+import { DAY, formatDate, intlLocale, msg, t, tc, tm, tn } from './i18n.ts'
+import { rich } from './rich.tsx'
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const rewardLabel = (r: { emoji: string | null; title: string }) => (r.emoji ? `${r.emoji} ${r.title}` : r.title)
-const periodWord = (l: RewardLimit) => (l.period === 'day' ? 'today' : 'this week')
+/** A translated sentence with its {placeholders} filled by elements (a bold name, a link). */
 const usedUp = (r: Reward) => !!r.limit && (r.used ?? 0) >= r.limit.count
 
-const STATUS_TEXT: Record<RedemptionStatus, string> = { pending: 'Waiting for OK', approved: 'Approved!', given: 'Given', declined: 'Not this time' }
+const STATUS_TEXT: Record<RedemptionStatus, string> = { pending: msg('Waiting for OK'), approved: msg('Approved!'), given: msg('Given'), declined: msg('Not this time') }
 
-/** One tap on an empty Rewards screen adds one of these (a parent can edit it after). */
+/** One tap on an empty Rewards screen adds one of these (a parent can edit it after), titled in
+ * the screen's language. */
 const SUGGESTIONS: Partial<Reward>[] = [
-  { emoji: '🍿', title: 'Pick the movie', cost: 30 },
-  { emoji: '📺', title: '15 min screen time', cost: 10, limit: { count: 3, period: 'day' } },
-  { emoji: '🌙', title: 'Stay up 15 minutes', cost: 20, limit: { count: 1, period: 'day' } },
-  { emoji: '🍦', title: 'Ice cream trip', cost: 50 },
+  { emoji: '🍿', title: msg('Pick the movie'), cost: 30 },
+  { emoji: '📺', title: msg('15 min screen time'), cost: 10, limit: { count: 3, period: 'day' } },
+  { emoji: '🌙', title: msg('Stay up 15 minutes'), cost: 20, limit: { count: 1, period: 'day' } },
+  { emoji: '🍦', title: msg('Ice cream trip'), cost: 50 },
 ]
 
 /** The Rewards screen (#/rewards, #/rewards/<memberId>): whose rewards, then the panel. A device
@@ -51,19 +52,19 @@ export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
     <div className="stickers">
       {(choices.length > 1 || parentDevice) && (
         <div className="stickers-head">
-          <div className="chip-row stickers-members" role="group" aria-label="Whose rewards?">
+          <div className="chip-row stickers-members" role="group" aria-label={t('Whose rewards?')}>
             {choices.map(m => (
               <button key={m.id} className={`chip ${m.id === memberId ? 'active' : ''}`} aria-pressed={m.id === memberId}
-                style={{ ['--chip-color' as string]: m.color }} onClick={() => { location.replace(`#/rewards/${m.id}`); announce(`${m.name}'s rewards`) }}>
+                style={{ ['--chip-color' as string]: m.color }} onClick={() => { location.replace(`#/rewards/${m.id}`); announce(t("{name}'s rewards", { name: m.name })) }}>
                 <Face m={m} className="stickers-avatar" aria-hidden="true" />{m.name}
               </button>
             ))}
           </div>
-          {parentDevice && <button type="button" className="btn btn-secondary reward-manage" onClick={() => setManaging(true)}>Manage rewards</button>}
+          {parentDevice && <button type="button" className="btn btn-secondary reward-manage" onClick={() => setManaging(true)}>{t('Manage rewards')}</button>}
         </div>
       )}
       {managing && <RewardsManageSheet onClose={() => { setManaging(false); setManaged(n => n + 1); reloadCore() }} />}
-      {member ? <RewardsPanel key={`${member.id}:${managed}`} member={member} /> : <div className="stickers-empty"><p>Add a family member in Settings to use rewards.</p></div>}
+      {member ? <RewardsPanel key={`${member.id}:${managed}`} member={member} /> : <div className="stickers-empty"><p>{t('Add a family member in Settings to use rewards.')}</p></div>}
     </div>
   )
 }
@@ -86,7 +87,7 @@ function RewardsPanel({ member }: { member: Member }) {
       .then(([r, h]) => { if (!canceled) { setRewards(r); setHistory(h) } })
       // A background refresh that fails keeps what's showing; only a first load says so, and briefly
       // (a toast that stays would follow the kid to every other tab).
-      .catch(() => { if (!canceled && rewards === null) toast("Couldn't load rewards.") })
+      .catch(() => { if (!canceled && rewards === null) toast(t("Couldn't load rewards.")) })
     return () => { canceled = true }
   }
   useEffect(load, [member.id, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -95,9 +96,9 @@ function RewardsPanel({ member }: { member: Member }) {
   const saveFor = async (next: string | null, title: string) => {
     try {
       await api.setRewardGoal(member.id, next)
-      announce(next ? `Saving for ${title}` : 'Goal cleared')
+      announce(next ? t('Saving for {title}', { title }) : t('Goal cleared'))
       reloadCore()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change the goal.", true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't change the goal."), true) }
   }
   const setGoal = (r: Reward) => saveFor(goalId === r.id ? null : r.id, r.title)
 
@@ -105,23 +106,23 @@ function RewardsPanel({ member }: { member: Member }) {
     const waits = r.needsApproval && !parentDevice
     const left = balance - r.cost
     const g = member.rewardGoal
-    const goalLine = g && g.rewardId !== r.id && left < g.cost ? ` Saving for ${rewardLabel(g)} will be ${plural(g.cost - left, 'point')} away.` : ''
-    const promiseLine = promisedTotal > left ? ` That leaves too few for the ${promisedTotal} promised to ${promised.map(x => x.to).join(' and ')}.` : ''
+    const goalLine = g && g.rewardId !== r.id && left < g.cost ? t('Saving for {reward} will be {points} away.', { reward: rewardLabel(g), points: tn(g.cost - left, '{n} point', '{n} points') }) : ''
+    const promiseLine = promisedTotal > left ? t('That leaves too few for the {n} promised to {names}.', { n: promisedTotal, names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(promised.map(x => x.to)) }) : ''
     if (!await dialog.confirm({
-      title: `Spend ${plural(r.cost, 'point')} on ${rewardLabel(r)}?`,
-      body: `${member.name} will have ${left} left.${goalLine}${promiseLine}${waits ? ' A grown-up will OK it first.' : ''}`,
-      confirmLabel: 'Get it',
+      title: t('Spend {points} on {reward}?', { points: tn(r.cost, '{n} point', '{n} points'), reward: rewardLabel(r) }),
+      body: [t('{name} will have {n} left.', { name: member.name, n: left }), goalLine, promiseLine, waits && t('A grown-up will OK it first.')].filter(Boolean).join(' '),
+      confirmLabel: t('Get it'),
     })) return
     try {
       const res = await api.redeemReward(r.id, member.id)
       setBalance(res.balance)
-      const msg = res.redemption.status === 'pending' ? `Asked for ${r.title}. Waiting for a grown-up.` : `${r.title}: enjoy!`
-      toast(msg)
-      announce(msg)
+      const said = res.redemption.status === 'pending' ? t('Asked for {title}. Waiting for a grown-up.', { title: r.title }) : t('{title}: enjoy!', { title: r.title })
+      toast(said)
+      announce(said)
       load()
       reloadCore()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : `Couldn't get ${r.title}.`, true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't get {title}.", { title: r.title }), true)
       load()
     }
   }
@@ -131,28 +132,29 @@ function RewardsPanel({ member }: { member: Member }) {
   const cancelRequest = async (h: Redemption) => {
     const mine = h.shares?.[0].points ?? h.cost // a waiting split has only taken the asker's share
     if (!await dialog.confirm({
-      title: `Cancel the request for ${rewardLabel(h)}?`,
-      body: `${member.name} gets the ${plural(mine, 'point')} back.`,
-      confirmLabel: 'Cancel request',
-      cancelLabel: 'Keep it',
+      title: t('Cancel the request for {reward}?', { reward: rewardLabel(h) }),
+      body: t('{name} gets the {points} back.', { name: member.name, points: tn(mine, '{n} point', '{n} points') }),
+      confirmLabel: t('Cancel request'),
+      cancelLabel: t('Keep it'),
     })) return
     try {
       const res = await api.cancelRedemption(h.id)
       setBalance(res.balance)
-      const msg = `Canceled: ${h.title}. ${plural(mine, 'point')} back.`
-      toast(msg)
-      announce(msg)
-    } catch (e) { toast(e instanceof ApiError ? e.message : `Couldn't cancel ${h.title}.`, true) }
+      const said = t('Canceled: {title}. {points} back.', { title: h.title, points: tn(mine, '{n} point', '{n} points') })
+      toast(said)
+      announce(said)
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't cancel {title}.", { title: h.title }), true) }
     load()
     reloadCore()
   }
 
   const addSuggestion = async (s: Partial<Reward>) => {
     try {
-      await api.createReward({ memberIds: [], needsApproval: true, limit: null, ...s })
-      announce(`Added ${s.title}`)
+      const title = tm(s.title!)
+      await api.createReward({ memberIds: [], needsApproval: true, limit: null, ...s, title })
+      announce(t('Added {title}', { title }))
       load()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't add the reward.", true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't add the reward."), true) }
   }
 
   const goal = member.rewardGoal ?? null
@@ -162,9 +164,9 @@ function RewardsPanel({ member }: { member: Member }) {
     .flatMap(h => h.shares!.filter(x => x.memberId === member.id).map(x => ({ points: x.points, to: members.find(m => m.id === h.memberId)?.name ?? 'someone', h })))
   const promisedTotal = promised.reduce((n, x) => n + x.points, 0)
   const groups = [
-    { key: 'ready', title: 'Ready now', items: list.filter(r => !usedUp(r) && r.cost <= balance) },
-    { key: 'saving', title: 'Keep saving', items: list.filter(r => !usedUp(r) && r.cost > balance) },
-    { key: 'used', title: 'All used up for now', items: list.filter(usedUp) },
+    { key: 'ready', title: t('Ready now'), items: list.filter(r => !usedUp(r) && r.cost <= balance) },
+    { key: 'saving', title: t('Keep saving'), items: list.filter(r => !usedUp(r) && r.cost > balance) },
+    { key: 'used', title: t('All used up for now'), items: list.filter(usedUp) },
   ].filter(g => g.items.length)
   // Parents see every request in the queue above, so theirs isn't repeated.
   const waiting = parentDevice ? [] : history.filter(h => h.status === 'pending')
@@ -182,39 +184,39 @@ function RewardsPanel({ member }: { member: Member }) {
         <span className="sticker-pack-cover" aria-hidden="true">{r.emoji ?? '🎁'}</span>
         <span className="sticker-pack-name">{r.title}</span>
         <span className="reward-meta">
-          {plural(r.cost, 'point')}
-          {r.limit && !usedUp(r) && <> · {r.used ?? 0} of {r.limit.count} {periodWord(r.limit)}</>}
+          {tn(r.cost, '{n} point', '{n} points')}
+          {r.limit && !usedUp(r) && <> · {r.limit.period === 'day' ? t('{used} of {n} today', { used: r.used ?? 0, n: r.limit.count }) : t('{used} of {n} this week', { used: r.used ?? 0, n: r.limit.count })}</>}
         </span>
         {short > 0 && !usedUp(r) && <Meter have={balance} need={r.cost} color={member.color} />}
         <button className={`reward-goal-btn ${isGoal ? 'on' : ''}`} aria-pressed={isGoal} onClick={() => setGoal(r)}>
-          <span aria-hidden="true">{isGoal ? '★' : '☆'}</span> {isGoal ? 'Saving for this' : 'Save for this'}
+          <span aria-hidden="true">{isGoal ? '★' : '☆'}</span> {isGoal ? t('Saving for this') : t('Save for this')}
         </button>
         {usedUp(r)
-          ? <span className="reward-state">That's all for {periodWord(r.limit!)}</span>
+          ? <span className="reward-state">{r.limit!.period === 'day' ? t("That's all for today") : t("That's all for this week")}</span>
           : short > 0
-            ? <span className="reward-state">{plural(short, 'more point')}</span>
-            : <button className="btn btn-primary" onClick={() => redeem(r)} aria-label={`Get ${r.title} for ${plural(r.cost, 'point')}`}>Get it</button>}
-        {!usedUp(r) && canSplit(r) && <button className="reward-goal-btn" onClick={() => setSplitting(r)} aria-label={`Split ${r.title} with others`}>Split it</button>}
+            ? <span className="reward-state">{tn(short, '{n} more point', '{n} more points')}</span>
+            : <button className="btn btn-primary" onClick={() => redeem(r)} aria-label={t('Get {title} for {points}', { title: r.title, points: tn(r.cost, '{n} point', '{n} points') })}>{t('Get it')}</button>}
+        {!usedUp(r) && canSplit(r) && <button className="reward-goal-btn" onClick={() => setSplitting(r)} aria-label={t('Split {title} with others', { title: r.title })}>{t('Split it')}</button>}
       </li>
     )
   }
 
   return (
     <div className="stickers-shop scroll-y rewards">
-      <section className="rewards-hero" aria-label={`${member.name}'s points`}>
+      <section className="rewards-hero" aria-label={t("{name}'s points", { name: member.name })}>
         <Face m={member} className="rewards-avatar" aria-hidden="true" />
         <div className="rewards-hero-text">
-          <p className="rewards-balance"><strong>{member.name}</strong> has <strong className="rewards-points">{plural(balance, 'point')}</strong></p>
-          {promised.map(x => <p key={x.h.id} className="rewards-how rewards-promised">🤝 {x.points} promised to {x.to}'s {rewardLabel(x.h)}</p>)}
-          <p className="rewards-how">Earn points by doing <a href="#/chores">chores</a>. Spend them on rewards{settings.stickersEnabled ? ' and sticker packs' : ''}.</p>
-          <button type="button" className="link-btn rewards-ledger-btn" aria-haspopup="dialog" onClick={() => setLedger(true)}>Points history</button>
+          <p className="rewards-balance">{rich(t('{name} has {points}'), { name: <strong>{member.name}</strong>, points: <strong className="rewards-points">{tn(balance, '{n} point', '{n} points')}</strong> })}</p>
+          {promised.map(x => <p key={x.h.id} className="rewards-how rewards-promised">🤝 {t("{n} promised to {name}'s {reward}", { n: x.points, name: x.to, reward: rewardLabel(x.h) })}</p>)}
+          <p className="rewards-how">{rich(settings.stickersEnabled ? t('Earn points by doing {chores}. Spend them on rewards and sticker packs.') : t('Earn points by doing {chores}. Spend them on rewards.'), { chores: <a href="#/chores">{t('chores')}</a> })}</p>
+          <button type="button" className="link-btn rewards-ledger-btn" aria-haspopup="dialog" onClick={() => setLedger(true)}>{t('Points history')}</button>
         </div>
         {goal && (
           <div className="rewards-goal">
-            <span className="rewards-goal-title">Saving for {rewardLabel(goal)}</span>
+            <span className="rewards-goal-title">{t('Saving for {title}', { title: rewardLabel(goal) })}</span>
             <Meter have={balance} need={goal.cost} color={member.color} />
-            <span className="rewards-goal-left">{balance >= goal.cost ? 'Ready! Tap Get it below.' : `${balance} of ${goal.cost} · ${plural(goal.cost - balance, 'more point')}`}</span>
-            <button type="button" className="link-btn rewards-goal-stop" onClick={() => saveFor(null, '')}>Stop saving</button>
+            <span className="rewards-goal-left">{balance >= goal.cost ? t('Ready! Tap Get it below.') : `${t('{have} of {need}', { have: balance, need: goal.cost })} · ${tn(goal.cost - balance, '{n} more point', '{n} more points')}`}</span>
+            <button type="button" className="link-btn rewards-goal-stop" onClick={() => saveFor(null, '')}>{t('Stop saving')}</button>
           </div>
         )}
       </section>
@@ -223,14 +225,14 @@ function RewardsPanel({ member }: { member: Member }) {
 
       {waiting.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-waiting-heading">
-          <h3 id="reward-waiting-heading" className="snap-heading">Waiting for a grown-up</h3>
+          <h3 id="reward-waiting-heading" className="snap-heading">{t('Waiting for a grown-up')}</h3>
           <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} onCancel={ownDevice && h.memberId === member.id ? () => cancelRequest(h) : undefined} />)}</ul>
         </section>
       )}
 
       {handOver.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-handover-heading">
-          <h3 id="reward-handover-heading" className="snap-heading">Ask a grown-up to hand it over</h3>
+          <h3 id="reward-handover-heading" className="snap-heading">{t('Ask a grown-up to hand it over')}</h3>
           <ul className="snap-list">{handOver.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
         </section>
       )}
@@ -238,18 +240,18 @@ function RewardsPanel({ member }: { member: Member }) {
       {rewards && list.length === 0 && (
         <div className="empty-card rewards-empty">
           <span className="emoji" aria-hidden="true">🎁</span>
-          <p><strong>No rewards for {member.name} yet.</strong></p>
+          <p><strong>{t('No rewards for {name} yet.', { name: member.name })}</strong></p>
           {parentDevice ? <>
-            <p>Rewards are treats your family's points can buy. Tap one to add it, or make your own.</p>
+            <p>{t("Rewards are treats your family's points can buy. Tap one to add it, or make your own.")}</p>
             <div className="chip-row rewards-suggestions">
               {SUGGESTIONS.map(s => (
-                <button key={s.title} className="chip" onClick={() => addSuggestion(s)} aria-label={`Add ${s.title}, ${plural(s.cost!, 'point')}`}>
-                  {s.emoji} {s.title} · {s.cost} pts
+                <button key={s.title} className="chip" onClick={() => addSuggestion(s)} aria-label={t('Add {title}, {points}', { title: tm(s.title!), points: tn(s.cost!, '{n} point', '{n} points') })}>
+                  {s.emoji} {tm(s.title!)} · {t('{n} pts', { n: s.cost! })}
                 </button>
               ))}
             </div>
-            <button className="btn btn-primary" onClick={() => setAdding(true)}>Add your own</button>
-          </> : <p>A grown-up can add some. Keep doing chores to save up points!</p>}
+            <button className="btn btn-primary" onClick={() => setAdding(true)}>{t('Add your own')}</button>
+          </> : <p>{t('A grown-up can add some. Keep doing chores to save up points!')}</p>}
         </div>
       )}
 
@@ -263,13 +265,13 @@ function RewardsPanel({ member }: { member: Member }) {
       {settings.stickersEnabled && (
         <a className="rewards-stickers" href={`#/activities/stickers?member=${member.id}&tab=shop`}>
           <span className="rewards-stickers-icon" aria-hidden="true">🛍️</span>
-          <span><strong>Sticker packs</strong><span className="snap-meta">Spend points on stickers for {member.name}'s sticker book</span></span>
+          <span><strong>{t('Sticker packs')}</strong><span className="snap-meta">{t("Spend points on stickers for {name}'s sticker book", { name: member.name })}</span></span>
         </a>
       )}
 
       {past.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-history-heading">
-          <h3 id="reward-history-heading" className="snap-heading">Recent</h3>
+          <h3 id="reward-history-heading" className="snap-heading">{t('Recent')}</h3>
           <ul className="snap-list">{past.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
         </section>
       )}
@@ -287,16 +289,16 @@ function Meter({ have, need, color }: { have: number; need: number; color: strin
 
 function HistoryRow({ h, onCancel }: { h: Redemption; onCancel?: () => void }) {
   const { members } = useApp()
-  const cost = h.shares ? `${plural(h.cost, 'point')}: ${shareText(h.shares, id => members.find(m => m.id === id)?.name ?? 'Someone')}` : plural(h.cost, 'point')
+  const cost = h.shares ? `${tn(h.cost, '{n} point', '{n} points')}: ${shareText(h.shares, id => members.find(m => m.id === id)?.name ?? t('Someone'))}` : tn(h.cost, '{n} point', '{n} points')
   return (
     <li className="reward-history-row">
       <span className="approve-emoji" aria-hidden="true">{h.emoji ?? '🎁'}</span>
       <span className="snap-main">
         <span className="snap-title">{h.title}</span>
-        <span className="snap-meta">{format(new Date(h.requestedAt), 'EEE, MMM d')} · {cost}</span>
+        <span className="snap-meta">{formatDate(new Date(h.requestedAt), DAY)} · {cost}</span>
       </span>
-      <span className={`reward-status ${h.status}`}>{STATUS_TEXT[h.status]}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
-      {onCancel && <button className="btn btn-secondary reward-cancel" onClick={onCancel} aria-label={`Cancel the request for ${h.title}`}>Cancel request</button>}
+      <span className={`reward-status ${h.status}`}>{tm(STATUS_TEXT[h.status])}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
+      {onCancel && <button className="btn btn-secondary reward-cancel" onClick={onCancel} aria-label={t('Cancel the request for {title}', { title: h.title })}>{t('Cancel request')}</button>}
     </li>
   )
 }
@@ -311,18 +313,18 @@ function PointsHistorySheet({ member, onClose }: { member: Member; onClose: () =
   const [data, setData] = useState<{ balance: number; earnedTotal: number; spentTotal: number; entries: PointEntry[] } | null>(null)
   const [titles, setTitles] = useState<Map<string, Redemption>>(new Map())
   useEffect(() => {
-    api.getMemberPoints(member.id).then(setData).catch(() => toast("Couldn't load the points history.", true))
+    api.getMemberPoints(member.id).then(setData).catch(() => toast(t("Couldn't load the points history."), true))
     api.getRedemptions({ memberId: member.id }).then(rs => setTitles(new Map(rs.map(r => [r.id, r])))).catch(() => { /* rows just say "A reward" */ })
   }, [member.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const what = (e: PointEntry) => {
     const r = e.ref ? titles.get(e.ref) : undefined
-    const reward = r ? rewardLabel(r) : '🎁 A reward'
+    const reward = r ? rewardLabel(r) : `🎁 ${t('A reward')}`
     switch (e.reason) {
-      case 'bonus': return `⭐ Bonus points${e.note ? `: ${e.note}` : ''}`
-      case 'check_in': return '☀️ Daily check-in'
-      case 'reward': return r?.shares ? `${reward} (split)` : reward
-      case 'reward_refund': return `↩️ Points back: ${r?.title ?? 'a reward'}`
-      case 'sticker_pack': return `🛍️ Sticker pack${e.ref ? `: ${STICKER_NAME(e.ref)}` : ''}`
+      case 'bonus': return `⭐ ${e.note ? t('Bonus points: {note}', { note: e.note }) : t('Bonus points')}`
+      case 'check_in': return `☀️ ${t('Daily check-in')}`
+      case 'reward': return r?.shares ? t('{reward} (split)', { reward }) : reward
+      case 'reward_refund': return `↩️ ${t('Points back: {title}', { title: r?.title ?? t('a reward') })}`
+      case 'sticker_pack': return `🛍️ ${e.ref ? t('Sticker pack: {name}', { name: STICKER_NAME(e.ref) }) : t('Sticker pack')}`
       default: return e.reason
     }
   }
@@ -330,24 +332,24 @@ function PointsHistorySheet({ member, onClose }: { member: Member; onClose: () =
   const chores = data && data.entries.length < 50 ? data.earnedTotal - data.entries.reduce((n, e) => n + (e.amount > 0 && e.reason !== 'reward_refund' ? e.amount : 0), 0) : null
   const signed = (n: number) => (n > 0 ? `+${n}` : `−${-n}`)
   return (
-    <Sheet title={`${member.name}'s points`} onClose={onClose}>
-      {!data ? <p className="snap-empty">Loading…</p> : <>
-        <p className="settings-row-sub lib-intro">{plural(data.balance, 'point')} to spend · {data.earnedTotal} earned · {data.spentTotal} spent, in all</p>
+    <Sheet title={t("{name}'s points", { name: member.name })} onClose={onClose}>
+      {!data ? <p className="snap-empty">{t('Loading…')}</p> : <>
+        <p className="settings-row-sub lib-intro">{tn(data.balance, '{n} point to spend · {earned} earned · {spent} spent, in all', '{n} points to spend · {earned} earned · {spent} spent, in all', { earned: data.earnedTotal, spent: data.spentTotal })}</p>
         <ul className="snap-list">
           {chores !== null && chores > 0 && (
             <li className="reward-history-row">
-              <span className="snap-main"><span className="snap-title">✅ Chores</span><span className="snap-meta">All time</span></span>
+              <span className="snap-main"><span className="snap-title">✅ {t('Chores')}</span><span className="snap-meta">{t('All time')}</span></span>
               <span className="points-amount plus">{signed(chores)}</span>
             </li>
           )}
           {data.entries.map(e => (
             <li key={e.id} className="reward-history-row">
-              <span className="snap-main"><span className="snap-title">{what(e)}</span><span className="snap-meta">{format(new Date(e.at), 'EEE, MMM d')}</span></span>
+              <span className="snap-main"><span className="snap-title">{what(e)}</span><span className="snap-meta">{formatDate(new Date(e.at), DAY)}</span></span>
               <span className={`points-amount ${e.amount > 0 ? 'plus' : ''}`}>{signed(e.amount)}</span>
             </li>
           ))}
         </ul>
-        {!data.entries.length && <p className="snap-empty">No bonus points, check-ins or spending yet.</p>}
+        {!data.entries.length && <p className="snap-empty">{t('No bonus points, check-ins or spending yet.')}</p>}
       </>}
     </Sheet>
   )
@@ -370,27 +372,27 @@ function SplitSheet({ reward: r, member, onClose, onDone }: { reward: Reward; me
   }
   const sum = ids.reduce((n, id) => n + (points[id] ?? 0), 0)
   const valid = ids.length > 1 && sum === r.cost && people.every(p => (points[p.id] ?? 0) >= 1 && points[p.id] <= p.balance)
-  const status = ids.length < 2 ? "Pick who's chipping in." : sum === r.cost ? `✓ Adds up to ${plural(r.cost, 'point')}.` : sum < r.cost ? `⚠️ ${plural(r.cost - sum, 'more point')} to go.` : `⚠️ ${plural(sum - r.cost, 'point')} too many.`
+  const status = ids.length < 2 ? t("Pick who's chipping in.") : sum === r.cost ? `✓ ${t('Adds up to {points}.', { points: tn(r.cost, '{n} point', '{n} points') })}` : sum < r.cost ? `⚠️ ${tn(r.cost - sum, '{n} more point to go.', '{n} more points to go.')}` : `⚠️ ${tn(sum - r.cost, '{n} point too many.', '{n} points too many.')}`
   const step = r.cost >= 50 ? 5 : 1
   const move = (id: string, delta: number) => setPoints(v => movePoints(v, people, id, delta, r.cost))
   const submit = async () => {
     setBusy(true)
     try {
       const res = await api.redeemReward(r.id, member.id, ids.map(id => ({ memberId: id, points: points[id] })))
-      const msg = res.redemption.status === 'pending' ? `Asked for ${r.title}. Waiting for a grown-up.` : `${r.title}: enjoy!`
-      toast(msg)
-      announce(msg)
+      const said = res.redemption.status === 'pending' ? t('Asked for {title}. Waiting for a grown-up.', { title: r.title }) : t('{title}: enjoy!', { title: r.title })
+      toast(said)
+      announce(said)
       onDone(res)
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : `Couldn't get ${r.title}.`, true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't get {title}.", { title: r.title }), true)
       setBusy(false)
     }
   }
   return (
-    <Sheet title={`Split ${rewardLabel(r)}`} onClose={onClose}
-      actions={<button className="btn btn-primary" onClick={submit} disabled={!valid || busy}>{parentDevice ? 'Get it' : 'Ask a grown-up'}</button>}>
+    <Sheet title={t('Split {reward}', { reward: rewardLabel(r) })} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={submit} disabled={!valid || busy}>{parentDevice ? t('Get it') : t('Ask a grown-up')}</button>}>
       <div className="field">
-        <label id="split-who-label">Who's chipping in?</label>
+        <label id="split-who-label">{t("Who's chipping in?")}</label>
         <div className="chip-row" role="group" aria-labelledby="split-who-label">
           {others.map(m => (
             <button key={m.id} className={`chip ${ids.includes(m.id) ? 'active' : ''}`} aria-pressed={ids.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => pick(m.id)}><ChipFace m={m} /> {m.name}</button>
@@ -403,21 +405,21 @@ function SplitSheet({ reward: r, member, onClose, onDone }: { reward: Reward; me
             <Face m={p} className="stickers-avatar" aria-hidden="true" />
             <span className="snap-main">
               <span className="snap-title">{p.name}</span>
-              <span className={(points[p.id] ?? 0) > p.balance ? 'field-error reward-split-error' : 'snap-meta'}>{(points[p.id] ?? 0) > p.balance ? `⚠️ Only has ${plural(p.balance, 'point')}` : `Has ${plural(p.balance, 'point')}`}</span>
+              <span className={(points[p.id] ?? 0) > p.balance ? 'field-error reward-split-error' : 'snap-meta'}>{(points[p.id] ?? 0) > p.balance ? `⚠️ ${t('Only has {points}', { points: tn(p.balance, '{n} point', '{n} points') })}` : t('Has {points}', { points: tn(p.balance, '{n} point', '{n} points') })}</span>
             </span>
             {/* −/+ move points between people: the others' shares follow, so it keeps adding up. */}
-            <div className="suggest-stepper reward-split-stepper" role="group" aria-label={`${p.name}'s points`}>
-              <button type="button" className="icon-btn" aria-label={`${step} fewer from ${p.name}`} disabled={(points[p.id] ?? 0) <= 1} onClick={() => move(p.id, -step)}><MinusIcon width={20} height={20} /></button>
+            <div className="suggest-stepper reward-split-stepper" role="group" aria-label={t("{name}'s points", { name: p.name })}>
+              <button type="button" className="icon-btn" aria-label={t('{n} fewer from {name}', { n: step, name: p.name })} disabled={(points[p.id] ?? 0) <= 1} onClick={() => move(p.id, -step)}><MinusIcon width={20} height={20} /></button>
               <span aria-live="polite">{points[p.id] ?? 0}</span>
-              <button type="button" className="icon-btn" aria-label={`${step} more from ${p.name}`} disabled={(points[p.id] ?? 0) >= p.balance} onClick={() => move(p.id, step)}><PlusIcon width={20} height={20} /></button>
+              <button type="button" className="icon-btn" aria-label={t('{n} more from {name}', { n: step, name: p.name })} disabled={(points[p.id] ?? 0) >= p.balance} onClick={() => move(p.id, step)}><PlusIcon width={20} height={20} /></button>
             </div>
           </li>
         ))}
       </ul>
       <p className={sum !== r.cost && ids.length > 1 ? 'field-error reward-split-status' : 'field-hint'} aria-live="polite">{status}</p>
       <p className="field-hint">{parentDevice
-        ? "Everyone's points come off now."
-        : `A grown-up will OK it first. ${member.name}'s points come off now, everyone else's when a grown-up says yes.`}</p>
+        ? t("Everyone's points come off now.")
+        : `${t('A grown-up will OK it first.')} ${t("{name}'s points come off now, everyone else's when a grown-up says yes.", { name: member.name })}`}</p>
     </Sheet>
   )
 }
@@ -427,22 +429,22 @@ function RewardsManageSheet({ onClose }: { onClose: () => void }) {
   const { members, toast, refreshTick } = useApp()
   const [all, setAll] = useState<Reward[]>([])
   const [editing, setEditing] = useState<Reward | 'new' | null>(null)
-  const load = () => { api.getRewards({ archived: true }).then(setAll).catch(() => toast("Couldn't load rewards.", true)) }
+  const load = () => { api.getRewards({ archived: true }).then(setAll).catch(() => toast(t("Couldn't load rewards."), true)) }
   useEffect(load, [refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
-  const forWho = (r: Reward) => r.memberIds.length ? r.memberIds.map(id => members.find(m => m.id === id)?.name).filter(Boolean).join(', ') : 'Everyone'
-  const limitText = (r: Reward) => r.limit ? `up to ${r.limit.count} a ${r.limit.period}` : ''
+  const forWho = (r: Reward) => r.memberIds.length ? r.memberIds.map(id => members.find(m => m.id === id)?.name).filter(Boolean).join(', ') : t('Everyone')
+  const limitText = (r: Reward) => !r.limit ? '' : r.limit.period === 'day' ? t('up to {n} a day', { n: r.limit.count }) : t('up to {n} a week', { n: r.limit.count })
   return (
     <>
-      <Sheet title="Rewards" onClose={onClose} actions={<button className="btn btn-primary" onClick={() => setEditing('new')}>Add reward</button>}>
-        {all.length === 0 && <p className="snap-empty">No rewards yet. Add a few things worth saving up for.</p>}
+      <Sheet title={t('Rewards')} onClose={onClose} actions={<button className="btn btn-primary" onClick={() => setEditing('new')}>{t('Add reward')}</button>}>
+        {all.length === 0 && <p className="snap-empty">{t('No rewards yet. Add a few things worth saving up for.')}</p>}
         <ul className="snap-list">
           {all.map(r => (
             <li key={r.id}>
-              <button className={`snap-row reward-manage-row ${r.active ? '' : 'archived'}`} onClick={() => setEditing(r)} aria-label={`Edit ${r.title}`}>
+              <button className={`snap-row reward-manage-row ${r.active ? '' : 'archived'}`} onClick={() => setEditing(r)} aria-label={t('Edit {title}', { title: r.title })}>
                 <span className="approve-emoji" aria-hidden="true">{r.emoji ?? '🎁'}</span>
                 <span className="snap-main">
-                  <span className="snap-title">{r.title}{r.active ? '' : ' (archived)'}</span>
-                  <span className="snap-meta">{[plural(r.cost, 'point'), forWho(r), r.needsApproval ? "needs a parent's OK" : 'no OK needed', limitText(r)].filter(Boolean).join(' · ')}</span>
+                  <span className="snap-title">{r.title}{r.active ? '' : ` ${t('(archived)')}`}</span>
+                  <span className="snap-meta">{[tn(r.cost, '{n} point', '{n} points'), forWho(r), r.needsApproval ? t("needs a parent's OK") : t('no OK needed'), limitText(r)].filter(Boolean).join(' · ')}</span>
                 </span>
               </button>
             </li>
@@ -475,27 +477,27 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
       if (reward) await api.updateReward(reward.id, body)
       else await api.createReward(body)
       onSaved()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save the reward.", true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save the reward."), true) }
   }
   const del = async () => {
-    if (!reward || !await dialog.confirm({ title: `Delete “${reward.title}”?`, body: 'Past requests stay in history. Archiving keeps it out of sight without deleting.', confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteReward(reward.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete the reward.", true) }
+    if (!reward || !await dialog.confirm({ title: t('Delete “{title}”?', { title: reward.title }), body: t('Past requests stay in history. Archiving keeps it out of sight without deleting.'), confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteReward(reward.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't delete the reward."), true) }
   }
   const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
 
   return (
-    <Sheet title={reward ? 'Edit reward' : 'New reward'} onClose={onClose} dirty="auto"
+    <Sheet title={reward ? t('Edit reward') : t('New reward')} onClose={onClose} dirty="auto"
       actions={
         <>
-          <button className="btn btn-primary" onClick={() => save()} disabled={!valid}>{reward ? 'Save' : 'Add reward'}</button>
+          <button className="btn btn-primary" onClick={() => save()} disabled={!valid}>{reward ? t('Save') : t('Add reward')}</button>
         </>
       }>
       <div className="field">
-        <label htmlFor="reward-title">Name</label>
-        <input id="reward-title" type="text" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} placeholder="Movie night pick" autoComplete="off" autoFocus={!reward} />
+        <label htmlFor="reward-title">{t('Name')}</label>
+        <input id="reward-title" type="text" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Movie night pick')} autoComplete="off" autoFocus={!reward} />
       </div>
       <div className="field">
-        <label>Emoji</label>
+        <label>{t('Emoji')}</label>
         <div className="emoji-swatch-row">
           {REWARD_EMOJI.map(e => (
             <button key={e} className={`emoji-swatch ${emoji === e ? 'active' : ''}`} aria-pressed={emoji === e} onClick={() => setEmoji(e)}>{e}</button>
@@ -504,13 +506,13 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
         <AnyEmojiField value={emoji} onChange={setEmoji} />
       </div>
       <div className="field">
-        <label>Points</label>
-        <PointsStepper value={cost} min={1} max={10000} step={5} onChange={setCost} label="Points it costs" />
+        <label>{t('Points')}</label>
+        <PointsStepper value={cost} min={1} max={10000} step={5} onChange={setCost} label={t('Points it costs')} />
       </div>
       <div className="field">
-        <label id="reward-for-label">For</label>
+        <label id="reward-for-label">{t('For')}</label>
         <div className="chip-row" role="group" aria-labelledby="reward-for-label">
-          <button className={`chip ${memberIds.length === 0 ? 'active' : ''}`} aria-pressed={memberIds.length === 0} onClick={() => setMemberIds([])}>🌟 Everyone</button>
+          <button className={`chip ${memberIds.length === 0 ? 'active' : ''}`} aria-pressed={memberIds.length === 0} onClick={() => setMemberIds([])}>🌟 {t('Everyone')}</button>
           {members.map(m => (
             <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
@@ -518,31 +520,31 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
       </div>
       <div className="field">
         {/* The same select as a chore's (which also has Default, following the person). */}
-        <label htmlFor="reward-approval">Needs a parent's OK</label>
+        <label htmlFor="reward-approval">{t("Needs a parent's OK")}</label>
         <select id="reward-approval" value={needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'yes')}>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
+          <option value="yes">{t('Yes')}</option>
+          <option value="no">{t('No')}</option>
         </select>
-        <p className="field-hint">With Yes, redeeming on a wall screen or kid's device waits for a parent to approve. The points are set aside meanwhile and come back if you say not this time.</p>
+        <p className="field-hint">{t("With Yes, redeeming on a wall screen or kid's device waits for a parent to approve. The points are set aside meanwhile and come back if you say not this time.")}</p>
       </div>
       <div className="field">
-        <label id="reward-limit-label">Limit</label>
-        <Segmented label="Limit" value={limited ? 'on' : 'off'} onChange={v => setLimited(v === 'on')} options={[{ key: 'off', label: 'No limit' }, { key: 'on', label: 'Up to…' }]} />
+        <label id="reward-limit-label">{t('Limit')}</label>
+        <Segmented label={t('Limit')} value={limited ? 'on' : 'off'} onChange={v => setLimited(v === 'on')} options={[{ key: 'off', label: t('No limit') }, { key: 'on', label: t('Up to…') }]} />
         {limited && (
           <div className="reward-limit-row">
-            <span>Up to</span>
-            <input aria-label="How many" type="number" inputMode="numeric" min={1} max={20} value={count}
-              onChange={e => setCount(Math.min(20, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setCount(c => Math.max(1, c))} />
-            <span>a</span>
-            <Segmented label="Per" value={period} onChange={setPeriod} options={[{ key: 'day', label: 'day' }, { key: 'week', label: 'week' }]} />
+            {rich(tc('reward-limit', 'Up to {count} a {period}'), {
+              count: <input aria-label={t('How many')} type="number" inputMode="numeric" min={1} max={20} value={count}
+                onChange={e => setCount(Math.min(20, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setCount(c => Math.max(1, c))} />,
+              period: <Segmented label={t('Per')} value={period} onChange={setPeriod} options={[{ key: 'day', label: tc('reward-limit', 'day') }, { key: 'week', label: tc('reward-limit', 'week') }]} />,
+            })}
           </div>
         )}
-        <p className="field-hint">For each person. Requests you say not this time to don't count.</p>
+        <p className="field-hint">{t("For each person. Requests you say not this time to don't count.")}</p>
       </div>
       {reward && (
         <div className="sheet-danger-zone">
-          <button className="link-btn" onClick={() => save({ active: !reward.active })} disabled={!valid}>{reward.active ? 'Archive reward' : 'Restore reward'}</button>
-          <button className="link-btn link-danger" onClick={del}>Delete reward</button>
+          <button className="link-btn" onClick={() => save({ active: !reward.active })} disabled={!valid}>{reward.active ? t('Archive reward') : t('Restore reward')}</button>
+          <button className="link-btn link-danger" onClick={del}>{t('Delete reward')}</button>
         </div>
       )}
     </Sheet>

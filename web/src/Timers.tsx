@@ -6,6 +6,7 @@ import { PauseIcon, PlayIcon, ResetIcon, TimerIcon, XIcon } from './icons.tsx'
 import { timerActivity, timerName } from './liveActivity.ts'
 import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
 import Sheet from './Sheet.tsx'
+import { t } from './i18n.ts'
 import {
   cancelTimer, chimeDue, choreOfTimer, clock, durationLabel, forgetCancel, lastCancelled, undoCancel, getTimers, isRunning, pauseTimer, phase, resetTimer, resumeTimer, ringDue,
   startTimer, stopTimer, subscribeTimers, timerWords, untilNext, type NewTimer, type Timer,
@@ -48,10 +49,10 @@ function beep(soft = false) {
 }
 
 /** Starts a timer from a tap (so it can beep) and says so. */
-export function start(t: NewTimer) {
+export function start(x: NewTimer) {
   unlockSound()
-  startTimer(t)
-  announce(`${t.label} timer started`)
+  startTimer(x)
+  announce(t('{name} timer started', { name: x.label }))
 }
 
 const about = (t: Timer) => [t.title, t.detail].filter(Boolean).join(' · ')
@@ -75,19 +76,19 @@ export function TimerHost() {
     const check = chimeDue(Date.now())
     if (check.length) {
       beep(true); navigator.vibrate?.(150)
-      announce(`Check it: ${check.map(t => [t.label, about(t)].filter(Boolean).join(', ')).join('; ')}`)
+      announce(t('Check it: {timers}', { timers: check.map(x => [x.label, about(x)].filter(Boolean).join(', ')).join('; ') }))
       if (document.hidden && !inNativeApp() && 'Notification' in window && Notification.permission === 'granted') {
-        void navigator.serviceWorker?.ready.then(reg => reg.showNotification(`Check it: ${check.map(t => timerName(t.label)).join(', ')}`, { body: about(check[0]), tag: 'kinwall-timer-check', silent: true })).catch(() => {})
+        void navigator.serviceWorker?.ready.then(reg => reg.showNotification(t('Check it: {timers}', { timers: check.map(x => timerName(x.label)).join(', ') }), { body: about(check[0]), tag: 'kinwall-timer-check', silent: true })).catch(() => {})
       }
     }
     const up = ringDue(Date.now())
     if (!up.length) return
     beep(); navigator.vibrate?.([300, 150, 300])
-    announce(`Timer done: ${up.map(t => [t.label, about(t)].filter(Boolean).join(', ')).join('; ')}`, true)
+    announce(t('Timer done: {timers}', { timers: up.map(x => [x.label, about(x)].filter(Boolean).join(', ')).join('; ') }), true)
     // In another tab or app: a notification, if this device already allows them (never asks here).
     // Inside the iPhone/Android app the app rings them itself (the Live Activity's alarms).
     if (document.hidden && !inNativeApp() && 'Notification' in window && Notification.permission === 'granted') {
-      void navigator.serviceWorker?.ready.then(reg => reg.showNotification(`Time's up: ${up.map(t => timerName(t.label)).join(', ')}`, { body: about(up[0]), tag: 'kinwall-timer' })).catch(() => {})
+      void navigator.serviceWorker?.ready.then(reg => reg.showNotification(t("Time's up: {timers}", { timers: up.map(x => timerName(x.label)).join(', ') }), { body: about(up[0]), tag: 'kinwall-timer' })).catch(() => {})
     }
   }, [now, timers])
   // It keeps ringing, every few seconds, until someone taps OK.
@@ -123,18 +124,18 @@ export function TimerHost() {
   // One recipe's timers don't need its name on each.
   const oneRecipe = rang.every(t => t.title && t.title === rang[0].title)
   const undo = gone && createPortal(
-    <div className="toast toast-with-action timer-undo" role="status">Timer cancelled<button type="button" className="toast-action" onClick={() => { undoCancel(); announce(`${gone.label} timer back`) }}>Undo</button></div>,
+    <div className="toast toast-with-action timer-undo" role="status">{t('Timer canceled')}<button type="button" className="toast-action" onClick={() => { undoCancel(); announce(t('{name} timer back', { name: gone.label })) }}>{t('Undo')}</button></div>,
     document.body)
   if (!rang.length) return undo || null
   return <>{undo}{createPortal(
     <div className="timer-alarm">
       {/* A row and an OK each, so one can be silenced while another keeps ringing. */}
-      {rang.map(t => <div key={t.id} className="timer-alarm-row">
-        <span>⏰ Time's up: {oneRecipe && rang.length > 1 ? t.label : [t.label, about(t)].filter(Boolean).join(', ')}</span>
+      {rang.map(x => <div key={x.id} className="timer-alarm-row">
+        <span>⏰ {t("Time's up: {timers}", { timers: oneRecipe && rang.length > 1 ? x.label : [x.label, about(x)].filter(Boolean).join(', ') })}</span>
         {/* A chore's timer offers to mark it done: the Chores tab ticks it (who did it, a checklist, a parent's OK as usual). */}
         <div className="timer-alarm-actions">
-          {choreOfTimer(t) && <button type="button" className="btn" onClick={() => { stopTimer(t.id); location.hash = `#/chores?done=${encodeURIComponent(choreOfTimer(t)!)}&sure=1` }}>Mark done</button>}
-          <button type="button" className="btn" aria-label={rang.length > 1 ? `OK, ${timerName(t.label)}` : undefined} onClick={() => stopTimer(t.id)}>OK</button>
+          {choreOfTimer(x) && <button type="button" className="btn" onClick={() => { stopTimer(x.id); location.hash = `#/chores?done=${encodeURIComponent(choreOfTimer(x)!)}&sure=1` }}>{t('Mark done')}</button>}
+          <button type="button" className="btn" aria-label={rang.length > 1 ? t('OK, {name}', { name: timerName(x.label) }) : undefined} onClick={() => stopTimer(x.id)}>{t('OK')}</button>
         </div>
       </div>)}
     </div>,
@@ -146,20 +147,20 @@ export function TimerHost() {
  * whose name its own timers leave off (just the step). */
 export function TimerList({ timers, now, className = '', recipe }: { timers: Timer[]; now: number; className?: string; recipe?: string }) {
   return (
-    <ul className={`timer-bar ${className}`} aria-label="Running timers">
-      {timers.filter(t => !t.done).map(t => {
-        const paused = t.left !== undefined, name = [t.label, t.detail].filter(Boolean).join(', ')
-        const [words, more] = timerWords(t, now), checking = phase(t, now) === 'check'
-        return <li key={t.id} className={checking ? 'timer-checking' : undefined}>
-          <span className="timer-bar-label">{words}{more && <small className="timer-more">{more}</small>}{(t.title === recipe ? t.detail : about(t)) && <small>{t.title === recipe ? t.detail : about(t)}</small>}</span>
-          <strong className={`timer-clock ${paused ? 'timer-clock-paused' : ''}`}>{clock(untilNext(t, now))}{paused && <span className="sr-only">, paused</span>}</strong>
+    <ul className={`timer-bar ${className}`} aria-label={t('Running timers')}>
+      {timers.filter(x => !x.done).map(x => {
+        const paused = x.left !== undefined, name = [x.label, x.detail].filter(Boolean).join(', ')
+        const [words, more] = timerWords(x, now), checking = phase(x, now) === 'check'
+        return <li key={x.id} className={checking ? 'timer-checking' : undefined}>
+          <span className="timer-bar-label">{words}{more && <small className="timer-more">{more}</small>}{(x.title === recipe ? x.detail : about(x)) && <small>{x.title === recipe ? x.detail : about(x)}</small>}</span>
+          <strong className={`timer-clock ${paused ? 'timer-clock-paused' : ''}`}>{clock(untilNext(x, now))}{paused && <span className="sr-only">{t(', paused')}</span>}</strong>
           {/* A range past its check: it's ready when it looks ready. */}
-          {checking && <button type="button" className="btn btn-secondary timer-done" aria-label={`${name} is ready`} onClick={() => stopTimer(t.id)}>Ready</button>}
+          {checking && <button type="button" className="btn btn-secondary timer-done" aria-label={t('{name} is ready', { name })} onClick={() => stopTimer(x.id)}>{t('Ready')}</button>}
           {paused
-            ? <button type="button" className="icon-btn" aria-label={`Resume ${name} timer`} onClick={() => resumeTimer(t.id)}><PlayIcon width={18} height={18} /></button>
-            : <button type="button" className="icon-btn" aria-label={`Pause ${name} timer`} onClick={() => pauseTimer(t.id)}><PauseIcon width={18} height={18} /></button>}
-          <button type="button" className="icon-btn" aria-label={`Reset ${name} timer`} onClick={() => resetTimer(t.id)}><ResetIcon width={18} height={18} /></button>
-          <button type="button" className="icon-btn timer-cancel" aria-label={`Cancel ${name} timer`} onClick={() => cancelTimer(t.id)}><XIcon width={18} height={18} /></button>
+            ? <button type="button" className="icon-btn" aria-label={t('Resume {name} timer', { name })} onClick={() => resumeTimer(x.id)}><PlayIcon width={18} height={18} /></button>
+            : <button type="button" className="icon-btn" aria-label={t('Pause {name} timer', { name })} onClick={() => pauseTimer(x.id)}><PauseIcon width={18} height={18} /></button>}
+          <button type="button" className="icon-btn" aria-label={t('Reset {name} timer', { name })} onClick={() => resetTimer(x.id)}><ResetIcon width={18} height={18} /></button>
+          <button type="button" className="icon-btn timer-cancel" aria-label={t('Cancel {name} timer', { name })} onClick={() => cancelTimer(x.id)}><XIcon width={18} height={18} /></button>
         </li>
       })}
     </ul>
@@ -183,7 +184,7 @@ export function TimerButton() {
   const left = next && clock(untilNext(next, now))
   return (
     <>
-      <button className={`icon-btn header-bell ${next ? 'header-timer-on' : ''}`} onClick={() => setOpen(true)} aria-label={next ? `Timers, ${timerName(next.label)} has ${left} left` : 'Timer'}>
+      <button className={`icon-btn header-bell ${next ? 'header-timer-on' : ''}`} onClick={() => setOpen(true)} aria-label={next ? t('Timers, {name} has {time} left', { name: timerName(next.label), time: left! }) : t('Timer')}>
         <TimerIcon width={22} height={22} />
         {next && <span className="header-timer-clock" aria-hidden="true">{left}</span>}
       </button>
@@ -206,22 +207,22 @@ function TimerSheet({ onClose }: { onClose: () => void }) {
   }
   const waiting = timers.filter(t => !t.done)
   return (
-    <Sheet title="Timers" onClose={onClose}>
+    <Sheet title={t('Timers')} onClose={onClose}>
       {waiting.length > 0 && <TimerList timers={waiting} now={now} className="timer-bar-stack" />}
       <div className="field">
-        <label htmlFor="timer-name">Name (optional)</label>
-        <input id="timer-name" type="text" value={name} maxLength={40} placeholder="Pasta, reading…" onChange={e => setName(e.target.value)} />
+        <label htmlFor="timer-name">{t('Name (optional)')}</label>
+        <input id="timer-name" type="text" value={name} maxLength={40} placeholder={t('Pasta, reading…')} onChange={e => setName(e.target.value)} />
       </div>
-      <div className="chip-row timer-presets" role="group" aria-label="Start a timer">
+      <div className="chip-row timer-presets" role="group" aria-label={t('Start a timer')}>
         {PRESETS.map(m => <button key={m} type="button" className="chip" onClick={() => go(m)}>{durationLabel(m)}</button>)}
       </div>
       <form className="field timer-custom" onSubmit={e => { e.preventDefault(); if (valid) go(custom) }}>
-        <label htmlFor="timer-minutes">Other time (minutes)</label>
+        <label htmlFor="timer-minutes">{t('Other time (minutes)')}</label>
         <div className="timer-custom-row">
           <input id="timer-minutes" type="text" inputMode="decimal" value={minutes} placeholder="25" onChange={e => setMinutes(e.target.value)} />
-          <button type="submit" className="btn btn-primary" disabled={!valid} aria-describedby={valid ? undefined : 'timer-start-hint'}>Start</button>
+          <button type="submit" className="btn btn-primary" disabled={!valid} aria-describedby={valid ? undefined : 'timer-start-hint'}>{t('Start')}</button>
         </div>
-        {!valid && <p id="timer-start-hint" className="field-hint">{minutes.trim() ? 'Type a number of minutes, up to 1440 (a day).' : 'Type how many minutes to start it, or tap a time above.'}</p>}
+        {!valid && <p id="timer-start-hint" className="field-hint">{minutes.trim() ? t('Type a number of minutes, up to 1440 (a day).') : t('Type how many minutes to start it, or tap a time above.')}</p>}
       </form>
     </Sheet>
   )

@@ -1,3 +1,5 @@
+import { msg, t, tn } from './i18n.ts'
+import type { Lang } from './i18n.ts'
 import type { CalendarFilter } from './calendarFilter.ts'
 import type { BoardPreset } from './boardLayout.ts'
 import type { DeviceKind } from './wallScreen.ts'
@@ -49,6 +51,7 @@ export interface Settings {
   timeFormat: TimeFormat // the family's; a device can pick its own
   defaultGroceryStore?: string | null // Shop on a Groceries list starts here (no store step); null: Shop asks
   defaultShoppingStore?: string | null // the same for other shopping lists
+  language?: Lang // the family's language (i18n.ts); absent (an older server) = English
   defaultCalendarId?: string | null // a parent's pick for new events; null: the server picks (CalendarEntry.default)
   defaultEventMinutes?: number // how long a new event lasts once its start is picked (60 unless changed)
   defaultReminderMinutes: number[]
@@ -214,6 +217,7 @@ export interface Member {
   rewardGoal?: { rewardId: string; title: string; emoji: string | null; cost: number } | null // the reward they're saving for
   tempCheck?: TempCheckSettings // their daily questions (a parent sets them)
   todayGoal?: string | null // their Temp check goal for today
+  language?: Lang | null // their own language, on their own devices and in activities; null = the device's, then the family's (i18n.ts)
   privateJournal?: { on: boolean; allowed: boolean } // new entries private (only their own devices read the words); allowed: grown-ups always, kids when a parent allows it
 }
 
@@ -374,19 +378,19 @@ export interface HiddenEvent { id: string; calendarId: string; scope: 'occurrenc
 
 /** Reminder select options shared by the event edit sheet and Settings' household default. */
 export const REMINDER_OPTIONS: { value: string; label: string; minutes: number[] }[] = [
-  { value: 'none', label: 'None', minutes: [] },
-  { value: '5', label: '5 minutes', minutes: [5] },
-  { value: '10', label: '10 minutes', minutes: [10] },
-  { value: '15', label: '15 minutes', minutes: [15] },
-  { value: '30', label: '30 minutes', minutes: [30] },
-  { value: '60', label: '1 hour', minutes: [60] },
-  { value: '1440', label: '1 day', minutes: [1440] },
+  { value: 'none', label: msg('None'), minutes: [] },
+  { value: '5', label: msg('5 minutes'), minutes: [5] },
+  { value: '10', label: msg('10 minutes'), minutes: [10] },
+  { value: '15', label: msg('15 minutes'), minutes: [15] },
+  { value: '30', label: msg('30 minutes'), minutes: [30] },
+  { value: '60', label: msg('1 hour'), minutes: [60] },
+  { value: '1440', label: msg('1 day'), minutes: [1440] },
 ]
 
 export function reminderLabel(minutes: number[] | null | undefined): string | null {
   if (!minutes || minutes.length === 0) return null
-  const one = (m: number) => m % 1440 === 0 ? `${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `${m / 60} hour${m === 60 ? '' : 's'}` : `${m} min`
-  return [...new Set(minutes)].sort((a, b) => a - b).map(one).join(', ') + ' before'
+  const one = (m: number) => m % 1440 === 0 ? tn(m / 1440, '{n} day', '{n} days') : m % 60 === 0 ? tn(m / 60, '{n} hour', '{n} hours') : tn(m, '{n} min', '{n} min')
+  return t('{times} before', { times: [...new Set(minutes)].sort((a, b) => a - b).map(one).join(', ') })
 }
 
 export interface Category {
@@ -402,11 +406,11 @@ export interface Category {
 /** One-tap starter presets offered by "Add category" in Settings - prefill the edit sheet, don't
  * create anything until the user saves. */
 export const CATEGORY_PRESETS: { name: string; emoji: string; keywords: string[] }[] = [
-  { name: 'Birthdays', emoji: '🎂', keywords: ['birthday', 'bday', 'b-day'] },
-  { name: 'Appointments', emoji: '🏥', keywords: ['dentist', 'doctor', 'appt', 'appointment', 'orthodontist'] },
-  { name: 'Sports', emoji: '⚽', keywords: ['practice', 'game', 'soccer', 'baseball', 'basketball', 'swim'] },
-  { name: 'School', emoji: '🏫', keywords: ['school', 'pta', 'conference', 'field trip'] },
-  { name: 'Travel', emoji: '✈️', keywords: ['flight', 'trip', 'hotel', 'vacation'] },
+  { name: msg('Birthdays'), emoji: '🎂', keywords: ['birthday', 'bday', 'b-day'] },
+  { name: msg('Appointments'), emoji: '🏥', keywords: ['dentist', 'doctor', 'appt', 'appointment', 'orthodontist'] },
+  { name: msg('Sports'), emoji: '⚽', keywords: ['practice', 'game', 'soccer', 'baseball', 'basketball', 'swim'] },
+  { name: msg('School'), emoji: '🏫', keywords: ['school', 'pta', 'conference', 'field trip'] },
+  { name: msg('Travel'), emoji: '✈️', keywords: ['flight', 'trip', 'hotel', 'vacation'] },
 ]
 
 export interface Chore {

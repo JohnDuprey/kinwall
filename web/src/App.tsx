@@ -51,6 +51,7 @@ import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
 import { MedicationLiveActivity } from './TakeNow.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
+import { intlLocale, lang, msg, pickLang, rememberLang, setLang, t, tc, tn, tm } from './i18n.ts'
 import { dateKey } from './date.ts'
 import { nightFieldsFor, nightSources } from './saverSources.ts'
 import { onMinute } from './minuteTick.ts'
@@ -60,20 +61,23 @@ import { Brand } from './Brand.tsx'
 import { applyScreenScale, appliedScale } from './screenScale.ts'
 import { Face, FacePic } from './Face'
 import { useBackClose } from './backStack.ts'
+import { rich } from './rich.tsx'
+
+/** A translated sentence with React nodes (bold names) for its {placeholders}. */
 
 const NAV_ITEMS = [
-  { key: 'home', href: '#/home', label: 'Home', Icon: HomeIcon },
-  { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon }, // opens the view this device used last
-  { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
-  { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
-  { key: 'contacts', href: '#/contacts', label: 'Contacts', Icon: PersonIcon },
-  { key: 'meals', href: '#/meals', label: 'Meals', Icon: MealIcon },
-  { key: 'outings', href: '#/outings', label: 'Outings', Icon: TicketIcon },
-  { key: 'trackers', href: '#/trackers', label: 'Trackers', Icon: BookIcon },
-  { key: 'activities', href: '#/activities', label: 'Activities', Icon: BrushIcon },
+  { key: 'home', href: '#/home', label: msg('Home'), Icon: HomeIcon },
+  { key: 'calendar', href: '#/calendar', label: msg('Calendar'), Icon: CalendarIcon }, // opens the view this device used last
+  { key: 'chores', href: '#/chores', label: msg('Chores'), Icon: ChoreIcon },
+  { key: 'lists', href: '#/lists', label: msg('Lists'), Icon: ListIcon },
+  { key: 'contacts', href: '#/contacts', label: msg('Contacts'), Icon: PersonIcon },
+  { key: 'meals', href: '#/meals', label: msg('Meals'), Icon: MealIcon },
+  { key: 'outings', href: '#/outings', label: msg('Outings'), Icon: TicketIcon },
+  { key: 'trackers', href: '#/trackers', label: msg('Trackers'), Icon: BookIcon },
+  { key: 'activities', href: '#/activities', label: msg('Activities'), Icon: BrushIcon },
   // After the everyday views, so a phone's bottom bar keeps its four and Rewards sits under More.
-  { key: 'rewards', href: '#/rewards', label: 'Rewards', Icon: GiftIcon },
-  { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
+  { key: 'rewards', href: '#/rewards', label: msg('Rewards'), Icon: GiftIcon },
+  { key: 'settings', href: '#/settings', label: msg('Settings'), Icon: SettingsIcon },
 ] as const
 
 /** The nav's "spaces": areas of their own with several parts inside. Only a heading in the phone's More list. */
@@ -88,9 +92,9 @@ type NavItem = { key: string; href: string; label: string; Icon: (p: object) => 
  * on a phone's bottom bar, after Lists on a grown-up's (meSlot), and "Journal" while check-ins are on. */
 function navItems(s: Settings, me?: Member | null, plugins = false, lock?: LockedView, kid = false): NavItem[] {
   const items: NavItem[] = NAV_ITEMS.filter(i => !lockedOut(i.key, lock)).filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'outings' ? s.features.outings !== false : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
-  if (me) items.splice(meSlot(items.map(i => i.key), kid), 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => me.picture ? <Face m={me} className="nav-me nav-me-pic" aria-hidden="true" /> : <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
+  if (me) items.splice(meSlot(items.map(i => i.key), kid), 0, { key: 'profile', href: `#/profile/${me.id}`, label: msg('Me'), Icon: () => me.picture ? <Face m={me} className="nav-me nav-me-pic" aria-hidden="true" /> : <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
-  if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: 'Journal', Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
+  if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: msg('Journal'), Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
   return items
 }
 
@@ -126,7 +130,7 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
   // Parent devices: what's waiting for an OK, each thing on one badge (navBadgeCount).
   const count = (key: string) => navBadgeCount(key, items.map(i => i.key), toApprove, rewardRequests)
   const badgeFor = (n: number) => n > 0
-    ? <><span className="nav-badge" aria-hidden="true">{n > 9 ? '9+' : n}</span><span className="sr-only">, {n} to approve</span></>
+    ? <><span className="nav-badge" aria-hidden="true">{n > 9 ? '9+' : n}</span><span className="sr-only">{t(', {n} to approve', { n })}</span></>
     : null
   const badge = (key: string) => badgeFor(count(key))
   const bottom = mode === 'bottom'
@@ -137,25 +141,25 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
   const inRest = rest.some(i => i.key === tab)
   const btn = bottom ? 'tab-btn' : 'nav-rail-btn'
   return (
-    <nav className={bottom ? 'tab-bar' : `nav-rail nav-rail-${mode}`} aria-label="Main">
+    <nav className={bottom ? 'tab-bar' : `nav-rail nav-rail-${mode}`} aria-label={t('Main')}>
       {shown.map(item => (
-        <a key={item.key} href={item.href} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${item.label}` : <span>{item.label}</span>}{badge(item.key)}</a>
+        <a key={item.key} href={item.href} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${tm(item.label)}` : <span>{tm(item.label)}</span>}{badge(item.key)}</a>
       ))}
       {overflow && (
         <button className={`${btn} ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
-          aria-label={inRest ? `More, showing ${rest.find(i => i.key === tab)!.label}` : 'More'}>
-          <MoreIcon />{bottom ? ' More' : <span>More</span>}{badgeFor(Math.max(0, ...rest.map(i => count(i.key))))}
+          aria-label={inRest ? t('More, showing {tab}', { tab: tm(rest.find(i => i.key === tab)!.label) }) : t('More')}>
+          <MoreIcon />{bottom ? ` ${t('More')}` : <span>{t('More')}</span>}{badgeFor(Math.max(0, ...rest.map(i => count(i.key))))}
         </button>
       )}
       {more && (
-        <Sheet title="More" onClose={() => setMore(false)}>
+        <Sheet title={t('More')} onClose={() => setMore(false)}>
           <div className="more-list">
             {rest.map((item, i) => (<Fragment key={item.key}>
               {/* "Spaces": the spaces with several parts inside (Meals, Outings, Trackers, Activities) get a heading. */}
-              {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">Spaces</h3>}
+              {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">{t('Spaces')}</h3>}
               <a className={`more-row ${tab === item.key ? 'active' : ''} ${!NOOKS.has(item.key) && NOOKS.has(rest[i - 1]?.key ?? '') ? 'more-after-group' : ''}`} href={item.href} aria-current={tab === item.key ? 'page' : undefined}
                 onClick={() => setMore(false)}>
-                <item.Icon /> <span>{item.label}</span>{badge(item.key)}
+                <item.Icon /> <span>{tm(item.label)}</span>{badge(item.key)}
               </a>
             </Fragment>))}
           </div>
@@ -242,8 +246,8 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
     const events = ['pointerdown', 'keydown']
     events.forEach(ev => window.addEventListener(ev, touch))
     const stopTick = onMinute(() => setNow(new Date()))
-    const onPreview = () => { setManual('preview'); announce('Previewing the Night screen for 20 seconds. Tap or press Escape to end.') }
-    const onStart = () => { setManual('hold'); const rest = restingHash(readDeviceAppearance().lockView); if (hashPath(location.hash) !== rest) location.hash = rest; announce('Night screen on. Tap or press any key to end.') }
+    const onPreview = () => { setManual('preview'); announce(t('Previewing the Night screen for 20 seconds. Tap or press Escape to end.')) }
+    const onStart = () => { setManual('hold'); const rest = restingHash(readDeviceAppearance().lockView); if (hashPath(location.hash) !== rest) location.hash = rest; announce(t('Night screen on. Tap or press any key to end.')) }
     window.addEventListener(SAVER_PREVIEW_EVENT, onPreview)
     window.addEventListener(SAVER_START_EVENT, onStart)
     return () => { stopTick(); events.forEach(ev => window.removeEventListener(ev, touch)); window.removeEventListener(SAVER_PREVIEW_EVENT, onPreview); window.removeEventListener(SAVER_START_EVENT, onStart) }
@@ -300,12 +304,12 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
       </div>
     )
   return (
-    <div ref={overlay} className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={activate}
+    <div ref={overlay} className="quiet-overlay" role="button" tabIndex={0} aria-label={t('Wake display')} onClick={activate}
       onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); activate() } }}>
       {locked && keypad ? <PinKeypad onWake={wake} onIdle={hideKeypad} />
         : sources.length ? <Slideshow sources={sources} device={night} clock={clock} spot={spot} /> : clock(false)}
       {/* Settings' Preview: say so for 3 s (fades via CSS), so a black screen doesn't look frozen. */}
-      {preview && <div className="saver-preview-pill" aria-hidden="true">Preview: tap to end</div>}
+      {preview && <div className="saver-preview-pill" aria-hidden="true">{t('Preview: tap to end')}</div>}
     </div>
   )
 }
@@ -353,9 +357,9 @@ function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void 
       if ((await api.verifyQuietPin(entry)).ok) { pinFailures = 0; onWake(); return }
       pinFailures++
       pinWaitUntil = Date.now() + pinWaitMs(pinFailures)
-      setMsg('Try again'); setShake(s => s + 1)
+      setMsg(t('Try again')); setShake(s => s + 1)
     } catch (e) {
-      setMsg(e instanceof ApiError && e.status === 429 ? 'Wait a few minutes' : "Can't check right now")
+      setMsg(e instanceof ApiError && e.status === 429 ? t('Wait a few minutes') : t("Can't check right now"))
     } finally {
       setBusy(false); setEntry(''); setNow(Date.now())
     }
@@ -371,16 +375,16 @@ function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
-  const wait = waitLeft >= 60_000 ? `Wait ${Math.ceil(waitLeft / 60_000)} min` : waitLeft ? `Wait ${Math.ceil(waitLeft / 1000)} s` : ''
+  const wait = waitLeft >= 60_000 ? t('Wait {n} min', { n: Math.ceil(waitLeft / 60_000) }) : waitLeft ? t('Wait {n} s', { n: Math.ceil(waitLeft / 1000) }) : ''
   return (
-    <div className="quiet-keypad" role="group" aria-label="PIN" onClick={e => e.stopPropagation()}>
-      <div className={`quiet-keypad-dots ${shake ? 'quiet-keypad-shake' : ''}`} key={shake} aria-label={`${entry.length} digits`}>
+    <div className="quiet-keypad" role="group" aria-label={t('PIN')} onClick={e => e.stopPropagation()}>
+      <div className={`quiet-keypad-dots ${shake ? 'quiet-keypad-shake' : ''}`} key={shake} aria-label={tn(entry.length, '{n} digit', '{n} digits')}>
         {[...entry].map((_, i) => <span key={i} />)}
       </div>
       <div className="quiet-keypad-msg" role="status">{wait || msg}</div>
       <div className="quiet-keypad-grid">
         {PIN_KEYS.map(k => (
-          <button key={k} type="button" className="quiet-key" disabled={busy || !!waitLeft} aria-label={k === 'back' ? 'Delete' : k === 'ok' ? 'Done' : undefined} onClick={() => press(k)}>
+          <button key={k} type="button" className="quiet-key" disabled={busy || !!waitLeft} aria-label={k === 'back' ? t('Delete') : k === 'ok' ? t('Done') : undefined} onClick={() => press(k)}>
             {k === 'back' ? '⌫' : k === 'ok' ? '✓' : k}
           </button>
         ))}
@@ -392,7 +396,7 @@ function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void 
 function clockStrings(now: Date, tz: string | undefined) {
   return {
     time: formatTime(now, tz),
-    date: new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now),
+    date: new Intl.DateTimeFormat(intlLocale(), { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now),
   }
 }
 
@@ -407,17 +411,17 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
     const result = await checkKey(value.trim())
     setBusy(false)
     if (result === 'ok') { setKey(value.trim()); onKey() }
-    else setError(result === 'rejected' ? "That key didn't work. Check it and try again." : "Couldn't reach Kinwall. Check your connection and try again.")
+    else setError(result === 'rejected' ? t("That key didn't work. Check it and try again.") : t("Couldn't reach Kinwall. Check your connection and try again."))
   }
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
         <Brand />
         <HelpButton className="help-float" />
-        <h1>Welcome home 👋</h1>
-        <p>Paste the key a parent made for this device under Settings → Access.</p>
+        <h1>{t('Welcome home 👋')}</h1>
+        <p>{t('Paste the key a parent made for this device under Settings → Access.')}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>Key</label>
+          <label>{t('Key')}</label>
           <input
             type="password"
             value={value}
@@ -426,8 +430,8 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
           />
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? 'Checking…' : 'Unlock'}</button>
-        <button className="link-btn" style={{ marginTop: 14 }} onClick={onBack}>Back</button>
+        <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? t('Checking…') : t('Unlock')}</button>
+        <button className="link-btn" style={{ marginTop: 14 }} onClick={onBack}>{t('Back')}</button>
       </div>
     </div>
   )
@@ -445,10 +449,11 @@ function RecoveryCodeGate({ onKey, onBack }: { onKey: (banner?: string) => void;
       const res = await api.recoveryLogin(value.trim())
       setKey(res.key)
       location.hash = '#/settings?tab=access'
-      const left = res.remaining <= 2 ? ` (${res.remaining} recovery code${res.remaining === 1 ? '' : 's'} left)` : ''
-      onKey(`Signed in with a recovery code — add a new passkey now${left}`)
+      onKey(res.remaining <= 2
+        ? tn(res.remaining, 'Signed in with a recovery code — add a new passkey now ({n} recovery code left)', 'Signed in with a recovery code — add a new passkey now ({n} recovery codes left)')
+        : t('Signed in with a recovery code — add a new passkey now'))
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not reach the server.')
+      setError(e instanceof ApiError ? e.message : t('Could not reach the server.'))
     } finally {
       setBusy(false)
     }
@@ -457,10 +462,10 @@ function RecoveryCodeGate({ onKey, onBack }: { onKey: (banner?: string) => void;
     <div className="gate-screen" role="main">
       <div className="gate-card">
         <Brand />
-        <h1>Use a recovery code</h1>
-        <p>Enter one of the codes you saved when you set up Kinwall. Each code works once.</p>
+        <h1>{t('Use a recovery code')}</h1>
+        <p>{t('Enter one of the codes you saved when you set up Kinwall. Each code works once.')}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>Recovery code</label>
+          <label>{t('Recovery code')}</label>
           <input
             type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false} autoFocus
             placeholder="XXXX-XXXX-XXXX"
@@ -471,8 +476,8 @@ function RecoveryCodeGate({ onKey, onBack }: { onKey: (banner?: string) => void;
           />
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? 'Checking…' : 'Sign in'}</button>
-        <button className="link-btn" style={{ marginTop: 14 }} onClick={onBack}>Back</button>
+        <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? t('Checking…') : t('Sign in')}</button>
+        <button className="link-btn" style={{ marginTop: 14 }} onClick={onBack}>{t('Back')}</button>
       </div>
     </div>
   )
@@ -494,7 +499,7 @@ export function QrCode({ value, size = 168 }: { value: string; size?: number }) 
     return { path: d, dim: data.length + quiet * 2 }
   }, [value])
   return (
-    <svg role="img" aria-label="QR code" width={size} height={size} viewBox={`0 0 ${dim} ${dim}`} style={{ background: '#fff', borderRadius: 12, flexShrink: 0 }}>
+    <svg role="img" aria-label={t('QR code')} width={size} height={size} viewBox={`0 0 ${dim} ${dim}`} style={{ background: '#fff', borderRadius: 12, flexShrink: 0 }}>
       <path d={path} fill="#000" />
     </svg>
   )
@@ -525,7 +530,7 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
       setKey(session.key)
       onKey()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Passkey sign-in failed')
+      setError(e instanceof Error ? e.message : t('Passkey sign-in failed'))
     } finally {
       setPasskeyBusy(false)
     }
@@ -542,32 +547,32 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
     <div className="gate-screen" role="main">
       <div className="gate-card">
         <Brand />
-        <h1>Welcome home 👋</h1>
-        <p>Sign in to manage your family's calendar, chores and lists.</p>
+        <h1>{t('Welcome home 👋')}</h1>
+        <p>{t("Sign in to manage your family's calendar, chores and lists.")}</p>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
         {inNativeApp() ? <>
           {/* Passkeys need the app to be tied to this server's domain, which a self-hosted server can't be. */}
-          <button className="btn btn-primary btn-block" onClick={() => setMode('pair')}>Pair this app</button>
-          <p className="gate-note">Parents sign in with a passkey in Safari. Here, pair with a code a parent approves under Settings → Access.</p>
+          <button className="btn btn-primary btn-block" onClick={() => setMode('pair')}>{t('Pair this app')}</button>
+          <p className="gate-note">{t('Parents sign in with a passkey in Safari. Here, pair with a code a parent approves under Settings → Access.')}</p>
         </> : <>
           {/* On a wall-sized screen (or one already set to act as a wall), setting it up comes first. */}
           <div className="gate-choices">
             {[
               <div key="parent">
-                <button className={`btn ${wallFirst ? 'btn-secondary' : 'btn-primary'} btn-block`} onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in as a parent'}</button>
-                <p className="gate-note">With your passkey. Parents can change everything.</p>
+                <button className={`btn ${wallFirst ? 'btn-secondary' : 'btn-primary'} btn-block`} onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? t('Checking…') : t('Sign in as a parent')}</button>
+                <p className="gate-note">{t('With your passkey. Parents can change everything.')}</p>
               </div>,
               <div key="wall">
-                <button className={`btn ${wallFirst ? 'btn-primary' : 'btn-secondary'} btn-block`} onClick={() => setMode('pair')}>Set up a wall screen or kid's device</button>
-                <p className="gate-note">A parent approves it with a code. It gets the calendar, chores and lists, but not settings.</p>
+                <button className={`btn ${wallFirst ? 'btn-primary' : 'btn-secondary'} btn-block`} onClick={() => setMode('pair')}>{t("Set up a wall screen or kid's device")}</button>
+                <p className="gate-note">{t('A parent approves it with a code. It gets the calendar, chores and lists, but not settings.')}</p>
               </div>,
             ][wallFirst ? 'reverse' : 'slice']()}
           </div>
         </>}
         <div className="gate-links">
-          {inNativeApp() && back && <button className="link-btn" onClick={back}>Back to sign in</button>}
-          <button className="link-btn" onClick={() => setMode('manual')}>Enter a key manually</button>
-          <button className="link-btn" onClick={() => setMode('recovery')}>Use a recovery code</button>
+          {inNativeApp() && back && <button className="link-btn" onClick={back}>{t('Back to sign in')}</button>}
+          <button className="link-btn" onClick={() => setMode('manual')}>{t('Enter a key manually')}</button>
+          <button className="link-btn" onClick={() => setMode('recovery')}>{t('Use a recovery code')}</button>
         </div>
       </div>
     </div>
@@ -585,7 +590,7 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
     try {
       setPairing(await api.pairStart())
     } catch {
-      setError('Could not reach the server.')
+      setError(t('Could not reach the server.'))
     }
   }, [])
 
@@ -627,8 +632,8 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
       <div className="gate-screen" role="main">
         <div className="gate-card">
           <Brand />
-          <h1>You're connected! 🎉</h1>
-          <p>Loading your family calendar…</p>
+          <h1>{t("You're connected! 🎉")}</h1>
+          <p>{t('Loading your family calendar…')}</p>
         </div>
       </div>
     )
@@ -641,21 +646,21 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
     <div className="gate-screen" role="main">
       <div className="gate-card pairing-card">
         <Brand />
-        <h1>Set up this screen</h1>
-        <p>On a parent's phone or computer, open Kinwall → Settings → Access → Add a wall screen or kid's device, and enter this code:</p>
+        <h1>{t('Set up this screen')}</h1>
+        <p>{t("On a parent's phone or computer, open Kinwall → Settings → Access → Add a wall screen or kid's device, and enter this code:")}</p>
         <div className="pairing-body">
           <div className="pairing-code">
             <span aria-hidden="true">{digits ? `${digits.slice(0, 3)} ${digits.slice(3)}` : '⋯'}</span>
-            <span className="sr-only">{digits ? `Code: ${digits.split('').join(' ')}` : 'Getting a code…'}</span>
+            <span className="sr-only">{digits ? t('Code: {code}', { code: digits.split('').join(' ') }) : t('Getting a code…')}</span>
           </div>
           {pairing && <QrCode value={qrValue} />}
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-        <p className="settings-row-sub">Or scan it with a parent's phone. The code refreshes on its own if it expires.</p>
+        <p className="settings-row-sub">{t("Or scan it with a parent's phone. The code refreshes on its own if it expires.")}</p>
         <div className="gate-links">
-          {onBack && <button className="link-btn" onClick={onBack}>Back to sign in</button>}
-          <button className="link-btn" onClick={onManual}>Enter a key manually</button>
-          {onRecovery && <button className="link-btn" onClick={onRecovery}>Use a recovery code</button>}
+          {onBack && <button className="link-btn" onClick={onBack}>{t('Back to sign in')}</button>}
+          <button className="link-btn" onClick={onManual}>{t('Enter a key manually')}</button>
+          {onRecovery && <button className="link-btn" onClick={onRecovery}>{t('Use a recovery code')}</button>}
         </div>
       </div>
     </div>
@@ -672,7 +677,7 @@ function PairPhoneScreen({ code }: { code: string }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [useAdminField, setUseAdminField] = useState(false)
   const [adminKeyValue, setAdminKeyValue] = useState('')
-  const [name, setName] = useState('Wall screen')
+  const [name, setName] = useState(() => t('Wall screen'))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -691,10 +696,10 @@ function PairPhoneScreen({ code }: { code: string }) {
     setAdminKey(adminKeyValue.trim())
     try {
       const me = await api.checkAdminKey()
-      if (me.scope !== 'admin') throw new ApiError(403, 'That key is not admin-scoped')
+      if (me.scope !== 'admin') throw new ApiError(403, t('That key is not admin-scoped'))
       setIsAdmin(true)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Admin key rejected')
+      setError(e instanceof ApiError ? e.message : t('Admin key rejected'))
     } finally {
       setBusy(false)
     }
@@ -707,7 +712,7 @@ function PairPhoneScreen({ code }: { code: string }) {
       setAdminKey(session.key)
       setIsAdmin(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Passkey sign-in failed')
+      setError(e instanceof Error ? e.message : t('Passkey sign-in failed'))
     } finally {
       setBusy(false)
     }
@@ -720,7 +725,7 @@ function PairPhoneScreen({ code }: { code: string }) {
       await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setDone(true)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not pair display')
+      setError(e instanceof ApiError ? e.message : t('Could not pair display'))
     } finally {
       setBusy(false)
     }
@@ -731,8 +736,8 @@ function PairPhoneScreen({ code }: { code: string }) {
       <div className="gate-screen" role="main">
         <div className="gate-card">
           <Brand />
-          <h1>Connected! 🎉</h1>
-          <p>{name} is connected — you can close this page.</p>
+          <h1>{t('Connected! 🎉')}</h1>
+          <p>{t('{name} is connected — you can close this page.', { name })}</p>
         </div>
       </div>
     )
@@ -742,48 +747,48 @@ function PairPhoneScreen({ code }: { code: string }) {
     <div className="gate-screen" role="main">
       <div className="gate-card">
         <Brand />
-        <h1>Add a wall screen or kid's device</h1>
-        <p>Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.</p>
+        <h1>{t("Add a wall screen or kid's device")}</h1>
+        <p>{t("Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>Code</label>
+          <label>{t('Code')}</label>
           <input type="text" value={code} readOnly
             style={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.12em', textAlign: 'center' }} />
         </div>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>Name</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Kitchen wall, Maya's tablet…" />
+          <label>{t('Name')}</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("Kitchen wall, Maya's tablet…")} />
         </div>
         {isAdmin && (
           <div className="field" style={{ textAlign: 'left' }}>
-            <label htmlFor="pair-kind">What is this device?</label>
+            <label htmlFor="pair-kind">{t('What is this device?')}</label>
             <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} members={members} />
-            <p className="settings-row-sub">A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.</p>
+            <p className="settings-row-sub">{t("A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.")}</p>
           </div>
         )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
           <div className="field" style={{ textAlign: 'left' }}>
-            <label>Admin key</label>
+            <label>{t('Admin key')}</label>
             <input type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder="Admin API key" autoFocus />
+              onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder={t('Admin API key')} autoFocus />
           </div>
         )}
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
         {checkingAdmin ? (
-          <p className="settings-row-sub">Checking…</p>
+          <p className="settings-row-sub">{t('Checking…')}</p>
         ) : isAdmin ? (
           <button className="btn btn-primary btn-block" onClick={approve} disabled={busy || code.length !== 6 || !name.trim()}>
-            {busy ? 'Pairing…' : 'Approve'}
+            {busy ? t('Pairing…') : t('Approve')}
           </button>
         ) : passkeysSupported() && !useAdminField ? (
           <>
             <button className="btn btn-primary btn-block" onClick={unlockWithPasskey} disabled={busy}>
-              {busy ? 'Checking…' : 'Approve as a parent'}
+              {busy ? t('Checking…') : t('Approve as a parent')}
             </button>
-            <button className="link-btn" style={{ marginTop: 10 }} onClick={() => setUseAdminField(true)}>Use an admin key</button>
+            <button className="link-btn" style={{ marginTop: 10 }} onClick={() => setUseAdminField(true)}>{t('Use an admin key')}</button>
           </>
         ) : (
           <button className="btn btn-primary btn-block" onClick={unlockAdmin} disabled={busy || !adminKeyValue.trim()}>
-            {busy ? 'Checking…' : 'Continue'}
+            {busy ? t('Checking…') : t('Continue')}
           </button>
         )}
       </div>
@@ -796,7 +801,7 @@ function PairPhoneScreen({ code }: { code: string }) {
  * register-token (this device has no key at all yet), then stores the session key it gets back
  * and becomes the admin device. Must be handled before the key gate, like `#/pair`. */
 function AdminSetupScreen({ token }: { token: string }) {
-  const [name, setName] = useState('My phone')
+  const [name, setName] = useState(() => t('My phone'))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -806,11 +811,11 @@ function AdminSetupScreen({ token }: { token: string }) {
     setBusy(true); setError('')
     try {
       const result = await registerPasskey(name.trim(), token)
-      if (!result.session) throw new Error('No session was issued — try again')
+      if (!result.session) throw new Error(t('No session was issued — try again'))
       setKey(result.session.key)
       setDone(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create your passkey')
+      setError(e instanceof Error ? e.message : t('Could not create your passkey'))
     } finally {
       setBusy(false)
     }
@@ -821,8 +826,8 @@ function AdminSetupScreen({ token }: { token: string }) {
       <div className="gate-screen" role="main">
         <div className="gate-card">
           <Brand />
-          <h1>You're the admin on this device 🎉</h1>
-          <button className="btn btn-primary btn-block" onClick={() => { location.hash = '#/home' }}>Continue</button>
+          <h1>{t("You're the admin on this device 🎉")}</h1>
+          <button className="btn btn-primary btn-block" onClick={() => { location.hash = '#/home' }}>{t('Continue')}</button>
         </div>
       </div>
     )
@@ -832,15 +837,15 @@ function AdminSetupScreen({ token }: { token: string }) {
     <div className="gate-screen" role="main">
       <div className="gate-card">
         <Brand />
-        <h1>Create your Kinwall passkey</h1>
-        <p>Use Face ID, Touch ID, or your device's screen lock to become the admin for this Kinwall.</p>
+        <h1>{t('Create your Kinwall passkey')}</h1>
+        <p>{t("Use Face ID, Touch ID, or your device's screen lock to become the admin for this Kinwall.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>Name this passkey</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="My phone" autoFocus />
+          <label>{t('Name this passkey')}</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('My phone')} autoFocus />
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
         <button className="btn btn-primary btn-block" onClick={create} disabled={busy || !name.trim()}>
-          {busy ? 'Creating…' : 'Create passkey'}
+          {busy ? t('Creating…') : t('Create passkey')}
         </button>
       </div>
     </div>
@@ -857,7 +862,7 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
     return () => window.removeEventListener(IDLE_RESET_EVENT, close)
   }, [])
   return (
-    <div className={`member-filter-row ${members.length >= 4 ? 'many' : ''}`} role="group" aria-label="Family members">
+    <div className={`member-filter-row ${members.length >= 4 ? 'many' : ''}`} role="group" aria-label={t('Family members')}>
       {members.map(m => (
         <button
           key={m.id}
@@ -865,7 +870,7 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
           className={`member-avatar ${selectedMemberId && selectedMemberId !== m.id ? 'dim' : ''} ${selectedMemberId === m.id ? 'selected' : ''}${m.picture ? ' face-has-pic' : ''}`}
           style={{ background: m.color, color: inkFor(m.color) }}
           onClick={() => setOpen(m)}
-          aria-label={`${m.name}'s day${selectedMemberId === m.id ? ' (showing only them)' : ''}`}
+          aria-label={selectedMemberId === m.id ? t("{name}'s day (showing only them)", { name: m.name }) : t("{name}'s day", { name: m.name })}
         >
           {m.avatar || m.name[0]}
           <FacePic m={m} />
@@ -896,7 +901,7 @@ function FamilyButton({ name, members, selectedMemberId }: { name: string; membe
   return (
     <>
       <button className="family-btn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
-        aria-label={`${name}: ${members.length} people${selected ? `, showing only ${selected.name}` : ''}`}>
+        aria-label={selected ? tn(members.length, '{name}: {n} person, showing only {who}', '{name}: {n} people, showing only {who}', { name, who: selected.name }) : tn(members.length, '{name}: {n} person', '{name}: {n} people', { name })}>
         <span className="family-pile" aria-hidden="true">
           {shown.map(m => <Face key={m.id} m={m} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} />)}
           {more > 0 && <span className="member-avatar-sm family-more">+{more}</span>}
@@ -917,17 +922,17 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
   const { settings } = useApp()
   return (
     <Sheet title={name} onClose={onClose}>
-      <p className="settings-row-sub family-hint">Tap a name to see their day, or Only to show just them.</p>
+      <p className="settings-row-sub family-hint">{t('Tap a name to see their day, or Only to show just them.')}</p>
       <div className="family-list">
         {members.map(m => (
           <div key={m.id} className="family-row-wrap">
             <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-haspopup="dialog" onClick={() => onSnapshot(m)}>
               <Face m={m} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} aria-hidden="true" />
               <span className="family-row-name">{m.name}</span>
-              {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Showing only them' : `${m.pointsToday} pts today`}</span>}
+              {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? t('Showing only them') : tn(m.pointsToday, '{n} pt today', '{n} pts today')}</span>}
             </button>
             <button className={`family-pick ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}
-              aria-label={`Show only ${m.name}`} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" />Only</button>
+              aria-label={t('Show only {name}', { name: m.name })} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" />{tc('family-pick', 'Only')}</button>
           </div>
         ))}
       </div>
@@ -955,7 +960,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   if (isPhone) {
     return (
       <header className="header header-phone">
-        <FamilyButton name={settings.familyName || 'Our Family'} members={members} selectedMemberId={selectedMemberId} />
+        <FamilyButton name={settings.familyName || t('Our Family')} members={members} selectedMemberId={selectedMemberId} />
         <div className="header-right">
           <OfflineIcon />
           <TimerButton />
@@ -970,9 +975,9 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   return (
     <header className="header">
       <div className="header-left">
-        <div className="family-name">{settings.familyName || 'Our Family'}</div>
+        <div className="family-name">{settings.familyName || t('Our Family')}</div>
         {/* Board view only (CSS): the name, big, over the space the hidden clock row keeps. */}
-        <div className="family-name-big" aria-hidden="true"><span>{settings.familyName || 'Our Family'}</span></div>
+        <div className="family-name-big" aria-hidden="true"><span>{settings.familyName || t('Our Family')}</span></div>
         <div className="clock-row">
           <div className="clock">{timeStr}</div>
           <div className="date-text">{dateStr}</div>
@@ -1013,22 +1018,23 @@ function KeyLinkGate({ children }: { children: (urlKey: string | null) => ReactN
       // name: null when refused, undefined when unreachable. A setup code is refused, except a
       // hosted one, which also works as a key until setup is done.
       const [name, setup] = await Promise.all([api.familyNameFor(link.key).catch(() => undefined), api.getSetup().catch(() => null)])
-      const replaces = getKey() ? ' This replaces the sign-in this browser has now.' : ''
+      const replaces = getKey() ? ` ${t('This replaces the sign-in this browser has now.')}` : ''
+      const bold = { host: <strong>{host}</strong>, name: <strong>{name}</strong> }
       if (setup?.claimed === false) {
         return dialog.confirm({
-          title: name ? `Set up ${name}?` : 'Set up a new family?',
-          body: <>This link starts setting up Kinwall at <strong>{host}</strong>. Continue only if you were expecting it.{replaces}</>,
-          confirmLabel: 'Continue',
+          title: name ? t('Set up {name}?', { name }) : t('Set up a new family?'),
+          body: <>{rich(t('This link starts setting up Kinwall at {host}. Continue only if you were expecting it.'), bold)}{replaces}</>,
+          confirmLabel: t('Continue'),
         })
       }
       if (name === null) {
-        await dialog.alert({ title: "This link doesn't work", body: 'It may have expired or already been used. Ask for a new one.' })
+        await dialog.alert({ title: t("This link doesn't work"), body: t('It may have expired or already been used. Ask for a new one.') })
         return false
       }
       return dialog.confirm({
-        title: name ? `Sign in to ${name}?` : 'Sign in to this family?',
-        body: <>This link signs this browser in to {name ? <strong>{name}</strong> : 'the family'} at <strong>{host}</strong>. Continue only if you were expecting it.{replaces}</>,
-        confirmLabel: 'Continue',
+        title: name ? t('Sign in to {name}?', { name }) : t('Sign in to this family?'),
+        body: <>{rich(name ? t('This link signs this browser in to {name} at {host}. Continue only if you were expecting it.') : t('This link signs this browser in to the family at {host}. Continue only if you were expecting it.'), bold)}{replaces}</>,
+        confirmLabel: t('Continue'),
       })
     }
     resolveKeyLink(link, { current: getKey(), cookies: document.cookie, ask }).then(take => {
@@ -1049,10 +1055,10 @@ const bootMarkStyle = () => (inNativeApp() && appliedScale() !== 1 ? { '--boot-m
  * after a while (offline, a lost message), offer a retry. Reloading gets the app's key again. */
 function WaitForApp() {
   const [late, setLate] = useState(false)
-  useEffect(() => { const t = setTimeout(() => setLate(true), 10_000); return () => clearTimeout(t) }, [])
+  useEffect(() => { const id = setTimeout(() => setLate(true), 10_000); return () => clearTimeout(id) }, [])
   return (
     <div className="gate-screen" role="main">
-      {late && <div className="state-card">Couldn't reach Kinwall. <button type="button" className="btn" onClick={() => location.reload()}>Retry</button></div>}
+      {late && <div className="state-card">{t("Couldn't reach Kinwall.")} <button type="button" className="btn" onClick={() => location.reload()}>{t('Retry')}</button></div>}
     </div>
   )
 }
@@ -1060,7 +1066,7 @@ function WaitForApp() {
 /** Header icon on wall screens: the Night screen now, until a tap or key (QuietOverlay). */
 function NightScreenButton() {
   return (
-    <button className="icon-btn header-bell" title="Night screen" aria-label="Night screen" onClick={() => window.dispatchEvent(new Event(SAVER_START_EVENT))}>
+    <button className="icon-btn header-bell" title={t('Night screen')} aria-label={t('Night screen')} onClick={() => window.dispatchEvent(new Event(SAVER_START_EVENT))}>
       <MoonIcon width={22} height={22} />
     </button>
   )
@@ -1071,10 +1077,12 @@ function OfflineIcon() {
   const { offline, pending } = useOffline()
   const { toast } = useApp()
   if (!offline) return null
-  const label = pending ? `Offline: ${pending} change${pending === 1 ? '' : 's'} will sync` : 'Offline: changes will sync'
+  const label = pending ? tn(pending, 'Offline: {n} change will sync', 'Offline: {n} changes will sync') : t('Offline: changes will sync')
   return (
     <button className="icon-btn header-bell header-offline" title={label} aria-label={label}
-      onClick={() => toast(`You're offline. ${pending ? `${pending} change${pending === 1 ? '' : 's'} will sync` : 'List and chore changes sync'} when you're back online.`)}>
+      onClick={() => toast(pending
+        ? tn(pending, "You're offline. {n} change will sync when you're back online.", "You're offline. {n} changes will sync when you're back online.")
+        : t("You're offline. List and chore changes sync when you're back online."))}>
       <CloudOffIcon width={22} height={22} />
       {pending > 0 && <span className="bell-badge" aria-hidden="true">{pending > 9 ? '9+' : pending}</span>}
     </button>
@@ -1089,7 +1097,7 @@ function SaveIndicator() {
   // Always mounted: a live region is only read reliably when it exists before its text changes.
   return (
     <div className={state === 'idle' ? 'sr-only' : `save-indicator ${state}`} role="status" aria-live="polite">
-      {state === 'saving' ? <><span className="spinner" aria-hidden="true" />Saving…</> : state === 'saved' ? <>✓ Saved</> : null}
+      {state === 'saving' ? <><span className="spinner" aria-hidden="true" />{t('Saving…')}</> : state === 'saved' ? <>✓ {t('Saved')}</> : null}
     </div>
   )
 }
@@ -1193,11 +1201,11 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // Queued (offline) changes reached the server: refresh every view so pending marks clear, and
   // say which ones the server refused (e.g. an item deleted on another device meanwhile).
   useEffect(() => onSynced(({ dropped }) => {
-    setManualTick(t => t + 1)
+    setManualTick(n => n + 1)
     if (dropped.length) {
       const gone = dropped.every(d => d.status === 404)
-      setToastMsg({ msg: gone ? `${dropped.length === 1 ? 'A change' : `${dropped.length} changes`} made offline didn't sync: the item was deleted on another device.`
-        : `${dropped.length === 1 ? 'A change' : `${dropped.length} changes`} made offline didn't sync: ${dropped[0].message}`, persist: true })
+      setToastMsg({ msg: gone ? tn(dropped.length, "A change made offline didn't sync: the item was deleted on another device.", "{n} changes made offline didn't sync: the item was deleted on another device.")
+        : tn(dropped.length, "A change made offline didn't sync: {reason}", "{n} changes made offline didn't sync: {reason}", { reason: dropped[0].message }), persist: true })
     }
   }), [])
 
@@ -1218,9 +1226,21 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // Show only. A parent's device (full access) is never locked by its owner: the owner is only for
   // personal defaults (meMemberId), and the family filter works as on any unowned device. A member
   // deleted since falls back to everyone.
-  setHour12(resolveHour12(settings?.timeFormat, device.timeFormat)) // before anything below formats a time
   const focusMember = members.find(m => m.id === (ownerLocks ? owner : device.focusMemberId))
   const meMemberId = members.some(m => m.id === owner) ? owner : null
+  // The owner's language on their own device, else this device's, else the family's (i18n.ts
+  // pickLang). Another language's words load first; the shell is keyed on what's shown, so memoized
+  // screens redraw in it. A wall stays in its language when someone is picked (only activities follow them).
+  const language = pickLang({ member: members.find(m => m.id === meMemberId)?.language, device: device.language, family: settings?.language })
+  const [shownLang, setShownLang] = useState(lang)
+  useEffect(() => {
+    let live = true
+    setLang(language).then(() => { if (live) { setShownLang(lang()); rememberLang(lang()) } }, () => { /* offline: keep what's shown */ })
+    return () => { live = false }
+  }, [language])
+  // Automatic time format: in English the browser's region decides, as before; in another language
+  // that language does (German: 15:40). The device's and family's picks come first.
+  setHour12(resolveHour12(settings?.timeFormat, device.timeFormat, lang() === 'en' ? undefined : intlLocale())) // before anything below formats a time
   const effectiveMemberId = focusMember?.id ?? selectedMemberId
   const setMemberId = focusMember ? () => {} : setSelectedMemberId
   // A wall's picked person lasts until it goes idle (and isn't kept across a reload): while picked,
@@ -1323,7 +1343,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   }, [hasKey, builtInActivities, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub, pluginsOn, lockView)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'insights' ? 'Insights' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Home'
+  const tabLabel = tm(section === 'profile' ? msg('Profile') : section === 'journal' ? msg('Journal') : section === 'insights' ? msg('Insights') : section === 'medications' ? msg('Medicines') : section === 'activities' && sub === 'paint' ? msg('Paint') : section === 'activities' && sub === 'stickers' ? msg('Sticker book') : section === 'activities' && sub === 'photos' ? msg('Photos') : NAV_ITEMS.find(i => i.key === section)?.label ?? msg('Home'))
   const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
   // "Chores · Our Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
@@ -1333,7 +1353,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     return (
       <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} style={bootMarkStyle()} role="main">
         <Brand />
-        <div className="boot-below"><div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div></div>
+        <div className="boot-below"><div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">{t('Loading…')}</span></div></div>
       </div>
     )
   }
@@ -1367,7 +1387,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     return (
       <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} style={bootMarkStyle()} role="main">
         <Brand />
-        <div className="boot-below">{loadError ? <div className="state-card">Could not reach the server. Retrying…</div> : <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>}</div>
+        <div className="boot-below">{loadError ? <div className="state-card">{t('Could not reach the server. Retrying…')}</div> : <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">{t('Loading…')}</span></div>}</div>
       </div>
     )
   }
@@ -1384,9 +1404,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
       reloadCore: () => setManualTick(t => t + 1),
       toast: (msg, persist = false, action) => setToastMsg({ msg, persist, action }),
     }}>
-      <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
+      <div key={shownLang} className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
         {/* A button, not href="#main": the hash is the router. */}
-        <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Skip to content</button>
+        <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>{t('Skip to content')}</button>
         {navMode === 'left' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <div className="main-col">
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} wall={wall} />
@@ -1403,12 +1423,12 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
               {toastMsg.msg}<button type="button" className="toast-action" onClick={() => { setToastMsg(null); toastMsg.action!.run() }}>{toastMsg.action.label}</button>
             </div>
           : toastMsg.persist
-          ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>
+          ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={t('{message} (dismiss)', { message: toastMsg.msg })}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>
           : <div className="toast">{toastMsg.msg}</div>)}
-        {MOCK && inNativeApp() && <div className="demo-bar" role="status">Demo — nothing is saved.<button type="button" className="demo-bar-leave" onClick={tellAppLeaveDemo}>Leave demo</button></div>}
-        {MOCK && !inNativeApp() && !sessionStorage.getItem('kinwall.demoClean') && <div className="demo-bar" role="status">Demo — nothing is saved. Reload for a fresh copy.</div>}
+        {MOCK && inNativeApp() && <div className="demo-bar" role="status">{t('Demo — nothing is saved.')}<button type="button" className="demo-bar-leave" onClick={tellAppLeaveDemo}>{t('Leave demo')}</button></div>}
+        {MOCK && !inNativeApp() && !sessionStorage.getItem('kinwall.demoClean') && <div className="demo-bar" role="status">{t('Demo — nothing is saved. Reload for a fresh copy.')}</div>}
         {bannerMsg && <button className="toast update-banner" onClick={() => setBannerMsg(null)}>{bannerMsg}</button>}
-        {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
+        {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>{t('Kinwall updated — tap to reload')}</button>}
         {isPhone && <InstallNudge />}
         {settings.features.lists && <PinnedChecklist />}
         <QuietOverlay settings={settings} wall={wall} remote={nightScreen} />

@@ -5,13 +5,14 @@ import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDeviceAppearance } from './useTheme.ts'
+import { msg, t, tm, tn } from './i18n.ts'
 import { GET_STARTED_KEY, getStartedItems, getStartedSnoozed, type GetStartedCounts, type GetStartedItem } from './getStarted.ts'
 
 const ROWS: Record<GetStartedItem, { emoji: string; title: string; why: string; href: string }> = {
-  calendar: { emoji: '📆', title: 'Connect a calendar', why: 'Google, Outlook, iCloud or a calendar link.', href: '#/settings?tab=calendars' },
-  wall: { emoji: '🖼️', title: 'Put Kinwall on the wall', why: 'Open it on the wall tablet and pair it with a code.', href: '#/settings?tab=access&section=paired-devices' },
-  family: { emoji: '👪', title: 'Add your family', why: "Everyone gets a color, so the wall shows who's doing what.", href: '#/settings?tab=family&section=members' },
-  secondWayIn: { emoji: '🔑', title: 'Add a second way in', why: 'Recovery codes or another passkey, in case you lose this phone.', href: '#/settings?tab=access&section=recovery-codes' },
+  calendar: { emoji: '📆', title: msg('Connect a calendar'), why: msg('Google, Outlook, iCloud or a calendar link.'), href: '#/settings?tab=calendars' },
+  wall: { emoji: '🖼️', title: msg('Put Kinwall on the wall'), why: msg('Open it on the wall tablet and pair it with a code.'), href: '#/settings?tab=access&section=paired-devices' },
+  family: { emoji: '👪', title: msg('Add your family'), why: msg("Everyone gets a color, so the wall shows who's doing what."), href: '#/settings?tab=family&section=members' },
+  secondWayIn: { emoji: '🔑', title: msg('Add a second way in'), why: msg('Recovery codes or another passkey, in case you lose this phone.'), href: '#/settings?tab=access&section=recovery-codes' },
 }
 
 const snoozed = () => { try { return getStartedSnoozed(localStorage.getItem(GET_STARTED_KEY), Date.now()) } catch { return false } }
@@ -46,10 +47,10 @@ export default function GetStarted() {
   return (
     <section className="get-started" aria-labelledby="get-started-title">
       <div className="get-started-head">
-        <h2 id="get-started-title">Finish setting up Kinwall</h2>
-        <span className="get-started-count">{items.length} left</span>
+        <h2 id="get-started-title">{t('Finish setting up Kinwall')}</h2>
+        <span className="get-started-count">{tn(items.length, '{n} left', '{n} left')}</span>
       </div>
-      <p className="get-started-sub">A few things make the wall useful from day one.</p>
+      <p className="get-started-sub">{t('A few things make the wall useful from day one.')}</p>
       <ul className="get-started-list">
         {items.map(id => {
           const r = ROWS[id]
@@ -57,14 +58,14 @@ export default function GetStarted() {
             <li key={id}>
               <a className="get-started-item" href={r.href}>
                 <span className="get-started-emoji" aria-hidden="true">{r.emoji}</span>
-                <span className="get-started-text"><span className="get-started-title">{r.title}</span><span className="get-started-why">{r.why}</span></span>
+                <span className="get-started-text"><span className="get-started-title">{tm(r.title)}</span><span className="get-started-why">{tm(r.why)}</span></span>
                 <span className="get-started-go" aria-hidden="true">›</span>
               </a>
             </li>
           )
         })}
       </ul>
-      <div className="get-started-foot"><button className="link-btn" onClick={notNow}>Not now</button></div>
+      <div className="get-started-foot"><button className="link-btn" onClick={notNow}>{t('Not now')}</button></div>
     </section>
   )
 }

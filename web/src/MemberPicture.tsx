@@ -13,6 +13,7 @@ import { listDrawings } from './drawings-db.ts'
 import { PhotoFormatError } from './photos.ts'
 import { clampCrop, PICTURE_SIZE, sourceRect, startCrop, zoomTo, type Crop } from './picture.ts'
 import type { Member, Photo } from './types.ts'
+import { t } from './i18n.ts'
 
 type Mode = 'emoji' | 'photos' | 'drawings' | 'upload'
 type Source = { src: string; from?: string; revoke?: boolean }
@@ -23,10 +24,10 @@ export function PictureSheet({ member, onClose, withEmoji = false }: { member: M
   const { settings, reloadCore, toast } = useApp()
   const f = settings.features
   const modes: { key: Mode; label: string }[] = [
-    ...(withEmoji ? [{ key: 'emoji' as const, label: 'Emoji' }] : []),
-    ...(f.photos ? [{ key: 'photos' as const, label: 'From family photos' }] : []),
-    ...(f.photos || f.paint ? [{ key: 'drawings' as const, label: 'From drawings' }] : []),
-    { key: 'upload', label: 'Take or upload a photo' },
+    ...(withEmoji ? [{ key: 'emoji' as const, label: t('Emoji') }] : []),
+    ...(f.photos ? [{ key: 'photos' as const, label: t('From family photos') }] : []),
+    ...(f.photos || f.paint ? [{ key: 'drawings' as const, label: t('From drawings') }] : []),
+    { key: 'upload', label: t('Take or upload a photo') },
   ]
   const [mode, setMode] = useState<Mode>(modes[0].key)
   const [avatar, setAvatar] = useState(member.avatar || member.name[0])
@@ -41,7 +42,7 @@ export function PictureSheet({ member, onClose, withEmoji = false }: { member: M
       if (member.picture) await api.clearMemberPicture(member.id)
       reloadCore()
       onClose()
-    } catch (e) { fail(e, "Couldn't change the avatar.") }
+    } catch (e) { fail(e, t("Couldn't change the avatar.")) }
   }
   const remove = async () => {
     setBusy(true)
@@ -49,26 +50,26 @@ export function PictureSheet({ member, onClose, withEmoji = false }: { member: M
       await api.clearMemberPicture(member.id)
       reloadCore()
       onClose()
-    } catch (e) { fail(e, "Couldn't remove the picture.") }
+    } catch (e) { fail(e, t("Couldn't remove the picture.")) }
   }
   const savePicture = async (blob: Blob) => {
     setBusy(true)
     try {
       await api.setMemberPicture(member.id, blob, PICTURE_SIZE, source?.from)
       reloadCore()
-      toast(`Saved: ${member.name}'s picture`)
+      toast(t("Saved: {name}'s picture", { name: member.name }))
       onClose()
-    } catch (e) { fail(e, "Couldn't save the picture.") }
+    } catch (e) { fail(e, t("Couldn't save the picture.")) }
   }
   useEffect(() => () => { if (source?.revoke) URL.revokeObjectURL(source.src) }, [source])
 
-  if (source) return <CropSheet source={source} member={member} busy={busy} onBack={() => setSource(null)} onSave={savePicture} onError={e => { fail(e, "Couldn't open that picture."); setSource(null) }} />
+  if (source) return <CropSheet source={source} member={member} busy={busy} onBack={() => setSource(null)} onSave={savePicture} onError={e => { fail(e, t("Couldn't open that picture.")); setSource(null) }} />
 
   return (
-    <Sheet title="Change picture" onClose={onClose}
-      actions={mode === 'emoji' ? <button className="btn btn-primary" onClick={saveEmoji} disabled={busy || !isValidAvatar(avatar)}>Save</button> : undefined}>
+    <Sheet title={t('Change picture')} onClose={onClose}
+      actions={mode === 'emoji' ? <button className="btn btn-primary" onClick={saveEmoji} disabled={busy || !isValidAvatar(avatar)}>{t('Save')}</button> : undefined}>
       <div className="field">
-        <label htmlFor="picture-mode">Picture</label>
+        <label htmlFor="picture-mode">{t('Picture')}</label>
         <select id="picture-mode" className="settings-select" value={mode} onChange={e => setMode(e.target.value as Mode)}>
           {modes.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
         </select>
@@ -76,8 +77,8 @@ export function PictureSheet({ member, onClose, withEmoji = false }: { member: M
       {mode === 'emoji' && <AvatarPicker value={avatar} onChange={setAvatar} />}
       {(mode === 'photos' || mode === 'drawings') && <Album drawings={mode === 'drawings'} onPick={setSource} />}
       {mode === 'upload' && <Upload onPick={setSource} />}
-      {mode !== 'emoji' && <p className="field-hint">Shows wherever {member.name}'s avatar does, in a ring of their color.</p>}
-      {member.picture && <button className="btn btn-secondary picture-remove" onClick={remove} disabled={busy}>Remove picture</button>}
+      {mode !== 'emoji' && <p className="field-hint">{t("Shows wherever {name}'s avatar does, in a ring of their color.", { name: member.name })}</p>}
+      {member.picture && <button className="btn btn-secondary picture-remove" onClick={remove} disabled={busy}>{t('Remove picture')}</button>}
     </Sheet>
   )
 }
@@ -95,25 +96,25 @@ function Album({ drawings, onPick }: { drawings: boolean; onPick: (s: Source) =>
       if (!live) return
       const fromAlbum = photos.filter(p => !!p.drawing === drawings).map((p): Thumb => {
         const src = api.photoImageUrl(p)
-        return { key: p.id, src, label: p.caption || (drawings ? 'Drawing' : 'Photo'), source: { src, from: p.id } }
+        return { key: p.id, src, label: p.caption || (drawings ? t('Drawing') : t('Photo')), source: { src, from: p.id } }
       })
       const fromDevice = local.slice(0, 24).map((d): Thumb => {
         const thumb = URL.createObjectURL(d.thumb), full = URL.createObjectURL(d.png)
         urls.push(thumb, full)
-        return { key: d.id, src: thumb, label: d.name || 'Drawing', source: { src: full } }
+        return { key: d.id, src: thumb, label: d.name || t('Drawing'), source: { src: full } }
       })
-      setThumbs([...fromDevice, ...fromAlbum].filter(t => t.src))
+      setThumbs([...fromDevice, ...fromAlbum].filter(th => th.src))
     })
     return () => { live = false; urls.forEach(u => URL.revokeObjectURL(u)) }
   }, [drawings, settings.features.photos, settings.features.paint])
-  if (!thumbs) return <p className="snap-empty">Loading…</p>
-  if (!thumbs.length) return <p className="snap-empty">{drawings ? 'No drawings yet. Draw one in Paint!' : 'No family photos yet.'}</p>
+  if (!thumbs) return <p className="snap-empty">{t('Loading…')}</p>
+  if (!thumbs.length) return <p className="snap-empty">{drawings ? t('No drawings yet. Draw one in Paint!') : t('No family photos yet.')}</p>
   return (
-    <ul className="trk-photo-grid picture-album" aria-label={drawings ? 'Drawings' : 'Family photos'}>
-      {thumbs.map(t => (
-        <li key={t.key}>
-          <button type="button" className="photo-tile" onClick={() => onPick(t.source)} aria-label={`Use ${t.label}`}>
-            <img src={t.src} alt="" loading="lazy" />
+    <ul className="trk-photo-grid picture-album" aria-label={drawings ? t('Drawings') : t('Family photos')}>
+      {thumbs.map(th => (
+        <li key={th.key}>
+          <button type="button" className="photo-tile" onClick={() => onPick(th.source)} aria-label={t('Use {name}', { name: th.label })}>
+            <img src={th.src} alt="" loading="lazy" />
           </button>
         </li>
       ))}
@@ -129,8 +130,8 @@ function Upload({ onPick }: { onPick: (s: Source) => void }) {
   const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
   return (
     <div className="picture-upload">
-      {touch && <button type="button" className="btn btn-secondary" onClick={() => camera.current?.click()}>📷 Take a photo</button>}
-      <button type="button" className="btn btn-secondary" onClick={() => file.current?.click()}>🖼️ Choose a photo</button>
+      {touch && <button type="button" className="btn btn-secondary" onClick={() => camera.current?.click()}>📷 {t('Take a photo')}</button>}
+      <button type="button" className="btn btn-secondary" onClick={() => file.current?.click()}>🖼️ {t('Choose a photo')}</button>
       <input ref={camera} type="file" accept="image/*" capture="user" hidden onChange={e => { take(e.target.files?.[0]); e.target.value = '' }} />
       <input ref={file} type="file" accept="image/*" hidden onChange={e => { take(e.target.files?.[0]); e.target.value = '' }} />
     </div>
@@ -198,15 +199,15 @@ function CropSheet({ source, member, busy, onBack, onSave, onError }: { source: 
   }
 
   return (
-    <Sheet title={`${member.name}'s picture`} onClose={onBack}
-      actions={<><button className="btn btn-secondary" onClick={onBack}>Back</button><button className="btn btn-primary" onClick={save} disabled={busy || !img}>Save</button></>}>
+    <Sheet title={t("{name}'s picture", { name: member.name })} onClose={onBack}
+      actions={<><button className="btn btn-secondary" onClick={onBack}>{t('Back')}</button><button className="btn btn-primary" onClick={save} disabled={busy || !img}>{t('Save')}</button></>}>
       <div ref={box} className="picture-crop" style={{ ['--m' as string]: member.color }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel}
-        role="img" aria-label="Drag to move the picture, pinch to zoom. What's inside the circle is kept.">
+        role="img" aria-label={t("Drag to move the picture, pinch to zoom. What's inside the circle is kept.")}>
         {img && <img src={img.src} alt="" draggable={false} style={{ left: crop.x, top: crop.y, width: size.w * crop.scale, height: size.h * crop.scale }} />}
         <span className="picture-crop-ring" aria-hidden="true" />
       </div>
       <div className="field picture-zoom">
-        <label htmlFor="picture-zoom">Zoom</label>
+        <label htmlFor="picture-zoom">{t('Zoom')}</label>
         <input id="picture-zoom" type="range" min={1} max={6} step={0.01} value={min ? crop.scale / min : 1} disabled={!img}
           onChange={e => setCrop(c => zoomTo(c, min * Number(e.target.value), v / 2, v / 2, size, v))} />
       </div>

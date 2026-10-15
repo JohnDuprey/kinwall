@@ -15,6 +15,7 @@ import { dedupeEvents } from './dayLayout.ts'
 import { formatTime } from './timeFormat.ts'
 import { isLate } from './choreDay.ts'
 import { durationLabel } from './timers.ts'
+import { intlLocale, msg, t, tn } from './i18n.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
 import { boardSources, nightFieldsFor } from './saverSources.ts'
@@ -60,7 +61,7 @@ function Card({ title, area, link, density, foot, what, children }: { title: str
 }
 
 const ROWS = '.snap-list > li, .snap-day-heading'
-const MEALS: [string, string] = ['meal', 'meals'] // Today's meals' More button: "4 meals"
+const MEALS: [string, string] = [msg('{n} meal'), msg('{n} meals')] // Today's meals' More button: "4 meals"
 const MORE_SPACE = 50 // the More button (44px) and the gap above it
 /** A card's body that shows the rows that fit its space and a "+3 more" button for the rest, which
  *  opens the whole card in a sheet. Only a wall or tablet Board gives a card a fixed space; on a phone
@@ -356,7 +357,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   })
   const tidbitAreas = ['tidbit', 'tidbit2', 'tidbit3']
 
-  if (!data) return error ? <LoadError what="the board" onRetry={() => setTick(t => t + 1)} /> : null
+  if (!data) return error ? <LoadError what="the board" onRetry={() => setTick(n => n + 1)} /> : null
   const byId = new Map(members.map(m => [m.id, m]))
   const today = data.today
   const events = dedupeEvents(data.events).filter(show) // each event once, as on Calendar
@@ -366,7 +367,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date), ...booksDue.map(b => b.date)])].filter(d => d > today).sort()
   // A borrowed library book due back that day (overdue ones stay on today); opens the library.
   const bookRows = (d: string) => booksDue.filter(b => b.date === d).map(b => (
-    <li key={`book:${b.id}`} className={`board-book-due ${b.overdue ? 'lib-overdue' : ''}`}><a href="#/trackers/library"><span aria-hidden="true">📚</span> Return {b.title} to {b.borrowedFrom}{b.overdue ? ' (overdue)' : ''}</a></li>
+    <li key={`book:${b.id}`} className={`board-book-due ${b.overdue ? 'lib-overdue' : ''}`}><a href="#/trackers/library"><span aria-hidden="true">📚</span> {b.overdue ? t('Return {title} to {from} (overdue)', { title: b.title, from: b.borrowedFrom }) : t('Return {title} to {from}', { title: b.title, from: b.borrowedFrom })}</a></li>
   ))
 
   // Due soon and reward requests follow who's shown, like the chores below (a kid's device: only theirs).
@@ -415,32 +416,31 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const dueWeek = items.filter(i => !i.overdue && i.dueDate).length
   const dueToday = items.filter(i => i.overdue || i.dueDate === today)
   const dueLater = items.filter(i => !i.overdue && i.dueDate && i.dueDate > today).length
-  const dueSummary = [overdue > 0 && `${overdue} overdue`, dueToday.length - overdue > 0 && `${dueToday.length - overdue} due today`, dueLater > 0 && `${dueLater} later this week`].filter(Boolean).join(' · ')
+  const dueSummary = [overdue > 0 && t('{n} overdue', { n: overdue }), dueToday.length - overdue > 0 && t('{n} due today', { n: dueToday.length - overdue }), dueLater > 0 && t('{n} later this week', { n: dueLater })].filter(Boolean).join(' · ')
   const choresPeople = restChores.length > 0 && <span className="board-tile-people">
     {restChores.map(c => (
-      <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
-        <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
+      <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? t('Anyone')}: ${c.remaining ? t('{n} left', { n: c.remaining }) : t('done')}`}>
+        <Avatar m={{ name: c.name ?? t('Anyone'), color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
         <span aria-hidden="true">{c.remaining || '✓'}</span>
       </span>
     ))}
   </span>
-  const choresText = restLeft ? `${restLeft} left today` : 'All done ✓'
+  const choresText = restLeft ? t('{n} left today', { n: restLeft }) : t('All done ✓')
   // Saving-for goals, short ("Leo 🍦 18/50"), on the compact chores line and tile too: the full Chores
   // card has them on each person's row, but a 1080p wall gets the line, and the kids' goal belongs on the wall.
   const goals = !rewards ? [] : members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && (!focusMemberId || m.id === focusMemberId))
-  const goalsText = goals.map(m => `${m.name} ${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? 'Ready!' : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' · ')
+  const goalsText = goals.map(m => `${m.name} ${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? t('Ready!') : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' · ')
   const goalsShort = goals.map(m => `${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? '✓' : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' ')
   const goalsSaid = goals.map(m => `${m.name} ${goalText(m)!.label}`).join(', ')
   const goalsLine = goals.length > 0 && <span className="board-goal-chips" aria-hidden="true">🎯 {goalsText}</span>
-  const choresName = timed.length ? 'Other chores' : 'Chores'
-  const toDos = (n: number) => n === 1 ? '1 to-do' : `${n} to-dos` // the chip says what's due: "3 to-dos due"
+  const choresName = timed.length ? t('Other chores') : t('Chores')
   const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
   // Today's slot, in order: Take now, today's chores, what's due today (the week's still a tap away), an open poll.
   const todaySlot = [
     todayTiles && medsSlot.item,
     todayTiles && choresTile && restChores.length > 0 && {
       key: 'chores',
-      chip: <a className="board-slot-chip" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{restLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!restLeft ? 'All done' : restLeft === 1 ? '1 chore' : `${restLeft} chores`}</span></a>,
+      chip: <a className="board-slot-chip" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{restLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!restLeft ? t('All done') : tn(restLeft, '{n} chore', '{n} chores')}</span></a>,
       row: <a className="board-slot-row" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">{choresName} · {choresText}</span></a>,
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
     },
@@ -453,10 +453,10 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     },
     todayTiles && dueTile && items.length > 0 && dueSummary && {
       key: 'due',
-      chip: <a className="board-slot-chip" href="#/lists" aria-label={`Due: ${dueSummary}`}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${overdue ? 'snap-overdue' : ''}`}>{overdue && overdue === dueToday.length ? `${toDos(overdue)} overdue` : dueToday.length ? `${toDos(dueToday.length)} due` : `${toDos(dueLater)} due soon`}</span></a>,
+      chip: <a className="board-slot-chip" href="#/lists" aria-label={t('Due: {summary}', { summary: dueSummary })}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${overdue ? 'snap-overdue' : ''}`}>{overdue && overdue === dueToday.length ? tn(overdue, '{n} to-do overdue', '{n} to-dos overdue') : dueToday.length ? tn(dueToday.length, '{n} to-do due', '{n} to-dos due') : tn(dueLater, '{n} to-do due soon', '{n} to-dos due soon')}</span></a>,
       row: dueRow,
       full: !dueToday.length ? dueRow : <div className="board-slot-due">
-        <a className="board-slot-head board-slot-head-link" href="#/lists"><span aria-hidden="true">📝</span>Due today<span className="board-slot-row-meta">{dueLater > 0 ? `${dueLater} later this week ›` : 'All lists ›'}</span></a>
+        <a className="board-slot-head board-slot-head-link" href="#/lists"><span aria-hidden="true">📝</span>{t('Due today')}<span className="board-slot-row-meta">{dueLater > 0 ? t('{n} later this week ›', { n: dueLater }) : t('All lists ›')}</span></a>
         <ul className="snap-list">{dueToday.map(i => <ItemRow key={i.id} i={i} today={today} close={noop} />)}</ul>
       </div>,
     },
@@ -474,11 +474,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       return {
         key: type, href: ls.length === 1 ? `#/lists/${encodeURIComponent(ls[0].id)}` : '#/lists',
         icon: ls.length === 1 && ls[0].emoji ? <span className="emoji-plate" aria-hidden="true">{ls[0].emoji}</span> : <Icon width={16} height={16} aria-hidden="true" />,
-        name: ls.length === 1 ? ls[0].name : type === 'groceries' ? 'Groceries' : 'Shopping',
-        value: open ? `${open} on the list` : 'Nothing needed', count: open ? `${open}` : '✓',
+        name: ls.length === 1 ? ls[0].name : type === 'groceries' ? t('Groceries') : t('Shopping'),
+        value: open ? t('{n} on the list', { n: open }) : t('Nothing needed'), count: open ? `${open}` : '✓',
       }
     }),
-    ...(tiles.includes('rewards') ? [{ key: 'rewards', href: '#/rewards', icon: <span aria-hidden="true">🎁 </span>, name: 'Rewards', value: `${rewardRequests} waiting`, count: `${rewardRequests}` }] : []),
+    ...(tiles.includes('rewards') ? [{ key: 'rewards', href: '#/rewards', icon: <span aria-hidden="true">🎁 </span>, name: t('Rewards'), value: t('{n} waiting', { n: rewardRequests }), count: `${rewardRequests}` }] : []),
   ]
 
   return (
@@ -489,18 +489,18 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       {medsSlot.sheets}{pollSlot.sheets}
       <div className="board" style={custom ? custom.style : boardAreas(shown, short)}>
         {has('tiles') && (
-          <nav className="board-tiles" aria-label="At a glance" style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
+          <nav className="board-tiles" aria-label={t('At a glance')} style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
             {tiles.includes('meds') && <TakeNowTile {...meds} />}
             {tiles.includes('chores') && (
               <a className="board-tile" href="#/chores">
-                <span className="board-tile-label">✅ Chores</span>
-                <span className="board-tile-value">{choresLeft ? `${choresLeft} left today` : chores.length ? 'All done ✓' : 'None today'}</span>
+                <span className="board-tile-label">✅ {t('Chores')}</span>
+                <span className="board-tile-value">{choresLeft ? t('{n} left today', { n: choresLeft }) : chores.length ? t('All done ✓') : t('None today')}</span>
                 {goalsLine}{goalsSaid && <span className="sr-only">{goalsSaid}</span>}
                 {chores.length > 0 && (
                   <span className="board-tile-people">
                     {chores.map(c => (
-                      <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
-                        <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
+                      <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? t('Anyone')}: ${c.remaining ? t('{n} left', { n: c.remaining }) : t('done')}`}>
+                        <Avatar m={{ name: c.name ?? t('Anyone'), color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
                         <span aria-hidden="true">{c.remaining || '✓'}</span>
                       </span>
                     ))}
@@ -510,9 +510,9 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             )}
             {tiles.includes('due') && (
               <a className="board-tile" href="#/lists">
-                <span className="board-tile-label">📝 Due soon</span>
+                <span className="board-tile-label">📝 {t('Due soon')}</span>
                 <span className="board-tile-value">
-                  {!overdue && !dueWeek ? 'All caught up' : <>{overdue > 0 && <span className="snap-overdue">{overdue} overdue</span>}{overdue > 0 && dueWeek > 0 && ' · '}{dueWeek > 0 && <span>{dueWeek} due this week</span>}</>}
+                  {!overdue && !dueWeek ? t('All caught up') : <>{overdue > 0 && <span className="snap-overdue">{t('{n} overdue', { n: overdue })}</span>}{overdue > 0 && dueWeek > 0 && ' · '}{dueWeek > 0 && <span>{t('{n} due this week', { n: dueWeek })}</span>}</>}
                 </span>
               </a>
             )}
@@ -524,25 +524,25 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             ))}
           </nav>
         )}
-        {has('clock') && <section ref={clockRef} className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
+        {has('clock') && <section ref={clockRef} className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label={t('Time and weather')}>
           {/* A phone puts today's weather beside the time (styles.css); everywhere else it stacks below. */}
           <div className="board-clock-top">
             <div className="board-clock-when">
               <div className="board-time">{formatTime(now, clockTimeZone(tz, device))}</div>
-              <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: clockTimeZone(tz, device) }).format(now)}</div>
+              <div className="board-date">{new Intl.DateTimeFormat(intlLocale(), { weekday: 'long', month: 'long', day: 'numeric', timeZone: clockTimeZone(tz, device) }).format(now)}</div>
             </div>
             {w && (
-              <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>
+              <div className="board-weather" role="group" aria-label={t('Weather in {place}', { place: w.location })}>
                 <div className="board-wx-where snap-dim">{w.location}</div>
                 <div className="board-weather-now">
                   {w.now && <><span className="board-wx-now"><span className="board-wx-emoji board-wx-big" aria-hidden="true">{w.now.emoji}</span><strong className="board-wx-temp">{w.now.temp}°</strong></span> <span className="board-wx-text">{w.now.text}</span></>}
-                  {wToday && <span className="snap-dim board-wx-range"><span className="board-wx-sep" aria-hidden="true"> · </span><span className="board-wx-unit"><span className="sr-only">high </span>{wToday.high}° / <span className="sr-only">low </span>{wToday.low}°</span>{wToday.rainChance ? <><span className="board-wx-sep" aria-hidden="true"> ·</span> <span className="board-wx-unit">💧{wToday.rainChance}%</span></> : ''}</span>}
+                  {wToday && <span className="snap-dim board-wx-range"><span className="board-wx-sep" aria-hidden="true"> · </span><span className="board-wx-unit"><span className="sr-only">{t('high')} </span>{wToday.high}° / <span className="sr-only">{t('low')} </span>{wToday.low}°</span>{wToday.rainChance ? <><span className="board-wx-sep" aria-hidden="true"> ·</span> <span className="board-wx-unit">💧{wToday.rainChance}%</span></> : ''}</span>}
                 </div>
               </div>
             )}
           </div>
           {w && (
-            <ul className="board-forecast" aria-label="Forecast">
+            <ul className="board-forecast" aria-label={t('Forecast')}>
               {w.days.filter(d => d.date > today).slice(0, 4).map(d => (
                 <li key={d.date}>
                   <span className="board-forecast-day">{dayName(d.date, { weekday: 'short' })}</span>
@@ -555,19 +555,19 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           )}
         </section>}
 
-        {has('today') && <Card title="Today" area="today" density={dense('today')} foot={<TodaySlot fixed={fixed} items={todaySlot} />}>
+        {has('today') && <Card title={t('Today')} area="today" density={dense('today')} foot={<TodaySlot fixed={fixed} items={todaySlot} />}>
           {(() => {
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = todayOrder(events.filter(e => e.date === today), now.getTime())
             // Temp check goals, for the people who chose to show theirs.
             const goals = !f.checkIns ? [] : boardGoals(members, focusMemberId, { selected: selectedMemberId, kidDevice }).map(m => (
-              <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
+              <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{t("{name}'s goal:", { name: m.name })} </span>🎯 {m.todayGoal}</span></li>
             ))
             const books = bookRows(today)
             // Chores with a start time or a timer, among the events by time (boardFit.ts withTimedChores).
             const startOf = (e: SnapshotEvent) => { const z = zonedParts(e.start, tz); return e.allDay || `${z.year}-${String(z.month).padStart(2, '0')}-${String(z.day).padStart(2, '0')}` < today ? -1 : z.hour * 60 + z.minute }
             const rows = withTimedChores(todays.shown, startOf, timed)
-            if (!bdays.length && !rows.length && !todays.earlier.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
+            if (!bdays.length && !rows.length && !todays.earlier.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">{t('Nothing on the calendar today.')}</p></>
             return (
               <ul className="snap-list">
                 {goals}
@@ -577,22 +577,22 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
                   ? <EventLine key={`${r.event.id}:${r.event.start}`} e={r.event} tz={tz} byId={byId} onTap={onTap} />
                   : <ChoreLine key={`chore:${r.chore.id}`} c={r.chore} who={byId.get(r.chore.memberId ?? selectedMemberId ?? '')} />)}
                 {todays.earlier.length > 0 && <li><button className="snap-row board-earlier" aria-haspopup="dialog" onClick={() => setEarlierOpen(true)}>
-                  {todays.earlier.length === 1 ? '1 event earlier today' : `${todays.earlier.length} events earlier today`}<span aria-hidden="true"> ›</span>
+                  {tn(todays.earlier.length, '{n} event earlier today', '{n} events earlier today')}<span aria-hidden="true"> ›</span>
                 </button></li>}
               </ul>
             )
           })()}
         </Card>}
 
-        {earlierOpen && <Sheet title="Earlier today" onClose={() => setEarlierOpen(false)}>
+        {earlierOpen && <Sheet title={t('Earlier today')} onClose={() => setEarlierOpen(false)}>
           <ul className="snap-list board-sheet">{todayOrder(events.filter(e => e.date === today), now.getTime()).earlier.map(e =>
             <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
         </Sheet>}
 
-        {has('meals') && <Card title="Today’s meals" area="meals" density={dense('meals')} what={MEALS}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
+        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
-        {has('coming') && <Card title="Coming up" area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
-          {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {
+        {has('coming') && <Card title={t('Coming up')} area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
+          {later.length === 0 ? <p className="snap-empty">{t('Nothing planned this week.')}</p> : later.map(d => {
             const wd = w?.days.find(x => x.date === d)
             const label = dayName(d, { weekday: 'long', month: 'short', day: 'numeric' })
             return (
@@ -611,8 +611,8 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           })}
         </Card>}
 
-        {has('due') && <Card title="Due soon" area="due" density={dense('due')}>
-          {items.length === 0 ? <p className="snap-empty">Nothing due — all caught up.</p> : (
+        {has('due') && <Card title={t('Due soon')} area="due" density={dense('due')}>
+          {items.length === 0 ? <p className="snap-empty">{t('Nothing due — all caught up.')}</p> : (
             <ul className="snap-list">
               {items.map(i => {
                 const owner = i.memberId ? byId.get(i.memberId) : undefined
@@ -622,24 +622,24 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           )}
         </Card>}
 
-        {has('chores') && <Card title="Chores today" area="chores" density={dense('chores')} link={rewards && <a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
-          {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
+        {has('chores') && <Card title={t('Chores today')} area="chores" density={dense('chores')} link={rewards && <a className="board-card-link" href="#/rewards">🎁 {t('Rewards')}</a>}>
+          {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">{t('No chores today.')}</p> : (
             <ul className="snap-list">
               {chores.map(c => {
                 const done = c.total - c.remaining
-                const name = c.name ?? 'Anyone'
-                const waiting = c.pending ? `${c.pending} waiting for OK` : '' // ticked, not counted until a parent approves
+                const name = c.name ?? t('Anyone')
+                const waiting = c.pending ? t('{n} waiting for OK', { n: c.pending }) : '' // ticked, not counted until a parent approves
                 const goal = rewards && c.memberId ? goalText(byId.get(c.memberId)) : null
                 return (
                   <li key={c.memberId ?? 'anyone'}>
-                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}${waiting ? `, ${waiting}` : ''}${goal ? `, ${goal.label}` : ''}`}>
+                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={[`${name}: ${c.remaining ? tn(c.total, '{left} of {n} chore left', '{left} of {n} chores left', { left: c.remaining }) : t('all chores done')}`, waiting, goal?.label].filter(Boolean).join(', ')}>
                       <Avatar m={{ name, color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
                       <span className="snap-main">
                         <span className="snap-title">{name}</span>
                         <span className="board-meter" aria-hidden="true"><span style={{ width: `${(done / c.total) * 100}%`, background: c.color ?? 'var(--accent)' }} /></span>
                         {goal && <span className="snap-meta board-goal" aria-hidden="true">{goal.text}</span>}
                       </span>
-                      <span className="board-chore-count" aria-hidden="true">{c.remaining ? `${c.remaining} left` : '🎉'}{c.pending ? ` · ${c.pending} ⏳` : ''}</span>
+                      <span className="board-chore-count" aria-hidden="true">{c.remaining ? t('{n} left', { n: c.remaining }) : '🎉'}{c.pending ? ` · ${c.pending} ⏳` : ''}</span>
                     </button>
                   </li>
                 )
@@ -664,22 +664,22 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
 
         {has('checklist') && checklist && (() => {
           const done = checklist.itemCount - checklist.openCount, total = checklist.itemCount
-          return <Card title="Get stuff done" area="checklist" density={dense('checklist')}>
+          return <Card title={t('Get stuff done')} area="checklist" density={dense('checklist')}>
             <ul className="snap-list">
               <li>
-                <button className="snap-row board-chore" onClick={() => setDoing(checklist.id)} aria-haspopup="dialog" aria-label={`Get stuff done: ${checklist.name}, ${done} of ${total} done`}>
+                <button className="snap-row board-chore" onClick={() => setDoing(checklist.id)} aria-haspopup="dialog" aria-label={t('Get stuff done: {name}, {done} of {total} done', { name: checklist.name, done, total })}>
                   <span className="board-avatar board-checklist-emoji" aria-hidden="true">{checklist.emoji || '📝'}</span>
                   <span className="snap-main" aria-hidden="true">
-                    <span className="snap-title">{checklist.name} · {done} of {total}</span>
+                    <span className="snap-title">{checklist.name} · {t('{done} of {total}', { done, total })}</span>
                     <span className="board-meter"><span style={{ width: `${total ? done / total * 100 : 0}%`, background: checklist.color ?? 'var(--accent)' }} /></span>
                   </span>
-                  <span className="board-chore-count" aria-hidden="true">{total && done === total ? '🎉' : 'Start ›'}</span>
+                  <span className="board-chore-count" aria-hidden="true">{total && done === total ? '🎉' : t('Start ›')}</span>
                 </button>
               </li>
             </ul>
           </Card>
         })()}
-        {doing && <GetStuffDone listId={doing} onClose={() => { setDoing(null); setTick(t => t + 1) }} />}
+        {doing && <GetStuffDone listId={doing} onClose={() => { setDoing(null); setTick(n => n + 1) }} />}
 
         {has('photo') && <PhotoCard density={dense('photo')} />}
 
@@ -698,8 +698,8 @@ function goalText(m: Member | undefined): { text: string; label: string } | null
   const name = g.emoji ? `${g.emoji} ${g.title}` : g.title
   const ready = m.balance >= g.cost
   return {
-    text: ready ? `${name} · Ready!` : `${name} ${Math.max(0, m.balance)} / ${g.cost}`,
-    label: ready ? `saving for ${g.title}, has enough points` : `saving for ${g.title}, ${m.balance} of ${g.cost} points`,
+    text: ready ? t('{name} · Ready!', { name }) : `${name} ${Math.max(0, m.balance)} / ${g.cost}`,
+    label: ready ? t('saving for {title}, has enough points', { title: g.title }) : tn(g.cost, 'saving for {title}, {has} of {n} point', 'saving for {title}, {has} of {n} points', { title: g.title, has: m.balance }),
   }
 }
 
@@ -716,7 +716,7 @@ function TidbitBody({ trivia, fitKey, title, head, children }: { trivia: boolean
 function TidbitCard({ tidbit, area, title, heading, density }: { tidbit: Tidbit; area: string; title?: string; heading: boolean; density?: CardDensity }) {
   const [guess, setGuess] = useState<string | null>(null) // resets with each tidbit: the parent keys the card by it
   const key = tidbit.kind === 'trivia' ? tidbit.question : tidbit.text
-  const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : tidbit.kind === 'tip' ? 'Try this' : 'Did you know?'
+  const label = tidbit.kind === 'quote' ? t('Quote') : tidbit.kind === 'trivia' ? t('Trivia') : tidbit.kind === 'onthisday' ? t('On this day') : tidbit.kind === 'tip' ? t('Try this') : t('Did you know?')
   return (
     <section className={`board-card board-tidbit ${area === 'tidbit' ? '' : 'board-tidbit-extra'}${densityClass(density)}`} style={{ gridArea: area }} aria-label={title ?? label}>
       {title && heading && <h3 className="snap-heading">{title}</h3>}{/* one source: its tag already says what it is */}
@@ -725,14 +725,14 @@ function TidbitCard({ tidbit, area, title, heading, density }: { tidbit: Tidbit;
       {/* Too small for even its first line, its tag goes with it: the title stays above "+1 more". */}
       <TidbitBody trivia={tidbit.kind === 'trivia'} fitKey={key} title={title ?? label} head={!(title && heading) && <h3 className="snap-heading">{title ?? label}</h3>}>
         {tidbit.kind === 'quote' && <blockquote><p>“{tidbit.text}”</p><footer>— {tidbit.by}</footer></blockquote>}
-        {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 Did you know?</span> {tidbit.text}</p>}
-        {tidbit.kind === 'tip' && <p><span className="board-tidbit-tag">🌱 Try this</span> {tidbit.text}</p>}
+        {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 {t('Did you know?')}</span> {tidbit.text}</p>}
+        {tidbit.kind === 'tip' && <p><span className="board-tidbit-tag">🌱 {t('Try this')}</span> {tidbit.text}</p>}
         {tidbit.kind === 'onthisday' && <>
-          <p><span className="board-tidbit-tag">{tidbit.type === 'holidays' ? '🎉 Today is' : tidbit.type === 'births' ? `🎂 Born on this day${tidbit.year ? ` in ${tidbit.year}` : ''}` : `📜 On this day${tidbit.year ? ` in ${tidbit.year}` : ''}`}</span> {tidbit.text}</p>
-          <p className="board-tidbit-source">From Wikipedia</p>
+          <p><span className="board-tidbit-tag">{tidbit.type === 'holidays' ? `🎉 ${t('Today is')}` : tidbit.type === 'births' ? `🎂 ${tidbit.year ? t('Born on this day in {year}', { year: tidbit.year }) : t('Born on this day')}` : `📜 ${tidbit.year ? t('On this day in {year}', { year: tidbit.year }) : t('On this day')}`}</span> {tidbit.text}</p>
+          <p className="board-tidbit-source">{t('From Wikipedia')}</p>
         </>}
         {tidbit.kind === 'trivia' && <>
-          <p><span className="board-tidbit-tag">🧠 Trivia · {tidbit.category}</span> {tidbit.question}</p>
+          <p><span className="board-tidbit-tag">🧠 {t('Trivia')} · {tidbit.category}</span> {tidbit.question}</p>
           <ul className="board-trivia-choices">
             {tidbit.choices.map(c => (
               <li key={c}>
@@ -746,9 +746,9 @@ function TidbitCard({ tidbit, area, title, heading, density }: { tidbit: Tidbit;
             ))}
           </ul>
           <p className="board-tidbit-source" role="status">
-            {guess === null ? 'Tap an answer · ' : guess === tidbit.answer ? '🎉 That’s right! · ' : `Not quite: it’s ${tidbit.answer} · `}From Open Trivia DB
+            {guess === null ? t('Tap an answer') : guess === tidbit.answer ? `🎉 ${t('That’s right!')}` : t('Not quite: it’s {answer}', { answer: tidbit.answer })} · {t('From Open Trivia DB')}
           </p>
-          {guess !== null && <button className="btn btn-secondary" onClick={() => setGuess(null)}>Try again</button>}
+          {guess !== null && <button className="btn btn-secondary" onClick={() => setGuess(null)}>{t('Try again')}</button>}
         </>}
       </TidbitBody>
     </section>
@@ -761,18 +761,18 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
   const bar = who.length > 1
     ? `linear-gradient(${who.map((m, i) => `${m.color} ${(i * 100) / who.length}% ${((i + 1) * 100) / who.length}%`).join(', ')})`
     : who[0]?.color ?? e.color
-  const when = e.allDay ? 'All day' : formatTime(e.start, tz)
+  const when = e.allDay ? t('All day') : formatTime(e.start, tz)
   // Its category's emoji, as on Calendar, so a category-colored event there (⚽ Sports, green) reads
   // as the same one here, where its bar is in the person's color.
   const emoji = useApp().categories.find(c => c.id === e.categoryId)?.emoji
   return (
     <li>
       <button className={`snap-row board-event ${past ? 'past' : ''}${e.busy === false ? ' ev-free-row' : ''}`} onClick={() => onTap(e)}
-        aria-label={[`${when} ${e.title}`, e.busy === false && 'free', who.map(m => m.name).join(' and '), past && 'finished'].filter(Boolean).join(', ')}>
+        aria-label={[`${when} ${e.title}`, e.busy === false && t('free'), new Intl.ListFormat(intlLocale()).format(who.map(m => m.name)), past && t('finished')].filter(Boolean).join(', ')}>
         <span className="board-bar" style={{ background: bar }} aria-hidden="true" />
         <span className="snap-main" aria-hidden="true">
           <span className="board-when">{when}</span>
-          <span className="snap-title">{e.busy === false && <span className="ev-free-mark">Free ·</span>}{emoji && !e.title.startsWith(emoji) && `${emoji} `}{e.title}</span>
+          <span className="snap-title">{e.busy === false && <span className="ev-free-mark">{t('Free ·')}</span>}{emoji && !e.title.startsWith(emoji) && `${emoji} `}{e.title}</span>
           {(leadOf(e) || e.location) && <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>}
         </span>
         {who.length > 0 && <span className="board-avatars" aria-hidden="true">{who.map(m => <Avatar key={m.id} m={m} />)}</span>}
@@ -785,7 +785,7 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
  *  piano", whose it is, and Start for its timer (ChoreTimer.tsx). Without a timer it opens the Chores tab. */
 function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
   const late = isLate(c.dueTime, new Date().toTimeString().slice(0, 5))
-  const when = [c.dueTime ? `${formatTime(c.dueTime)}${late ? ' (late)' : ''}` : 'Today', c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
+  const when = [c.dueTime ? (late ? t('{time} (late)', { time: formatTime(c.dueTime) }) : formatTime(c.dueTime)) : t('Today'), c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
   const main = <>
     <span className="board-bar" style={{ background: who?.color ?? 'var(--border)' }} aria-hidden="true" />
     <span className="snap-main" aria-hidden="true">
@@ -794,7 +794,7 @@ function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
     </span>
     {who && <span className="board-avatars" aria-hidden="true"><Avatar m={who} /></span>}
   </>
-  const label = `Chore: ${[c.dueTime && formatTime(c.dueTime), late && 'late', c.title, c.timerMinutes && `${durationLabel(c.timerMinutes)} timer`, who?.name ?? (!c.memberId && 'anyone')].filter(Boolean).join(', ')}`
+  const label = t('Chore: {details}', { details: [c.dueTime && formatTime(c.dueTime), late && t('late'), c.title, c.timerMinutes && t('{time} timer', { time: durationLabel(c.timerMinutes) }), who?.name ?? (!c.memberId && t('anyone'))].filter(Boolean).join(', ') })
   if (!c.timerMinutes) return <li><a className="snap-row board-event board-chore-line" href="#/chores" aria-label={label}>{main}</a></li>
   return (
     <li><div className="snap-row board-event board-chore-line" role="group" aria-label={label}>
@@ -816,7 +816,7 @@ function PhotoCard({ density }: { density?: CardDensity }) {
   const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos, photoFolder: settings.photoFolder }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
-    <section className={`board-card board-photo${densityClass(density)}`} aria-label="Picture">
+    <section className={`board-card board-photo${densityClass(density)}`} aria-label={t('Picture')}>
       {!failed && current ? (
         <>
           {/* The whole picture, never cropped (drawings and tall photos lose too much to cover), over a

@@ -7,6 +7,7 @@ import { api } from './api.ts'
 import { getKey } from './api.ts'
 import { HelpIcon } from './icons.tsx'
 import { helpPath } from './helpPage.ts'
+import { t } from './i18n.ts'
 
 export const DOCS_URL = 'https://docs.kinwall.family'
 export const ISSUES_URL = 'https://github.com/JohnDuprey/kinwall/issues'
@@ -23,20 +24,20 @@ export function HelpButton({ className = '' }: { className?: string }) {
   const here = open ? helpPath(location.hash) : null
   return (
     <>
-      <button className={`icon-btn help-btn ${className}`} onClick={() => setOpen(true)} aria-label="Help" aria-haspopup="dialog">
+      <button className={`icon-btn help-btn ${className}`} onClick={() => setOpen(true)} aria-label={t('Help')} aria-haspopup="dialog">
         <HelpIcon width={22} height={22} />
       </button>
       {open && (
-        <Sheet title="Help" onClose={() => setOpen(false)} variant="dialog">
+        <Sheet title={t('Help')} onClose={() => setOpen(false)} variant="dialog">
           <ul className="help-links">
-            {here && <li><a className="help-link" href={`${DOCS_URL}/${here}`} target="_blank" rel="noopener"><strong>Help with this page</strong><span>How this screen works, in the docs.</span></a></li>}
-            <li><a className="help-link" href={DOCS_URL} target="_blank" rel="noopener"><strong>Docs &amp; guides</strong><span>Setting up, connecting calendars, chores, lists, the wall display.</span></a></li>
-            <li><a className="help-link" href={`${DOCS_URL}/contributing/accessibility`} target="_blank" rel="noopener"><strong>Accessibility</strong><span>Keyboard, screen readers, low-stimulation mode, what's still missing.</span></a></li>
-            <li><a className="help-link" href={newIssue('bug_report.yml', version)} target="_blank" rel="noopener"><strong>Report a problem</strong><span>Something isn't working. Opens a short form on GitHub.</span></a></li>
-            <li><a className="help-link" href={newIssue('feature_request.yml')} target="_blank" rel="noopener"><strong>Suggest a feature</strong><span>An idea for your family. Opens a short form on GitHub.</span></a></li>
-            {hostPortalUrl && <li><a className="help-link" href={hostPortalUrl} target="_blank" rel="noopener"><strong>Your hosting</strong><span>Manage or delete your family's instance.</span></a></li>}
+            {here && <li><a className="help-link" href={`${DOCS_URL}/${here}`} target="_blank" rel="noopener"><strong>{t('Help with this page')}</strong><span>{t('How this screen works, in the docs.')}</span></a></li>}
+            <li><a className="help-link" href={DOCS_URL} target="_blank" rel="noopener"><strong>{t('Docs & guides')}</strong><span>{t('Setting up, connecting calendars, chores, lists, the wall display.')}</span></a></li>
+            <li><a className="help-link" href={`${DOCS_URL}/contributing/accessibility`} target="_blank" rel="noopener"><strong>{t('Accessibility')}</strong><span>{t("Keyboard, screen readers, low-stimulation mode, what's still missing.")}</span></a></li>
+            <li><a className="help-link" href={newIssue('bug_report.yml', version)} target="_blank" rel="noopener"><strong>{t('Report a problem')}</strong><span>{t("Something isn't working. Opens a short form on GitHub.")}</span></a></li>
+            <li><a className="help-link" href={newIssue('feature_request.yml')} target="_blank" rel="noopener"><strong>{t('Suggest a feature')}</strong><span>{t('An idea for your family. Opens a short form on GitHub.')}</span></a></li>
+            {hostPortalUrl && <li><a className="help-link" href={hostPortalUrl} target="_blank" rel="noopener"><strong>{t('Your hosting')}</strong><span>{t("Manage or delete your family's instance.")}</span></a></li>}
           </ul>
-          {version && <p className="field-hint">Kinwall v{version}</p>}
+          {version && <p className="field-hint">{t('Kinwall v{version}', { version })}</p>}
         </Sheet>
       )}
     </>

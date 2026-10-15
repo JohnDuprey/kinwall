@@ -2,7 +2,8 @@ import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
 import Sheet from './Sheet.tsx'
 import { loadFont } from './useTheme.ts'
 import type { Typeface } from './types.ts'
-import { findSkin, getSkin, SCHEME_BLURBS, SCHEME_GROUPS, seasonalNote, seasonalSkinId, tokensFor, type CustomScheme, type Skin } from './skins.ts'
+import { findSkin, getSkin, SCHEME_BLURBS, SCHEME_GROUPS, seasonalNote, seasonalSkinId, skinName, tokensFor, type CustomScheme, type Skin } from './skins.ts'
+import { msg, t, tm } from './i18n.ts'
 
 /** A scheme's light and dark look as a tiny Board: background, a card, two lines of text and an
  * accent pill, drawn from the same tokens the app applies (tokensFor). */
@@ -66,34 +67,34 @@ export function SchemePickerSheet({ value, family, customs, familyScheme, onPick
   footer: ReactNode // the quiet reset at the bottom
 }) {
   return (
-    <Sheet title="Color scheme" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={onClose}>Done</button>}>
+    <Sheet title={t('Color scheme')} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={onClose}>{t('Done')}</button>}>
       <div className="scheme-groups" onKeyDown={onArrows}>
         {family && (
-          <section className="scheme-group" aria-label="Follow the family">
-            <h3 className="scheme-group-title">Follow the family</h3>
+          <section className="scheme-group" aria-label={t('Follow the family')}>
+            <h3 className="scheme-group-title">{t('Follow the family')}</h3>
             <div className="scheme-grid">
-              <SchemeCard skin={family.skin} name="🏠 Use the family's scheme" desc={`Now: ${family.name}`} selected={value === undefined} onPick={() => onPick(undefined)} />
+              <SchemeCard skin={family.skin} name={`🏠 ${t("Use the family's scheme")}`} desc={t('Now: {name}', { name: family.name })} selected={value === undefined} onPick={() => onPick(undefined)} />
             </div>
           </section>
         )}
         {SCHEME_GROUPS.map(g => (
-          <section key={g.label} className="scheme-group" aria-label={g.label}>
-            <h3 className="scheme-group-title">{g.label}</h3>
+          <section key={g.label} className="scheme-group" aria-label={tm(g.label)}>
+            <h3 className="scheme-group-title">{tm(g.label)}</h3>
             <div className="scheme-grid">
               {g.ids.map(id => id === 'seasonal'
-                ? <SchemeCard key={id} skin={getSkin(seasonalSkinId())} name="🗓️ Seasonal" desc={seasonalNote()} selected={value === id} onPick={() => onPick(id)} />
-                : <SchemeCard key={id} skin={getSkin(id)} name={`${getSkin(id).emoji} ${getSkin(id).name}`} desc={SCHEME_BLURBS[id]} selected={value === id} onPick={() => onPick(id)} />)}
+                ? <SchemeCard key={id} skin={getSkin(seasonalSkinId())} name={`🗓️ ${t('Seasonal')}`} desc={seasonalNote()} selected={value === id} onPick={() => onPick(id)} />
+                : <SchemeCard key={id} skin={getSkin(id)} name={`${getSkin(id).emoji} ${skinName(getSkin(id))}`} desc={tm(SCHEME_BLURBS[id])} selected={value === id} onPick={() => onPick(id)} />)}
             </div>
           </section>
         ))}
-        <section className="scheme-group" aria-label="Your schemes">
-          <h3 className="scheme-group-title">Your schemes</h3>
+        <section className="scheme-group" aria-label={t('Your schemes')}>
+          <h3 className="scheme-group-title">{t('Your schemes')}</h3>
           {customs.length > 0
             ? <div className="scheme-grid">
                 {customs.map(c => <SchemeCard key={c.id} skin={findSkin(c.id, customs)} name={`${c.emoji || '🎨'} ${c.name}`}
-                  desc={c.id === familyScheme ? "The family's own scheme" : 'Saved by the family'} selected={value === c.id} onPick={() => onPick(c.id)} />)}
+                  desc={c.id === familyScheme ? t("The family's own scheme") : t('Saved by the family')} selected={value === c.id} onPick={() => onPick(c.id)} />)}
               </div>
-            : <p className="settings-row-sub">Make your own from the scheme you're on.</p>}
+            : <p className="settings-row-sub">{t("Make your own from the scheme you're on.")}</p>}
           <div className="scheme-actions">{customActions}</div>
         </section>
       </div>
@@ -102,7 +103,7 @@ export function SchemePickerSheet({ value, family, customs, familyScheme, onPick
   )
 }
 
-const SAMPLE = 'Soccer at 4:00 · Tacos for dinner'
+const SAMPLE = msg('Soccer at 4:00 · Tacos for dinner')
 
 /** Typeface row and sheet, for the family or (with `family`) this device: the row shows the typeface
  * in effect in itself; the sheet has one card per typeface with a sample line set in it. On a device,
@@ -118,26 +119,26 @@ export function TypefaceRow({ options, value, family, onPick }: {
   const valueId = useId()
   const labelOf = (k: Typeface | undefined) => (options.find(o => o.key === k) ?? options[0]).label
   const shown = value ?? family ?? 'default'
-  const rowValue = value || !family ? labelOf(value) : `🏠 The family's (${labelOf(family).split(' (')[0]})`
+  const rowValue = value || !family ? labelOf(value) : `🏠 ${t("The family's ({name})", { name: labelOf(family).split(' (')[0] })}`
   const card = (key: Typeface | undefined, font: Typeface, name: string, desc: string) => (
     <button key={key ?? 'family'} type="button" className="scheme-card" aria-pressed={key === value} onClick={() => onPick(key)}>
       {key === value && <span className="scheme-card-check" aria-hidden="true">✓</span>}
       <span className="scheme-card-name typeface-name" style={{ fontFamily: loadFont(font) }}>{name}</span>
-      <span className="typeface-sample" style={{ fontFamily: loadFont(font) }}>{SAMPLE}</span>
+      <span className="typeface-sample" style={{ fontFamily: loadFont(font) }}>{tm(SAMPLE)}</span>
       <span className="scheme-card-desc">{desc}</span>
     </button>
   )
   return (
     <div className="device-pref-row">
-      <span aria-hidden="true">Typeface</span>
-      <button type="button" className="settings-select scheme-row" aria-label={family ? 'Typeface on this device' : 'Typeface'} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <span aria-hidden="true">{t('Typeface')}</span>
+      <button type="button" className="settings-select scheme-row" aria-label={family ? t('Typeface on this device') : t('Typeface')} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <span id={valueId} className="scheme-row-name" style={{ fontFamily: loadFont(shown) }}>{rowValue}</span>
       </button>
       {open && (
-        <Sheet title="Typeface" onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>Done</button>}>
+        <Sheet title={t('Typeface')} onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>{t('Done')}</button>}>
           <div className="scheme-groups" onKeyDown={onArrows}>
             <div className="scheme-grid">
-              {family && card(undefined, family, "🏠 Use the family's typeface", `Now: ${labelOf(family)}`)}
+              {family && card(undefined, family, `🏠 ${t("Use the family's typeface")}`, t('Now: {name}', { name: labelOf(family) }))}
               {options.map(o => card(o.key, o.key, o.label, o.desc))}
             </div>
           </div>

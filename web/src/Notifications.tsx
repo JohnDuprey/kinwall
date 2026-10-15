@@ -10,6 +10,7 @@ import { useDialog } from './dialog.tsx'
 import { todayKeyInTz, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { Face } from './Face'
+import { intlLocale, t } from './i18n.ts'
 
 // Read state is per device, like the other device prefs: everything newer than this is unread.
 const SEEN_KEY = 'kinwall.notificationsSeenAt'
@@ -32,22 +33,22 @@ const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', s
 // The server says per note whether this key may remove it; an older server doesn't, so then fall back to the old guess.
 const canRemove = (n: AppNotification, isAdmin: boolean) => n.removable ?? (isAdmin || n.kind === 'privacy')
 
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'short' })
+const rtf = () => new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'auto', style: 'short' })
 function relTime(iso: string, tz: string): string {
   const min = Math.round((Date.now() - Date.parse(iso)) / 60000)
-  if (min < 1) return 'just now'
-  if (min < 60) return rtf.format(-min, 'minute')
-  if (zonedDayKey(iso, tz) === todayKeyInTz(tz)) return rtf.format(-Math.round(min / 60), 'hour')
+  if (min < 1) return t('just now')
+  if (min < 60) return rtf().format(-min, 'minute')
+  if (zonedDayKey(iso, tz) === todayKeyInTz(tz)) return rtf().format(-Math.round(min / 60), 'hour')
   return formatTime(iso, tz)
 }
 
 function dayLabel(dayKey: string, tz: string): string {
   const today = todayKeyInTz(tz)
   const yesterday = zonedDayKey(new Date(Date.now() - 864e5).toISOString(), tz)
-  if (dayKey === today) return 'Today'
-  if (dayKey === yesterday) return 'Yesterday'
+  if (dayKey === today) return t('Today')
+  if (dayKey === yesterday) return t('Yesterday')
   const [y, m, d] = dayKey.split('-').map(Number)
-  return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, d)))
+  return new Intl.DateTimeFormat(intlLocale(), { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, d)))
 }
 
 // Deep links are the same ones a push opens ('/#/calendar?event=…', '/chores', '/'); the app
@@ -77,16 +78,16 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
   const markSeen = () => { const now = new Date().toISOString(); setSeenAt(now); writeSeen(now) }
   const openSheet = () => { setSheetSeenAt(seenAt); markSeen(); setComposing(false); setOpen(true) }
   const closeSheet = () => { markSeen(); setOpen(false) } // anything that arrived while it was open was seen too
-  const markAllRead = () => { setSheetSeenAt(new Date().toISOString()); announce('All notifications marked read') }
+  const markAllRead = () => { setSheetSeenAt(new Date().toISOString()); announce(t('All notifications marked read')) }
   const go = (n: AppNotification) => { if (!n.url) return; closeSheet(); location.hash = toHash(n.url) }
   const remove = async (n: AppNotification) => {
     setItems(list => list.filter(x => x.id !== n.id))
-    try { await api.deleteNotification(n.id); announce('Notification removed') } catch { load() }
+    try { await api.deleteNotification(n.id); announce(t('Notification removed')) } catch { load() }
   }
   const clearAll = async () => {
-    if (!await dialog.confirm({ title: 'Clear all notifications?', body: 'Removes them for the whole family, on every device.', confirmLabel: 'Clear all', danger: true })) return
+    if (!await dialog.confirm({ title: t('Clear all notifications?'), body: t('Removes them for the whole family, on every device.'), confirmLabel: t('Clear all'), danger: true })) return
     setItems(list => list.filter(n => !canRemove(n, isAdmin))) // the server leaves privacy notes this device can't remove
-    try { await api.clearNotifications(); announce('Notifications cleared') } catch { load() }
+    try { await api.clearNotifications(); announce(t('Notifications cleared')) } catch { load() }
   }
 
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -101,21 +102,21 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      <button className="icon-btn header-bell" onClick={openSheet} aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}>
+      <button className="icon-btn header-bell" onClick={openSheet} aria-label={unread ? t('Notifications, {n} unread', { n: unread }) : t('Notifications')}>
         <BellIcon width={22} height={22} />
         {unread > 0 && <span className="bell-badge" aria-hidden="true">{badge}</span>}
       </button>
       {open && (
-        <Sheet title="Notifications" onClose={closeSheet}>
+        <Sheet title={t('Notifications')} onClose={closeSheet}>
           {(canMessage || sheetUnread || (isAdmin && items.some(n => canRemove(n, isAdmin)))) && (
             <div className="notif-toolbar">
-              {canMessage && !composing && <button className="btn btn-secondary notif-compose-btn" onClick={() => setComposing(true)}>💬 Send a message</button>}
-              {sheetUnread && <button className="btn btn-secondary" onClick={markAllRead}>Mark all read</button>}
-              {isAdmin && items.some(n => canRemove(n, isAdmin)) && <button className="btn btn-secondary" onClick={clearAll}>Clear all</button>}
+              {canMessage && !composing && <button className="btn btn-secondary notif-compose-btn" onClick={() => setComposing(true)}>💬 {t('Send a message')}</button>}
+              {sheetUnread && <button className="btn btn-secondary" onClick={markAllRead}>{t('Mark all read')}</button>}
+              {isAdmin && items.some(n => canRemove(n, isAdmin)) && <button className="btn btn-secondary" onClick={clearAll}>{t('Clear all')}</button>}
             </div>
           )}
           {canMessage && composing && <SendMessageForm onSent={() => { setComposing(false); load() }} />}
-          {items.length === 0 && <p className="notif-empty">Nothing yet — reminders and messages will show up here.</p>}
+          {items.length === 0 && <p className="notif-empty">{t('Nothing yet — reminders and messages will show up here.')}</p>}
           {groups.map(g => (
             <section key={g.key} className="notif-group" aria-label={dayLabel(g.key, tz)}>
               <h3 className="notif-day">{dayLabel(g.key, tz)}</h3>
@@ -127,14 +128,14 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                     <>
                       <span className="notif-icon" aria-hidden="true">{KIND_ICON[n.kind] ?? '🔔'}</span>
                       <span className="notif-main">
-                        <span className="notif-title">{isUnread && <><span className="notif-dot" /><span className="sr-only">Unread: </span></>}{n.title}</span>
+                        <span className="notif-title">{isUnread && <><span className="notif-dot" /><span className="sr-only">{t('Unread:')} </span></>}{n.title}</span>
                         {n.body && <span className="notif-body">{n.body}</span>}
-                        {n.kind === 'privacy' && (isAdmin || n.removable === false) && <span className="notif-meta">Kept in Settings → Access → Security activity</span>}
+                        {n.kind === 'privacy' && (isAdmin || n.removable === false) && <span className="notif-meta">{t('Kept in Settings → Access → Security activity')}</span>}
                         <span className="notif-meta">
                           <time dateTime={n.at}>{relTime(n.at, tz)}</time>
                           {who.length > 0 && (
                             <span className="notif-who">
-                              <span className="sr-only">For {who.map(m => m.name).join(', ')}</span>
+                              <span className="sr-only">{t('For {names}', { names: who.map(m => m.name).join(', ') })}</span>
                               {who.map(m => <Face key={m.id} m={m} className="member-avatar-sm notif-avatar" aria-hidden="true" />)}
                             </span>
                           )}
@@ -147,7 +148,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                       {n.url
                         ? <button className={`notif-item ${isUnread ? 'unread' : ''}`} onClick={() => go(n)}>{content}</button>
                         : <div className={`notif-item ${isUnread ? 'unread' : ''}`}>{content}</div>}
-                      {canRemove(n, isAdmin) && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
+                      {canRemove(n, isAdmin) && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={t('Remove: {title}', { title: n.title })}>×</button>}
                     </li>
                   )
                 })}

@@ -23,6 +23,10 @@ import type { SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
 import { Brand } from './Brand.tsx'
 import { ChipFace } from './Face'
+import { msg, t, tm, tn } from './i18n.ts'
+import { rich } from './rich.tsx'
+
+/** A translated sentence with React nodes (bold words, a link) for its {placeholders}. */
 
 // Persisted across the OAuth start->callback round trip (Google/Outlook connect from the
 // Calendars step), which reloads the page. Only the step and role are stored, never a key.
@@ -65,13 +69,13 @@ async function forgetEarlierFamily() {
 export const resumeAtPasskey = () => saveResume({ step: 'passkey', deviceRole: 'admin' })
 
 const CHORE_TEMPLATES = [
-  { emoji: '🛏️', title: 'Make bed', points: 1, rrule: 'FREQ=DAILY' },
-  { emoji: '🐶', title: 'Feed the pet', points: 2, rrule: 'FREQ=DAILY' },
-  { emoji: '🍽️', title: 'Dishes', points: 2, rrule: 'FREQ=DAILY' },
-  { emoji: '🗑️', title: 'Take out trash', points: 3, rrule: 'FREQ=WEEKLY' },
-  { emoji: '📚', title: 'Homework', points: 3, rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' },
-  { emoji: '🧺', title: 'Put away laundry', points: 2, rrule: 'FREQ=WEEKLY' },
-  { emoji: '🪴', title: 'Water plants', points: 1, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH' },
+  { emoji: '🛏️', title: msg('Make bed'), points: 1, rrule: 'FREQ=DAILY' },
+  { emoji: '🐶', title: msg('Feed the pet'), points: 2, rrule: 'FREQ=DAILY' },
+  { emoji: '🍽️', title: msg('Dishes'), points: 2, rrule: 'FREQ=DAILY' },
+  { emoji: '🗑️', title: msg('Take out trash'), points: 3, rrule: 'FREQ=WEEKLY' },
+  { emoji: '📚', title: msg('Homework'), points: 3, rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' },
+  { emoji: '🧺', title: msg('Put away laundry'), points: 2, rrule: 'FREQ=WEEKLY' },
+  { emoji: '🪴', title: msg('Water plants'), points: 1, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH' },
 ]
 
 function Progress({ step, features }: { step: Step; features: Features | null }) {
@@ -79,19 +83,19 @@ function Progress({ step, features }: { step: Step; features: Features | null })
   const at = steps.indexOf(step === 'owner' ? 'members' : step)
   if (at < 0) return null
   return (
-    <div className="setup-progress" role="img" aria-label={`Step ${at + 1} of ${steps.length}`}>
+    <div className="setup-progress" role="img" aria-label={t('Step {n} of {total}', { n: at + 1, total: steps.length })}>
       {steps.map((s, i) => <div key={s} className={`setup-dot ${i < at ? 'done' : ''} ${i === at ? 'active' : ''}`} />)}
     </div>
   )
 }
 
-function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, skipLabel = 'Skip', sticky }: {
+function StepNav({ onBack, onNext, nextLabel = t('Next'), nextDisabled, onSkip, skipLabel = t('Skip'), sticky }: {
   onBack?: () => void; onNext?: () => void; nextLabel?: string; nextDisabled?: boolean; onSkip?: () => void; skipLabel?: string
   sticky?: boolean // stays at the bottom of the card while a long step scrolls
 }) {
   return (
     <div className={`setup-nav ${sticky ? 'setup-nav-sticky' : ''}`}>
-      <div>{onBack && <button className="btn btn-secondary setup-btn" onClick={onBack}>Back</button>}</div>
+      <div>{onBack && <button className="btn btn-secondary setup-btn" onClick={onBack}>{t('Back')}</button>}</div>
       <div className="setup-nav-right">
         {onSkip && <button className="link-btn" onClick={onSkip}>{skipLabel}</button>}
         {onNext && <button className="btn btn-primary setup-btn" onClick={onNext} disabled={nextDisabled}>{nextLabel}</button>}
@@ -124,27 +128,30 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
     const qrValue = new URL(withCode ? `#key=${code}` : '', document.baseURI).href
     return (
       <div className="setup-step">
-        <h1>Start on your phone</h1>
-        <p className="setup-sub">Your phone holds the passkey that manages Kinwall, so set it up first. Scan this with your phone's camera to open Kinwall{withCode ? ' with the code already filled in' : ''}.</p>
+        <h1>{t('Start on your phone')}</h1>
+        <p className="setup-sub">{withCode
+          ? t("Your phone holds the passkey that manages Kinwall, so set it up first. Scan this with your phone's camera to open Kinwall with the code already filled in.")
+          : t("Your phone holds the passkey that manages Kinwall, so set it up first. Scan this with your phone's camera to open Kinwall.")}</p>
         <div className="setup-key-row setup-qr-center"><QrCode value={qrValue} size={168} /></div>
-        <p className="settings-row-sub">No camera? Go to <strong>{new URL(document.baseURI).host}</strong> on your phone{withCode ? <> and enter <strong>{code.slice(0, 3)} {code.slice(3)}</strong></> : ' and enter the setup code'}.</p>
+        <p className="settings-row-sub">{rich(withCode ? t('No camera? Go to {host} on your phone and enter {code}.') : t('No camera? Go to {host} on your phone and enter the setup code.'),
+          { host: <strong>{new URL(document.baseURI).host}</strong>, code: <strong>{code.slice(0, 3)} {code.slice(3)}</strong> })}</p>
         <ol className="setup-steps-list">
-          <li>On your phone, finish setup and create your passkey.</li>
-          <li>This screen then shows a pairing code. On your phone, open Settings → Access → Add a wall screen or kid's device and enter it.</li>
+          <li>{t('On your phone, finish setup and create your passkey.')}</li>
+          <li>{t("This screen then shows a pairing code. On your phone, open Settings → Access → Add a wall screen or kid's device and enter it.")}</li>
         </ol>
-        <p className="settings-row-sub">Waiting for your phone…</p>
-        <button className="link-btn" onClick={() => setWallFirst(false)}>Back</button>
+        <p className="settings-row-sub">{t('Waiting for your phone…')}</p>
+        <button className="link-btn" onClick={() => setWallFirst(false)}>{t('Back')}</button>
       </div>
     )
   }
 
   return (
     <div className="setup-step">
-      <h1>Welcome to Kinwall 👋</h1>
+      <h1>{t('Welcome to Kinwall 👋')}</h1>
       <p className="setup-sub">
-        {useKey ? 'Enter the ADMIN_API_KEY you set on the server.' : linked ? "Let's get your family wall set up. Your setup link filled in the code, so tap Continue to begin." : "Let's get your family wall set up. Enter the 6-digit setup code. Ask whoever set up your Kinwall server for it, or tap Where do I find this?"}
+        {useKey ? t('Enter the ADMIN_API_KEY you set on the server.') : linked ? t("Let's get your family wall set up. Your setup link filled in the code, so tap Continue to begin.") : t("Let's get your family wall set up. Enter the 6-digit setup code. Ask whoever set up your Kinwall server for it, or tap Where do I find this?")}
       </p>
-      <label className="setup-input-label" htmlFor="setup-code">{useKey ? 'Admin API key' : 'Setup code'}</label>
+      <label className="setup-input-label" htmlFor="setup-code">{useKey ? t('Admin API key') : t('Setup code')}</label>
       {useKey ? (
         <input
           id="setup-code"
@@ -165,20 +172,20 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
         />
       )}
       {useKey
-        ? <button className="link-btn setup-hint-toggle" onClick={switchMode}>Use a 6-digit setup code instead</button>
-        : !linked && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)} aria-expanded={hint}>Where do I find this?</button>}
+        ? <button className="link-btn setup-hint-toggle" onClick={switchMode}>{t('Use a 6-digit setup code instead')}</button>
+        : !linked && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)} aria-expanded={hint}>{t('Where do I find this?')}</button>}
       {hint && !useKey && (
         <div className="setup-hint-box">
-          <p>The server prints it in its log when it starts:</p>
+          <p>{t('The server prints it in its log when it starts:')}</p>
           <p><strong>Docker:</strong> <code>docker logs kinwall</code></p>
-          <p><strong>Home Assistant:</strong> Settings → Apps → Kinwall → Log (Add-ons in older versions)</p>
-          <p><strong>Cloudflare Workers:</strong> the Worker's logs</p>
-          <p>Set up the server yourself? <button className="link-btn" onClick={switchMode}>Use your ADMIN_API_KEY instead</button></p>
+          <p><strong>Home Assistant:</strong> {t('Settings → Apps → Kinwall → Log (Add-ons in older versions)')}</p>
+          <p><strong>Cloudflare Workers:</strong> {t("the Worker's logs")}</p>
+          <p>{rich(t('Set up the server yourself? {link}'), { link: <button className="link-btn" onClick={switchMode}>{t('Use your ADMIN_API_KEY instead')}</button> })}</p>
         </div>
       )}
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onNext={onNext} nextDisabled={!ready || busy} nextLabel={busy ? 'Starting…' : 'Continue'} />
-      <button className="link-btn setup-hint-toggle" onClick={() => setWallFirst(true)}>Setting up the wall screen? Start on your phone</button>
+      <StepNav onNext={onNext} nextDisabled={!ready || busy} nextLabel={busy ? t('Starting…') : t('Continue')} />
+      <button className="link-btn setup-hint-toggle" onClick={() => setWallFirst(true)}>{t('Setting up the wall screen? Start on your phone')}</button>
     </div>
   )
 }
@@ -187,7 +194,7 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
  * can't make one gets `onNoPasskey` after a failed try (recovery codes instead), unless the host
  * requires a passkey. */
 function PasskeyStep({ adminKeyId, onDone, onNoPasskey }: { adminKeyId: string | null; onDone: () => void; onNoPasskey?: () => void }) {
-  const [name, setName] = useState('My phone')
+  const [name, setName] = useState(() => t('My phone'))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -202,7 +209,7 @@ function PasskeyStep({ adminKeyId, onDone, onNoPasskey }: { adminKeyId: string |
       }
       onDone()
     } catch (e) {
-      setError(e instanceof ApiError ? oops(e, 'Could not create the passkey. Try again.') : e instanceof Error ? e.message : 'Could not create the passkey. Try again.')
+      setError(e instanceof ApiError ? oops(e, t('Could not create the passkey. Try again.')) : e instanceof Error ? e.message : t('Could not create the passkey. Try again.'))
     } finally {
       setBusy(false)
     }
@@ -210,18 +217,19 @@ function PasskeyStep({ adminKeyId, onDone, onNoPasskey }: { adminKeyId: string |
 
   return (
     <div className="setup-step">
-      <h1>Create a passkey for this device</h1>
-      <p className="setup-sub">Kinwall signs you in with Face ID, Touch ID or your device's screen lock. It's how you get back into your family.</p>
-      <div className="field"><label htmlFor="setup-passkey-name">Name this passkey</label><input id="setup-passkey-name" type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
-      {inFrame() && <p className="setup-sub">Inside Home Assistant's panel, some browsers won't make a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener" onClick={handOffPasskeyStep}>Open Kinwall in its own tab</a> and finish setup there.</p>}
+      <h1>{t('Create a passkey for this device')}</h1>
+      <p className="setup-sub">{t("Kinwall signs you in with Face ID, Touch ID or your device's screen lock. It's how you get back into your family.")}</p>
+      <div className="field"><label htmlFor="setup-passkey-name">{t('Name this passkey')}</label><input id="setup-passkey-name" type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      {inFrame() && <p className="setup-sub">{rich(t("Inside Home Assistant's panel, some browsers won't make a passkey. {link} and finish setup there."),
+        { link: <a className="text-link" href={location.href} target="_blank" rel="noopener" onClick={handOffPasskeyStep}>{t('Open Kinwall in its own tab')}</a> })}</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onNext={() => create()} nextDisabled={busy || !name.trim()} nextLabel={busy ? 'Creating…' : 'Create passkey'} />
+      <StepNav onNext={() => create()} nextDisabled={busy || !name.trim()} nextLabel={busy ? t('Creating…') : t('Create passkey')} />
       <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} disabled={busy || !name.trim()} onClick={() => create('cross-platform')}>
-        Use a security key or another device
+        {t('Use a security key or another device')}
       </button>
       {error && onNoPasskey && (
         <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} disabled={busy} onClick={onNoPasskey}>
-          Can't make a passkey here? Use recovery codes instead
+          {t("Can't make a passkey here? Use recovery codes instead")}
         </button>
       )}
     </div>
@@ -240,28 +248,28 @@ function RecoveryStep({ required, onNext }: { required?: boolean; onNext: () => 
   useEffect(() => {
     if (generated.current) return // StrictMode double-mount would otherwise replace the set
     generated.current = true
-    api.generateRecoveryCodes().then(r => setCodes(r.codes)).catch(e => setError(oops(e, 'Could not create recovery codes. You can make them later in Settings → Access.')))
+    api.generateRecoveryCodes().then(r => setCodes(r.codes)).catch(e => setError(oops(e, t('Could not create recovery codes. You can make them later in Settings → Access.'))))
   }, [])
   return (
     <div className="setup-step">
-      <h1>Save your recovery codes</h1>
-      <p className="setup-sub">If this device is ever lost, one of these signs you back in. Each works once. Keep them in a password manager or printed with your important papers.</p>
-      {codes ? <RecoveryCodesView codes={codes} /> : !error && <p className="setup-sub">Creating…</p>}
+      <h1>{t('Save your recovery codes')}</h1>
+      <p className="setup-sub">{t('If this device is ever lost, one of these signs you back in. Each works once. Keep them in a password manager or printed with your important papers.')}</p>
+      {codes ? <RecoveryCodesView codes={codes} /> : !error && <p className="setup-sub">{t('Creating…')}</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
       {codes && (
         <label className="setup-check-row">
           <input type="checkbox" checked={saved} onChange={e => setSaved(e.target.checked)} />
-          I've saved these somewhere safe
+          {t("I've saved these somewhere safe")}
         </label>
       )}
       <StepNav onNext={onNext} nextDisabled={!saved} />
-      {(!required || error) && <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>I'll do this later (not recommended)</button>}
+      {(!required || error) && <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>{t("I'll do this later (not recommended)")}</button>}
     </div>
   )
 }
 
 function HouseholdStep({ onNext }: { onNext: () => void }) {
-  const [familyName, setFamilyName] = useState('Our Family')
+  const [familyName, setFamilyName] = useState(() => t('Our Family'))
   // A host may have set the name before the wizard runs (hosted signup asks for it); keep it.
   useEffect(() => { api.getSettings().then(s => { if (s.familyName && s.familyName !== 'Our Family') setFamilyName(s.familyName) }).catch(() => {}) }, [])
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -272,29 +280,29 @@ function HouseholdStep({ onNext }: { onNext: () => void }) {
   const save = async () => {
     setBusy(true); setError('')
     try {
-      await api.updateSettings({ familyName: familyName.trim() || 'Our Family', timezone, weekStart })
+      await api.updateSettings({ familyName: familyName.trim() || t('Our Family'), timezone, weekStart })
       onNext()
-    } catch (e) { setError(oops(e, 'Could not save. Try again.')) } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, t('Could not save. Try again.'))) } finally { setBusy(false) }
   }
 
   return (
     <div className="setup-step">
-      <h1>Your household</h1>
-      <div className="field"><label htmlFor="setup-family-name">Family name</label><input id="setup-family-name" type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} autoFocus /></div>
+      <h1>{t('Your household')}</h1>
+      <div className="field"><label htmlFor="setup-family-name">{t('Family name')}</label><input id="setup-family-name" type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} autoFocus /></div>
       <div className="field">
-        <label htmlFor="setup-timezone">Timezone</label>
+        <label htmlFor="setup-timezone">{t('Timezone')}</label>
         <TimezoneField id="setup-timezone" value={timezone} onChange={setTimezone} />
       </div>
       <div className="field">
-        <label id="setup-week-label">Week starts on</label>
+        <label id="setup-week-label">{t('Week starts on')}</label>
         <div className="setup-choice-row" role="group" aria-labelledby="setup-week-label">
-          <button className={`setup-choice ${weekStart === 0 ? 'active' : ''}`} aria-pressed={weekStart === 0} onClick={() => setWeekStart(0)}>Sunday</button>
-          <button className={`setup-choice ${weekStart === 1 ? 'active' : ''}`} aria-pressed={weekStart === 1} onClick={() => setWeekStart(1)}>Monday</button>
+          <button className={`setup-choice ${weekStart === 0 ? 'active' : ''}`} aria-pressed={weekStart === 0} onClick={() => setWeekStart(0)}>{t('Sunday')}</button>
+          <button className={`setup-choice ${weekStart === 1 ? 'active' : ''}`} aria-pressed={weekStart === 1} onClick={() => setWeekStart(1)}>{t('Monday')}</button>
         </div>
       </div>
       {error && <p className="setup-error" role="alert">{error}</p>}
       {/* No Back: the device is claimed now, and the role step can't be done twice. */}
-      <StepNav onNext={save} nextDisabled={busy} nextLabel={busy ? 'Saving…' : 'Next'} />
+      <StepNav onNext={save} nextDisabled={busy} nextLabel={busy ? t('Saving…') : t('Next')} />
     </div>
   )
 }
@@ -330,7 +338,7 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
   /** Adds the typed member; resolves whether it was added. */
   const add = async (): Promise<boolean> => {
     if (!name.trim()) return false
-    if (!isValidAvatar(avatar)) { setError('Pick an avatar first.'); return false }
+    if (!isValidAvatar(avatar)) { setError(t('Pick an avatar first.')); return false }
     setError('')
     try {
       const m = await api.createMember({ name: name.trim(), color, avatar, grownUp })
@@ -340,23 +348,23 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
       resetFor(list)
       nameRef.current?.focus()
       return true
-    } catch (e) { setError(oops(e, `Could not add ${name.trim()}. Try again.`)); return false }
+    } catch (e) { setError(oops(e, t('Could not add {name}. Try again.', { name: name.trim() }))); return false }
   }
   // A typed-but-not-added name is added on Next rather than dropped.
   const next = async () => { if (!name.trim() || await add()) onNext() }
   const remove = async (id: string) => {
     try { await api.deleteMember(id); setMembers(ms => ms.filter(m => m.id !== id)) }
-    catch (e) { setError(oops(e, 'Could not remove them. Try again.')) }
+    catch (e) { setError(oops(e, t('Could not remove them. Try again.'))) }
   }
   const setKind = async (m: Member, grown: boolean) => {
     try { const u = await api.updateMember(m.id, { grownUp: grown }); setMembers(ms => ms.map(x => x.id === m.id ? { ...x, grownUp: u.grownUp } : x)) }
-    catch (e) { setError(oops(e, `Could not change ${m.name}. Try again.`)) }
+    catch (e) { setError(oops(e, t('Could not change {name}. Try again.', { name: m.name }))) }
   }
 
   return (
     <div className="setup-step">
-      <h1>Who's in the family?</h1>
-      <p className="setup-sub">Add everyone who'll show up on the wall.</p>
+      <h1>{t("Who's in the family?")}</h1>
+      <p className="setup-sub">{t("Add everyone who'll show up on the wall.")}</p>
       {/* Above the form, so everyone added stays in view as the list grows. */}
       {members.length > 0 && (
         <div className="member-row-list setup-member-list">
@@ -364,49 +372,49 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             <div key={m.id} className="member-list-item">
               <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
               <div className="name">{m.name}</div>
-              <select className="settings-select setup-kind-select" value={m.grownUp ? 'grown' : 'kid'} aria-label={`${m.name}: grown-up or kid`}
+              <select className="settings-select setup-kind-select" value={m.grownUp ? 'grown' : 'kid'} aria-label={t('{name}: grown-up or kid', { name: m.name })}
                 onChange={e => setKind(m, e.target.value === 'grown')}>
-                <option value="grown">🧑 Grown-up</option>
-                <option value="kid">🧒 Kid</option>
+                <option value="grown">{`🧑 ${t('Grown-up')}`}</option>
+                <option value="kid">{`🧒 ${t('Kid')}`}</option>
               </select>
-              <button className="icon-btn" onClick={() => remove(m.id)} aria-label={`Remove ${m.name}`}><TrashIcon width={16} height={16} /></button>
+              <button className="icon-btn" onClick={() => remove(m.id)} aria-label={t('Remove {name}', { name: m.name })}><TrashIcon width={16} height={16} /></button>
             </div>
           ))}
         </div>
       )}
-      <div className="field"><label htmlFor="setup-member-name">{members.length ? 'Next person' : 'Name'}</label>
+      <div className="field"><label htmlFor="setup-member-name">{members.length ? t('Next person') : t('Name')}</label>
         <input id="setup-member-name" ref={nameRef} type="text" value={name} onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && add()} placeholder="e.g. Sam" autoFocus />
+          onKeyDown={e => e.key === 'Enter' && add()} placeholder={t('e.g. Sam')} autoFocus />
       </div>
       <div className="field">
-        <label id="setup-grown-label">Grown-up or kid?</label>
+        <label id="setup-grown-label">{t('Grown-up or kid?')}</label>
         <div className="setup-choice-row" role="group" aria-labelledby="setup-grown-label">
-          <button className={`setup-choice ${grownUp ? 'active' : ''}`} aria-pressed={grownUp} onClick={() => setGrownUp(true)}>🧑 Grown-up</button>
-          <button className={`setup-choice ${grownUp ? '' : 'active'}`} aria-pressed={!grownUp} onClick={() => setGrownUp(false)}>🧒 Kid</button>
+          <button className={`setup-choice ${grownUp ? 'active' : ''}`} aria-pressed={grownUp} onClick={() => setGrownUp(true)}>🧑 {t('Grown-up')}</button>
+          <button className={`setup-choice ${grownUp ? '' : 'active'}`} aria-pressed={!grownUp} onClick={() => setGrownUp(false)}>🧒 {t('Kid')}</button>
         </div>
       </div>
       <button type="button" className="setup-customize" aria-expanded={custom} onClick={() => setCustom(c => !c)}>
         <span className="member-avatar-sm" aria-hidden="true" style={{ background: color, color: inkFor(color) }}>{avatar}</span>
-        {custom ? 'Hide color and avatar' : 'Change color and avatar'}
+        {custom ? t('Hide color and avatar') : t('Change color and avatar')}
       </button>
       {custom && <>
       <div className="field">
-        <label id="setup-color-label">Color</label>
+        <label id="setup-color-label">{t('Color')}</label>
         <div className="color-swatch-row" role="group" aria-labelledby="setup-color-label">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
         </div>
       </div>
       <div className="field">
-        <label id="setup-avatar-label">Avatar</label>
+        <label id="setup-avatar-label">{t('Avatar')}</label>
         <div className="emoji-swatch-row" role="group" aria-labelledby="setup-avatar-label">
           {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${avatar === e ? 'active' : ''}`} aria-pressed={avatar === e} onClick={() => setAvatar(e)}>{e}</button>)}
         </div>
         <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
       </div>
       </>}
-      <button className="add-row-btn setup-add-btn" onClick={add} disabled={!name.trim() || !isValidAvatar(avatar)}><PlusIcon width={20} height={20} />{members.length ? 'Add another' : 'Add'}</button>
+      <button className="add-row-btn setup-add-btn" onClick={add} disabled={!name.trim() || !isValidAvatar(avatar)}><PlusIcon width={20} height={20} />{members.length ? t('Add another') : t('Add')}</button>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav sticky onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} nextLabel={name.trim() ? 'Add and continue' : 'Next'} />
+      <StepNav sticky onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} nextLabel={name.trim() ? t('Add and continue') : t('Next')} />
     </div>
   )
 }
@@ -422,20 +430,20 @@ function IcsForm({ members, onDone }: { members: Member[]; onDone: () => void })
     if (!url.trim()) return
     setBusy(true); setError(''); setResult('')
     try {
-      const cal = await api.createCalendar({ kind: 'ics', name: 'Subscribed calendar', url: url.trim(), color: nextPaletteColor([]), memberIds })
+      const cal = await api.createCalendar({ kind: 'ics', name: t('Subscribed calendar'), url: url.trim(), color: nextPaletteColor([]), memberIds })
       const sync = await api.syncCalendar(cal.id, true)
-      setResult(`Added — ${sync.count} events synced`)
-    } catch (e) { setError(calendarOops(e, 'Could not add the calendar. Try again.')) } finally { setBusy(false) }
+      setResult(tn(sync.count, 'Added — {n} event synced', 'Added — {n} events synced'))
+    } catch (e) { setError(calendarOops(e, t('Could not add the calendar. Try again.'))) } finally { setBusy(false) }
   }
 
   return (
     <div className="setup-provider-form">
-      <div className="field"><label htmlFor="setup-ics-url">Calendar link (ICS URL)</label><input id="setup-ics-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
-      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Who is this for?" />
+      <div className="field"><label htmlFor="setup-ics-url">{t('Calendar link (ICS URL)')}</label><input id="setup-ics-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label={t('Who is this for?')} />
       {result && <p className="setup-success">{result}</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
       <button className={`btn ${result ? '' : 'btn-primary'} setup-btn`} onClick={result ? onDone : save} disabled={busy || !url.trim()}>
-        {busy ? 'Adding…' : result ? 'Close' : 'Add & sync'}
+        {busy ? t('Adding…') : result ? t('Close') : t('Add & sync')}
       </button>
     </div>
   )
@@ -466,7 +474,7 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
       const rs = await api.getRemoteCalendars(acc.id)
       setRemotes(rs)
       setChecked(initialPicks(rs.map(rc => rc.remoteId)))
-    } catch (e) { setError(calendarOops(e, 'Could not connect. Try again.')) } finally { setBusy(false) }
+    } catch (e) { setError(calendarOops(e, t('Could not connect. Try again.'))) } finally { setBusy(false) }
   }
 
   // The step's Next button adds the ticked calendars one by one, then moves on (false = stay).
@@ -475,19 +483,19 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
     if (!accountId) return true
     let done = 0
     for (const rc of todo) {
-      setProgress(`Adding ${done + 1} of ${todo.length}…`)
+      setProgress(t('Adding {n} of {total}…', { n: done + 1, total: todo.length }))
       try {
         await api.createCalendar({ kind: 'caldav', accountId, remoteId: rc.remoteId, name: rc.name, color: rc.color ?? nextPaletteColor([]), writable: rc.writable })
         done++
         setAdded(s => new Set(s).add(rc.remoteId))
       } catch (e) {
-        const msg = calendarOops(e, 'Could not add the calendar. Try again.')
-        setError(msg); announce(msg, true); setProgress(null)
+        const why = calendarOops(e, t('Could not add the calendar. Try again.'))
+        setError(why); announce(why, true); setProgress(null)
         return false
       }
     }
     setProgress(null)
-    if (done) announce(`Added ${done} calendar${done === 1 ? '' : 's'}`)
+    if (done) announce(tn(done, 'Added {n} calendar', 'Added {n} calendars'))
     return true
   }
   const onPendingRef = useRef(onPending)
@@ -496,7 +504,7 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
   commitRef.current = commit
   useEffect(() => {
     onPendingRef.current(remotes?.length ? {
-      label: progress ?? (todo.length ? `Add ${todo.length} and continue` : 'Skip'),
+      label: progress ?? (todo.length ? t('Add {n} and continue', { n: todo.length }) : t('Skip')),
       busy: progress !== null,
       commit: () => commitRef.current(),
     } : null)
@@ -506,20 +514,20 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
   if (!accountId) {
     return (
       <div className="setup-provider-form">
-        <div className="field"><label htmlFor="setup-caldav-name">Account name</label><input id="setup-caldav-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. iCloud" autoFocus /></div>
-        <div className="field"><label htmlFor="setup-caldav-url">Server URL</label><input id="setup-caldav-url" type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
-        <div className="field"><label htmlFor="setup-caldav-user">Username</label><input id="setup-caldav-user" type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
-        <div className="field"><label htmlFor="setup-caldav-pass">App password</label><input id="setup-caldav-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} aria-describedby="caldav-hint" /></div>
+        <div className="field"><label htmlFor="setup-caldav-name">{t('Account name')}</label><input id="setup-caldav-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('e.g. iCloud')} autoFocus /></div>
+        <div className="field"><label htmlFor="setup-caldav-url">{t('Server URL')}</label><input id="setup-caldav-url" type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
+        <div className="field"><label htmlFor="setup-caldav-user">{t('Username')}</label><input id="setup-caldav-user" type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
+        <div className="field"><label htmlFor="setup-caldav-pass">{t('App password')}</label><input id="setup-caldav-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} aria-describedby="caldav-hint" /></div>
         <CaldavHint />
         {error && <p className="setup-error" role="alert">{error}</p>}
-        <button className="btn btn-primary setup-btn" onClick={connect} disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
+        <button className="btn btn-primary setup-btn" onClick={connect} disabled={busy}>{busy ? t('Connecting…') : t('Connect')}</button>
       </div>
     )
   }
   return (
     <div className="setup-provider-form">
-      {remotes === null ? <p className="setup-sub">Loading calendars…</p> : remotes.length === 0 ? <p className="setup-sub">No calendars found.</p> : <>
-        <p className="setup-sub">Pick the calendars to show on the wall. You can change this any time under Calendars.</p>
+      {remotes === null ? <p className="setup-sub">{t('Loading calendars…')}</p> : remotes.length === 0 ? <p className="setup-sub">{t('No calendars found.')}</p> : <>
+        <p className="setup-sub">{t('Pick the calendars to show on the wall. You can change this any time under Calendars.')}</p>
         {remotes.map(rc => (
           <div key={rc.remoteId} className="cal-list-item">
             <CalendarCheckRow name={rc.name} color={rc.color ?? '#888'} checked={checked.has(rc.remoteId)} added={added.has(rc.remoteId)} readOnly={!rc.writable}
@@ -550,24 +558,24 @@ function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
 
   return (
     <div className="setup-step">
-      <h1>Connect a calendar</h1>
-      <p className="setup-sub">Optional — you can always add these later in Settings.</p>
+      <h1>{t('Connect a calendar')}</h1>
+      <p className="setup-sub">{t('Optional — you can always add these later in Settings.')}</p>
       <div className="setup-provider-grid">
-        <button className="setup-provider-card" onClick={() => setOpen(open === 'google' ? null : 'google')} aria-expanded={open === 'google'}>📆 Google{!oauth.google && <span className="setup-provider-note">Needs setup</span>}</button>
-        <button className="setup-provider-card" onClick={() => setOpen(open === 'microsoft' ? null : 'microsoft')} aria-expanded={open === 'microsoft'}>📧 Outlook{!oauth.microsoft && <span className="setup-provider-note">Needs setup</span>}</button>
+        <button className="setup-provider-card" onClick={() => setOpen(open === 'google' ? null : 'google')} aria-expanded={open === 'google'}>📆 Google{!oauth.google && <span className="setup-provider-note">{t('Needs setup')}</span>}</button>
+        <button className="setup-provider-card" onClick={() => setOpen(open === 'microsoft' ? null : 'microsoft')} aria-expanded={open === 'microsoft'}>📧 Outlook{!oauth.microsoft && <span className="setup-provider-note">{t('Needs setup')}</span>}</button>
         <button className="setup-provider-card" onClick={() => setOpen(open === 'icloud' ? null : 'icloud')} aria-expanded={open === 'icloud'}>🍎 iCloud (CalDAV)</button>
-        <button className="setup-provider-card" onClick={() => setOpen(open === 'ics' ? null : 'ics')} aria-expanded={open === 'ics'}>🔗 Subscribe to a link</button>
+        <button className="setup-provider-card" onClick={() => setOpen(open === 'ics' ? null : 'ics')} aria-expanded={open === 'ics'}>🔗 {t('Subscribe to a link')}</button>
       </div>
 
       <div ref={formRef} className="setup-form-anchor">
       {providerMsg && <p className="setup-note">{providerMsg}</p>}
 
       {open === 'google' && (oauth.google ? (
-        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('google', setProviderMsg)}>Connect Google</button></div>
+        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('google', setProviderMsg)}>{t('Connect {provider}', { provider: 'Google' })}</button></div>
       ) : providers && <ProviderForm kind="google" providers={providers} toast={setProviderMsg} onChanged={loadProviders} />)}
 
       {open === 'microsoft' && (oauth.microsoft ? (
-        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('microsoft', setProviderMsg)}>Connect Outlook</button></div>
+        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('microsoft', setProviderMsg)}>{t('Connect {provider}', { provider: 'Outlook' })}</button></div>
       ) : providers && <ProviderForm kind="microsoft" providers={providers} toast={setProviderMsg} onChanged={loadProviders} />)}
 
       {open === 'icloud' && <CaldavForm onPending={setPending} />}
@@ -595,28 +603,28 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
     setBusy(true); setError('')
     try {
       await Promise.all(Object.entries(selected).map(([i, memberId]) => {
-        const t = CHORE_TEMPLATES[Number(i)]
-        return api.createChore({ title: t.title, emoji: t.emoji, points: t.points, rrule: t.rrule, memberId: memberId ?? undefined, active: true })
+        const c = CHORE_TEMPLATES[Number(i)]
+        return api.createChore({ title: tm(c.title), emoji: c.emoji, points: c.points, rrule: c.rrule, memberId: memberId ?? undefined, active: true })
       }))
       onNext()
-    } catch (e) { setError(oops(e, 'Could not create the chores. Try again, or skip and add them later in Chores.')) } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, t('Could not create the chores. Try again, or skip and add them later in Chores.'))) } finally { setBusy(false) }
   }
 
   return (
     <div className="setup-step">
-      <h1>Set up some chores</h1>
-      <p className="setup-sub">Tap to pick a few starter chores, then choose who does each one.</p>
+      <h1>{t('Set up some chores')}</h1>
+      <p className="setup-sub">{t('Tap to pick a few starter chores, then choose who does each one.')}</p>
       <div className="setup-chore-grid">
-        {CHORE_TEMPLATES.map((t, i) => (
-          <div key={t.title} className={`setup-chore-card ${i in selected ? 'active' : ''}`}>
+        {CHORE_TEMPLATES.map((c, i) => (
+          <div key={c.title} className={`setup-chore-card ${i in selected ? 'active' : ''}`}>
             <button className="setup-chore-tap" onClick={() => toggle(i)} aria-pressed={i in selected}>
-              <span className="setup-chore-emoji" aria-hidden="true">{t.emoji}</span>
-              <span>{t.title}</span>
+              <span className="setup-chore-emoji" aria-hidden="true">{c.emoji}</span>
+              <span>{tm(c.title)}</span>
               {i in selected && <CheckIcon width={16} height={16} />}
             </button>
             {i in selected && (
-              <div className="chip-row setup-chore-assign" role="group" aria-label={`Who does ${t.title}?`}>
-                <button className={`chip ${selected[i] === null ? 'active' : ''}`} aria-pressed={selected[i] === null} onClick={() => setSelected(s => ({ ...s, [i]: null }))}>Anyone</button>
+              <div className="chip-row setup-chore-assign" role="group" aria-label={t('Who does {chore}?', { chore: tm(c.title) })}>
+                <button className={`chip ${selected[i] === null ? 'active' : ''}`} aria-pressed={selected[i] === null} onClick={() => setSelected(s => ({ ...s, [i]: null }))}>{t('Anyone')}</button>
                 {members.map(m => (
                   <button key={m.id} className={`chip ${selected[i] === m.id ? 'active' : ''}`} aria-pressed={selected[i] === m.id} onClick={() => setSelected(s => ({ ...s, [i]: m.id }))}><ChipFace m={m} /> {m.name}</button>
                 ))}
@@ -628,7 +636,7 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
       {error && <p className="setup-error" role="alert">{error}</p>}
       <StepNav onBack={onBack} onSkip={onNext}
         onNext={create} nextDisabled={busy || Object.keys(selected).length === 0}
-        nextLabel={busy ? 'Creating…' : `Create ${Object.keys(selected).length || ''} chore${Object.keys(selected).length === 1 ? '' : 's'}`} />
+        nextLabel={busy ? t('Creating…') : Object.keys(selected).length ? tn(Object.keys(selected).length, 'Create {n} chore', 'Create {n} chores') : t('Create chores')} />
     </div>
   )
 }
@@ -651,21 +659,21 @@ function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () 
     try {
       await api.setMyOwner(pick)
       onNext()
-    } catch (e) { setError(oops(e, 'Could not save. Try again, or pick Shared and set it later in Settings → Access.')) } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, t('Could not save. Try again, or pick Shared and set it later in Settings → Access.'))) } finally { setBusy(false) }
   }
   return (
     <div className="setup-step">
-      <h1>Whose device is this?</h1>
-      <p className="setup-sub">{grownUps.length ? 'Pick yourself if this is your own phone or tablet, so it opens your private journal. Pick Shared for a wall screen or a family tablet.'
-        : 'Only a grown-up can own this device, and no one is marked a grown-up yet. Go Back to mark yourself, or pick Shared.'}</p>
-      <div className="setup-choice-row setup-choice-wrap" role="group" aria-label="Whose device this is">
+      <h1>{t('Whose device is this?')}</h1>
+      <p className="setup-sub">{grownUps.length ? t('Pick yourself if this is your own phone or tablet, so it opens your private journal. Pick Shared for a wall screen or a family tablet.')
+        : t('Only a grown-up can own this device, and no one is marked a grown-up yet. Go Back to mark yourself, or pick Shared.')}</p>
+      <div className="setup-choice-row setup-choice-wrap" role="group" aria-label={t('Whose device this is')}>
         {grownUps.map(m => (
           <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}><ChipFace m={m} /> {m.name}</button>
         ))}
-        <button className={`setup-choice ${pick === SHARED ? 'active' : ''}`} aria-pressed={pick === SHARED} onClick={() => setPick(SHARED)}><span aria-hidden="true">🏠</span> Shared (whole family)</button>
+        <button className={`setup-choice ${pick === SHARED ? 'active' : ''}`} aria-pressed={pick === SHARED} onClick={() => setPick(SHARED)}><span aria-hidden="true">🏠</span> {t('Shared (whole family)')}</button>
       </div>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onBack={onBack} onNext={save} nextDisabled={busy || !pick} nextLabel={busy ? 'Saving…' : 'Next'} />
+      <StepNav onBack={onBack} onNext={save} nextDisabled={busy || !pick} nextLabel={busy ? t('Saving…') : t('Next')} />
     </div>
   )
 }
@@ -679,17 +687,17 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
   const [error, setError] = useState('')
   useEffect(() => {
     if (!members.length) return // a resumed setup is still loading them (the members step needs at least one)
-    api.getSettings().then(s => setFeatures(f => f ?? suggestedFeatures(s.features, members))).catch(e => setError(oops(e, 'Could not load the features. Skip for now and pick them later in Settings.')))
+    api.getSettings().then(s => setFeatures(f => f ?? suggestedFeatures(s.features, members))).catch(e => setError(oops(e, t('Could not load the features. Skip for now and pick them later in Settings.'))))
   }, [members])
   const save = async () => {
     if (!features) return
     setBusy(true); setError('')
-    try { onNext(await api.updateSettings({ features })) } catch (e) { setError(oops(e, 'Could not save. Try again.')) } finally { setBusy(false) }
+    try { onNext(await api.updateSettings({ features })) } catch (e) { setError(oops(e, t('Could not save. Try again.'))) } finally { setBusy(false) }
   }
   return (
     <div className="setup-step">
-      <h1>What do you want Kinwall for?</h1>
-      <p className="setup-sub">Pick everything your family will use. The calendar is always there.</p>
+      <h1>{t('What do you want Kinwall for?')}</h1>
+      <p className="setup-sub">{t('Pick everything your family will use. The calendar is always there.')}</p>
       {features && <>
         <div className="setup-chore-grid">
           {FEATURE_CARDS.map(c => {
@@ -698,28 +706,28 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
               <div key={c.id} className={`setup-chore-card setup-feature-card ${on ? 'active' : ''}`}>
                 <button className="setup-chore-tap" onClick={() => setFeatures(f => f && toggleCard(f, c))} aria-pressed={on}>
                   <span className="setup-chore-emoji" aria-hidden="true">{c.emoji}</span>
-                  <span className="setup-feature-text"><span>{c.title}</span><span className="setup-feature-sub">{c.sub}</span></span>
+                  <span className="setup-feature-text"><span>{tm(c.title)}</span><span className="setup-feature-sub">{tm(c.sub)}</span></span>
                   <span className="setup-check" aria-hidden="true">{on && <CheckIcon width={16} height={16} />}</span>
                 </button>
               </div>
             )
           })}
         </div>
-        <button className="link-btn setup-hint-toggle" onClick={() => setAll(a => !a)} aria-expanded={all}>{all ? 'Hide all features' : 'Show all features'}</button>
+        <button className="link-btn setup-hint-toggle" onClick={() => setAll(a => !a)} aria-expanded={all}>{all ? t('Hide all features') : t('Show all features')}</button>
         {all && FEATURE_ROWS.map(f => (
           <div key={f.key} className="toggle-row">
             <div>
-              <label id={`setup-feature-${f.key}`}>{f.group === 'Trackers' ? `${f.label} tracker` : f.label}</label>
-              <div className="settings-row-sub">{f.sub}</div>
+              <label id={`setup-feature-${f.key}`}>{f.group === 'Trackers' ? t('{feature} tracker', { feature: tm(f.label) }) : tm(f.label)}</label>
+              <div className="settings-row-sub">{tm(f.sub)}</div>
             </div>
             <button className={`switch ${features[f.key] ? 'on' : ''}`} role="switch" aria-checked={features[f.key]} aria-labelledby={`setup-feature-${f.key}`}
               onClick={() => setFeatures(x => x && { ...x, [f.key]: !x[f.key] })}><span className="knob" /></button>
           </div>
         ))}
       </>}
-      <p className="setup-note">You can change any of these later in Settings → General → Features.</p>
+      <p className="setup-note">{t('You can change any of these later in Settings → General → Features.')}</p>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav sticky onBack={onBack} onSkip={() => onNext()} skipLabel="Keep all on" onNext={save} nextDisabled={busy || !features} nextLabel={busy ? 'Saving…' : 'Next'} />
+      <StepNav sticky onBack={onBack} onSkip={() => onNext()} skipLabel={t('Keep all on')} onNext={save} nextDisabled={busy || !features} nextLabel={busy ? t('Saving…') : t('Next')} />
     </div>
   )
 }
@@ -727,16 +735,16 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
 function DoneStep({ onGoToCalendar, onPair }: { onGoToCalendar: () => void; onPair: () => void }) {
   return (
     <div className="setup-step">
-      <h1>All set! 🎉</h1>
-      <p className="setup-sub">Now put Kinwall on your wall:</p>
+      <h1>{t('All set! 🎉')}</h1>
+      <p className="setup-sub">{t('Now put Kinwall on your wall:')}</p>
       <ol className="setup-steps-list">
-        <li>Open <strong>{location.origin}{location.pathname}</strong> in the browser on the wall tablet or screen</li>
-        <li>Add it to the home screen (on an iPad: Share → <strong>Add to Home Screen</strong>)</li>
-        <li>Open it from the home screen and tap <strong>Set up a wall screen or kid's device</strong>. It shows a pairing code and a QR code.</li>
-        <li>Scan that QR code with this phone, or tap <strong>Pair a wall screen now</strong> below and enter the code</li>
+        <li>{rich(t('Open {address} in the browser on the wall tablet or screen'), { address: <strong>{location.origin}{location.pathname}</strong> })}</li>
+        <li>{rich(t('Add it to the home screen (on an iPad: Share → {add})'), { add: <strong>{t('Add to Home Screen')}</strong> })}</li>
+        <li>{rich(t('Open it from the home screen and tap {button}. It shows a pairing code and a QR code.'), { button: <strong>{t("Set up a wall screen or kid's device")}</strong> })}</li>
+        <li>{rich(t('Scan that QR code with this phone, or tap {button} below and enter the code'), { button: <strong>{t('Pair a wall screen now')}</strong> })}</li>
       </ol>
-      <button className="btn btn-secondary btn-block setup-btn" onClick={onPair}>Pair a wall screen now</button>
-      <StepNav onNext={onGoToCalendar} nextLabel="Go to calendar" />
+      <button className="btn btn-secondary btn-block setup-btn" onClick={onPair}>{t('Pair a wall screen now')}</button>
+      <StepNav onNext={onGoToCalendar} nextLabel={t('Go to calendar')} />
     </div>
   )
 }
@@ -774,7 +782,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   const claim = async () => {
     setClaimBusy(true); setClaimError('')
     try {
-      const res = await api.claimSetup(code, 'admin', 'My device')
+      const res = await api.claimSetup(code, 'admin', t('My device'))
       await forgetEarlierFamily()
       setClaimed(true)
       setAdminKeyId(res.adminKeyId)
@@ -783,8 +791,8 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
       else { setNoPasskey(true); setStep('recovery') }
     } catch (e) {
       // A wrong code goes back to the code; anything else stays here with friendly words.
-      if (e instanceof ApiError && e.status === 401) { setClaimError("That code didn't work. Check it and try again."); setStep('welcome') }
-      else setClaimError(oops(e, 'Could not start setup. Try again.'))
+      if (e instanceof ApiError && e.status === 401) { setClaimError(t("That code didn't work. Check it and try again.")); setStep('welcome') }
+      else setClaimError(oops(e, t('Could not start setup. Try again.')))
     } finally { setClaimBusy(false) }
   }
 

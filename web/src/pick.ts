@@ -1,4 +1,5 @@
 // The pick-from-a-list sheet (PickField.tsx): search and the summary its row shows.
+import { intlLocale, lang, t } from './i18n.ts'
 
 export type Pickable = { value: string; label: string; detail?: string; keywords?: string }
 
@@ -11,10 +12,12 @@ export function pickMatches(option: Pickable, query: string): boolean {
   return !needle || norm(`${option.label} ${option.detail ?? ''} ${option.keywords ?? ''}`).includes(needle)
 }
 
-const list = new Intl.ListFormat('en-US', { type: 'conjunction' })
+// English stays en-US ("Maya, Leo, and Sam") whatever the browser's region; other languages follow it.
+const listLocale = () => lang() === 'en' ? 'en-US' : intlLocale()
 /** "Maya", "Maya and Leo", "Maya, Leo, and Sam", "Maya, Leo, and 2 more", in list order; `none` when empty. */
-export function pickSummary(options: Pickable[], value: string[], none = 'None'): string {
+export function pickSummary(options: Pickable[], value: string[], none = t('None')): string {
   const labels = options.filter(o => value.includes(o.value)).map(o => o.label)
   if (!labels.length) return none
-  return list.format(labels.length > 3 ? [...labels.slice(0, 2), `${labels.length - 2} more`] : labels)
+  return new Intl.ListFormat(listLocale(), { type: 'conjunction' })
+    .format(labels.length > 3 ? [...labels.slice(0, 2), t('{n} more', { n: labels.length - 2 })] : labels)
 }

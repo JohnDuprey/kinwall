@@ -3,6 +3,7 @@
 // server refuses it to display keys, and this screen only offers it once GET /api/me says admin.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { format } from 'date-fns'
+import { DAY, formatDate, intlLocale, msg, t, tc, tm, tn } from './i18n.ts'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -32,28 +33,30 @@ import BookCover from './BookCover.tsx'
 // The library comes with Reading: the family's books, apart from who's reading what (Library.tsx).
 type TrackerView = TrackerKind | 'library'
 const TABS: { key: TrackerView; label: string; emoji: string; hint: string }[] = [
-  { key: 'reading', label: 'Reading', emoji: '📖', hint: "Who's reading what, and how far along" },
-  { key: 'library', label: 'Library', emoji: '📚', hint: 'The books your family owns, and who has them' },
-  { key: 'memory', label: 'Memories', emoji: '📝', hint: 'A family journal, a moment a day' },
-  { key: 'health', label: 'Health', emoji: '🩺', hint: 'Checkups, visits and medicines' },
+  { key: 'reading', label: msg('Reading'), emoji: '📖', hint: msg("Who's reading what, and how far along") },
+  { key: 'library', label: msg('Library'), emoji: '📚', hint: msg('The books your family owns, and who has them') },
+  { key: 'memory', label: msg('Memories'), emoji: '📝', hint: msg('A family journal, a moment a day') },
+  { key: 'health', label: msg('Health'), emoji: '🩺', hint: msg('Checkups, visits and medicines') },
 ]
 const SUB_TO_VIEW: Record<string, TrackerView> = { reading: 'reading', library: 'library', memories: 'memory', health: 'health' }
 const VIEW_TO_SUB: Record<TrackerView, string> = { reading: 'reading', library: 'library', memory: 'memories', health: 'health' }
-const STATUS = (['want', 'reading', 'finished'] as ReadingStatus[]).map(key => ({ key, label: STATUS_WORDS[key] }))
+const STATUS = (['want', 'reading', 'finished'] as ReadingStatus[]).map(key => ({ key, label: STATUS_WORDS[key] })) // labels marked: tm()
 const HEALTH_TYPES: { key: HealthType; label: string; emoji: string }[] = [
-  { key: 'checkup', label: 'Checkup', emoji: '🩺' }, { key: 'dentist', label: 'Dentist', emoji: '🦷' }, { key: 'specialist', label: 'Specialist', emoji: '👩‍⚕️' },
-  { key: 'vaccine', label: 'Vaccine', emoji: '💉' }, { key: 'sick', label: 'Sick visit', emoji: '🤒' }, { key: 'other', label: 'Other', emoji: '📋' },
+  { key: 'checkup', label: msg('Checkup'), emoji: '🩺' }, { key: 'dentist', label: msg('Dentist'), emoji: '🦷' }, { key: 'specialist', label: msg('Specialist'), emoji: '👩‍⚕️' },
+  { key: 'vaccine', label: msg('Vaccine'), emoji: '💉' }, { key: 'sick', label: msg('Sick visit'), emoji: '🤒' }, { key: 'other', label: msg('Other'), emoji: '📋' },
 ]
 const MOODS = ['😊', '😂', '🥰', '🎉', '😴', '😢', '😮', '🌟']
-const FAMILY = { id: null as string | null, name: 'Family', color: '#C7B8A8', avatar: '🏠' }
+const FAMILY = { id: null as string | null, name: msg('Family'), color: '#C7B8A8', avatar: '🏠' }
+/** FAMILY with its name in the current language. */
+const family = () => ({ ...FAMILY, name: tm(FAMILY.name) })
 const FORMER = '__former' // the form's "who" for an entry that belonged to a removed member
 const ASK = '__ask' // the form's "who" for a visit from an event with no one, or several people, on it: pick one
 type Who = { id: string | null; name: string; color: string; avatar: string; former?: string }
 /** A removed member's entries keep their name: "Leo (removed)", in gray. */
-const formerWho = (name: string): Who => ({ id: null, name: `${name} (removed)`, color: '#B8B2AB', avatar: name[0] ?? '?', former: name })
+const formerWho = (name: string): Who => ({ id: null, name: t('{name} (removed)', { name }), color: '#B8B2AB', avatar: name[0] ?? '?', former: name })
 const isFamily = (e: TrackerEntry) => e.memberId === null && !e.formerMember
 
-const niceDate = (d: string, withYear = false) => format(new Date(`${d}T12:00:00`), withYear ? 'EEE, MMM d, yyyy' : 'EEE, MMM d')
+const niceDate = (d: string, withYear = false) => formatDate(new Date(`${d}T12:00:00`), withYear ? { ...DAY, year: 'numeric' } : DAY)
 const errMsg = (e: unknown, fallback: string) => e instanceof ApiError ? e.message : fallback
 
 /** Phones: the views don't fit as tabs, so one button shows the view and opens a sheet of them (the
@@ -64,15 +67,15 @@ function TrackerViewPicker({ views, value, onChange, compact }: { views: typeof 
   const current = views.find(v => v.key === value) ?? views[0]
   return (
     <>
-      <button type="button" className="btn btn-secondary view-pick" aria-haspopup="dialog" aria-label={`${current?.label} — switch view`} onClick={() => setOpen(true)}>
-        <span aria-hidden="true">{current?.emoji}</span>{!compact && <span>{current?.label}</span>}<ChevronDown width={16} height={16} />
+      <button type="button" className="btn btn-secondary view-pick" aria-haspopup="dialog" aria-label={t('{view} — switch view', { view: current ? tm(current.label) : '' })} onClick={() => setOpen(true)}>
+        <span aria-hidden="true">{current?.emoji}</span>{!compact && <span>{current && tm(current.label)}</span>}<ChevronDown width={16} height={16} />
       </button>
       {open && (
-        <Sheet title="View" onClose={() => setOpen(false)}>
+        <Sheet title={t('View')} onClose={() => setOpen(false)}>
           <div className="sheet-links">
             {views.map(v => (
               <button key={v.key} type="button" className="sheet-link" aria-pressed={v.key === value} onClick={() => { onChange(v.key); setOpen(false) }}>
-                <span className="lib-emoji" aria-hidden="true">{v.emoji}</span><span>{v.label}<small>{v.hint}</small></span>{v.key === value && <CheckIcon className="pick-check" />}
+                <span className="lib-emoji" aria-hidden="true">{v.emoji}</span><span>{tm(v.label)}<small>{tm(v.hint)}</small></span>{v.key === value && <CheckIcon className="pick-check" />}
               </button>
             ))}
           </div>
@@ -93,8 +96,8 @@ export default function Trackers({ sub }: { sub?: string }) {
   const [admin, setAdmin] = useState(false)
   useEffect(() => { api.meStrict().then(me => setAdmin(me.scope === 'admin')).catch(() => setAdmin(false)) }, [])
   const on = trackerKinds(settings)
-  const tabs = TABS.filter(t => on.includes(VIEW_TO_SUB[t.key === 'library' ? 'reading' : t.key]) && (t.key !== 'health' || admin))
-  const view = tabs.find(t => t.key === SUB_TO_VIEW[sub ?? ''])?.key ?? tabs[0]?.key ?? 'reading'
+  const tabs = TABS.filter(tab => on.includes(VIEW_TO_SUB[tab.key === 'library' ? 'reading' : tab.key]) && (tab.key !== 'health' || admin))
+  const view = tabs.find(tab => tab.key === SUB_TO_VIEW[sub ?? ''])?.key ?? tabs[0]?.key ?? 'reading'
   const library = view === 'library'
   const go = (v: TrackerView) => { location.hash = `#/trackers/${VIEW_TO_SUB[v]}` }
   const kind: TrackerKind = library ? 'reading' : view // the library's readers come from reading entries
@@ -105,7 +108,7 @@ export default function Trackers({ sub }: { sub?: string }) {
   const [photos, setPhotos] = useState<Photo[]>([])
   const [editing, setEditing] = useState<TrackerEntry | { new: true; date?: string } | null>(null)
   const [libAdding, setLibAdding] = useState(false)
-  const load = () => api.getTrackers(kind).then(setEntries).catch(e => { setEntries([]); toast(errMsg(e, "Couldn't load trackers."), true) })
+  const load = () => api.getTrackers(kind).then(setEntries).catch(e => { setEntries([]); toast(errMsg(e, t("Couldn't load trackers.")), true) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setEntries(null); load() }, [kind])
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +131,7 @@ export default function Trackers({ sub }: { sub?: string }) {
   // That member's entries (plus the family's, which are everyone's).
   const shown = forPerson(entries ?? [], personId)
   const formers = [...new Set(shown.filter(e => e.formerMember && !e.memberId).map(e => e.formerMember!))].map(formerWho)
-  const people: Who[] = [...members.filter(m => !personId || m.id === personId), FAMILY, ...formers]
+  const people: Who[] = [...members.filter(m => !personId || m.id === personId), family(), ...formers]
 
   // #/trackers/health?visit=<id> (an event sheet's "Open the health visit"): that visit's sheet once loaded.
   useEffect(() => {
@@ -143,7 +146,7 @@ export default function Trackers({ sub }: { sub?: string }) {
 
   const save = async (e: TrackerEntry, body: TrackerInput, msg?: string) => {
     setEntries(list => list && list.map(x => x.id === e.id ? { ...x, ...body, data: { ...x.data, ...body.data } as never } : x)) // optimistic
-    try { await api.updateTracker(e.id, body); if (msg) announce(msg); load() } catch (err) { toast(errMsg(err, 'Could not save'), true); load() }
+    try { await api.updateTracker(e.id, body); if (msg) announce(msg); load() } catch (err) { toast(errMsg(err, t('Could not save')), true); load() }
   }
 
   return (
@@ -151,22 +154,22 @@ export default function Trackers({ sub }: { sub?: string }) {
       <div className="trackers-head">
         {isPhone
           ? <><TrackerViewPicker views={tabs} value={view} onChange={go} compact={library} />{library && <div className="trackers-tools" ref={setTools} />}</>
-          : <><Segmented tabs idBase="trk-tab" label="Tracker" value={view} onChange={go}
-            options={tabs.map(t => ({ key: t.key, label: <><span aria-hidden="true">{t.emoji}</span> {t.label}</> }))} />{library && <div className="trackers-tools" ref={setTools} />}</>}
+          : <><Segmented tabs idBase="trk-tab" label={t('Tracker')} value={view} onChange={go}
+            options={tabs.map(tab => ({ key: tab.key, label: <><span aria-hidden="true">{tab.emoji}</span> {tm(tab.label)}</> }))} />{library && <div className="trackers-tools" ref={setTools} />}</>}
       </div>
-      <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={isPhone ? undefined : `trk-tab-${view}`} aria-label={isPhone ? tabs.find(t => t.key === view)?.label : undefined}>
-        {entries === null ? <div className="state-card">Loading…</div>
+      <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={isPhone ? undefined : `trk-tab-${view}`} aria-label={isPhone ? (l => l && tm(l))(tabs.find(tab => tab.key === view)?.label) : undefined}>
+        {entries === null ? <div className="state-card">{t('Loading…')}</div>
           : library ? <Library bar={tools} adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
           : kind === 'reading' ? <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
           : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} onFromCalendar={() => setFromCal(true)} meds={settings.medications} memberId={healthPerson} switcher={
             <div className="field">
-              <label htmlFor="trk-person">Whose health</label>
-              <PickField id="trk-person" label="Whose health" title="Whose health?" value={[healthPerson ?? '']} onChange={([v]) => pickHealthPerson(v || null)}
-                options={[{ value: '', label: 'Everyone', lead: <Avatar m={FAMILY} size={26} /> }, ...members.map(m => ({ value: m.id, label: m.name, lead: <Avatar m={m} size={26} /> }))]} />
+              <label htmlFor="trk-person">{t('Whose health')}</label>
+              <PickField id="trk-person" label={t('Whose health')} title={t('Whose health?')} value={[healthPerson ?? '']} onChange={([v]) => pickHealthPerson(v || null)}
+                options={[{ value: '', label: t('Everyone'), lead: <Avatar m={family()} size={26} /> }, ...members.map(m => ({ value: m.id, label: m.name, lead: <Avatar m={m} size={26} /> }))]} />
             </div>} />}
       </div>
-      <button className="fab" onClick={() => (library ? setLibAdding(true) : setEditing({ new: true }))} aria-label={library ? 'Add a book to the library' : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'Add a memory' : 'Add a health visit'}><PlusIcon /></button>
+      <button className="fab" onClick={() => (library ? setLibAdding(true) : setEditing({ new: true }))} aria-label={library ? t('Add a book to the library') : kind === 'reading' ? t('Add a book') : kind === 'memory' ? t('Add a memory') : t('Add a health visit')}><PlusIcon /></button>
       {editing && (
         <EntrySheet kind={kind} entry={'new' in editing ? null : editing} date={'new' in editing ? editing.date ?? today : undefined}
           admin={admin} kid={kid} photos={photos} memberId={personId}
@@ -185,18 +188,18 @@ function Avatar({ m, size = 30 }: { m: Pick<Member, 'name' | 'color' | 'avatar'>
 }
 function useWho() {
   const { members } = useApp()
-  return (e: TrackerEntry): Who => members.find(m => m.id === e.memberId) ?? (e.formerMember ? formerWho(e.formerMember) : FAMILY)
+  return (e: TrackerEntry): Who => members.find(m => m.id === e.memberId) ?? (e.formerMember ? formerWho(e.formerMember) : family())
 }
 const belongs = (e: TrackerEntry, p: Who) => p.former ? !e.memberId && e.formerMember === p.former : p.id ? e.memberId === p.id : isFamily(e)
 
 /** Five tap targets; tapping the current rating clears it. */
 function Stars({ value, onChange, label }: { value?: number; onChange?: (v: number | null) => void; label: string }) {
-  if (!onChange) return value ? <span className="trk-stars" role="img" aria-label={`${value} of 5 stars`}>{'★'.repeat(value)}<span className="trk-stars-off">{'★'.repeat(5 - value)}</span></span> : null
+  if (!onChange) return value ? <span className="trk-stars" role="img" aria-label={t('{n} of 5 stars', { n: value })}>{'★'.repeat(value)}<span className="trk-stars-off">{'★'.repeat(5 - value)}</span></span> : null
   return (
     <div className="trk-stars-edit" role="group" aria-label={label}>
       {[1, 2, 3, 4, 5].map(n => (
         <button key={n} type="button" className={n <= (value ?? 0) ? 'on' : ''} aria-pressed={n === value}
-          aria-label={`${n} star${n === 1 ? '' : 's'}`} onClick={() => onChange(n === value ? null : n)}>★</button>
+          aria-label={tn(n, '{n} star', '{n} stars')} onClick={() => onChange(n === value ? null : n)}>★</button>
       ))}
     </div>
   )
@@ -219,11 +222,11 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
     return { p, key, books: shown, more, all, finished: books.filter(e => d(e).status === 'finished').length, totals: shelfTotals(books.map(d), year) }
   }).filter(s => s.books.length > 0)
 
-  if (!shelves.length) return <div className="empty-card"><span className="emoji">📚</span>No books yet. Tap + to add what someone is reading.</div>
+  if (!shelves.length) return <div className="empty-card"><span className="emoji">📚</span>{t('No books yet. Tap + to add what someone is reading.')}</div>
   return (
     <div className="trk-grid">
       {shelves.map(({ p, key, books, more, all, finished, totals }) => (
-        <section key={key} className="trk-card" aria-label={`${p.name}'s books`}>
+        <section key={key} className="trk-card" aria-label={t("{name}'s books", { name: p.name })}>
           <header className="trk-card-head">
             <Avatar m={p} size={40} />
             <div>
@@ -239,25 +242,25 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
               const progress = left(d)
               return (
                 <li key={b.id} className={`trk-book trk-book-${d.status}`}>
-                  <button className="trk-book-main trk-book-row" onClick={() => onEdit(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}, ${STATUS_WORDS[d.status]}${progress && d.status === 'reading' ? `, ${progress}` : ''}. Edit`}>
+                  <button className="trk-book-main trk-book-row" onClick={() => onEdit(b)} aria-label={t('{book}. Edit', { book: [b.title, audio ? t('audiobook') : '', tm(STATUS_WORDS[d.status]), d.status === 'reading' ? progress : ''].filter(Boolean).join(', ') })}>
                     <BookCover className="trk-cover" src={d.coverUrl ? api.trackerCoverUrl(b) : null} title={b.title ?? ''} audio={audio} />
                     <span className="trk-book-text">
                       <span className="trk-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
-                      {(d.author || (audio && d.narrator)) && <span className="trk-sub">{[d.author, audio && d.narrator ? `read by ${d.narrator}` : ''].filter(Boolean).join(' · ')}</span>}
-                      {d.status === 'want' && <span className="trk-tag">{STATUS_EMOJI.want} {STATUS_WORDS.want}</span>}
-                      {d.status === 'finished' && <span className="trk-sub">{STATUS_EMOJI.finished} {STATUS_WORDS.finished} {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
+                      {(d.author || (audio && d.narrator)) && <span className="trk-sub">{[d.author, audio && d.narrator ? t('read by {name}', { name: d.narrator }) : ''].filter(Boolean).join(' · ')}</span>}
+                      {d.status === 'want' && <span className="trk-tag">{STATUS_EMOJI.want} {tm(STATUS_WORDS.want)}</span>}
+                      {d.status === 'finished' && <span className="trk-sub">{STATUS_EMOJI.finished} {tm(STATUS_WORDS.finished)} {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
                     </span>
                   </button>
                   {d.status === 'reading' && canEdit(b) && (
                     <div className="trk-progress-row">
-                      <div className="trk-progress" role="progressbar" aria-label={`${b.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? 0}>
+                      <div className="trk-progress" role="progressbar" aria-label={t('{title} progress', { title: b.title ?? '' })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? 0}>
                         <div style={{ width: `${pct ?? 0}%`, background: p.color }} />
                       </div>
                       <span className="trk-sub trk-pct">{progress}</span>
-                      <button className="btn btn-secondary trk-small-btn" onClick={() => setLogFor(b)}>{audio ? 'Log listening' : 'Log pages'}</button>
+                      <button className="btn btn-secondary trk-small-btn" onClick={() => setLogFor(b)}>{audio ? t('Log listening') : t('Log pages')}</button>
                     </div>
                   )}
-                  {d.status === 'finished' && <Stars value={d.rating} label={`Rate ${b.title}`} onChange={!canEdit(b) ? undefined : v => onSave(b, { data: { rating: v } }, v ? `${b.title}: ${v} stars` : 'Rating cleared')} />}
+                  {d.status === 'finished' && <Stars value={d.rating} label={t('Rate {title}', { title: b.title ?? '' })} onChange={!canEdit(b) ? undefined : v => onSave(b, { data: { rating: v } }, v ? tn(v, '{title}: {n} star', '{title}: {n} stars', { title: b.title ?? '' }) : t('Rating cleared'))} />}
                 </li>
               )
             })}
@@ -265,7 +268,7 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
           {(more > 0 || (all && finished > FINISHED_SHOWN)) && (
             <button type="button" className="link-btn trk-more" aria-expanded={all}
               onClick={() => setAllFinished(s => { const n = new Set(s); if (all) n.delete(key); else n.add(key); return n })}>
-              {all ? 'Show fewer' : `Show all ${finished} finished`}
+              {all ? t('Show fewer') : t('Show all {n} finished', { n: finished })}
             </button>
           )}
         </section>
@@ -284,14 +287,14 @@ function ReadingDays({ d, tz }: { d: ReadingData; tz?: string }) {
   const total = days.reduce((n, x) => n + x.amount, 0)
   const read = days.filter(x => x.amount).length
   const latest = [...(d.log ?? [])].reverse().slice(0, 7)
-  const label = (date: string) => date === today ? 'Today' : niceDate(date)
+  const label = (date: string) => date === today ? t('Today') : niceDate(date)
   return (
     <div className="field">
-      <label id="trk-days">{isAudiobook(d) ? 'Listening by day' : 'Reading by day'}</label>
-      <div className="trk-days-chart" role="img" aria-label={`Last 14 days: ${dayAmount(d, total)} on ${read} day${read === 1 ? '' : 's'}`}>
+      <label id="trk-days">{isAudiobook(d) ? t('Listening by day') : t('Reading by day')}</label>
+      <div className="trk-days-chart" role="img" aria-label={tn(read, 'Last 14 days: {amount} on {n} day', 'Last 14 days: {amount} on {n} days', { amount: dayAmount(d, total) })}>
         {days.map(x => <div key={x.date} className="trk-days-bar" style={{ height: `${Math.max(x.amount ? 8 : 2, (x.amount / max) * 100)}%` }} title={`${label(x.date)}: ${dayAmount(d, x.amount)}`} />)}
       </div>
-      <div className="trk-days-axis" aria-hidden="true"><span>{niceDate(days[0].date)}</span><span>Today</span></div>
+      <div className="trk-days-axis" aria-hidden="true"><span>{niceDate(days[0].date)}</span><span>{t('Today')}</span></div>
       <ul className="trk-days-list" aria-labelledby="trk-days">
         {latest.map(x => <li key={x.date}><span>{label(x.date)}</span><span>{dayAmount(d, x.amount)}</span></li>)}
       </ul>
@@ -322,34 +325,34 @@ function LogSheet({ book, onClose, onSave }: { book: TrackerEntry; onClose: () =
   const done = !past && logReachesEnd(d, n)
   const field = audio ? 'minutesListened' : 'pagesRead'
   const save = () => past
-    ? onSave({ logDay: { date: day, amount: n } }, n ? `${audio ? hoursMinutes(n) : `${n} page${n === 1 ? '' : 's'}`} on ${niceDate(day)}` : `${niceDate(day)} cleared`)
-    : onSave({ data: done ? { [field]: n, status: 'finished' } : { [field]: n } }, done ? `${book.title} finished` : audio ? `${hoursMinutes(n)} listened` : `On page ${n}`)
+    ? onSave({ logDay: { date: day, amount: n } }, n ? t('{amount} on {day}', { amount: dayAmount(d, n), day: niceDate(day) }) : t('{day} cleared', { day: niceDate(day) }))
+    : onSave({ data: done ? { [field]: n, status: 'finished' } : { [field]: n } }, done ? t('{title} finished', { title: book.title ?? '' }) : audio ? t('{time} listened', { time: hoursMinutes(n) }) : t('On page {n}', { n }))
   return (
-    <Sheet variant="dialog" title={`${audio ? 'Log listening' : 'Log pages'} · ${book.title}`} onClose={onClose}
+    <Sheet variant="dialog" title={`${audio ? t('Log listening') : t('Log pages')} · ${book.title}`} onClose={onClose}
       actions={<>
-        {!past && <button className="btn btn-secondary" onClick={() => onSave({ data: { status: 'finished' } }, `${book.title} finished`)}>Finished it! 🎉</button>}
-        <button className="btn btn-primary" data-autofocus onClick={save}>Save</button>
+        {!past && <button className="btn btn-secondary" onClick={() => onSave({ data: { status: 'finished' } }, t('{title} finished', { title: book.title ?? '' }))}>{t('Finished it! 🎉')}</button>}
+        <button className="btn btn-primary" data-autofocus onClick={save}>{t('Save')}</button>
       </>}>
       <div className="field">
-        <label htmlFor="trk-log-day">Day</label>
+        <label htmlFor="trk-log-day">{t('Day')}</label>
         <input id="trk-log-day" type="date" value={day} max={today} min={addDayKeys(today, -365)} onChange={e => pickDay(e.target.value)} />
       </div>
       {audio ? <>
-        <HoursMinutes id="trk-listened" label={past ? 'Listened that day' : `Listened so far${d.totalMinutes ? ` (of ${hoursMinutes(d.totalMinutes)})` : ''}`} value={hm} onChange={setHm} />
-        <div className="chip-row" role="group" aria-label="Add listening time">
-          {([[15, '+15m'], [30, '+30m'], [60, '+1h']] as const).map(([k, l]) => <button key={k} type="button" className="chip" onClick={() => setHm(splitMinutes(n + k))}>{l}</button>)}
+        <HoursMinutes id="trk-listened" label={past ? t('Listened that day') : d.totalMinutes ? t('Listened so far (of {time})', { time: hoursMinutes(d.totalMinutes) }) : t('Listened so far')} value={hm} onChange={setHm} />
+        <div className="chip-row" role="group" aria-label={t('Add listening time')}>
+          {[15, 30, 60].map(k => <button key={k} type="button" className="chip" onClick={() => setHm(splitMinutes(n + k))}>+{hoursMinutes(k)}</button>)}
         </div>
       </> : <>
         <div className="field">
-          <label htmlFor="trk-page">{past ? 'Pages read that day' : `Page you're on${d.totalPages ? ` (of ${d.totalPages})` : ''}`}</label>
+          <label htmlFor="trk-page">{past ? t('Pages read that day') : d.totalPages ? t("Page you're on (of {total})", { total: d.totalPages }) : t("Page you're on")}</label>
           <input id="trk-page" type="text" inputMode="numeric" value={page} onChange={e => setPage(e.target.value.replace(/\D/g, ''))} />
         </div>
-        <div className="chip-row" role="group" aria-label="Add pages">
+        <div className="chip-row" role="group" aria-label={t('Add pages')}>
           {[5, 10, 20, 50].map(k => <button key={k} type="button" className="chip" onClick={() => setPage(String(n + k))}>+{k}</button>)}
         </div>
       </>}
-      {past && <p className="field-hint">{loggedOn(day) ? `Logged ${audio ? hoursMinutes(loggedOn(day)) : `${loggedOn(day)} pages`} that day. Save replaces it, and your place in the book moves by the difference; 0 clears the day.` : 'Your place in the book moves on by the same amount.'}</p>}
-      {done && <p className="field-hint">{audio ? "That's the end" : "That's the last page"}, so Save marks it finished.</p>}
+      {past && <p className="field-hint">{loggedOn(day) ? t('Logged {amount} that day. Save replaces it, and your place in the book moves by the difference; 0 clears the day.', { amount: dayAmount(d, loggedOn(day)) }) : t('Your place in the book moves on by the same amount.')}</p>}
+      {done && <p className="field-hint">{audio ? t("That's the end, so Save marks it finished.") : t("That's the last page, so Save marks it finished.")}</p>}
     </Sheet>
   )
 }
@@ -361,10 +364,10 @@ function HoursMinutes({ id, label, value: [h, m], onChange }: { id: string; labe
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <div className="trk-hm">
-        <input id={id} type="text" inputMode="numeric" aria-label={`${label}, hours`} value={h} onChange={e => onChange([digits(e.target.value), m])} />
-        <span aria-hidden="true">h</span>
-        <input type="text" inputMode="numeric" aria-label={`${label}, minutes`} value={m} onChange={e => onChange([h, digits(e.target.value)])} />
-        <span aria-hidden="true">m</span>
+        <input id={id} type="text" inputMode="numeric" aria-label={t('{label}, hours', { label })} value={h} onChange={e => onChange([digits(e.target.value), m])} />
+        <span aria-hidden="true">{tc('hours-unit', 'h')}</span>
+        <input type="text" inputMode="numeric" aria-label={t('{label}, minutes', { label })} value={m} onChange={e => onChange([h, digits(e.target.value)])} />
+        <span aria-hidden="true">{tc('minutes-unit', 'm')}</span>
       </div>
     </div>
   )
@@ -388,22 +391,22 @@ function Memories({ entries, today, onEdit, onAdd }: { entries: TrackerEntry[]; 
             {d.text && <span className="trk-memory-text">{d.text}</span>}
           </span>
           <Avatar m={m} />
-          <span className="sr-only">{m.name}'s memory. Edit</span>
+          <span className="sr-only">{t("{name}'s memory. Edit", { name: m.name })}</span>
         </button>
       </li>
     )
   }
   return (
     <div className="trk-journal">
-      <button className="btn btn-primary trk-today-btn" onClick={onAdd}>{hasToday ? '✏️ Add another memory for today' : "📝 Add today's memory"}</button>
+      <button className="btn btn-primary trk-today-btn" onClick={onAdd}>{hasToday ? t('✏️ Add another memory for today') : t("📝 Add today's memory")}</button>
       {onThisDay.length > 0 && (
-        <section className="trk-card trk-onthisday" aria-label="On this day">
-          <h3>🕰️ On this day</h3>
+        <section className="trk-card trk-onthisday" aria-label={t('On this day')}>
+          <h3>🕰️ {t('On this day')}</h3>
           <ul className="trk-memories">{onThisDay.map(e => card(e, true))}</ul>
         </section>
       )}
       {entries.length === 0
-        ? <div className="empty-card"><span className="emoji">📝</span>No memories yet. Write down one good thing from today.</div>
+        ? <div className="empty-card"><span className="emoji">📝</span>{t('No memories yet. Write down one good thing from today.')}</div>
         : <ul className="trk-memories">{entries.map(e => card(e, e.date.slice(0, 4) !== today.slice(0, 4)))}</ul>}
     </div>
   )
@@ -421,42 +424,42 @@ function Health({ entries, today, onEdit, onSave, onFromCalendar, meds, memberId
   const upcoming = entries.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
   const past = entries.filter(e => e.date < today)
   const addToCalendar = async (e: TrackerEntry) => {
-    try { onSave(e, { data: { eventId: (await addVisitToCalendar(e, who(e), settings.defaultEventMinutes ?? 60)).id } }, 'Added to the calendar') } catch (err) { toast(errMsg(err, 'Could not add it to the calendar'), true) }
+    try { onSave(e, { data: { eventId: (await addVisitToCalendar(e, who(e), settings.defaultEventMinutes ?? 60)).id } }, t('Added to the calendar')) } catch (err) { toast(errMsg(err, t('Could not add it to the calendar')), true) }
   }
   const row = (e: TrackerEntry) => {
     const d = e.data as HealthData
-    const t = HEALTH_TYPES.find(x => x.key === d.type) ?? HEALTH_TYPES[5]
+    const ty = HEALTH_TYPES.find(x => x.key === d.type) ?? HEALTH_TYPES[5]
     const m = who(e)
     const measures = measureText(d)
     const future = e.date >= today
     return (
       <li key={e.id} className="trk-visit">
         <button className="trk-visit-main" onClick={() => onEdit(e)}>
-          <span className="trk-visit-emoji" aria-hidden="true">{t.emoji}</span>
+          <span className="trk-visit-emoji" aria-hidden="true">{ty.emoji}</span>
           <span className="trk-memory-body">
-            <span className="trk-book-title">{e.title || t.label}</span>
+            <span className="trk-book-title">{e.title || tm(ty.label)}</span>
             <span className="trk-sub">{niceDate(e.date, true)}{d.time ? ` · ${formatTime(d.time)}` : ''}{d.provider ? ` · ${d.provider}` : ''}</span>
             {measures && <span className="trk-tag">{measures}</span>}
-            {d.followUp && <span className="trk-sub">Follow-up {niceDate(d.followUp, true)}</span>}
+            {d.followUp && <span className="trk-sub">{t('Follow-up {day}', { day: niceDate(d.followUp, true) })}</span>}
           </span>
           <Avatar m={m} />
-          <span className="sr-only">{m.name}, {t.label}. Edit</span>
+          <span className="sr-only">{t('{name}, {type}. Edit', { name: m.name, type: tm(ty.label) })}</span>
         </button>
         {d.eventId
-          ? <a className="btn btn-secondary trk-small-btn" href={eventHref(d.eventId, e.date)}>📅 Open on the calendar</a>
-          : future && <button className="btn btn-secondary trk-small-btn" onClick={() => addToCalendar(e)}>📅 Add to calendar</button>}
+          ? <a className="btn btn-secondary trk-small-btn" href={eventHref(d.eventId, e.date)}>{t('📅 Open on the calendar')}</a>
+          : future && <button className="btn btn-secondary trk-small-btn" onClick={() => addToCalendar(e)}>{t('📅 Add to calendar')}</button>}
       </li>
     )
   }
   return (
     <div className="trk-journal">
       {switcher}
-      <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>
-      <button className="btn btn-secondary trk-small-btn" style={{ alignSelf: 'flex-start' }} onClick={onFromCalendar}>📅 Add from the calendar</button>
+      <p className="trk-privacy">{t('🔒 Health stays on phones and computers, never on the wall screen.')}</p>
+      <button className="btn btn-secondary trk-small-btn" style={{ alignSelf: 'flex-start' }} onClick={onFromCalendar}>{t('📅 Add from the calendar')}</button>
       {meds && <MedicineList memberId={memberId} />}
-      {entries.length === 0 && <div className="empty-card"><span className="emoji">🩺</span>No visits yet. Tap + to log a checkup or a dentist visit.</div>}
-      {upcoming.length > 0 && <section aria-label="Upcoming"><h3 className="trk-heading">Upcoming</h3><ul className="trk-visits">{upcoming.map(row)}</ul></section>}
-      {past.length > 0 && <section aria-label="Past visits"><h3 className="trk-heading">Past visits</h3><ul className="trk-visits">{past.map(row)}</ul></section>}
+      {entries.length === 0 && <div className="empty-card"><span className="emoji">🩺</span>{t('No visits yet. Tap + to log a checkup or a dentist visit.')}</div>}
+      {upcoming.length > 0 && <section aria-label={t('Upcoming')}><h3 className="trk-heading">{t('Upcoming')}</h3><ul className="trk-visits">{upcoming.map(row)}</ul></section>}
+      {past.length > 0 && <section aria-label={t('Past visits')}><h3 className="trk-heading">{t('Past visits')}</h3><ul className="trk-visits">{past.map(row)}</ul></section>}
     </div>
   )
 }
@@ -466,9 +469,9 @@ async function addVisitToCalendar(e: TrackerEntry, m: { id: string | null; name:
   const d = e.data as HealthData
   const cals = (await api.getCalendars()).filter(c => c.writable && c.enabled && c.canEditEvents !== false)
   const cal = cals.find(c => c.default) ?? cals.find(c => c.kind === 'local') ?? cals[0]
-  if (!cal) throw new Error('There is no calendar to add it to. Add one in Settings → Calendars.')
-  const t = HEALTH_TYPES.find(x => x.key === d.type) ?? HEALTH_TYPES[5]
-  const title = `${t.emoji} ${t.label}${m.id ? ` · ${m.name}` : ''}`
+  if (!cal) throw new Error(t('There is no calendar to add it to. Add one in Settings → Calendars.'))
+  const ty = HEALTH_TYPES.find(x => x.key === d.type) ?? HEALTH_TYPES[5]
+  const title = `${ty.emoji} ${tm(ty.label)}${m.id ? ` · ${m.name}` : ''}`
   const next = format(new Date(new Date(`${e.date}T12:00:00`).getTime() + 86_400_000), 'yyyy-MM-dd')
   const start = d.time ? new Date(`${e.date}T${d.time}`) : null
   return api.createEvent({
@@ -528,8 +531,8 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
   }
   const shelved = async (b: { id: string; title: string }) => {
     setShelving(null)
-    try { await api.updateTracker(entry!.id, { data: { bookId: b.id } }); setBookId(b.id); announce(`${b.title} is in the library`) }
-    catch (e) { toast(errMsg(e, 'Could not link it'), true) }
+    try { await api.updateTracker(entry!.id, { data: { bookId: b.id } }); setBookId(b.id); announce(t('{title} is in the library', { title: b.title })) }
+    catch (e) { toast(errMsg(e, t('Could not link it')), true) }
   }
 
   const n = (s: string) => s.trim() === '' ? null : Number(s)
@@ -561,96 +564,100 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
       }
       if (entry) await api.updateTracker(entry.id, body)
       else await api.addTracker({ kind, ...body, data: Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null)) })
-      announce(entry ? 'Saved' : 'Added')
+      announce(entry ? t('Saved') : t('Added'))
       onSaved()
-    } catch (e) { toast(errMsg(e, 'Could not save'), true) } finally { setBusy(false) }
+    } catch (e) { toast(errMsg(e, t('Could not save')), true) } finally { setBusy(false) }
   }
   const del = async () => {
-    if (!entry || !await dialog.confirm({ title: entry.title ? `Delete “${entry.title}”?` : `Delete this ${noun}?`, body: 'It is gone for good.', confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteTracker(entry.id); onSaved() } catch (e) { toast(errMsg(e, 'Could not delete'), true) }
+    const what = kind === 'reading' ? t('Delete this book?') : kind === 'memory' ? t('Delete this memory?') : t('Delete this visit?')
+    if (!entry || !await dialog.confirm({ title: entry.title ? t('Delete “{title}”?', { title: entry.title }) : what, body: t('It is gone for good.'), confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteTracker(entry.id); onSaved() } catch (e) { toast(errMsg(e, t('Could not delete')), true) }
   }
 
-  const noun = kind === 'reading' ? 'book' : kind === 'memory' ? 'memory' : 'visit'
+  const owner = everyone.find(m => m.id === entry?.memberId)?.name ?? t('Someone')
+  const sheetTitle = readOnly ? (kind === 'reading' ? t("{name}'s book", { name: owner }) : kind === 'memory' ? t("{name}'s memory", { name: owner }) : t("{name}'s visit", { name: owner }))
+    : entry ? (kind === 'reading' ? t('Edit book') : kind === 'memory' ? t('Edit memory') : t('Edit visit'))
+    : kind === 'reading' ? t('Add a book') : kind === 'memory' ? t('New memory') : t('Health visit')
   return (
-    <Sheet title={readOnly ? `${everyone.find(m => m.id === entry?.memberId)?.name ?? 'Someone'}'s ${noun}` : entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose} dirty={readOnly ? false : 'auto'}
-      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
-        <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? 'Save' : kind === 'health' ? 'Add visit' : 'Add'}</button>
+    <Sheet title={sheetTitle} onClose={onClose} dirty={readOnly ? false : 'auto'}
+      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>{t('Done')}</button> : <>
+        <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? t('Save') : kind === 'health' ? t('Add visit') : t('Add')}</button>
       </>}>
       {/* Read-only: every field inside is disabled. */}
       <fieldset className="item-sheet-fields" disabled={readOnly}>
-      {kind === 'health' && <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>}
-      {prefill && <p className="field-hint item-read-only">From the calendar. It stays linked to the event, and keeps its own date if the event moves. Nothing about the visit goes on the calendar.</p>}
+      {kind === 'health' && <p className="trk-privacy">{t('🔒 Health stays on phones and computers, never on the wall screen.')}</p>}
+      {prefill && <p className="field-hint item-read-only">{t('From the calendar. It stays linked to the event, and keeps its own date if the event moves. Nothing about the visit goes on the calendar.')}</p>}
       <div className="field">
-        <label id="trk-who">Whose {noun}?</label>
+        <label id="trk-who">{kind === 'reading' ? t('Whose book?') : kind === 'memory' ? t('Whose memory?') : t('Whose visit?')}</label>
         <div className="chip-row" role="group" aria-labelledby="trk-who">
           {entry?.formerMember && !entry.memberId && (
-            <button type="button" className={`chip ${f.memberId === FORMER ? 'active' : ''}`} aria-pressed={f.memberId === FORMER} onClick={() => set({ memberId: FORMER })}>{entry.formerMember} (removed)</button>
+            <button type="button" className={`chip ${f.memberId === FORMER ? 'active' : ''}`} aria-pressed={f.memberId === FORMER} onClick={() => set({ memberId: FORMER })}>{t('{name} (removed)', { name: entry.formerMember })}</button>
           )}
-          <button type="button" className={`chip ${f.memberId === null ? 'active' : ''}`} aria-pressed={f.memberId === null} onClick={() => set({ memberId: null })}>🏠 Family</button>
+          <button type="button" className={`chip ${f.memberId === null ? 'active' : ''}`} aria-pressed={f.memberId === null} onClick={() => set({ memberId: null })}>🏠 {t('Family')}</button>
           {members.map(m => (
             <button key={m.id} type="button" className={`chip ${f.memberId === m.id ? 'active' : ''}`} aria-pressed={f.memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => set({ memberId: m.id })}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
-        {f.memberId === ASK && <p className="field-hint">Pick whose visit it is.</p>}
+        {f.memberId === ASK && <p className="field-hint">{t('Pick whose visit it is.')}</p>}
       </div>
 
       {kind === 'reading' && <>
         <div className="field">
-          <label htmlFor="trk-format">Format</label>
+          <label htmlFor="trk-format">{t('Format')}</label>
           <select id="trk-format" value={f.format} onChange={e => set({ format: e.target.value as ReadingFormat })}>
-            <option value="book">📖 Book</option>
-            <option value="audiobook">🎧 Audiobook</option>
+            <option value="book">{t('📖 Book')}</option>
+            <option value="audiobook">{t('🎧 Audiobook')}</option>
           </select>
         </div>
         <BookLookup initial={f.title} onPick={b => set({
           title: b.title, author: b.author ?? f.author, coverUrl: b.coverUrl ?? f.coverUrl, coverThumb: b.coverUrl ? api.bookThumbUrl(b) : f.coverThumb,
           ...(f.format === 'book' && b.pages ? { totalPages: String(b.pages) } : {}),
         })} />
-        <div className="field"><label htmlFor="trk-title">Title</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder="Charlotte's Web" autoComplete="off" autoFocus={!entry} /></div>
-        <div className="field"><label htmlFor="trk-author">Author</label><input id="trk-author" type="text" value={f.author} onChange={e => set({ author: e.target.value })} autoComplete="off" /></div>
+        <div className="field"><label htmlFor="trk-title">{t('Title')}</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder={t("Charlotte's Web")} autoComplete="off" autoFocus={!entry} /></div>
+        <div className="field"><label htmlFor="trk-author">{t('Author')}</label><input id="trk-author" type="text" value={f.author} onChange={e => set({ author: e.target.value })} autoComplete="off" /></div>
         <div className="field">
-          <label htmlFor="trk-cover">Cover link</label>
+          <label htmlFor="trk-cover">{t('Cover link')}</label>
           <div className="trk-cover-field">
             <BookCover className="trk-cover" src={f.coverThumb} title={f.title} audio={f.format === 'audiobook'} />
             <input id="trk-cover" type="url" inputMode="url" value={f.coverUrl} onChange={e => set({ coverUrl: e.target.value, coverThumb: null })} placeholder="https://…/cover.jpg" autoComplete="off" />
           </div>
         </div>
         <div className="field">
-          <label>Status</label>
-          <Segmented label="Status" value={f.status} onChange={s => set({ status: s })} options={STATUS} className="trk-status" />
+          <label>{t('Status')}</label>
+          <Segmented label={t('Status')} value={f.status} onChange={s => set({ status: s })} options={STATUS.map(s => ({ ...s, label: tm(s.label) }))} className="trk-status" />
         </div>
         {f.format === 'audiobook' ? <>
-          <div className="field"><label htmlFor="trk-narrator">Narrator</label><input id="trk-narrator" type="text" value={f.narrator} onChange={e => set({ narrator: e.target.value })} autoComplete="off" /></div>
+          <div className="field"><label htmlFor="trk-narrator">{t('Narrator')}</label><input id="trk-narrator" type="text" value={f.narrator} onChange={e => set({ narrator: e.target.value })} autoComplete="off" /></div>
           <div className="trk-field-pair">
-            <HoursMinutes id="trk-listened" label="Listened" value={f.listened} onChange={listened => set({ listened })} />
-            <HoursMinutes id="trk-length" label="Length" value={f.length} onChange={length => set({ length })} />
+            <HoursMinutes id="trk-listened" label={t('Listened')} value={f.listened} onChange={listened => set({ listened })} />
+            <HoursMinutes id="trk-length" label={t('Length')} value={f.length} onChange={length => set({ length })} />
           </div>
         </> : (
           <div className="trk-field-pair">
-            <div className="field"><label htmlFor="trk-read">Pages read</label><input id="trk-read" type="text" inputMode="numeric" value={f.pagesRead} onChange={e => set({ pagesRead: e.target.value.replace(/\D/g, '') })} /></div>
-            <div className="field"><label htmlFor="trk-total">Total pages</label><input id="trk-total" type="text" inputMode="numeric" value={f.totalPages} onChange={e => set({ totalPages: e.target.value.replace(/\D/g, '') })} /></div>
+            <div className="field"><label htmlFor="trk-read">{t('Pages read')}</label><input id="trk-read" type="text" inputMode="numeric" value={f.pagesRead} onChange={e => set({ pagesRead: e.target.value.replace(/\D/g, '') })} /></div>
+            <div className="field"><label htmlFor="trk-total">{t('Total pages')}</label><input id="trk-total" type="text" inputMode="numeric" value={f.totalPages} onChange={e => set({ totalPages: e.target.value.replace(/\D/g, '') })} /></div>
           </div>
         )}
         {entry && !!d.log?.length && <ReadingDays d={d as ReadingData} tz={settings.timezone ?? undefined} />}
         <div className="trk-field-pair">
-          <div className="field"><label htmlFor="trk-date">Started</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
-          {f.status === 'finished' && <div className="field"><label htmlFor="trk-fin">Finished</label><input id="trk-fin" type="date" value={f.finishedOn} onChange={e => set({ finishedOn: e.target.value })} /></div>}
+          <div className="field"><label htmlFor="trk-date">{t('Started')}</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
+          {f.status === 'finished' && <div className="field"><label htmlFor="trk-fin">{t('Finished')}</label><input id="trk-fin" type="date" value={f.finishedOn} onChange={e => set({ finishedOn: e.target.value })} /></div>}
         </div>
-        <div className="field"><label>Rating</label><Stars value={f.rating ?? undefined} label="Rating" onChange={v => set({ rating: v })} /></div>
-        <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="Favorite part, who recommended it…" /></div>
+        <div className="field"><label>{t('Rating')}</label><Stars value={f.rating ?? undefined} label={t('Rating')} onChange={v => set({ rating: v })} /></div>
+        <div className="field"><label htmlFor="trk-notes">{t('Notes')}</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder={t('Favorite part, who recommended it…')} /></div>
         {entry && <div className="field">
-          <label>Library</label>
-          {bookId ? <><a className="btn btn-secondary" href={`#/trackers/library?book=${encodeURIComponent(bookId)}`} onClick={onClose}>📚 Open in the library</a><p className="field-hint">It's in the family's library: where it lives, lending, who else read it.</p></>
-            : <><button type="button" className="btn btn-secondary" onClick={shelve}>📚 Save to library</button><p className="field-hint">Keep it with the books your family owns or has borrowed.</p></>}
+          <label>{t('Library')}</label>
+          {bookId ? <><a className="btn btn-secondary" href={`#/trackers/library?book=${encodeURIComponent(bookId)}`} onClick={onClose}>{t('📚 Open in the library')}</a><p className="field-hint">{t("It's in the family's library: where it lives, lending, who else read it.")}</p></>
+            : <><button type="button" className="btn btn-secondary" onClick={shelve}>📚 {t('Save to library')}</button><p className="field-hint">{t('Keep it with the books your family owns or has borrowed.')}</p></>}
         </div>}
       </>}
 
       {kind === 'memory' && <>
-        <div className="field"><label htmlFor="trk-date">Day</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
-        <div className="field"><label htmlFor="trk-text">What happened?</label><textarea id="trk-text" value={f.text} onChange={e => set({ text: e.target.value })} placeholder="One good thing from today…" autoFocus={!entry} rows={4} /></div>
-        <div className="field"><label htmlFor="trk-title">Headline (optional)</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder="First snow" autoComplete="off" /></div>
+        <div className="field"><label htmlFor="trk-date">{t('Day')}</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
+        <div className="field"><label htmlFor="trk-text">{t('What happened?')}</label><textarea id="trk-text" value={f.text} onChange={e => set({ text: e.target.value })} placeholder={t('One good thing from today…')} autoFocus={!entry} rows={4} /></div>
+        <div className="field"><label htmlFor="trk-title">{t('Headline (optional)')}</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder={t('First snow')} autoComplete="off" /></div>
         <div className="field">
-          <label id="trk-mood">Mood</label>
+          <label id="trk-mood">{t('Mood')}</label>
           <div className="emoji-swatch-row" role="group" aria-labelledby="trk-mood">
             {MOODS.map(m => <button key={m} type="button" className={`emoji-swatch ${f.mood === m ? 'active' : ''}`} aria-pressed={f.mood === m} onClick={() => set({ mood: f.mood === m ? null : m })}>{m}</button>)}
           </div>
@@ -660,29 +667,29 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
 
       {kind === 'health' && <>
         <div className="field">
-          <label id="trk-type">Type</label>
+          <label id="trk-type">{t('Type')}</label>
           <div className="chip-row" role="group" aria-labelledby="trk-type">
-            {HEALTH_TYPES.map(t => <button key={t.key} type="button" className={`chip ${f.type === t.key ? 'active' : ''}`} aria-pressed={f.type === t.key} onClick={() => set({ type: t.key })}>{t.emoji} {t.label}</button>)}
+            {HEALTH_TYPES.map(ty => <button key={ty.key} type="button" className={`chip ${f.type === ty.key ? 'active' : ''}`} aria-pressed={f.type === ty.key} onClick={() => set({ type: ty.key })}>{ty.emoji} {tm(ty.label)}</button>)}
           </div>
         </div>
         <div className="trk-field-pair">
-          <div className="field"><label htmlFor="trk-date">Date</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
-          <div className="field"><label htmlFor="trk-time">Time</label><input id="trk-time" type="time" value={f.time} onChange={e => set({ time: e.target.value })} /></div>
+          <div className="field"><label htmlFor="trk-date">{t('Date')}</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
+          <div className="field"><label htmlFor="trk-time">{t('Time')}</label><input id="trk-time" type="time" value={f.time} onChange={e => set({ time: e.target.value })} /></div>
         </div>
-        <div className="field"><label htmlFor="trk-title">Reason</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder="Annual checkup" autoComplete="off" /></div>
-        <div className="field"><label htmlFor="trk-provider">Doctor or office</label><input id="trk-provider" type="text" value={f.provider} onChange={e => set({ provider: e.target.value })} autoComplete="off" /></div>
+        <div className="field"><label htmlFor="trk-title">{t('Reason')}</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder={t('Annual checkup')} autoComplete="off" /></div>
+        <div className="field"><label htmlFor="trk-provider">{t('Doctor or office')}</label><input id="trk-provider" type="text" value={f.provider} onChange={e => set({ provider: e.target.value })} autoComplete="off" /></div>
         <fieldset className="trk-measures">
-          <legend>Measurements (optional)</legend>
-          <MeasureInput id="trk-height" label="Height" value={f.height} unit={f.heightUnit} units={['in', 'cm']} onValue={v => set({ height: v })} onUnit={u => set({ heightUnit: u as Form['heightUnit'] })} />
-          <MeasureInput id="trk-weight" label="Weight" value={f.weight} unit={f.weightUnit} units={['lb', 'kg']} onValue={v => set({ weight: v })} onUnit={u => set({ weightUnit: u as Form['weightUnit'] })} />
-          <MeasureInput id="trk-temp" label="Temperature" value={f.temperature} unit={f.temperatureUnit} units={['F', 'C']} onValue={v => set({ temperature: v })} onUnit={u => set({ temperatureUnit: u as Form['temperatureUnit'] })} />
+          <legend>{t('Measurements (optional)')}</legend>
+          <MeasureInput id="trk-height" label={t('Height')} value={f.height} unit={f.heightUnit} units={['in', 'cm']} onValue={v => set({ height: v })} onUnit={u => set({ heightUnit: u as Form['heightUnit'] })} />
+          <MeasureInput id="trk-weight" label={t('Weight')} value={f.weight} unit={f.weightUnit} units={['lb', 'kg']} onValue={v => set({ weight: v })} onUnit={u => set({ weightUnit: u as Form['weightUnit'] })} />
+          <MeasureInput id="trk-temp" label={t('Temperature')} value={f.temperature} unit={f.temperatureUnit} units={['F', 'C']} onValue={v => set({ temperature: v })} onUnit={u => set({ temperatureUnit: u as Form['temperatureUnit'] })} />
         </fieldset>
-        <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="Next steps, what to bring next time…" /></div>
-        <div className="field"><label htmlFor="trk-follow">Follow-up</label><input id="trk-follow" type="date" value={f.followUp} onChange={e => set({ followUp: e.target.value })} /></div>
-        {entry && d.eventId && <a className="btn btn-secondary" href={eventHref(d.eventId, entry.date)} onClick={onClose}>📅 Open on the calendar</a>}
+        <div className="field"><label htmlFor="trk-notes">{t('Notes')}</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder={t('Next steps, what to bring next time…')} /></div>
+        <div className="field"><label htmlFor="trk-follow">{t('Follow-up')}</label><input id="trk-follow" type="date" value={f.followUp} onChange={e => set({ followUp: e.target.value })} /></div>
+        {entry && d.eventId && <a className="btn btn-secondary" href={eventHref(d.eventId, entry.date)} onClick={onClose}>{t('📅 Open on the calendar')}</a>}
       </>}
       </fieldset>
-      {!readOnly && entry && (admin || (!!kid && entry.memberId === kid)) && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={del}>Delete {noun}</button></div>}
+      {!readOnly && entry && (admin || (!!kid && entry.memberId === kid)) && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={del}>{kind === 'reading' ? t('Delete book') : kind === 'memory' ? t('Delete memory') : t('Delete visit')}</button></div>}
       {shelving && entry && <AddBookSheet places={shelving.places} sources={shelving.sources} today={todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}
         from={{ title: f.title.trim(), author: f.author.trim(), pages: n(f.totalPages), coverUrl: f.coverUrl.trim() || null }} onClose={() => setShelving(null)} onAdded={shelved} />}
     </Sheet>
@@ -694,7 +701,7 @@ function MeasureInput({ id, label, value, unit, units, onValue, onUnit }: { id: 
     <div className="trk-measure">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="text" inputMode="decimal" value={value} onChange={e => onValue(e.target.value.replace(/[^\d.]/g, ''))} />
-      <select aria-label={`${label} unit`} value={unit} onChange={e => onUnit(e.target.value)}>
+      <select aria-label={t('{label} unit', { label })} value={unit} onChange={e => onUnit(e.target.value)}>
         {units.map(u => <option key={u} value={u}>{u === 'F' || u === 'C' ? `°${u}` : u}</option>)}
       </select>
     </div>
@@ -716,36 +723,36 @@ function PhotoField({ f, set, photos }: { f: Form; set: (patch: Partial<Form>) =
     try {
       const { blob, width, height } = await preparePhoto(file)
       set({ pending: { blob, width, height, url: URL.createObjectURL(blob) }, photoId: null, photoOwned: true, photoFamily: false })
-    } catch (e) { toast(e instanceof PhotoFormatError ? e.message : "Couldn't use that photo", true) } finally { setBusy(false) }
+    } catch (e) { toast(e instanceof PhotoFormatError ? e.message : t("Couldn't use that photo"), true) } finally { setBusy(false) }
   }
   return (
     <div className="field">
-      <label>Photo</label>
+      <label>{t('Photo')}</label>
       {src && <div className="trk-photo-pick">
-        <img src={src} alt="The memory's photo" />
+        <img src={src} alt={t("The memory's photo")} />
         <div className="trk-photo-side">
           {own
             ? <div className="toggle-row">
-                <label id="trk-photo-family">Also in family photos</label>
+                <label id="trk-photo-family">{t('Also in family photos')}</label>
                 <button type="button" className={`switch ${f.photoFamily ? 'on' : ''}`} role="switch" aria-checked={f.photoFamily} aria-labelledby="trk-photo-family"
                   onClick={() => set({ photoFamily: !f.photoFamily })}><span className="knob" /></button>
               </div>
-            : <span className="trk-sub">From the family photos</span>}
-          <button type="button" className="btn btn-secondary trk-small-btn" onClick={() => set({ photoId: null, pending: null, photoOwned: false })}>Remove</button>
+            : <span className="trk-sub">{t('From the family photos')}</span>}
+          <button type="button" className="btn btn-secondary trk-small-btn" onClick={() => set({ photoId: null, pending: null, photoOwned: false })}>{t('Remove')}</button>
         </div>
       </div>}
-      {own && <p className="field-hint">{f.photoFamily ? 'It also shows in Photos, on the Board and the night screen.' : 'Only in this memory.'}</p>}
+      {own && <p className="field-hint">{f.photoFamily ? t('It also shows in Photos, on the Board and the night screen.') : t('Only in this memory.')}</p>}
       <input ref={input} type="file" accept="image/*" hidden onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; choose(file) }} />
       <div className="trk-photo-actions">
-        <button type="button" className="btn btn-secondary trk-small-btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? 'Adding…' : src ? '📷 Replace photo' : '📷 Add a photo'}</button>
-        {photos.length > 0 && <button type="button" className="btn btn-secondary trk-small-btn" aria-expanded={picking} onClick={() => setPicking(v => !v)}>🖼️ From family photos</button>}
+        <button type="button" className="btn btn-secondary trk-small-btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? t('Adding…') : src ? t('📷 Replace photo') : t('📷 Add a photo')}</button>
+        {photos.length > 0 && <button type="button" className="btn btn-secondary trk-small-btn" aria-expanded={picking} onClick={() => setPicking(v => !v)}>{t('🖼️ From family photos')}</button>}
       </div>
       {picking && (
-        <ul className="trk-photo-grid" aria-label="Family photos">
+        <ul className="trk-photo-grid" aria-label={t('Family photos')}>
           {photos.map(p => (
             <li key={p.id}>
               <button type="button" className={`photo-tile ${p.id === f.photoId ? 'trk-photo-on' : ''}`} aria-pressed={p.id === f.photoId}
-                aria-label={p.caption || `Photo from ${new Date(p.createdAt).toLocaleDateString()}`}
+                aria-label={p.caption || t('Photo from {day}', { day: new Date(p.createdAt).toLocaleDateString(intlLocale()) })}
                 onClick={() => { set({ photoId: p.id, pending: null, photoOwned: false }); setPicking(false) }}>
                 <img src={api.photoImageUrl(p)} alt="" loading="lazy" decoding="async" />
               </button>
@@ -775,10 +782,10 @@ function PickEventSheet({ linked, tz, onClose, onPick }: { linked: Set<string>; 
       .catch(() => setEvents([]))
   }, [linked])
   return (
-    <Sheet title="Add from the calendar" onClose={onClose}>
-      <p className="field-hint">Events from the last month and the next three that look like a doctor's or dentist's visit.</p>
-      {events === null ? <div className="state-card">Loading…</div>
-        : events.length === 0 ? <div className="empty-card"><span className="emoji">📅</span>No events look like a visit. Open one on the calendar and tap "Make it a health visit".</div>
+    <Sheet title={t('Add from the calendar')} onClose={onClose}>
+      <p className="field-hint">{t("Events from the last month and the next three that look like a doctor's or dentist's visit.")}</p>
+      {events === null ? <div className="state-card">{t('Loading…')}</div>
+        : events.length === 0 ? <div className="empty-card"><span className="emoji">📅</span>{t('No events look like a visit. Open one on the calendar and tap "Make it a health visit".')}</div>
         : <div className="sheet-links">{events.map(ev => (
           <button key={`${ev.id}:${ev.start}`} type="button" className="sheet-link" onClick={() => onPick(ev)}>
             <span className="lib-emoji" aria-hidden="true">🩺</span><span>{ev.title}<small>{eventWhen(ev, tz)}{ev.location ? ` · ${ev.location}` : ''}</small></span>
@@ -803,14 +810,14 @@ export function EventHealthVisit({ event }: { event: EventInstance }) {
   const repeats = !!(event.rrule || event.seriesId)
   const visit = visits.find(v => (v.data as HealthData).eventId === event.id && (!repeats || v.date === day))
   if (visit) {
-    const t = HEALTH_TYPES.find(x => x.key === (visit.data as HealthData).type) ?? HEALTH_TYPES[5]
-    const who = members.find(m => m.id === visit.memberId)?.name ?? visit.formerMember ?? 'Family'
-    return <a className="sheet-link" href={`#/trackers/health?visit=${encodeURIComponent(visit.id)}`}><span className="lib-emoji" aria-hidden="true">{t.emoji}</span>
-      <span>Health visit: {t.label} · {who}<small>Open the health visit</small></span><ChevronRight /></a>
+    const ty = HEALTH_TYPES.find(x => x.key === (visit.data as HealthData).type) ?? HEALTH_TYPES[5]
+    const who = members.find(m => m.id === visit.memberId)?.name ?? visit.formerMember ?? t('Family')
+    return <a className="sheet-link" href={`#/trackers/health?visit=${encodeURIComponent(visit.id)}`}><span className="lib-emoji" aria-hidden="true">{ty.emoji}</span>
+      <span>{t('Health visit: {type}', { type: tm(ty.label) })} · {who}<small>{t('Open the health visit')}</small></span><ChevronRight /></a>
   }
   return <>
-    <button type="button" className="btn btn-secondary trk-small-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setMaking(true)}>🩺 Make it a health visit</button>
+    <button type="button" className="btn btn-secondary trk-small-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setMaking(true)}>{t('🩺 Make it a health visit')}</button>
     {making && <EntrySheet kind="health" entry={null} admin kid={null} photos={[]} memberId={null} prefill={{ draft: visitFromEvent(event, tz), eventId: event.id }}
-      onClose={() => setMaking(false)} onSaved={() => { setMaking(false); announce('Saved as a health visit'); load() }} />}
+      onClose={() => setMaking(false)} onSaved={() => { setMaking(false); announce(t('Saved as a health visit')); load() }} />}
   </>
 }

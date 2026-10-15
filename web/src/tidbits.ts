@@ -1,3 +1,4 @@
+import { lang, msg, t, tm } from './i18n.ts'
 // The Board's rotating quote / fact card: the built-in quotes and facts (no network), plus the
 // online sources the family turned on in Settings -> Quotes & facts. Picked from the date and a
 // 30-minute slot, so every display in the house shows the same one at the same time.
@@ -219,19 +220,19 @@ export const TIPS: { text: string; category: TipCategory }[] = [
 ]
 
 export const TIP_CATEGORY_LABELS: Record<TipCategory, string> = {
-  routines: '🗓️ Routines', focus: '🎯 Focus', organizing: '🗂️ Getting organized', feelings: '💛 Feelings', sensory: '🎧 Sensory', communication: '💬 Communication',
+  routines: msg('🗓️ Routines'), focus: msg('🎯 Focus'), organizing: msg('🗂️ Getting organized'), feelings: msg('💛 Feelings'), sensory: msg('🎧 Sensory'), communication: msg('💬 Communication'),
 }
 
-export const SOURCE_TITLES: Record<TidbitSource, string> = { quotes: 'Quotes', facts: 'Fun facts', tips: 'Neurodivergent-friendly tips', onthisday: 'On this day', trivia: 'Trivia question' }
+export const SOURCE_TITLES: Record<TidbitSource, string> = { quotes: msg('Quotes'), facts: msg('Fun facts'), tips: msg('Neurodivergent-friendly tips'), onthisday: msg('On this day'), trivia: msg('Trivia question') }
 
 /** Settings row summary: which sources are on. */
-export function tidbitSummary(t: TidbitSettings): string {
-  if (!t.sources.length) return 'Off: the Board has no quote card.'
-  return (Object.keys(SOURCE_TITLES) as TidbitSource[]).filter(s => t.sources.includes(s)).map(s => SOURCE_TITLES[s]).join(', ')
+export function tidbitSummary(card: TidbitSettings): string {
+  if (!card.sources.length) return t('Off: the Board has no quote card.')
+  return (Object.keys(SOURCE_TITLES) as TidbitSource[]).filter(s => card.sources.includes(s)).map(s => tm(SOURCE_TITLES[s])).join(', ')
 }
 
 export const FACT_CATEGORY_LABELS: Record<FactCategory, string> = {
-  animals: '🐾 Animals', space: '🚀 Space', science: '🔬 Earth & science', body: '🫀 Human body', plants: '🌱 Plants & food', words: '🔤 Words',
+  animals: msg('🐾 Animals'), space: msg('🚀 Space'), science: msg('🔬 Earth & science'), body: msg('🫀 Human body'), plants: msg('🌱 Plants & food'), words: msg('🔤 Words'),
 }
 
 /** What the card can show. Built-in quotes and facts ship with the app; On this day and trivia
@@ -297,9 +298,9 @@ export function tidbitQuery(card: TidbitSettings): string | null {
   }).toString()
 }
 
-const SHORT_TITLES: Record<TidbitSource, string> = { quotes: 'Quotes', facts: 'Fun facts', tips: 'Tips', onthisday: 'On this day', trivia: 'Trivia' }
+const SHORT_TITLES: Record<TidbitSource, string> = { quotes: msg('Quotes'), facts: msg('Fun facts'), tips: msg('Tips'), onthisday: msg('On this day'), trivia: msg('Trivia') }
 /** A card's heading from what it shows: "Trivia", "Quotes & fun facts", "Quotes, fun facts & more". */
 export function tidbitCardTitle(card: TidbitSettings): string {
-  const names = (Object.keys(SHORT_TITLES) as TidbitSource[]).filter(s => card.sources.includes(s)).map((s, i) => i ? SHORT_TITLES[s].toLowerCase() : SHORT_TITLES[s])
-  return names.length <= 2 ? names.join(' & ') : `${names[0]}, ${names[1]} & more`
+  const names = (Object.keys(SHORT_TITLES) as TidbitSource[]).filter(s => card.sources.includes(s)).map((s, i) => i && lang() === 'en' ? tm(SHORT_TITLES[s]).toLowerCase() : tm(SHORT_TITLES[s]))
+  return names.length < 2 ? names[0] ?? '' : names.length === 2 ? t('{a} & {b}', { a: names[0], b: names[1] }) : t('{a}, {b} & more', { a: names[0], b: names[1] })
 }

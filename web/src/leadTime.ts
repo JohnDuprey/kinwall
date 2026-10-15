@@ -1,6 +1,7 @@
 // When to get going for an event: leave by (its travel time) or, for a meal's event, start prep by
 // (the meal time minus the recipe's time, server/src/prepBy.ts). One wording for the Board, Now /
 // Next, the calendar, a person's day and the app's Live Activity.
+import { t } from './i18n.ts'
 import type { EventInstance } from './types.ts'
 
 export type Lead = { at: string; prep: boolean }
@@ -16,9 +17,11 @@ export function leadOf(e: Pick<EventInstance, 'leaveAt'> & { prepAt?: string | n
 
 export const leadIcon = (l: Lead) => (l.prep ? '🍳' : '🚗')
 /** "Leave by 4:40 PM" / "Start prep by 5:15 PM" (lowercase first word mid-sentence: `lower`). */
-export const leadBy = (l: Lead, time: string, lower = false) => `${l.prep ? (lower ? 'start' : 'Start') + ' prep' : lower ? 'leave' : 'Leave'} by ${time}`
+export const leadBy = (l: Lead, time: string, lower = false) => l.prep
+  ? lower ? t('start prep by {time}', { time }) : t('Start prep by {time}', { time })
+  : lower ? t('leave by {time}', { time }) : t('Leave by {time}', { time })
 /** "Leave for Soccer" / "Start prep for Dinner · Tuesday Tacos". */
-export const leadFor = (l: Lead, title: string) => `${l.prep ? 'Start prep' : 'Leave'} for ${title}`
+export const leadFor = (l: Lead, title: string) => l.prep ? t('Start prep for {title}', { title }) : t('Leave for {title}', { title })
 /** "🚗 Leave by 4:40 PM" / "🍳 Start prep by 5:15 PM" for an event, or null; `time` formats the ISO time. */
 export function leadText(e: Parameters<typeof leadOf>[0], time: (iso: string) => string): string | null {
   const l = leadOf(e)

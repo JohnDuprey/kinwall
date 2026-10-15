@@ -1,7 +1,8 @@
 // The family's library (Library.tsx): labels, and which scanned barcodes are books. Pure, so
 // web/test/library.test.ts covers it.
 import type { LibraryBook, LibraryFormat, LibraryShelf, ReadingData, TrackerEntry } from './types.ts'
-import { hoursMinutes, STATUS_EMOJI, STATUS_WORDS } from './reading.ts'
+import { hoursMinutes } from './reading.ts'
+import { formatDate, msg, MONTH_DAY, t, tn } from './i18n.ts'
 
 /** A scanned barcode as an ISBN when it's a book's: an EAN-13 starting 978/979 (Bookland), or an
  * ISBN-10. Anything else (a cereal box's UPC) is null. */
@@ -11,7 +12,7 @@ export function isbnFromScan(code: string): string | null {
 
 /** "Warriors #1 · 2003 · 970L · 272 pages": what we know, in that order. */
 export const bookDetails = (b: Pick<LibraryBook, 'series' | 'seriesNumber' | 'year' | 'lexile' | 'pages'>) =>
-  [b.series ? `${b.series}${b.seriesNumber ? ` #${b.seriesNumber}` : ''}` : '', b.year ? String(b.year) : '', b.lexile !== null && b.lexile !== undefined ? `${b.lexile}L` : '', b.pages ? `${b.pages} pages` : '']
+  [b.series ? `${b.series}${b.seriesNumber ? ` #${b.seriesNumber}` : ''}` : '', b.year ? String(b.year) : '', b.lexile !== null && b.lexile !== undefined ? `${b.lexile}L` : '', b.pages ? tn(b.pages, '{n} page', '{n} pages') : '']
     .filter(Boolean).join(' · ')
 
 // Typical Lexile measures by grade (MetaMetrics' middle half of readers, rounded), for a rough band.
@@ -20,10 +21,10 @@ const GRADES: [string, number, number][] = [['1', 190, 530], ['2', 420, 650], ['
 export function readingLevel(lexile: number | null | undefined): string | null {
   if (lexile === null || lexile === undefined) return null
   const label = lexile < 0 ? `BR${-lexile}L` : `${lexile}L`
-  if (lexile < 190) return `${label} · early reader`
+  if (lexile < 190) return `${label} · ${t('early reader')}`
   const fit = GRADES.filter(([, lo, hi]) => lexile >= lo && lexile <= hi).map(([g]) => g)
-  if (!fit.length) return `${label} · high school and up`
-  return `${label} · about ${fit.length === 1 ? `grade ${fit[0]}` : `grades ${fit[0]}–${fit[fit.length - 1]}`}`
+  if (!fit.length) return `${label} · ${t('high school and up')}`
+  return `${label} · ${fit.length === 1 ? t('about grade {grade}', { grade: fit[0] }) : t('about grades {from}–{to}', { from: fit[0], to: fit[fit.length - 1] })}`
 }
 
 /** "Warriors #2", or null. */
@@ -34,29 +35,28 @@ export function listenLabel(b: Pick<LibraryBook, 'format' | 'readers'>): string 
   if (b.format !== 'audiobook') return null
   const narrator = b.readers.find(r => r.narrator)?.narrator
   const minutes = b.readers.find(r => r.totalMinutes)?.totalMinutes
-  return ['🎧 Audiobook', narrator ? `read by ${narrator}` : '', minutes ? hoursMinutes(minutes) : ''].filter(Boolean).join(' · ')
+  return [t('🎧 Audiobook'), narrator ? t('read by {name}', { name: narrator }) : '', minutes ? hoursMinutes(minutes) : ''].filter(Boolean).join(' · ')
 }
 
 /** "★ 4.2 · 210 ratings": Open Library readers', once enough have rated it to mean something. */
 export const ratingLabel = (b: Pick<LibraryBook, 'ratingsAverage' | 'ratingsCount'>) =>
-  b.ratingsAverage && b.ratingsCount && b.ratingsCount >= 5 ? `★ ${b.ratingsAverage.toFixed(1)} · ${b.ratingsCount.toLocaleString('en-US')} ratings` : null
+  b.ratingsAverage && b.ratingsCount && b.ratingsCount >= 5 ? `★ ${b.ratingsAverage.toFixed(1)} · ${tn(b.ratingsCount, '{n} rating', '{n} ratings')}` : null
 
 /** The book on Open Library: its work, else its ISBN; null when neither is known. */
 export const openLibraryUrl = (b: Pick<LibraryBook, 'workKey' | 'isbn'>) =>
   b.workKey ? `https://openlibrary.org${b.workKey}` : b.isbn ? `https://openlibrary.org/isbn/${b.isbn}` : null
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 /** "Sep 23", with the year when it isn't this one. */
 function day(key: string, today: string) {
   const [y, m, d] = key.split('-').map(Number)
-  return `${MONTHS[m - 1]} ${d}${String(y) === today.slice(0, 4) ? '' : `, ${y}`}`
+  return formatDate(new Date(y, m - 1, d), String(y) === today.slice(0, 4) ? MONTH_DAY : { ...MONTH_DAY, year: 'numeric' })
 }
 /** "Lent to Grandma since Sep 23" ("today"; the year when it isn't this one), or null when it's home. */
 export function lentLabel(b: Pick<LibraryBook, 'lentTo' | 'lentOn'>, today: string): string | null {
   if (!b.lentTo) return null
-  if (!b.lentOn) return `Lent to ${b.lentTo}`
-  if (b.lentOn === today) return `Lent to ${b.lentTo} today`
-  return `Lent to ${b.lentTo} since ${day(b.lentOn, today)}`
+  if (!b.lentOn) return t('Lent to {name}', { name: b.lentTo })
+  if (b.lentOn === today) return t('Lent to {name} today', { name: b.lentTo })
+  return t('Lent to {name} since {day}', { name: b.lentTo, day: day(b.lentOn, today) })
 }
 
 /** A day key `n` days after `key` (YYYY-MM-DD). */
@@ -73,10 +73,10 @@ export const isOverdue = (b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'retur
  * "Returned Sep 18"; null for the family's own books (or no due date). */
 export function dueLabel(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'returnedOn'>, today: string): string | null {
   if (!b.borrowedFrom) return null
-  if (b.returnedOn) return `Returned ${b.returnedOn === today ? 'today' : day(b.returnedOn, today)}`
+  if (b.returnedOn) return b.returnedOn === today ? t('Returned today') : t('Returned {day}', { day: day(b.returnedOn, today) })
   if (!b.dueOn) return null
-  if (b.dueOn < today) return `Overdue since ${day(b.dueOn, today)}`
-  return `Due back ${b.dueOn === today ? 'today' : b.dueOn === addDayKeys(today, 1) ? 'tomorrow' : day(b.dueOn, today)}`
+  if (b.dueOn < today) return t('Overdue since {day}', { day: day(b.dueOn, today) })
+  return b.dueOn === today ? t('Due back today') : b.dueOn === addDayKeys(today, 1) ? t('Due back tomorrow') : t('Due back {day}', { day: day(b.dueOn, today) })
 }
 
 const sameTitle = (a: string | null | undefined, b: string) => (a ?? '').trim().toLowerCase() === b.trim().toLowerCase()
@@ -108,17 +108,19 @@ export function bookLean(id: string): { tilt: number; height: number } {
   return { tilt: lean === 0 ? -2.5 : lean === 1 ? 2 : lean === 2 ? -1 : 0, height: 88 + (h >>> 8) % 13 }
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 /** The library-card tag on a borrowed book still out: "Due Fri" this week, "Due Oct 13" later,
  * "Overdue", or "Borrowed" without a date; null for the family's own books and returned ones. */
 export function dueTag(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'returnedOn'>, today: string): string | null {
   if (!b.borrowedFrom || b.returnedOn) return null
-  if (!b.dueOn) return 'Borrowed'
-  if (b.dueOn < today) return 'Overdue'
-  if (b.dueOn === today) return 'Due today'
-  if (b.dueOn === addDayKeys(today, 1)) return 'Due tomorrow'
-  if (b.dueOn <= addDayKeys(today, 6)) return `Due ${WEEKDAYS[new Date(`${b.dueOn}T12:00:00Z`).getUTCDay()]}`
-  return `Due ${day(b.dueOn, today)}`
+  if (!b.dueOn) return t('Borrowed')
+  if (b.dueOn < today) return t('Overdue')
+  if (b.dueOn === today) return t('Due today')
+  if (b.dueOn === addDayKeys(today, 1)) return t('Due tomorrow')
+  if (b.dueOn <= addDayKeys(today, 6)) {
+    const [y, m, d] = b.dueOn.split('-').map(Number)
+    return t('Due {day}', { day: formatDate(new Date(y, m - 1, d), { weekday: 'short' }) })
+  }
+  return t('Due {day}', { day: day(b.dueOn, today) })
 }
 
 /** Only "want to read" so far: someone has it on their shelf, nobody has started it. */
@@ -129,10 +131,11 @@ export const wantOnly = (b: Pick<LibraryBook, 'readers'>): boolean => b.readers.
 export type LibraryStatus = 'unread' | 'reading' | 'want' | 'finished' | 'lent' | 'borrowed' | 'returned' | 'wishlist'
 export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: string[]; formats: LibraryFormat[]; genres: string[] }
 export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [], formats: [], genres: [] }
-export const FORMAT_LABEL: Record<LibraryFormat, string> = { book: '📚 Books', audiobook: '🎧 Audiobooks' }
+// The labels are marked: show them with tm(). STATUS_LABEL's reading statuses are STATUS_EMOJI and STATUS_WORDS (reading.ts) together.
+export const FORMAT_LABEL: Record<LibraryFormat, string> = { book: msg('📚 Books'), audiobook: msg('🎧 Audiobooks') }
 export const STATUS_LABEL: Record<LibraryStatus, string> = {
-  unread: 'Not read yet', reading: `${STATUS_EMOJI.reading} ${STATUS_WORDS.reading}`, want: `${STATUS_EMOJI.want} ${STATUS_WORDS.want}`, finished: `${STATUS_EMOJI.finished} ${STATUS_WORDS.finished}`,
-  lent: '🤝 Lent out', borrowed: '📅 Borrowed', returned: '↩️ Returned', wishlist: '⭐ Wishlist',
+  unread: msg('Not read yet'), reading: msg('📖 Reading now'), want: msg('🔖 Want to read'), finished: msg('📗 Finished'),
+  lent: msg('🤝 Lent out'), borrowed: msg('📅 Borrowed'), returned: msg('↩️ Returned'), wishlist: msg('⭐ Wishlist'),
 }
 type Filterable = Pick<LibraryBook, 'format' | 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'> & { genres?: string[] }
 const has = (b: Filterable) => !b.wanted && !b.returnedOn // on our shelves: not the wishlist, not gone back
@@ -169,7 +172,7 @@ export function genreOptions(books: { genres?: string[] }[], picked: string[] = 
  * order: A-Z, a series together under its name, in order. */
 export type LibrarySort = 'title' | 'author' | 'added' | 'read' | 'series' | 'year' | 'rating'
 export const SORT_LABEL: Record<LibrarySort, string> = {
-  title: 'Title', author: 'Author', added: 'Recently added', read: 'Recently read', series: 'Series', year: 'Year published', rating: 'Rating',
+  title: msg('Title'), author: msg('Author'), added: msg('Recently added'), read: msg('Recently read'), series: msg('Series'), year: msg('Year published'), rating: msg('Rating'),
 }
 type Sortable = Pick<LibraryBook, 'title' | 'author' | 'series' | 'seriesNumber' | 'year' | 'ratingsAverage' | 'ratingsCount' | 'createdAt'> & { readers: { readAt?: string | null }[] }
 const words = (a: string, z: string) => a.localeCompare(z, undefined, { sensitivity: 'base', numeric: true })
@@ -224,7 +227,7 @@ export function listening(b: Pick<LibraryBook, 'readers'>): { memberId: string |
 
 /** The shelf switcher at the top of the library: every book, the kids', or the grown-ups'. */
 export type ShelfPick = 'all' | Exclude<LibraryShelf, 'everyone'>
-export const SHELF_LABEL: Record<ShelfPick, string> = { all: 'All', kids: 'Kids', grownups: 'Grown-ups' }
+export const SHELF_LABEL: Record<ShelfPick, string> = { all: msg('All'), kids: msg('Kids'), grownups: msg('Grown-ups') }
 /** On that shelf: its effective shelf (the server's Auto when no one picked), Everyone's on both. */
 export const onShelf = (b: Pick<LibraryBook, 'effectiveShelf'>, pick: ShelfPick) =>
   pick === 'all' || b.effectiveShelf === 'everyone' || (b.effectiveShelf ?? 'grownups') === pick

@@ -12,7 +12,7 @@ import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
 import TidbitsSheet, { DeviceTidbitRows } from './TidbitsSheet.tsx'
 import { SOURCE_TITLES, tidbitSummary } from './tidbits.ts'
-import { appearanceChips, featuresSummary, nightHoursChips, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
+import { appearanceChips, featuresSummary, nightHoursChips, nightSummary, timeCuesSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import CalendarFilterSheet, { HiddenEventsSheet } from './CalendarFilterSheet.tsx'
@@ -33,7 +33,7 @@ import { DEFAULT_ACCENT, effectiveDensity, resolveColors, setDeviceAppearance, u
 import { screenScale, SCREEN_SCALES } from './screenScale.ts'
 import { deviceKindOf, deviceKindSaid, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
-import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
+import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, skinName, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import type { ClockPos } from './nightClock.ts'
 import { countDrawings } from './drawings-db.ts'
@@ -56,16 +56,17 @@ import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
 import { CommunityCalendars } from './Outings.tsx'
+import { intlLocale, lang, languageName, LANGUAGES, pickLang, t, tc, tn, type Lang, msg, tm } from './i18n.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'chore.suggestion.changed', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
 
 type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
 const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
-  { key: 'general', label: 'General' },
-  { key: 'family', label: 'Family' },
-  { key: 'calendars', label: 'Calendars', admin: true },
-  { key: 'access', label: 'Access', admin: true },
+  { key: 'general', label: msg('General') },
+  { key: 'family', label: msg('Family') },
+  { key: 'calendars', label: msg('Calendars'), admin: true },
+  { key: 'access', label: msg('Access'), admin: true },
 ]
 
 export default function SettingsView() {
@@ -76,8 +77,8 @@ export default function SettingsView() {
   const tabFromHash = (): SettingsTab => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     if (q.get('account') || q.get('oauthError')) return 'calendars'
-    const t = linkTab(q.get('tab'), q.get('section'))
-    return SETTINGS_TABS.some(x => x.key === t) ? (t as SettingsTab) : 'general'
+    const v = linkTab(q.get('tab'), q.get('section'))
+    return SETTINGS_TABS.some(x => x.key === v) ? (v as SettingsTab) : 'general'
   }
   const [tab, setTab] = useState<SettingsTab>(tabFromHash)
   // The spot a link points at (section=…), or the family's Night card when back from Google Photos.
@@ -89,13 +90,13 @@ export default function SettingsView() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   // Picking a tab during a search ends it, so the tab shows whole.
-  const pickTab = (t: SettingsTab) => { setTab(t); setQuery(''); setSearchShut(new Set()); history.replaceState(history.state, '', `#/settings?tab=${t}`) }
+  const pickTab = (next: SettingsTab) => { setTab(next); setQuery(''); setSearchShut(new Set()); history.replaceState(history.state, '', `#/settings?tab=${next}`) }
   // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
   // admin sections, even briefly, if the check is slow or fails.
   const [me, setMe] = useState<Me>({ scope: 'display', keyName: '', kind: 'api' })
   // Bumped when passkeys or recovery codes change, so the "second way in" nudge re-checks.
   const [accessTick, setAccessTick] = useState(0)
-  const bumpAccess = () => setAccessTick(t => t + 1)
+  const bumpAccess = () => setAccessTick(n => n + 1)
 
   useEffect(() => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
@@ -108,7 +109,7 @@ export default function SettingsView() {
       const [kind, ...rest] = oauthError.split(':')
       const reason = rest.join(':').trim()
       const who = kind === 'google' ? 'Google' : 'Microsoft'
-      toast(reason === 'canceled' ? `${who} sign-in canceled — nothing was connected` : `${who} connection failed: ${reason}`, true)
+      toast(reason === 'canceled' ? t('{who} sign-in canceled — nothing was connected', { who }) : t('{who} connection failed: {reason}', { who, reason }), true)
       q.delete('oauthError')
       history.replaceState(history.state, '', `#/settings${q.toString() ? `?${q}` : ''}`)
     }
@@ -132,8 +133,8 @@ export default function SettingsView() {
   // Display keys get the everyday tabs; the admin-only ones (calendar accounts, displays,
   // passkeys, API keys, webhooks) aren't rendered at all.
   const isDisplay = me.scope === 'display'
-  const tabs = SETTINGS_TABS.filter(t => !t.admin || !isDisplay)
-  const current = tabs.some(t => t.key === tab) ? tab : 'general'
+  const tabs = SETTINGS_TABS.filter(x => !x.admin || !isDisplay).map(x => ({ ...x, label: tm(x.label) }))
+  const current = tabs.some(x => x.key === tab) ? tab : 'general'
 
   // A link to one spot in a tab (#/settings?tab=general&section=board-layout, from the Board's
   // Manage layouts): once /api/me has answered (so the parent-only sections above it are in place
@@ -171,31 +172,32 @@ export default function SettingsView() {
     <div className="content scroll-y">
       <div className="settings-scroll">
         {/* The page's h1 (App.tsx) is for screen readers; this is the same title, for eyes. */}
-        <div className="settings-page-title" aria-hidden="true">Settings</div>
+        <div className="settings-page-title" aria-hidden="true">{t('Settings')}</div>
         <div className="settings-tabs">
-          <Segmented tabs idBase="settings-tab" label="Settings sections" value={current} onChange={pickTab} options={tabs} />
+          <Segmented tabs idBase="settings-tab" label={t('Settings sections')} value={current} onChange={pickTab} options={tabs} />
         </div>
         <SettingsSearch query={query} onChange={search} />
         {(current === 'family' || current === 'access') && !words.length && <JumpChips panel={panelRef} />}
         <div className="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`} ref={panelRef}>
         <AccordionCtx.Provider value={current === 'general' || words.length ? { open, toggle, words, shut: searchShut } : null}>
-          {words.length > 0 && hits === 0 && <p className="settings-search-none" role="status">No settings match “{query.trim()}”</p>}
-          {tabsShown(current, tabs.map(t => t.key), words.length > 0).map(t => <Fragment key={t}>
-            {words.length > 0 && <div className="settings-group-head settings-tab-head"><h2 className="settings-group-title">{tabs.find(x => x.key === t)?.label}</h2></div>}
-            {t === 'general' && <>
+          {words.length > 0 && hits === 0 && <p className="settings-search-none" role="status">{t('No settings match “{query}”', { query: query.trim() })}</p>}
+          {tabsShown(current, tabs.map(x => x.key), words.length > 0).map(k => <Fragment key={k}>
+            {words.length > 0 && <div className="settings-group-head settings-tab-head"><h2 className="settings-group-title">{tabs.find(x => x.key === k)?.label}</h2></div>}
+            {k === 'general' && <>
+              <LanguageSection />
               {/* Family settings are for parent devices; a wall screen or kid's device only has its own. */}
               {!isDisplay && (
-                <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
+                <SettingsGroup title={t('For the whole family')} sub={t('Every screen and phone in the household uses these.')}>
                   <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={false} />
                   <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
                   <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
-                  <Section id="board-presets" title="Board presets"><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}><BoardPresetRows toast={toast} /></div></Section>
+                  <Section id="board-presets" title={t('Board presets')}><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}><BoardPresetRows toast={toast} /></div></Section>
                   <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
                   <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
                   <NightSection settings={settings} onSaved={reloadCore} toast={toast} />
                 </SettingsGroup>
               )}
-              <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
+              <SettingsGroup title={t('Only on this device')} sub={t("Saved on this screen or phone. Other devices aren't affected.")}>
                 <ThisDeviceOwnerSection me={me} toast={toast} />
                 {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
                 <DeviceAppearanceSection />
@@ -205,7 +207,7 @@ export default function SettingsView() {
                 <TroubleshootSection keyName={isDisplay ? me.keyName : undefined} />
               </SettingsGroup>
             </>}
-            {t === 'family' && <>
+            {k === 'family' && <>
               <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
               <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
               {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
@@ -213,13 +215,13 @@ export default function SettingsView() {
               {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
               {!isDisplay && settings.features.lists && <ShoppingSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
               {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}
-              {!isDisplay && settings.features.outings !== false && <Section id="outings" title="Outings"><CommunityCalendars /></Section>}
+              {!isDisplay && settings.features.outings !== false && <Section id="outings" title={t('Outings')}><CommunityCalendars /></Section>}
             </>}
-            {t === 'calendars' && <>
+            {k === 'calendars' && <>
               <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
               <CalendarProvidersSection toast={toast} />
             </>}
-            {t === 'access' && <>
+            {k === 'access' && <>
               <SecondWayInNudge tick={accessTick} />
               <DisplaysSection toast={toast} />
               <NotificationDevicesSection toast={toast} />
@@ -227,7 +229,7 @@ export default function SettingsView() {
               <RecoveryCodesSection toast={toast} onChanged={bumpAccess} />
               {/* For people who connect other apps and scripts: folded, except while a search shows them. */}
               <details className="settings-advanced" open={words.length > 0 || undefined}>
-                <summary>Advanced: connected apps, API keys and webhooks</summary>
+                <summary>{t('Advanced: connected apps, API keys and webhooks')}</summary>
                 <ConnectedAppsSection toast={toast} />
                 <KeysSection toast={toast} />
                 <WebhooksSection toast={toast} />
@@ -241,11 +243,11 @@ export default function SettingsView() {
         </div>
         <div className="settings-version">
           <Brand />
-          {me.version && <div>Version {me.version}</div>}
+          {me.version && <div>{t('Version {version}', { version: me.version })}</div>}
           <div className="settings-version-links">
-            <a className="text-link" href="https://docs.kinwall.family" target="_blank" rel="noopener">Help &amp; docs</a>
-            <a className="text-link" href="https://github.com/JohnDuprey/kinwall" target="_blank" rel="noopener">Source code</a>
-            <a className="text-link" href="https://docs.kinwall.family/contributing/credits" target="_blank" rel="noopener">Open-source credits</a>
+            <a className="text-link" href="https://docs.kinwall.family" target="_blank" rel="noopener">{t('Help & docs')}</a>
+            <a className="text-link" href="https://github.com/JohnDuprey/kinwall" target="_blank" rel="noopener">{t('Source code')}</a>
+            <a className="text-link" href="https://docs.kinwall.family/contributing/credits" target="_blank" rel="noopener">{t('Open-source credits')}</a>
           </div>
         </div>
       </div>
@@ -286,7 +288,7 @@ function JumpChips({ panel }: { panel: React.RefObject<HTMLDivElement | null> })
   }, [panel])
   if (cards.length < 3) return null
   return (
-    <nav className="chip-row settings-jump" aria-label="Jump to">
+    <nav className="chip-row settings-jump" aria-label={t('Jump to')}>
       {cards.map(c => <button key={c.id} type="button" className="chip" onClick={() => {
         const h = document.getElementById(c.id)
         h?.closest('details')?.setAttribute('open', '')
@@ -303,10 +305,10 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
   return (
     <div className="field settings-search">
       <SearchIcon className="settings-search-icon" width={18} height={18} aria-hidden="true" />
-      <input ref={input} type="search" aria-label="Search all settings" placeholder="Search all settings" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={query}
+      <input ref={input} type="search" aria-label={t('Search all settings')} placeholder={t('Search all settings')} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={query}
         onChange={e => onChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); onChange('') } }} />
-      {query && <button type="button" className="icon-btn settings-search-clear" aria-label="Clear search" onClick={() => { onChange(''); input.current?.focus() }}><XIcon width={18} height={18} /></button>}
+      {query && <button type="button" className="icon-btn settings-search-clear" aria-label={t('Clear search')} onClick={() => { onChange(''); input.current?.focus() }}><XIcon width={18} height={18} /></button>}
     </div>
   )
 }
@@ -348,7 +350,7 @@ function Section({ id, title, icon, summary, keywords, children }: { id?: string
         </H>
         {!open && summary && <div className="settings-acc-summary">{summary}</div>}
         <div ref={body} className="settings-acc-body" id={`${headingId}-body`} hidden={!open}>
-          {inside.length > 0 && <p className="settings-row-sub settings-acc-inside">Inside: {inside.join(', ')}</p>}
+          {inside.length > 0 && <p className="settings-row-sub settings-acc-inside">{t('Inside: {list}', { list: inside.join(', ') })}</p>}
           {children}
         </div>
       </section>
@@ -364,45 +366,54 @@ function Section({ id, title, icon, summary, keywords, children }: { id?: string
 
 function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: ReturnType<typeof useApp>['settings']; onSaved: () => void; toast: (m: string, persist?: boolean) => void; isDisplay: boolean }) {
   const save = async (patch: Partial<typeof settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section title="Household">
+    <Section id="household" title={t('Household')}>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label">Family name</div>
+          <div className="settings-row-label">{t('Family name')}</div>
         </div>
-        <input type="text" className="family-name-input" aria-label="Family name" defaultValue={settings.familyName} onBlur={e => e.target.value !== settings.familyName && save({ familyName: e.target.value })} />
+        <input type="text" className="family-name-input" aria-label={t('Family name')} defaultValue={settings.familyName} onBlur={e => e.target.value !== settings.familyName && save({ familyName: e.target.value })} />
       </div>
       <div className="settings-row">
-        <div className="settings-row-label">Timezone</div>
+        <div>
+          <label className="settings-row-label" htmlFor="family-language">{t('Language')}</label>
+          <div className="settings-row-sub">{t('Walls and shared screens use it, and so does anyone who hasn\'t picked their own.')}</div>
+        </div>
+        <select id="family-language" className="settings-select" value={pickLang({ family: settings.language })} onChange={e => save({ language: pickLang({ family: e.target.value }) })}>
+          {LANGUAGES.map(l => <option key={l.key} value={l.key} lang={l.key}>{l.label}</option>)}
+        </select>
+      </div>
+      <div className="settings-row">
+        <div className="settings-row-label">{t('Timezone')}</div>
         <TimezoneField value={settings.timezone ?? null} onChange={timezone => save({ timezone })} />
       </div>
       <div className="settings-row">
-        <div className="settings-row-label">Week starts on</div>
-        <select className="settings-select" aria-label="Week starts on" value={settings.weekStart} onChange={e => save({ weekStart: Number(e.target.value) as 0 | 1 })}>
-          <option value={0}>Sunday</option>
-          <option value={1}>Monday</option>
+        <div className="settings-row-label">{t('Week starts on')}</div>
+        <select className="settings-select" aria-label={t('Week starts on')} value={settings.weekStart} onChange={e => save({ weekStart: Number(e.target.value) as 0 | 1 })}>
+          <option value={0}>{t('Sunday')}</option>
+          <option value={1}>{t('Monday')}</option>
         </select>
       </div>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label">Time format</div>
-          <div className="settings-row-sub">Automatic follows each device's language and region. A device can pick its own.</div>
+          <div className="settings-row-label">{t('Time format')}</div>
+          <div className="settings-row-sub">{t("Automatic follows each device's language and region. A device can pick its own.")}</div>
         </div>
-        <select className="settings-select" aria-label="Time format" value={settings.timeFormat ?? 'auto'} onChange={e => save({ timeFormat: e.target.value as TimeFormat })}>
-          {TIME_FORMATS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        <select className="settings-select" aria-label={t('Time format')} value={settings.timeFormat ?? 'auto'} onChange={e => save({ timeFormat: e.target.value as TimeFormat })}>
+          {TIME_FORMATS.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
         </select>
       </div>
       {!isDisplay && (
         <div className="settings-row">
           <div>
-            <div className="settings-row-label">Default reminder</div>
-            <div className="settings-row-sub">Used for events with no reminder of their own.</div>
+            <div className="settings-row-label">{t('Default reminder')}</div>
+            <div className="settings-row-sub">{t('Used for events with no reminder of their own.')}</div>
           </div>
-          <select className="settings-select" aria-label="Default reminder" value={settings.defaultReminderMinutes[0] !== undefined ? String(settings.defaultReminderMinutes[0]) : 'none'}
+          <select className="settings-select" aria-label={t('Default reminder')} value={settings.defaultReminderMinutes[0] !== undefined ? String(settings.defaultReminderMinutes[0]) : 'none'}
             onChange={e => save({ defaultReminderMinutes: e.target.value === 'none' ? [] : [Number(e.target.value)] })}>
-            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{tm(o.label)}</option>)}
           </select>
         </div>
       )}
@@ -413,19 +424,20 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
 /** Household feature switches (admin only: a display key can't change them). */
 function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const set = async (key: keyof Features) => {
-    try { await api.updateSettings({ features: { ...settings.features, [key]: !settings.features[key] } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings({ features: { ...settings.features, [key]: !settings.features[key] } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
-  const { summary, detail } = featuresSummary(FEATURE_ROWS.map(f => ({ label: f.group === 'Trackers' ? `${f.label} tracker` : f.label, on: settings.features[f.key] })))
+  const featureName = (f: typeof FEATURE_ROWS[number]) => f.group === 'Trackers' ? t('{name} tracker', { name: tm(f.label) }) : tm(f.label)
+  const { summary, detail } = featuresSummary(FEATURE_ROWS.map(f => ({ label: featureName(f), on: settings.features[f.key] })))
   return (
-    <SummarySection title="Features" summary={summary} detail={detail ?? 'Turn off what your family doesn\'t use.'} keywords={FEATURE_ROWS.map(f => f.group === 'Trackers' ? `${f.label} tracker` : f.label)}>
-      <p className="settings-row-sub">Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.</p>
+    <SummarySection title={t('Features')} summary={summary} detail={detail ?? t("Turn off what your family doesn't use.")} keywords={FEATURE_ROWS.map(featureName)}>
+      <p className="settings-row-sub">{t("Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.")}</p>
       {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
-        {FEATURE_ROWS[i - 1]?.section !== f.section && <h3 className="features-section">{f.section}</h3>}
-        {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h4 className="features-group">{f.group}</h4>}
+        {FEATURE_ROWS[i - 1]?.section !== f.section && <h3 className="features-section">{f.section === 'Everyday' ? t('Everyday') : t('Spaces')}</h3>}
+        {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h4 className="features-group">{tm(f.group)}</h4>}
         <div className={`toggle-row ${f.group ? 'features-grouped' : ''}`}>
           <div>
-            <label id={`feature-${f.key}-label`}>{f.group && <span className="sr-only">{f.group}: </span>}{f.label}</label>
-            <div className="settings-row-sub" id={`feature-${f.key}-sub`}>{f.sub}</div>
+            <label id={`feature-${f.key}-label`}>{f.group && <span className="sr-only">{tm(f.group)}: </span>}{tm(f.label)}</label>
+            <div className="settings-row-sub" id={`feature-${f.key}-sub`}>{tm(f.sub)}</div>
           </div>
           <button className={`switch ${settings.features[f.key] ? 'on' : ''}`} role="switch" aria-checked={settings.features[f.key]}
             aria-labelledby={`feature-${f.key}-label`} aria-describedby={`feature-${f.key}-sub`} onClick={() => set(f.key)}><span className="knob" /></button>
@@ -444,12 +456,12 @@ function SummaryChips({ chips }: { chips: Chip[] }) {
     <ul className="chip-row summary-chips">
       {chips.map(c => (
         <li key={c.label} className={`chip chip-static${c.family ? ' chip-family' : ''}`}>
-          {c.family && <span aria-label="Using the family's" role="img">🏠</span>}
+          {c.family && <span aria-label={t("Using the family's")} role="img">🏠</span>}
           {c.icon && <span aria-hidden="true">{c.icon}</span>}
-          {c.label}
+          {tm(c.label)}
         </li>
       ))}
-      {chips.some(c => c.family) && <li className="summary-legend" aria-hidden="true">🏠 Using the family's</li>}
+      {chips.some(c => c.family) && <li className="summary-legend" aria-hidden="true">{t("🏠 Using the family's")}</li>}
     </ul>
   )
 }
@@ -465,11 +477,11 @@ function SummarySection({ id, title, icon, summary, detail, keywords, children, 
           {detail && <div className="settings-row-sub">{detail}</div>}
         </div>
         <div className="settings-inline-btns">
-          <button className="btn btn-secondary" aria-label={`Change ${title.toLowerCase()}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>Change</button>
+          <button className="btn btn-secondary" aria-label={t('Change {title}', { title: lang() === 'en' ? title.toLowerCase() : title })} aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('Change')}</button>
         </div>
       </div>
       {open && (
-        <Sheet title={title} onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>Done</button>}>
+        <Sheet title={title} onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>{t('Done')}</button>}>
           {typeof children === 'function' ? children(() => setOpen(false)) : children}
         </Sheet>
       )}
@@ -481,18 +493,18 @@ function SummarySection({ id, title, icon, summary, detail, keywords, children, 
 function TidbitsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const [open, setOpen] = useState(false)
   return (
-    <Section title="Quotes & facts" summary={<div className="settings-row-sub">{tidbitSummary(settings.tidbits)}</div>} keywords={Object.values(SOURCE_TITLES)}>
+    <Section id="quotes-facts" title={t('Quotes & facts')} summary={<div className="settings-row-sub">{tidbitSummary(settings.tidbits)}</div>} keywords={Object.values(SOURCE_TITLES).map(x => tm(x))}>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label">On the Board</div>
+          <div className="settings-row-label">{t('On the Board')}</div>
           <div className="settings-row-sub">{tidbitSummary(settings.tidbits)}</div>
         </div>
         <div className="settings-inline-btns">
-          <button className="btn btn-secondary" onClick={() => setOpen(true)}>Change</button>
+          <button className="btn btn-secondary" onClick={() => setOpen(true)}>{t('Change')}</button>
         </div>
       </div>
       {open && <TidbitsSheet value={settings.tidbits} onClose={() => setOpen(false)} onSave={async tidbits => {
-        try { await api.updateSettings({ tidbits }); onSaved(); setOpen(false) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+        try { await api.updateSettings({ tidbits }); onSaved(); setOpen(false) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
       }} />}
     </Section>
   )
@@ -500,9 +512,9 @@ function TidbitsSection({ settings, onSaved, toast }: { settings: Settings; onSa
 
 function WeatherSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const save = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
-  return <Section title="Weather"><WeatherLocationRows settings={settings} save={save} toast={toast} /></Section>
+  return <Section id="weather" title={t('Weather')}><WeatherLocationRows settings={settings} save={save} toast={toast} /></Section>
 }
 
 /** Weather location for the snapshots. The server does the lookup (GET /api/geocode), so this
@@ -518,45 +530,45 @@ function WeatherLocationRows({ settings, save, toast }: { settings: Settings; sa
     try {
       const r = await api.geocode(q.trim())
       setResults(r)
-      announce(r.length ? `${r.length} place${r.length === 1 ? '' : 's'} found` : 'No places found')
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not search for places', true) } finally { setBusy(false) }
+      announce(r.length ? tn(r.length, '{n} place found', '{n} places found') : t('No places found'))
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not search for places'), true) } finally { setBusy(false) }
   }
   const pick = async ({ label: _label, ...loc }: GeocodeResult) => {
     await save({ location: loc })
     setEditing(false); setResults(null); setQ('')
-    announce(`Weather location set to ${_label}`)
+    announce(t('Weather location set to {place}', { place: _label }))
   }
   return (
     <>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label">Weather location</div>
-          <div className="settings-row-sub">{settings.location ? `${settings.location.name} — for the forecast in each person's day.` : 'Set a town to add the forecast to each person\'s day.'}</div>
+          <div className="settings-row-label">{t('Weather location')}</div>
+          <div className="settings-row-sub">{settings.location ? t("{place} — for the forecast in each person's day.", { place: settings.location.name }) : t("Set a town to add the forecast to each person's day.")}</div>
         </div>
         <div className="settings-inline-btns">
-          {settings.location && !editing && <button className="btn btn-secondary" onClick={() => save({ location: null })}>Remove</button>}
-          <button className="btn btn-secondary" onClick={() => setEditing(v => !v)} aria-expanded={editing}>{editing ? 'Cancel' : settings.location ? 'Change' : 'Set'}</button>
+          {settings.location && !editing && <button className="btn btn-secondary" onClick={() => save({ location: null })}>{t('Remove')}</button>}
+          <button className="btn btn-secondary" onClick={() => setEditing(v => !v)} aria-expanded={editing}>{editing ? t('Cancel') : settings.location ? t('Change') : t('Set')}</button>
         </div>
       </div>
       {editing && (
         <div className="weather-search">
           <div className="weather-search-row">
-            <input type="search" aria-label="Town or city" placeholder="Town or city" value={q} autoFocus
+            <input type="search" aria-label={t('Town or city')} placeholder={t('Town or city')} value={q} autoFocus
               onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} />
-            <button className="btn btn-primary" onClick={search} disabled={busy || q.trim().length < 2}>{busy ? 'Searching…' : 'Search'}</button>
+            <button className="btn btn-primary" onClick={search} disabled={busy || q.trim().length < 2}>{busy ? t('Searching…') : t('Search')}</button>
           </div>
           {results && (results.length === 0
-            ? <p className="settings-row-sub">No places match — try the nearest larger town.</p>
+            ? <p className="settings-row-sub">{t('No places match — try the nearest larger town.')}</p>
             : <ul className="weather-results">{results.map(r => <li key={`${r.lat},${r.lon}`}><button className="btn btn-secondary btn-block" onClick={() => pick(r)}>{r.label}</button></li>)}</ul>)}
-          <p className="settings-row-sub">Looked up and fetched by your Kinwall server from Open-Meteo; only the place name and its coordinates are sent.</p>
+          <p className="settings-row-sub">{t('Looked up and fetched by your Kinwall server from Open-Meteo; only the place name and its coordinates are sent.')}</p>
         </div>
       )}
       {settings.location && (
         <div className="settings-row">
-          <div className="settings-row-label">Temperature</div>
-          <select className="settings-select" aria-label="Temperature unit" value={settings.temperatureUnit} onChange={e => save({ temperatureUnit: e.target.value as Settings['temperatureUnit'] })}>
-            <option value="fahrenheit">°F Fahrenheit</option>
-            <option value="celsius">°C Celsius</option>
+          <div className="settings-row-label">{t('Temperature')}</div>
+          <select className="settings-select" aria-label={t('Temperature unit')} value={settings.temperatureUnit} onChange={e => save({ temperatureUnit: e.target.value as Settings['temperatureUnit'] })}>
+            <option value="fahrenheit">{t('°F Fahrenheit')}</option>
+            <option value="celsius">{t('°C Celsius')}</option>
           </select>
         </div>
       )}
@@ -565,45 +577,47 @@ function WeatherLocationRows({ settings, save, toast }: { settings: Settings; sa
 }
 
 const THEME_MODES: { key: ThemeMode; label: string }[] = [
-  { key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }, { key: 'auto', label: 'Auto' }, { key: 'scheduled', label: 'Scheduled' },
+  { key: 'light', label: msg('Light') }, { key: 'dark', label: msg('Dark') }, { key: 'auto', label: msg('Auto') }, { key: 'scheduled', label: msg('Scheduled') },
 ]
 const TEXT_SCALES: { key: TextScale; label: string }[] = [
-  { key: 's', label: 'S' }, { key: 'm', label: 'M' }, { key: 'l', label: 'L' }, { key: 'xl', label: 'XL' },
+  { key: 's', label: msg('S') }, { key: 'm', label: msg('M') }, { key: 'l', label: msg('L') }, { key: 'xl', label: msg('XL') },
 ]
-const TEXT_SCALE_NAMES: Record<TextScale, string> = { s: 'Small', m: 'Medium', l: 'Large', xl: 'Extra large' }
+const TEXT_SCALE_NAMES: Record<TextScale, string> = { s: msg('Small'), m: msg('Medium'), l: msg('Large'), xl: msg('Extra large') }
 const DENSITIES: { key: Density; label: string }[] = [
-  { key: 'comfortable', label: 'Comfortable' }, { key: 'compact', label: 'Compact' },
+  { key: 'comfortable', label: msg('Comfortable') }, { key: 'compact', label: msg('Compact') },
 ]
 // Icon-first is per device: the household setting (server) only knows comfortable/compact.
-const DEVICE_DENSITIES: { key: DeviceDensity; label: string }[] = [...DENSITIES, { key: 'icons', label: 'Icon-first' }]
+const DEVICE_DENSITIES: { key: DeviceDensity; label: string }[] = [...DENSITIES, { key: 'icons', label: msg('Icon-first') }]
 const FONTS: { key: Typeface; label: string; desc: string }[] = [
-  { key: 'default', label: 'Default (Nunito)', desc: "Rounded and friendly, Kinwall's own" },
-  { key: 'hyperlegible', label: 'Hyperlegible (Atkinson)', desc: 'Clear, distinct letters for low vision' },
-  { key: 'dyslexia', label: 'Dyslexia-friendly (Lexend)', desc: 'Wide, even spacing for easier reading' },
-  { key: 'modern', label: 'Modern (Figtree)', desc: 'Clean and geometric' },
-  { key: 'playful', label: 'Playful (Fredoka)', desc: 'Round and bubbly, fun for kids' },
-  { key: 'storybook', label: 'Storybook (Literata)', desc: 'A bookish serif, calm to read' },
-  { key: 'handwritten', label: 'Handwritten (Kalam)', desc: 'Like a note on the fridge' },
+  { key: 'default', label: msg('Default (Nunito)'), desc: msg("Rounded and friendly, Kinwall's own") },
+  { key: 'hyperlegible', label: msg('Hyperlegible (Atkinson)'), desc: msg('Clear, distinct letters for low vision') },
+  { key: 'dyslexia', label: msg('Dyslexia-friendly (Lexend)'), desc: msg('Wide, even spacing for easier reading') },
+  { key: 'modern', label: msg('Modern (Figtree)'), desc: msg('Clean and geometric') },
+  { key: 'playful', label: msg('Playful (Fredoka)'), desc: msg('Round and bubbly, fun for kids') },
+  { key: 'storybook', label: msg('Storybook (Literata)'), desc: msg('A bookish serif, calm to read') },
+  { key: 'handwritten', label: msg('Handwritten (Kalam)'), desc: msg('Like a note on the fridge') },
 ]
-const fontName = (k: Typeface) => FONTS.find(f => f.key === k)?.label.split(' (')[0]
+const fontName = (k: Typeface) => { const f = FONTS.find(x => x.key === k); return f && tm(f.label).split(' (')[0] }
+/** FONTS in the current language, for the typeface picker. */
+const fontOptions = () => FONTS.map(f => ({ ...f, label: tm(f.label), desc: tm(f.desc) }))
 const TIME_FORMATS: { key: TimeFormat; label: string }[] = [
-  { key: 'auto', label: 'Automatic' },
-  { key: '12', label: '12-hour (3:40 PM)' },
-  { key: '24', label: '24-hour (15:40)' },
+  { key: 'auto', label: msg('Automatic') },
+  { key: '12', label: msg('12-hour (3:40 PM)') },
+  { key: '24', label: msg('24-hour (15:40)') },
 ]
 
 /** This device's look as chips: its own choices, and the family's (marked) for the rest. */
 function deviceChips(settings: Settings, d: DeviceAppearance, parentPhone: boolean): Chip[] {
   const scheme = d.skin ?? settings.colorScheme
-  const skin = scheme === 'seasonal' ? { emoji: '🗓️', name: 'Seasonal' } : findSkin(scheme, settings.customSchemes ?? [])
+  const skin = scheme === 'seasonal' ? { emoji: '🗓️', name: t('Seasonal') } : findSkin(scheme, settings.customSchemes ?? [])
   return appearanceChips({
-    scheme: { emoji: skin.emoji, name: skin.name },
+    scheme: { emoji: skin.emoji, name: 'id' in skin ? skinName(skin) : skin.name },
     custom: !!d.custom && Object.keys(d.custom).length > 0,
     mode: d.themeMode,
     textScale: TEXT_SCALE_NAMES[d.textScale ?? settings.textScale],
     density: DEVICE_DENSITIES.find(o => o.key === effectiveDensity(settings, d, parentPhone))?.label ?? '',
     typeface: fontName(d.font ?? settings.typeface ?? 'default') ?? 'Default',
-    timeFormat: resolveHour12(settings.timeFormat, d.timeFormat) ? '12-hour' : '24-hour',
+    timeFormat: resolveHour12(settings.timeFormat, d.timeFormat) ? t('12-hour') : t('24-hour'),
     lowStim: d.lowStim,
   }, { scheme: !!d.skin, mode: !!d.themeMode, textScale: !!d.textScale, density: !!d.density || effectiveDensity(settings, d, parentPhone) !== effectiveDensity(settings, d), typeface: !!d.font, timeFormat: !!d.timeFormat })
 }
@@ -612,33 +626,33 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
   const device = useDeviceAppearance()
   const overridden = deviceChips(settings, device, useApp().parentPhone).filter(c => !c.family)
   const save = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS}>
+    <Section id="appearance" title={t('Appearance')} icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS.map(x => tm(x))}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
-        For the whole family.{overridden.length > 0 && <> This device changes some of it for itself, under Appearance on this device.</>}
+        {t('For the whole family.')}{overridden.length > 0 && <> {t('This device changes some of it for itself, under Appearance on this device.')}</>}
       </p>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
-          <span>Mode</span>
-          <select className="settings-select" aria-label="Mode" value={settings.themeMode} onChange={e => save({ themeMode: e.target.value as ThemeMode })}>
-            {THEME_MODES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          <span>{t('Mode')}</span>
+          <select className="settings-select" aria-label={t('Mode')} value={settings.themeMode} onChange={e => save({ themeMode: e.target.value as ThemeMode })}>
+            {THEME_MODES.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
           </select>
         </div>
         {settings.themeMode === 'scheduled' && <>
           <div className="device-pref-row">
-            <span>Dark hours</span>
-            <select className="settings-select" aria-label="Dark hours" value={settings.darkWithNight ? 'night' : ''} onChange={e => save({ darkWithNight: !!e.target.value })}>
-              <option value="night">Same as night</option>
-              <option value="">Their own times</option>
+            <span>{t('Dark hours')}</span>
+            <select className="settings-select" aria-label={t('Dark hours')} value={settings.darkWithNight ? 'night' : ''} onChange={e => save({ darkWithNight: !!e.target.value })}>
+              <option value="night">{t('Same as night')}</option>
+              <option value="">{t('Their own times')}</option>
             </select>
           </div>
           {settings.darkWithNight
-            ? <div className="settings-row-sub">{settings.quietFrom && settings.quietTo ? `Dark ${formatTime(settings.darkFrom)}–${formatTime(settings.darkTo)}, the night hours set under Night.` : `Night hours are off, so it's dark ${formatTime(settings.darkFrom)}–${formatTime(settings.darkTo)}.`}</div>
+            ? <div className="settings-row-sub">{settings.quietFrom && settings.quietTo ? t('Dark {from}–{to}, the night hours set under Night.', { from: formatTime(settings.darkFrom), to: formatTime(settings.darkTo) }) : t("Night hours are off, so it's dark {from}–{to}.", { from: formatTime(settings.darkFrom), to: formatTime(settings.darkTo) })}</div>
             : <div className="row-2" style={{ marginTop: 4 }}>
-              <div className="field" style={{ margin: 0 }}><label>Dark from</label><input type="time" value={settings.darkFrom} onChange={e => save({ darkFrom: e.target.value })} /></div>
-              <div className="field" style={{ margin: 0 }}><label>Dark to</label><input type="time" value={settings.darkTo} onChange={e => save({ darkTo: e.target.value })} /></div>
+              <div className="field" style={{ margin: 0 }}><label>{t('Dark from')}</label><input type="time" value={settings.darkFrom} onChange={e => save({ darkFrom: e.target.value })} /></div>
+              <div className="field" style={{ margin: 0 }}><label>{t('Dark to')}</label><input type="time" value={settings.darkTo} onChange={e => save({ darkTo: e.target.value })} /></div>
             </div>}
         </>}
       </div>
@@ -649,24 +663,24 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         legacy={{ ...(settings.customColors ?? {}), ...(settings.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: settings.accent } : {}) }}
         legacyBackgrounds={{ light: settings.backgroundLight, dark: settings.backgroundDark }}
         legacyClear={{ customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' }}
-        resetLabel="Reset colors to Peacock"
+        resetLabel={t('Reset colors to Peacock')}
         onReset={() => save({ colorScheme: DEFAULT_SKIN_ID, customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <TypefaceRow options={FONTS} value={settings.typeface ?? 'default'} onPick={key => { if (key) { save({ typeface: key }); announce(`${fontName(key)} typeface`) } }} />
+        <TypefaceRow options={fontOptions()} value={settings.typeface ?? 'default'} onPick={key => { if (key) { save({ typeface: key }); announce(t('{name} typeface', { name: fontName(key) ?? '' })) } }} />
         <div className="device-pref-row">
-          <span>Text size</span>
-          <select className="settings-select" aria-label="Text size" value={settings.textScale} onChange={e => save({ textScale: e.target.value as TextScale })}>
-            {TEXT_SCALES.map(o => <option key={o.key} value={o.key}>{TEXT_SCALE_NAMES[o.key]}</option>)}
+          <span>{t('Text size')}</span>
+          <select className="settings-select" aria-label={t('Text size')} value={settings.textScale} onChange={e => save({ textScale: e.target.value as TextScale })}>
+            {TEXT_SCALES.map(o => <option key={o.key} value={o.key}>{tm(TEXT_SCALE_NAMES[o.key])}</option>)}
           </select>
         </div>
         <div className="device-pref-row">
-          <span>Density</span>
-          <select className="settings-select" aria-label="Density" value={settings.density} onChange={e => save({ density: e.target.value as Density })}>
-            {DENSITIES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          <span>{t('Density')}</span>
+          <select className="settings-select" aria-label={t('Density')} value={settings.density} onChange={e => save({ density: e.target.value as Density })}>
+            {DENSITIES.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
           </select>
         </div>
-        <div className="settings-row-sub">Comfortable is roomy, made to read across the room. Compact fits more on every screen: tighter spacing, smaller choice buttons and shorter forms. A parent's phone is compact unless it picks otherwise. Icon-first is set per device, under Appearance on this device.</div>
+        <div className="settings-row-sub">{t("Comfortable is roomy, made to read across the room. Compact fits more on every screen: tighter spacing, smaller choice buttons and shorter forms. A parent's phone is compact unless it picks otherwise. Icon-first is set per device, under Appearance on this device.")}</div>
       </div>
     </Section>
   )
@@ -677,29 +691,29 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
 function QuietPinRow({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
   const setPin = async () => {
-    const pin = await dialog.prompt({ title: settings.quietPin ? 'Change PIN' : 'Set a PIN', label: 'New PIN (4 to 8 digits)', type: 'pin', confirmLabel: 'Next', validate: v => PIN_RE.test(v) ? null : 'Use 4 to 8 digits.' })
+    const pin = await dialog.prompt({ title: settings.quietPin ? t('Change PIN') : t('Set a PIN'), label: t('New PIN (4 to 8 digits)'), type: 'pin', confirmLabel: t('Next'), validate: v => PIN_RE.test(v) ? null : t('Use 4 to 8 digits.') })
     if (!pin) return
-    const again = await dialog.prompt({ title: settings.quietPin ? 'Change PIN' : 'Set a PIN', label: 'Enter it again', type: 'pin', confirmLabel: 'Save', validate: v => v === pin ? null : "The PINs don't match." })
+    const again = await dialog.prompt({ title: settings.quietPin ? t('Change PIN') : t('Set a PIN'), label: t('Enter it again'), type: 'pin', confirmLabel: t('Save'), validate: v => v === pin ? null : t("The PINs don't match.") })
     if (!again) return
-    try { await api.setQuietPin(pin); onSaved(); toast('PIN saved') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the PIN', true) }
+    try { await api.setQuietPin(pin); onSaved(); toast(t('PIN saved')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save the PIN'), true) }
   }
   const more = async (v: string) => {
-    if (v !== 'remove' || !await dialog.confirm({ title: 'Remove the PIN?', body: 'A tap will wake wall screens at night again.', confirmLabel: 'Remove', danger: true })) return
-    try { await api.removeQuietPin(); onSaved(); toast('PIN removed') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove the PIN', true) }
+    if (v !== 'remove' || !await dialog.confirm({ title: t('Remove the PIN?'), body: t('A tap will wake wall screens at night again.'), confirmLabel: t('Remove'), danger: true })) return
+    try { await api.removeQuietPin(); onSaved(); toast(t('PIN removed')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not remove the PIN'), true) }
   }
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-      <div className="settings-row-label">PIN to wake at night{settings.quietPin ? ': on' : ''}</div>
+      <div className="settings-row-label">{settings.quietPin ? t('PIN to wake at night: on') : t('PIN to wake at night')}</div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={setPin}>{settings.quietPin ? 'Change PIN' : 'Set PIN'}</button>
+        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={setPin}>{settings.quietPin ? t('Change PIN') : t('Set PIN')}</button>
         {settings.quietPin && (
-          <select className="settings-select" style={{ width: 'auto' }} aria-label="More" value="" onChange={e => more(e.target.value)}>
-            <option value="" disabled hidden>More…</option>
-            <option value="remove">Remove PIN</option>
+          <select className="settings-select" style={{ width: 'auto' }} aria-label={t('More')} value="" onChange={e => more(e.target.value)}>
+            <option value="" disabled hidden>{t('More…')}</option>
+            <option value="remove">{t('Remove PIN')}</option>
           </select>
         )}
       </div>
-      <div className="settings-row-sub">A wall screen asks for it before waking during night hours, so little ones can't turn the wall on at night. Forgot it? Remove it here on any parent device.</div>
+      <div className="settings-row-sub">{t("A wall screen asks for it before waking during night hours, so little ones can't turn the wall on at night. Forgot it? Remove it here on any parent device.")}</div>
     </div>
   )
 }
@@ -710,16 +724,16 @@ function MealSettingsSection({ settings, onSaved, toast, readOnly = false }: { s
   const save = async (slot: keyof Settings['mealTimes'], value: string) => {
     if (!value || value === settings.mealTimes[slot]) return
     if (readOnly) return
-    try { await api.updateSettings({ mealTimes: { ...settings.mealTimes, [slot]: value } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings({ mealTimes: { ...settings.mealTimes, [slot]: value } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section title="Meals" keywords={['Meal times']}>
-      <p className="settings-row-sub">Usual meal times. A meal without its own time goes on the calendar at these.</p>
-      {readOnly && <p className="settings-row-sub">Only a parent device can change these times.</p>}
+    <Section id="meals" title={t('Meals')} keywords={[t('Meal times')]}>
+      <p className="settings-row-sub">{t('Usual meal times. A meal without its own time goes on the calendar at these.')}</p>
+      {readOnly && <p className="settings-row-sub">{t('Only a parent device can change these times.')}</p>}
       {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(slot => (
         <div className="settings-row" key={slot}>
-          <div className="settings-row-label">{slot[0].toUpperCase() + slot.slice(1)}</div>
-          <input type="time" className="settings-select" aria-label={`Usual ${slot} time`} defaultValue={settings.mealTimes[slot]} disabled={readOnly} onBlur={e => void save(slot, e.target.value)} />
+          <div className="settings-row-label">{{ breakfast: t('Breakfast'), lunch: t('Lunch'), dinner: t('Dinner'), snack: t('Snack') }[slot]}</div>
+          <input type="time" className="settings-select" aria-label={{ breakfast: t('Usual breakfast time'), lunch: t('Usual lunch time'), dinner: t('Usual dinner time'), snack: t('Usual snack time') }[slot]} defaultValue={settings.mealTimes[slot]} disabled={readOnly} onBlur={e => void save(slot, e.target.value)} />
         </div>
       ))}
     </Section>
@@ -731,25 +745,25 @@ function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Setti
   const [stores, setStores] = useState<Record<'groceries' | 'shopping', string[]>>({ groceries: [], shopping: [] })
   useEffect(() => { api.getListStores().then(setStores).catch(() => {}) }, [])
   const rows = [
-    { key: 'defaultGroceryStore', catalog: 'groceries', label: 'Default grocery store', sub: 'Shop on a grocery list starts here.' },
-    { key: 'defaultShoppingStore', catalog: 'shopping', label: 'Default store for other shopping lists', sub: 'Shop on any other shopping list starts here.' },
+    { key: 'defaultGroceryStore', catalog: 'groceries', label: msg('Default grocery store'), sub: msg('Shop on a grocery list starts here.') },
+    { key: 'defaultShoppingStore', catalog: 'shopping', label: msg('Default store for other shopping lists'), sub: msg('Shop on any other shopping list starts here.') },
   ] as const
   const save = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section title="Shopping">
+    <Section title={t('Shopping')}>
       {rows.map(r => {
         const value = settings[r.key] ?? ''
         const options = [...new Set([...stores[r.catalog], ...(value ? [value] : [])])]
         return (
           <div className="settings-row" key={r.key}>
             <div>
-              <div className="settings-row-label">{r.label}</div>
-              <div className="settings-row-sub">{options.length ? r.sub : 'Pick a store on an item first.'}</div>
+              <div className="settings-row-label">{tm(r.label)}</div>
+              <div className="settings-row-sub">{options.length ? tm(r.sub) : t('Pick a store on an item first.')}</div>
             </div>
-            <select className="settings-select" aria-label={r.label} value={value} disabled={!options.length} onChange={e => save({ [r.key]: e.target.value || null })}>
-              <option value="">None</option>
+            <select className="settings-select" aria-label={tm(r.label)} value={value} disabled={!options.length} onChange={e => save({ [r.key]: e.target.value || null })}>
+              <option value="">{t('None')}</option>
               {options.map(st => <option key={st} value={st}>{st}</option>)}
             </select>
           </div>
@@ -761,71 +775,71 @@ function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Setti
 
 function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const save = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section title="Chores">
+    <Section id="chores" title={t('Chores')}>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label">Late completion credit</div>
-          <div className="settings-row-sub">Chores ticked off for a past day earn this share of their points.</div>
+          <div className="settings-row-label">{t('Late completion credit')}</div>
+          <div className="settings-row-sub">{t('Chores ticked off for a past day earn this share of their points.')}</div>
         </div>
-        <select className="settings-select" aria-label="Late completion credit" value={settings.lateCompletionCredit} onChange={e => save({ lateCompletionCredit: Number(e.target.value) })}>
+        <select className="settings-select" aria-label={t('Late completion credit')} value={settings.lateCompletionCredit} onChange={e => save({ lateCompletionCredit: Number(e.target.value) })}>
           {[0, 25, 50, 75, 100].map(p => <option key={p} value={p}>{p}%</option>)}
         </select>
       </div>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label">Streak grace days</div>
-          <div className="settings-row-sub">A streak survives this many missed days in any week.</div>
+          <div className="settings-row-label">{t('Streak grace days')}</div>
+          <div className="settings-row-sub">{t('A streak survives this many missed days in any week.')}</div>
         </div>
-        <select className="settings-select" aria-label="Streak grace days" value={settings.streakGraceDays} onChange={e => save({ streakGraceDays: Number(e.target.value) })}>
-          {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? 'None' : `${n} day${n === 1 ? '' : 's'}`}</option>)}
+        <select className="settings-select" aria-label={t('Streak grace days')} value={settings.streakGraceDays} onChange={e => save({ streakGraceDays: Number(e.target.value) })}>
+          {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? t('None') : tn(n, '{n} day', '{n} days')}</option>)}
         </select>
       </div>
       {settings.features.checkIns && <div className="settings-row">
         <div>
-          <div className="settings-row-label">Daily check-in points</div>
-          <div className="settings-row-sub">Reading your day to the end and tapping "I'm all caught up" earns these, once a day.</div>
+          <div className="settings-row-label">{t('Daily check-in points')}</div>
+          <div className="settings-row-sub">{t('Reading your day to the end and tapping "I\'m all caught up" earns these, once a day.')}</div>
         </div>
-        <select className="settings-select" aria-label="Daily check-in points" value={settings.checkInPoints} onChange={e => save({ checkInPoints: Number(e.target.value) })}>
-          {[0, 1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n === 0 ? 'Off' : `${n} point${n === 1 ? '' : 's'}`}</option>)}
+        <select className="settings-select" aria-label={t('Daily check-in points')} value={settings.checkInPoints} onChange={e => save({ checkInPoints: Number(e.target.value) })}>
+          {[0, 1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n === 0 ? t('Off') : tn(n, '{n} point', '{n} points')}</option>)}
         </select>
       </div>}
       <div className="toggle-row">
-        <label id="leaderboard-label">Show leaderboard</label>
+        <label id="leaderboard-label">{t('Show leaderboard')}</label>
         <button className={`switch ${settings.leaderboardEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.leaderboardEnabled} aria-labelledby="leaderboard-label"
           onClick={() => save({ leaderboardEnabled: !settings.leaderboardEnabled })}><span className="knob" /></button>
       </div>
       <div className="toggle-row">
         <div>
-          <label id="kid-suggest-label">Kids can suggest chores</label>
-          <div className="settings-row-sub" id="kid-suggest-sub">Kids add their own chore ideas and say what they think they're worth. Nothing counts until you say yes.</div>
+          <label id="kid-suggest-label">{t('Kids can suggest chores')}</label>
+          <div className="settings-row-sub" id="kid-suggest-sub">{t("Kids add their own chore ideas and say what they think they're worth. Nothing counts until you say yes.")}</div>
         </div>
         <button className={`switch ${settings.kidChoreSuggestions ? 'on' : ''}`} role="switch" aria-checked={settings.kidChoreSuggestions} aria-labelledby="kid-suggest-label" aria-describedby="kid-suggest-sub"
           onClick={() => save({ kidChoreSuggestions: !settings.kidChoreSuggestions })}><span className="knob" /></button>
       </div>
       <div className="toggle-row">
         <div>
-          <label id="rewards-label">Rewards</label>
-          <div className="settings-row-sub" id="rewards-sub">Kids spend points on rewards you set, with your OK.</div>
+          <label id="rewards-label">{t('Rewards')}</label>
+          <div className="settings-row-sub" id="rewards-sub">{t('Kids spend points on rewards you set, with your OK.')}</div>
         </div>
         <button className={`switch ${settings.rewardsEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.rewardsEnabled} aria-labelledby="rewards-label" aria-describedby="rewards-sub"
           onClick={() => save({ rewardsEnabled: !settings.rewardsEnabled })}><span className="knob" /></button>
       </div>
       <div className="toggle-row">
-        <label id="sticker-shop-label">Sticker shop</label>
+        <label id="sticker-shop-label">{t('Sticker shop')}</label>
         <button className={`switch ${settings.stickersEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.stickersEnabled} aria-labelledby="sticker-shop-label"
           onClick={() => save({ stickersEnabled: !settings.stickersEnabled })}><span className="knob" /></button>
       </div>
       {settings.stickersEnabled && (
         <div className="settings-row">
           <div>
-            <div className="settings-row-label">Sticker prices</div>
-            <div className="settings-row-sub">Kids spend chore points on sticker packs in Activities → Sticker book.</div>
+            <div className="settings-row-label">{t('Sticker prices')}</div>
+            <div className="settings-row-sub">{t('Kids spend chore points on sticker packs in Activities → Sticker book.')}</div>
           </div>
-          <select className="settings-select" aria-label="Sticker prices" value={settings.stickerPriceScale} onChange={e => save({ stickerPriceScale: Number(e.target.value) })}>
-            {[...new Set([0, 50, 100, 150, settings.stickerPriceScale])].sort((a, b) => a - b).map(p => <option key={p} value={p}>{p === 0 ? 'Free' : `${p}%`}</option>)}
+          <select className="settings-select" aria-label={t('Sticker prices')} value={settings.stickerPriceScale} onChange={e => save({ stickerPriceScale: Number(e.target.value) })}>
+            {[...new Set([0, 50, 100, 150, settings.stickerPriceScale])].sort((a, b) => a - b).map(p => <option key={p} value={p}>{p === 0 ? t('Free') : `${p}%`}</option>)}
           </select>
         </div>
       )}
@@ -895,15 +909,15 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     setBusy(true)
     try {
       const perm = await Notification.requestPermission() // must run from this tap
-      if (perm !== 'granted') { toast('Notifications permission was not granted', true); return }
+      if (perm !== 'granted') { toast(t('Notifications permission was not granted'), true); return }
       const { publicKey } = await api.getVapidPublicKey()
       const reg = await navigator.serviceWorker.ready
       const pushSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource })
-      const created = await api.subscribePush({ subscription: pushSub.toJSON() as PushSubscriptionJSON, deviceName: navigator.platform || 'This device' })
+      const created = await api.subscribePush({ subscription: pushSub.toJSON() as PushSubscriptionJSON, deviceName: navigator.platform || t('This device') })
       localStorage.setItem(PUSH_SUB_ID_KEY, created.id)
       setSub(created)
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not turn on notifications', true)
+      toast(e instanceof ApiError ? e.message : t('Could not turn on notifications'), true)
     } finally {
       setBusy(false)
     }
@@ -928,52 +942,52 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     try {
       const updated = await api.updatePushSubscription(sub.id, { prefs: patch })
       setSub(updated)
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save'), true) }
   }
   const saveMembers = async (memberIds: string[]) => {
     if (!sub) return
-    try { setSub(await api.updatePushSubscription(sub.id, { memberIds })) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
+    try { setSub(await api.updatePushSubscription(sub.id, { memberIds })) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save'), true) }
   }
   const sendTest = async () => {
     if (!sub) return
-    try { await api.testPush(sub.id); toast('Test notification sent') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not send test', true) }
+    try { await api.testPush(sub.id); toast(t('Test notification sent')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not send test'), true) }
   }
 
   if (inNativeApp()) {
     const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
     return (
-      <Section id="notifications" title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
         {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
-        <p className="settings-row-sub">The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.</p>
+        <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.")}</p>
         {liveLine && <p className="settings-row-sub">{liveLine}</p>}
         {settings.medications && <div className="toggle-row">
           <div>
-            <label id="app-med-names-label">Show medicine names on this device</label>
-            <div className="settings-row-sub" id="app-med-names-sub">Off: a due dose says “Leo’s medicine”. It shows on the lock screen.</div>
+            <label id="app-med-names-label">{t('Show medicine names on this device')}</label>
+            <div className="settings-row-sub" id="app-med-names-sub">{t('Off: a due dose says “Leo’s medicine”. It shows on the lock screen.')}</div>
           </div>
           <button className={`switch ${appNames ? 'on' : ''}`} role="switch" aria-checked={appNames} aria-labelledby="app-med-names-label" aria-describedby="app-med-names-sub" onClick={() => { setAppMedicineNames(!appNames); setAppNames(!appNames) }}><span className="knob" /></button>
         </div>}
         {settings.medications && grownUpPhone && <div className="toggle-row">
           <div>
-            <label id="app-kid-doses-label">Show the kids' doses on this phone</label>
-            <div className="settings-row-sub" id="app-kid-doses-sub">A kid's dose that's due shows on the lock screen too, like “Leo · 8:00 AM medicine”, with Taken and Snooze. Snooze is for this phone only.</div>
+            <label id="app-kid-doses-label">{t("Show the kids' doses on this phone")}</label>
+            <div className="settings-row-sub" id="app-kid-doses-sub">{t("A kid's dose that's due shows on the lock screen too, like “Leo · 8:00 AM medicine”, with Taken and Snooze. Snooze is for this phone only.")}</div>
           </div>
           <button className={`switch ${kidDoses ? 'on' : ''}`} role="switch" aria-checked={kidDoses} aria-labelledby="app-kid-doses-label" aria-describedby="app-kid-doses-sub" onClick={() => { setAppKidDoses(!kidDoses); setKidDoses(!kidDoses) }}><span className="knob" /></button>
         </div>}
         {settings.medications && appNotificationSettings() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => openAppNotificationSettings('medicine')}>Let medicine reminders through Do Not Disturb</button>
-          <div className="settings-row-sub">Opens Android's settings for Kinwall's Medicine notifications. Turn on Override Do Not Disturb.</div>
+          <button className="btn btn-secondary" onClick={() => openAppNotificationSettings('medicine')}>{t('Let medicine reminders through Do Not Disturb')}</button>
+          <div className="settings-row-sub">{t("Opens Android's settings for Kinwall's Medicine notifications. Turn on Override Do Not Disturb.")}</div>
         </div>}
       </Section>
     )
   }
   if (!pushSupported()) {
     return (
-      <Section id="notifications" title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
         <p className="settings-row-sub">
           {iosNeedsHomeScreen()
-            ? 'Add Kinwall to your Home Screen first (Share → Add to Home Screen) — iPhone only supports notifications for installed apps, on iOS 16.4 or later.'
-            : 'This browser doesn\'t support push notifications.'}
+            ? t('Add Kinwall to your Home Screen first (Share → Add to Home Screen) — iPhone only supports notifications for installed apps, on iOS 16.4 or later.')
+            : t("This browser doesn't support push notifications.")}
         </p>
       </Section>
     )
@@ -982,58 +996,58 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   const prefs = sub?.prefs ?? DEFAULT_PUSH_PREFS
 
   return (
-    <Section id="notifications" title="Notifications" icon={<BellIcon width={16} height={16} />}>
+    <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
       {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}
       {sub === undefined ? (
-        <div className="settings-row-sub">Checking…</div>
+        <div className="settings-row-sub">{t('Checking…')}</div>
       ) : !sub ? (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <button className="btn btn-primary" onClick={turnOn} disabled={busy}>Turn on notifications</button>
+          <button className="btn btn-primary" onClick={turnOn} disabled={busy}>{t('Turn on notifications')}</button>
         </div>
       ) : (
         <>
           <div className="toggle-row">
-            <label>Event reminders</label>
-            <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} role="switch" aria-checked={prefs.eventReminders} aria-label="Event reminders" onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
+            <label>{t('Event reminders')}</label>
+            <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} role="switch" aria-checked={prefs.eventReminders} aria-label={t('Event reminders')} onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
           </div>
           <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
-              <label>Daily summary</label>
-              <button className={`switch ${prefs.dailySummary ? 'on' : ''}`} role="switch" aria-checked={prefs.dailySummary} aria-label="Daily summary" onClick={() => savePrefs({ dailySummary: !prefs.dailySummary })}><span className="knob" /></button>
+              <label>{t('Daily summary')}</label>
+              <button className={`switch ${prefs.dailySummary ? 'on' : ''}`} role="switch" aria-checked={prefs.dailySummary} aria-label={t('Daily summary')} onClick={() => savePrefs({ dailySummary: !prefs.dailySummary })}><span className="knob" /></button>
             </div>
-            {prefs.dailySummary && <input type="time" aria-label="Daily summary time" value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
+            {prefs.dailySummary && <input type="time" aria-label={t('Daily summary time')} value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
           </div>
           {settings.features.chores && <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
-              <label>Chore reminder</label>
-              <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} role="switch" aria-checked={prefs.choreNudge} aria-label="Chore reminder" onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
+              <label>{t('Chore reminder')}</label>
+              <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} role="switch" aria-checked={prefs.choreNudge} aria-label={t('Chore reminder')} onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
             </div>
-            {prefs.choreNudge && <input type="time" aria-label="Chore reminder time" value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
+            {prefs.choreNudge && <input type="time" aria-label={t('Chore reminder time')} value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
           </div>}
           {settings.features.lists && <div className="toggle-row">
-            <label>List updates</label>
-            <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label="List updates" onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+            <label>{t('List updates')}</label>
+            <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label={t('List updates')} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
           </div>}
           {settings.features.outings !== false && <div className="toggle-row">
             <div>
-              <label id="push-outings-label">Outing reminders</label>
-              <div className="settings-row-sub" id="push-outings-sub">A week and a day before outings someone ⭐, ticket dates, and last chances.</div>
+              <label id="push-outings-label">{t('Outing reminders')}</label>
+              <div className="settings-row-sub" id="push-outings-sub">{t('A week and a day before outings someone ⭐, ticket dates, and last chances.')}</div>
             </div>
             <button className={`switch ${prefs.outingReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.outingReminders !== false} aria-labelledby="push-outings-label" aria-describedby="push-outings-sub" onClick={() => savePrefs({ outingReminders: prefs.outingReminders === false })}><span className="knob" /></button>
           </div>}
           {settings.medications && <div className="toggle-row">
             <div>
-              <label id="push-med-names-label">Show medicine names in notifications on this device</label>
-              <div className="settings-row-sub" id="push-med-names-sub">Off: “Time for Leo’s medicine”. Notification text passes through Apple or Google and shows on the lock screen.</div>
+              <label id="push-med-names-label">{t('Show medicine names in notifications on this device')}</label>
+              <div className="settings-row-sub" id="push-med-names-sub">{t('Off: “Time for Leo’s medicine”. Notification text passes through Apple or Google and shows on the lock screen.')}</div>
             </div>
             <button className={`switch ${prefs.medicationNames ? 'on' : ''}`} role="switch" aria-checked={prefs.medicationNames} aria-labelledby="push-med-names-label" aria-describedby="push-med-names-sub" onClick={() => savePrefs({ medicationNames: !prefs.medicationNames })}><span className="knob" /></button>
           </div>}
           {kid
-            ? <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>For {kid.name} and the whole family.</p>
-            : <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />}
+            ? <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{t('For {name} and the whole family.', { name: kid.name })}</p>
+            : <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label={t('Which family members?')} noneLabel={t('Everyone')} />}
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-            <button className="btn btn-secondary" onClick={sendTest}>Send test</button>
-            <button className="btn btn-danger" onClick={turnOff} disabled={busy}>Turn off</button>
+            <button className="btn btn-secondary" onClick={sendTest}>{t('Send test')}</button>
+            <button className="btn btn-danger" onClick={turnOff} disabled={busy}>{t('Turn off')}</button>
           </div>
         </>
       )}
@@ -1050,25 +1064,25 @@ function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: bo
   useEffect(load, [])
 
   const remove = async (s: PushSubscription) => {
-    if (!await dialog.confirm({ title: `Remove "${s.deviceName}"?`, body: 'That device stops getting notifications.', confirmLabel: 'Remove', danger: true })) return
-    try { await api.deletePushSubscription(s.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove device', true) }
+    if (!await dialog.confirm({ title: t('Remove "{name}"?', { name: s.deviceName }), body: t('That device stops getting notifications.'), confirmLabel: t('Remove'), danger: true })) return
+    try { await api.deletePushSubscription(s.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not remove device'), true) }
   }
 
   return (
-    <Section title={settings.features.messages ? 'Send a family message' : 'Devices with notifications'} icon={<BellIcon width={16} height={16} />}>
+    <Section id={settings.features.messages ? 'send-a-family-message' : 'devices-with-notifications'} title={settings.features.messages ? t('Send a family message') : t('Devices with notifications')} icon={<BellIcon width={16} height={16} />}>
       {settings.features.messages && <SendMessageForm />}
-      {settings.features.messages && <h3 className="settings-subhead">Devices with notifications</h3>}
+      {settings.features.messages && <h3 className="settings-subhead">{t('Devices with notifications')}</h3>}
       {subs.length === 0 ? (
-        <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in <a className="text-link" href="#/settings?tab=general&section=notifications">Settings → General</a>.</p>
+        <p className="settings-row-sub">{t('No devices have turned on notifications yet. Each phone turns them on in')} <a className="text-link" href="#/settings?tab=general&section=notifications">{t('Settings → General')}</a>.</p>
       ) : subs.map(s => (
         <div key={s.id} className="key-item">
           <div>
             <div className="settings-row-label">{s.deviceName}</div>
             <div className="settings-row-sub">
-              added {new Date(s.createdAt).toLocaleDateString()}{s.lastSuccessAt ? ` · delivered ${new Date(s.lastSuccessAt).toLocaleDateString()}` : ' · never delivered'}
+              {t('added {date}', { date: new Date(s.createdAt).toLocaleDateString(intlLocale()) })}{s.lastSuccessAt ? ` · ${t('delivered {date}', { date: new Date(s.lastSuccessAt).toLocaleDateString(intlLocale()) })}` : ` · ${t('never delivered')}`}
             </div>
           </div>
-          <button className="icon-btn" onClick={() => remove(s)} aria-label={`Remove ${s.deviceName}`}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => remove(s)} aria-label={t('Remove {name}', { name: s.deviceName })}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
     </Section>
@@ -1088,30 +1102,30 @@ export function SendMessageForm({ onSent }: { onSent?: () => void }) {
     setSending(true)
     try {
       const result = await api.sendNotification({ title: title.trim(), body: body.trim(), memberIds: memberIds.length ? memberIds : undefined })
-      toast(`Sent to ${result.sent} device${result.sent === 1 ? '' : 's'}`)
+      toast(tn(result.sent, 'Sent to {n} device', 'Sent to {n} devices'))
       setTitle(''); setBody('')
       onSent?.()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not send', true) } finally { setSending(false) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not send'), true) } finally { setSending(false) }
   }
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 10 }}>
-      <div className="settings-row-label">Send a message</div>
+      <div className="settings-row-label">{t('Send a message')}</div>
       <div className="field" style={{ margin: 0 }}>
-        <label>Title</label>
-        <input type="text" aria-label="Title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Dinner's ready" />
+        <label>{t('Title')}</label>
+        <input type="text" aria-label={t('Title')} value={title} onChange={e => setTitle(e.target.value)} placeholder={t("Dinner's ready")} />
       </div>
       <div className="field" style={{ margin: 0 }}>
-        <label>Message</label>
-        <input type="text" aria-label="Message" value={body} onChange={e => setBody(e.target.value)} placeholder="Come to the kitchen 🍝" />
+        <label>{t('Message')}</label>
+        <input type="text" aria-label={t('Message')} value={body} onChange={e => setBody(e.target.value)} placeholder={t('Come to the kitchen 🍝')} />
       </div>
-      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="To" noneLabel="Everyone" />
-      <button className="btn btn-primary" onClick={send} disabled={sending || !title.trim() || !body.trim()}>Send now</button>
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label={tc('message', 'To')} noneLabel={t('Everyone')} />
+      <button className="btn btn-primary" onClick={send} disabled={sending || !title.trim() || !body.trim()}>{t('Send now')}</button>
     </div>
   )
 }
 
 const NAV_PREF_OPTIONS: { key: NavPref; label: string }[] = [
-  { key: 'auto', label: 'Auto' }, { key: 'bottom', label: 'Bottom' }, { key: 'left', label: 'Left' }, { key: 'right', label: 'Right' },
+  { key: 'auto', label: msg('Auto') }, { key: 'bottom', label: msg('Bottom') }, { key: 'left', label: msg('Left') }, { key: 'right', label: msg('Right') },
 ]
 
 /** Per-device nav position (bottom tab bar vs. a side rail) — kept in localStorage, not synced
@@ -1148,33 +1162,33 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const customs = household.customSchemes ?? []
   const { skin } = resolveColors(household, device)
   const [editing, setEditing] = useState<{ draft: CustomScheme; isNew: boolean; fromLegacy?: boolean } | null>(null)
-  const nameOf = (id: ColorScheme) => id === 'seasonal' ? `Seasonal (${getSkin(seasonalSkinId()).name})` : findSkin(id, customs).name
+  const nameOf = (id: ColorScheme) => id === 'seasonal' ? t('Seasonal ({name})', { name: skinName(getSkin(seasonalSkinId())) }) : skinName(findSkin(id, customs))
   const skinOf = (id: ColorScheme) => id === 'seasonal' ? getSkin(seasonalSkinId()) : findSkin(id, customs)
   const dotsFor = (id: ColorScheme) => { const k = tokensFor(skinOf(id), dark); return [k.bg, k.card, k.accent] }
   // The row: the scheme in effect here, with a light+dark swatch ringed in its accent.
   const current = scheme ?? householdScheme ?? DEFAULT_SKIN_ID
   const [lightT, darkT] = [tokensFor(skinOf(current), false), tokensFor(skinOf(current), true)]
   const emojiOf = (id: ColorScheme) => id === 'seasonal' ? '🗓️' : skinOf(id).emoji
-  const rowValue = scheme || !householdScheme ? `${emojiOf(current)} ${nameOf(current)}` : `🏠 The family's (${nameOf(householdScheme)})`
+  const rowValue = scheme || !householdScheme ? `${emojiOf(current)} ${nameOf(current)}` : `🏠 ${t("The family's ({name})", { name: nameOf(householdScheme) })}`
   const pick = (id: ColorScheme | undefined) => {
     onScheme(id)
-    announce(id ? `${nameOf(id)} color scheme` : "The family's color scheme")
+    announce(id ? t('{name} color scheme', { name: nameOf(id) }) : t("The family's color scheme"))
   }
   const activeCustom = customs.find(c => c.id === skin.id)
   const startFrom = (base: typeof skin, name: string): CustomScheme =>
     ({ id: newSchemeId(), name: name.slice(0, 30), emoji: base.emoji, light: paletteOf(base, false), dark: paletteOf(base, true) })
-  const newScheme = () => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })
+  const newScheme = () => setEditing({ draft: startFrom(skin, activeCustom ? t('{name} copy', { name: skin.name }) : t('My {name}', { name: skinName(skin) })), isNew: true })
   const oldLight = legacyBackgrounds && legacyBackgrounds.light !== 'warm' ? OLD_BACKGROUNDS[legacyBackgrounds.light] : undefined
   const oldDark = legacyBackgrounds && legacyBackgrounds.dark !== 'cocoa' ? OLD_BACKGROUNDS[legacyBackgrounds.dark] : undefined
   const hasLegacy = Object.keys(legacy).length > 0 || !!oldLight || !!oldDark
-  const oldNames = [oldLight && `${oldLight.name} (light)`, oldDark && `${oldDark.name} (dark)`].filter(Boolean).join(' and ')
+  const oldNames = [oldLight && t('{name} (light)', { name: tm(oldLight.name) }), oldDark && t('{name} (dark)', { name: tm(oldDark.name) })].filter(Boolean).join(t(' and '))
   const saveScheme = async (c: CustomScheme, isNew: boolean, fromLegacy?: boolean) => {
     if (!parentDevice) { // a wall screen or kid's device: add it to the family's list, use it here
       await api.addColorScheme(c)
       reloadCore()
       onScheme(c.id)
       if (fromLegacy) onClearLegacy?.()
-      announce(`${c.name} saved and selected on this device`)
+      announce(t('{name} saved and selected on this device', { name: c.name }))
       setEditing(null)
       return
     }
@@ -1183,20 +1197,20 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
     await saveSettings({ customSchemes: list, ...(selectHere ? { colorScheme: c.id } : {}), ...(fromLegacy && legacyClear ? legacyClear : {}) })
     if (isNew && householdScheme) onScheme(c.id) // device editor: this device switches to it
     if (fromLegacy) onClearLegacy?.()
-    announce(isNew ? `${c.name} saved and selected` : `${c.name} saved`)
+    announce(isNew ? t('{name} saved and selected', { name: c.name }) : t('{name} saved', { name: c.name }))
     setEditing(null)
   }
   const deleteScheme = async (c: CustomScheme) => {
     await saveSettings({ customSchemes: customs.filter(x => x.id !== c.id), ...(household.colorScheme === c.id ? { colorScheme: DEFAULT_SKIN_ID } : {}) })
     if (device.skin === c.id || scheme === c.id) onScheme(householdScheme ? undefined : DEFAULT_SKIN_ID)
-    announce(`${c.name} deleted`)
+    announce(t('{name} deleted', { name: c.name }))
     setEditing(null)
   }
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="device-pref-row">
-        <span aria-hidden="true">Color scheme</span>
-        <button type="button" className="settings-select scheme-row" aria-label="Color scheme" aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setPicking(true)}>
+        <span aria-hidden="true">{t('Color scheme')}</span>
+        <button type="button" className="settings-select scheme-row" aria-label={t('Color scheme')} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setPicking(true)}>
           <span className="scheme-swatch scheme-swatch-lg" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${lightT.bg} 50%, ${darkT.bg} 50%)`, borderColor: lightT.accentStrong }} />
           <span id={valueId} className="scheme-row-name">{rowValue}</span>
         </button>
@@ -1206,58 +1220,58 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
           family={householdScheme ? { name: nameOf(householdScheme), skin: skinOf(householdScheme) } : undefined}
           onPick={id => pick(id as ColorScheme | undefined)} onClose={() => setPicking(false)}
           customActions={<>
-            {customs.length > 0 && <button className="btn btn-secondary" aria-haspopup="dialog" onClick={() => { setPicking(false); setManage(true) }}>Manage</button>}
-            {customs.length < 10 && <button className="btn btn-secondary" onClick={() => { setPicking(false); newScheme() }}>＋ New scheme</button>}
+            {customs.length > 0 && <button className="btn btn-secondary" aria-haspopup="dialog" onClick={() => { setPicking(false); setManage(true) }}>{t('Manage')}</button>}
+            {customs.length < 10 && <button className="btn btn-secondary" onClick={() => { setPicking(false); newScheme() }}>＋ {t('New scheme')}</button>}
           </>}
           footer={<button className="btn btn-secondary" onClick={async () => {
-            const body = resetConfirm ?? (hasLegacy ? 'This also removes the custom colors from an earlier version.' : undefined)
-            if (body && !await dialog.confirm({ title: `${resetLabel}?`, body, confirmLabel: 'Reset' })) return
+            const body = resetConfirm ?? (hasLegacy ? t('This also removes the custom colors from an earlier version.') : undefined)
+            if (body && !await dialog.confirm({ title: `${resetLabel}?`, body, confirmLabel: t('Reset') })) return
             onReset()
           }}>{resetLabel}</button>}
         />
       )}
       {manage && (
-        <Sheet title="Your schemes" onClose={() => setManage(false)}>
-          {customs.length === 0 && <p className="settings-row-sub">The family hasn't saved any schemes yet. Start one from the scheme you're on.</p>}
+        <Sheet title={t('Your schemes')} onClose={() => setManage(false)}>
+          {customs.length === 0 && <p className="settings-row-sub">{t("The family hasn't saved any schemes yet. Start one from the scheme you're on.")}</p>}
           {customs.length > 0 && (
-            <ul className="scheme-list" aria-label="Your schemes">
+            <ul className="scheme-list" aria-label={t('Your schemes')}>
               {customs.map(c => {
                 const [bg, , accent] = dotsFor(c.id as ColorScheme)
                 return (
                   <li key={c.id} className="scheme-list-row">
                     <span className="scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)` }} />
-                    <span className="scheme-list-name">{c.emoji || '🎨'} {c.name}{household.colorScheme === c.id && <span className="scheme-list-note"> · the family's</span>}</span>
+                    <span className="scheme-list-name">{c.emoji || '🎨'} {c.name}{household.colorScheme === c.id && <span className="scheme-list-note"> · {t("the family's")}</span>}</span>
                     {parentDevice && <>
-                      <button className="btn btn-secondary" onClick={() => { setManage(false); setEditing({ draft: c, isNew: false }) }} aria-label={`Edit ${c.name}`}>Edit</button>
-                      <button className="btn btn-danger" aria-label={`Delete ${c.name}`} onClick={async () => {
-                        if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Peacock.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
-                      }}>Delete</button>
+                      <button className="btn btn-secondary" onClick={() => { setManage(false); setEditing({ draft: c, isNew: false }) }} aria-label={t('Edit {name}', { name: c.name })}>{t('Edit')}</button>
+                      <button className="btn btn-danger" aria-label={t('Delete {name}', { name: c.name })} onClick={async () => {
+                        if (await dialog.confirm({ title: t('Delete {name}?', { name: c.name }), body: t('Screens using it go back to Peacock.'), confirmLabel: t('Delete'), danger: true })) deleteScheme(c)
+                      }}>{t('Delete')}</button>
                     </>}
                   </li>
                 )
               })}
             </ul>
           )}
-          {!parentDevice && customs.length > 0 && <p className="settings-row-sub">Editing and deleting the family's schemes is done on a parent's device.</p>}
+          {!parentDevice && customs.length > 0 && <p className="settings-row-sub">{t("Editing and deleting the family's schemes is done on a parent's device.")}</p>}
           {customs.length < 10
-            ? <button className="btn btn-primary btn-block scheme-new-btn" onClick={() => { setManage(false); newScheme() }}>＋ New scheme</button>
-            : <p className="settings-row-sub">The family has 10 saved schemes, the most it can keep.{parentDevice ? ' Delete one to make another.' : ''}</p>}
+            ? <button className="btn btn-primary btn-block scheme-new-btn" onClick={() => { setManage(false); newScheme() }}>＋ {t('New scheme')}</button>
+            : <p className="settings-row-sub">{t('The family has 10 saved schemes, the most it can keep.')}{parentDevice ? ` ${t('Delete one to make another.')}` : ''}</p>}
         </Sheet>
       )}
       {hasLegacy && (
         <div className="scheme-legacy" role="note">
-          {Object.keys(legacy).length > 0 && <span>Custom colors from an earlier version are applied on top of this scheme{householdScheme ? ' on this device' : ''}.</span>}
-          {oldNames && <span>The family also chose the {oldNames} background in an earlier version. It no longer shows; save it as a scheme to keep that look.</span>}
+          {Object.keys(legacy).length > 0 && <span>{householdScheme ? t('Custom colors from an earlier version are applied on top of this scheme on this device.') : t('Custom colors from an earlier version are applied on top of this scheme.')}</span>}
+          {oldNames && <span>{t('The family also chose the {names} background in an earlier version. It no longer shows; save it as a scheme to keep that look.', { names: oldNames })}</span>}
           <div className="scheme-actions">
             <button className="btn btn-secondary" onClick={() => {
               const meadow = getSkin('meadow')
               const light = { ...(oldLight ? { ...paletteOf(meadow, false), bg: oldLight.bg, card: oldLight.card, text: oldLight.text } : paletteOf(skin, false)), ...legacy } as Palette
               const darkBase = oldDark ? { ...paletteOf(meadow, true), bg: oldDark.bg, card: oldDark.card, text: oldDark.text } : paletteOf(oldLight ? meadow : skin, true)
               const darkP = { ...darkBase, ...(legacy.accent ? { accent: legacy.accent } : {}) }
-              const name = oldLight?.name ?? oldDark?.name ?? 'Custom'
+              const name = tm(oldLight?.name ?? oldDark?.name ?? t('Custom'))
               setEditing({ draft: { id: newSchemeId(), name, emoji: oldLight?.name === 'Sage' ? '🌿' : '🎨', light, dark: darkP }, isNew: true, fromLegacy: true })
-            }}>Save as a scheme</button>
-            <button className="btn btn-secondary" onClick={() => { if (legacyClear) void saveSettings(legacyClear); onClearLegacy?.(); announce('Old colors removed') }}>Remove them</button>
+            }}>{t('Save as a scheme')}</button>
+            <button className="btn btn-secondary" onClick={() => { if (legacyClear) void saveSettings(legacyClear); onClearLegacy?.(); announce(t('Old colors removed')) }}>{t('Remove them')}</button>
           </div>
         </div>
       )}
@@ -1268,7 +1282,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
 }
 
 const PALETTE_FIELDS: { key: keyof Palette; label: string }[] = [
-  { key: 'bg', label: 'Background' }, { key: 'card', label: 'Cards' }, { key: 'text', label: 'Text' }, { key: 'accent', label: 'Accent' },
+  { key: 'bg', label: msg('Background') }, { key: 'card', label: msg('Cards') }, { key: 'text', label: msg('Text') }, { key: 'accent', label: msg('Accent') },
 ]
 
 /** One saved scheme: both modes side by side, each with a live preview and its contrast checks.
@@ -1285,46 +1299,46 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
   const canSave = !!c.name.trim() && failing === 0 && !busy
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn() } finally { setBusy(false) } }
   return (
-    <Sheet title={isNew ? 'New color scheme' : `Edit ${draft.name}`} onClose={onClose}
-      actions={<button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? 'Save and use' : 'Save'}</button>}>
+    <Sheet title={isNew ? t('New color scheme') : t('Edit {name}', { name: draft.name })} onClose={onClose}
+      actions={<button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? t('Save and use') : t('Save')}</button>}>
       <div className="row-2">
-        <div className="field"><label htmlFor="scheme-name">Name</label><input id="scheme-name" type="text" maxLength={30} value={c.name} onChange={e => setC({ ...c, name: e.target.value })} /></div>
-        <div className="field scheme-emoji"><label htmlFor="scheme-emoji">Emoji</label><input id="scheme-emoji" type="text" maxLength={8} value={c.emoji} onChange={e => setC({ ...c, emoji: e.target.value })} /></div>
+        <div className="field"><label htmlFor="scheme-name">{t('Name')}</label><input id="scheme-name" type="text" maxLength={30} value={c.name} onChange={e => setC({ ...c, name: e.target.value })} /></div>
+        <div className="field scheme-emoji"><label htmlFor="scheme-emoji">{t('Emoji')}</label><input id="scheme-emoji" type="text" maxLength={8} value={c.emoji} onChange={e => setC({ ...c, emoji: e.target.value })} /></div>
       </div>
       <div className="scheme-modes">
         {(['light', 'dark'] as const).map(mode => {
           const b = baseFromPalette(c[mode], mode === 'dark')
           return (
-            <section key={mode} className="scheme-mode" aria-label={`${mode === 'light' ? 'Light' : 'Dark'} mode`}>
-              <h3 className="scheme-mode-title">{mode === 'light' ? '☀️ Light mode' : '🌙 Dark mode'}</h3>
+            <section key={mode} className="scheme-mode" aria-label={mode === 'light' ? t('Light mode') : t('Dark mode')}>
+              <h3 className="scheme-mode-title">{mode === 'light' ? `☀️ ${t('Light mode')}` : `🌙 ${t('Dark mode')}`}</h3>
               <div className="scheme-preview" style={{ background: b.bg, borderColor: b.border }} aria-hidden="true">
                 <div className="scheme-preview-card" style={{ background: b.card, color: b.text, borderColor: b.border }}>
-                  <strong>Soccer practice</strong>
-                  <span style={{ color: b.textDim }}>{formatTime('16:00')} · Park field</span>
-                  <span className="scheme-preview-btn" style={{ background: accentFill(b.accent) }}>Done</span>
+                  <strong>{t('Soccer practice')}</strong>
+                  <span style={{ color: b.textDim }}>{formatTime('16:00')} · {t('Park field')}</span>
+                  <span className="scheme-preview-btn" style={{ background: accentFill(b.accent) }}>{t('Done')}</span>
                 </div>
               </div>
               {PALETTE_FIELDS.map(f => (
                 <div key={f.key} className="device-pref-row">
-                  <span>{f.label}</span>
-                  <input type="color" value={c[mode][f.key]} aria-label={`${f.label}, ${mode} mode`} onChange={e => setColor(mode, f.key, e.target.value)} />
+                  <span>{tm(f.label)}</span>
+                  <input type="color" value={c[mode][f.key]} aria-label={mode === 'light' ? t('{color}, light mode', { color: tm(f.label) }) : t('{color}, dark mode', { color: tm(f.label) })} onChange={e => setColor(mode, f.key, e.target.value)} />
                 </div>
               ))}
               <ul className="scheme-checks">
                 {checks[mode].map(k => (
-                  <li key={k.label}><span>{k.label}</span><span className={`contrast-badge ${k.ratio >= 4.5 ? 'ok' : 'bad'}`}>{k.ratio >= 4.5 ? '✓' : 'Too low'} {k.ratio.toFixed(1)}:1</span></li>
+                  <li key={k.label}><span>{tm(k.label)}</span><span className={`contrast-badge ${k.ratio >= 4.5 ? 'ok' : 'bad'}`}>{k.ratio >= 4.5 ? '✓' : t('Too low')} {k.ratio.toFixed(1)}:1</span></li>
                 ))}
               </ul>
             </section>
           )
         })}
       </div>
-      <p className="settings-row-sub">{failing ? `${failing} check${failing === 1 ? '' : 's'} below 4.5:1. Adjust the colors until every check passes to save.` : 'Readable in both modes. Accent buttons adjust themselves so their labels stay readable.'}</p>
+      <p className="settings-row-sub">{failing ? tn(failing, '{n} check below 4.5:1. Adjust the colors until every check passes to save.', '{n} checks below 4.5:1. Adjust the colors until every check passes to save.') : t('Readable in both modes. Accent buttons adjust themselves so their labels stay readable.')}</p>
       {onDelete && (
         <div className="sheet-danger-zone">
           <button className="link-btn link-danger" disabled={busy} onClick={async () => {
-            if (await dialog.confirm({ title: `Delete “${draft.name}”?`, body: 'Screens using it go back to Peacock.', confirmLabel: 'Delete', danger: true })) run(onDelete)
-          }}>Delete scheme</button>
+            if (await dialog.confirm({ title: t('Delete “{name}”?', { name: draft.name }), body: t('Screens using it go back to Peacock.'), confirmLabel: t('Delete'), danger: true })) run(onDelete)
+          }}>{t('Delete scheme')}</button>
         </div>
       )}
     </Sheet>
@@ -1332,14 +1346,49 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
 }
 
 // What people search for when they mean colors and light or dark (Settings' search).
-const THEME_WORDS = ['Theme', 'Dark mode', 'Light mode', 'Colors']
+const THEME_WORDS = [msg('Theme'), msg('Dark mode'), msg('Light mode'), msg('Colors')]
+/** Which language this screen shows. On someone's own device it's saved in their profile (it
+ * follows them to all their devices); on a wall screen or shared device, on this device only.
+ * Either way, nothing picked means the family's language (Household). */
+function LanguageSection() {
+  const { members, meMemberId, settings, toast, reloadCore } = useApp()
+  const device = useDeviceAppearance()
+  const me = members.find(m => m.id === meMemberId)
+  const [saving, setSaving] = useState(false)
+  const family = pickLang({ family: settings.language })
+  const fallback = pickLang({ device: me ? device.language : null, family: settings.language })
+  const pick = async (value: string) => {
+    const next = LANGUAGES.find(l => l.key === value)?.key ?? null
+    if (!me) { setDeviceAppearance({ ...device, language: next ?? undefined }); return }
+    setSaving(true)
+    try { await api.setMemberLanguage(me.id, next); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save the language'), true) } finally { setSaving(false) }
+  }
+  return (
+    <Section id="language" title={t('Language')} keywords={['Language', 'Sprache', 'English', 'Deutsch']}>
+      <div className="settings-row">
+        <div>
+          <label className="settings-row-label" htmlFor="language-select">{t('Language')}</label>
+          <div className="settings-row-sub">{me
+            ? t("Saved in {name}'s profile, so it follows them to all their devices.", { name: me.name })
+            : t('Saved on this device only. A device that belongs to someone uses their language.')}</div>
+        </div>
+        <select id="language-select" className="settings-select" value={(me ? me.language : device.language) ?? ''} disabled={saving} onChange={e => pick(e.target.value)}>
+          <option value="">{fallback === family && !(me && device.language)
+            ? t("🏠 Use the family's ({language})", { language: languageName(family) })
+            : t("Use this device's ({language})", { language: languageName(fallback) })}</option>
+          {LANGUAGES.map(l => <option key={l.key} value={l.key} lang={l.key}>{l.label}</option>)}
+        </select>
+      </div>
+    </Section>
+  )
+}
 
 function DeviceAppearanceSection() {
   const { settings, parentPhone } = useApp()
   const summary = deviceChips(settings, useDeviceAppearance(), parentPhone)
   return (
-    <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}
-      keywords={['Mode', 'Color scheme', 'Typeface', 'Text size', 'Density', 'Time format', 'Clock time zone', 'Low-stimulation mode', ...THEME_WORDS]}>
+    <SummarySection id="appearance-on-this-device" title={t('Appearance on this device')} icon={<PaletteIcon width={16} height={16} />} summary={summary}
+      keywords={[t('Mode'), t('Color scheme'), t('Typeface'), t('Text size'), t('Density'), t('Time format'), t('Clock time zone'), t('Low-stimulation mode'), ...THEME_WORDS.map(x => tm(x))]}>
       <DeviceAppearanceRows />
     </SummarySection>
   )
@@ -1349,27 +1398,27 @@ function DeviceAppearanceSection() {
 function DeviceAppearanceRows() {
   const { settings, reloadCore, toast, parentPhone } = useApp()
   const saveHousehold = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const rows = [
-    { key: 'themeMode' as const, label: 'Mode', options: THEME_MODES },
-    { key: 'textScale' as const, label: 'Text size', options: TEXT_SCALES.map(o => ({ ...o, label: TEXT_SCALE_NAMES[o.key] })) },
-    { key: 'density' as const, label: 'Density', options: DEVICE_DENSITIES },
+    { key: 'themeMode' as const, label: msg('Mode'), options: THEME_MODES },
+    { key: 'textScale' as const, label: msg('Text size'), options: TEXT_SCALES.map(o => ({ ...o, label: TEXT_SCALE_NAMES[o.key] })) },
+    { key: 'density' as const, label: msg('Density'), options: DEVICE_DENSITIES },
   ]
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-      <div className="settings-row-sub">Leave a setting on 🏠 the family's to follow it. Pick anything else to change it on this device only.</div>
+      <div className="settings-row-sub">{t("Leave a setting on 🏠 the family's to follow it. Pick anything else to change it on this device only.")}</div>
 
       {rows.slice(0, 1).map(r => {
-        const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
+        const household = tm(r.options.find(o => o.key === settings[r.key])?.label ?? '')
         return (
           <div key={r.key} className="device-pref-row">
-            <span>{r.label}</span>
-            <select className="settings-select" aria-label={`${r.label} on this device`} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">🏠 Use the family's ({household})</option>
-              {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            <span>{tm(r.label)}</span>
+            <select className="settings-select" aria-label={t('{setting} on this device', { setting: tm(r.label) })} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
+              <option value="">{t("🏠 Use the family's ({name})", { name: household })}</option>
+              {r.options.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
             </select>
           </div>
         )
@@ -1379,46 +1428,46 @@ function DeviceAppearanceRows() {
         onScheme={id => set({ skin: id })}
         household={settings} device={device} saveSettings={saveHousehold}
         legacy={device.custom ?? {}} onClearLegacy={() => set({ custom: undefined })}
-        resetLabel="Reset this device's appearance"
-        resetConfirm="Mode, color scheme, text size, density, typeface, time format and low-stimulation mode go back to the family's settings on this device."
-        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, timeFormat: undefined, clockZone: undefined, lowStim: undefined }); announce("This device follows the family's appearance") }}
+        resetLabel={t("Reset this device's appearance")}
+        resetConfirm={t("Mode, color scheme, text size, density, typeface, time format and low-stimulation mode go back to the family's settings on this device.")}
+        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, timeFormat: undefined, clockZone: undefined, lowStim: undefined }); announce(t("This device follows the family's appearance")) }}
       />
 
       {rows.slice(1).map(r => {
-        const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
+        const household = tm(r.options.find(o => o.key === settings[r.key])?.label ?? '')
         // A parent's phone is compact unless it picks a density (density.ts), so its default says so.
         const phoneDensity = r.key === 'density' && effectiveDensity(settings, { ...device, density: undefined }, parentPhone) !== effectiveDensity(settings, { ...device, density: undefined })
         return (
           <div key={r.key} className="device-pref-row">
-            <span>{r.label}</span>
-            <select className="settings-select" aria-label={`${r.label} on this device`} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">{phoneDensity ? 'Phone default (Compact)' : `🏠 Use the family's (${household})`}</option>
-              {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            <span>{tm(r.label)}</span>
+            <select className="settings-select" aria-label={t('{setting} on this device', { setting: tm(r.label) })} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
+              <option value="">{phoneDensity ? t('Phone default (Compact)') : t("🏠 Use the family's ({name})", { name: household })}</option>
+              {r.options.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
             </select>
           </div>
         )
       })}
-      <TypefaceRow options={FONTS} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? `${fontName(key)} typeface` : "The family's typeface") }} />
+      <TypefaceRow options={fontOptions()} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? t('{name} typeface', { name: fontName(key) ?? '' }) : t("The family's typeface")) }} />
       <div className="device-pref-row">
-        <span>Time format</span>
-        <select className="settings-select" aria-label="Time format on this device" value={device.timeFormat ?? ''} onChange={e => set({ timeFormat: deviceTimeFormat(e.target.value) })}>
-          <option value="">🏠 Use the family's ({TIME_FORMATS.find(o => o.key === (settings.timeFormat ?? 'auto'))?.label.split(' (')[0]})</option>
-          {TIME_FORMATS.slice(1).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        <span>{t('Time format')}</span>
+        <select className="settings-select" aria-label={t('Time format on this device')} value={device.timeFormat ?? ''} onChange={e => set({ timeFormat: deviceTimeFormat(e.target.value) })}>
+          <option value="">🏠 {t("Use the family's ({name})", { name: tm(TIME_FORMATS.find(o => o.key === (settings.timeFormat ?? 'auto'))?.label ?? '').split(' (')[0] })}</option>
+          {TIME_FORMATS.slice(1).map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
         </select>
       </div>
       <div className="device-pref-row">
-        <span>Clock time zone</span>
-        <select className="settings-select" aria-label="Clock time zone on this device" value={device.clockZone ?? ''} onChange={e => { set({ clockZone: e.target.value === 'device' ? 'device' : undefined }); announce(e.target.value ? "The clock shows this device's time zone" : "The clock shows the family's time zone") }}>
-          <option value="">🏠 The family's ({tzCity(settings.timezone ?? 'UTC')})</option>
-          <option value="device">This device's ({tzCity(Intl.DateTimeFormat().resolvedOptions().timeZone)})</option>
+        <span>{t('Clock time zone')}</span>
+        <select className="settings-select" aria-label={t('Clock time zone on this device')} value={device.clockZone ?? ''} onChange={e => { set({ clockZone: e.target.value === 'device' ? 'device' : undefined }); announce(e.target.value ? t("The clock shows this device's time zone") : t("The clock shows the family's time zone")) }}>
+          <option value="">🏠 {t("The family's ({name})", { name: tzCity(settings.timezone ?? 'UTC') })}</option>
+          <option value="device">{t("This device's ({name})", { name: tzCity(Intl.DateTimeFormat().resolvedOptions().timeZone) })}</option>
         </select>
       </div>
       <div className="toggle-row">
-        <label id="lowstim-label">Low-stimulation mode</label>
+        <label id="lowstim-label">{t('Low-stimulation mode')}</label>
         <button className={`switch ${device.lowStim ? 'on' : ''}`} role="switch" aria-checked={!!device.lowStim} aria-labelledby="lowstim-label" aria-describedby="lowstim-sub"
-          onClick={() => { set({ lowStim: !device.lowStim || undefined }); announce(device.lowStim ? 'Low-stimulation mode off' : 'Low-stimulation mode on') }}><span className="knob" /></button>
+          onClick={() => { set({ lowStim: !device.lowStim || undefined }); announce(device.lowStim ? t('Low-stimulation mode off') : t('Low-stimulation mode on')) }}><span className="knob" /></button>
       </div>
-      <div className="settings-row-sub" id="lowstim-sub" style={{ marginTop: -8 }}>Flat, calm colors, no motion and more room. Colors become a thin bar beside each event.</div>
+      <div className="settings-row-sub" id="lowstim-sub" style={{ marginTop: -8 }}>{t('Flat, calm colors, no motion and more room. Colors become a thin bar beside each event.')}</div>
     </div>
   )
 }
@@ -1439,36 +1488,38 @@ function DevicePinRows() {
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="device-pref-row" id="pin-checklist">
-        <span>Pin a checklist</span>
-        <select className="settings-select" aria-label="Pin a checklist" value={device.pinList ?? ''} onChange={e => {
+        <span>{t('Pin a checklist')}</span>
+        <select className="settings-select" aria-label={t('Pin a checklist')} value={device.pinList ?? ''} onChange={e => {
           const id = e.target.value
           set(id ? { pinList: id } : { pinList: undefined, pinFrom: undefined, pinTo: undefined })
-          announce(id ? `Pinned: ${choices.find(l => l.id === id)?.name}` : 'No checklist pinned')
+          announce(id ? t('Pinned: {name}', { name: choices.find(l => l.id === id)?.name ?? '' }) : t('No checklist pinned'))
         }}>
-          <option value="">Off</option>
-          {device.pinList && !pinned && lists.length > 0 && <option value={device.pinList}>A list that's gone</option>}
+          <option value="">{t('Off')}</option>
+          {device.pinList && !pinned && lists.length > 0 && <option value={device.pinList}>{t("A list that's gone")}</option>}
           {choices.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
         </select>
       </div>
       {device.pinList && (
         <div className="device-pref-row">
-          <span>When</span>
-          <select className="settings-select" aria-label="When the checklist is pinned" value={timed ? 'window' : ''}
+          <span>{t('When')}</span>
+          <select className="settings-select" aria-label={t('When the checklist is pinned')} value={timed ? 'window' : ''}
             onChange={e => set(e.target.value ? { pinFrom: '19:00', pinTo: '20:30' } : { pinFrom: undefined, pinTo: undefined })}>
-            <option value="">All day</option>
-            <option value="window">Between set times</option>
+            <option value="">{t('All day')}</option>
+            <option value="window">{t('Between set times')}</option>
           </select>
         </div>
       )}
       {timed && (
         <div className="row-2">
-          <div className="field" style={{ margin: 0 }}><label htmlFor="pin-from">From</label><input id="pin-from" type="time" value={device.pinFrom} onChange={e => e.target.value && set({ pinFrom: e.target.value })} /></div>
-          <div className="field" style={{ margin: 0 }}><label htmlFor="pin-to">To</label><input id="pin-to" type="time" value={device.pinTo} onChange={e => e.target.value && set({ pinTo: e.target.value })} /></div>
+          <div className="field" style={{ margin: 0 }}><label htmlFor="pin-from">{t('From')}</label><input id="pin-from" type="time" value={device.pinFrom} onChange={e => e.target.value && set({ pinFrom: e.target.value })} /></div>
+          <div className="field" style={{ margin: 0 }}><label htmlFor="pin-to">{t('To')}</label><input id="pin-to" type="time" value={device.pinTo} onChange={e => e.target.value && set({ pinTo: e.target.value })} /></div>
         </div>
       )}
       <div className="settings-row-sub">{device.pinList
-        ? `This screen opens straight into Get stuff done for ${pinned?.name ?? 'the list'}${timed ? `, ${formatTime(device.pinFrom!)}–${formatTime(device.pinTo!)}` : ''}. Board leaves it; it comes back when the screen goes idle.`
-        : 'Open a routine like Bedtime on this screen by itself, full screen.'}</div>
+        ? timed
+          ? t('This screen opens straight into Get stuff done for {list}, {from}–{to}. Board leaves it; it comes back when the screen goes idle.', { list: pinned?.name ?? t('the list'), from: formatTime(device.pinFrom!), to: formatTime(device.pinTo!) })
+          : t('This screen opens straight into Get stuff done for {list}. Board leaves it; it comes back when the screen goes idle.', { list: pinned?.name ?? t('the list') })
+        : t('Open a routine like Bedtime on this screen by itself, full screen.')}</div>
     </div>
   )
 }
@@ -1486,44 +1537,44 @@ function ScreenFocusRows() {
     <>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
         <div className="device-pref-row">
-          <span>Show only</span>
-          {focusLocked ? <span className="settings-row-sub" style={{ margin: 0 }}>{focus ? `${focus.avatar} ${focus.name}` : 'Everyone'} · Set by a parent</span> : (
-          <select className="settings-select" aria-label="Show only" value={focus?.id ?? ''}
-            onChange={e => { set({ focusMemberId: e.target.value || undefined }); announce(e.target.value ? `Showing only ${members.find(m => m.id === e.target.value)?.name}` : 'Showing everyone') }}>
-            <option value="">Everyone</option>
+          <span>{t('Show only')}</span>
+          {focusLocked ? <span className="settings-row-sub" style={{ margin: 0 }}>{focus ? `${focus.avatar} ${focus.name}` : t('Everyone')} · {t('Set by a parent')}</span> : (
+          <select className="settings-select" aria-label={t('Show only')} value={focus?.id ?? ''}
+            onChange={e => { set({ focusMemberId: e.target.value || undefined }); announce(e.target.value ? t('Showing only {name}', { name: members.find(m => m.id === e.target.value)?.name ?? '' }) : t('Showing everyone')) }}>
+            <option value="">{t('Everyone')}</option>
             {members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
           </select>
           )}
         </div>
         {focus && (
           <div className="toggle-row">
-            <label id="focus-shared-label">Also show things for everyone</label>
+            <label id="focus-shared-label">{t('Also show things for everyone')}</label>
             <button className={`switch ${!device.focusHideShared ? 'on' : ''}`} role="switch" aria-checked={!device.focusHideShared} aria-labelledby="focus-shared-label"
               onClick={() => set({ focusHideShared: !device.focusHideShared || undefined })}><span className="knob" /></button>
           </div>
         )}
-        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This screen is shared by the whole family. A parent can change who it belongs to under Settings → Access.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
+        <div className="settings-row-sub">{focus ? (device.focusHideShared ? t("Only {name}'s events, chores and lists show here.", { name: focus.name }) : t("Only {name}'s events, chores and lists show here, plus ones with nobody assigned.", { name: focus.name })) : focusLocked ? t('This screen is shared by the whole family. A parent can change who it belongs to under Settings → Access.') : t('Pin this screen to one person — handy for a display in a bedroom.')}</div>
         <div className="device-pref-row">
-          <span>Lock view</span>
+          <span>{t('Lock view')}</span>
           {/* Home's views, then Calendar's. Locked to a calendar view, Calendar takes Home's place in the nav. */}
-          <select className="settings-select" aria-label="Lock view" value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
-            <option value="">Off</option>
-            <optgroup label="Home">
-              <option value="board">Board</option>
-              {settings.features.newscast !== false && <option value="newscast">Newscast</option>}
+          <select className="settings-select" aria-label={t('Lock view')} value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
+            <option value="">{t('Off')}</option>
+            <optgroup label={t('Home')}>
+              <option value="board">{t('Board')}</option>
+              {settings.features.newscast !== false && <option value="newscast">{t('Newscast')}</option>}
             </optgroup>
-            <optgroup label="Calendar">
+            <optgroup label={t('Calendar')}>
               {CALENDAR_VIEWS.map(v => <option key={v} value={v}>{viewLabel(v, isPhone)}</option>)}
             </optgroup>
           </select>
         </div>
         <DeviceBoardLayoutRows />
         {!device.boardLayout && <div className="device-pref-row">
-          <span>Board chores &amp; to-dos</span>
-          <select className="settings-select" aria-label="Board chores and to-dos" value={device.boardLists ?? ''} onChange={e => set({ boardLists: (e.target.value || undefined) as DeviceAppearance['boardLists'] })}>
-            <option value="">Auto</option>
-            <option value="counts">Counts</option>
-            <option value="full">Full lists</option>
+          <span>{t('Board chores & to-dos')}</span>
+          <select className="settings-select" aria-label={t('Board chores and to-dos')} value={device.boardLists ?? ''} onChange={e => set({ boardLists: (e.target.value || undefined) as DeviceAppearance['boardLists'] })}>
+            <option value="">{t('Auto')}</option>
+            <option value="counts">{t('Counts')}</option>
+            <option value="full">{t('Full lists')}</option>
           </select>
         </div>}
       </div>
@@ -1545,26 +1596,26 @@ function WallBehaviorRows({ display }: { display: boolean }) {
       {!display && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <div className="toggle-row">
-            <label id="wall-screen-label">Use as a wall screen</label>
+            <label id="wall-screen-label">{t('Use as a wall screen')}</label>
             <button className={`switch ${device.wallScreen ? 'on' : ''}`} role="switch" aria-checked={!!device.wallScreen} aria-labelledby="wall-screen-label" aria-describedby="wall-screen-sub"
-              onClick={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? 'Wall screen off' : 'Wall screen on') }}><span className="knob" /></button>
+              onClick={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? t('Wall screen off') : t('Wall screen on')) }}><span className="knob" /></button>
           </div>
-          <div className="settings-row-sub" id="wall-screen-sub">Acts like a wall screen: stays awake, goes back to Home when idle, and rests on the Night screen at night. Your access doesn't change.</div>
+          <div className="settings-row-sub" id="wall-screen-sub">{t("Acts like a wall screen: stays awake, goes back to Home when idle, and rests on the Night screen at night. Your access doesn't change.")}</div>
         </div>
       )}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
-          <label id="keep-awake-label">Keep the screen on</label>
+          <label id="keep-awake-label">{t('Keep the screen on')}</label>
           <button className={`switch ${keepOn ? 'on' : ''}`} role="switch" aria-checked={keepOn} aria-labelledby="keep-awake-label" onClick={() => set({ keepAwake: !keepOn })}><span className="knob" /></button>
         </div>
-        <div className="settings-row-sub">Stops this screen from dimming and locking while Kinwall is open. On by default for wall screens and kids' devices, off on parents' phones and computers. Shopping mode and an open recipe keep the screen on either way.</div>
+        <div className="settings-row-sub">{t("Stops this screen from dimming and locking while Kinwall is open. On by default for wall screens and kids' devices, off on parents' phones and computers. Shopping mode and an open recipe keep the screen on either way.")}</div>
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
-          <label id="idle-reset-label">Back to Home when idle</label>
+          <label id="idle-reset-label">{t('Back to Home when idle')}</label>
           <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
         </div>
-        <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.</div>
+        <div className="settings-row-sub">{t("After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.")}</div>
       </div>
     </>
   )
@@ -1572,8 +1623,13 @@ function WallBehaviorRows({ display }: { display: boolean }) {
 
 function TimeCuesSection() {
   const d = useDeviceAppearance()
-  const summary = timeCuesSummary({ nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], repeat: d.warningRepeat, sound: !!d.warningSound })
-  return <SummarySection title="Time cues" summary={summary} keywords={['Now / Next', 'Transition warnings', 'Sound']}><TimeCueRows /></SummarySection>
+  const warnings = d.warnings ?? []
+  // timeCuesSummary's times and repeat, in the current language
+  const summary = timeCuesSummary({ nowNext: d.nowNext ?? true, warnings, repeat: d.warningRepeat, sound: !!d.warningSound }).map(c =>
+    c.icon === '🔔' ? { ...c, label: t('At {list} min', { list: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format([...warnings].sort((a, b) => b - a).map(String)) }) }
+    : c.icon === '🔁' && d.warningRepeat ? { ...c, label: t('Every {every} min in the last {within}', { every: d.warningRepeat.every, within: d.warningRepeat.within }) }
+    : c)
+  return <SummarySection id="time-cues" title={t('Time cues')} summary={summary} keywords={[t('Now / Next'), t('Transition warnings'), t('Sound')]}><TimeCueRows /></SummarySection>
 }
 
 /** Now / Next and transition warnings on this device. */
@@ -1587,25 +1643,25 @@ function TimeCueRows() {
     <>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
-          <label id="nownext-label">Now / Next</label>
+          <label id="nownext-label">{t('Now / Next')}</label>
           <button className={`switch ${nowNext ? 'on' : ''}`} role="switch" aria-checked={nowNext} aria-labelledby="nownext-label" onClick={() => set({ nowNext: !nowNext })}><span className="knob" /></button>
         </div>
-        <div className="settings-row-sub">What's on now and what's next today, with a countdown, above the calendar.</div>
+        <div className="settings-row-sub">{t("What's on now and what's next today, with a countdown, above the calendar.")}</div>
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Transition warnings</div>
-        <div className="settings-row-sub">A calm banner before the next event, or before it's time to leave. Pick one or more times, add your own, or repeat them as the event gets close. Held at night, unless the family turns that off under Night.</div>
-        <MinutesPicker idBase="warn" label="Transition warnings" presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null} repeatDefault={{ every: 1, within: 5 }}
+        <div className="settings-row-label" aria-hidden="true">{t('Transition warnings')}</div>
+        <div className="settings-row-sub">{t("A calm banner before the next event, or before it's time to leave. Pick one or more times, add your own, or repeat them as the event gets close. Held at night, unless the family turns that off under Night.")}</div>
+        <MinutesPicker idBase="warn" label={t('Transition warnings')} presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null} repeatDefault={{ every: 1, within: 5 }}
           onOff={() => set({ warnings: undefined, warningRepeat: undefined })}
           onChange={(minutes, repeat) => set({ warnings: minutes.length ? minutes : undefined, warningRepeat: repeat ?? undefined })} />
         {anyWarnings && (
           <div className="toggle-row">
-            <label id="warning-sound-label">Sound</label>
+            <label id="warning-sound-label">{t('Sound')}</label>
             <button className={`switch ${device.warningSound ? 'on' : ''}`} role="switch" aria-checked={!!device.warningSound} aria-labelledby="warning-sound-label"
               onClick={() => set({ warningSound: !device.warningSound || undefined })}><span className="knob" /></button>
           </div>
         )}
-        {anyWarnings && <div className="settings-row-sub">A soft chime with each warning.</div>}
+        {anyWarnings && <div className="settings-row-sub">{t('A soft chime with each warning.')}</div>}
       </div>
     </>
   )
@@ -1632,49 +1688,49 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
   const add = () => {
     if (!valid || full) return
     onChange(sorted([...minutes, n]), repeat)
-    announce(`${n} minutes added`)
+    announce(tn(n, '{n} minute added', '{n} minutes added'))
     setDraft(''); setAdding(false)
   }
   const none = minutes.length === 0 && !repeat
   return (
     <>
       <div className="chip-row" role="group" aria-label={label}>
-        {onOff && <button className={`chip ${none ? 'active' : ''}`} aria-pressed={none} onClick={onOff}>Off</button>}
+        {onOff && <button className={`chip ${none ? 'active' : ''}`} aria-pressed={none} onClick={onOff}>{t('Off')}</button>}
         {presets.map(m => covered(m, repeat)
-          ? <button key={m} className="chip" disabled aria-label={`${m} min, covered by the repeat`}>{m} min</button>
-          : <button key={m} className={`chip ${minutes.includes(m) ? 'active' : ''}`} aria-pressed={minutes.includes(m)} disabled={full && !minutes.includes(m)} onClick={() => toggle(m)}>{m} min</button>
+          ? <button key={m} className="chip" disabled aria-label={t('{n} min, covered by the repeat', { n: m })}>{t('{n} min', { n: m })}</button>
+          : <button key={m} className={`chip ${minutes.includes(m) ? 'active' : ''}`} aria-pressed={minutes.includes(m)} disabled={full && !minutes.includes(m)} onClick={() => toggle(m)}>{t('{n} min', { n: m })}</button>
         )}
         {custom.filter(m => !covered(m, repeat)).map(m => (
-          <button key={m} className="chip active" aria-label={`Remove ${m} min`} onClick={() => toggle(m)}>{m} min ✕</button>
+          <button key={m} className="chip active" aria-label={t('Remove {n} min', { n: m })} onClick={() => toggle(m)}>{t('{n} min', { n: m })} ✕</button>
         ))}
-        {!adding && <button className="chip" disabled={full} onClick={() => setAdding(true)}>Add…</button>}
+        {!adding && <button className="chip" disabled={full} onClick={() => setAdding(true)}>{t('Add…')}</button>}
       </div>
       {adding && (
         <div className="minutes-row">
-          <input id={`${idBase}-add`} type="number" inputMode="numeric" min={1} max={120} step={1} value={draft} autoFocus aria-label="Minutes before (1 to 120)"
+          <input id={`${idBase}-add`} type="number" inputMode="numeric" min={1} max={120} step={1} value={draft} autoFocus aria-label={t('Minutes before (1 to 120)')}
             onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); if (e.key === 'Escape') setAdding(false) }} />
-          <span>min before</span>
-          <button className="btn btn-primary" disabled={!valid} onClick={add}>Add</button>
-          <button className="btn btn-secondary" onClick={() => { setDraft(''); setAdding(false) }}>Cancel</button>
+          <span>{t('min before')}</span>
+          <button className="btn btn-primary" disabled={!valid} onClick={add}>{t('Add')}</button>
+          <button className="btn btn-secondary" onClick={() => { setDraft(''); setAdding(false) }}>{t('Cancel')}</button>
         </div>
       )}
-      {full && <div className="settings-row-sub">That's {MAX_WARNING_TIMES} times, the most there can be. Tap one to remove it.</div>}
+      {full && <div className="settings-row-sub">{t("That's {n} times, the most there can be. Tap one to remove it.", { n: MAX_WARNING_TIMES })}</div>}
       <div className="toggle-row">
-        <label id={`${idBase}-repeat-label`}>Repeat as it gets close</label>
+        <label id={`${idBase}-repeat-label`}>{t('Repeat as it gets close')}</label>
         <button className={`switch ${repeat ? 'on' : ''}`} role="switch" aria-checked={!!repeat} aria-labelledby={`${idBase}-repeat-label`}
           onClick={() => onChange(minutes, repeat ? null : repeatDefault)}><span className="knob" /></button>
       </div>
-      {repeat && presets.some(m => covered(m, repeat)) && <div className="settings-row-sub">Grayed-out times are already covered by the repeat.</div>}
+      {repeat && presets.some(m => covered(m, repeat)) && <div className="settings-row-sub">{t('Grayed-out times are already covered by the repeat.')}</div>}
       {repeat && (
         <div className="minutes-row">
-          <span>Every</span>
-          <select className="settings-select" aria-label="Repeat every" value={repeat.every}
+          <span>{t('Every')}</span>
+          <select className="settings-select" aria-label={t('Repeat every')} value={repeat.every}
             onChange={e => { const every = Number(e.target.value); onChange(minutes, { every, within: Math.max(every, repeat.within) }) }}>
-            {REPEAT_EVERY.filter(v => v >= minEvery).map(v => <option key={v} value={v}>{v} min</option>)}
+            {REPEAT_EVERY.filter(v => v >= minEvery).map(v => <option key={v} value={v}>{t('{n} min', { n: v })}</option>)}
           </select>
-          <span>during the last</span>
-          <select className="settings-select" aria-label="During the last" value={repeat.within} onChange={e => onChange(minutes, { ...repeat, within: Number(e.target.value) })}>
-            {REPEAT_WITHIN.filter(v => v >= repeat.every).map(v => <option key={v} value={v}>{v} min</option>)}
+          <span>{t('during the last')}</span>
+          <select className="settings-select" aria-label={t('During the last')} value={repeat.within} onChange={e => onChange(minutes, { ...repeat, within: Number(e.target.value) })}>
+            {REPEAT_WITHIN.filter(v => v >= repeat.every).map(v => <option key={v} value={v}>{t('{n} min', { n: v })}</option>)}
           </select>
         </div>
       )}
@@ -1685,21 +1741,27 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
 /** The Night screen's pictures: the plain clock, or a dim slideshow cycling through the picked
  * sources (Screensaver.tsx). The family picks for every wall screen; a screen can pick its own. */
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
-  { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'folder', label: 'Photo folder' }, { key: 'google', label: 'Google Photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
+  { key: 'drawings', label: msg('Drawings') }, { key: 'photos', label: msg('Family photos') }, { key: 'folder', label: msg('Photo folder') }, { key: 'google', label: msg('Google Photos') }, { key: 'art', label: msg('Art (The Met)') }, { key: 'nature', label: msg('Nature') },
 ]
 /** A source the family can show: family photos on, drawings with Paint on, a photo folder on this server, Google Photos connected with albums picked. */
 const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos' || settings.features.photos) && (key !== 'drawings' || settings.features.paint) && (key !== 'google' || settings.googlePhotos === 'ready') && (key !== 'folder' || !!settings.photoFolder)
 const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
-  { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
+  { key: '', label: msg('Moves around') }, { key: 'center', label: msg('Center') }, { key: 'top-left', label: msg('Top left') }, { key: 'top-right', label: msg('Top right') }, { key: 'bottom-left', label: msg('Bottom left') }, { key: 'bottom-right', label: msg('Bottom right') },
 ]
 /** Back from Google Photos' sign-in (routes/oauth.ts → #/settings?googlePhotos=…): reopen the family's Night screen. */
 const googlePhotosReturn = () => new URLSearchParams(location.hash.split('?')[1] || '').get('googlePhotos')
 
 /** Summary chips for a Night screen's choices; `family`: marked as the family's (🏠). */
 function nightChips(n: NightFields, settings: Settings, family = false): Chip[] {
-  const sources = SAVER_OPTIONS.filter(o => n.saverSources?.includes(o.key) && saverOffered(o.key, settings)).map(o => o.label)
-  const pos = n.clockPos && CLOCK_POSITIONS.find(p => p.key === n.clockPos)?.label
-  const chips = nightSummary({ sources, every: n.saverEvery ?? 5, bright: n.saverBright ?? 'low', clock: n.saverClock !== false, pos })
+  const sources = SAVER_OPTIONS.filter(o => n.saverSources?.includes(o.key) && saverOffered(o.key, settings)).map(o => tm(o.label))
+  const posLabel = n.clockPos && CLOCK_POSITIONS.find(p => p.key === n.clockPos)?.label
+  const pos = posLabel ? (lang() === 'en' ? posLabel.toLowerCase() : tm(posLabel)) : undefined
+  const every = n.saverEvery ?? 5
+  // nightSummary's clock position and timing, in the current language
+  const chips = nightSummary({ sources, every, bright: n.saverBright ?? 'low', clock: n.saverClock !== false, pos }).map(c =>
+    c.icon === '⏱️' ? { ...c, label: t('Every {n} min', { n: every }) }
+    : c.icon === '🕒' && pos ? { ...c, label: sources.length ? tc('night', 'Clock {pos}', { pos }) : t('Clock only, {pos}', { pos }) }
+    : c)
   return family ? chips.map(c => ({ ...c, family: true })) : chips
 }
 
@@ -1710,14 +1772,14 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
   const [returned] = useState(googlePhotosReturn)
   useEffect(() => {
     if (!returned) return
-    if (returned === 'canceled') toast('Google sign-in canceled — nothing was connected', true)
-    if (returned === 'failed') toast("Google Photos didn't connect. Try again.", true)
+    if (returned === 'canceled') toast(t('{who} sign-in canceled — nothing was connected', { who: 'Google' }), true)
+    if (returned === 'failed') toast(t("Google Photos didn't connect. Try again."), true)
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     q.delete('googlePhotos')
     history.replaceState(history.state, '', `#/settings${q.toString() ? `?${q}` : ''}`)
   }, [returned]) // eslint-disable-line react-hooks/exhaustive-deps
   const saveSettings = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   const look = familyNightFields(settings.nightLook)
   const saveLook = (patch: NightFields) => saveSettings({ nightLook: toNightLook({ ...look, ...patch }) })
@@ -1726,48 +1788,48 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
   const hold = settings.nightHoldReminders !== false
   const summary = nightHoursChips(on ? { hours: nightHoursLabel(settings), rest, hold, pin: settings.quietPin } : null)
   return (
-    <SummarySection id="night" title="Night" summary={summary} startOpen={!!returned}
-      keywords={['Night hours', ...(on ? ['Rest at night'] : []), ...NIGHT_SCREEN_WORDS, ...(on && rest ? ['PIN to wake at night'] : []), ...(on ? ['Hold reminders at night'] : [])]}>
+    <SummarySection id="night" title={t('Night')} summary={summary} startOpen={!!returned}
+      keywords={[t('Night hours'), ...(on ? [t('Rest at night')] : []), ...NIGHT_SCREEN_WORDS.map(w => tm(w)), ...(on && rest ? [t('PIN to wake at night')] : []), ...(on ? [t('Hold reminders at night')] : [])]}>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Night hours</div>
-        <Segmented label="Night hours" value={on ? 'on' : 'off'}
+        <div className="settings-row-label" aria-hidden="true">{t('Night hours')}</div>
+        <Segmented label={t('Night hours')} value={on ? 'on' : 'off'}
           onChange={v => { if (v === 'off') saveSettings({ quietFrom: null, quietTo: null }); else if (!on) saveSettings({ quietFrom: '22:00', quietTo: '06:00' }) }}
-          options={[{ key: 'off', label: 'Off' }, { key: 'on', label: 'On' }]} />
+          options={[{ key: 'off', label: t('Off') }, { key: 'on', label: tc('switch', 'On') }]} />
         {on && (
           <div className="row-2" style={{ marginTop: 4 }}>
-            <div className="field" style={{ margin: 0 }}><label>Night from</label><input type="time" value={settings.quietFrom ?? ''} onChange={e => e.target.value && saveSettings({ quietFrom: e.target.value, quietTo: settings.quietTo })} /></div>
-            <div className="field" style={{ margin: 0 }}><label>Night to</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && saveSettings({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
+            <div className="field" style={{ margin: 0 }}><label>{t('Night from')}</label><input type="time" value={settings.quietFrom ?? ''} onChange={e => e.target.value && saveSettings({ quietFrom: e.target.value, quietTo: settings.quietTo })} /></div>
+            <div className="field" style={{ margin: 0 }}><label>{t('Night to')}</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && saveSettings({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
           </div>
         )}
-        <div className="settings-row-sub">{on ? 'One schedule for the whole family. What it does is below.' : 'Set night hours to rest wall screens and hold reminders overnight.'}</div>
+        <div className="settings-row-sub">{on ? t('One schedule for the whole family. What it does is below.') : t('Set night hours to rest wall screens and hold reminders overnight.')}</div>
       </div>
-      <h3 className="settings-subhead">Wall screens</h3>
+      <h3 className="settings-subhead">{t('Wall screens')}</h3>
       {on && <div className="settings-row">
         <div className="toggle-row" style={{ flex: 1 }}>
           <div>
-            <label id="night-rest-label">Rest at night</label>
-            <div className="settings-row-sub" id="night-rest-sub">Wall screens show the Night screen during night hours. A tap wakes one for five minutes.</div>
+            <label id="night-rest-label">{t('Rest at night')}</label>
+            <div className="settings-row-sub" id="night-rest-sub">{t('Wall screens show the Night screen during night hours. A tap wakes one for five minutes.')}</div>
           </div>
           <button className={`switch ${rest ? 'on' : ''}`} role="switch" aria-checked={rest} aria-labelledby="night-rest-label" aria-describedby="night-rest-sub" onClick={() => saveSettings({ nightRest: !rest })}><span className="knob" /></button>
         </div>
       </div>}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <NightRows value={look} onChange={saveLook} label="What they show" />
+        <NightRows value={look} onChange={saveLook} label={t('What they show')} />
         <div className="settings-row-sub">{on && rest
-          ? 'Wall screens show this at night, and whenever the Night screen is started from the moon button or Home Assistant.'
-          : 'Wall screens show this whenever the Night screen is started from the moon button or Home Assistant.'} A screen can pick its own under Night screen on this device.</div>
+          ? t('Wall screens show this at night, and whenever the Night screen is started from the moon button or Home Assistant. A screen can pick its own under Night screen on this device.')
+          : t('Wall screens show this whenever the Night screen is started from the moon button or Home Assistant. A screen can pick its own under Night screen on this device.')}</div>
         <GooglePhotosRows />
       </div>
       {on && rest && <QuietPinRow settings={settings} onSaved={onSaved} toast={toast} />}
       {on && <>
-        <h3 className="settings-subhead">Notifications</h3>
+        <h3 className="settings-subhead">{t('Notifications')}</h3>
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <div className="toggle-row">
-            <label id="night-hold-label">Hold reminders at night</label>
+            <label id="night-hold-label">{t('Hold reminders at night')}</label>
             <button className={`switch ${hold ? 'on' : ''}`} role="switch" aria-checked={hold} aria-labelledby="night-hold-label" onClick={() => saveSettings({ nightHoldReminders: !hold })}><span className="knob" /></button>
           </div>
-          <div className="settings-row-sub">{hold ? 'Wait until morning' : 'Come through at night too'}: transition reminders, time cues, Live Activities, low battery alerts and the morning check-in reminder.</div>
-          <div className="settings-row-sub">Always come through: event reminders, medicine reminders, the evening goal check, daily summaries and messages.</div>
+          <div className="settings-row-sub">{hold ? t('Wait until morning: transition reminders, time cues, Live Activities, low battery alerts and the morning check-in reminder.') : t('Come through at night too: transition reminders, time cues, Live Activities, low battery alerts and the morning check-in reminder.')}</div>
+          <div className="settings-row-sub">{t('Always come through: event reminders, medicine reminders, the evening goal check, daily summaries and messages.')}</div>
         </div>
       </>}
     </SummarySection>
@@ -1775,14 +1837,14 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
 }
 
 // ponytail: hand-kept list of NightRows' settings, so search finds them inside the sheet; add a row there, add it here.
-const NIGHT_SCREEN_WORDS = ['What they show', 'Show clock', 'Clock position', 'Brightness', 'Change picture every', 'Google Photos']
+const NIGHT_SCREEN_WORDS = [msg('What they show'), msg('Show clock'), msg('Clock position'), msg('Brightness'), msg('Change picture every'), msg('Google Photos')]
 
 /** "10:00 PM–6:00 AM" in this device's time format. */
 const nightHoursLabel = (s: Settings) => `${formatTime(s.quietFrom!)}–${formatTime(s.quietTo!)}`
 
 /** For a device's Notifications card: that some reminders wait out the night, when they do. */
 function nightHoldNote(s: Settings): string | null {
-  return s.quietFrom && s.quietTo && s.nightHoldReminders !== false ? `At night (${nightHoursLabel(s)}) some reminders wait until morning: see Hold reminders at night, under Night.` : null
+  return s.quietFrom && s.quietTo && s.nightHoldReminders !== false ? t('At night ({hours}) some reminders wait until morning: see Hold reminders at night, under Night.', { hours: nightHoursLabel(s) }) : null
 }
 
 /** Only on this device: the family's Night screen (default) or this screen's own, and a preview. */
@@ -1793,24 +1855,24 @@ function NightScreenSection() {
   const summary = own ? nightChips(nightFieldsFor(device, settings.nightLook), settings) : nightChips(familyNightFields(settings.nightLook), settings, true)
   const clear = { nightOwn: undefined, saverSources: undefined, saverEvery: undefined, saverBright: undefined, saverClock: undefined, clockPos: undefined }
   return (
-    <SummarySection title="Night screen on this device" summary={summary} keywords={['Night screen', ...NIGHT_SCREEN_WORDS, 'Preview Night screen']}>
+    <SummarySection id="night-screen-on-this-device" title={t('Night screen on this device')} summary={summary} keywords={[t('Night screen'), ...NIGHT_SCREEN_WORDS.map(w => tm(w)), t('Preview Night screen')]}>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
-          <span>Night screen</span>
-          <select className="settings-select" aria-label="Night screen" value={own ? 'own' : ''}
+          <span>{t('Night screen')}</span>
+          <select className="settings-select" aria-label={t('Night screen')} value={own ? 'own' : ''}
             onChange={e => {
-              if (e.target.value) { setDeviceAppearance({ ...device, ...clear, nightOwn: true, ...familyNightFields(settings.nightLook) }); announce('This screen picks its own Night screen') }
-              else { setDeviceAppearance({ ...device, ...clear }); announce("This screen follows the family's Night screen") }
+              if (e.target.value) { setDeviceAppearance({ ...device, ...clear, nightOwn: true, ...familyNightFields(settings.nightLook) }); announce(t('This screen picks its own Night screen')) }
+              else { setDeviceAppearance({ ...device, ...clear }); announce(t("This screen follows the family's Night screen")) }
             }}>
-            <option value="">Family’s choice</option>
-            <option value="own">This screen’s own</option>
+            <option value="">{t('Family’s choice')}</option>
+            <option value="own">{t('This screen’s own')}</option>
           </select>
         </div>
         {own
           ? <NightRows value={nightFieldsFor(device, settings.nightLook)} onChange={patch => setDeviceAppearance({ ...device, ...patch })} here />
-          : <div className="settings-row-sub">This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night.</div>}
-        <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview Night screen</button>
-        <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This screen.</div>
+          : <div className="settings-row-sub">{t('This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night.')}</div>}
+        <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>{t('Preview Night screen')}</button>
+        <div className="settings-row-sub">{t('Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This screen.')}</div>
       </div>
     </SummarySection>
   )
@@ -1818,7 +1880,7 @@ function NightScreenSection() {
 
 /** A Night screen's choices (the family's or one screen's). `here`: this screen's own, so the
  * notes can speak about this display. */
-function NightRows({ value, onChange, here = false, label = 'Show' }: { value: NightFields; onChange: (patch: NightFields) => void; here?: boolean; label?: string }) {
+function NightRows({ value, onChange, here = false, label = t('Show') }: { value: NightFields; onChange: (patch: NightFields) => void; here?: boolean; label?: string }) {
   const { settings } = useApp()
   const sources = value.saverSources ?? []
   const toggle = (k: SaverSource) => {
@@ -1830,42 +1892,45 @@ function NightRows({ value, onChange, here = false, label = 'Show' }: { value: N
   useEffect(() => {
     if (hasDrawings) countDrawings().then(n => setNoDrawings(n === 0)).catch(() => setNoDrawings(true))
   }, [hasDrawings])
-  const services = [sources.includes('art') && 'The Metropolitan Museum of Art (public-domain works)', sources.includes('nature') && 'Lorem Picsum (free Unsplash photos)'].filter(Boolean).join(' and ')
+  const serviceList = [sources.includes('art') && t('The Metropolitan Museum of Art (public-domain works)'), sources.includes('nature') && t('Lorem Picsum (free Unsplash photos)')].filter(Boolean)
+  const services = serviceList.join(t(' and '))
   return <>
     <div className="settings-row-label" aria-hidden="true">{label}</div>
     <div className="chip-row" role="group" aria-label={label}>
-      <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => onChange({ saverSources: undefined })}>Clock only</button>
+      <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => onChange({ saverSources: undefined })}>{t('Clock only')}</button>
       {SAVER_OPTIONS.filter(o => saverOffered(o.key, settings) || (o.key === 'google' && sources.includes('google'))).map(o => ( // photos off: nature pictures stand in (saverSources.ts)
-        <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{o.label}</button>
+        <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{tm(o.label)}</button>
       ))}
     </div>
-    {sources.length > 1 && <div className="settings-row-sub">Takes turns between the ones you pick.</div>}
-    {sources.includes('drawings') && !here && <div className="settings-row-sub">Each screen shows the drawings made on it (Activities → Paint).</div>}
-    {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this screen yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
-    {services && <div className="settings-row-sub">Pictures are fetched by {here ? 'this device' : 'each screen'} directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see {here ? "this device's" : "the screen's"} address.</div>}
-    {sources.includes('folder') && <div className="settings-row-sub">Pictures from the photo folder on your Kinwall server. The name of the folder a picture is in shows as its caption.</div>}
-    {sources.includes('google') && <div className="settings-row-sub">Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.</div>}
+    {sources.length > 1 && <div className="settings-row-sub">{t('Takes turns between the ones you pick.')}</div>}
+    {sources.includes('drawings') && !here && <div className="settings-row-sub">{t('Each screen shows the drawings made on it (Activities → Paint).')}</div>}
+    {hasDrawings && noDrawings && <div className="settings-row-sub">{sources.length === 1 ? t('No drawings on this screen yet — open Activities → Paint. Until then it shows the clock.') : t('No drawings on this screen yet — open Activities → Paint.')}</div>}
+    {services && <div className="settings-row-sub">{here
+      ? (serviceList.length > 1 ? t("Pictures are fetched by this device directly from {services}; they will see this device's address.", { services }) : t("Pictures are fetched by this device directly from {services}; it will see this device's address.", { services }))
+      : (serviceList.length > 1 ? t("Pictures are fetched by each screen directly from {services}; they will see the screen's address.", { services }) : t("Pictures are fetched by each screen directly from {services}; it will see the screen's address.", { services }))}</div>}
+    {sources.includes('folder') && <div className="settings-row-sub">{t('Pictures from the photo folder on your Kinwall server. The name of the folder a picture is in shows as its caption.')}</div>}
+    {sources.includes('google') && <div className="settings-row-sub">{t('Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.')}</div>}
     {sources.length > 0 && <>
-      <div className="settings-row-label" aria-hidden="true">Change picture every</div>
-      <Segmented label="Change picture every" value={String(value.saverEvery ?? 5)} onChange={v => onChange({ saverEvery: v === '5' ? undefined : Number(v) })}
-        options={[2, 5, 10, 20].map(m => ({ key: String(m), label: `${m} min` }))} />
-      <div className="settings-row-label" aria-hidden="true">Brightness</div>
-      <Segmented label="Brightness" value={value.saverBright ?? 'low'} onChange={v => onChange({ saverBright: v === 'medium' ? 'medium' : undefined })}
-        options={[{ key: 'low', label: 'Low' }, { key: 'medium', label: 'Medium' }]} />
+      <div className="settings-row-label" aria-hidden="true">{t('Change picture every')}</div>
+      <Segmented label={t('Change picture every')} value={String(value.saverEvery ?? 5)} onChange={v => onChange({ saverEvery: v === '5' ? undefined : Number(v) })}
+        options={[2, 5, 10, 20].map(m => ({ key: String(m), label: t('{n} min', { n: m }) }))} />
+      <div className="settings-row-label" aria-hidden="true">{t('Brightness')}</div>
+      <Segmented label={t('Brightness')} value={value.saverBright ?? 'low'} onChange={v => onChange({ saverBright: v === 'medium' ? 'medium' : undefined })}
+        options={[{ key: 'low', label: t('Low') }, { key: 'medium', label: t('Medium') }]} />
       <div className="toggle-row">
-        <label id={`saver-clock-label${here ? '-here' : ''}`}>Show clock</label>
+        <label id={`saver-clock-label${here ? '-here' : ''}`}>{t('Show clock')}</label>
         <button className={`switch ${value.saverClock !== false ? 'on' : ''}`} role="switch" aria-checked={value.saverClock !== false} aria-labelledby={`saver-clock-label${here ? '-here' : ''}`}
           onClick={() => onChange({ saverClock: value.saverClock === false ? undefined : false })}><span className="knob" /></button>
       </div>
     </>}
     {(sources.length === 0 || value.saverClock !== false) && <>
       <div className="device-pref-row">
-        <span>Clock position</span>
-        <select className="settings-select" aria-label="Clock position" value={value.clockPos ?? ''} onChange={e => onChange({ clockPos: (e.target.value || undefined) as ClockPos | undefined })}>
-          {CLOCK_POSITIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+        <span>{t('Clock position')}</span>
+        <select className="settings-select" aria-label={t('Clock position')} value={value.clockPos ?? ''} onChange={e => onChange({ clockPos: (e.target.value || undefined) as ClockPos | undefined })}>
+          {CLOCK_POSITIONS.map(p => <option key={p.key} value={p.key}>{tm(p.label)}</option>)}
         </select>
       </div>
-      <div className="settings-row-sub">{value.clockPos ? 'The clock stays put. Moves around protects the screen from burn-in.' : 'Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.'}</div>
+      <div className="settings-row-sub">{value.clockPos ? t('The clock stays put. Moves around protects the screen from burn-in.') : t('Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.')}</div>
     </>}
   </>
 }
@@ -1896,7 +1961,7 @@ function GooglePhotosRows() {
 
   const run = async (f: () => Promise<GooglePhotos>) => {
     setBusy(true)
-    try { setGp(await f()) } catch (e) { toast(e instanceof Error ? e.message : "Couldn't reach Google Photos", true) } finally { setBusy(false) }
+    try { setGp(await f()) } catch (e) { toast(e instanceof Error ? e.message : t("Couldn't reach Google Photos"), true) } finally { setBusy(false) }
   }
   // The web sign-in goes to Google's page in this tab, like Connect Google for Calendar. A wall screen
   // stays on the sheet instead, with Continue to Google (it finishes only in this browser).
@@ -1907,15 +1972,15 @@ function GooglePhotosRows() {
     return g
   })
   const disconnect = async () => {
-    if (!await dialog.confirm({ title: 'Disconnect Google Photos?', body: 'Google Photos stops showing on every screen. Kinwall removes its device from your Google Photos, cancels its access to your Google account and forgets which photos to show. Your photos stay in Google Photos. Google Calendar isn\'t affected.', confirmLabel: 'Disconnect', danger: true })) return
+    if (!await dialog.confirm({ title: t('Disconnect Google Photos?'), body: t("Google Photos stops showing on every screen. Kinwall removes its device from your Google Photos, cancels its access to your Google account and forgets which photos to show. Your photos stay in Google Photos. Google Calendar isn't affected."), confirmLabel: t('Disconnect'), danger: true })) return
     run(api.disconnectGooglePhotos)
   }
   // Reconnecting an older connection, to show its account: start over (albums are picked again).
   const reconnect = async () => {
-    if (!await dialog.confirm({ title: 'Reconnect Google Photos?', body: "You'll sign in to Google again and choose albums again. Until then, screens show your other picks.", confirmLabel: 'Reconnect' })) return
+    if (!await dialog.confirm({ title: t('Reconnect Google Photos?'), body: t("You'll sign in to Google again and choose albums again. Until then, screens show your other picks."), confirmLabel: t('Reconnect') })) return
     run(async () => { await api.disconnectGooglePhotos(); const g = await api.connectGooglePhotos(); if (g.authUrl && !wall && !MOCK) location.href = g.authUrl; return g })
   }
-  const qr = (value: string) => !isPhone && <div className="google-photos-qr"><QrCode value={value} size={value.length > 200 ? 220 : 148} /><div className="settings-row-sub">Scan with your phone.</div></div>
+  const qr = (value: string) => !isPhone && <div className="google-photos-qr"><QrCode value={value} size={value.length > 200 ? 220 : 148} /><div className="settings-row-sub">{t('Scan with your phone.')}</div></div>
   // Which Google account: the name and email on a parent's phone or computer; on a wall screen (a
   // shared, public spot) only an avatar, per Google's guidelines.
   const account = gp.account
@@ -1923,55 +1988,55 @@ function GooglePhotosRows() {
     <div className="google-photos-account">
       <span className="google-photos-avatar" aria-hidden="true">{(account.name || account.email).charAt(0).toUpperCase()}</span>
       <span>
-        <span className="settings-row-label">Connected to Google Photos</span>
+        <span className="settings-row-label">{t('Connected to Google Photos')}</span>
         {!wall && <span className="settings-row-sub">{account.name ? `${account.name} · ` : ''}{account.email}</span>}
       </span>
     </div>
   )
   return (
     <div className="google-photos">
-      <div className="settings-row-label">Google Photos</div>
-      {MOCK && <div className="settings-row-sub">Demo: this only pretends to connect. Nothing goes to Google.</div>}
+      <div className="settings-row-label">{t('Google Photos')}</div>
+      {MOCK && <div className="settings-row-sub">{t('Demo: this only pretends to connect. Nothing goes to Google.')}</div>}
       {(state === 'off' || state === 'reconnect' || state === 'refused') && <>
-        {state === 'reconnect' && <div className="settings-row-sub google-photos-note" role="status">⚠️ Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.</div>}
-        {state === 'refused' && <div className="settings-row-sub google-photos-note" role="alert">⚠️ Google didn't allow Photos with this app. Google opens Photos only to its approved Photos partners; see the <a className="text-link" href={`${DOCS_URL}/self-hosting/configuration#google-photos`} target="_blank" rel="noopener">Google Photos setup docs</a>.</div>}
+        {state === 'reconnect' && <div className="settings-row-sub google-photos-note" role="status">⚠️ {t('Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.')}</div>}
+        {state === 'refused' && <div className="settings-row-sub google-photos-note" role="alert">⚠️ {t("Google didn't allow Photos with this app. Google opens Photos only to its approved Photos partners; see the")} <a className="text-link" href={`${DOCS_URL}/self-hosting/configuration#google-photos`} target="_blank" rel="noopener">{t('Google Photos setup docs')}</a>.</div>}
         {state === 'off' && <>
-          <div className="settings-row-sub">Show photos from albums you choose in Google Photos on the family's screens. When you connect, Google asks you to let Kinwall:</div>
+          <div className="settings-row-sub">{t("Show photos from albums you choose in Google Photos on the family's screens. When you connect, Google asks you to let Kinwall:")}</div>
           <ul className="google-photos-scopes settings-row-sub">
-            <li><b>See the photos in albums you choose</b> for Kinwall, to show them on the Night screen and the Board.</li>
-            <li><b>See your name and email</b>, to show here which Google account is connected.</li>
+            <li><b>{t('See the photos in albums you choose')}</b> {t('for Kinwall, to show them on the Night screen and the Board.')}</li>
+            <li><b>{t('See your name and email')}</b>{t(', to show here which Google account is connected.')}</li>
           </ul>
-          <div className="settings-row-sub">Kinwall never changes, uploads or shares your photos, and keeps only which ones to show. This is separate from Google Calendar.</div>
+          <div className="settings-row-sub">{t('Kinwall never changes, uploads or shares your photos, and keeps only which ones to show. This is separate from Google Calendar.')}</div>
         </>}
-        <button className="btn btn-primary" disabled={busy} onClick={connect}>{state === 'off' ? 'Connect Google Photos' : state === 'reconnect' ? 'Reconnect Google Photos' : 'Try again'}</button>
+        <button className="btn btn-primary" disabled={busy} onClick={connect}>{state === 'off' ? t('Connect Google Photos') : state === 'reconnect' ? t('Reconnect Google Photos') : t('Try again')}</button>
       </>}
       {state === 'signing-in' && gp.authUrl && <>
         {/* Like Connect Google for Calendar: Google's page in this tab, back to this sheet after. */}
-        <div className="settings-row-sub">Sign in with the Google account that has your photos, then choose albums for Kinwall.</div>
-        <a className="btn btn-primary" href={gp.authUrl} onClick={e => { if (!MOCK) return; e.preventDefault() }}>Continue to Google</a>
+        <div className="settings-row-sub">{t('Sign in with the Google account that has your photos, then choose albums for Kinwall.')}</div>
+        <a className="btn btn-primary" href={gp.authUrl} onClick={e => { if (!MOCK) return; e.preventDefault() }}>{t('Continue to Google')}</a>
         {/* No QR code: the sign-in finishes only in the browser that started it (routes/oauth.ts). */}
-        <div className="settings-row-sub">Sign-in finishes only on the device where you started it. To use a phone or computer instead, cancel here and connect from Settings there.</div>
-        <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
+        <div className="settings-row-sub">{t('Sign-in finishes only on the device where you started it. To use a phone or computer instead, cancel here and connect from Settings there.')}</div>
+        <div className="settings-row-sub" role="status">{t('Waiting for you to sign in…')}</div>
       </>}
       {state === 'signing-in' && gp.userCode && gp.verificationUrl && <>
-        <div className="settings-row-sub">On a phone or computer, go to <a className="text-link" href={gp.verificationUrl} target="_blank" rel="noreferrer">{gp.verificationUrl.replace(/^https:\/\/(www\.)?/, '')}</a> and enter this code:</div>
-        <div className="google-photos-code" aria-label={`Code ${gp.userCode.split('').join(' ')}`}>{gp.userCode}</div>
+        <div className="settings-row-sub">{t('On a phone or computer, go to')} <a className="text-link" href={gp.verificationUrl} target="_blank" rel="noreferrer">{gp.verificationUrl.replace(/^https:\/\/(www\.)?/, '')}</a> {t('and enter this code:')}</div>
+        <div className="google-photos-code" aria-label={t('Code {code}', { code: gp.userCode.split('').join(' ') })}>{gp.userCode}</div>
         {qr(gp.verificationUrl)}
-        <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
+        <div className="settings-row-sub" role="status">{t('Waiting for you to sign in…')}</div>
       </>}
-      {(state === 'choosing' || state === 'ready') && (who || <div className="settings-row-label">Connected to Google Photos</div>)}
-      {state === 'choosing' && <div className="settings-row-sub" role="status">Waiting for you to choose albums in Google Photos…</div>}
-      {state === 'ready' && <div className="settings-row-sub">{gp.photos !== undefined && `${gp.photos} ${gp.photos === 1 ? 'photo' : 'photos'} to show. `}{!picked && 'Pick Google Photos above to show them on wall screens. '}Google Photos leaves out screenshots, blurry shots and very personal photos, and Kinwall shows photos only, not videos.</div>}
+      {(state === 'choosing' || state === 'ready') && (who || <div className="settings-row-label">{t('Connected to Google Photos')}</div>)}
+      {state === 'choosing' && <div className="settings-row-sub" role="status">{t('Waiting for you to choose albums in Google Photos…')}</div>}
+      {state === 'ready' && <div className="settings-row-sub">{gp.photos !== undefined && `${tn(gp.photos, '{n} photo to show.', '{n} photos to show.')} `}{!picked && `${t('Pick Google Photos above to show them on wall screens.')} `}{t('Google Photos leaves out screenshots, blurry shots and very personal photos, and Kinwall shows photos only, not videos.')}</div>}
       {(state === 'choosing' || state === 'ready') && gp.settingsUri && <>
-        <a className="btn btn-secondary" href={gp.settingsUri} target="_blank" rel="noreferrer">{state === 'choosing' ? 'Choose albums in Google Photos' : 'Change albums in Google Photos'}</a>
+        <a className="btn btn-secondary" href={gp.settingsUri} target="_blank" rel="noreferrer">{state === 'choosing' ? t('Choose albums in Google Photos') : t('Change albums in Google Photos')}</a>
         {state === 'choosing' && qr(gp.settingsUri)}
       </>}
       {state === 'ready' && !account && <>
-        <div className="settings-row-sub">Connected before Kinwall showed the account. Reconnect to see which Google account it uses; you'll choose albums again.</div>
-        <button className="link-btn google-photos-disconnect" disabled={busy} onClick={reconnect}>Reconnect to show the account</button>
+        <div className="settings-row-sub">{t("Connected before Kinwall showed the account. Reconnect to see which Google account it uses; you'll choose albums again.")}</div>
+        <button className="link-btn google-photos-disconnect" disabled={busy} onClick={reconnect}>{t('Reconnect to show the account')}</button>
       </>}
-      {state === 'signing-in' && <button className="link-btn google-photos-disconnect" disabled={busy} onClick={() => run(api.disconnectGooglePhotos)}>Cancel</button>}
-      {state !== 'off' && state !== 'signing-in' && <button className="btn btn-secondary google-photos-disconnect" disabled={busy} onClick={disconnect}>Disconnect Google Photos</button>}
+      {state === 'signing-in' && <button className="link-btn google-photos-disconnect" disabled={busy} onClick={() => run(api.disconnectGooglePhotos)}>{t('Cancel')}</button>}
+      {state !== 'off' && state !== 'signing-in' && <button className="btn btn-secondary google-photos-disconnect" disabled={busy} onClick={disconnect}>{t('Disconnect Google Photos')}</button>}
     </div>
   )
 }
@@ -1981,28 +2046,28 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
   const { pref } = useNavMode()
   const { settings } = useApp()
   return (
-    <Section id="this-display" title={isPhone ? 'This phone' : 'This screen'} icon={<MonitorIcon width={16} height={16} />}>
+    <Section id="this-display" title={isPhone ? t('This phone') : t('This screen')} icon={<MonitorIcon width={16} height={16} />}>
       {keyName !== undefined && (
         <div className="settings-row">
-          <div className="settings-row-label">Paired as {keyName || 'this screen'}</div>
+          <div className="settings-row-label">{t('Paired as {name}', { name: keyName || t('this screen') })}</div>
         </div>
       )}
-      <h4 className="settings-subhead">This screen's layout</h4>
+      <h4 className="settings-subhead">{t("This screen's layout")}</h4>
       <ScreenFocusRows />
       <ScreenScaleRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Navigation position</div>
-        <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
-        <div className="settings-row-sub">{isPhone ? 'Phones use the bottom bar, or a side rail when turned sideways.' : 'Where the Calendar, Chores and Lists buttons sit.'}</div>
+        <div className="settings-row-label" aria-hidden="true">{t('Navigation position')}</div>
+        <Segmented label={t('Navigation position')} value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS.map(o => ({ ...o, label: tm(o.label) }))} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
+        <div className="settings-row-sub">{isPhone ? t('Phones use the bottom bar, or a side rail when turned sideways.') : t('Where the Calendar, Chores and Lists buttons sit.')}</div>
       </div>
-      <h4 className="settings-subhead">Wall-screen behavior</h4>
+      <h4 className="settings-subhead">{t('Wall-screen behavior')}</h4>
       <WallBehaviorRows display={keyName !== undefined} />
       <InstallRow />
       {appQuickSettingsTiles() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label">Add a Quick Settings tile</div>
-        <div className="settings-row-sub">A tile is a button in the panel you swipe down from the top of the screen, so you can use Kinwall without opening it. Android asks before adding it.</div>
-        {settings.features.lists && <button className="btn btn-secondary" onClick={() => addAppTile('groceries')}>Add to Groceries</button>}
-        <button className="btn btn-secondary" onClick={() => addAppTile('night')}>Night screen</button>
+        <div className="settings-row-label">{t('Add a Quick Settings tile')}</div>
+        <div className="settings-row-sub">{t('A tile is a button in the panel you swipe down from the top of the screen, so you can use Kinwall without opening it. Android asks before adding it.')}</div>
+        {settings.features.lists && <button className="btn btn-secondary" onClick={() => addAppTile('groceries')}>{t('Add to Groceries')}</button>}
+        <button className="btn btn-secondary" onClick={() => addAppTile('night')}>{t('Night screen')}</button>
       </div>}
     </Section>
   )
@@ -2015,14 +2080,14 @@ function ScreenScaleRow() {
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
       <div className="device-pref-row">
-        <span>Screen scale</span>
-        <select className="settings-select" aria-label="Screen scale" value={device.screenScale ?? ''}
+        <span>{t('Screen scale')}</span>
+        <select className="settings-select" aria-label={t('Screen scale')} value={device.screenScale ?? ''}
           onChange={e => setDeviceAppearance({ ...device, screenScale: Number(e.target.value) || undefined })}>
-          <option value="">Auto ({auto}%)</option>
+          <option value="">{t('Auto ({n}%)', { n: auto })}</option>
           {SCREEN_SCALES.map(p => <option key={p} value={p}>{p}%</option>)}
         </select>
       </div>
-      <div className="settings-row-sub">Makes everything on this screen smaller or bigger. Auto draws a 10" tablet a little smaller so it gets the tablet layout; other screens stay at 100%.</div>
+      <div className="settings-row-sub">{t('Makes everything on this screen smaller or bigger. Auto draws a 10" tablet a little smaller so it gets the tablet layout; other screens stay at 100%.')}</div>
     </div>
   )
 }
@@ -2031,7 +2096,7 @@ function ScreenScaleRow() {
 function TroubleshootSection({ keyName }: { keyName?: string }) {
   const dialog = useDialog()
   const unpair = async () => {
-    if (!await dialog.confirm({ title: 'Unpair this device?', body: 'You\'ll need to pair it again from a parent\'s phone or computer to use it here.', confirmLabel: 'Unpair', danger: true })) return
+    if (!await dialog.confirm({ title: t('Unpair this device?'), body: t("You'll need to pair it again from a parent's phone or computer to use it here."), confirmLabel: t('Unpair'), danger: true })) return
     await clearKey()
     location.reload()
   }
@@ -2053,23 +2118,23 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
     location.replace(url.toString())
   }
   return (
-    <Section title="Troubleshooting">
+    <Section id="troubleshooting" title={t('Troubleshooting')}>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <button className="btn btn-secondary" onClick={hardReload} disabled={refreshing}>{refreshing ? 'Reloading…' : 'Clear cache and reload'}</button>
-        <div className="settings-row-sub">Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in.</div>
+        <button className="btn btn-secondary" onClick={hardReload} disabled={refreshing}>{refreshing ? t('Reloading…') : t('Clear cache and reload')}</button>
+        <div className="settings-row-sub">{t('Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in.')}</div>
       </div>
       {inNativeApp() ? (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-danger" onClick={async () => {
-            if (!await dialog.confirm({ title: 'Sign out of the app?', body: 'You can sign in again with your passkey, or pair with a code.', confirmLabel: 'Sign out', danger: true })) return
+            if (!await dialog.confirm({ title: t('Sign out of the app?'), body: t('You can sign in again with your passkey, or pair with a code.'), confirmLabel: t('Sign out'), danger: true })) return
             clearKey() // the app ends its sign-in and shows its own sign-in screen
-          }}>Sign out</button>
-          <div className="settings-row-sub">Signs this app out of Kinwall. An app signed in with a passkey is also removed from Connected apps.</div>
+          }}>{t('Sign out')}</button>
+          <div className="settings-row-sub">{t('Signs this app out of Kinwall. An app signed in with a passkey is also removed from Connected apps.')}</div>
         </div>
       ) : keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <button className="btn btn-danger" onClick={unpair}>Unpair this device</button>
-          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. A parent can do that under Settings → Access → Paired devices.</div>
+          <button className="btn btn-danger" onClick={unpair}>{t('Unpair this device')}</button>
+          <div className="settings-row-sub">{t("Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. A parent can do that under Settings → Access → Paired devices.")}</div>
         </div>
       )}
     </Section>
@@ -2079,15 +2144,15 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
 function MembersSection({ members, onChanged, toast, canManage = true }: { members: Member[]; onChanged: () => void; toast: (m: string, persist?: boolean) => void; canManage?: boolean }) {
   const [edit, setEdit] = useState<Member | 'new' | null>(null)
   return (
-    <Section id="members" title="Members">
+    <Section id="members" title={t('Members')}>
       <div className="member-row-list">
         {members.map(m => (
-          <div key={m.id} className="member-list-item" {...pressable(() => setEdit(m))} aria-label={`Edit ${m.name}`}>
+          <div key={m.id} className="member-list-item" {...pressable(() => setEdit(m))} aria-label={t('Edit {name}', { name: m.name })}>
             <Face m={m} aria-hidden="true" />
             <div className="name">{m.name}</div>
           </div>
         ))}
-        {canManage && <button className="add-row-btn" onClick={() => setEdit('new')}><PlusIcon width={20} height={20} />Add member</button>}
+        {canManage && <button className="add-row-btn" onClick={() => setEdit('new')}><PlusIcon width={20} height={20} />{t('Add member')}</button>}
       </div>
       <ColorClashNote members={members} canManage={canManage} onChanged={onChanged} toast={toast} />
       {edit && (
@@ -2100,7 +2165,7 @@ function MembersSection({ members, onChanged, toast, canManage = true }: { membe
 
 function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { member: Member | null; canDelete: boolean; onClose: () => void; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
-  const { settings: { features: { checkIns } }, members } = useApp() // checkIns off: Temp check and the journal are hidden (their settings are kept)
+  const { settings, settings: { features: { checkIns } }, members } = useApp() // checkIns off: Temp check and the journal are hidden (their settings are kept)
   const live = member && (members.find(m => m.id === member.id) ?? member) // its picture changes on its own sheet, saved at once
   const [picking, setPicking] = useState(false)
   const [transitions, setTransitions] = useState<TransitionReminders>(member?.transitionReminders ?? { on: false, minutes: [], repeat: null, leaveBy: true })
@@ -2115,77 +2180,88 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const [grownUp, setGrownUp] = useState(!!member?.grownUp)
   const [needsApproval, setNeedsApproval] = useState(!!member?.needsApproval)
   const [tempCheck, setTempCheck] = useState<TempCheckSettings>({ ...TEMP_CHECK_OFF, ...member?.tempCheck })
+  const [language, setLanguage] = useState<Lang | null>(member?.language ?? null)
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
       // Transition reminders are a parent's setting: only sent from a device that may manage members.
-      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp, tempCheck } : {}
+      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp, tempCheck, language } : {}
       if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, ...extra })
       else await api.createMember({ name: name.trim(), color, avatar, birthday, ...extra })
       onSaved()
     } catch (e) {
       // Refused (e.g. only Alex can mark Alex as a kid): nothing was saved, so the switch shows what's true again.
       if (member && e instanceof ApiError && e.status === 403) setGrownUp(!!member.grownUp)
-      toast(e instanceof ApiError ? e.message : 'Could not save member', true)
+      toast(e instanceof ApiError ? e.message : t('Could not save member'), true)
     }
   }
   const del = async () => {
     if (!member) return
-    if (!await dialog.confirm({ title: `Remove ${member.name}?`, body: 'Their chores and tags are unassigned. Their books, memories and health visits are kept under their name.', confirmLabel: 'Remove', danger: true })) return
-    try { await api.deleteMember(member.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete member', true) }
+    if (!await dialog.confirm({ title: t('Remove {name}?', { name: member.name }), body: t('Their chores and tags are unassigned. Their books, memories and health visits are kept under their name.'), confirmLabel: t('Remove'), danger: true })) return
+    try { await api.deleteMember(member.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete member'), true) }
   }
   return (
-    <Sheet title={member ? 'Edit member' : 'Add member'} onClose={onClose}
-      actions={<>{member && canDelete && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!member} /></div>
+    <Sheet title={member ? t('Edit member') : t('Add member')} onClose={onClose}
+      actions={<>{member && canDelete && <button className="btn btn-danger" onClick={del} aria-label={t('Delete')}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>{t('Save')}</button></>}>
+      <div className="field"><label>{t('Name')}</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!member} /></div>
       <div className="field">
-        <label>Color</label>
+        <label>{t('Color')}</label>
         <div className="color-swatch-row">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
-          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label="Custom member color" />
+          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label={t('Custom member color')} />
         </div>
         <ColorClashHint color={color} memberId={member?.id ?? null} onPick={setColor} />
       </div>
       <AvatarPicker value={avatar} onChange={setAvatar} />
       {live && (
         <div className="field">
-          <label>Picture</label>
+          <label>{t('Picture')}</label>
           <div className="picture-row">
             <Face m={{ ...live, color, avatar }} className="snap-avatar" aria-hidden="true" />
-            <button type="button" className="btn btn-secondary" onClick={() => setPicking(true)}>{live.picture ? 'Change picture' : 'Add a picture'}</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setPicking(true)}>{live.picture ? t('Change picture') : t('Add a picture')}</button>
           </div>
-          <p className="field-hint">A family photo, a drawing or a new photo, instead of the emoji. The emoji stays as the backup.</p>
+          <p className="field-hint">{t('A family photo, a drawing or a new photo, instead of the emoji. The emoji stays as the backup.')}</p>
           {picking && <PictureSheet member={live} onClose={() => setPicking(false)} />}
         </div>
       )}
       {canDelete && (
         <div className="field">
           <div className="toggle-row">
-            <label id="member-grown-up">Grown-up</label>
+            <label id="member-grown-up">{t('Grown-up')}</label>
             <button className={`switch ${grownUp ? 'on' : ''}`} role="switch" aria-checked={grownUp} aria-labelledby="member-grown-up" onClick={() => setGrownUp(v => !v)}><span className="knob" /></button>
           </div>
-          <p className="field-hint">Parents and other adults: their chores never wait for an OK.</p>
+          <p className="field-hint">{t('Parents and other adults: their chores never wait for an OK.')}</p>
+        </div>
+      )}
+      {canDelete && (
+        <div className="field">
+          <label htmlFor="member-language">{t('Language')}</label>
+          <select id="member-language" className="settings-select" value={language ?? ''} onChange={e => setLanguage(LANGUAGES.find(l => l.key === e.target.value)?.key ?? null)}>
+            <option value="">{t("🏠 Use the family's ({language})", { language: languageName(pickLang({ family: settings.language })) })}</option>
+            {LANGUAGES.map(l => <option key={l.key} value={l.key} lang={l.key}>{l.label}</option>)}
+          </select>
+          <p className="field-hint">{t('Kinwall uses this language on their own devices and in the activities they play. They can change it on their own device too.')}</p>
         </div>
       )}
       <div className="field">
-        <label htmlFor="member-birthday">Birthday <span className="settings-row-sub">(optional — shows 🎂 in snapshots)</span></label>
+        <label htmlFor="member-birthday">{t('Birthday')} <span className="settings-row-sub">{t('(optional — shows 🎂 in snapshots)')}</span></label>
         <input id="member-birthday" type="date" value={bday} max={noYear ? undefined : new Date().toISOString().slice(0, 10)} onChange={e => setBday(e.target.value)} />
       </div>
       {bday && (
         <div className="toggle-row">
-          <label id="member-birthday-noyear">I don't know the year</label>
+          <label id="member-birthday-noyear">{t("I don't know the year")}</label>
           <button className={`switch ${noYear ? 'on' : ''}`} role="switch" aria-checked={noYear} aria-labelledby="member-birthday-noyear" onClick={() => setNoYear(v => !v)}><span className="knob" /></button>
         </div>
       )}
       {canDelete && !grownUp && <>
       <div className="toggle-row">
-        <label id="member-needs-approval">Their chores need a parent's OK</label>
+        <label id="member-needs-approval">{t("Their chores need a parent's OK")}</label>
         <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="member-needs-approval" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>
       </div>
-      <p className="field-hint">Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.</p>
+      <p className="field-hint">{t("Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.")}</p>
       </>}
-      {canDelete && <TransitionRemindersField name={name.trim() || 'this person'} value={transitions} onChange={setTransitions} />}
-      {canDelete && checkIns && <TempCheckField member={member} name={name.trim() || 'this person'} value={tempCheck} onChange={setTempCheck} toast={toast} />}
+      {canDelete && <TransitionRemindersField name={name.trim() || t('this person')} value={transitions} onChange={setTransitions} />}
+      {canDelete && checkIns && <TempCheckField member={member} name={name.trim() || t('this person')} value={tempCheck} onChange={setTempCheck} toast={toast} />}
       {canDelete && checkIns && member && !member.grownUp && <PrivateJournalField member={member} toast={toast} />}
       {canDelete && member && <NewscastMemberField member={member} toast={toast} />}
     </Sheet>
@@ -2200,21 +2276,21 @@ function NewscastMemberField({ member, toast }: { member: Member; toast: (m: str
   const posting = !(settings.newscastPostingPaused ?? []).includes(member.id)
   const set = async (key: 'newscastNotFeatured' | 'newscastPostingPaused', off: boolean) => {
     const rest = (settings[key] ?? []).filter(id => id !== member.id)
-    try { await api.updateSettings({ [key]: off ? [...rest, member.id] : rest }); reloadCore(); toast('Saved') }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+    try { await api.updateSettings({ [key]: off ? [...rest, member.id] : rest }); reloadCore(); toast(t('Saved')) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't change that"), true) }
   }
   return (
     <div className="field">
       <div className="toggle-row">
-        <label id="member-news-featured">Featured in Newscast</label>
+        <label id="member-news-featured">{t('Featured in Newscast')}</label>
         <button className={`switch ${featured ? 'on' : ''}`} role="switch" aria-checked={featured} aria-labelledby="member-news-featured" onClick={() => set('newscastNotFeatured', featured)}><span className="knob" /></button>
       </div>
-      <div className="settings-row-sub">{featured ? `${member.name}'s chores, rewards, photos, books, memories and birthday show in Newscast.` : `None of ${member.name}'s chores, rewards, photos, books, memories or birthday show. Their own posts still do.`}</div>
+      <div className="settings-row-sub">{featured ? t("{name}'s chores, rewards, photos, books, memories and birthday show in Newscast.", { name: member.name }) : t("None of {name}'s chores, rewards, photos, books, memories or birthday show. Their own posts still do.", { name: member.name })}</div>
       <div className="toggle-row">
-        <label id="member-news-posting">Can post in Newscast</label>
+        <label id="member-news-posting">{t('Can post in Newscast')}</label>
         <button className={`switch ${posting ? 'on' : ''}`} role="switch" aria-checked={posting} aria-labelledby="member-news-posting" onClick={() => set('newscastPostingPaused', posting)}><span className="knob" /></button>
       </div>
-      <div className="settings-row-sub">{posting ? `${member.name} can share announcements.` : `Posting is paused for ${member.name}. They still see Newscast and react; turn it back on any time.`}</div>
+      <div className="settings-row-sub">{posting ? t('{name} can share announcements.', { name: member.name }) : t('Posting is paused for {name}. They still see Newscast and react; turn it back on any time.', { name: member.name })}</div>
     </div>
   )
 }
@@ -2225,18 +2301,20 @@ function PrivateJournalField({ member, toast }: { member: Member; toast: (m: str
   const { reloadCore } = useApp()
   const [allowed, setAllowed] = useState(!!member.privateJournal?.allowed)
   const change = async (next: boolean) => {
-    try { setAllowed((await api.setJournalPrivacy(member.id, { allowed: next })).allowed); reloadCore(); toast('Saved') }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+    try { setAllowed((await api.setJournalPrivacy(member.id, { allowed: next })).allowed); reloadCore(); toast(t('Saved')) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't change that"), true) }
   }
   return (
     <div className="field">
       <div className="toggle-row">
-        <label id="member-private-journal">Let {member.name} keep a private journal</label>
+        <label id="member-private-journal">{t('Let {name} keep a private journal', { name: member.name })}</label>
         <button className={`switch ${allowed ? 'on' : ''}`} role="switch" aria-checked={allowed} aria-labelledby="member-private-journal" onClick={() => change(!allowed)}><span className="knob" /></button>
       </div>
       <div className="settings-row-sub">{allowed
-        ? `${member.name} can turn it on from their own device. Then you see their mood, not what they write.${member.privateJournal?.on ? ` It's on now.` : ''}`
-        : `Off: parent devices can read ${member.name}'s journal. Turning this off later keeps entries already private.`}</div>
+        ? member.privateJournal?.on
+          ? t("{name} can turn it on from their own device. Then you see their mood, not what they write. It's on now.", { name: member.name })
+          : t('{name} can turn it on from their own device. Then you see their mood, not what they write.', { name: member.name })
+        : t("Off: parent devices can read {name}'s journal. Turning this off later keeps entries already private.", { name: member.name })}</div>
     </div>
   )
 }
@@ -2247,12 +2325,12 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
   const [custom, setCustom] = useState<string[]>([])
   const savedOn = !!member?.tempCheck?.on // their list can change once Temp check is saved on
   useEffect(() => {
-    if (member && savedOn) api.getTempCheck(member.id).then(t => setCustom(t.custom ?? [])).catch(() => {})
+    if (member && savedOn) api.getTempCheck(member.id).then(tc => setCustom(tc.custom ?? [])).catch(() => {})
   }, [member, savedOn])
   const remove = async (f: string) => {
     if (!member) return
-    try { setCustom((await api.putTempCheck(member.id, { custom: custom.filter(x => x !== f) })).custom ?? []); toast(`Removed: ${f}`) }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't remove that", true) }
+    try { setCustom((await api.putTempCheck(member.id, { custom: custom.filter(x => x !== f) })).custom ?? []); toast(t('Removed: {name}', { name: f })) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't remove that"), true) }
   }
   const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal' | 'evening' | 'journal' | 'battery', label: string) => (
     <div className="toggle-row" key={key}>
@@ -2263,39 +2341,39 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
   return (
     <div className="field">
       <div className="toggle-row">
-        <label id="member-tc-label">Temp check</label>
+        <label id="member-tc-label">{t('Temp check')}</label>
         <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-tc-label" onClick={() => set({ on: !value.on })}><span className="knob" /></button>
       </div>
-      <div className="settings-row-sub">A few quick questions at the end of {name}'s day. Sleep and feelings are kept private and encrypted; a shared wall shows only that they answered.</div>
+      <div className="settings-row-sub">{t("A few quick questions at the end of {name}'s day. Sleep and feelings are kept private and encrypted; a shared wall shows only that they answered.", { name })}</div>
       {value.on && <>
-        {row('sleep', 'How did you sleep?')}
-        {row('feelings', 'How are you feeling?')}
-        {row('goal', 'Goal for today')}
-        {value.goal && row('showGoal', 'Show the goal on the Board')}
-        {value.goal && row('evening', 'Evening goal check')}
+        {row('sleep', t('How did you sleep?'))}
+        {row('feelings', t('How are you feeling?'))}
+        {row('goal', t('Goal for today'))}
+        {value.goal && row('showGoal', t('Show the goal on the Board'))}
+        {value.goal && row('evening', t('Evening goal check'))}
         {value.goal && value.evening && <>
           <div className="settings-row">
             <div>
-              <div className="settings-row-label" id="member-tc-time">Ask at</div>
-              <div className="settings-row-sub">"Did you finish your goal?" on {name}'s devices and their day, until midnight.</div>
+              <div className="settings-row-label" id="member-tc-time">{t('Ask at')}</div>
+              <div className="settings-row-sub">{t('"Did you finish your goal?" on {name}\'s devices and their day, until midnight.', { name })}</div>
             </div>
             <select className="settings-select" aria-labelledby="member-tc-time" value={value.eveningTime} onChange={e => set({ eveningTime: e.target.value })}>
-              {EVENING_TIMES.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+              {EVENING_TIMES.map(tm => <option key={tm} value={tm}>{formatTime(tm)}</option>)}
             </select>
           </div>
-          {row('journal', 'Keep answers in the journal')}
-          <div className="settings-row-sub">{value.journal ? `What helped, what got in the way and next time go in ${name}'s journal.` : 'Only yes, partly or not today is kept, never the notes.'}</div>
+          {row('journal', t('Keep answers in the journal'))}
+          <div className="settings-row-sub">{value.journal ? t("What helped, what got in the way and next time go in {name}'s journal.", { name }) : t('Only yes, partly or not today is kept, never the notes.')}</div>
         </>}
-        {row('battery', 'Energy battery')}
-        <div className="settings-row-sub">A rough daily guess at {name}'s energy from sleep, feelings and how full the day is, with a heads-up before heavy days on {name}'s devices, and a "How drained do you feel?" each evening that tunes it. Private to {name} and parents.</div>
+        {row('battery', t('Energy battery'))}
+        <div className="settings-row-sub">{t('A rough daily guess at {name}\'s energy from sleep, feelings and how full the day is, with a heads-up before heavy days on {name}\'s devices, and a "How drained do you feel?" each evening that tunes it. Private to {name} and parents.', { name })}</div>
         {custom.length > 0 && (
           <div className="settings-row">
             <div>
-              <div className="settings-row-label">{name}'s own feelings</div>
+              <div className="settings-row-label">{t("{name}'s own feelings", { name })}</div>
               <div className="settings-row-sub">{custom.join(', ')}</div>
             </div>
-            <select className="settings-select" aria-label={`Remove one of ${name}'s feelings`} value="" onChange={e => e.target.value && remove(e.target.value)}>
-              <option value="">Remove…</option>
+            <select className="settings-select" aria-label={t("Remove one of {name}'s feelings", { name })} value="" onChange={e => e.target.value && remove(e.target.value)}>
+              <option value="">{t('Remove…')}</option>
               {custom.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
@@ -2303,15 +2381,26 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
         {member && savedOn && (
           <div className="settings-row">
             <div>
-              <div className="settings-row-label">Insights</div>
-              <div className="settings-row-sub">Patterns in {name}'s check-ins, next to chores and busy days. Private to {name} and parents.</div>
+              <div className="settings-row-label">{t('Insights')}</div>
+              <div className="settings-row-sub">{t("Patterns in {name}'s check-ins, next to chores and busy days. Private to {name} and parents.", { name })}</div>
             </div>
-            <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>Open insights</a>
+            <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>{t('Open insights')}</a>
           </div>
         )}
       </>}
     </div>
   )
+}
+
+/** settingsSummary.ts transitionRemindersSummary for reminders that are on, in the current language. */
+function transitionLine(v: TransitionReminders): string {
+  if (!v.minutes.length && !v.repeat) return t('On, no times picked yet')
+  const list = new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format([...v.minutes].sort((a, b) => b - a).map(String))
+  const at = v.minutes.length ? t('At {list} min', { list }) : ''
+  const w = !v.repeat ? at
+    : at ? t('{at}, plus every {every} min in the last {within}', { at, every: v.repeat.every, within: v.repeat.within })
+    : t('Every {every} min in the last {within} min', { every: v.repeat.every, within: v.repeat.within })
+  return v.leaveBy ? t("{reminders} · counts down to leaving when there's travel time", { reminders: w }) : w
 }
 
 /** A member's transition reminders: pushes to their own phone or tablet before their events. */
@@ -2320,21 +2409,21 @@ function TransitionRemindersField({ name, value, onChange }: { name: string; val
   return (
     <div className="field">
       <div className="toggle-row">
-        <label id="member-transitions-label">Transition reminders</label>
+        <label id="member-transitions-label">{t('Transition reminders')}</label>
         <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-transitions-label"
           onClick={() => set(value.on ? { on: false } : { on: true, ...(value.minutes.length || value.repeat ? {} : { minutes: [30], repeat: { every: 5, within: 15 } }) })}><span className="knob" /></button>
       </div>
-      <div className="settings-row-sub">{value.on ? transitionRemindersSummary(value) : `Extra heads-ups before ${name}'s events, sent to devices that belong to ${name}. Helpful when switching activities is hard.`}</div>
+      <div className="settings-row-sub">{value.on ? transitionLine(value) : t("Extra heads-ups before {name}'s events, sent to devices that belong to {name}. Helpful when switching activities is hard.", { name })}</div>
       {value.on && (
         <>
-          <MinutesPicker idBase="member-transitions" label="Transition reminder times" presets={[60, 30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5} repeatDefault={{ every: 5, within: 15 }}
+          <MinutesPicker idBase="member-transitions" label={t('Transition reminder times')} presets={[60, 30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5} repeatDefault={{ every: 5, within: 15 }}
             onChange={(minutes, repeat) => set({ minutes, repeat })} />
           <div className="toggle-row">
-            <label id="member-transitions-leave-label">Count down to leaving</label>
+            <label id="member-transitions-leave-label">{t('Count down to leaving')}</label>
             <button className={`switch ${value.leaveBy ? 'on' : ''}`} role="switch" aria-checked={value.leaveBy} aria-labelledby="member-transitions-leave-label"
               onClick={() => set({ leaveBy: !value.leaveBy })}><span className="knob" /></button>
           </div>
-          <div className="settings-row-sub">When an event has travel time, reminders count to the time to leave ("Leave for Soccer in 5 minutes"). They go to phones and tablets set up as {name}'s under Settings → Access, with notifications on. Held at night, unless the family turns that off under Night.</div>
+          <div className="settings-row-sub">{t('When an event has travel time, reminders count to the time to leave ("Leave for Soccer in 5 minutes"). They go to phones and tablets set up as {name}\'s under Settings → Access, with notifications on. Held at night, unless the family turns that off under Night.', { name })}</div>
         </>
       )}
     </div>
@@ -2353,11 +2442,11 @@ function CategoriesSection({ categories, onChanged, toast, canManage = true }: {
     if (swapWith < 0 || swapWith >= sorted.length) return
     const ids = sorted.map(c => c.id)
     const tmp = ids[idx]; ids[idx] = ids[swapWith]; ids[swapWith] = tmp
-    try { await api.reorderCategories(ids); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder categories', true) }
+    try { await api.reorderCategories(ids); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reorder categories'), true) }
   }
 
   return (
-    <Section title="Categories">
+    <Section id="categories" title={t('Categories')}>
       <div className="member-row-list">
         {/* Changing categories is for parent devices (auth.ts); a wall screen or kid's device just sees them. */}
         {!canManage && sorted.map(c => (
@@ -2366,30 +2455,30 @@ function CategoriesSection({ categories, onChanged, toast, canManage = true }: {
             <div className="name">{c.name}{c.keywords.length > 0 && <div className="settings-row-sub">{c.keywords.join(', ')}</div>}</div>
           </div>
         ))}
-        {!canManage && sorted.length === 0 && <div className="settings-row-sub">No categories yet. Add them from a parent's device.</div>}
+        {!canManage && sorted.length === 0 && <div className="settings-row-sub">{t("No categories yet. Add them from a parent's device.")}</div>}
         {canManage && sorted.map((c, i) => (
           <div key={c.id} className="member-list-item" onClick={() => setEdit(c)}>
             <div className="member-avatar-sm" aria-hidden="true" style={{ background: c.color, color: inkFor(c.color) }}>{c.emoji ?? '🏷️'}</div>
             {/* The name is the keyboard/screen-reader button; the row stays tappable around it. */}
-            <button type="button" className="name plain-btn" onClick={e => { e.stopPropagation(); setEdit(c) }} aria-label={`Edit ${c.name}${c.keywords.length ? `, keywords ${c.keywords.join(', ')}` : ''}`}>
+            <button type="button" className="name plain-btn" onClick={e => { e.stopPropagation(); setEdit(c) }} aria-label={c.keywords.length ? t('Edit {name}, keywords {keywords}', { name: c.name, keywords: c.keywords.join(', ') }) : t('Edit {name}', { name: c.name })}>
               {c.name}
               {c.keywords.length > 0 && <div className="settings-row-sub">{c.keywords.join(', ')}</div>}
             </button>
             <div className="cal-actions" onClick={e => e.stopPropagation()}>
-              <button className="icon-btn" disabled={i === 0} onClick={() => move(c.id, -1)} aria-label={`Move ${c.name} up`}>↑</button>
-              <button className="icon-btn" disabled={i === sorted.length - 1} onClick={() => move(c.id, 1)} aria-label={`Move ${c.name} down`}>↓</button>
+              <button className="icon-btn" disabled={i === 0} onClick={() => move(c.id, -1)} aria-label={t('Move {name} up', { name: c.name })}>↑</button>
+              <button className="icon-btn" disabled={i === sorted.length - 1} onClick={() => move(c.id, 1)} aria-label={t('Move {name} down', { name: c.name })}>↓</button>
             </div>
           </div>
         ))}
-        {canManage && !showPresets && <button className="add-row-btn" onClick={() => setShowPresets(true)}><PlusIcon width={20} height={20} />Add category</button>}
+        {canManage && !showPresets && <button className="add-row-btn" onClick={() => setShowPresets(true)}><PlusIcon width={20} height={20} />{t('Add category')}</button>}
         {showPresets && (
           <div className="chip-row" style={{ marginTop: 8 }}>
             {CATEGORY_PRESETS.map(p => (
-              <button key={p.name} className="chip" onClick={() => { setShowPresets(false); setDraft({ name: p.name, emoji: p.emoji, keywords: p.keywords }) }}>
-                {p.emoji} {p.name}
+              <button key={p.name} className="chip" onClick={() => { setShowPresets(false); setDraft({ name: tm(p.name), emoji: p.emoji, keywords: p.keywords }) }}>
+                {p.emoji} {tm(p.name)}
               </button>
             ))}
-            <button className="chip" onClick={() => { setShowPresets(false); setDraft({}) }}>Custom</button>
+            <button className="chip" onClick={() => { setShowPresets(false); setDraft({}) }}>{tc('category', 'Custom')}</button>
           </div>
         )}
       </div>
@@ -2419,37 +2508,37 @@ function CategoryEditSheet({ category, initial, onClose, onSaved, toast }: {
       if (category) await api.updateCategory(category.id, { name: name.trim(), emoji, color, keywords })
       else await api.createCategory({ name: name.trim(), emoji, color, keywords })
       onSaved()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save category', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save category'), true) }
   }
   const del = async () => {
     if (!category) return
-    if (!await dialog.confirm({ title: `Delete the ${category.name} category?`, body: 'Events fall back to their automatic color.', confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteCategory(category.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete category', true) }
+    if (!await dialog.confirm({ title: t('Delete the {name} category?', { name: category.name }), body: t('Events fall back to their automatic color.'), confirmLabel: t('Delete'), danger: true })) return
+    try { await api.deleteCategory(category.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete category'), true) }
   }
 
   return (
-    <Sheet title={category ? 'Edit category' : 'Add category'} onClose={onClose}
-      actions={<>{category && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim()}>Save</button></>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!category} /></div>
+    <Sheet title={category ? t('Edit category') : t('Add category')} onClose={onClose}
+      actions={<>{category && <button className="btn btn-danger" onClick={del} aria-label={t('Delete')}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim()}>{t('Save')}</button></>}>
+      <div className="field"><label>{t('Name')}</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!category} /></div>
       <div className="field">
-        <label>Emoji</label>
+        <label>{t('Emoji')}</label>
         <div className="emoji-swatch-row">
           {CATEGORY_EMOJI.map(e => <button key={e} className={`emoji-swatch ${emoji === e ? 'active' : ''}`} aria-pressed={emoji === e} onClick={() => setEmoji(e)}>{e}</button>)}
         </div>
         <AnyEmojiField value={emoji} onChange={setEmoji} />
       </div>
       <div className="field">
-        <label>Color</label>
+        <label>{t('Color')}</label>
         <div className="color-swatch-row">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
-          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label="Custom category color" />
+          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label={t('Custom category color')} />
         </div>
-        <div className="settings-row-sub">This color overrides the member color on the calendar.</div>
+        <div className="settings-row-sub">{t('This color overrides the member color on the calendar.')}</div>
       </div>
       <div className="field">
-        <label>Keywords</label>
-        <input type="text" value={keywordsText} onChange={e => setKeywordsText(e.target.value)} placeholder="e.g. birthday, bday, b-day" />
-        <div className="settings-row-sub">Comma-separated. Matches whole words/phrases in an event's title, case-insensitive.</div>
+        <label>{t('Keywords')}</label>
+        <input type="text" value={keywordsText} onChange={e => setKeywordsText(e.target.value)} placeholder={t('e.g. birthday, bday, b-day')} />
+        <div className="settings-row-sub">{t("Comma-separated. Matches whole words/phrases in an event's title, case-insensitive.")}</div>
       </div>
     </Sheet>
   )
@@ -2461,7 +2550,7 @@ function CalendarProvidersSection({ toast }: { toast: (m: string, persist?: bool
   useEffect(load, [])
   if (!providers) return null
   return (
-    <Section title="Calendar providers" icon={<LinkIcon width={16} height={16} />}>
+    <Section id="calendar-providers" title={t('Calendar providers')} icon={<LinkIcon width={16} height={16} />}>
       <PublicUrlRow providers={providers} toast={toast} onChanged={load} />
       <ProviderForm kind="google" providers={providers} toast={toast} onChanged={load} />
       <ProviderForm kind="microsoft" providers={providers} toast={toast} onChanged={load} />
@@ -2479,19 +2568,19 @@ function DefaultCalendarRow({ calendars, onSaved, toast }: { calendars: Calendar
   const auto = calendars.find(c => c.default)
   const kindLabel = (c: CalendarEntry) => c.kind === 'local' ? 'Kinwall' : PROVIDER_LABEL[c.kind] ?? c.kind
   const options = [
-    { value: '', label: auto && !chosen ? `Automatic: ${auto.name}` : 'Automatic', detail: 'Your own Kinwall calendar first' },
+    { value: '', label: auto && !chosen ? t('Automatic: {name}', { name: auto.name }) : t('Automatic'), detail: t('Your own Kinwall calendar first') },
     ...open.map(c => ({ value: c.id, label: c.name, detail: kindLabel(c), lead: <PickSwatch color={c.color ?? '#888'} /> })),
   ]
   const save = async ([id]: string[]) => {
-    try { await api.updateSettings({ defaultCalendarId: id || null }); reloadCore(); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings({ defaultCalendarId: id || null }); reloadCore(); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
     <div className="settings-row">
       <div>
-        <div className="settings-row-label">Default calendar for new events</div>
-        <div className="settings-row-sub">Where new events and shared invites go unless you pick another.</div>
+        <div className="settings-row-label">{t('Default calendar for new events')}</div>
+        <div className="settings-row-sub">{t('Where new events and shared invites go unless you pick another.')}</div>
       </div>
-      <PickField label="Default calendar for new events" title="Default calendar" options={options} value={[chosen?.id ?? '']} onChange={save} />
+      <PickField label={t('Default calendar for new events')} title={t('Default calendar')} options={options} value={[chosen?.id ?? '']} onChange={save} />
     </div>
   )
 }
@@ -2499,17 +2588,17 @@ function DefaultCalendarRow({ calendars, onSaved, toast }: { calendars: Calendar
 /** Settings → Calendars: how long a new event lasts once its start is picked (eventEnd.ts). */
 function EventLengthRow({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const { settings, reloadCore } = useApp()
-  const label = (m: number) => m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`
+  const label = (m: number) => m < 60 ? tn(m, '{n} minute', '{n} minutes') : tn(m / 60, '{n} hour', '{n} hours')
   const save = async (defaultEventMinutes: number) => {
-    try { await api.updateSettings({ defaultEventMinutes }); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings({ defaultEventMinutes }); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
     <div className="settings-row">
       <div>
-        <div className="settings-row-label">New events last</div>
-        <div className="settings-row-sub">Picking a start fills in the end this long after it.</div>
+        <div className="settings-row-label">{t('New events last')}</div>
+        <div className="settings-row-sub">{t('Picking a start fills in the end this long after it.')}</div>
       </div>
-      <select className="settings-select" aria-label="New events last" value={settings.defaultEventMinutes ?? 60} onChange={e => void save(Number(e.target.value))}>
+      <select className="settings-select" aria-label={t('New events last')} value={settings.defaultEventMinutes ?? 60} onChange={e => void save(Number(e.target.value))}>
         {EVENT_LENGTHS.map(m => <option key={m} value={m}>{label(m)}</option>)}
       </select>
     </div>
@@ -2537,24 +2626,24 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
   useEffect(() => { if (openAccountId) { setPickerAccountId(openAccountId); onOpenedAccount() } }, [openAccountId, onOpenedAccount])
 
   const sync = async (id: string) => {
-    try { await api.syncCalendar(id); load(); toast('Synced') } catch (e) { toast(e instanceof ApiError ? e.message : 'Sync failed', true) }
+    try { await api.syncCalendar(id); load(); toast(t('Synced')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Sync failed'), true) }
   }
   const reconnectIcs = async (c: CalendarEntry) => {
     const url = await dialog.prompt({
-      title: `Reconnect ${c.name}`, label: `Feed URL for ${c.name}`, body: 'Its color, members and event tags are kept.',
-      type: 'url', placeholder: 'https://…', confirmLabel: 'Reconnect',
-      validate: v => (/^(https?|webcal):\/\/\S+$/i.test(v) ? null : 'Enter the full feed address, starting with https:// or webcal://'),
+      title: t('Reconnect {name}', { name: c.name }), label: t('Feed URL for {name}', { name: c.name }), body: t('Its color, members and event tags are kept.'),
+      type: 'url', placeholder: 'https://…', confirmLabel: t('Reconnect'),
+      validate: v => (/^(https?|webcal):\/\/\S+$/i.test(v) ? null : t('Enter the full feed address, starting with https:// or webcal://')),
     })
     if (!url) return
-    try { await api.updateCalendar(c.id, { url }); load(); toast('Reconnected, syncing…') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reconnect', true) }
+    try { await api.updateCalendar(c.id, { url }); load(); toast(t('Reconnected, syncing…')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not reconnect'), true) }
   }
   const remove = async (id: string) => {
-    if (!await dialog.confirm({ title: 'Remove this calendar and its events from Kinwall?', body: 'Nothing is deleted from the original calendar.', confirmLabel: 'Remove', danger: true })) return
-    try { await api.deleteCalendar(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove calendar', true) }
+    if (!await dialog.confirm({ title: t('Remove this calendar and its events from Kinwall?'), body: t('Nothing is deleted from the original calendar.'), confirmLabel: t('Remove'), danger: true })) return
+    try { await api.deleteCalendar(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not remove calendar'), true) }
   }
 
   return (
-    <Section title="Calendars" icon={<LinkIcon width={16} height={16} />}>
+    <Section id="calendars" title={t('Calendars')} icon={<LinkIcon width={16} height={16} />}>
       <DefaultCalendarRow calendars={calendars} onSaved={load} toast={toast} />
       <EventLengthRow toast={toast} />
       {calendars.map(c => (
@@ -2562,36 +2651,36 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
           {/* The whole row opens Edit calendar: members, category, filter, hidden events. */}
           <button type="button" className="cal-list-top cal-edit-btn" onClick={() => setEditCal(c)}>
             <span className="cal-dot" style={{ background: c.color ?? '#888' }} />
-            <span className="cal-name"><span className="sr-only">Edit </span>{c.name}</span>
+            <span className="cal-name"><span className="sr-only">{t('Edit {name}', { name: c.name })}</span><span aria-hidden="true">{c.name}</span></span>
             <span className="cal-kind-badge">{c.kind}</span>
             <ChevronRight className="cal-edit-chevron" width={18} height={18} aria-hidden="true" />
             <span className={`cal-sub ${c.lastError ? 'error' : ''}`}>
-              {c.lastError ? c.lastError : c.kind === 'local' ? 'Local calendar' : c.lastSyncedAt ? `Synced ${new Date(c.lastSyncedAt).toLocaleString()}` : 'Never synced'}
+              {c.lastError ? c.lastError : c.kind === 'local' ? t('Local calendar') : c.lastSyncedAt ? t('Synced {time}', { time: new Date(c.lastSyncedAt).toLocaleString(intlLocale()) }) : t('Never synced')}
             </span>
           </button>
           {c.needsReconnect && c.kind !== 'ics' && (
-            <div className="settings-row-sub">Reconnect via {PROVIDER_LABEL[c.kind]}: connect the account below and add this calendar again. Its settings are kept.</div>
+            <div className="settings-row-sub">{t('Reconnect via {provider}: connect the account below and add this calendar again. Its settings are kept.', { provider: PROVIDER_LABEL[c.kind] })}</div>
           )}
           {revoked(c) && [signInHint(accounts.find(a => a.id === c.accountId)?.name), familyLinkHint(c, members)].filter(Boolean).map(h => (
             <div key={h} className="settings-row-sub cal-hint">{h}</div>
           ))}
           <div className="cal-actions">
-            {revoked(c) && <button className="btn btn-primary cal-reconnect" disabled={!oauth[c.kind]} onClick={() => connectCalendar(c.kind, m => toast(m, true))}>Reconnect</button>}
-            {c.needsReconnect && c.kind === 'ics' && <button className="link-btn" onClick={() => reconnectIcs(c)}>Reconnect</button>}
-            {c.kind !== 'local' && !c.needsReconnect && <button className="link-btn" onClick={() => sync(c.id)}>Sync now</button>}
-            <button className="link-btn cal-remove" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>Remove</button>
+            {revoked(c) && <button className="btn btn-primary cal-reconnect" disabled={!oauth[c.kind]} onClick={() => connectCalendar(c.kind, m => toast(m, true))}>{t('Reconnect')}</button>}
+            {c.needsReconnect && c.kind === 'ics' && <button className="link-btn" onClick={() => reconnectIcs(c)}>{t('Reconnect')}</button>}
+            {c.kind !== 'local' && !c.needsReconnect && <button className="link-btn" onClick={() => sync(c.id)}>{t('Sync now')}</button>}
+            <button className="link-btn cal-remove" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)} aria-label={t('Remove {name}', { name: c.name })}>{t('Remove')}</button>
           </div>
         </div>
       ))}
       <div className="connect-buttons" style={{ marginTop: 14 }}>
-        <button className="connect-btn" onClick={() => setLocalSheet(true)}>+ Local calendar</button>
-        <button className="connect-btn" onClick={() => setIcsSheet(true)}>+ ICS URL</button>
+        <button className="connect-btn" onClick={() => setLocalSheet(true)}>+ {t('Local calendar')}</button>
+        <button className="connect-btn" onClick={() => setIcsSheet(true)}>+ {t('ICS URL')}</button>
         <button className="connect-btn" onClick={() => setCaldavSheet(true)}>+ CalDAV</button>
-        <button className="connect-btn" disabled={!oauth.google} onClick={() => connectCalendar('google', m => toast(m, true))}>Connect Google{!oauth.google && <span className="connect-btn-note">Needs setup</span>}</button>
-        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => connectCalendar('microsoft', m => toast(m, true))}>Connect Outlook{!oauth.microsoft && <span className="connect-btn-note">Needs setup</span>}</button>
+        <button className="connect-btn" disabled={!oauth.google} onClick={() => connectCalendar('google', m => toast(m, true))}>{t('Connect {provider}', { provider: 'Google' })}{!oauth.google && <span className="connect-btn-note">{t('Needs setup')}</span>}</button>
+        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => connectCalendar('microsoft', m => toast(m, true))}>{t('Connect {provider}', { provider: 'Outlook' })}{!oauth.microsoft && <span className="connect-btn-note">{t('Needs setup')}</span>}</button>
       </div>
       {(!oauth.google || !oauth.microsoft) && (
-        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google and Outlook need a one-time app setup first, about 10 minutes, under Calendar providers below. Easier: + ICS URL subscribes to a link, and + CalDAV connects iCloud.</p>
+        <p className="settings-row-sub" style={{ marginTop: 8 }}>{t('Google and Outlook need a one-time app setup first, about 10 minutes, under Calendar providers below. Easier: + ICS URL subscribes to a link, and + CalDAV connects iCloud.')}</p>
       )}
 
       {localSheet && (
@@ -2605,7 +2694,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
           onAccountCreated={id => { setCaldavSheet(false); setPickerAccountId(id); load() }} toast={toast} />
       )}
       {pickerAccountId && (
-        <RemoteCalendarPicker accountId={pickerAccountId} accountKind={accounts.find(a => a.id === pickerAccountId)?.kind ?? 'caldav'} accountName={accounts.find(a => a.id === pickerAccountId)?.name ?? 'Account'}
+        <RemoteCalendarPicker accountId={pickerAccountId} accountKind={accounts.find(a => a.id === pickerAccountId)?.kind ?? 'caldav'} accountName={accounts.find(a => a.id === pickerAccountId)?.name ?? t('Account')}
           calendars={calendars}
           onClose={() => setPickerAccountId(null)} onAdded={load} toast={toast} />
       )}
@@ -2641,61 +2730,61 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
     try {
       await api.updateCalendar(calendar.id, { name: name.trim(), color, memberIds, categoryId, enabled, displayEdit })
       onSaved()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save calendar', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save calendar'), true) }
   }
 
   return (
-    <Sheet title="Edit calendar" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save}>Save</button>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} /></div>
+    <Sheet title={t('Edit calendar')} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save}>{t('Save')}</button>}>
+      <div className="field"><label>{t('Name')}</label><input type="text" value={name} onChange={e => setName(e.target.value)} /></div>
       <div className="field">
-        <label>Color</label>
+        <label>{t('Color')}</label>
         <div className="color-swatch-row">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
-          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label="Custom calendar color" />
+          <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label={t('Custom calendar color')} />
         </div>
       </div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} />
       <div className="field">
-        <label>Default category</label>
+        <label>{t('Default category')}</label>
         <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)}>
-          <option value="">None</option>
+          <option value="">{t('None')}</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>)}
         </select>
-        <div className="settings-row-sub">Applied to events here with no keyword match or their own category.</div>
+        <div className="settings-row-sub">{t('Applied to events here with no keyword match or their own category.')}</div>
       </div>
       <div className="field">
-        <label htmlFor="calendar-filter">Filter</label>
-        <button id="calendar-filter" type="button" className="sheet-link" aria-haspopup="dialog" aria-label={`Filter: ${filterSummary(filter)}`} onClick={() => setFilterOpen(true)}>
-          <span>{filterSummary(filter)}<small>Which events the family sees</small></span><ChevronRight />
+        <label htmlFor="calendar-filter">{t('Filter')}</label>
+        <button id="calendar-filter" type="button" className="sheet-link" aria-haspopup="dialog" aria-label={t('Filter: {summary}', { summary: filterSummary(filter) })} onClick={() => setFilterOpen(true)}>
+          <span>{filterSummary(filter)}<small>{t('Which events the family sees')}</small></span><ChevronRight />
         </button>
       </div>
       {filterOpen && <CalendarFilterSheet calendar={{ ...calendar, filter }} onClose={() => setFilterOpen(false)} onSaved={f => { setFilter(f); setFilterOpen(false) }} />}
       <div className="field">
-        <label htmlFor="calendar-hidden">Hidden events</label>
+        <label htmlFor="calendar-hidden">{t('Hidden events')}</label>
         <button id="calendar-hidden" type="button" className="sheet-link" aria-haspopup="dialog" onClick={() => setHiddenOpen(true)}
-          aria-label={`Hidden events: ${hidden === null ? 'loading' : hidden.length || 'none'}`}>
-          <span>{hidden === null ? '…' : hidden.length ? `${hidden.length} hidden` : 'None'}<small>Hidden one by one, to show again</small></span><ChevronRight />
+          aria-label={t('Hidden events: {value}', { value: hidden === null ? t('loading') : hidden.length || tc('hidden', 'none') })}>
+          <span>{hidden === null ? '…' : hidden.length ? t('{n} hidden', { n: hidden.length }) : t('None')}<small>{t('Hidden one by one, to show again')}</small></span><ChevronRight />
         </button>
       </div>
       {hiddenOpen && hidden && <HiddenEventsSheet calendar={calendar} hidden={hidden} onChanged={setHidden} onClose={() => setHiddenOpen(false)} />}
       <div className="toggle-row">
-        <label id="calendar-enabled-label">Enabled</label>
+        <label id="calendar-enabled-label">{t('Enabled')}</label>
         <button className={`switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} aria-labelledby="calendar-enabled-label" onClick={() => setEnabled(v => !v)}><span className="knob" /></button>
       </div>
       {/* Read-only feeds (ICS links, read-only shared calendars): nobody edits their events, so no switch. */}
-      {!calendar.writable ? <p className="settings-row-sub">Read-only: this calendar's events come from {calendar.kind === 'ics' ? 'a feed link' : 'its account'} and can't be added to or changed in Kinwall. You can still hide events or filter it.</p> : <div className="toggle-row">
+      {!calendar.writable ? <p className="settings-row-sub">{calendar.kind === 'ics' ? t("Read-only: this calendar's events come from a feed link and can't be added to or changed in Kinwall. You can still hide events or filter it.") : t("Read-only: this calendar's events come from its account and can't be added to or changed in Kinwall. You can still hide events or filter it.")}</p> : <div className="toggle-row">
         <div>
-          <label id="calendar-display-edit-label">Wall screens and kids' devices can edit</label>
-          <div className="settings-row-sub" id="calendar-display-edit-sub">Off: only parents' devices add, change or delete its events. A kid's device can only ever change calendars that are for them.</div>
+          <label id="calendar-display-edit-label">{t("Wall screens and kids' devices can edit")}</label>
+          <div className="settings-row-sub" id="calendar-display-edit-sub">{t("Off: only parents' devices add, change or delete its events. A kid's device can only ever change calendars that are for them.")}</div>
         </div>
         <button className={`switch ${displayEdit ? 'on' : ''}`} role="switch" aria-checked={displayEdit} aria-labelledby="calendar-display-edit-label" aria-describedby="calendar-display-edit-sub" onClick={() => setDisplayEdit(v => !v)}><span className="knob" /></button>
       </div>}
       <div className="cal-actions" style={{ marginTop: 4 }}>
-        {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>Sync now</button>}
-        <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={onRemove}>Remove</button>
+        {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>{t('Sync now')}</button>}
+        <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={onRemove}>{t('Remove')}</button>
       </div>
       {/* For automations that name a calendar, like the meal kit blueprint's "Add dinners to calendar". */}
-      <p className="settings-row-sub">Calendar ID: <code style={{ userSelect: 'all', wordBreak: 'break-all' }}>{calendar.id}</code></p>
+      <p className="settings-row-sub">{t('Calendar ID:')} <code style={{ userSelect: 'all', wordBreak: 'break-all' }}>{calendar.id}</code></p>
     </Sheet>
   )
 }
@@ -2705,11 +2794,11 @@ function LocalCalendarSheet({ usedColors, onClose, onSaved, toast }: { usedColor
   const save = async () => {
     if (!name.trim()) return
     try { await api.createCalendar({ kind: 'local', name: name.trim(), color: nextPaletteColor(usedColors) }); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add calendar', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add calendar'), true) }
   }
   return (
-    <Sheet title="Add local calendar" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={!name.trim()}>Add</button>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Family" autoFocus /></div>
+    <Sheet title={t('Add local calendar')} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={!name.trim()}>{t('Add')}</button>}>
+      <div className="field"><label>{t('Name')}</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('e.g. Family')} autoFocus /></div>
     </Sheet>
   )
 }
@@ -2722,12 +2811,12 @@ function IcsSheet({ usedColors, onClose, onSaved, toast }: { usedColors: (string
   const save = async () => {
     if (!name.trim() || !url.trim()) return
     try { await api.createCalendar({ kind: 'ics', name: name.trim(), url: url.trim(), color: nextPaletteColor(usedColors), memberIds }); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add calendar', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add calendar'), true) }
   }
   return (
-    <Sheet title="Add ICS calendar" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={!name.trim() || !url.trim()}>Add</button>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
-      <div className="field"><label>ICS URL</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" /></div>
+    <Sheet title={t('Add ICS calendar')} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={!name.trim() || !url.trim()}>{t('Add')}</button>}>
+      <div className="field"><label>{t('Name')}</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field"><label>{t('ICS URL')}</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" /></div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} />
     </Sheet>
   )
@@ -2743,24 +2832,27 @@ function CaldavSheet({ onClose, onAccountCreated, toast }: { onClose: () => void
     try {
       const acc = await api.createCaldavAccount({ name: name.trim(), serverUrl: serverUrl.trim(), username: username.trim(), password })
       onAccountCreated(acc.id)
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not connect CalDAV account', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not connect CalDAV account'), true) }
   }
   return (
-    <Sheet title="Connect CalDAV" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={!name.trim() || !serverUrl.trim() || !username.trim()}>Connect</button>}>
-      <div className="field"><label>Account name</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. iCloud" autoFocus /></div>
-      <div className="field"><label>Server URL</label><input type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://caldav.icloud.com" /></div>
-      <div className="field"><label>Username</label><input type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
-      <div className="field"><label>App password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} aria-describedby="caldav-hint" /></div>
+    <Sheet title={t('Connect {provider}', { provider: 'CalDAV' })} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save} disabled={!name.trim() || !serverUrl.trim() || !username.trim()}>{t('Connect')}</button>}>
+      <div className="field"><label>{t('Account name')}</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('e.g. iCloud')} autoFocus /></div>
+      <div className="field"><label>{t('Server URL')}</label><input type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder={ICLOUD_CALDAV} /></div>
+      <div className="field"><label>{t('Username')}</label><input type="text" value={username} onChange={e => setUsername(e.target.value)} /></div>
+      <div className="field"><label>{t('App password')}</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} aria-describedby="caldav-hint" /></div>
       <CaldavHint />
     </Sheet>
   )
 }
 
+const ICLOUD_CALDAV = 'https://caldav.icloud.com'
 /** What iCloud wants in the CalDAV form, which the field names alone don't say. */
 export function CaldavHint() {
   return (
     <p className="settings-row-sub" id="caldav-hint">
-      For iCloud: server <strong>https://caldav.icloud.com</strong>, your Apple Account email as the username, and an <a className="text-link" href="https://support.apple.com/102654" target="_blank" rel="noopener">app-specific password</a> (not your Apple Account password).
+      {t('For iCloud: server {server}, your Apple Account email as the username, and an {link} (not your Apple Account password).').split(/\{(\w+)\}/).map((part, i) => i % 2 === 0 ? part
+        : part === 'server' ? <strong key={i}>{ICLOUD_CALDAV}</strong>
+        : <a key={i} className="text-link" href="https://support.apple.com/102654" target="_blank" rel="noopener">{t('app-specific password')}</a>)}
     </p>
   )
 }
@@ -2777,9 +2869,9 @@ export function CalendarCheckRow({ name, color, checked, added, badge, readOnly,
       <input type="checkbox" checked={checked || !!added} disabled={added} onChange={e => onChange(e.target.checked)} />
       <span className="cal-dot" style={{ background: color }} aria-hidden="true" />
       <span className="cal-name">{name}</span>
-      {added && <span className="cal-kind-badge">Added</span>}
+      {added && <span className="cal-kind-badge">{t('Added')}</span>}
       {!added && badge && <span className="cal-kind-badge">{badge}</span>}
-      {readOnly && <span className="cal-kind-badge">read-only</span>}
+      {readOnly && <span className="cal-kind-badge">{t('read-only')}</span>}
     </label>
   )
 }
@@ -2789,7 +2881,7 @@ export function initialPicks(selectable: string[], reconnect: string[] = []): Se
   return new Set(selectable.length === 1 ? selectable : reconnect.filter(id => selectable.includes(id)))
 }
 
-const plural = (n: number) => `${n} calendar${n === 1 ? '' : 's'}`
+const plural = (n: number) => tn(n, '{n} calendar', '{n} calendars')
 
 function RemoteCalendarPicker({ accountId, accountKind, accountName, calendars, onClose, onAdded, toast }: {
   accountId: string; accountKind: Account['kind']; accountName: string; calendars: CalendarEntry[]; onClose: () => void; onAdded: () => void; toast: (m: string, persist?: boolean) => void
@@ -2810,14 +2902,14 @@ function RemoteCalendarPicker({ accountId, accountKind, accountName, calendars, 
       setRemotes(rs)
       const selectable = rs.filter(rc => !isAdded(rc)).map(rc => rc.remoteId)
       setChecked(initialPicks(selectable, rs.filter(placeholderFor).map(rc => rc.remoteId)))
-    }).catch(() => { toast('Could not list remote calendars', true); setRemotes([]) })
+    }).catch(() => { toast(t('Could not list remote calendars'), true); setRemotes([]) })
   }, [accountId, toast]) // eslint-disable-line react-hooks/exhaustive-deps -- picks are seeded once per account
 
   const todo = (remotes ?? []).filter(rc => checked.has(rc.remoteId) && !isAdded(rc))
   const addChecked = async () => {
     let done = 0
     for (const rc of todo) {
-      setProgress(`Adding ${done + 1} of ${todo.length}…`)
+      setProgress(t('Adding {n} of {total}…', { n: done + 1, total: todo.length }))
       const c = choice[rc.remoteId] ?? { memberIds: [], color: rc.color ?? MEMBER_PALETTE[0] }
       try {
         await api.createCalendar({ kind: accountKind, accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberIds: c.memberIds, writable: rc.writable })
@@ -2825,30 +2917,31 @@ function RemoteCalendarPicker({ accountId, accountKind, accountName, calendars, 
         setAdded(s => new Set(s).add(rc.remoteId))
       } catch (e) {
         // Stop here and keep the sheet open: what was added shows as Added, the rest stay ticked.
-        const msg = `${done ? `Added ${plural(done)}, then: ` : ''}${e instanceof ApiError ? e.message : 'Could not add calendar'}`
+        const err = e instanceof ApiError ? e.message : t('Could not add calendar')
+        const msg = done ? t('Added {calendars}, then: {error}', { calendars: plural(done), error: err }) : err
         toast(msg, true); announce(msg, true); setProgress(null); onAdded()
         return
       }
     }
     setProgress(null)
     onAdded()
-    toast(`Added ${plural(done)}`); announce(`Added ${plural(done)}`)
+    toast(t('Added {calendars}', { calendars: plural(done) })); announce(t('Added {calendars}', { calendars: plural(done) }))
     onClose()
   }
 
   const busy = progress !== null
   return (
-    <Sheet title={`Calendars for ${accountName}`} onClose={onClose} onCancel={onClose} dismissable={false}
+    <Sheet title={t('Calendars for {name}', { name: accountName })} onClose={onClose} onCancel={onClose} dismissable={false}
       actions={<>
-        <button className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn btn-secondary" onClick={onClose} disabled={busy}>{t('Cancel')}</button>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={addChecked} disabled={busy || todo.length === 0}>
-          {progress ?? `Add ${plural(todo.length)}`}
+          {progress ?? t('Add {calendars}', { calendars: plural(todo.length) })}
         </button>
       </>}>
-      <p className="settings-row-sub" style={{ marginTop: 0 }}>Pick the calendars to show on the wall. You can change this any time under Calendars.</p>
+      <p className="settings-row-sub" style={{ marginTop: 0 }}>{t('Pick the calendars to show on the wall. You can change this any time under Calendars.')}</p>
       {busy && <span className="sr-only" role="status">{progress}</span>}
-      {remotes === null ? <div className="state-card">Loading…</div> : remotes.length === 0 ? (
-        <div className="empty-card">No remote calendars found.</div>
+      {remotes === null ? <div className="state-card">{t('Loading…')}</div> : remotes.length === 0 ? (
+        <div className="empty-card">{t('No remote calendars found.')}</div>
       ) : remotes.map(rc => {
         const c = choice[rc.remoteId] ?? { memberIds: [], color: rc.color ?? MEMBER_PALETTE[0] }
         const existing = placeholderFor(rc)
@@ -2857,7 +2950,7 @@ function RemoteCalendarPicker({ accountId, accountKind, accountName, calendars, 
         return (
           <div key={rc.remoteId} className="cal-list-item">
             <CalendarCheckRow name={existing?.name ?? rc.name} color={existing?.color ?? c.color} checked={on} added={done}
-              badge={existing ? 'will reconnect' : undefined} readOnly={!rc.writable}
+              badge={existing ? t('will reconnect') : undefined} readOnly={!rc.writable}
               onChange={v => setChecked(s => { const n = new Set(s); if (v) n.add(rc.remoteId); else n.delete(rc.remoteId); return n })} />
             {on && !done && !existing && <MemberPicker members={members} selected={c.memberIds} onChange={ids => setChoice(s => ({ ...s, [rc.remoteId]: { ...c, memberIds: ids } }))} />}
           </div>
@@ -2871,8 +2964,8 @@ function RemoteCalendarPicker({ accountId, accountKind, accountName, calendars, 
  * registration. iCloud Keychain / Google Password Manager passkeys report ['internal', 'hybrid']
  * (they can also be used from a nearby phone), so 'hybrid' only counts without 'internal'. */
 function passkeyKind(transports: string[] = []): string | null {
-  if (transports.includes('usb') || transports.includes('nfc') || transports.includes('ble')) return 'Security key'
-  if (transports.includes('hybrid') && !transports.includes('internal')) return 'Phone / other device'
+  if (transports.includes('usb') || transports.includes('nfc') || transports.includes('ble')) return t('Security key')
+  if (transports.includes('hybrid') && !transports.includes('internal')) return t('Phone / other device')
   return null
 }
 
@@ -2882,7 +2975,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
   // false = closed; 'default' = this device (browser's choice, usually Face ID / Touch ID);
   // 'cross-platform' = a hardware security key or a phone via QR.
   const [creating, setCreating] = useState<false | 'default' | 'cross-platform'>(false)
-  const [name, setName] = useState('This device')
+  const [name, setName] = useState(() => t('This device'))
   const [qr, setQr] = useState<{ token: string; expiresAt: string } | null>(null)
   const [renaming, setRenaming] = useState<Passkey | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -2894,23 +2987,23 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
     try {
       // bearer flow: this device already has an admin key/session, so the returned session is ignored
       await registerPasskey(name.trim(), undefined, undefined, creating === 'cross-platform' ? 'cross-platform' : undefined)
-      setCreating(false); setName('This device')
+      setCreating(false); setName(t('This device'))
       load(); onChanged()
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not create passkey', true) }
+    } catch (e) { toast(e instanceof Error ? e.message : t('Could not create passkey'), true) }
   }
   const startAnotherDevice = async () => {
     try { setQr(await api.passkeyRegisterToken()) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not start pairing', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not start pairing'), true) }
   }
   const rename = async () => {
     if (!renaming || !renameValue.trim()) return
     try { await api.renamePasskey(renaming.id, renameValue.trim()); setRenaming(null); load() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not rename passkey', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not rename passkey'), true) }
   }
   const remove = async (p: Passkey) => {
-    const body = passkeys.length === 1 ? 'This is your last passkey — you\'ll need an admin key to sign in until you add another.' : undefined
-    if (!await dialog.confirm({ title: `Remove "${p.name}"?`, body, confirmLabel: 'Remove', danger: true })) return
-    try { await api.deletePasskey(p.id); load(); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove passkey', true) }
+    const body = passkeys.length === 1 ? t("This is your last passkey — you'll need an admin key to sign in until you add another.") : undefined
+    if (!await dialog.confirm({ title: t('Remove "{name}"?', { name: p.name }), body, confirmLabel: t('Remove'), danger: true })) return
+    try { await api.deletePasskey(p.id); load(); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not remove passkey'), true) }
   }
   const signOut = async () => {
     try { await api.sessionLogout() } catch { /* ignore - clearing locally either way */ }
@@ -2920,66 +3013,66 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
 
   if (!passkeysSupported()) {
     return (
-      <Section id="passkeys" title="Passkeys" icon={<KeyIcon width={16} height={16} />}>
-        <p className="settings-row-sub">Passkeys need https or localhost — using an admin key instead. To add one, open Kinwall at an https address (in Home Assistant, open Home Assistant over https).</p>
+      <Section id="passkeys" title={t('Passkeys')} icon={<KeyIcon width={16} height={16} />}>
+        <p className="settings-row-sub">{t('Passkeys need https or localhost — using an admin key instead. To add one, open Kinwall at an https address (in Home Assistant, open Home Assistant over https).')}</p>
       </Section>
     )
   }
 
   return (
-    <Section id="passkeys" title="Parent devices" icon={<KeyIcon width={16} height={16} />} keywords={['Passkeys']}>
-      <p className="settings-row-sub">Phones and computers that sign in with a passkey. Parents (admins) can change everything.</p>
-      {inFrame() && <p className="settings-row-sub">Inside Home Assistant's panel, some browsers won't add a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener">Open Kinwall in its own tab</a> to add one.</p>}
+    <Section id="passkeys" title={t('Parent devices')} icon={<KeyIcon width={16} height={16} />} keywords={[t('Passkeys')]}>
+      <p className="settings-row-sub">{t('Phones and computers that sign in with a passkey. Parents (admins) can change everything.')}</p>
+      {inFrame() && <p className="settings-row-sub">{t("Inside Home Assistant's panel, some browsers won't add a passkey.")} <a className="text-link" href={location.href} target="_blank" rel="noopener">{t('Open Kinwall in its own tab')}</a>{t(' to add one.')}</p>}
       {me.kind === 'session' && (
         <div className="settings-row">
-          <div className="settings-row-label">{me.keyName === 'Recovery code' ? 'Signed in with a recovery code' : 'Signed in with a passkey'}</div>
-          <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={signOut}>Sign out</button>
+          <div className="settings-row-label">{me.keyName === 'Recovery code' ? t('Signed in with a recovery code') : t('Signed in with a passkey')}</div>
+          <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={signOut}>{t('Sign out')}</button>
         </div>
       )}
       {passkeys.map(p => (
         <div key={p.id} className="key-item">
           {renaming?.id === p.id ? (
             <div className="inline-form" style={{ flex: 1 }}>
-              <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus aria-label="Passkey name" />
-              <button className="btn btn-primary" onClick={rename}>Save</button>
-              <button className="link-btn" onClick={() => setRenaming(null)}>Cancel</button>
+              <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus aria-label={t('Passkey name')} />
+              <button className="btn btn-primary" onClick={rename}>{t('Save')}</button>
+              <button className="link-btn" onClick={() => setRenaming(null)}>{t('Cancel')}</button>
             </div>
           ) : (
-            <button type="button" className="plain-btn" style={{ flex: 1 }} onClick={() => { setRenaming(p); setRenameValue(p.name) }} aria-label={`Rename passkey ${p.name}`}>
+            <button type="button" className="plain-btn" style={{ flex: 1 }} onClick={() => { setRenaming(p); setRenameValue(p.name) }} aria-label={t('Rename passkey {name}', { name: p.name })}>
               <div className="settings-row-label">{p.name}</div>
               <div className="settings-row-sub">
-                created {new Date(p.createdAt).toLocaleDateString()}
-                {p.lastUsedAt ? ` · used ${new Date(p.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+                {t('created {date}', { date: new Date(p.createdAt).toLocaleDateString(intlLocale()) })}
+                {p.lastUsedAt ? ` · ${t('used {date}', { date: new Date(p.lastUsedAt).toLocaleDateString(intlLocale()) })}` : ` · ${t('never used')}`}
                 {passkeyKind(p.transports) && ` · ${passkeyKind(p.transports)}`}
               </div>
             </button>
           )}
-          <button className="icon-btn" onClick={() => remove(p)} aria-label={`Remove passkey ${p.name}`}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => remove(p)} aria-label={t('Remove passkey {name}', { name: p.name })}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
       {creating ? (
         <div className="field" style={{ margin: '10px 0 0' }}>
-          <label>Passkey name</label>
+          <label>{t('Passkey name')}</label>
           <div className="inline-form" style={{ marginTop: 0 }}>
             <input type="text" value={name} onChange={e => setName(e.target.value)} autoComplete="off" autoFocus />
-            <button className="btn btn-primary" onClick={create} disabled={!name.trim()}>Create</button>
-            <button className="link-btn" onClick={() => setCreating(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={create} disabled={!name.trim()}>{t('Create')}</button>
+            <button className="link-btn" onClick={() => setCreating(false)}>{t('Cancel')}</button>
           </div>
         </div>
       ) : (
         <>
-          <button className="add-row-btn" onClick={() => { setName('This device'); setCreating('default') }}><PlusIcon width={20} height={20} />Add a passkey on this phone or computer</button>
-          <button className="link-btn" style={{ minHeight: 44 }} onClick={() => { setName('Security key'); setCreating('cross-platform') }}>Use a security key or another device</button>
+          <button className="add-row-btn" onClick={() => { setName(t('This device')); setCreating('default') }}><PlusIcon width={20} height={20} />{t('Add a passkey on this phone or computer')}</button>
+          <button className="link-btn" style={{ minHeight: 44 }} onClick={() => { setName(t('Security key')); setCreating('cross-platform') }}>{t('Use a security key or another device')}</button>
         </>
       )}
       {qr ? (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <QrCode value={new URL(`#/admin-setup?token=${qr.token}`, document.baseURI).href} size={168} />
-          <div className="settings-row-sub">Scan with the other parent's phone or computer to make it a parent device.</div>
-          <button className="link-btn" onClick={() => setQr(null)}>Done</button>
+          <div className="settings-row-sub">{t("Scan with the other parent's phone or computer to make it a parent device.")}</div>
+          <button className="link-btn" onClick={() => setQr(null)}>{t('Done')}</button>
         </div>
       ) : (
-        <button className="add-row-btn" onClick={startAnotherDevice}><PlusIcon width={20} height={20} />Add another parent's phone or computer</button>
+        <button className="add-row-btn" onClick={startAnotherDevice}><PlusIcon width={20} height={20} />{t("Add another parent's phone or computer")}</button>
       )}
     </Section>
   )
@@ -3010,11 +3103,11 @@ function SecondWayInNudge({ tick }: { tick: number }) {
   }
   return (
     <div className="new-key-banner">
-      <div className="settings-row-label">Add a second way in, like another parent's phone or recovery codes, so losing one device doesn't lock the family out.</div>
+      <div className="settings-row-label">{t("Add a second way in, like another parent's phone or recovery codes, so losing one device doesn't lock the family out.")}</div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <button className="link-btn" onClick={() => jump('passkeys')}>Parent devices</button>
-        <button className="link-btn" onClick={() => jump('recovery-codes')}>Recovery codes</button>
-        <button className="link-btn" style={{ marginLeft: 'auto' }} onClick={dismiss}>Not now</button>
+        <button className="link-btn" onClick={() => jump('passkeys')}>{t('Parent devices')}</button>
+        <button className="link-btn" onClick={() => jump('recovery-codes')}>{t('Recovery codes')}</button>
+        <button className="link-btn" style={{ marginLeft: 'auto' }} onClick={dismiss}>{t('Not now')}</button>
       </div>
     </div>
   )
@@ -3023,7 +3116,7 @@ function SecondWayInNudge({ tick }: { tick: number }) {
 /** A freshly generated set, shown once (setup wizard and Settings → Access): grid, copy, .txt. */
 export function RecoveryCodesView({ codes }: { codes: string[] }) {
   const [copied, setCopied] = useState(false)
-  const text = `Kinwall recovery codes for ${location.host}\nEach code signs in once. Generated ${new Date().toLocaleDateString()}.\n\n${codes.join('\n')}\n`
+  const text = `${t('Kinwall recovery codes for {host}', { host: location.host })}\n${t('Each code signs in once. Generated {date}.', { date: new Date().toLocaleDateString(intlLocale()) })}\n\n${codes.join('\n')}\n`
   const copy = () => { navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {}) }
   const download = () => {
     const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
@@ -3037,8 +3130,8 @@ export function RecoveryCodesView({ codes }: { codes: string[] }) {
     <div className="new-key-banner">
       <ul className="recovery-grid">{codes.map(c => <li key={c}>{c}</li>)}</ul>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={copy}>{copied ? 'Copied' : 'Copy all'}</button>
-        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={download}>Download .txt</button>
+        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={copy}>{copied ? t('Copied') : t('Copy all')}</button>
+        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={download}>{t('Download .txt')}</button>
       </div>
     </div>
   )
@@ -3052,29 +3145,29 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
   const load = () => { api.getRecoveryCodes().then(setStatus).catch(() => {}) }
   useEffect(load, [])
   const generate = async () => {
-    if (status?.total && !await dialog.confirm({ title: 'Generate new recovery codes?', body: 'The old ones stop working immediately.', confirmLabel: 'Generate new codes', danger: true })) return
+    if (status?.total && !await dialog.confirm({ title: t('Generate new recovery codes?'), body: t('The old ones stop working immediately.'), confirmLabel: t('Generate new codes'), danger: true })) return
     setBusy(true)
     try { setCodes((await api.generateRecoveryCodes()).codes); load(); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not generate recovery codes', true) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not generate recovery codes'), true) }
     finally { setBusy(false) }
   }
   return (
-    <Section id="recovery-codes" title="Recovery codes" icon={<LockIcon width={16} height={16} />}>
-      <p className="settings-row-sub">One-time codes that sign you in if every passkey device is lost. Keep them somewhere safe, like a password manager or printed with your important papers.</p>
+    <Section id="recovery-codes" title={t('Recovery codes')} icon={<LockIcon width={16} height={16} />}>
+      <p className="settings-row-sub">{t('One-time codes that sign you in if every passkey device is lost. Keep them somewhere safe, like a password manager or printed with your important papers.')}</p>
       {codes ? <>
-        <p className="settings-row-sub">Save these now — they won't be shown again.</p>
+        <p className="settings-row-sub">{t("Save these now — they won't be shown again.")}</p>
         <RecoveryCodesView codes={codes} />
-        <button className="link-btn" onClick={() => setCodes(null)}>Done</button>
+        <button className="link-btn" onClick={() => setCodes(null)}>{t('Done')}</button>
       </> : <>
         {status && (
           <div className="settings-row">
             <div>
-              <div className="settings-row-label">{status.total ? `${status.remaining} of ${status.total} left` : 'No recovery codes yet'}</div>
-              {status.createdAt && <div className="settings-row-sub">created {new Date(status.createdAt).toLocaleDateString()}</div>}
+              <div className="settings-row-label">{status.total ? t('{n} of {total} left', { n: status.remaining, total: status.total }) : t('No recovery codes yet')}</div>
+              {status.createdAt && <div className="settings-row-sub">{t('created {date}', { date: new Date(status.createdAt).toLocaleDateString(intlLocale()) })}</div>}
             </div>
           </div>
         )}
-        <button className="add-row-btn" onClick={generate} disabled={busy}><PlusIcon width={20} height={20} />{status?.total ? 'Generate new codes' : 'Generate recovery codes'}</button>
+        <button className="add-row-btn" onClick={generate} disabled={busy}><PlusIcon width={20} height={20} />{status?.total ? t('Generate new codes') : t('Generate recovery codes')}</button>
       </>}
     </Section>
   )
@@ -3097,18 +3190,18 @@ function WidgetKeys({ keys, onChanged, toast }: { keys: ApiKey[]; onChanged: () 
   const dialog = useDialog()
   if (keys.length === 0) return null
   const remove = async (k: ApiKey) => {
-    if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: 'They stop updating until the phone signs in again.', confirmLabel: 'Remove', danger: true })) return
-    try { await api.deleteKey(k.id); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove it', true) }
+    if (!await dialog.confirm({ title: t('Remove "{name}"?', { name: k.name }), body: t('They stop updating until the phone signs in again.'), confirmLabel: t('Remove'), danger: true })) return
+    try { await api.deleteKey(k.id); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not remove it'), true) }
   }
   return (
-    <div className="widget-keys" role="group" aria-label="Widgets and Watch">
+    <div className="widget-keys" role="group" aria-label={t('Widgets and Watch')}>
       {keys.map(k => (
         <div key={k.id} className="widget-key">
           <div className="key-item-info">
             <div className="settings-row-label">{/watch/i.test(k.name) ? '⌚' : '🧩'} {k.name}</div>
-            <div className="settings-row-sub">{k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'}</div>
+            <div className="settings-row-sub">{k.lastUsedAt ? t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) }) : t('never used')}</div>
           </div>
-          <button className="icon-btn" onClick={() => remove(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => remove(k)} aria-label={t('Remove {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
     </div>
@@ -3119,48 +3212,48 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
   const dialog = useDialog()
   const { reloadCore, members, settings } = useApp()
   const setHealth = async (on: boolean) => {
-    try { await api.updateSettings({ aiHealthAccess: on }); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+    try { await api.updateSettings({ aiHealthAccess: on }); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
-  const ownerName = (o: string | null) => { const m = o && o !== 'shared' ? members.find(x => x.id === o) : undefined; return m ? `${m.avatar} ${m.name}'s device` : 'Anyone can use it' }
+  const ownerName = (o: string | null) => { const m = o && o !== 'shared' ? members.find(x => x.id === o) : undefined; return m ? `${m.avatar} ${t("{name}'s device", { name: m.name })}` : t('Anyone can use it') }
   const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
   const [keys, setKeys] = useState<ApiKey[]>([])
   const load = () => { api.getAuthorizations().then(setApps).catch(() => {}); api.getKeys().then(setKeys).catch(() => {}) }
   useEffect(load, [])
   const revoke = async (id: string, name: string) => {
     const widgets = widgetsUnder(keys, { grantId: id }).length > 0
-    if (!await dialog.confirm({ title: `Disconnect ${name}?`, body: `It will need to be approved again to use Kinwall.${widgets ? ' Its widgets and Watch are signed out too.' : ''}`, confirmLabel: 'Disconnect', danger: true })) return
-    try { await api.revokeAuthorization(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not disconnect', true) }
+    if (!await dialog.confirm({ title: t('Disconnect {name}?', { name }), body: widgets ? t('It will need to be approved again to use Kinwall. Its widgets and Watch are signed out too.') : t('It will need to be approved again to use Kinwall.'), confirmLabel: t('Disconnect'), danger: true })) return
+    try { await api.revokeAuthorization(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not disconnect'), true) }
   }
   const changeOwner = async (id: string, owner: string) => {
-    try { await api.setAuthorizationOwner(id, owner); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change whose device it is', true) }
+    try { await api.setAuthorizationOwner(id, owner); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change whose device it is'), true) }
   }
   return (
-    <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Other apps you've let into your family's Kinwall, such as an assistant or the Kinwall phone app. Each one asked first, and Disconnect takes its access away.</p>
-      {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like an MCP-compatible client) appear here. Point them at {location.origin}/mcp.</p>}
+    <Section id="connected-apps" title={t('Connected apps')} icon={<LinkIcon width={16} height={16} />}>
+      <p className="settings-row-sub">{t("Other apps you've let into your family's Kinwall, such as an assistant or the Kinwall phone app. Each one asked first, and Disconnect takes its access away.")}</p>
+      {apps.length === 0 && <p className="settings-row-sub">{t('Apps you connect with sign-in (like an MCP-compatible client) appear here. Point them at {url}.', { url: `${location.origin}/mcp` })}</p>}
       {apps.map(a => (
         <Fragment key={a.id}>
           <div className={a.deviceApp && !a.current ? 'key-item key-item-owned' : 'key-item'}>
             <div className="key-item-info">
-              <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">This device</span></>}</div>
+              <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">{t('This device')}</span></>}</div>
               <div className="settings-row-sub">
-                {a.scope === 'admin' ? 'Full access' : 'Everyday access'}
+                {a.scope === 'admin' ? t('Full access') : t('Everyday access')}
                 {a.current && ` · ${ownerName(a.owner)}`}
-                {' · '}connected {new Date(a.createdAt).toLocaleDateString()}
-                {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
+                {' · '}{t('connected {date}', { date: new Date(a.createdAt).toLocaleDateString(intlLocale()) })}
+                {a.lastUsedAt ? ` · ${t('used {date}', { date: new Date(a.lastUsedAt).toLocaleDateString(intlLocale()) })}` : ''}
               </div>
             </div>
             {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
-            {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} members={a.scope === 'display' ? members.filter(m => !m.grownUp || m.id === a.owner) : undefined} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
-            {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
+            {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} members={a.scope === 'display' ? members.filter(m => !m.grownUp || m.id === a.owner) : undefined} onChange={v => changeOwner(a.id, v)} label={t('Whose device {name} is', { name: a.clientName })} />}
+            {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={t('Disconnect {name}', { name: a.clientName })}><TrashIcon width={16} height={16} /></button>}
           </div>
           <WidgetKeys keys={widgetsUnder(keys, { grantId: a.id })} onChanged={load} toast={toast} />
         </Fragment>
       ))}
       <div className="toggle-row">
         <div>
-          <label id="ai-health-label">Let connected apps see health entries</label>
-          <div className="settings-row-sub" id="ai-health-sub">Off: connected apps can't read or change the Health tracker.</div>
+          <label id="ai-health-label">{t('Let connected apps see health entries')}</label>
+          <div className="settings-row-sub" id="ai-health-sub">{t("Off: connected apps can't read or change the Health tracker.")}</div>
         </div>
         <button className={`switch ${settings.aiHealthAccess ? 'on' : ''}`} role="switch" aria-checked={settings.aiHealthAccess} aria-labelledby="ai-health-label" aria-describedby="ai-health-sub"
           onClick={() => setHealth(!settings.aiHealthAccess)}><span className="knob" /></button>
@@ -3176,17 +3269,17 @@ function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, pers
   const grownUps = members.filter(m => m.grownUp)
   if (me.scope !== 'admin' || grownUps.length === 0) return null
   const change = async (owner: string) => {
-    try { await api.setMyOwner(owner); reloadCore(); toast('Saved') } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+    try { await api.setMyOwner(owner); reloadCore(); toast(t('Saved')) } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't change that"), true) }
   }
   return (
-    <Section id="this-device" title="This device">
+    <Section id="this-device" title={t('This device')}>
       <div className="settings-row">
         <div>
-          <div className="settings-row-label" id="this-device-owner">Whose device is this?</div>
-          <div className="settings-row-sub">It opens that person's private journal. Their own devices get a note when this changes, and it's in Access → Security activity.</div>
+          <div className="settings-row-label" id="this-device-owner">{t('Whose device is this?')}</div>
+          <div className="settings-row-sub">{t("It opens that person's private journal. Their own devices get a note when this changes, and it's in Access → Security activity.")}</div>
         </div>
         <select className="settings-select" aria-labelledby="this-device-owner" value={meMemberId ?? 'shared'} onChange={e => change(e.target.value)}>
-          <option value="shared">Shared (whole family)</option>
+          <option value="shared">{t('Shared (whole family)')}</option>
           {grownUps.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
         </select>
       </div>
@@ -3212,19 +3305,19 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
       setNewKey({ name: k.name, key: k.key })
       setCreating(false); setName('')
       load()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not create key', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not create key'), true) }
   }
-  const del = async (id: string) => { if (!await dialog.confirm({ title: 'Delete this API key?', body: `Anything using it stops working immediately.${widgetsUnder(all, { keyId: id }).length ? ' So do the widgets and Watch it made.' : ''}`, confirmLabel: 'Delete', danger: true })) return; try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete key', true) } }
-  const copy = async (key: string) => { try { await navigator.clipboard.writeText(key); toast('Key copied') } catch { toast('Could not copy — select and copy manually', true) } }
+  const del = async (id: string) => { if (!await dialog.confirm({ title: t('Delete this API key?'), body: widgetsUnder(all, { keyId: id }).length ? t('Anything using it stops working immediately. So do the widgets and Watch it made.') : t('Anything using it stops working immediately.'), confirmLabel: t('Delete'), danger: true })) return; try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete key'), true) } }
+  const copy = async (key: string) => { try { await navigator.clipboard.writeText(key); toast(t('Key copied')) } catch { toast(t('Could not copy — select and copy manually'), true) } }
 
   return (
-    <Section title="API Keys" icon={<KeyIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Passwords for your own scripts and home automations to use Kinwall. Each one can do what a parent can, so keep it secret.</p>
+    <Section id="api-keys" title={t('API Keys')} icon={<KeyIcon width={16} height={16} />}>
+      <p className="settings-row-sub">{t('Passwords for your own scripts and home automations to use Kinwall. Each one can do what a parent can, so keep it secret.')}</p>
       {newKey && (
         <div className="new-key-banner">
-          <div style={{ fontWeight: 800 }}>{newKey.name} — save this now, it won't be shown again</div>
+          <div style={{ fontWeight: 800 }}>{t("{name} — save this now, it won't be shown again", { name: newKey.name })}</div>
           <div className="new-key-value">{newKey.key}</div>
-          <button className="btn btn-secondary" onClick={() => copy(newKey.key)}>Copy key</button>
+          <button className="btn btn-secondary" onClick={() => copy(newKey.key)}>{t('Copy key')}</button>
         </div>
       )}
       {keys.map(k => (
@@ -3232,26 +3325,26 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
           <div className="key-item key-item-owned">
             <div className="key-item-info">
               <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
-              <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'].filter(Boolean).join(' · ')}</div>
+              <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) }) : t('never used')].filter(Boolean).join(' · ')}</div>
             </div>
             {/* A full-access key can belong to a grown-up: then it reads their private journal. */}
-            <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : 'Could not change who it belongs to', true))} label={`Who ${k.name} belongs to`} />
-            <button className="icon-btn" onClick={() => del(k.id)} aria-label={`Delete ${k.name}`}><TrashIcon width={16} height={16} /></button>
+            <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : t('Could not change who it belongs to'), true))} label={t('Who {name} belongs to', { name: k.name })} />
+            <button className="icon-btn" onClick={() => del(k.id)} aria-label={t('Delete {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
           </div>
           <WidgetKeys keys={widgetsUnder(all, { keyId: k.id })} onChanged={load} toast={toast} />
         </Fragment>
       ))}
       {creating ? (
         <div className="field" style={{ margin: '10px 0 0' }}>
-          <label>Key name</label>
+          <label>{t('Key name')}</label>
           <div className="inline-form" style={{ marginTop: 0 }}>
             <input type="text" value={name} onChange={e => setName(e.target.value)} autoComplete="off" autoFocus />
-            <button className="btn btn-primary" onClick={create} disabled={!name.trim()}>Create</button>
-            <button className="link-btn" onClick={() => setCreating(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={create} disabled={!name.trim()}>{t('Create')}</button>
+            <button className="link-btn" onClick={() => setCreating(false)}>{t('Cancel')}</button>
           </div>
         </div>
       ) : (
-        <button className="add-row-btn" onClick={() => setCreating(true)}><PlusIcon width={20} height={20} />New admin key</button>
+        <button className="add-row-btn" onClick={() => setCreating(true)}><PlusIcon width={20} height={20} />{t('New admin key')}</button>
       )}
     </Section>
   )
@@ -3266,7 +3359,7 @@ export function OwnerSelect({ value, onChange, members, id, label }: { value: st
   const list = members ?? ctx?.members ?? []
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="shared">Anyone (whole family)</option>
+      <option value="shared">{t('Anyone (whole family)')}</option>
       {list.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
     </select>
   )
@@ -3282,17 +3375,17 @@ export function DeviceKindSelect({ value, onChange, members, id, label, legacy }
   const kids = list.filter(m => !m.grownUp)
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      {legacy && <option value="" disabled>Pick one</option>}
-      <option value="wall">🖼️ Shared (whole family)</option>
-      {kids.length > 0 && <optgroup label="A kid's device">{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {m.name}'s device</option>)}</optgroup>}
+      {legacy && <option value="" disabled>{t('Pick one')}</option>}
+      <option value="wall">🖼️ {t('Shared (whole family)')}</option>
+      {kids.length > 0 && <optgroup label={t("A kid's device")}>{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {t("{name}'s device", { name: m.name })}</option>)}</optgroup>}
     </select>
   )
 }
 
 // 'grownup': paired as a grown-up's before that was refused. It no longer opens their journal.
 const KIND_GROUPS: { kind: DeviceKind | null; title: string; sub?: string }[] = [
-  { kind: 'grownup', title: 'Needs a fix', sub: "Paired as a grown-up's device, which isn't allowed any more: it no longer opens their journal. Make it a wall screen or a kid's device, or remove it and sign in there with a passkey." },
-  { kind: 'wall', title: 'Wall screens' }, { kind: 'kid', title: "Kids' devices" }, { kind: null, title: 'Not set yet' },
+  { kind: 'grownup', title: msg('Needs a fix'), sub: msg("Paired as a grown-up's device, which isn't allowed any more: it no longer opens their journal. Make it a wall screen or a kid's device, or remove it and sign in there with a passkey.") },
+  { kind: 'wall', title: msg('Wall screens') }, { kind: 'kid', title: msg("Kids' devices") }, { kind: null, title: msg('Not set yet') },
 ]
 
 function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
@@ -3303,7 +3396,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   const keys = all.filter((k): k is ApiKey & { kind?: DeviceKind | null } => k.scope === 'display' && k.kind !== 'widgets')
   const unplaced = widgetsUnder(all, null)
   const [code, setCode] = useState('')
-  const [name, setName] = useState('Wall screen')
+  const [name, setName] = useState(() => t('Wall screen'))
   const [busy, setBusy] = useState(false)
   // The Board's "Put Kinwall on the wall" links to section=paired-devices, which opens the sheet.
   const [adding, setAdding] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('section') === 'paired-devices')
@@ -3318,42 +3411,42 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
       await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setCode('')
       setAdding(false)
-      toast('Display paired')
+      toast(t('Display paired'))
       load()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Could not pair display', true)
+      toast(e instanceof ApiError ? e.message : t('Could not pair display'), true)
     } finally {
       setBusy(false)
     }
   }
   const changeKind = async (k: ApiKey, next: string) => {
-    try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore(); toast(deviceKindSaid(k.name, next, members)) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change what it is', true) }
+    try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore(); toast(deviceKindSaid(k.name, next, members)) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change what it is'), true) }
   }
   const revoke = async (k: ApiKey) => {
-    if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: `It will be signed out and need pairing again.${widgetsUnder(all, { keyId: k.id }).length ? ' So will its widgets and Watch.' : ''}`, confirmLabel: 'Remove', danger: true })) return
-    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not revoke display', true) }
+    if (!await dialog.confirm({ title: t('Remove "{name}"?', { name: k.name }), body: widgetsUnder(all, { keyId: k.id }).length ? t('It will be signed out and need pairing again. So will its widgets and Watch.') : t('It will be signed out and need pairing again.'), confirmLabel: t('Remove'), danger: true })) return
+    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not revoke display'), true) }
   }
 
   return (
-    <Section id="paired-devices" title="Paired devices" icon={<MonitorIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings. A kid's device shows only their things. Grown-ups sign in on their own phone with a passkey instead.</p>
-      {keys.length === 0 && <p className="settings-row-sub">None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid's device" to get a code.</p>}
+    <Section id="paired-devices" title={t('Paired devices')} icon={<MonitorIcon width={16} height={16} />}>
+      <p className="settings-row-sub">{t("Paired with a code. They get the calendar, chores and lists, but not settings. A kid's device shows only their things. Grown-ups sign in on their own phone with a passkey instead.")}</p>
+      {keys.length === 0 && <p className="settings-row-sub">{t('None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid\'s device" to get a code.')}</p>}
       {KIND_GROUPS.map(g => ({ ...g, keys: keys.filter(k => deviceKindOf(k, members) === g.kind) })).filter(g => g.keys.length > 0).map(g => (
         <div key={g.title} role="group" aria-labelledby={`device-kind-${g.kind ?? 'none'}`}>
-          <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.kind === 'grownup' ? '⚠️ ' : ''}{g.title}</div>
-          {g.sub && <p className="settings-row-sub">{g.sub}</p>}
+          <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.kind === 'grownup' ? '⚠️ ' : ''}{tm(g.title)}</div>
+          {g.sub && <p className="settings-row-sub">{tm(g.sub)}</p>}
           {g.keys.map(k => (
             <Fragment key={k.id}>
               <div className="key-item key-item-owned">
                 <div className="key-item-info">
                   <div className="settings-row-label">{k.name}</div>
                   <div className="settings-row-sub">
-                    created {new Date(k.createdAt).toLocaleDateString()}
-                    {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+                    {t('created {date}', { date: new Date(k.createdAt).toLocaleDateString(intlLocale()) })}
+                    {k.lastUsedAt ? ` · ${t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) })}` : ` · ${t('never used')}`}
                   </div>
                 </div>
-                <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={`What ${k.name} is`} legacy={!deviceKindValue(k, members)} />
-                <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
+                <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={t('What {name} is', { name: k.name })} legacy={!deviceKindValue(k, members)} />
+                <button className="icon-btn" onClick={() => revoke(k)} aria-label={t('Remove {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
               </div>
               <WidgetKeys keys={widgetsUnder(all, { keyId: k.id })} onChanged={load} toast={toast} />
             </Fragment>
@@ -3361,19 +3454,19 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
         </div>
       ))}
       {unplaced.length > 0 && <div role="group" aria-labelledby="device-kind-widgets">
-        <div className="settings-row-label device-kind-title" id="device-kind-widgets">Widgets and Watch</div>
-        <p className="settings-row-sub">From the Kinwall app on a phone that isn't listed here, most made before Kinwall kept track of which phone. Remove any you don't recognize; the phone makes new ones when it signs in again.</p>
+        <div className="settings-row-label device-kind-title" id="device-kind-widgets">{t('Widgets and Watch')}</div>
+        <p className="settings-row-sub">{t("From the Kinwall app on a phone that isn't listed here, most made before Kinwall kept track of which phone. Remove any you don't recognize; the phone makes new ones when it signs in again.")}</p>
         <WidgetKeys keys={unplaced} onChanged={load} toast={toast} />
       </div>}
-      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />Add a wall screen or kid's device</button>
+      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />{t("Add a wall screen or kid's device")}</button>
 
       {adding && (
-        <Sheet title="Add a wall screen or kid's device" onClose={() => setAdding(false)}
-          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? 'Pairing…' : 'Add device'}</button>}>
-          <p className="settings-row-sub" style={{ marginBottom: 14 }}>On that screen, open Kinwall, choose "Set up a wall screen or kid's device", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.</p>
+        <Sheet title={t("Add a wall screen or kid's device")} onClose={() => setAdding(false)}
+          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? t('Pairing…') : t('Add device')}</button>}>
+          <p className="settings-row-sub" style={{ marginBottom: 14 }}>{t('On that screen, open Kinwall, choose "Set up a wall screen or kid\'s device", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.')}</p>
           <div className="row-2">
             <div className="field">
-              <label>Code</label>
+              <label>{t('Code')}</label>
               <input
                 type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
                 value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -3383,14 +3476,14 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
               />
             </div>
             <div className="field">
-              <label>Name</label>
+              <label>{t('Name')}</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} />
             </div>
           </div>
           <div className="field">
-            <label htmlFor="pair-kind">What is this device?</label>
+            <label htmlFor="pair-kind">{t('What is this device?')}</label>
             <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} />
-            <p className="settings-row-sub">A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.</p>
+            <p className="settings-row-sub">{t("A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.")}</p>
           </div>
         </Sheet>
       )}
@@ -3410,28 +3503,28 @@ function WebhooksSection({ toast }: { toast: (m: string, persist?: boolean) => v
 
   const create = async () => {
     if (!url.trim() || evs.length === 0) return
-    try { const h = await api.createWebhook(url.trim(), evs); setShown({ url: h.url, secret: h.secret }); setAdding(false); setUrl(''); setEvs([]); load(); announce('Webhook added. Its secret is shown once.') }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add webhook', true) }
+    try { const h = await api.createWebhook(url.trim(), evs); setShown({ url: h.url, secret: h.secret }); setAdding(false); setUrl(''); setEvs([]); load(); announce(t('Webhook added. Its secret is shown once.')) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add webhook'), true) }
   }
   const rotate = async (h: Webhook) => {
-    if (!await dialog.confirm({ title: 'Rotate this secret?', body: 'The old secret stops working immediately. Update the receiver with the new one.', confirmLabel: 'Rotate' })) return
-    try { const r = await api.rotateWebhookSecret(h.id); setShown({ url: r.url, secret: r.secret }); announce('New secret created. It is shown once.') }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not rotate secret', true) }
+    if (!await dialog.confirm({ title: t('Rotate this secret?'), body: t('The old secret stops working immediately. Update the receiver with the new one.'), confirmLabel: tc('secret', 'Rotate') })) return
+    try { const r = await api.rotateWebhookSecret(h.id); setShown({ url: r.url, secret: r.secret }); announce(t('New secret created. It is shown once.')) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t('Could not rotate secret'), true) }
   }
-  const copy = async (secret: string) => { try { await navigator.clipboard.writeText(secret); toast('Secret copied') } catch { toast('Could not copy — select and copy manually', true) } }
-  const del = async (id: string) => { if (!await dialog.confirm({ title: 'Delete this webhook?', confirmLabel: 'Delete', danger: true })) return; try { await api.deleteWebhook(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete webhook', true) } }
+  const copy = async (secret: string) => { try { await navigator.clipboard.writeText(secret); toast(t('Secret copied')) } catch { toast(t('Could not copy — select and copy manually'), true) } }
+  const del = async (id: string) => { if (!await dialog.confirm({ title: t('Delete this webhook?'), confirmLabel: t('Delete'), danger: true })) return; try { await api.deleteWebhook(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete webhook'), true) } }
 
   return (
-    <Section title="Webhooks" icon={<WebhookIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Kinwall tells another app or service, at an address you give it, whenever something changes here, like a chore done or an event added.</p>
+    <Section id="webhooks" title={t('Webhooks')} icon={<WebhookIcon width={16} height={16} />}>
+      <p className="settings-row-sub">{t('Kinwall tells another app or service, at an address you give it, whenever something changes here, like a chore done or an event added.')}</p>
       {shown && (
         <div className="new-key-banner">
-          <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>Signing secret for {shown.url}</div>
-          <input className="new-key-value" readOnly value={shown.secret} aria-label="Webhook signing secret" onFocus={e => e.currentTarget.select()} />
-          <div className="settings-row-sub">Shown once. Use it to verify the X-Kinwall-Signature header.</div>
+          <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{t('Signing secret for {url}', { url: shown.url })}</div>
+          <input className="new-key-value" readOnly value={shown.secret} aria-label={t('Webhook signing secret')} onFocus={e => e.currentTarget.select()} />
+          <div className="settings-row-sub">{t('Shown once. Use it to verify the X-Kinwall-Signature header.')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => copy(shown.secret)}>Copy</button>
-            <button className="btn btn-secondary" onClick={() => setShown(null)}>Done</button>
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => copy(shown.secret)}>{t('Copy')}</button>
+            <button className="btn btn-secondary" onClick={() => setShown(null)}>{t('Done')}</button>
           </div>
         </div>
       )}
@@ -3442,26 +3535,26 @@ function WebhooksSection({ toast }: { toast: (m: string, persist?: boolean) => v
             <div className="settings-row-sub">{h.events.join(', ')}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <button className="link-btn" onClick={() => rotate(h)} aria-label={`Rotate secret for ${h.url}`}>Rotate secret</button>
-            <button className="icon-btn" onClick={() => del(h.id)} aria-label={`Delete webhook ${h.url}`}><TrashIcon width={16} height={16} /></button>
+            <button className="link-btn" onClick={() => rotate(h)} aria-label={t('Rotate secret for {url}', { url: h.url })}>{t('Rotate secret')}</button>
+            <button className="icon-btn" onClick={() => del(h.id)} aria-label={t('Delete webhook {url}', { url: h.url })}><TrashIcon width={16} height={16} /></button>
           </div>
         </div>
       ))}
       {adding ? (
         <div style={{ marginTop: 10 }}>
-          <div className="field"><label>URL</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
+          <div className="field"><label>{t('URL')}</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
           <div className="field">
-            <label>Events</label>
+            <label>{t('Events')}</label>
             <div className="chip-row">
               {BUS_EVENTS.map(ev => (
                 <button key={ev} className={`chip ${evs.includes(ev) ? 'active' : ''}`} aria-pressed={evs.includes(ev)} onClick={() => setEvs(s => s.includes(ev) ? s.filter(x => x !== ev) : [...s, ev])}>{ev}</button>
               ))}
             </div>
           </div>
-          <button className="btn btn-primary btn-block" onClick={create} disabled={!url.trim()}>Add webhook</button>
+          <button className="btn btn-primary btn-block" onClick={create} disabled={!url.trim()}>{t('Add webhook')}</button>
         </div>
       ) : (
-        <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />New webhook</button>
+        <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />{t('New webhook')}</button>
       )}
     </Section>
   )
@@ -3469,7 +3562,6 @@ function WebhooksSection({ toast }: { toast: (m: string, persist?: boolean) => v
 
 const EXPORT_VERSION = 1 // matches server/src/routes/data.ts
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024
-const countOf = (n: number, noun: string, plural = `${noun}s`) => `${n} ${n === 1 ? noun : plural}`
 
 function YourDataSection({ hostPortalUrl, toast, onImported }: { hostPortalUrl?: string; toast: (m: string, persist?: boolean) => void; onImported: () => void }) {
   const dialog = useDialog()
@@ -3486,66 +3578,66 @@ function YourDataSection({ hostPortalUrl, toast, onImported }: { hostPortalUrl?:
       a.download = `kinwall-export-${new Date().toISOString().slice(0, 10)}.json`
       a.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not export', true) } finally { setBusy(false) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not export'), true) } finally { setBusy(false) }
   }
   const importFile = async (file: File) => {
-    if (file.size > MAX_IMPORT_BYTES) { toast('That file is larger than 10 MB, too big to import', true); return }
+    if (file.size > MAX_IMPORT_BYTES) { toast(t('That file is larger than 10 MB, too big to import'), true); return }
     let data: any
-    try { data = JSON.parse(await file.text()) } catch { toast("That file isn't a Kinwall export (it isn't valid JSON)", true); return }
-    if (!data || typeof data !== 'object' || !Array.isArray(data.members) || !Array.isArray(data.calendars)) { toast("That file isn't a Kinwall export", true); return }
-    if (data.version !== EXPORT_VERSION) { toast(`This export is version ${data.version}; this Kinwall can only import version ${EXPORT_VERSION}`, true); return }
+    try { data = JSON.parse(await file.text()) } catch { toast(t("That file isn't a Kinwall export (it isn't valid JSON)"), true); return }
+    if (!data || typeof data !== 'object' || !Array.isArray(data.members) || !Array.isArray(data.calendars)) { toast(t("That file isn't a Kinwall export"), true); return }
+    if (data.version !== EXPORT_VERSION) { toast(t('This export is version {version}; this Kinwall can only import version {supported}', { version: data.version, supported: EXPORT_VERSION }), true); return }
     const list = (k: string) => (Array.isArray(data[k]) ? data[k] : []) as { kind?: string; id?: string; calendarId?: string; items?: unknown[] }[]
     const localIds = new Set(list('calendars').filter(c => c.kind === 'local').map(c => c.id))
     const parts = [
-      countOf(list('members').length, 'member'),
-      countOf(list('events').filter(e => localIds.has(e.calendarId)).length, 'event'),
-      countOf(list('chores').length, 'chore'),
-      countOf(list('lists').length, 'list'),
-      countOf(list('categories').length, 'category', 'categories'),
+      tn(list('members').length, '{n} member', '{n} members'),
+      tn(list('events').filter(e => localIds.has(e.calendarId)).length, '{n} event', '{n} events'),
+      tn(list('chores').length, '{n} chore', '{n} chores'),
+      tn(list('lists').length, '{n} list', '{n} lists'),
+      tn(list('categories').length, '{n} category', '{n} categories'),
     ]
-    if (!await dialog.confirm({ title: 'Import this export?', body: `Merges ${parts.join(', ')} into this family. Existing items with the same ids are updated.`, confirmLabel: 'Import' })) return
+    if (!await dialog.confirm({ title: t('Import this export?'), body: t('Merges {parts} into this family. Existing items with the same ids are updated.', { parts: parts.join(', ') }), confirmLabel: t('Import') })) return
     setImporting(true)
     try {
       const { imported: i, needsReconnect } = await api.importData(data)
-      const reconnect = needsReconnect.length ? ` Reconnect these in Calendars (their settings are kept): ${needsReconnect.map(c => `${c.name} (${c.kind})`).join(', ')}.` : ''
-      toast(`Imported ${countOf(i.members, 'member')}, ${countOf(i.events, 'event')}, ${countOf(i.chores, 'chore')}, ${countOf(i.lists, 'list')} (${countOf(i.listItems, 'item')}).${reconnect}`, true)
+      const reconnect = needsReconnect.length ? ` ${t('Reconnect these in Calendars (their settings are kept): {calendars}.', { calendars: needsReconnect.map(c => `${c.name} (${c.kind})`).join(', ') })}` : ''
+      toast(`${t('Imported {members}, {events}, {chores}, {lists} ({items}).', { members: tn(i.members, '{n} member', '{n} members'), events: tn(i.events, '{n} event', '{n} events'), chores: tn(i.chores, '{n} chore', '{n} chores'), lists: tn(i.lists, '{n} list', '{n} lists'), items: tn(i.listItems, '{n} item', '{n} items') })}${reconnect}`, true)
       onImported()
-    } catch (e) { toast(e instanceof ApiError ? `Import failed: ${e.message}` : 'Could not import', true) } finally { setImporting(false) }
+    } catch (e) { toast(e instanceof ApiError ? t('Import failed: {error}', { error: e.message }) : t('Could not import'), true) } finally { setImporting(false) }
   }
   return (
-    <Section title="Your data" icon={<LockIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Everything your family entered (members, chores, lists, your own calendars' events and settings) as one JSON file. Passwords and calendar logins aren't included. Importing merges a file back in: synced calendars keep their colors, members and event tags but need reconnecting once; passkeys and webhooks need setting up again.</p>
+    <Section id="your-data" title={t('Your data')} icon={<LockIcon width={16} height={16} />}>
+      <p className="settings-row-sub">{t("Everything your family entered (members, chores, lists, your own calendars' events and settings) as one JSON file. Passwords and calendar logins aren't included. Importing merges a file back in: synced calendars keep their colors, members and event tags but need reconnecting once; passkeys and webhooks need setting up again.")}</p>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <button className="btn btn-secondary" onClick={download} disabled={busy}>{busy ? 'Preparing…' : 'Download export'}</button>
-        <button className="btn btn-secondary" onClick={() => fileInput.current?.click()} disabled={importing}>{importing ? 'Importing…' : 'Import from a Kinwall export'}</button>
-        <input ref={fileInput} type="file" accept=".json,application/json" hidden aria-label="Kinwall export file"
+        <button className="btn btn-secondary" onClick={download} disabled={busy}>{busy ? t('Preparing…') : t('Download export')}</button>
+        <button className="btn btn-secondary" onClick={() => fileInput.current?.click()} disabled={importing}>{importing ? t('Importing…') : t('Import from a Kinwall export')}</button>
+        <input ref={fileInput} type="file" accept=".json,application/json" hidden aria-label={t('Kinwall export file')}
           onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) importFile(f) }} />
-        {hostPortalUrl && <a className="text-link" href={hostPortalUrl} target="_blank" rel="noreferrer">Manage or delete this family</a>}
+        {hostPortalUrl && <a className="text-link" href={hostPortalUrl} target="_blank" rel="noreferrer">{t('Manage or delete this family')}</a>}
       </div>
       {/* Self-hosted: nothing in the app deletes the family; it goes with wherever Kinwall runs. */}
       {!hostPortalUrl && parentDevice && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          <div className="settings-row-label">Deleting your family's data</div>
-          <p className="settings-row-sub">Download an export first if you might want any of it back. Then delete it where Kinwall runs:</p>
+          <div className="settings-row-label">{t("Deleting your family's data")}</div>
+          <p className="settings-row-sub">{t('Download an export first if you might want any of it back. Then delete it where Kinwall runs:')}</p>
           <ul className="settings-row-sub" style={{ margin: 0, paddingLeft: 20 }}>
-            <li>Docker: remove the container and its data folder (and any backups of it).</li>
-            <li>Cloudflare: delete the Worker and its D1 database.</li>
-            <li>Home Assistant: uninstall the add-on and remove its data.</li>
+            <li>{t('Docker: remove the container and its data folder (and any backups of it).')}</li>
+            <li>{t('Cloudflare: delete the Worker and its D1 database.')}</li>
+            <li>{t('Home Assistant: uninstall the add-on and remove its data.')}</li>
           </ul>
-          <a className="text-link" href={`${DOCS_URL}/your-data/deleting-everything`} target="_blank" rel="noopener">How to delete everything</a>
+          <a className="text-link" href={`${DOCS_URL}/your-data/deleting-everything`} target="_blank" rel="noopener">{t('How to delete everything')}</a>
         </div>
       )}
     </Section>
   )
 }
 
-const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+const relativeTime = () => new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'auto' })
 function timeAgo(iso: string): string {
   const s = (new Date(iso).getTime() - Date.now()) / 1000
   for (const [unit, secs] of [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]] as const) {
-    if (Math.abs(s) >= secs) return relativeTime.format(Math.round(s / secs), unit)
+    if (Math.abs(s) >= secs) return relativeTime().format(Math.round(s / secs), unit)
   }
-  return relativeTime.format(0, 'minute')
+  return relativeTime().format(0, 'minute')
 }
 
 /** The family's security log: the latest event here, everything in a sheet (SecurityActivitySheet).
@@ -3557,11 +3649,11 @@ function SecurityActivitySection({ tick }: { tick: number }) {
   useEffect(() => { api.getSecurityEvents().then(page => setLatest(page[0])).catch(() => setLatest(undefined)) }, [tick])
   if (latest === null) return null
   return (
-    <Section id="security-activity" title="Security activity" icon={<LockIcon width={16} height={16} />}>
+    <Section id="security-activity" title={t('Security activity')} icon={<LockIcon width={16} height={16} />}>
       <div className="settings-row">
         <div className="summary-body"><div className="settings-row-sub">{securityHint(latest)}</div></div>
         <div className="settings-inline-btns">
-          <button className="btn btn-secondary" aria-label="View security activity" aria-haspopup="dialog" onClick={() => setOpen(true)}>View</button>
+          <button className="btn btn-secondary" aria-label={t('View security activity')} aria-haspopup="dialog" onClick={() => setOpen(true)}>{tc('verb', 'View')}</button>
         </div>
       </div>
       {open && <SecurityActivitySheet onClose={() => setOpen(false)} />}
@@ -3575,7 +3667,7 @@ function HostingActivitySection() {
   useEffect(() => { api.getHostEvents().then(setEvents).catch(() => {}) }, [])
   if (events.length === 0) return null
   return (
-    <Section title="Hosting activity" icon={<MonitorIcon width={16} height={16} />}>
+    <Section id="hosting-activity" title={t('Hosting activity')} icon={<MonitorIcon width={16} height={16} />}>
       {events.map(e => (
         <div key={e.id} className="key-item">
           <div>

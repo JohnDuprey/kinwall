@@ -4,13 +4,15 @@
 // scripted drawing comes out the same every time. Per-pixel work happens only for Fill and for
 // importing a page, never on a pointer move.
 
+import { msg } from './i18n.ts'
+
 export type Brush = 'pencil' | 'marker' | 'crayon' | 'soft' | 'spray' | 'rainbow' | 'stamp' | 'eraser'
 export const PAPER = '#FFFFFF'
 
 /** Shapes take the chosen color; emoji stamps bring their own. U+FE0E keeps the heart a shape. */
 export const STAMPS: [stamp: string, name: string][] = [
-  ['★', 'Star'], ['♥︎', 'Heart'], ['●', 'Dot'], ['◆', 'Diamond'],
-  ['🌸', 'Flower'], ['🦋', 'Butterfly'], ['🐶', 'Dog'], ['🐱', 'Cat'], ['🐟', 'Fish'], ['🚀', 'Rocket'], ['🌈', 'Rainbow'], ['🍎', 'Apple'],
+  ['★', msg('Star')], ['♥︎', msg('Heart')], ['●', msg('Dot')], ['◆', msg('Diamond')],
+  ['🌸', msg('Flower')], ['🦋', msg('Butterfly')], ['🐶', msg('Dog')], ['🐱', msg('Cat')], ['🐟', msg('Fish')], ['🚀', msg('Rocket')], ['🌈', msg('Rainbow')], ['🍎', msg('Apple')],
 ]
 
 /** mulberry32: a small, fast seeded generator in [0, 1). */
@@ -59,7 +61,7 @@ export function pencilParams(pressure?: number) {
 
 /** Brush sizes in CSS px, smallest to biggest, and what a screen reader calls them. */
 export const SIZES = [2, 4, 7, 11, 16, 24, 34, 48, 68, 96]
-export const SIZE_NAMES = ['Teeny', 'Tiny', 'Small', 'Medium', 'Big', 'Bigger', 'Huge', 'Giant', 'Enormous', 'Gigantic']
+export const SIZE_NAMES = [msg('Teeny'), msg('Tiny'), msg('Small'), msg('Medium'), msg('Big'), msg('Bigger'), msg('Huge'), msg('Giant'), msg('Enormous'), msg('Gigantic')]
 const DEFAULT_SIZE: Record<Brush, number> = { pencil: 1, marker: 3, crayon: 4, soft: 4, spray: 5, rainbow: 4, stamp: 5, eraser: 5 }
 /** The size (an index into SIZES) each brush was last used at on this device. */
 export type SizeMemory = Partial<Record<Brush, number>>

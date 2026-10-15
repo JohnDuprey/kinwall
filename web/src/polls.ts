@@ -1,9 +1,14 @@
 // Family polls (Polls.tsx): the counting and wording, pure so web/test/polls.test.ts covers it.
 import type { Poll, PollOption } from './types.ts'
-import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
+import { SLOT_WORD, mealDayLabel } from './meal-date.ts'
+import { t, tm } from './i18n.ts'
 
 /** "Friday dinner", "Friday", or nothing. */
-export const pollWhen = (p: Pick<Poll, 'date' | 'slot'>) => p.date ? `${mealDayLabel(p.date, { weekday: 'long' })}${p.slot ? ` ${SLOT_LABEL[p.slot].toLowerCase()}` : ''}` : ''
+export const pollWhen = (p: Pick<Poll, 'date' | 'slot'>) => {
+  if (!p.date) return ''
+  const day = mealDayLabel(p.date, { weekday: 'long' })
+  return p.slot ? t('{day} {meal}', { day, meal: tm(SLOT_WORD[p.slot]) }) : day
+}
 
 /** The choices with the most votes (several on a tie, none before anyone votes). */
 export function leaders(poll: Pick<Poll, 'options'>): PollOption[] {
@@ -19,7 +24,7 @@ export const votedCount = (poll: Pick<Poll, 'options'>) => poll.options.reduce((
 /** "3 of 4 voted" (members: the family's size). */
 export const votedLabel = (poll: Pick<Poll, 'options'>, members: number) => {
   const n = votedCount(poll)
-  return n === 0 ? 'No votes yet' : n >= members ? 'Everyone voted' : `${n} of ${members} voted`
+  return n === 0 ? t('No votes yet') : n >= members ? t('Everyone voted') : t('{n} of {total} voted', { n, total: members })
 }
 
 /** The choice this member picked, if any. */

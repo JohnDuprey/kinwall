@@ -11,6 +11,7 @@ import { applyScreenScale } from './screenScale.ts'
 import { castScreen, screenParam, withoutScreenParam } from './cast.ts'
 import { watchKeyboard } from './keyboard.ts'
 import { watchIsland } from './safeArea.ts'
+import { setLang, startLang, t } from './i18n.ts'
 markNativeApp()
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
@@ -40,7 +41,7 @@ if (castLink !== undefined) {
 // Not imported from api.ts: that would load the mock data before the demo clock below is in place.
 const MOCK = import.meta.env.VITE_MOCK === '1'
 
-// Demo build only: ?theme=dark|light, ?skin=<id>, ?lowstim=1, ?view=board|week|day|month|schedule|newscast and ?clean=1
+// Demo build only: ?theme=dark|light, ?skin=<id>, ?lowstim=1, ?lang=de|en (this device's language), ?view=board|week|day|month|schedule|newscast and ?clean=1
 // (no demo bar) preset a fresh copy - for screenshots and shareable links; never in real builds.
 if (MOCK) {
   const q = new URLSearchParams(location.search)
@@ -50,6 +51,7 @@ if (MOCK) {
       if (q.get('theme')) prefs.themeMode = q.get('theme')
       if (q.get('skin')) prefs.skin = q.get('skin')
       if (q.get('lowstim')) prefs.lowStim = true
+      if (q.get('lang')) { prefs.language = q.get('lang'); localStorage.setItem('kinwall.lastLang', q.get('lang')!) }
       localStorage.setItem('kinwall.deviceAppearance', JSON.stringify(prefs))
       // Board and Newscast are Home's; Day, Week, Month and Schedule open Calendar in that view.
       const view = q.get('view')
@@ -129,7 +131,7 @@ if ('serviceWorker' in navigator) {
 const canRetry = () => { try { return retryBoot(sessionStorage) } catch { return false } }
 const BootFailed = () => (
   <div className="gate-screen" role="main">
-    <div className="state-card">Kinwall didn't load. <button type="button" className="btn" onClick={() => location.reload()}>Reload</button></div>
+    <div className="state-card">{t("Kinwall didn't load.")} <button type="button" className="btn" onClick={() => location.reload()}>{t('Reload')}</button></div>
   </div>
 )
 class BootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -144,7 +146,8 @@ const root = createRoot(document.getElementById('root')!)
 
 // Imported after the demo presets above so the mock's relative sample data sees the shifted clock.
 // .then(), not top-level await: the legacy (SystemJS) build for old Safari can't do top-level await.
-import('./App.tsx').then(({ default: App }) => root.render(
+// The last language shown here loads with the App chunk, so the first paint is already in it (i18n.ts).
+Promise.all([import('./App.tsx'), setLang(startLang()).catch(() => {})]).then(([{ default: App }]) => root.render(
   <StrictMode>
     <BootBoundary>
       <App />

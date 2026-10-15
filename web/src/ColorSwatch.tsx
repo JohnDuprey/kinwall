@@ -1,4 +1,5 @@
 import { DropperIcon } from './icons.tsx'
+import { t } from './i18n.ts'
 
 /** The "any color" swatch: a rainbow ring with a dropper so it reads as a picker, not a grey
  * preset. Once a custom color is chosen it fills with that color like the other swatches. */
@@ -6,9 +7,9 @@ export function CustomColorSwatch({ value, presets, onChange, label }: { value: 
   const valid = /^#[0-9a-f]{6}$/i.test(value ?? '')
   const active = valid && !presets.includes(value!)
   return (
-    <label className={`color-swatch color-swatch-custom ${active ? 'active' : ''}`} style={active ? { background: value } : undefined} title="Pick any color">
+    <label className={`color-swatch color-swatch-custom ${active ? 'active' : ''}`} style={active ? { background: value } : undefined} title={t('Pick any color')}>
       <DropperIcon width={18} height={18} />
-      <input type="color" value={valid ? value : '#888888'} onChange={e => onChange(e.target.value)} aria-label={active ? `${label} (selected)` : label} />
+      <input type="color" value={valid ? value : '#888888'} onChange={e => onChange(e.target.value)} aria-label={active ? t('{label} (selected)', { label }) : label} />
     </label>
   )
 }

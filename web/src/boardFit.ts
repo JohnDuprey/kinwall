@@ -1,6 +1,8 @@
 // How many of a Board card's rows fit its space (Board.tsx FitBody measures, this decides), and whose chores it counts. Pure, so
 // it's tested in test/boardFit.test.ts.
 
+import { t, tm } from './i18n.ts'
+
 /** Rows in order, each with its bottom edge (px from the top of the card's body) and whether it's a
  *  heading (a day in Coming up). Returns how many rows to show: all of them when they fit in `space`,
  *  else as many as fit above the More button (`moreSpace`), never ending on a heading with nothing under it. */
@@ -13,10 +15,10 @@ export function rowsThatFit(rows: { bottom: number; heading?: boolean }[], space
 }
 
 /** The More button's label: how many rows (not headings) the sheet adds, "+4 more"; when none fit and
- * the card says what its rows are (`what`: one, many), "4 meals". */
+ * the card says what its rows are (`what`: msg() texts for one and many, with {n}), "4 meals". */
 export function moreLabel(rows: { heading?: boolean }[], shown: number, what?: [string, string]): string {
   const n = rows.slice(shown).filter(r => !r.heading).length
-  return n === 0 ? 'More' : shown === 0 && what ? `${n} ${n === 1 ? what[0] : what[1]}` : `+${n} more`
+  return n === 0 ? t('More') : shown === 0 && what ? tm(n === 1 ? what[0] : what[1], { n }) : t('+{n} more', { n })
 }
 
 /** The Board's chore rows for who's shown, the same rule as the Chores tab: with someone picked,

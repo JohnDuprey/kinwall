@@ -1,6 +1,7 @@
 // "Added by Maya · Tue 4:12 PM" / "Checked off by Leo · 5:02 PM" / "Last done: Maya · Tue 8:10 PM" on lists.
 import type { Actor, Member } from './types.ts'
 import { formatTime } from './timeFormat.ts'
+import { formatDate } from './i18n.ts'
 
 /** A member's avatar and name, or a device's or app's label; null when nobody is known (or they've left). */
 export function actorName(actor: Actor | null | undefined, members: Pick<Member, 'id' | 'name' | 'avatar'>[]): string | null {
@@ -18,8 +19,8 @@ export function whenLabel(iso: string, now = new Date()): string {
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
   const days = Math.round((day(now) - day(d)) / 86_400_000)
   if (days === 0) return time
-  if (days > 0 && days < 7) return `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
-  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })}, ${time}`
+  if (days > 0 && days < 7) return `${formatDate(d, { weekday: 'short' })} ${time}`
+  return `${formatDate(d, { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })}, ${time}`
 }
 
 /** The when part on one line, so a narrow screen breaks before it, not inside "4:12 PM". */

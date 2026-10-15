@@ -1,4 +1,5 @@
 import type { DialStep } from './dialSteps.ts'
+import { intlLocale, msg, t, tc, tm } from './i18n.ts'
 
 /** Household directory records. Private records are for admin devices only; the API must enforce
  * that boundary too, since hiding a card in the browser cannot protect its data. */
@@ -59,21 +60,21 @@ export const emptyContact = (): ContactInput => ({
 /** The import review rows. The server parses vCards and finds duplicates; nothing merges until someone picks Merge. */
 /** New-contact templates, each filed under a built-in category (by name: built-ins can't be renamed). */
 export const CONTACT_TEMPLATES: { label: string; relationship: string; kind: NonNullable<Contact['kind']>; category: string; emergency?: boolean }[] = [
-  { label: 'Poison Control', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
-  { label: 'Animal Control', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
-  { label: 'Emergency services', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
-  { label: 'Police non-emergency', relationship: 'Public service', kind: 'service', category: 'Emergency services' },
-  { label: 'Fire department', relationship: 'Emergency service', kind: 'service', category: 'Emergency services', emergency: true },
-  { label: 'Pediatrician', relationship: 'Doctor', kind: 'service', category: 'Medical' },
-  { label: 'Veterinarian', relationship: 'Veterinarian', kind: 'service', category: 'Veterinary' },
-  { label: 'Pharmacy', relationship: 'Medical', kind: 'service', category: 'Medical' },
-  { label: 'School office', relationship: 'School', kind: 'organization', category: 'School' },
-  { label: 'Utility company', relationship: 'Home service', kind: 'organization', category: 'Home services' },
-  { label: 'Locksmith', relationship: 'Home service', kind: 'service', category: 'Home services' },
-  { label: 'Insurance provider', relationship: 'Insurance', kind: 'organization', category: 'Organizations' },
-  { label: 'Babysitter', relationship: 'Childcare', kind: 'person', category: 'Childcare' },
-  { label: 'Neighbor', relationship: 'Neighbor', kind: 'person', category: 'Neighbors' },
-  { label: 'Other service', relationship: 'Service', kind: 'service', category: 'Other' },
+  { label: msg('Poison Control'), relationship: msg('Emergency service'), kind: 'service', category: 'Emergency services', emergency: true },
+  { label: msg('Animal Control'), relationship: msg('Emergency service'), kind: 'service', category: 'Emergency services', emergency: true },
+  { label: msg('Emergency services'), relationship: msg('Emergency service'), kind: 'service', category: 'Emergency services', emergency: true },
+  { label: msg('Police non-emergency'), relationship: msg('Public service'), kind: 'service', category: 'Emergency services' },
+  { label: msg('Fire department'), relationship: msg('Emergency service'), kind: 'service', category: 'Emergency services', emergency: true },
+  { label: msg('Pediatrician'), relationship: msg('Doctor'), kind: 'service', category: 'Medical' },
+  { label: msg('Veterinarian'), relationship: msg('Veterinarian'), kind: 'service', category: 'Veterinary' },
+  { label: msg('Pharmacy'), relationship: msg('Medical'), kind: 'service', category: 'Medical' },
+  { label: msg('School office'), relationship: msg('School'), kind: 'organization', category: 'School' },
+  { label: msg('Utility company'), relationship: msg('Home service'), kind: 'organization', category: 'Home services' },
+  { label: msg('Locksmith'), relationship: msg('Home service'), kind: 'service', category: 'Home services' },
+  { label: msg('Insurance provider'), relationship: msg('Insurance'), kind: 'organization', category: 'Organizations' },
+  { label: msg('Babysitter'), relationship: msg('Childcare'), kind: 'person', category: 'Childcare' },
+  { label: msg('Neighbor'), relationship: msg('Neighbor'), kind: 'person', category: 'Neighbors' },
+  { label: msg('Other service'), relationship: msg('Service'), kind: 'service', category: 'Other' },
 ]
 
 /** Switch a new contact's template from `from` to `to` ('' is Blank contact). A name the template
@@ -85,8 +86,8 @@ export function applyContactTemplate(f: ContactInput, from: string, to: string, 
   const blank = emptyContact()
   return {
     ...f,
-    name: !f.name.trim() || f.name === prev?.label ? next?.label ?? '' : f.name,
-    kind: next?.kind ?? blank.kind, relationship: next?.relationship ?? blank.relationship, emergency: !!next?.emergency,
+    name: !f.name.trim() || (prev && f.name === tm(prev.label)) ? (next ? tm(next.label) : '') : f.name,
+    kind: next?.kind ?? blank.kind, relationship: next ? tm(next.relationship) : blank.relationship, emergency: !!next?.emergency,
     categoryIds: [...new Set([...(f.categoryIds ?? []).filter(id => id !== prevCategory), ...(nextCategory ? [nextCategory] : [])])],
   }
 }
@@ -99,16 +100,16 @@ export function reviewCandidates(entries: ImportPreviewEntry[]): ImportCandidate
 /** The Contacts page's filters. Only this page's state: nothing is saved. */
 export interface ContactFilters { show: 'all' | 'favorites' | 'emergency' | 'wall'; kind: 'all' | NonNullable<Contact['kind']>; category: string; sort: 'name' | 'recent' | 'organization' }
 export const DEFAULT_CONTACT_FILTERS: ContactFilters = { show: 'all', kind: 'all', category: 'all', sort: 'name' }
-export const CONTACT_SHOW_LABELS: Record<ContactFilters['show'], string> = { all: 'All contacts', favorites: 'Favorites', emergency: 'Emergency', wall: 'On wall' }
-export const CONTACT_KIND_LABELS: Record<ContactFilters['kind'], string> = { all: 'All kinds', person: 'People', service: 'Services', organization: 'Organizations', place: 'Places' }
-export const CONTACT_SORT_LABELS: Record<ContactFilters['sort'], string> = { name: 'Name A–Z', recent: 'Recently updated', organization: 'Organization' }
+export const CONTACT_SHOW_LABELS: Record<ContactFilters['show'], string> = { all: msg('All contacts'), favorites: msg('Favorites'), emergency: msg('Emergency'), wall: msg('On wall') }
+export const CONTACT_KIND_LABELS: Record<ContactFilters['kind'], string> = { all: msg('All kinds'), person: msg('People'), service: msg('Services'), organization: msg('Organizations'), place: msg('Places') }
+export const CONTACT_SORT_LABELS: Record<ContactFilters['sort'], string> = { name: msg('Name A–Z'), recent: msg('Recently updated'), organization: msg('Organization') }
 /** How many filters narrow the list (the sort doesn't). */
 export const activeContactFilters = (f: ContactFilters) => [f.show !== 'all', f.kind !== 'all', f.category !== 'all'].filter(Boolean).length
 /** One line under the search, e.g. "Favorites · Medical · Name A–Z"; empty while nothing differs from the defaults. */
 export function contactFilterSummary(f: ContactFilters, categoryName: (id: string) => string | undefined): string {
   if (!activeContactFilters(f) && f.sort === DEFAULT_CONTACT_FILTERS.sort) return ''
-  return [f.show !== 'all' && CONTACT_SHOW_LABELS[f.show], f.kind !== 'all' && CONTACT_KIND_LABELS[f.kind],
-    f.category !== 'all' && (categoryName(f.category) ?? 'Category'), CONTACT_SORT_LABELS[f.sort]].filter(Boolean).join(' · ')
+  return [f.show !== 'all' && tm(CONTACT_SHOW_LABELS[f.show]), f.kind !== 'all' && tm(CONTACT_KIND_LABELS[f.kind]),
+    f.category !== 'all' && (categoryName(f.category) ?? t('Category')), tm(CONTACT_SORT_LABELS[f.sort])].filter(Boolean).join(' · ')
 }
 
 /** A detail's label as people read it: "birthday" → "Birthday", and labels saved before imports
@@ -126,5 +127,15 @@ export function contactDate(date: string): string {
   const m = /^(\d{4}|-)-(\d{2})-(\d{2})$/.exec(date)
   if (!m) return date
   const d = new Date(Date.UTC(m[1] === '-' ? 2000 : Number(m[1]), Number(m[2]) - 1, Number(m[3])))
-  return d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', ...(m[1] === '-' ? {} : { year: 'numeric' }) })
+  return d.toLocaleDateString(intlLocale(), { timeZone: 'UTC', month: 'long', day: 'numeric', ...(m[1] === '-' ? {} : { year: 'numeric' }) })
 }
+
+const labelWords = (): Record<string, string> => ({
+  Mobile: t('Mobile'), Home: tc('contact-label', 'Home'), Work: t('Work'), Main: tc('contact-label', 'Main'), Office: t('Office'), Direct: t('Direct'),
+  'After hours': t('After hours'), Emergency: t('Emergency'), School: t('School'), 'Text only': t('Text only'), Fax: t('Fax'), Other: t('Other'),
+  Personal: t('Personal'), Billing: t('Billing'), Website: t('Website'), App: t('App'), 'Patient portal': t('Patient portal'), Booking: t('Booking'),
+  Phone: t('Phone'), Email: t('Email'), Birthday: t('Birthday'), Anniversary: t('Anniversary'), 'Home page': t('Home page'), 'Home fax': t('Home fax'),
+  'Work fax': t('Work fax'), Pager: t('Pager'), Car: t('Car'),
+})
+/** A contact label in the screen's language (saved in English; a typed label shows as typed). */
+export const labelText = (label: string) => { const l = contactLabel(label); return labelWords()[l] ?? l }

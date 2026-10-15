@@ -15,6 +15,10 @@ import GoalFollowUp from './GoalFollowUp.tsx'
 import Sheet from './Sheet.tsx'
 import type { Journal as JournalData, JournalDay, JournalEntry, Member } from './types.ts'
 import { Face } from './Face'
+import { msg, t, tm, tn } from './i18n.ts'
+
+/** "Slept great": the Temp check's sleep answer read back (marked: tm()). */
+const SLEPT: Record<string, string> = { great: msg('Slept great'), good: msg('Slept good'), ok: msg('Slept ok'), poorly: msg('Slept poorly'), terrible: msg('Slept terrible') }
 
 const PAGE_DAYS = 60
 const dayBefore = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
@@ -33,22 +37,22 @@ export default function Journal({ memberId }: { memberId?: string }) {
     let canceled = false
     api.getJournal(member.id, { days: PAGE_DAYS })
       .then(j => { if (!canceled) { setData(j); setError('') } })
-      .catch(e => { if (!canceled) setError(e instanceof ApiError && e.status === 403 ? `${member.name}'s journal is private. It opens on ${member.name}'s own device and parents' devices.` : e instanceof ApiError ? e.message : "Couldn't open this journal.") })
+      .catch(e => { if (!canceled) setError(e instanceof ApiError && e.status === 403 ? t("{name}'s journal is private. It opens on {name}'s own device and parents' devices.", { name: member.name }) : e instanceof ApiError ? e.message : t("Couldn't open this journal.")) })
     return () => { canceled = true }
   }, [member?.id, refreshTick, tick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!member) return <div className="state-card">No one in the family yet.</div>
+  if (!member) return <div className="state-card">{t('No one in the family yet.')}</div>
   const shown = data?.memberId === member.id ? data : null
   const privacy = shown?.privacy
   const locked = !!privacy?.on && !privacy.mine // a private journal on someone else's device: no new entries here
   const claim = parentDevice && !meMemberId && !!member.grownUp // a parent's device that belongs to no one yet
   const setPrivate = async (on: boolean) => {
-    try { await api.setJournalPrivacy(member.id, { private: on }); toast(on ? 'Your journal is private' : 'Your journal is shared with parents'); setTick(t => t + 1); reloadCore() }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+    try { await api.setJournalPrivacy(member.id, { private: on }); toast(on ? t('Your journal is private') : t('Your journal is shared with parents')); setTick(x => x + 1); reloadCore() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't change that"), true) }
   }
   const claimDevice = async () => {
-    try { await api.setMyOwner(member.id); toast(`This device is ${member.name}'s`); reloadCore(); setTick(t => t + 1) }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+    try { await api.setMyOwner(member.id); toast(t("This device is {name}'s", { name: member.name })); reloadCore(); setTick(x => x + 1) }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't change that"), true) }
   }
   const earlier = async () => {
     if (!shown) return
@@ -64,14 +68,14 @@ export default function Journal({ memberId }: { memberId?: string }) {
         <div className="profile-hero">
           <Face m={member} className="profile-avatar" aria-hidden="true" />
           <div>
-            <h2 className="profile-name">{member.name}'s journal</h2>
+            <h2 className="profile-name">{t("{name}'s journal", { name: member.name })}</h2>
             <p className="profile-meta">{privacyLine(member, privacy)}</p>
           </div>
         </div>
         {!error && (
           <div className="profile-actions">
-            <a className="btn btn-secondary" href={`#/insights/${member.id}`}>📈 Insights</a>
-            {!locked && <button className="btn btn-primary" onClick={() => setEditing('new')}>+ New entry</button>}
+            <a className="btn btn-secondary" href={`#/insights/${member.id}`}>📈 {t('Insights')}</a>
+            {!locked && <button className="btn btn-primary" onClick={() => setEditing('new')}>{t('+ New entry')}</button>}
           </div>
         )}
       </section>
@@ -79,58 +83,58 @@ export default function Journal({ memberId }: { memberId?: string }) {
       {privacy?.canChange && (
         <div className="board-card journal-privacy toggle-row">
           <div>
-            <label id="journal-private-label">Private journal</label>
-            <div className="settings-row-sub">{privacy.on ? "Turn it off to share new entries with parent devices. What you wrote while it's private stays private." : 'Parent devices can read new entries. Turn it on to keep them to yourself.'}</div>
+            <label id="journal-private-label">{t('Private journal')}</label>
+            <div className="settings-row-sub">{privacy.on ? t("Turn it off to share new entries with parent devices. What you wrote while it's private stays private.") : t('Parent devices can read new entries. Turn it on to keep them to yourself.')}</div>
           </div>
           <button className={`switch ${privacy.on ? 'on' : ''}`} role="switch" aria-checked={privacy.on} aria-labelledby="journal-private-label" onClick={() => setPrivate(!privacy.on)}><span className="knob" /></button>
         </div>
       )}
       {shown && claim && (
         <div className="board-card journal-privacy">
-          <p className="settings-row-sub">Is this {member.name}'s phone or computer? Say so to read {member.name}'s private entries here.</p>
-          <button className="btn btn-secondary" onClick={claimDevice}>This is {member.name}'s device</button>
+          <p className="settings-row-sub">{t("Is this {name}'s phone or computer? Say so to read {name}'s private entries here.", { name: member.name })}</p>
+          <button className="btn btn-secondary" onClick={claimDevice}>{t("This is {name}'s device", { name: member.name })}</button>
         </div>
       )}
-      {!error && member.tempCheck?.on && <GoalFollowUp key={`last:${member.id}:${tick}`} member={member} lastNight onSaved={() => setTick(t => t + 1)} />}
-      {!error && member.tempCheck?.on && <GoalFollowUp key={`${member.id}:${tick}`} member={member} onSaved={() => setTick(t => t + 1)} />}
-      {!shown && !error && <p className="snap-empty">Loading…</p>}
-      {shown && shown.days.length === 0 && <p className="snap-empty">Nothing here yet. Tap <strong>+ New entry</strong> to write about your day.</p>}
+      {!error && member.tempCheck?.on && <GoalFollowUp key={`last:${member.id}:${tick}`} member={member} lastNight onSaved={() => setTick(x => x + 1)} />}
+      {!error && member.tempCheck?.on && <GoalFollowUp key={`${member.id}:${tick}`} member={member} onSaved={() => setTick(x => x + 1)} />}
+      {!shown && !error && <p className="snap-empty">{t('Loading…')}</p>}
+      {shown && shown.days.length === 0 && <p className="snap-empty">{t('Nothing here yet. Tap “+ New entry” to write about your day.')}</p>}
       {shown && (
         <ol className="journal-days">
           {shown.days.map(d => <Day key={d.date} day={d} today={today} onEdit={setEditing} />)}
         </ol>
       )}
-      {shown && shown.days.length > 0 && <button className="btn btn-secondary journal-more" onClick={earlier}>Show earlier</button>}
-      {editing && <EntrySheet member={member} entry={editing === 'new' ? null : editing} today={today} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1) }} />}
+      {shown && shown.days.length > 0 && <button className="btn btn-secondary journal-more" onClick={earlier}>{t('Show earlier')}</button>}
+      {editing && <EntrySheet member={member} entry={editing === 'new' ? null : editing} today={today} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(x => x + 1) }} />}
     </div>
   )
 }
 
 function Day({ day, today, onEdit }: { day: JournalDay; today: string; onEdit: (e: JournalEntry) => void }) {
-  const t = day.tempCheck
-  const sleep = t?.sleep ? SLEEP.find(s => s.key === t.sleep) : undefined
-  const f = t?.followup
-  const notes = f && [['Helped', f.helped], ['In the way', f.hindered], ['Next time', f.next]].filter(([, v]) => v) as [string, string][]
+  const check = day.tempCheck
+  const sleep = check?.sleep ? SLEEP.find(s => s.key === check.sleep) : undefined
+  const f = check?.followup
+  const notes = f && [[t('Helped'), f.helped], [t('In the way'), f.hindered], [t('Next time'), f.next]].filter(([, v]) => v) as [string, string][]
   return (
     <li className="board-card journal-day">
-      <h3 className="snap-heading">{day.date === today ? 'Today' : dayName(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
-      {t && (sleep || t.feelings?.length) && (
-        <p className="journal-line">{[sleep && `${sleep.emoji} Slept ${sleep.label.toLowerCase()}`, t.feelings?.length && `Feeling ${t.feelings.join(', ')}`].filter(Boolean).join(' · ')}</p>
+      <h3 className="snap-heading">{day.date === today ? t('Today') : dayName(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
+      {check && (sleep || check.feelings?.length) && (
+        <p className="journal-line">{[sleep && `${sleep.emoji} ${tm(SLEPT[sleep.key])}`, check.feelings?.length && t('Feeling {list}', { list: check.feelings.join(', ') })].filter(Boolean).join(' · ')}</p>
       )}
-      {t?.goal && (
+      {check?.goal && (
         <div className="journal-goal">
-          <p className="journal-line"><strong>🎯 {t.goal}</strong>{f && <span className={`journal-outcome journal-outcome-${f.outcome}`}>{outcomeOf(f.outcome).emoji} {outcomeOf(f.outcome).label}</span>}</p>
-          {notes && notes.length > 0 && <ul className="journal-notes">{notes.map(([k, v]) => <li key={k}><span>{k}:</span> {v}</li>)}</ul>}
-          {t.followupHidden && <p className="journal-private">🔒 Notes are private</p>}
+          <p className="journal-line"><strong>🎯 {check.goal}</strong>{f && <span className={`journal-outcome journal-outcome-${f.outcome}`}>{outcomeOf(f.outcome).emoji} {tm(outcomeOf(f.outcome).label)}</span>}</p>
+          {notes && notes.length > 0 && <ul className="journal-notes">{notes.map(([k, v]) => <li key={k}><span>{t('{label}:', { label: k })}</span> {v}</li>)}</ul>}
+          {check.followupHidden && <p className="journal-private">{t('🔒 Notes are private')}</p>}
         </div>
       )}
       {day.entries.map(e => e.text === null ? (
         <div key={e.id} className="journal-entry journal-entry-private">
-          {e.mood && <span className="journal-mood" role="img" aria-label={`Mood ${e.mood}`}>{e.mood}</span>}
-          <span className="journal-private">🔒 Private entry</span>
+          {e.mood && <span className="journal-mood" role="img" aria-label={t('Mood {mood}', { mood: e.mood })}>{e.mood}</span>}
+          <span className="journal-private">{t('🔒 Private entry')}</span>
         </div>
       ) : (
-        <button key={e.id} className="journal-entry" onClick={() => onEdit(e)} aria-label={`Edit entry: ${e.text.slice(0, 60)}`}>
+        <button key={e.id} className="journal-entry" onClick={() => onEdit(e)} aria-label={t('Edit entry: {text}', { text: e.text.slice(0, 60) })}>
           {e.mood && <span className="journal-mood" aria-hidden="true">{e.mood}</span>}
           <span className="journal-text">{e.text}</span>
         </button>
@@ -149,35 +153,35 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
       const body = { date, text: text.trim(), mood: mood || null }
       if (entry) await api.updateJournalEntry(member.id, entry.id, body)
       else await api.addJournalEntry(member.id, body)
-      toast('Saved to the journal')
+      toast(t('Saved to the journal'))
       onSaved()
-    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
   }
   const more = async (action: string) => {
     if (action !== 'delete' || !entry) return
-    try { await api.deleteJournalEntry(member.id, entry.id); toast('Entry deleted'); onSaved() }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete that", true) }
+    try { await api.deleteJournalEntry(member.id, entry.id); toast(t('Entry deleted')); onSaved() }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't delete that"), true) }
   }
   return (
-    <Sheet title={entry ? 'Edit entry' : 'New entry'} onClose={onClose}
+    <Sheet title={entry ? t('Edit entry') : t('New entry')} onClose={onClose}
       actions={<>
-        {entry && <select className="settings-select" aria-label="More" value="" onChange={e => more(e.target.value)}><option value="">More…</option><option value="delete">Delete entry</option></select>}
-        <button className="btn btn-primary" onClick={save} disabled={!text.trim()}>Save</button>
+        {entry && <select className="settings-select" aria-label={t('More')} value="" onChange={e => more(e.target.value)}><option value="">{t('More…')}</option><option value="delete">{t('Delete entry')}</option></select>}
+        <button className="btn btn-primary" onClick={save} disabled={!text.trim()}>{t('Save')}</button>
       </>}>
       <div className="field">
-        <label htmlFor="journal-text">What happened?</label>
-        <textarea id="journal-text" rows={6} maxLength={JOURNAL_TEXT_MAX} value={text} onChange={e => setText(e.target.value)} placeholder="A memory, a thought, something to remember" />
-        <p className="field-hint">{JOURNAL_TEXT_MAX - text.length} characters left</p>
+        <label htmlFor="journal-text">{t('What happened?')}</label>
+        <textarea id="journal-text" rows={6} maxLength={JOURNAL_TEXT_MAX} value={text} onChange={e => setText(e.target.value)} placeholder={t('A memory, a thought, something to remember')} />
+        <p className="field-hint">{tn(JOURNAL_TEXT_MAX - text.length, '{n} character left', '{n} characters left')}</p>
       </div>
       <div className="field">
-        <label htmlFor="journal-mood">Mood <span className="settings-row-sub">(optional)</span></label>
+        <label htmlFor="journal-mood">{t('Mood')} <span className="settings-row-sub">{t('(optional)')}</span></label>
         <select id="journal-mood" className="settings-select" value={mood} onChange={e => setMood(e.target.value)}>
-          <option value="">None</option>
+          <option value="">{t('None')}</option>
           {[...new Set([...MOODS, ...(mood ? [mood] : [])])].map(m => <option key={m} value={m}>{m}</option>)}
         </select>
       </div>
       <div className="field">
-        <label htmlFor="journal-date">Day</label>
+        <label htmlFor="journal-date">{t('Day')}</label>
         <input id="journal-date" type="date" value={date} max={today} onChange={e => setDate(e.target.value || today)} />
       </div>
     </Sheet>

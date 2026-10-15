@@ -1,6 +1,7 @@
 // Photo prep before upload: decode (honoring EXIF rotation), shrink to 1280 px on the long edge and
 // re-encode as WebP (JPEG where the browser can't encode WebP), stepping the quality down until it
 // fits the server's 600 KB cap. A 12 MP phone photo ends up around 150-300 KB.
+import { t } from './i18n.ts'
 const MAX_EDGE = 1280
 export const MAX_PHOTO_BYTES = 600 * 1024
 
@@ -15,7 +16,7 @@ export function safeImageSrc(url: string, origin = location.origin): string | un
 }
 
 export class PhotoFormatError extends Error {
-  constructor() { super("This photo format can't be read here — pick it from Photos (iPhone converts it) or export as JPEG") }
+  constructor() { super(t("This photo format can't be read here — pick it from Photos (iPhone converts it) or export as JPEG")) }
 }
 
 async function decode(file: File): Promise<{ src: CanvasImageSource; width: number; height: number; close: () => void }> {
@@ -61,7 +62,7 @@ export async function preparePhoto(file: File): Promise<{ blob: Blob; width: num
     if (blob && blob.size <= MAX_PHOTO_BYTES) break
     blob = await toBlob(canvas, type, q)
   }
-  if (!blob) throw new Error("Couldn't prepare that photo")
-  if (blob.size > MAX_PHOTO_BYTES) throw new Error('That photo is still too large after shrinking it')
+  if (!blob) throw new Error(t("Couldn't prepare that photo"))
+  if (blob.size > MAX_PHOTO_BYTES) throw new Error(t('That photo is still too large after shrinking it'))
   return { blob, width, height }
 }

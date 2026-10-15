@@ -1,3 +1,4 @@
+import { msg, t, tm, type Lang } from './i18n.ts'
 import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
@@ -182,7 +183,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 // when the network fails or dawdles. Writes: list item and chore ticks go through a persistent
 // outbox (outbox.ts) and replay when the connection returns; every other write says it needs one.
 
-export const OFFLINE_MESSAGE = "You're offline. This will work when you're back online."
+export const OFFLINE_MESSAGE = msg("You're offline. This will work when you're back online.")
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
 const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|outings|outing-categories|outing-feeds|notes|notifications|leaderboard)([/?]|$)/
@@ -288,7 +289,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   } catch {
     // No response at all: no network (or the server is unreachable). Status 0 tells callers apart.
     setOffline(true)
-    throw new ApiError(0, OFFLINE_MESSAGE)
+    throw new ApiError(0, tm(OFFLINE_MESSAGE))
   }
   setOffline(false)
   if (!res.ok) {
@@ -433,6 +434,7 @@ export const api = {
   updateMember: (id: string, body: Partial<Member>, useAdmin?: boolean) => MOCK ? mock.updateMember(id, body) : patch<Member>(`api/members/${id}`, body, useAdmin),
   deleteMember: (id: string, useAdmin?: boolean) => MOCK ? mock.deleteMember(id) : del(`api/members/${id}`, useAdmin),
   /** A kid's own device sets its own avatar; parents use updateMember. */
+  setMemberLanguage: (id: string, language: Lang | null) => MOCK ? mock.updateMember(id, { language }).then(() => ({ language })) : put<{ language: Lang | null }>(`api/members/${id}/language`, { language }),
   setMemberAvatar: (id: string, avatar: string) => MOCK ? mock.updateMember(id, { avatar }).then(() => ({ avatar })) : put<{ avatar: string | null }>(`api/members/${id}/avatar`, { avatar }),
   /** A profile picture (a square crop, picture.ts): parents for anyone, a kid's own device for them.
    * from: the family photo it was cropped from (a reference; the original isn't uploaded again). */
@@ -497,7 +499,7 @@ export const api = {
     MOCK ? mock.createCaldavAccount(body) : post<Account>('api/accounts/caldav', body, true),
   getRemoteCalendars: (accountId: string) => MOCK ? mock.getRemoteCalendars(accountId) : get<RemoteCalendar[]>(`api/accounts/${accountId}/remote-calendars`, true),
   // The provider's consent URL; the response also sets this browser's cookie for the callback (routes/oauth.ts), so open the URL here.
-  oauthStart: (kind: 'google' | 'microsoft') => MOCK ? Promise.reject(new Error("The demo doesn't connect to Google or Microsoft.")) : post<{ url: string }>(`api/oauth/${kind}/start`, undefined, true),
+  oauthStart: (kind: 'google' | 'microsoft') => MOCK ? Promise.reject(new Error(t("The demo doesn't connect to Google or Microsoft."))) : post<{ url: string }>(`api/oauth/${kind}/start`, undefined, true),
 
   // includeHidden (parents' devices): also the events the family doesn't see, each with `hidden` saying why.
   getEvents: (from: string, to: string, memberId?: string, calendarId?: string, includeHidden?: boolean) => {
@@ -671,7 +673,7 @@ export const api = {
     let res: Response
     try {
       res = await fetch(apiUrl(`api/google-photos/next?w=${w}&h=${h}`), { headers: { Authorization: `Bearer ${getKey() ?? ''}` } })
-    } catch { throw new ApiError(0, OFFLINE_MESSAGE) }
+    } catch { throw new ApiError(0, tm(OFFLINE_MESSAGE)) }
     if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText))
     return { src: URL.createObjectURL(await res.blob()), revoke: true }
   },
@@ -682,7 +684,7 @@ export const api = {
     let res: Response
     try {
       res = await fetch(apiUrl('api/photo-folder/next'), { headers: { Authorization: `Bearer ${getKey() ?? ''}` } })
-    } catch { throw new ApiError(0, OFFLINE_MESSAGE) }
+    } catch { throw new ApiError(0, tm(OFFLINE_MESSAGE)) }
     if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText))
     const caption = res.headers.get('x-caption')
     return { src: URL.createObjectURL(await res.blob()), revoke: true, caption: caption ? decodeURIComponent(caption) : undefined }
@@ -833,7 +835,7 @@ export const api = {
   exportData: async (): Promise<Blob> => {
     const key = getAdminKey() ?? getKey()
     const res = await fetch(apiUrl('api/export'), { headers: key ? { Authorization: `Bearer ${key}` } : {} })
-    if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText || 'Export failed'))
+    if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText || t('Export failed')))
     return res.blob()
   },
   // A recipe card PDF the server fetched from that recipe's or meal's own sourceUrl.

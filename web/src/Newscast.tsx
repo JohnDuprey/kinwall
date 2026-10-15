@@ -18,8 +18,9 @@ import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { MoreIcon } from './icons.tsx'
 import { Face as MemberFace } from './Face'
+import { msg, t, tm, tn } from './i18n.ts'
 
-const REACTIONS: { emoji: NewscastReaction; label: string }[] = [{ emoji: '👏', label: 'Clap' }, { emoji: '❤️', label: 'Love' }, { emoji: '🎉', label: 'Celebrate' }]
+const REACTIONS: { emoji: NewscastReaction; label: string }[] = [{ emoji: '👏', label: msg('Clap') }, { emoji: '❤️', label: msg('Love') }, { emoji: '🎉', label: msg('Celebrate') }]
 const EMOJI = ['📣', '🎉', '❤️', '🍕', '⚽', '🎂', '✈️', '🏠', '🐶', '📚', '🎨', '🦷']
 const MAX = 280
 
@@ -53,7 +54,7 @@ export default function NewscastView() {
   }, () => { if (!feedRef.current) setError(true) })
   useEffect(() => { load() }, [refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fail = (e: unknown, what: string) => toast(e instanceof ApiError ? e.message : `Could not ${what}`, true)
+  const fail = (e: unknown, fallback: string) => toast(e instanceof ApiError ? e.message : fallback, true)
   const patchItem = (key: string, reactions: NewscastItem['reactions']) => {
     const fix = (items: NewscastItem[]) => items.map(i => i.key === key ? { ...i, reactions } : i)
     setFeed(f => f && { ...f, items: fix(f.items) })
@@ -64,10 +65,14 @@ export default function NewscastView() {
     const on = !item.reactions.find(r => r.emoji === emoji)?.memberIds.includes(memberId)
     try {
       patchItem(item.key, (await api.reactNewscast({ itemKey: item.key, emoji, on, ...(meMemberId ? {} : { memberId }) })).reactions)
-      const said = `${on ? 'Reacted' : 'Took back'} ${REACTIONS.find(r => r.emoji === emoji)?.label}${meMemberId ? '' : ` as ${byId.get(memberId)?.name}`}`
+      const reaction = tm(REACTIONS.find(r => r.emoji === emoji)?.label ?? '')
+      const name = byId.get(memberId)?.name ?? ''
+      const said = meMemberId
+        ? (on ? t('Reacted {reaction}', { reaction }) : t('Took back {reaction}', { reaction }))
+        : (on ? t('Reacted {reaction} as {name}', { reaction, name }) : t('Took back {reaction} as {name}', { reaction, name }))
       if (!meMemberId && memberId === acting) toast(`${emoji} ${said}`) // a wall acting as its picked person says so
       else announce(said)
-    } catch (e) { fail(e, 'react') }
+    } catch (e) { fail(e, t('Could not react')) }
   }
   // A person's own device reacts as them; a wall screen as the person picked in its header (until it
   // goes idle), else it asks who, every time.
@@ -76,24 +81,24 @@ export default function NewscastView() {
   const setList = async (key: 'newscastNotFeatured' | 'newscastPostingPaused', id: string, on: boolean) => {
     const cur = settings[key] ?? []
     try { await api.updateSettings({ [key]: on ? [...cur.filter(x => x !== id), id] : cur.filter(x => x !== id) }); reloadCore(); load(true) }
-    catch (e) { fail(e, 'change that') }
+    catch (e) { fail(e, t('Could not change that')) }
   }
   const moderate = async (item: NewscastItem, action: string) => {
-    const name = byId.get(item.memberId ?? '')?.name ?? 'them'
+    const name = byId.get(item.memberId ?? '')?.name ?? t('them')
     if (action === 'delete' || action === 'remove' || action === 'removePhoto') {
       const mine = action === 'delete'
       const ok = await dialog.confirm({
-        title: mine ? 'Delete your post?' : `Remove ${name}'s post?`,
-        body: mine ? 'It goes for everyone.' : action === 'removePhoto' ? 'The post goes for everyone, and its photo is deleted from family photos.' : `${name} sees "Removed by a parent" in its place. The photo stays in family photos.`,
-        confirmLabel: mine ? 'Delete' : 'Remove', danger: true,
+        title: mine ? t('Delete your post?') : t("Remove {name}'s post?", { name }),
+        body: mine ? t('It goes for everyone.') : action === 'removePhoto' ? t('The post goes for everyone, and its photo is deleted from family photos.') : t('{name} sees "Removed by a parent" in its place. The photo stays in family photos.', { name }),
+        confirmLabel: mine ? t('Delete') : t('Remove'), danger: true,
       })
       if (!ok) return
-      try { await api.removeNewscastPost(item.post!.id, action === 'removePhoto'); load(true); announce(mine ? 'Post deleted' : 'Post removed') } catch (e) { fail(e, 'remove the post') }
+      try { await api.removeNewscastPost(item.post!.id, action === 'removePhoto'); load(true); announce(mine ? t('Post deleted') : t('Post removed')) } catch (e) { fail(e, t('Could not remove the post')) }
     } else if (action === 'pause' || action === 'resume') {
       await setList('newscastPostingPaused', item.memberId!, action === 'pause')
-      toast(action === 'pause' ? `${name} can't post for now` : `${name} can post again`)
+      toast(action === 'pause' ? t("{name} can't post for now", { name }) : t('{name} can post again', { name }))
     } else if (action === 'unfeature') {
-      if (!await dialog.confirm({ title: `Leave ${name} out of Newscast?`, body: `Their chores, rewards, photos, books and memories stop showing here. Their own posts still show. Turn it back on in Settings → Family → ${name}.`, confirmLabel: 'Leave out' })) return
+      if (!await dialog.confirm({ title: t('Leave {name} out of Newscast?', { name }), body: t('Their chores, rewards, photos, books and memories stop showing here. Their own posts still show. Turn it back on in Settings → Family → {name}.', { name }), confirmLabel: t('Leave out') })) return
       await setList('newscastNotFeatured', item.memberId!, true)
     }
   }
@@ -108,14 +113,14 @@ export default function NewscastView() {
   const composer = (inSheet: boolean) => <Composer inSheet={inSheet} onPosted={() => { setComposing(false); load(true) }} />
   const week = (
     <section className="news-card news-week" aria-labelledby="news-week-title">
-      <h3 id="news-week-title">This week, together</h3>
+      <h3 id="news-week-title">{t('This week, together')}</h3>
       <ul>
-        {settings.features.chores && <li><span>✅ Chores done</span><b>{digest.chores}</b></li>}
-        {settings.features.trackersReading && <li><span>📚 Books finished</span><b>{digest.books}</b></li>}
-        {settings.features.photos && <li><span>📸 Photos and drawings</span><b>{digest.pictures}</b></li>}
-        {rewardsOn(settings) && <li><span>🎁 Rewards</span><b>{digest.rewards}</b></li>}
+        {settings.features.chores && <li><span>{t('✅ Chores done')}</span><b>{digest.chores}</b></li>}
+        {settings.features.trackersReading && <li><span>{t('📚 Books finished')}</span><b>{digest.books}</b></li>}
+        {settings.features.photos && <li><span>{t('📸 Photos and drawings')}</span><b>{digest.pictures}</b></li>}
+        {rewardsOn(settings) && <li><span>{t('🎁 Rewards')}</span><b>{digest.rewards}</b></li>}
       </ul>
-      <p className="news-note">Family totals only. No one is ranked here.</p>
+      <p className="news-note">{t('Family totals only. No one is ranked here.')}</p>
     </section>
   )
 
@@ -124,11 +129,11 @@ export default function NewscastView() {
       <div className="news-feed">
         {!wide && (
           <button type="button" className="news-share" onClick={() => setComposing(true)}>
-            <Face m={byId.get(meMemberId ?? '')} /><span>Share something…</span><span className="news-share-go" aria-hidden="true">📣</span>
+            <Face m={byId.get(meMemberId ?? '')} /><span>{t('Share something…')}</span><span className="news-share-go" aria-hidden="true">📣</span>
           </button>
         )}
-        {pending > 0 && <div className="news-new"><button type="button" className="btn btn-secondary" onClick={() => { setFeed(fresh); setFresh(null); announce(`${pending} new`) }}>New: {pending} · Show</button></div>}
-        {sections.length === 0 && <div className="empty-card"><span className="emoji">📣</span>Nothing yet this week. Chores done, new photos, books finished and announcements show up here.</div>}
+        {pending > 0 && <div className="news-new"><button type="button" className="btn btn-secondary" onClick={() => { setFeed(fresh); setFresh(null); announce(t('{n} new', { n: pending })) }}>{t('New: {n}', { n: pending })} · {t('Show')}</button></div>}
+        {sections.length === 0 && <div className="empty-card"><span className="emoji">📣</span>{t('Nothing yet this week. Chores done, new photos, books finished and announcements show up here.')}</div>}
         {sections.map(day => (
           <section key={day.date} className="news-day" aria-labelledby={`news-day-${day.date}`}>
             <h3 className="news-day-head" id={`news-day-${day.date}`}>{day.label}{day.label !== day.long && <span>{day.long}</span>}</h3>
@@ -136,19 +141,19 @@ export default function NewscastView() {
               <NewsItem key={item.key} item={item} byId={byId} me={meMemberId} parent={parentDevice} calm={calm} tz={tz}
                 paused={(settings.newscastPostingPaused ?? []).includes(item.memberId ?? '')} onReact={tapReaction} onModerate={moderate} />
             ))}
-            {day.more > 0 && <button type="button" className="btn btn-secondary news-more" onClick={() => setShowAll(s => new Set(s).add(day.date))}>Show all for {day.label} (+{day.more})</button>}
+            {day.more > 0 && <button type="button" className="btn btn-secondary news-more" onClick={() => setShowAll(s => new Set(s).add(day.date))}>{t('Show all for {day} (+{n})', { day: day.label, n: day.more })}</button>}
           </section>
         ))}
         {feed.earlier && !older && (
-          <button type="button" className="btn btn-secondary news-more" onClick={() => api.getNewscast({ before: feed.from, days: 30 }).then(e => setOlder(e.items), e => fail(e, 'load earlier days'))}>Earlier this month</button>
+          <button type="button" className="btn btn-secondary news-more" onClick={() => api.getNewscast({ before: feed.from, days: 30 }).then(e => setOlder(e.items), e => fail(e, t('Could not load earlier days')))}>{t('Earlier this month')}</button>
         )}
         {!wide && sections.length > 0 && week}
       </div>
       {wide && <aside className="news-side">{composer(false)}{week}</aside>}
-      {composing && !wide && <Sheet title="📣 Share something" onClose={() => setComposing(false)}>{composer(true)}</Sheet>}
+      {composing && !wide && <Sheet title={t('📣 Share something')} onClose={() => setComposing(false)}>{composer(true)}</Sheet>}
       {reacting && (
-        <Sheet title="Who's reacting?" variant="dialog" onClose={() => setReacting(null)}>
-          <div className="news-who" role="group" aria-label="Who's reacting?">
+        <Sheet title={t("Who's reacting?")} variant="dialog" onClose={() => setReacting(null)}>
+          <div className="news-who" role="group" aria-label={t("Who's reacting?")}>
             {members.map(m => {
               const already = reacting.item.reactions.find(r => r.emoji === reacting.emoji)?.memberIds.includes(m.id)
               return (
@@ -159,7 +164,7 @@ export default function NewscastView() {
               )
             })}
           </div>
-          <p className="news-note">{reacting.emoji} Tap again to take it back.</p>
+          <p className="news-note">{reacting.emoji} {t('Tap again to take it back.')}</p>
         </Sheet>
       )}
     </div>
@@ -179,7 +184,7 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
     return (
       <article className="news-item news-removed">
         <Face m={m} />
-        <p>{mine ? 'A parent took this post down. Only you and parents see this note.' : `Removed by a parent. Only ${m?.name ?? 'the author'} and parents see this note.`}</p>
+        <p>{mine ? t('A parent took this post down. Only you and parents see this note.') : t('Removed by a parent. Only {name} and parents see this note.', { name: m?.name ?? t('the author') })}</p>
       </article>
     )
   }
@@ -187,9 +192,9 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
   const alt = pictureAlt(item)
   // "More…": the author deletes their own post; a parent removes any, pauses posting, or leaves someone out.
   const actions: [string, string][] = [
-    ...(post && mine ? [['delete', 'Delete my post']] as [string, string][] : []),
-    ...(post && parent && !mine ? [['remove', 'Remove post'], ...(item.photos.length ? [['removePhoto', 'Remove post and its photo']] : []), ...(m && !m.grownUp ? [[paused ? 'resume' : 'pause', paused ? `Let ${m.name} post again` : `Pause posting for ${m.name}`]] : [])] as [string, string][] : []),
-    ...(!post && parent && m ? [['unfeature', `Leave ${m.name} out of Newscast`]] as [string, string][] : []),
+    ...(post && mine ? [['delete', t('Delete my post')]] as [string, string][] : []),
+    ...(post && parent && !mine ? [['remove', t('Remove post')], ...(item.photos.length ? [['removePhoto', t('Remove post and its photo')]] : []), ...(m && !m.grownUp ? [[paused ? 'resume' : 'pause', paused ? t('Let {name} post again', { name: m.name }) : t('Pause posting for {name}', { name: m.name })]] : [])] as [string, string][] : []),
+    ...(!post && parent && m ? [['unfeature', t('Leave {name} out of Newscast', { name: m.name })]] as [string, string][] : []),
   ]
   return (
     <article className={`news-item ${post ? 'news-post' : ''}`} style={post && m ? { ['--news-color' as string]: m.color } : undefined}>
@@ -197,34 +202,34 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
         <Face m={m} />
         <div className="news-body">
           {post ? <>
-            <div className="news-kind">📣 {mine ? 'You' : m?.name ?? 'Someone'}{post.audience === 'grownups' && <span className="chip chip-static news-audience">Grown-ups only</span>}</div>
+            <div className="news-kind">📣 {mine ? t('You') : m?.name ?? t('Someone')}{post.audience === 'grownups' && <span className="chip chip-static news-audience">{t('Grown-ups only')}</span>}</div>
             <p className="news-say">{post.emoji && <span aria-hidden="true">{post.emoji} </span>}{post.text}</p>
           </> : <>
             <div className="news-title"><span aria-hidden="true">{item.emoji} </span>{title}</div>
             {item.detail && <div className="news-detail">{item.detail}</div>}
           </>}
-          {calm && item.photos.length > 0 && <div className="news-detail">📸 {item.photos.length === 1 ? 'A picture' : `${item.photos.length} pictures`} in family photos</div>}
+          {calm && item.photos.length > 0 && <div className="news-detail">📸 {tn(item.photos.length, 'A picture in family photos', '{n} pictures in family photos')}</div>}
         </div>
         {item.at && <time className="news-when" dateTime={item.at}>{formatTime(item.at, tz)}</time>}
       </div>
       {!calm && item.photos.length > 0 && (
         <div className="news-photos">
           {item.photos.slice(0, 3).map(p => (
-            <button key={p.id} type="button" className="news-photo" aria-haspopup="dialog" aria-label={`Show full size: ${alt}`} onClick={() => setBig(p)}>
+            <button key={p.id} type="button" className="news-photo" aria-haspopup="dialog" aria-label={t('Show full size: {name}', { name: alt })} onClick={() => setBig(p)}>
               <img src={api.photoImageUrl(p)} alt="" loading="lazy" />
             </button>
           ))}
         </div>
       )}
       <div className="news-foot">
-        <div className="news-reacts" role="group" aria-label="Reactions">
+        <div className="news-reacts" role="group" aria-label={t('Reactions')}>
           {REACTIONS.map(({ emoji, label }) => {
             const ids = item.reactions.find(r => r.emoji === emoji)?.memberIds ?? []
             const names = ids.map(id => byId.get(id)?.name).filter(Boolean)
             const pressed = !!me && ids.includes(me)
             return (
               <button key={emoji} type="button" className={`news-react ${pressed ? 'mine' : ''}`} aria-pressed={me ? pressed : undefined}
-                aria-label={`${label}${names.length ? `, from ${names.join(', ')}` : ''}`} onClick={() => onReact(item, emoji)}>
+                aria-label={names.length ? t('{reaction}, from {names}', { reaction: tm(label), names: names.join(', ') }) : tm(label)} onClick={() => onReact(item, emoji)}>
                 <span aria-hidden="true">{emoji}</span>
                 {ids.length > 0 && <span className="news-react-faces" aria-hidden="true">{ids.slice(0, 5).map(id => <Face key={id} m={byId.get(id)} size="sm" />)}</span>}
               </button>
@@ -232,20 +237,20 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
           })}
         </div>
         {actions.length > 0 && (
-          <button type="button" className="icon-btn news-more-btn" aria-label={post ? 'More for this post' : 'More for this item'} aria-haspopup="dialog" onClick={() => setMenu(true)}>
+          <button type="button" className="icon-btn news-more-btn" aria-label={post ? t('More for this post') : t('More for this item')} aria-haspopup="dialog" onClick={() => setMenu(true)}>
             <MoreIcon width={20} height={20} />
           </button>
         )}
       </div>
       {big && (
         <Sheet title={alt} variant="full" onClose={() => setBig(null)}>
-          <button type="button" className="news-photo-full" aria-label="Close" onClick={() => setBig(null)}>
+          <button type="button" className="news-photo-full" aria-label={t('Close')} onClick={() => setBig(null)}>
             <img src={api.photoImageUrl(big)} alt={alt} />
           </button>
         </Sheet>
       )}
       {menu && (
-        <Sheet title={post ? `${mine ? 'Your' : `${m?.name ?? 'Someone'}'s`} post` : title} variant="dialog" onClose={() => setMenu(false)}>
+        <Sheet title={post ? (mine ? t('Your post') : t("{name}'s post", { name: m?.name ?? t('Someone') })) : title} variant="dialog" onClose={() => setMenu(false)}>
           <div className="news-menu">
             {actions.map(([v, l]) => (
               <button key={v} type="button" className={`btn ${v.startsWith('remove') || v === 'delete' ? 'btn-danger' : 'btn-secondary'}`} onClick={() => { setMenu(false); onModerate(item, v) }}>{l}</button>
@@ -285,50 +290,50 @@ function Composer({ inSheet, onPosted }: { inSheet: boolean; onPosted: () => voi
       }
       await api.postNewscast({ text: text.trim(), emoji: emoji || null, photoId, audience: who.grownUp ? audience : 'everyone', ...(meMemberId ? {} : { memberId: who.id }) })
       setText(''); setEmoji(''); pickPhoto(undefined); setAudience('everyone')
-      toast(meMemberId ? 'Shared' : `Shared ✓ ${who.name}`); onPosted()
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not share that', true) } finally { setBusy(false) }
+      toast(meMemberId ? t('Shared') : t('Shared ✓ {name}', { name: who.name })); onPosted()
+    } catch (e) { toast(e instanceof Error ? e.message : t('Could not share that'), true) } finally { setBusy(false) }
   }
   return (
-    <section className={inSheet ? 'news-compose' : 'news-card news-compose'} aria-label="Share something">
-      {!inSheet && <h3>📣 Share something</h3>}
-      {paused ? <p className="news-note">{who!.name} is taking a break from posting for now. A parent can turn it back on in Settings. Reactions still work.</p> : <>
-        <textarea value={text} onChange={e => setText(e.target.value)} maxLength={MAX} rows={3} placeholder="Tell the family…" aria-label="Announcement" aria-describedby="news-count" />
-        <div className="news-count" id="news-count">{MAX - text.length} left</div>
+    <section className={inSheet ? 'news-compose' : 'news-card news-compose'} aria-label={t('Share something')}>
+      {!inSheet && <h3>{t('📣 Share something')}</h3>}
+      {paused ? <p className="news-note">{t('{name} is taking a break from posting for now. A parent can turn it back on in Settings. Reactions still work.', { name: who!.name })}</p> : <>
+        <textarea value={text} onChange={e => setText(e.target.value)} maxLength={MAX} rows={3} placeholder={t('Tell the family…')} aria-label={t('Announcement')} aria-describedby="news-count" />
+        <div className="news-count" id="news-count">{tn(MAX - text.length, '{n} left', '{n} left')}</div>
         <div className="news-row">
           {!meMemberId && (
-            <select className="settings-select" aria-label="Post as" value={as} onChange={e => setAs(e.target.value)}>
-              <option value="">Post as…</option>
+            <select className="settings-select" aria-label={t('Post as')} value={as} onChange={e => setAs(e.target.value)}>
+              <option value="">{t('Post as…')}</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
             </select>
           )}
           {who?.grownUp && (
-            <select className="settings-select" aria-label="Who sees it" value={audience} onChange={e => setAudience(e.target.value as 'everyone' | 'grownups')}>
-              <option value="everyone">👪 Everyone</option>
-              <option value="grownups">🔒 Grown-ups only</option>
+            <select className="settings-select" aria-label={t('Who sees it')} value={audience} onChange={e => setAudience(e.target.value as 'everyone' | 'grownups')}>
+              <option value="everyone">{t('👪 Everyone')}</option>
+              <option value="grownups">{t('🔒 Grown-ups only')}</option>
             </select>
           )}
-          <select className="settings-select" aria-label="Emoji" value={emoji} onChange={e => setEmoji(e.target.value)}>
-            <option value="">No emoji</option>
+          <select className="settings-select" aria-label={t('Emoji')} value={emoji} onChange={e => setEmoji(e.target.value)}>
+            <option value="">{t('No emoji')}</option>
             {EMOJI.map(x => <option key={x} value={x}>{x}</option>)}
           </select>
         </div>
         {photo && (
           <div className="news-photo-pick">
-            <img src={safeImageSrc(photo.url)} alt="The photo to share" />
-            <button type="button" className="btn btn-secondary" onClick={() => pickPhoto(undefined)}>Leave out the photo</button>
+            <img src={safeImageSrc(photo.url)} alt={t('The photo to share')} />
+            <button type="button" className="btn btn-secondary" onClick={() => pickPhoto(undefined)}>{t('Leave out the photo')}</button>
           </div>
         )}
         <div className="news-row">
           {!photo && settings.features.photos && (
             <label className="btn btn-secondary news-photo-btn">
-              📷 Add a photo
+              {t('📷 Add a photo')}
               <input type="file" accept="image/*" hidden onChange={e => { pickPhoto(e.target.files?.[0]); e.target.value = '' }} />
             </label>
           )}
           <span className="spacer" />
-          <button type="button" className="btn btn-primary" onClick={share} disabled={busy || !text.trim() || !who}>Share</button>
+          <button type="button" className="btn btn-primary" onClick={share} disabled={busy || !text.trim() || !who}>{t('Share')}</button>
         </div>
-        <p className="news-note">{audience === 'grownups' && who?.grownUp ? "Only grown-ups' own devices see it, for 30 days." : 'Everyone sees it here for 30 days.'}{photo ? ' The photo is also in family photos.' : ''}</p>
+        <p className="news-note">{audience === 'grownups' && who?.grownUp ? t("Only grown-ups' own devices see it, for 30 days.") : t('Everyone sees it here for 30 days.')}{photo ? ` ${t('The photo is also in family photos.')}` : ''}</p>
       </>}
     </section>
   )

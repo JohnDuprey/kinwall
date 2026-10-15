@@ -18,11 +18,12 @@ import { Face } from './Face'
 import { ChevronRight, FilterIcon, LinkIcon, PlusIcon } from './icons.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
+import { DAY, formatDate, MONTH_DAY, t, tn } from './i18n.ts'
 import { mapHref, parsePrice } from './restaurants.ts'
 import { hashQuery, withHashParam } from './hashQuery.ts'
-import { FOR_BOXES, interestOf, type ForBox } from './outing-rules.ts'
+import { addDays, FOR_BOXES, interestOf, type ForBox } from './outing-rules.ts'
 import { audienceLabel, boxLabel, filterChips, placeSections, priceLabel, reallyCount, shownOutings, startFilters, timeLabel, trayRows, upcomingSections, whenLabel, type Cost, type Filters, type When } from './outings.ts'
-import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingFeed, OutingIdeas, OutingInput, OutingPile } from './types.ts'
+import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingFeed, OutingIdea, OutingIdeas, OutingInput, OutingPile } from './types.ts'
 import './meals.css'
 import './outings.css'
 
@@ -47,7 +48,7 @@ export function useOutings() {
     let canceled = false
     Promise.all([api.getOutings(), api.getOutingCategories()])
       .then(([outings, categories]) => { if (!canceled) { setData({ outings, categories }); setError('') } })
-      .catch(e => { if (!canceled) setError(e instanceof Error ? e.message : 'Could not load outings.') })
+      .catch(e => { if (!canceled) setError(e instanceof Error ? e.message : t('Could not load outings.')) })
     return () => { canceled = true }
   }, [on, refreshTick, tick])
   return { outings: on ? data?.outings ?? [] : [], categories: data?.categories ?? [], loaded: !!data, error, retry: () => setTick(t => t + 1) }
@@ -73,15 +74,40 @@ function useOutingIdeas(): OutingIdeas | null {
   return on ? ideas : null
 }
 
+const EN_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const weekdayName = (i: number) => formatDate(new Date(2026, 0, 4 + i), { weekday: 'long' }) // Jan 4, 2026 was a Sunday
+/** An idea card's words in the current language. The cards come from outing-rules.ts (shared with
+ * the server, so in English): this rebuilds each from its key, else shows the English. */
+function ideaWords(i: OutingIdea, today: string): { title: string; note: string | null } {
+  const range = i.note && /^(.+) to (.+)$/.exec(i.note)
+  if (i.key.startsWith('open-')) {
+    const day = formatDate(new Date(`${i.key.slice(5)}T12:00:00`), { weekday: 'long' })
+    const part = / (morning|afternoon|evening) is open$/.exec(i.title)?.[1]
+    const title = part === 'morning' ? t('{day} morning is open', { day }) : part === 'afternoon' ? t('{day} afternoon is open', { day }) : part === 'evening' ? t('{day} evening is open', { day }) : t('{day} is open', { day })
+    return { title, note: range ? t('{from} to {to}', { from: range[1], to: range[2] }) : i.note }
+  }
+  if (i.key === 'rain') {
+    const n = EN_DAYS.indexOf(/^Rain (\w+):/.exec(i.title)?.[1] ?? '')
+    return { title: n < 0 ? i.title : t('Rain {day}: indoor ideas', { day: weekdayName(n) }), note: i.note }
+  }
+  if (i.key === 'next-month') {
+    const month = new Date(`${today.slice(0, 7)}-15T12:00:00Z`); month.setUTCMonth(month.getUTCMonth() + 1)
+    const need = Number(/^(\d+) need/.exec(i.note ?? '')?.[1])
+    return { title: t('In {month}', { month: formatDate(month, { month: 'long' }, 'UTC') }), note: need ? tn(need, '{n} needs tickets ahead', '{n} need tickets ahead') : i.note }
+  }
+  const fixed: Record<string, string> = { weekend: t('This weekend'), 'next-weekend': t('Nothing planned next weekend'), free: t('Free things'), 'date-night': t('Date night'), 'a-while': t('Haven’t been in a while'), surprise: t('Surprise me') }
+  return { title: fixed[i.key] ?? i.title, note: i.note === 'Places you want to go' ? t('Places you want to go') : i.note }
+}
+
 /** The idea cards: a heading per question ("Saturday is open"), and the outings that answer it. */
 function IdeaCards({ data, categories, today, onOpen, max, perCard }: { data: OutingIdeas; categories: OutingCategory[]; today: string; onOpen: (o: Outing) => void; max?: number; perCard?: number }) {
   const byId = new Map(data.outings.map(o => [o.id, o]))
   const cards = data.ideas.slice(0, max)
-  if (!cards.length) return <p className="state-card">No ideas yet. Add a few outings and places, and mark the ones you like.</p>
-  return <div className="outing-ideas">{cards.map(i => <section key={i.key} className="outing-idea" aria-labelledby={`idea-${i.key}`}>
-    <h3 id={`idea-${i.key}`}><span aria-hidden="true">{i.emoji}</span> {i.title}{i.note && <small> · {i.note}</small>}</h3>
+  if (!cards.length) return <p className="state-card">{t('No ideas yet. Add a few outings and places, and mark the ones you like.')}</p>
+  return <div className="outing-ideas">{cards.map(i => { const w = ideaWords(i, today); return <section key={i.key} className="outing-idea" aria-labelledby={`idea-${i.key}`}>
+    <h3 id={`idea-${i.key}`}><span aria-hidden="true">{i.emoji}</span> {w.title}{w.note && <small> · {w.note}</small>}</h3>
     <div className="outing-list">{i.outingIds.slice(0, perCard).map(id => byId.get(id)).filter((o): o is Outing => !!o).map(o => <OutingRow key={o.id} o={o} categories={categories} today={today} compact onOpen={onOpen} />)}</div>
-  </section>)}</div>
+  </section> })}</div>
 }
 
 /** What this device may do: a parent everything, a kid's own device add and edit its own, a wall neither. */
@@ -106,7 +132,7 @@ function Marks({ o, members }: { o: Outing; members: Member[] }) {
   if (!who.length) return null
   const stars = reallyCount(o), eyes = who.length - stars
   const words = [stars && `⭐ ${stars}`, eyes && `👀 ${eyes}`].filter(Boolean).join(' ')
-  return <span className="outing-marks" role="img" aria-label={who.map(x => `${x.m!.name} ${x.level === 'really' ? 'really wants to go' : 'is interested'}`).join(', ')}>
+  return <span className="outing-marks" role="img" aria-label={who.map(x => x.level === 'really' ? t('{name} really wants to go', { name: x.m!.name }) : t('{name} is interested', { name: x.m!.name })).join(', ')}>
     <span className="outing-faces" aria-hidden="true">{who.slice(0, 4).map(x => <Face key={x.m!.id} m={x.m!} />)}</span>
     <span aria-hidden="true" className="outing-marks-n">{words}</span>
   </span>
@@ -117,18 +143,18 @@ function OutingRow({ o, categories, onOpen, today, compact = false }: { o: Outin
   const { members } = useApp()
   const price = priceLabel(o)
   const who = audienceLabel(o, members)
-  const ticket = !o.gotTickets && o.buyBy && o.buyBy >= today ? `Get tickets by ${new Date(`${o.buyBy}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : !o.gotTickets && o.ticketsOnSaleAt && o.ticketsOnSaleAt.slice(0, 10) >= today ? 'Tickets not on sale yet' : o.gotTickets ? '✓ We have tickets' : null
+  const ticket = !o.gotTickets && o.buyBy && o.buyBy >= today ? t('Get tickets by {date}', { date: formatDate(new Date(`${o.buyBy}T12:00:00`), MONTH_DAY) }) : !o.gotTickets && o.ticketsOnSaleAt && o.ticketsOnSaleAt.slice(0, 10) >= today ? t('Tickets not on sale yet') : o.gotTickets ? t('✓ We have tickets') : null
   return <button type="button" className={`outing-row ${compact ? 'outing-row-compact' : ''}`} aria-haspopup="dialog" onClick={() => onOpen(o)}>
     <span className="outing-emoji" aria-hidden="true">{emojiOf(o, categories)}</span>
     <span className="outing-row-main">
       <strong>{o.title}</strong>
       <span className="outing-row-meta">{[whenLabel(o, today), o.placeName].filter(Boolean).join(' · ')}</span>
-      {o.canceled && <span className="outing-canceled">Canceled</span>}
+      {o.canceled && <span className="outing-canceled">{t('Canceled')}</span>}
       {!compact && (price || who || ticket || o.calendarEventId) && <span className="outing-tags">
         {price && <span className="chip chip-static">{price}</span>}
         {who && <span className="chip chip-static">{who}</span>}
         {ticket && <span className="chip chip-static outing-ticket">🎟 {ticket}</span>}
-        {o.calendarEventId && <span className="chip chip-static">📅 On our calendar</span>}
+        {o.calendarEventId && <span className="chip chip-static">{t('📅 On our calendar')}</span>}
       </span>}
     </span>
     <Marks o={o} members={members} />
@@ -156,14 +182,14 @@ function Pile({ categories, today, onOpen }: { categories: OutingCategory[]; tod
   }, [refreshTick, tick])
   const decide = async (o: Outing, keep: boolean) => {
     setBusy(o.id)
-    try { await api.decidePileItem(o.id, keep); changed(); toast(keep ? `Kept: ${o.title}` : `Not for us: ${o.title}`) } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(null) }
+    try { await api.decidePileItem(o.id, keep); changed(); toast(keep ? t('Kept: {title}', { title: o.title }) : t('Not for us: {title}', { title: o.title })) } catch (e) { toast(e instanceof Error ? e.message : t('Could not save.'), true) } finally { setBusy(null) }
   }
   const toggle = (id: string) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   return <>{pile.map(({ feed, outings }) => {
     const shown = open.has(feed.id)
     return <section key={feed.id} className="outing-pile" aria-labelledby={`pile-${feed.id}`}>
       <button type="button" id={`pile-${feed.id}`} className="outing-pile-head" aria-expanded={shown} aria-controls={`pile-list-${feed.id}`} onClick={() => toggle(feed.id)}>
-        <span aria-hidden="true">📥</span><span className="outing-pile-title">New from {feed.name} ({outings.length})</span><ChevronRight className={shown ? 'outing-pile-open' : ''} />
+        <span aria-hidden="true">📥</span><span className="outing-pile-title">{t('New from {name} ({n})', { name: feed.name, n: outings.length })}</span><ChevronRight className={shown ? 'outing-pile-open' : ''} />
       </button>
       {shown && <ul className="outing-pile-list" id={`pile-list-${feed.id}`}>
         {outings.map(o => <li key={o.id} className="outing-pile-row">
@@ -172,8 +198,8 @@ function Pile({ categories, today, onOpen }: { categories: OutingCategory[]; tod
             <span className="outing-row-main"><strong>{o.title}</strong><span className="outing-row-meta">{[whenLabel(o, today), o.placeName].filter(Boolean).join(' · ')}</span></span>
           </button>
           <span className="outing-pile-btns">
-            <button type="button" className="btn btn-primary" disabled={busy === o.id} aria-label={`Keep ${o.title}`} onClick={() => void decide(o, true)}>Keep</button>
-            <button type="button" className="btn btn-secondary" disabled={busy === o.id} aria-label={`${o.title}: not for us`} onClick={() => void decide(o, false)}>Not for us</button>
+            <button type="button" className="btn btn-primary" disabled={busy === o.id} aria-label={t('Keep {title}', { title: o.title })} onClick={() => void decide(o, true)}>{t('Keep')}</button>
+            <button type="button" className="btn btn-secondary" disabled={busy === o.id} aria-label={t('{title}: not for us', { title: o.title })} onClick={() => void decide(o, false)}>{t('Not for us')}</button>
           </span>
         </li>)}
       </ul>}
@@ -210,25 +236,25 @@ export default function Outings() {
   const sections = view === 'place' ? placeSections(shown) : upcomingSections(shown, who.today)
   const chips = filterChips(kind === 'place' ? { ...filters, when: 'any' } : filters, members, categories)
   return <div className="meals-view outings-view scroll-y">
-    <div className="meals-heading"><div><h1>Outings</h1><p className="field-hint">Things to do and places to go. Mark what you’d like to do.</p></div>
-      {who.canAdd && <div className="meal-actions"><button className="btn btn-primary" onClick={() => setEditing('new')}><PlusIcon /> Add</button></div>}
+    <div className="meals-heading"><div><h1>{t('Outings')}</h1><p className="field-hint">{t('Things to do and places to go. Mark what you’d like to do.')}</p></div>
+      {who.canAdd && <div className="meal-actions"><button className="btn btn-primary" onClick={() => setEditing('new')}><PlusIcon /> {t('Add')}</button></div>}
     </div>
-    <Segmented tabs idBase="outings-tab" label="Outings sections" value={view} onChange={setView} options={[{ key: 'upcoming', label: 'Upcoming' }, { key: 'place', label: 'Places' }, { key: 'ideas', label: 'Ideas' }]} />
+    <Segmented tabs idBase="outings-tab" label={t('Outings sections')} value={view} onChange={setView} options={[{ key: 'upcoming', label: t('Upcoming') }, { key: 'place', label: t('Places') }, { key: 'ideas', label: t('Ideas') }]} />
     {view === 'ideas' ? <section role="tabpanel" aria-labelledby="outings-tab-ideas">
-      <p className="field-hint">Picks from what’s saved, the family calendar’s busy times and the forecast. They change as you mark things.</p>
-      {!ideas ? <p role="status">Loading ideas…</p> : <IdeaCards data={ideas} categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
+      <p className="field-hint">{t('Picks from what’s saved, the family calendar’s busy times and the forecast. They change as you mark things.')}</p>
+      {!ideas ? <p role="status">{t('Loading ideas…')}</p> : <IdeaCards data={ideas} categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
     </section> : <section role="tabpanel" aria-labelledby={`outings-tab-${view}`}>
       <div className="outing-filter-bar">
-        {chips.map(c => <button key={c.label} type="button" className="btn btn-secondary outing-chip" aria-label={`Remove filter: ${c.label}`} onClick={() => setFilters(c.without)}>{c.label} <span aria-hidden="true">✕</span></button>)}
-        <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" aria-label={filterSortLabel(chips.length)} onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> Filter and sort{chips.length ? ` (${chips.length})` : ''}</button>
+        {chips.map(c => <button key={c.label} type="button" className="btn btn-secondary outing-chip" aria-label={t('Remove filter: {label}', { label: c.label })} onClick={() => setFilters(c.without)}>{c.label} <span aria-hidden="true">✕</span></button>)}
+        <button type="button" className="btn btn-secondary outing-filter-btn" aria-haspopup="dialog" aria-label={filterSortLabel(chips.length)} onClick={() => setFiltering(true)}><FilterIcon width={18} height={18} /> {t('Filter and sort')}{chips.length ? ` (${chips.length})` : ''}</button>
       </div>
       {who.parent && view === 'upcoming' && <Pile categories={categories} today={who.today} onOpen={x => openOne(x.id)} />}
       {error && <LoadError what="outings" error={error} onRetry={retry} />}
-      {!loaded && !error ? <p role="status">Loading outings…</p> : <>
-        <p className="field-hint" role="status">{shown.length} {view === 'place' ? `place${shown.length === 1 ? '' : 's'}` : `outing${shown.length === 1 ? '' : 's'}`}</p>
-        {!shown.length && <p className="state-card">{chips.length ? 'Nothing matches these filters.' : view === 'place'
-          ? 'Keep the places you like to go here: parks, beaches, museums. Mark the ones you want to try.'
-          : 'Keep things to do here: a fair, a concert, a movie coming out, a class. Mark what you’d like to do.'}</p>}
+      {!loaded && !error ? <p role="status">{t('Loading outings…')}</p> : <>
+        <p className="field-hint" role="status">{view === 'place' ? tn(shown.length, '{n} place', '{n} places') : tn(shown.length, '{n} outing', '{n} outings')}</p>
+        {!shown.length && <p className="state-card">{chips.length ? t('Nothing matches these filters.') : view === 'place'
+          ? t('Keep the places you like to go here: parks, beaches, museums. Mark the ones you want to try.')
+          : t('Keep things to do here: a fair, a concert, a movie coming out, a class. Mark what you’d like to do.')}</p>}
         {sections.map(s => <section key={s.key} className="outing-section" aria-labelledby={`outing-sec-${s.key}`}>
           <h2 id={`outing-sec-${s.key}`}>{s.title}</h2>
           <div className="outing-list">{s.outings.map(o => <OutingRow key={o.id} o={o} categories={categories} today={who.today} onOpen={x => openOne(x.id)} />)}</div>
@@ -253,33 +279,33 @@ function FiltersSheet({ value, place, categories, count, onClose, onApply, onEdi
   const [f, setF] = useState(value)
   const person = members.find(m => m.id === f.who)
   const n = count(f)
-  return <Sheet title="Filter and sort" onClose={onClose} actions={<>
-    <button className="btn btn-secondary" onClick={() => setF({ ...startFilters(null) })}>Clear</button>
-    <button className="btn btn-primary" onClick={() => onApply(f)}>Show {n} {place ? `place${n === 1 ? '' : 's'}` : `outing${n === 1 ? '' : 's'}`}</button>
+  return <Sheet title={t('Filter and sort')} onClose={onClose} actions={<>
+    <button className="btn btn-secondary" onClick={() => setF({ ...startFilters(null) })}>{t('Clear')}</button>
+    <button className="btn btn-primary" onClick={() => onApply(f)}>{place ? tn(n, 'Show {n} place', 'Show {n} places') : tn(n, 'Show {n} outing', 'Show {n} outings')}</button>
   </>}>
-    {!place && <div className="field"><label htmlFor={`${id}-when`}>When</label><select id={`${id}-when`} value={f.when} onChange={e => setF({ ...f, when: e.target.value as When })}>
-      <option value="any">Any time</option><option value="weekend">This weekend</option><option value="week">Next 7 days</option><option value="month">Next 30 days</option><option value="past">Past</option>
+    {!place && <div className="field"><label htmlFor={`${id}-when`}>{t('When')}</label><select id={`${id}-when`} value={f.when} onChange={e => setF({ ...f, when: e.target.value as When })}>
+      <option value="any">{t('Any time')}</option><option value="weekend">{t('This weekend')}</option><option value="week">{t('Next 7 days')}</option><option value="month">{t('Next 30 days')}</option><option value="past">{t('Past')}</option>
     </select></div>}
-    <LabeledPick label="Categories" multiple none="Any" value={f.categoryIds} onChange={v => setF({ ...f, categoryIds: v })} options={categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))} />
-    <div className="field"><label htmlFor={`${id}-who`}>Who it’s for</label><select id={`${id}-who`} value={f.who} onChange={e => setF({ ...f, who: e.target.value, boxes: [...FOR_BOXES] })}>
-      <option value="">Anyone</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+    <LabeledPick label={t('Categories')} multiple none={t('Any')} value={f.categoryIds} onChange={v => setF({ ...f, categoryIds: v })} options={categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))} />
+    <div className="field"><label htmlFor={`${id}-who`}>{t('Who it’s for')}</label><select id={`${id}-who`} value={f.who} onChange={e => setF({ ...f, who: e.target.value, boxes: [...FOR_BOXES] })}>
+      <option value="">{t('Anyone')}</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
     </select></div>
-    {person && <fieldset className="meal-fieldset outing-boxes"><legend className="sr-only">What counts as for {person.name}</legend>
+    {person && <fieldset className="meal-fieldset outing-boxes"><legend className="sr-only">{t('What counts as for {name}', { name: person.name })}</legend>
       {FOR_BOXES.map(b => <label key={b} className="meal-check"><input type="checkbox" checked={f.boxes.includes(b)} onChange={e => setF({ ...f, boxes: e.target.checked ? FOR_BOXES.filter(x => x === b || f.boxes.includes(x)) : f.boxes.filter(x => x !== b) as ForBox[] })} /> {boxLabel(b, person)}</label>)}
     </fieldset>}
-    <div className="field"><label htmlFor={`${id}-marked`}>Marked by</label><select id={`${id}-marked`} value={f.markedBy} onChange={e => setF({ ...f, markedBy: e.target.value })}>
-      <option value="">Anyone or no one</option><option value="any">Someone marked it</option><option value="really">⭐ Really want to go</option>
-      {who.kidId && <option value={who.kidId}>Me</option>}
+    <div className="field"><label htmlFor={`${id}-marked`}>{t('Marked by')}</label><select id={`${id}-marked`} value={f.markedBy} onChange={e => setF({ ...f, markedBy: e.target.value })}>
+      <option value="">{t('Anyone or no one')}</option><option value="any">{t('Someone marked it')}</option><option value="really">{t('⭐ Really want to go')}</option>
+      {who.kidId && <option value={who.kidId}>{t('Me')}</option>}
       {members.filter(m => m.id !== who.kidId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
     </select></div>
-    <div className="field"><label htmlFor={`${id}-cost`}>Cost</label><select id={`${id}-cost`} value={f.cost} onChange={e => setF({ ...f, cost: e.target.value as Cost })}>
-      <option value="any">Any cost</option><option value="free">Free only</option><option value="10">Under $10</option><option value="25">Under $25</option>
+    <div className="field"><label htmlFor={`${id}-cost`}>{t('Cost')}</label><select id={`${id}-cost`} value={f.cost} onChange={e => setF({ ...f, cost: e.target.value as Cost })}>
+      <option value="any">{t('Any cost')}</option><option value="free">{t('Free only')}</option><option value="10">{t('Under ${amount}', { amount: 10 })}</option><option value="25">{t('Under ${amount}', { amount: 25 })}</option>
     </select></div>
-    {onEditCategories && <button type="button" className="link-btn" onClick={onEditCategories}>Edit categories</button>}
+    {onEditCategories && <button type="button" className="link-btn" onClick={onEditCategories}>{t('Edit categories')}</button>}
   </Sheet>
 }
 
-const longDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+const longDay = (d: string) => formatDate(new Date(`${d}T12:00:00`), DAY)
 
 /** One outing: when, where, cost, tickets, who it's for, interest marks, and (parents) Add to our calendar. */
 export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () => void; onEdit?: (o: Outing) => void }) {
@@ -308,27 +334,27 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
     Promise.all([api.getOuting(id), api.getOutingCategories()]).then(([x, c]) => { if (!canceled) { setO(x); setCategories(c) } }).catch(() => { if (!canceled) setMissing(true) })
     return () => { canceled = true }
   }, [id, refreshTick, tick])
-  if (missing) return <Sheet title="Outing" onClose={onClose}><p className="state-card">This outing isn’t here anymore.</p></Sheet>
-  if (!o) return <Sheet title="Outing" onClose={onClose}><p role="status">Loading…</p></Sheet>
-  const name = (memberId: string | null) => members.find(m => m.id === memberId)?.name ?? 'Someone'
+  if (missing) return <Sheet title={t('Outing')} onClose={onClose}><p className="state-card">{t('This outing isn’t here anymore.')}</p></Sheet>
+  if (!o) return <Sheet title={t('Outing')} onClose={onClose}><p role="status">{t('Loading…')}</p></Sheet>
+  const name = (memberId: string | null) => members.find(m => m.id === memberId)?.name ?? t('Someone')
   const category = categories.find(c => c.id === o.categoryId)
   const run = async (work: () => Promise<Outing | null>, done: string | null) => {
     setBusy(true)
-    try { const saved = await work(); if (saved) setO(saved); changed(); if (done) toast(done) } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
+    try { const saved = await work(); if (saved) setO(saved); changed(); if (done) toast(done) } catch (e) { toast(e instanceof Error ? e.message : t('Could not save.'), true) } finally { setBusy(false) }
   }
   const mark = (level: 'interested' | 'really') => {
     if (!marker) return
     const next = interestOf(o, marker) === level ? null : level // tapping your mark again clears it
-    void run(() => api.markOuting(o.id, marker, next), next === 'really' ? `${name(marker)} really wants to go` : next ? `${name(marker)} is interested` : `Cleared ${name(marker)}’s mark`)
+    void run(() => api.markOuting(o.id, marker, next), next === 'really' ? t('{name} really wants to go', { name: name(marker) }) : next ? t('{name} is interested', { name: name(marker) }) : t('Cleared {name}’s mark', { name: name(marker) }))
     if (!lockedTo && !who.parent) setMarker(null) // a shared wall: ready for the next person
   }
   const more = async (action: string) => {
     if (action === 'edit') onEdit?.(o)
-    if (action === 'archive') void run(() => api.updateOuting(o.id, { archived: !o.archived }), o.archived ? 'Back on the list' : 'Marked “Not for us”')
-    if (action === 'been') void run(() => api.updateOuting(o.id, { visitStatus: 'been', lastVisitedOn: who.today }), 'Marked as been there today')
-    if (action === 'tickets') void run(() => api.updateOuting(o.id, { gotTickets: !o.gotTickets }), o.gotTickets ? 'Tickets unmarked' : 'Marked: we have tickets')
-    if (action === 'delete' && await dialog.confirm({ title: `Delete “${o.title}”?`, body: 'It and everyone’s marks go away. Its calendar event stays.', confirmLabel: 'Delete outing', danger: true })) {
-      void run(async () => { await api.deleteOuting(o.id); onClose(); return null }, 'Outing deleted')
+    if (action === 'archive') void run(() => api.updateOuting(o.id, { archived: !o.archived }), o.archived ? t('Back on the list') : t('Marked “Not for us”'))
+    if (action === 'been') void run(() => api.updateOuting(o.id, { visitStatus: 'been', lastVisitedOn: who.today }), t('Marked as been there today'))
+    if (action === 'tickets') void run(() => api.updateOuting(o.id, { gotTickets: !o.gotTickets }), o.gotTickets ? t('Tickets unmarked') : t('Marked: we have tickets'))
+    if (action === 'delete' && await dialog.confirm({ title: t('Delete “{title}”?', { title: o.title }), body: t('It and everyone’s marks go away. Its calendar event stays.'), confirmLabel: t('Delete outing'), danger: true })) {
+      void run(async () => { await api.deleteOuting(o.id); onClose(); return null }, t('Outing deleted'))
     }
   }
   const mine = marker ? interestOf(o, marker) : null
@@ -336,40 +362,40 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const canEdit = who.canEdit(o)
   const options = [
-    canEdit && onEdit && <option key="edit" value="edit">Edit</option>,
-    canEdit && o.kind === 'place' && <option key="been" value="been">We went today</option>,
-    who.parent && o.gotTickets && <option key="tickets" value="tickets">We don’t have tickets</option>,
-    canEdit && <option key="archive" value="archive">{o.archived ? 'Put it back on the list' : 'Not for us'}</option>,
-    who.parent && <option key="delete" value="delete">Delete outing…</option>,
+    canEdit && onEdit && <option key="edit" value="edit">{t('Edit')}</option>,
+    canEdit && o.kind === 'place' && <option key="been" value="been">{t('We went today')}</option>,
+    who.parent && o.gotTickets && <option key="tickets" value="tickets">{t('We don’t have tickets')}</option>,
+    canEdit && <option key="archive" value="archive">{o.archived ? t('Put it back on the list') : t('Not for us')}</option>,
+    who.parent && <option key="delete" value="delete">{t('Delete outing…')}</option>,
   ].filter(Boolean)
   const actions = <>
-    {options.length > 0 && <select className="settings-select actions-select" aria-label="Outing actions" value="" disabled={busy} onChange={e => void more(e.target.value)}><option value="" disabled hidden>More…</option>{options}</select>}
-    {who.parent && o.kind === 'upcoming' && !o.gotTickets && (o.ticketsUrl || o.buyBy || o.ticketsOnSaleAt) && <button className="btn btn-secondary" disabled={busy} onClick={() => void more('tickets')}>🎟 We have tickets</button>}
-    {who.parent && !o.calendarEventId && <button className="btn btn-primary outing-cal-btn" disabled={busy} onClick={() => setCalendar(true)}>Add to our calendar</button>}
+    {options.length > 0 && <select className="settings-select actions-select" aria-label={t('Outing actions')} value="" disabled={busy} onChange={e => void more(e.target.value)}><option value="" disabled hidden>{t('More…')}</option>{options}</select>}
+    {who.parent && o.kind === 'upcoming' && !o.gotTickets && (o.ticketsUrl || o.buyBy || o.ticketsOnSaleAt) && <button className="btn btn-secondary" disabled={busy} onClick={() => void more('tickets')}>{t('🎟 We have tickets')}</button>}
+    {who.parent && !o.calendarEventId && <button className="btn btn-primary outing-cal-btn" disabled={busy} onClick={() => setCalendar(true)}>{t('Add to our calendar')}</button>}
   </>
   const facts: [string, ReactNode][] = [
     // One day: its date once ("Sat, Oct 17, 10 AM – 4 PM"); Today and Tomorrow keep the word and add the date.
-    ['📅', o.kind === 'upcoming' && o.startsOn && !o.endsOn ? (/^(Today|Tomorrow)/.test(whenLabel(o, who.today)) ? `${whenLabel(o, who.today)} · ${longDay(o.startsOn)}` : [longDay(o.startsOn), timeLabel(o)].filter(Boolean).join(', ')) : whenLabel(o, who.today)],
-    ...(o.placeName || o.address ? [['📍', <>{[o.placeName, o.address].filter(Boolean).join(', ')}{(o.address || o.placeName) && <> <a className="btn btn-secondary outing-map-btn" href={mapHref([o.placeName, o.address].filter(Boolean).join(', '))} target="_blank" rel="noopener noreferrer" aria-label={`Map: ${o.placeName || o.address}`}>Map</a></>}</>] as [string, ReactNode]] : []),
-    ...(price || o.priceNote ? [['💵', [price === 'Free' ? 'Free' : price && `From ${price}`, o.priceNote].filter(Boolean).join(' · ')] as [string, ReactNode]] : []),
+    ['📅', o.kind === 'upcoming' && o.startsOn && !o.endsOn ? ([who.today, addDays(who.today, 1)].includes(o.startsOn) ? `${whenLabel(o, who.today)} · ${longDay(o.startsOn)}` : [longDay(o.startsOn), timeLabel(o)].filter(Boolean).join(', ')) : whenLabel(o, who.today)],
+    ...(o.placeName || o.address ? [['📍', <>{[o.placeName, o.address].filter(Boolean).join(', ')}{(o.address || o.placeName) && <> <a className="btn btn-secondary outing-map-btn" href={mapHref([o.placeName, o.address].filter(Boolean).join(', '))} target="_blank" rel="noopener noreferrer" aria-label={t('Map: {place}', { place: o.placeName || o.address || '' })}>{t('Map')}</a></>}</>] as [string, ReactNode]] : []),
+    ...(price || o.priceNote ? [['💵', [o.priceCents === 0 ? price : price && t('From {price}', { price }), o.priceNote].filter(Boolean).join(' · ')] as [string, ReactNode]] : []),
     ...(o.kind === 'upcoming' && (o.ticketsOnSaleAt || o.buyBy || o.ticketsUrl || o.gotTickets) ? [['🎟', <>{[
-      o.gotTickets && '✓ We have tickets',
-      !o.gotTickets && o.ticketsOnSaleAt && `Tickets on sale ${longDay(o.ticketsOnSaleAt.slice(0, 10))} at ${formatTime(o.ticketsOnSaleAt, tz)}`,
-      !o.gotTickets && o.buyBy && `Get tickets or sign up by ${longDay(o.buyBy)}`,
-    ].filter(Boolean).join(' · ')}{o.ticketsUrl && <> · <a href={o.ticketsUrl} target="_blank" rel="noopener noreferrer">Ticket page</a></>}</>] as [string, ReactNode]] : []),
-    ...(o.calendarEventId && o.calendarEventStart ? [['🗓', <>On our calendar: {longDay(o.calendarEventStart.length === 10 ? o.calendarEventStart : new Date(o.calendarEventStart).toLocaleDateString('en-CA', { timeZone: tz }))} · <a href={`#/calendar?event=${encodeURIComponent(o.calendarEventId)}&at=${o.calendarEventStart.slice(0, 10)}`} onClick={onClose}>Open the event</a></>] as [string, ReactNode]] : []),
-    ...(o.kind === 'place' && o.visitStatus ? [['🏡', o.visitStatus === 'been' ? `Been there${o.lastVisitedOn ? `, last on ${longDay(o.lastVisitedOn)}` : ''}` : 'Want to go'] as [string, ReactNode]] : []),
+      o.gotTickets && t('✓ We have tickets'),
+      !o.gotTickets && o.ticketsOnSaleAt && t('Tickets on sale {date} at {time}', { date: longDay(o.ticketsOnSaleAt.slice(0, 10)), time: formatTime(o.ticketsOnSaleAt, tz) }),
+      !o.gotTickets && o.buyBy && t('Get tickets or sign up by {date}', { date: longDay(o.buyBy) }),
+    ].filter(Boolean).join(' · ')}{o.ticketsUrl && <> · <a href={o.ticketsUrl} target="_blank" rel="noopener noreferrer">{t('Ticket page')}</a></>}</>] as [string, ReactNode]] : []),
+    ...(o.calendarEventId && o.calendarEventStart ? [['🗓', <>{t('On our calendar: {date}', { date: longDay(o.calendarEventStart.length === 10 ? o.calendarEventStart : new Date(o.calendarEventStart).toLocaleDateString('en-CA', { timeZone: tz })) })} · <a href={`#/calendar?event=${encodeURIComponent(o.calendarEventId)}&at=${o.calendarEventStart.slice(0, 10)}`} onClick={onClose}>{t('Open the event')}</a></>] as [string, ReactNode]] : []),
+    ...(o.kind === 'place' && o.visitStatus ? [['🏡', o.visitStatus === 'been' ? (o.lastVisitedOn ? t('Been there, last on {date}', { date: longDay(o.lastVisitedOn) }) : t('Been there')) : t('Want to go')] as [string, ReactNode]] : []),
   ]
   return <Sheet title={`${emojiOf(o, categories)} ${o.title}`} onClose={onClose} actions={actions}>
-    {o.canceled && <p className="state-card outing-canceled-note" role="note">❌ Canceled: its community calendar called it off.</p>}
-    <p className="outing-meta">{[category?.name, audienceLabel(o, members), o.addedBy && `Added by ${name(o.addedBy)}`, o.feedId && !o.addedBy && 'From a community calendar', o.archived && 'Not for us'].filter(Boolean).join(' · ')}</p>
+    {o.canceled && <p className="state-card outing-canceled-note" role="note">{t('❌ Canceled: its community calendar called it off.')}</p>}
+    <p className="outing-meta">{[category?.name, audienceLabel(o, members), o.addedBy && t('Added by {name}', { name: name(o.addedBy) }), o.feedId && !o.addedBy && t('From a community calendar'), o.archived && t('Not for us')].filter(Boolean).join(' · ')}</p>
     <ul className="outing-facts">{facts.map(([icon, text], i) => <li key={i}><span aria-hidden="true">{icon}</span><span>{text}</span></li>)}</ul>
-    <section className="outing-interest" aria-label="Who wants to go">
+    <section className="outing-interest" aria-label={t('Who wants to go')}>
       {/* A parent's own device marks for its owner without asking; Someone else opens the names. */}
-      {!lockedTo && who.parent && meMemberId && !someoneElse ? <p className="poll-voting-as"><Face m={members.find(m => m.id === marker) ?? { name: '?', color: 'var(--bg-alt)' }} /> Marking for {name(marker)} <button type="button" className="link-btn" onClick={() => setSomeoneElse(true)}>Someone else</button></p>
-        : lockedTo ? <p className="poll-voting-as"><Face m={members.find(m => m.id === lockedTo) ?? { name: '?', color: 'var(--bg-alt)' }} /> Marking for {name(lockedTo)}</p>
+      {!lockedTo && who.parent && meMemberId && !someoneElse ? <p className="poll-voting-as"><Face m={members.find(m => m.id === marker) ?? { name: '?', color: 'var(--bg-alt)' }} /> {t('Marking for {name}', { name: name(marker) })} <button type="button" className="link-btn" onClick={() => setSomeoneElse(true)}>{t('Someone else')}</button></p>
+        : lockedTo ? <p className="poll-voting-as"><Face m={members.find(m => m.id === lockedTo) ?? { name: '?', color: 'var(--bg-alt)' }} /> {t('Marking for {name}', { name: name(lockedTo) })}</p>
         : <div className="poll-who">
-          <p className="poll-who-label" id={`outing-who-${o.id}`}>{marker ? `Marking for ${name(marker)}` : 'Who? Tap your name.'}</p>
+          <p className="poll-who-label" id={`outing-who-${o.id}`}>{marker ? t('Marking for {name}', { name: name(marker) }) : t('Who? Tap your name.')}</p>
           <div className="poll-who-row" role="group" aria-labelledby={`outing-who-${o.id}`}>
             {members.map(m => <button key={m.id} type="button" className={`news-who-btn poll-who-btn ${marker === m.id ? 'active' : ''}`} aria-pressed={marker === m.id} onClick={() => setMarker(m.id)}>
               <Face m={m} /><span>{m.name}</span>
@@ -377,13 +403,13 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
           </div>
         </div>}
       <div className="outing-interest-btns">
-        <button type="button" className="btn btn-secondary outing-level" aria-pressed={mine === 'interested'} disabled={!marker || busy} onClick={() => mark('interested')}><span aria-hidden="true">👀</span> Interested</button>
-        <button type="button" className="btn btn-secondary outing-level" aria-pressed={mine === 'really'} disabled={!marker || busy} onClick={() => mark('really')}><span aria-hidden="true">⭐</span> Really want to go</button>
+        <button type="button" className="btn btn-secondary outing-level" aria-pressed={mine === 'interested'} disabled={!marker || busy} onClick={() => mark('interested')}><span aria-hidden="true">👀</span> {t('Interested')}</button>
+        <button type="button" className="btn btn-secondary outing-level" aria-pressed={mine === 'really'} disabled={!marker || busy} onClick={() => mark('really')}><span aria-hidden="true">⭐</span> {t('Really want to go')}</button>
       </div>
-      {o.interest.length > 0 && <ul className="outing-marked">{o.interest.map(i => { const m = members.find(x => x.id === i.memberId); return m && <li key={i.memberId}><Face m={m} /> {m.name} {i.level === 'really' ? '⭐ really wants to go' : '👀 is interested'}</li> })}</ul>}
+      {o.interest.length > 0 && <ul className="outing-marked">{o.interest.map(i => { const m = members.find(x => x.id === i.memberId); return m && <li key={i.memberId}><Face m={m} /> {i.level === 'really' ? t('{name} ⭐ really wants to go', { name: m.name }) : t('{name} 👀 is interested', { name: m.name })}</li> })}</ul>}
     </section>
-    {o.notes && <section className="restaurant-section"><h3>Details</h3><p className="meal-prose">{o.notes}</p></section>}
-    {o.url && <p><a className="btn btn-secondary outing-link" href={o.url} target="_blank" rel="noopener noreferrer"><LinkIcon /> More info</a></p>}
+    {o.notes && <section className="restaurant-section"><h3>{t('Details')}</h3><p className="meal-prose">{o.notes}</p></section>}
+    {o.url && <p><a className="btn btn-secondary outing-link" href={o.url} target="_blank" rel="noopener noreferrer"><LinkIcon /> {t('More info')}</a></p>}
     {calendar && <OutingCalendarSheet outing={o} onClose={() => setCalendar(false)} onSaved={x => { setO(x); changed(); setCalendar(false) }} />}
   </Sheet>
 }
@@ -410,9 +436,9 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
   const upcoming = d.kind === 'upcoming'
   const save = async () => {
     const cents = d.free ? 0 : d.price.trim() ? parsePrice(d.price) : null
-    if (!d.title.trim()) { setError('Give it a name.'); return }
-    if (cents === undefined) { setError('Check the cost: a number like 15 or 12.50.'); return }
-    if (upcoming && d.run && (!d.startsOn || !d.endsOn)) { setError('A run needs its first and last day.'); return }
+    if (!d.title.trim()) { setError(t('Give it a name.')); return }
+    if (cents === undefined) { setError(t('Check the cost: a number like 15 or 12.50.')); return }
+    if (upcoming && d.run && (!d.startsOn || !d.endsOn)) { setError(t('A run needs its first and last day.')); return }
     const { price: _p, free: _f, run: _r, sale, ...rest } = d
     const body: OutingInput & { title: string } = {
       ...rest, title: d.title.trim(), priceCents: cents,
@@ -422,67 +448,67 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
     setBusy(true); setError('')
     try {
       const saved = outing ? await api.updateOuting(outing.id, body) : await api.createOuting(body)
-      changed(); toast(`Saved: ${saved.title}`); onSaved(saved)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save.') } finally { setBusy(false) }
+      changed(); toast(t('Saved: {title}', { title: saved.title })); onSaved(saved)
+    } catch (e) { setError(e instanceof Error ? e.message : t('Could not save.')) } finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
   const field = (k: 'placeName' | 'address' | 'hours' | 'priceNote' | 'url' | 'ticketsUrl', label: string, extra: Record<string, string> = {}) =>
     <div className="field"><label htmlFor={`${id}-${k}`}>{label}</label><input id={`${id}-${k}`} type={k.endsWith('rl') ? 'url' : 'text'} maxLength={k.endsWith('rl') ? 2000 : 200} {...extra} value={d[k] ?? ''} onChange={e => text(k, e.target.value)} /></div>
   const aud = (a: OutingAudience, label: string) => <label className="meal-check"><input type="checkbox" checked={!!d.audience?.includes(a)} onChange={e => set('audience', e.target.checked ? [...(d.audience ?? []), a] : (d.audience ?? []).filter(x => x !== a))} /> {label}</label>
-  return <Sheet title={outing ? `Edit ${outing.title}` : upcoming ? 'Add an outing' : 'Add a place'} onClose={close} dismissable={!busy} actions={<>
-    <button className="btn btn-secondary" disabled={busy} onClick={close}>Cancel</button>
-    <button className="btn btn-primary" type="submit" form={id} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+  return <Sheet title={outing ? t('Edit {title}', { title: outing.title }) : upcoming ? t('Add an outing') : t('Add a place')} onClose={close} dismissable={!busy} actions={<>
+    <button className="btn btn-secondary" disabled={busy} onClick={close}>{t('Cancel')}</button>
+    <button className="btn btn-primary" type="submit" form={id} disabled={busy}>{busy ? t('Saving…') : t('Save')}</button>
   </>}>
     <form id={id} onSubmit={e => { e.preventDefault(); void save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
-        <div className="field"><label htmlFor={`${id}-kind`}>What is it?</label><select id={`${id}-kind`} value={d.kind} onChange={e => set('kind', e.target.value as Outing['kind'])}><option value="upcoming">Something happening</option><option value="place">A place to visit any time</option></select></div>
-        <div className="field"><label htmlFor={`${id}-title`}>Name</label><input id={`${id}-title`} type="text" required maxLength={200} placeholder={upcoming ? 'Fall fest, kids’ sewing class…' : 'Nature preserve, the beach…'} value={d.title} onChange={e => set('title', e.target.value)} /></div>
-        <LabeledPick label="Category" none="None" value={d.categoryId ? [d.categoryId] : []} onChange={v => set('categoryId', v[0] || null)} options={[{ value: '', label: 'None' }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
+        <div className="field"><label htmlFor={`${id}-kind`}>{t('What is it?')}</label><select id={`${id}-kind`} value={d.kind} onChange={e => set('kind', e.target.value as Outing['kind'])}><option value="upcoming">{t('Something happening')}</option><option value="place">{t('A place to visit any time')}</option></select></div>
+        <div className="field"><label htmlFor={`${id}-title`}>{t('Name')}</label><input id={`${id}-title`} type="text" required maxLength={200} placeholder={upcoming ? t('Fall fest, kids’ sewing class…') : t('Nature preserve, the beach…')} value={d.title} onChange={e => set('title', e.target.value)} /></div>
+        <LabeledPick label={t('Category')} none={t('None')} value={d.categoryId ? [d.categoryId] : []} onChange={v => set('categoryId', v[0] || null)} options={[{ value: '', label: t('None') }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
         {upcoming && <>
-          <h3>When</h3>
+          <h3>{t('When')}</h3>
           <div className="meal-form-row">
-            <div className="field"><label htmlFor={`${id}-start`}>{d.run ? 'First day' : 'Day'}</label><input id={`${id}-start`} type="date" value={d.startsOn ?? ''} onChange={e => set('startsOn', e.target.value || null)} /></div>
-            {d.run && <div className="field"><label htmlFor={`${id}-end`}>Last day</label><input id={`${id}-end`} type="date" min={d.startsOn ?? undefined} value={d.endsOn ?? ''} onChange={e => set('endsOn', e.target.value || null)} /></div>}
+            <div className="field"><label htmlFor={`${id}-start`}>{d.run ? t('First day') : t('Day')}</label><input id={`${id}-start`} type="date" value={d.startsOn ?? ''} onChange={e => set('startsOn', e.target.value || null)} /></div>
+            {d.run && <div className="field"><label htmlFor={`${id}-end`}>{t('Last day')}</label><input id={`${id}-end`} type="date" min={d.startsOn ?? undefined} value={d.endsOn ?? ''} onChange={e => set('endsOn', e.target.value || null)} /></div>}
           </div>
-          {!d.startsOn && <p className="field-hint">No day yet? Leave it empty: it shows as “Date not announced yet”.</p>}
-          <label className="meal-check"><input type="checkbox" checked={d.run} onChange={e => set('run', e.target.checked)} /> Runs for a while (open on several days)</label>
+          {!d.startsOn && <p className="field-hint">{t('No day yet? Leave it empty: it shows as “Date not announced yet”.')}</p>}
+          <label className="meal-check"><input type="checkbox" checked={d.run} onChange={e => set('run', e.target.checked)} /> {t('Runs for a while (open on several days)')}</label>
           <div className="meal-form-row">
-            <div className="field"><label htmlFor={`${id}-t1`}>Starts</label><input id={`${id}-t1`} type="time" value={d.startTime ?? ''} onChange={e => set('startTime', e.target.value || null)} /></div>
-            <div className="field"><label htmlFor={`${id}-t2`}>Ends</label><input id={`${id}-t2`} type="time" value={d.endTime ?? ''} onChange={e => set('endTime', e.target.value || null)} /></div>
+            <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={d.startTime ?? ''} onChange={e => set('startTime', e.target.value || null)} /></div>
+            <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={d.endTime ?? ''} onChange={e => set('endTime', e.target.value || null)} /></div>
           </div>
-          {d.run && field('hours', 'Days and hours', { placeholder: 'Fri–Sun, 9 AM to 5 PM' })}
+          {d.run && field('hours', t('Days and hours'), { placeholder: t('Fri–Sun, 9 AM to 5 PM') })}
         </>}
-        <h3>Where</h3>
-        {field('placeName', 'Place', { placeholder: 'Town Green, the library…' })}
-        {field('address', 'Address', { placeholder: 'For the Map button' })}
-        <h3>Cost</h3>
-        <label className="meal-check"><input type="checkbox" checked={d.free} onChange={e => set('free', e.target.checked)} /> Free</label>
+        <h3>{t('Where')}</h3>
+        {field('placeName', t('Place'), { placeholder: t('Town Green, the library…') })}
+        {field('address', t('Address'), { placeholder: t('For the Map button') })}
+        <h3>{t('Cost')}</h3>
+        <label className="meal-check"><input type="checkbox" checked={d.free} onChange={e => set('free', e.target.checked)} /> {t('Free')}</label>
         {!d.free && <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-price`}>From (per person)</label><input id={`${id}-price`} type="text" inputMode="decimal" maxLength={10} placeholder="15" value={d.price} onChange={e => set('price', e.target.value)} /></div>
-          {field('priceNote', 'Price note', { placeholder: 'Kids under 5 free' })}
+          <div className="field"><label htmlFor={`${id}-price`}>{t('From (per person)')}</label><input id={`${id}-price`} type="text" inputMode="decimal" maxLength={10} placeholder="15" value={d.price} onChange={e => set('price', e.target.value)} /></div>
+          {field('priceNote', t('Price note'), { placeholder: t('Kids under 5 free') })}
         </div>}
-        <h3>Who it’s for</h3>
-        {aud('family', 'The whole family')}{aud('kids', 'Kids')}{aud('grownups', 'Grown-ups')}
+        <h3>{t('Who it’s for')}</h3>
+        {aud('family', t('The whole family'))}{aud('kids', t('Kids'))}{aud('grownups', t('Grown-ups'))}
         {d.audience?.includes('kids') && <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-amin`}>Youngest age</label><input id={`${id}-amin`} type="number" min={0} max={120} inputMode="numeric" value={d.ageMin ?? ''} onChange={e => set('ageMin', e.target.value === '' ? null : Number(e.target.value))} /></div>
-          <div className="field"><label htmlFor={`${id}-amax`}>Oldest age</label><input id={`${id}-amax`} type="number" min={0} max={120} inputMode="numeric" value={d.ageMax ?? ''} onChange={e => set('ageMax', e.target.value === '' ? null : Number(e.target.value))} /></div>
+          <div className="field"><label htmlFor={`${id}-amin`}>{t('Youngest age')}</label><input id={`${id}-amin`} type="number" min={0} max={120} inputMode="numeric" value={d.ageMin ?? ''} onChange={e => set('ageMin', e.target.value === '' ? null : Number(e.target.value))} /></div>
+          <div className="field"><label htmlFor={`${id}-amax`}>{t('Oldest age')}</label><input id={`${id}-amax`} type="number" min={0} max={120} inputMode="numeric" value={d.ageMax ?? ''} onChange={e => set('ageMax', e.target.value === '' ? null : Number(e.target.value))} /></div>
         </div>}
-        <LabeledPick label="Just for" multiple none="Nobody in particular" value={d.memberIds ?? []} onChange={v => set('memberIds', v)} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
+        <LabeledPick label={t('Just for')} multiple none={t('Nobody in particular')} value={d.memberIds ?? []} onChange={v => set('memberIds', v)} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
         {upcoming && <>
-          <h3>Tickets or sign-up</h3>
-          {field('ticketsUrl', 'Ticket or sign-up page')}
+          <h3>{t('Tickets or sign-up')}</h3>
+          {field('ticketsUrl', t('Ticket or sign-up page'))}
           <div className="meal-form-row">
-            <div className="field"><label htmlFor={`${id}-sale`}>Tickets go on sale</label><input id={`${id}-sale`} type="datetime-local" value={d.sale} onChange={e => set('sale', e.target.value)} /></div>
-            <div className="field"><label htmlFor={`${id}-buy`}>Get tickets by</label><input id={`${id}-buy`} type="date" value={d.buyBy ?? ''} onChange={e => set('buyBy', e.target.value || null)} /></div>
+            <div className="field"><label htmlFor={`${id}-sale`}>{t('Tickets go on sale')}</label><input id={`${id}-sale`} type="datetime-local" value={d.sale} onChange={e => set('sale', e.target.value)} /></div>
+            <div className="field"><label htmlFor={`${id}-buy`}>{t('Get tickets by')}</label><input id={`${id}-buy`} type="date" value={d.buyBy ?? ''} onChange={e => set('buyBy', e.target.value || null)} /></div>
           </div>
         </>}
         {!upcoming && <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-visit`}>Been there?</label><select id={`${id}-visit`} value={d.visitStatus ?? ''} onChange={e => set('visitStatus', (e.target.value || null) as Outing['visitStatus'])}><option value="want">Want to go</option><option value="been">Been there</option><option value="">Not sure</option></select></div>
-          {d.visitStatus === 'been' && <div className="field"><label htmlFor={`${id}-last`}>Last visit</label><input id={`${id}-last`} type="date" value={d.lastVisitedOn ?? ''} onChange={e => set('lastVisitedOn', e.target.value || null)} /></div>}
+          <div className="field"><label htmlFor={`${id}-visit`}>{t('Been there?')}</label><select id={`${id}-visit`} value={d.visitStatus ?? ''} onChange={e => set('visitStatus', (e.target.value || null) as Outing['visitStatus'])}><option value="want">{t('Want to go')}</option><option value="been">{t('Been there')}</option><option value="">{t('Not sure')}</option></select></div>
+          {d.visitStatus === 'been' && <div className="field"><label htmlFor={`${id}-last`}>{t('Last visit')}</label><input id={`${id}-last`} type="date" value={d.lastVisitedOn ?? ''} onChange={e => set('lastVisitedOn', e.target.value || null)} /></div>}
         </div>}
-        <h3>Details</h3>
-        {field('url', 'Info page')}
-        <div className="field"><label htmlFor={`${id}-notes`}>Notes</label><textarea id={`${id}-notes`} maxLength={10000} placeholder="What to bring, parking, bring cash…" value={d.notes ?? ''} onChange={e => text('notes', e.target.value)} /></div>
+        <h3>{t('Details')}</h3>
+        {field('url', t('Info page'))}
+        <div className="field"><label htmlFor={`${id}-notes`}>{t('Notes')}</label><textarea id={`${id}-notes`} maxLength={10000} placeholder={t('What to bring, parking, bring cash…')} value={d.notes ?? ''} onChange={e => text('notes', e.target.value)} /></div>
       </fieldset>
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
@@ -509,34 +535,34 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
       if (canceled) return
       const writable = cals.filter(c => c.writable && c.enabled && c.canEditEvents !== false)
       setCalendars(writable); setCalendarId((writable.find(c => c.default) ?? writable[0])?.id ?? '')
-    }).catch(e => { if (!canceled) setError(e instanceof Error ? e.message : 'Could not load calendars.') })
+    }).catch(e => { if (!canceled) setError(e instanceof Error ? e.message : t('Could not load calendars.')) })
     return () => { canceled = true }
   }, [])
   const save = async () => {
-    if (!date) { setError('Pick a day.'); return }
+    if (!date) { setError(t('Pick a day.')); return }
     setBusy(true); setError('')
     try {
       const saved = await api.addOutingToCalendar(o.id, { date, startTime: allDay ? null : start, endTime: allDay || !end ? null : end, ...(calendarId ? { calendarId } : {}), memberIds: going })
-      toast(`On the calendar: ${saved.title}`); onSaved(saved)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not add it to the calendar.') } finally { setBusy(false) }
+      toast(t('On the calendar: {title}', { title: saved.title })); onSaved(saved)
+    } catch (e) { setError(e instanceof Error ? e.message : t('Could not add it to the calendar.')) } finally { setBusy(false) }
   }
-  return <Sheet title="Add to our calendar" onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>
-    <button className="btn btn-secondary" disabled={busy} onClick={onClose}>Cancel</button>
-    <button className="btn btn-primary" disabled={busy || !calendars} onClick={() => void save()}>{busy ? 'Adding…' : 'Add to calendar'}</button>
+  return <Sheet title={t('Add to our calendar')} onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>
+    <button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('Cancel')}</button>
+    <button className="btn btn-primary" disabled={busy || !calendars} onClick={() => void save()}>{busy ? t('Adding…') : t('Add to calendar')}</button>
   </>}>
     <p>{o.title}{o.placeName ? ` · ${o.placeName}` : ''}</p>
     <fieldset className="meal-fieldset" disabled={busy}>
-      <div className="field"><label htmlFor={`${id}-day`}>{o.endsOn ? 'Which day are you going?' : 'Day'}</label><input id={`${id}-day`} type="date" min={o.startsOn ?? undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={date} onChange={e => setDate(e.target.value)} /></div>
-      <label className="meal-check"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> All day</label>
+      <div className="field"><label htmlFor={`${id}-day`}>{o.endsOn ? t('Which day are you going?') : t('Day')}</label><input id={`${id}-day`} type="date" min={o.startsOn ?? undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={date} onChange={e => setDate(e.target.value)} /></div>
+      <label className="meal-check"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> {t('All day')}</label>
       {!allDay && <div className="meal-form-row">
-        <div className="field"><label htmlFor={`${id}-t1`}>Starts</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>
-        <div className="field"><label htmlFor={`${id}-t2`}>Ends</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} /></div>
       </div>}
-      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>Calendar</label><select id={`${id}-cal`} value={calendarId} onChange={e => setCalendarId(e.target.value)}>{calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
-      <LabeledPick label="Who’s going" multiple none="Everyone" value={going} onChange={setGoing} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
-      <p className="field-hint">It goes on the calendar as a normal event in the 🎟 Outing category, with the place, notes and links. Change it there any time.</p>
+      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><select id={`${id}-cal`} value={calendarId} onChange={e => setCalendarId(e.target.value)}>{calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+      <LabeledPick label={t('Who’s going')} multiple none={t('Everyone')} value={going} onChange={setGoing} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
+      <p className="field-hint">{t('It goes on the calendar as a normal event in the 🎟 Outing category, with the place, notes and links. Change it there any time.')}</p>
     </fieldset>
-    {!calendars && !error && <p role="status">Loading calendars…</p>}
+    {!calendars && !error && <p role="status">{t('Loading calendars…')}</p>}
     {error && <p className="field-error" role="alert">{error}</p>}
   </Sheet>
 }
@@ -551,8 +577,8 @@ function CategoriesSheet({ categories, onClose }: { categories: OutingCategory[]
   const move = (i: number, by: number) => setRows(rs => { const next = [...rs]; const [r] = next.splice(i, 1); next.splice(i + by, 0, r); return next })
   const save = async () => {
     const gone = categories.filter(c => !rows.some(r => r.id === c.id))
-    if (rows.some(r => !r.name.trim())) { toast('Give each category a name.', true); return }
-    if (gone.length && !await dialog.confirm({ title: `Delete ${gone.map(c => c.name).join(', ')}?`, body: 'Their outings stay, with no category.', confirmLabel: 'Delete', danger: true })) return
+    if (rows.some(r => !r.name.trim())) { toast(t('Give each category a name.'), true); return }
+    if (gone.length && !await dialog.confirm({ title: t('Delete {names}?', { names: gone.map(c => c.name).join(', ') }), body: t('Their outings stay, with no category.'), confirmLabel: t('Delete'), danger: true })) return
     setBusy(true)
     try {
       for (const c of gone) await api.deleteOutingCategory(c.id)
@@ -561,21 +587,21 @@ function CategoriesSheet({ categories, onClose }: { categories: OutingCategory[]
         if (r.isNew) await api.createOutingCategory({ name: r.name.trim(), emoji: r.emoji || null }).then(c => api.updateOutingCategory(c.id, { sort }))
         else if (!was || was.name !== r.name || was.emoji !== r.emoji || was.sort !== sort) await api.updateOutingCategory(r.id, { name: r.name.trim(), emoji: r.emoji || null, sort })
       }
-      changed(); toast('Categories saved'); onClose()
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save the categories.', true) } finally { setBusy(false) }
+      changed(); toast(t('Categories saved')); onClose()
+    } catch (e) { toast(e instanceof Error ? e.message : t('Could not save the categories.'), true) } finally { setBusy(false) }
   }
-  return <Sheet title="Outing categories" onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>
-    <button className="btn btn-secondary" disabled={busy} onClick={onClose}>Cancel</button>
-    <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button>
+  return <Sheet title={t('Outing categories')} onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>
+    <button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('Cancel')}</button>
+    <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? t('Saving…') : t('Save')}</button>
   </>}>
     <ul className="outing-cats">{rows.map((r, i) => <li key={r.key}>
-      <input aria-label={`Emoji for ${r.name || 'new category'}`} className="outing-cat-emoji" maxLength={8} value={r.emoji ?? ''} onChange={e => set(r.key, { emoji: e.target.value })} />
-      <input aria-label="Category name" maxLength={60} value={r.name} onChange={e => set(r.key, { name: e.target.value })} />
-      <button type="button" className="icon-btn" aria-label={`Move ${r.name} up`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-      <button type="button" className="icon-btn" aria-label={`Move ${r.name} down`} disabled={i === rows.length - 1} onClick={() => move(i, 1)}>↓</button>
-      <button type="button" className="icon-btn" aria-label={`Delete ${r.name}`} onClick={() => setRows(rs => rs.filter(x => x.key !== r.key))}>✕</button>
+      <input aria-label={t('Emoji for {name}', { name: r.name || t('new category') })} className="outing-cat-emoji" maxLength={8} value={r.emoji ?? ''} onChange={e => set(r.key, { emoji: e.target.value })} />
+      <input aria-label={t('Category name')} maxLength={60} value={r.name} onChange={e => set(r.key, { name: e.target.value })} />
+      <button type="button" className="icon-btn" aria-label={t('Move {name} up', { name: r.name })} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+      <button type="button" className="icon-btn" aria-label={t('Move {name} down', { name: r.name })} disabled={i === rows.length - 1} onClick={() => move(i, 1)}>↓</button>
+      <button type="button" className="icon-btn" aria-label={t('Delete {name}', { name: r.name })} onClick={() => setRows(rs => rs.filter(x => x.key !== r.key))}>✕</button>
     </li>)}</ul>
-    <button type="button" className="btn btn-secondary" onClick={() => setRows(rs => [...rs, { id: '', key: crypto.randomUUID(), name: '', emoji: '', sort: rs.length, isNew: true }])}><PlusIcon /> Add a category</button>
+    <button type="button" className="btn btn-secondary" onClick={() => setRows(rs => [...rs, { id: '', key: crypto.randomUUID(), name: '', emoji: '', sort: rs.length, isNew: true }])}><PlusIcon /> {t('Add a category')}</button>
   </Sheet>
 }
 
@@ -583,7 +609,7 @@ function CategoriesSheet({ categories, onClose }: { categories: OutingCategory[]
 export function OutingsButton() {
   const [open, setOpen] = useState(false)
   return <>
-    <button type="button" className="btn btn-secondary polls-btn outings-btn" aria-haspopup="dialog" aria-label="Outings" onClick={() => setOpen(true)}><span aria-hidden="true">🎟</span><span className="polls-btn-label outings-btn-label"> Outings</span></button>
+    <button type="button" className="btn btn-secondary polls-btn outings-btn" aria-haspopup="dialog" aria-label={t('Outings')} onClick={() => setOpen(true)}><span aria-hidden="true">🎟</span><span className="polls-btn-label outings-btn-label"> {t('Outings')}</span></button>
     {open && <OutingsTray onClose={() => setOpen(false)} />}
   </>
 }
@@ -602,16 +628,16 @@ export function OutingsTray({ onClose }: { onClose: () => void }) {
     <OutingRow o={o} categories={categories} today={who.today} compact onOpen={x => setOpen(x.id)} />
     {note && <p className="outing-tray-note">🎟 {note}</p>}
   </div>
-  return <Sheet title="🎟 Outings" onClose={onClose} actions={<>
-    <a className="btn btn-secondary" href="#/outings" onClick={onClose}>See all outings</a>
-    {who.canAdd && <button className="btn btn-primary" onClick={() => setAdding(true)}><PlusIcon /> Add</button>}
+  return <Sheet title={`🎟 ${t('Outings')}`} onClose={onClose} actions={<>
+    <a className="btn btn-secondary" href="#/outings" onClick={onClose}>{t('See all outings')}</a>
+    {who.canAdd && <button className="btn btn-primary" onClick={() => setAdding(true)}><PlusIcon /> {t('Add')}</button>}
   </>}>
-    {!loaded ? <p role="status">Loading outings…</p> : <div className="outing-tray">
-      <section aria-labelledby="tray-weekend"><h3 id="tray-weekend">This weekend</h3>
-        {weekend.length ? weekend.map(o => row(o)) : <p className="state-card">Nothing saved for this weekend yet.</p>}</section>
-      <section aria-labelledby="tray-coming"><h3 id="tray-coming">Coming up</h3>
-        {coming.length ? coming.map(c => row(c.outing, c.note)) : <p className="state-card">Mark something ⭐ and it shows here, along with ticket dates.</p>}</section>
-      {fromIdeas && <section aria-labelledby="tray-ideas"><h3 id="tray-ideas">Ideas</h3>
+    {!loaded ? <p role="status">{t('Loading outings…')}</p> : <div className="outing-tray">
+      <section aria-labelledby="tray-weekend"><h3 id="tray-weekend">{t('This weekend')}</h3>
+        {weekend.length ? weekend.map(o => row(o)) : <p className="state-card">{t('Nothing saved for this weekend yet.')}</p>}</section>
+      <section aria-labelledby="tray-coming"><h3 id="tray-coming">{t('Coming up')}</h3>
+        {coming.length ? coming.map(c => row(c.outing, c.note)) : <p className="state-card">{t('Mark something ⭐ and it shows here, along with ticket dates.')}</p>}</section>
+      {fromIdeas && <section aria-labelledby="tray-ideas"><h3 id="tray-ideas">{t('Ideas')}</h3>
         <IdeaCards data={fromIdeas} categories={categories} today={who.today} onOpen={x => setOpen(x.id)} max={3} perCard={2} /></section>}
     </div>}
     {open && <OutingSheet id={open} onClose={() => setOpen(null)} />}
@@ -629,10 +655,10 @@ export function EventOuting({ eventId }: { eventId: string }) {
   }, [eventId])
   if (!o) return null
   const price = priceLabel(o)
-  return <section className="event-outing" aria-label="From Outings">
+  return <section className="event-outing" aria-label={t('From Outings')}>
     <a className="sheet-link" href={`#/outings?outing=${encodeURIComponent(o.id)}`}><span aria-hidden="true">🎟</span>
-      <span>From Outings: {o.title}<small>{[price && (price === 'Free' ? 'Free' : `From ${price}`), o.gotTickets && '✓ We have tickets', o.ticketsUrl && 'Ticket page inside'].filter(Boolean).join(' · ') || 'Open it in Outings'}</small></span><ChevronRight /></a>
-    {o.ticketsUrl && <a className="btn btn-secondary" href={o.ticketsUrl} target="_blank" rel="noopener noreferrer"><LinkIcon /> Ticket page</a>}
+      <span>{t('From Outings: {title}', { title: o.title })}<small>{[price && (o.priceCents === 0 ? price : t('From {price}', { price })), o.gotTickets && t('✓ We have tickets'), o.ticketsUrl && t('Ticket page inside')].filter(Boolean).join(' · ') || t('Open it in Outings')}</small></span><ChevronRight /></a>
+    {o.ticketsUrl && <a className="btn btn-secondary" href={o.ticketsUrl} target="_blank" rel="noopener noreferrer"><LinkIcon /> {t('Ticket page')}</a>}
   </section>
 }
 
@@ -652,19 +678,19 @@ export function CommunityCalendars() {
   }, [])
   useEffect(() => {
     let canceled = false
-    Promise.all([api.getOutingFeeds(), api.getOutingCategories()]).then(([f, c]) => { if (!canceled) { setFeeds(f); setCategories(c) } }).catch(e => { if (!canceled) toast(e instanceof Error ? e.message : 'Could not load the community calendars.', true) })
+    Promise.all([api.getOutingFeeds(), api.getOutingCategories()]).then(([f, c]) => { if (!canceled) { setFeeds(f); setCategories(c) } }).catch(e => { if (!canceled) toast(e instanceof Error ? e.message : t('Could not load the community calendars.'), true) })
     return () => { canceled = true }
   }, [refreshTick, tick, toast])
   const read = (f: OutingFeed) => f.lastError ? <span className="feed-error">{f.lastError}</span>
-    : f.lastFetchedAt ? `${f.waiting ? `${f.waiting} new waiting in Outings` : 'Nothing new waiting'} · Read ${new Date(f.lastFetchedAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : 'Not read yet'
+    : f.lastFetchedAt ? [f.waiting ? tn(f.waiting, '{n} new waiting in Outings', '{n} new waiting in Outings') : t('Nothing new waiting'), t('Read {when}', { when: formatDate(new Date(f.lastFetchedAt), { weekday: 'short', hour: 'numeric', minute: '2-digit' }) })].join(' · ') : t('Not read yet')
   return <>
-    <h3 className="settings-row-label">Community calendars</h3>
-    <p className="settings-row-sub">A town, library or school calendar’s iCal link (.ics). Kinwall reads it once a day, and its events wait at the top of Outings → Upcoming for a grown-up to keep or skip. They never go on the family calendar.</p>
+    <h3 className="settings-row-label">{t('Community calendars')}</h3>
+    <p className="settings-row-sub">{t('A town, library or school calendar’s iCal link (.ics). Kinwall reads it once a day, and its events wait at the top of Outings → Upcoming for a grown-up to keep or skip. They never go on the family calendar.')}</p>
     {feeds?.map(f => <div key={f.id} className="settings-row feed-row">
       <div className="feed-row-main"><div className="settings-row-label">{f.name}</div><div className="settings-row-sub">{read(f)}</div></div>
-      <button type="button" className="btn btn-secondary" style={{ flex: 'none' }} aria-label={`Change ${f.name}`} onClick={() => setEditing(f)}>Change</button>
+      <button type="button" className="btn btn-secondary" style={{ flex: 'none' }} aria-label={t('Change {name}', { name: f.name })} onClick={() => setEditing(f)}>{t('Change')}</button>
     </div>)}
-    <div className="settings-row"><button type="button" className="btn btn-secondary" style={{ flex: 'none' }} onClick={() => setEditing('new')}><PlusIcon /> Add a calendar link</button></div>
+    <div className="settings-row"><button type="button" className="btn btn-secondary" style={{ flex: 'none' }} onClick={() => setEditing('new')}><PlusIcon /> {t('Add a calendar link')}</button></div>
     {editing && <FeedSheet feed={editing === 'new' ? null : editing} categories={categories} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); changed() }} />}
   </>
 }
@@ -681,32 +707,32 @@ function FeedSheet({ feed, categories, onClose, onSaved }: { feed: OutingFeed | 
   const [busy, setBusy] = useState(false)
   const run = async (work: () => Promise<unknown>, done: string) => {
     setBusy(true)
-    try { await work(); toast(done); onSaved() } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
+    try { await work(); toast(done); onSaved() } catch (e) { toast(e instanceof Error ? e.message : t('Could not save.'), true) } finally { setBusy(false) }
   }
   const body = { name: name.trim(), url: url.trim(), categoryId, audience: audience ? [audience] : [], skipWords }
   const save = () => void run(async () => {
     const saved = feed ? await api.updateOutingFeed(feed.id, body) : await api.createOutingFeed(body)
     if (saved.lastError) toast(saved.lastError, true)
-  }, feed ? `Saved ${body.name}` : `Added ${body.name}. New events wait in Outings → Upcoming.`)
+  }, feed ? t('Saved {name}', { name: body.name }) : t('Added {name}. New events wait in Outings → Upcoming.', { name: body.name }))
   const remove = async () => {
-    if (!feed || !await dialog.confirm({ title: `Remove “${feed.name}”?`, body: 'Its new events waiting in Outings go away. Outings you kept stay.', confirmLabel: 'Remove calendar', danger: true })) return
-    void run(() => api.deleteOutingFeed(feed.id), `Removed ${feed.name}`)
+    if (!feed || !await dialog.confirm({ title: t('Remove “{name}”?', { name: feed.name }), body: t('Its new events waiting in Outings go away. Outings you kept stay.'), confirmLabel: t('Remove calendar'), danger: true })) return
+    void run(() => api.deleteOutingFeed(feed.id), t('Removed {name}', { name: feed.name }))
   }
-  return <Sheet title={feed ? feed.name : 'Add a community calendar'} onClose={onClose} dismissable={!busy}
-    actions={<button className="btn btn-primary" disabled={busy || !name.trim() || !/^(https?|webcal):\/\/\S+$/i.test(url.trim())} onClick={save}>{feed ? 'Save' : 'Add calendar'}</button>}>
-    <div className="field"><label htmlFor={`${id}-name`}>Name</label><input id={`${id}-name`} type="text" value={name} maxLength={80} placeholder="Town calendar" onChange={e => setName(e.target.value)} /></div>
-    <div className="field"><label htmlFor={`${id}-url`}>Calendar link</label><input id={`${id}-url`} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} placeholder="https://… .ics or webcal://…" onChange={e => setUrl(e.target.value)} aria-describedby={`${id}-url-hint`} />
-      <p className="field-hint" id={`${id}-url-hint`}>Look for “Subscribe”, “iCal” or “Add to calendar” on the calendar’s page and copy that link.</p></div>
-    <LabeledPick label="Category for its events" none="None" value={categoryId ? [categoryId] : []} onChange={v => setCategoryId(v[0] || null)} options={[{ value: '', label: 'None' }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
-    <div className="field"><label htmlFor={`${id}-aud`}>Who its events are for</label>
+  return <Sheet title={feed ? feed.name : t('Add a community calendar')} onClose={onClose} dismissable={!busy}
+    actions={<button className="btn btn-primary" disabled={busy || !name.trim() || !/^(https?|webcal):\/\/\S+$/i.test(url.trim())} onClick={save}>{feed ? t('Save') : t('Add calendar')}</button>}>
+    <div className="field"><label htmlFor={`${id}-name`}>{t('Name')}</label><input id={`${id}-name`} type="text" value={name} maxLength={80} placeholder={t('Town calendar')} onChange={e => setName(e.target.value)} /></div>
+    <div className="field"><label htmlFor={`${id}-url`}>{t('Calendar link')}</label><input id={`${id}-url`} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} placeholder={t('https://… .ics or webcal://…')} onChange={e => setUrl(e.target.value)} aria-describedby={`${id}-url-hint`} />
+      <p className="field-hint" id={`${id}-url-hint`}>{t('Look for “Subscribe”, “iCal” or “Add to calendar” on the calendar’s page and copy that link.')}</p></div>
+    <LabeledPick label={t('Category for its events')} none={t('None')} value={categoryId ? [categoryId] : []} onChange={v => setCategoryId(v[0] || null)} options={[{ value: '', label: t('None') }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
+    <div className="field"><label htmlFor={`${id}-aud`}>{t('Who its events are for')}</label>
       <select id={`${id}-aud`} className="settings-select" value={audience} onChange={e => setAudience(e.target.value as OutingAudience | '')}>
-        <option value="">Not set</option><option value="family">The whole family</option><option value="kids">Kids</option><option value="grownups">Grown-ups</option>
+        <option value="">{t('Not set')}</option><option value="family">{t('The whole family')}</option><option value="kids">{t('Kids')}</option><option value="grownups">{t('Grown-ups')}</option>
       </select></div>
-    <div className="field"><label htmlFor={`${id}-skip`}>Skip events named with</label><input id={`${id}-skip`} type="text" value={skipWords} maxLength={500} onChange={e => setSkipWords(e.target.value)} aria-describedby={`${id}-skip-hint`} />
-      <p className="field-hint" id={`${id}-skip-hint`}>Words separated by commas. Events with one of these words in the name never show up, like a town’s public meetings.</p></div>
+    <div className="field"><label htmlFor={`${id}-skip`}>{t('Skip events named with')}</label><input id={`${id}-skip`} type="text" value={skipWords} maxLength={500} onChange={e => setSkipWords(e.target.value)} aria-describedby={`${id}-skip-hint`} />
+      <p className="field-hint" id={`${id}-skip-hint`}>{t('Words separated by commas. Events with one of these words in the name never show up, like a town’s public meetings.')}</p></div>
     {feed && <div className="feed-sheet-actions">
-      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.refreshOutingFeed(feed.id), `Read ${feed.name} again`)}>Read it again now</button>
-      <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove()}>Remove calendar…</button>
+      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.refreshOutingFeed(feed.id), t('Read {name} again', { name: feed.name }))}>{t('Read it again now')}</button>
+      <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove()}>{t('Remove calendar…')}</button>
     </div>}
   </Sheet>
 }

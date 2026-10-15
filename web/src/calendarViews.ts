@@ -3,7 +3,7 @@
 // Features). Calendar (#/calendar/<view>) is Day | Week (3 Day on a phone) | Month | Schedule, and
 // remembers which of them this device used last.
 
-import { format } from 'date-fns'
+import { LONG_DAY, formatDate, msg, t, tm, tn } from './i18n.ts'
 
 export type HomeView = 'board' | 'newscast'
 export type CalendarView = 'day' | 'week' | 'month' | 'schedule'
@@ -14,18 +14,21 @@ export const CALENDAR_VIEWS: readonly CalendarView[] = ['day', 'week', 'month', 
 export const VIEW_MODES: readonly ViewMode[] = [...HOME_VIEWS, ...CALENDAR_VIEWS]
 
 /** A phone's Week view shows 3 days, so it says so. */
-export const viewLabel = (v: ViewMode, isPhone: boolean) => v === 'week' ? (isPhone ? '3 Day' : 'Week') : v[0].toUpperCase() + v.slice(1)
+const LABELS: Record<ViewMode, string> = {
+  board: msg('Board'), newscast: msg('Newscast'), day: msg('Day'), week: msg('Week'), month: msg('Month'), schedule: msg('Schedule'),
+}
+export const viewLabel = (v: ViewMode, isPhone: boolean) => v === 'week' && isPhone ? t('3 Day') : tm(LABELS[v])
 
 const HINTS: Record<ViewMode, string> = {
-  board: 'Today and the week ahead',
-  day: 'One day, hour by hour',
-  week: 'The whole week, hour by hour',
-  month: 'The month at a glance',
-  schedule: 'The next 30 days as a list',
-  newscast: 'What the family did and shared',
+  board: msg('Today and the week ahead'),
+  day: msg('One day, hour by hour'),
+  week: msg('The whole week, hour by hour'),
+  month: msg('The month at a glance'),
+  schedule: msg('The next 30 days as a list'),
+  newscast: msg('What the family did and shared'),
 }
 
-export const viewHint = (v: ViewMode, isPhone: boolean) => v === 'week' && isPhone ? '3 days side by side, hour by hour' : HINTS[v]
+export const viewHint = (v: ViewMode, isPhone: boolean) => v === 'week' && isPhone ? t('3 days side by side, hour by hour') : tm(HINTS[v])
 
 export const isCalendarView = (v: unknown): v is CalendarView => CALENDAR_VIEWS.includes(v as CalendarView)
 export const isHomeView = (v: unknown): v is HomeView => HOME_VIEWS.includes(v as HomeView)
@@ -35,7 +38,7 @@ export const dayOrigin = (from: ViewMode): 'week' | 'month' | null => from === '
 
 /** A Month day's accessible name: "Thursday, October 1: 4 events". */
 export const monthDayLabel = (d: Date, count: number) =>
-  `${format(d, 'EEEE, MMMM d')}: ${count === 0 ? 'no events' : `${count} event${count === 1 ? '' : 's'}`}`
+  count === 0 ? t('{day}: no events', { day: formatDate(d, LONG_DAY) }) : tn(count, '{day}: {n} event', '{day}: {n} events', { day: formatDate(d, LONG_DAY) })
 
 const LAST_KEY = 'kinwall.calendarView'
 
