@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Timers on this device (timers.ts).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { added, checksDue, clock, due, durationLabel, paused, phase, remaining, resumed, timerWords, untilNext, wasReset, type Timer } from '../src/timers.ts'
+import { added, checksDue, clock, due, durationLabel, paused, phase, remaining, resumed, soonestFirst, timerWords, untilNext, wasReset, type Timer } from '../src/timers.ts'
 
 test('clock and duration labels', () => {
   assert.equal(clock(65_000), '1:05')
@@ -76,4 +76,9 @@ test('range words: named, hours and seconds, long ranges; a single time is as be
   const old = JSON.parse('{"id":5,"label":"5–7 min","seconds":300,"endsAt":300000,"done":false}') as Timer
   assert.deepEqual([phase(old, 100_000), untilNext(old, 100_000), timerWords(old, 100_000)], ['counting', 200_000, ['5–7 min']])
   assert.deepEqual(checksDue([old], 299_000), [])
+})
+
+test('soonestFirst puts the next timer to ring first and paused ones last', () => {
+  const t = (id: number, endsAt: number, left?: number): Timer => ({ id, label: `T${id}`, seconds: 600, endsAt, done: false, left })
+  assert.deepEqual(soonestFirst([t(1, 9000), t(2, 1000, 500), t(3, 4000)], 0).map(x => x.id), [3, 1, 2])
 })

@@ -51,6 +51,9 @@ export function untilNext(t: Timer, now: number) {
   const left = remaining(t, now)
   return t.check !== undefined && left > checkPart(t) ? left - checkPart(t) : left
 }
+/** Running timers by what happens next, soonest first; paused ones after. */
+export const soonestFirst = (ts: Timer[], now: number) =>
+  [...ts].sort((a, b) => Number(!isRunning(a)) - Number(!isRunning(b)) || untilNext(a, now) - untilNext(b, now))
 /** The running ranges whose check is at or before `at`, that haven't chimed (and aren't already up). */
 export const checksDue = (ts: Timer[], at: number) => ts.filter(t => isRunning(t) && t.check !== undefined && !t.checked && t.endsAt - checkPart(t) <= at && t.endsAt > at)
 /** What a timer says: a range "Check at 5 min · done by 6", then "Check it" and "Up to 1 min more";

@@ -173,7 +173,8 @@
 .cook-bullets li { margin: 6px 0; overflow-wrap: anywhere; }
 .cook-timers { display: flex; flex-wrap: wrap; gap: 10px; }
 /* The timers bar (Timers.tsx) under the cook bar, flat across the top. */
-.cook-timer-bar { flex-shrink: 0; padding: 8px 16px; background: var(--card-soft); border-bottom: 1px solid var(--border); }
+/* Capped so several timers never push the step and Back/Next off a phone; soonest first, the rest scroll. */
+.timer-bar.cook-timer-bar { flex-shrink: 0; max-height: 30vh; overflow-y: auto; padding: 8px 16px; background: var(--card-soft); border-bottom: 1px solid var(--border); }
 .cook-timer-chip { min-height: 52px; padding: 8px 20px; border-radius: 999px; border: 2px solid var(--accent-strong); background: var(--accent-tint); color: var(--text); font: inherit; font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
 .cook-timer-chip:disabled { border-style: dashed; }
 .cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }

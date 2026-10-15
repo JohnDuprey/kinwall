@@ -9,7 +9,7 @@ import { IngredientList } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { start, TimerList, useNow, useTimers } from './Timers.tsx'
-import { clock, isRunning, phase, untilNext } from './timers.ts'
+import { clock, isRunning, phase, soonestFirst, untilNext } from './timers.ts'
 
 /** Full-screen cooking: one step at a time in big type, its ingredients (scaled to `servings`) and
  * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
@@ -98,7 +98,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
       </header>
       <div className="cook-progress" aria-hidden="true"><div style={{ width: `${(index + 1) / steps.length * 100}%` }} /></div>
       {/* Every running timer, a quick one from the header too: the app's header is out of view here. */}
-      {timers.some(t => !t.done) && <TimerList timers={timers} now={now} className="cook-timer-bar" />}
+      {timers.some(t => !t.done) && <TimerList timers={soonestFirst(timers, now)} now={now} className="cook-timer-bar" />}
       <div className="cook-main scroll-y" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null }}>
         <div className="cook-step">
           {/* This step's ingredients right under the photo (beside the text when there's room), so they're in view without scrolling. */}
