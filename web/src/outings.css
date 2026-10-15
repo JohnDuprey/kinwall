@@ -4,6 +4,8 @@
 .outing-filter-bar .btn { flex: none; min-height: 44px; padding: 6px 14px; gap: 6px; }
 .outing-section h2 { margin: 20px 0 10px; font-size: 1.0625rem; }
 .outing-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 10px; }
+/* Wide screens: a group's cards share the whole width rather than leave empty columns. */
+@media (min-width: 1280px) { .outing-list { grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); } }
 .outing-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); box-shadow: var(--shadow); color: var(--text); font: inherit; text-align: left; }
 .outing-row > svg:last-child { flex: none; width: 20px; height: 20px; color: var(--text-dim); }
 .outing-emoji { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--bg-alt); font-size: 1.5rem; }

@@ -576,6 +576,12 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   line-height: 1.25;
 }
+/* Wall and cast screens: all-day events are 44px taps. Day view's full-width bars carry bigger text. */
+@media (min-width: 1280px) { .allday-chip { min-height: 44px; align-items: center; } }
+:root[data-cast] .allday-chip { min-height: 44px; align-items: center; }
+@media (min-width: 1700px) and (min-height: 950px) {
+  :root:not([data-cast]) .timegrid:has(> .day-col:nth-child(2):last-child) .timed-event { font-size: calc(0.875rem * var(--screen-k)); }
+}
 
 /* Multi-member striped events: title/time text is set with EventTitle so truncation and the
    avatar row work the same in every view (week/day timed blocks, all-day chips, month chips,
@@ -855,7 +861,7 @@ button.month-cell .month-daynum { flex: none; }
 .field textarea { min-height: 70px; font-weight: 600; resize: none; }
 .row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 /* Timed events: Starts [date][time] / Ends [date][time] */
-.row-datetime { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); column-gap: 12px; }
+.row-datetime { display: grid; grid-template-columns: minmax(0, 3fr) minmax(9rem, 2fr); column-gap: 12px; } /* the time keeps room for "11:00 AM" on a 375px phone */
 /* iOS gives date/time inputs an intrinsic min width that overflows a two-column row on a phone. */
 .field input[type="date"], .field input[type="time"] { min-width: 0; -webkit-appearance: none; appearance: none; display: block; }
 .field input::-webkit-date-and-time-value { text-align: left; }
@@ -1014,7 +1020,7 @@ button.month-cell .month-daynum { flex: none; }
 }
 .date-chip { min-width: 56px; padding: 8px 4px; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); border: 2px solid transparent; text-align: center; flex-shrink: 0; }
 .date-chip.active { border-color: var(--accent-strong); }
-.date-chip .wd { font-size: 0.625rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
+.date-chip .wd { font-size: 0.6875rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
 .date-chip .dn { font-size: 1.0625rem; font-weight: 800; }
 
 /* Grid so columns share the available width equally (up to ~6). Beyond that, Chores.tsx switches
@@ -1851,7 +1857,6 @@ button.month-cell .month-daynum { flex: none; }
   .chores-rewards-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .date-strip { padding: 2px 14px 6px; gap: 6px; }
   .date-chip { min-width: 40px; min-height: 44px; padding: 3px 2px; border-radius: 12px; line-height: 1.15; }
-  .date-chip .wd { font-size: 0.5625rem; }
   .date-chip .dn { font-size: 0.9375rem; }
   .chores-idle { gap: 6px; }
   .chores-idle-item { min-height: 36px; padding: 3px 10px 3px 3px; gap: 6px; font-size: 0.75rem; }
@@ -2628,8 +2633,8 @@ button.snap-row:active { transform: scale(0.99); }
 .snap-chore { align-items: center; }
 .snap-chore .chore-check { width: 30px; height: 30px; }
 .snap-chore.done .snap-emoji { opacity: 0.5; }
-.snap-time { flex: 0 0 4.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.snap-time.snap-emoji { flex-basis: 2rem; text-align: center; }
+.snap-time { flex: none; min-width: 5.25rem; white-space: nowrap; font-weight: 800; font-variant-numeric: tabular-nums; } /* "11:40 AM" on one line */
+.snap-time.snap-emoji { flex-basis: 2rem; min-width: 0; text-align: center; }
 .snap-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .snap-title { font-weight: 800; display: flex; align-items: flex-start; gap: 6px; overflow-wrap: anywhere; }
 .snap-title .prio-badge { margin: 1px 0 0; }
