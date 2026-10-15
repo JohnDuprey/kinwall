@@ -1652,7 +1652,10 @@ button.month-cell .month-daynum { flex: none; }
   display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 10px 6px;
   border: none; border-top: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer;
 }
-.shop-group .list-group-title + .shop-row { border-top: none; }
+.shop-group .list-group-title + .shop-row, .shop-group .list-group-title + .shop-row-wrap { border-top: none; }
+.shop-row-wrap { display: flex; align-items: center; border-top: 1px solid var(--border); }
+.shop-row-wrap > .shop-row { flex: 1; min-width: 0; border-top: none; }
+.shop-row-info { flex: none; width: 44px; height: 44px; background: none; box-shadow: none; color: var(--text-dim); }
 .shop-check { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: 2.5px solid var(--control-edge); color: white; }
 .shop-row.done .shop-check { background: var(--success); border-color: var(--success); }
 .shop-row.pending .shop-check { border-style: dashed; }

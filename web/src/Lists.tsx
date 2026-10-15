@@ -14,7 +14,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
+import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, InfoIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
 import { announce, filterSortLabel, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -870,10 +870,11 @@ function FromTag({ name, catalog }: { name: string; catalog: ListCatalog }) {
   return <span className="list-from-tag"><Icon width={12} height={12} aria-hidden="true" /><span className="sr-only">On </span>{name}</span>
 }
 
-/** A row in shopping mode: the whole row ticks the item (no editing mid-aisle). */
-function ShopRow({ item, meta, onToggle, from, readOnly }: { item: ListItem; meta?: string | null; onToggle: () => void; from?: React.ReactNode; readOnly?: boolean }) {
+/** A row in shopping mode: the whole row ticks the item; ⓘ (onOpen) opens it over shopping mode,
+ * to read its notes or fix the quantity without leaving the aisle. */
+function ShopRow({ item, meta, onToggle, onOpen, from, readOnly }: { item: ListItem; meta?: string | null; onToggle: () => void; onOpen?: () => void; from?: React.ReactNode; readOnly?: boolean }) {
   const sub = [meta, item.notes?.split('\n')[0]].filter(Boolean).join(' · ')
-  return (
+  const row = (
     <button className={`shop-row ${item.done ? 'done' : ''} ${item.pending ? 'pending' : ''} ${readOnly ? 'read-only' : ''}`} role="checkbox" aria-checked={item.done} aria-disabled={readOnly || undefined}
       onClick={readOnly ? undefined : onToggle} title={item.pending ? 'Not synced yet' : undefined}>
       <span className="shop-check" aria-hidden="true">{item.done && <CheckIcon width={20} height={20} />}</span>
@@ -885,6 +886,12 @@ function ShopRow({ item, meta, onToggle, from, readOnly }: { item: ListItem; met
       {item.onSale && <span className="list-item-chip list-item-sale"><span aria-hidden="true">🏷️ </span>Sale</span>}
       {item.quantity && <span className="list-item-chip">{item.quantity}</span>}
     </button>
+  )
+  return !onOpen ? row : (
+    <div className="shop-row-wrap">
+      {row}
+      <button type="button" className="icon-btn shop-row-info" onClick={onOpen} aria-haspopup="dialog" aria-label={`${item.title} details`}><InfoIcon width={22} height={22} /></button>
+    </div>
   )
 }
 
@@ -1966,8 +1973,16 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     </Sheet>
   )
 
+  const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
+  const editSheet = editItem && (
+    <ItemEditSheet listId={listId} item={editItem} kind={list.kind} readOnly={!mine(editItem)} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
+      moveTargets={lists.filter(l => !l.archived && l.id !== listId && listType(l) === listType(list))}
+      onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
+  )
+
   if (shopping) {
-    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)} />
+    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)}
+      onOpen={!item.listId || item.listId === listId ? () => openItem(item) : undefined /* the other list's, on a combined trip: on its own list */} />
     const group = (title: string, rows: React.ReactNode, className = '') => (
       <section key={title} className={`shop-group ${className}`} aria-label={title}><h3 className="list-group-title" aria-hidden="true">{title}</h3>{rows}</section>
     )
@@ -2012,11 +2027,11 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         {scanSheet}
         {placeSheet}
         {addSheet}
+        {editSheet}
       </div>,
       document.body)
   }
 
-  const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
   // View: group, sort and the store filter behind one button, counted when they differ from a new
   // list's, and summed up in one line under it (the Contacts pattern).
   const viewDef = listViewDefaults(list.kind)
@@ -2178,11 +2193,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
 
       {addSheet}
-      {editItem && (
-        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} readOnly={!mine(editItem)} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
-          moveTargets={lists.filter(l => !l.archived && l.id !== listId && listType(l) === listType(list))}
-          onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
-      )}
+      {editSheet}
       {editList && (
         <ListEditSheet list={list} onClose={() => setEditList(false)}
           onSaved={() => { setEditList(false); load(); onArchivedOrDeleted() }}
