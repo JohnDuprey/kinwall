@@ -26,6 +26,8 @@ const PERIODS: { key: StatsPeriod; label: string }[] = [
 ]
 const SPINES = ['#F7B2A0', '#A9D8F5', '#C7E6A3', '#F8D57E', '#D5B8F2', '#F5A9C9', '#9FE0D0', '#FFC48C']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+/** Journal, insights and medicines: a kid's are hidden from the other kids; a grown-up's from everyone else. */
+const privateTag = (m: Member) => m.grownUp ? 'Private' : "Private (other kids can't see)"
 const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`
 
 export default function Profile({ memberId }: { memberId?: string }) {
@@ -114,6 +116,9 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
         {f.chores && f.checkIns && (settings.checkInPoints > 0 || s.checkIns > 0) && <Tile label="Check-ins" value={<>☀️ {s.checkIns}</>} note={word} />}
       </div>
       <div className="profile-grid">
+        {/* Their journal and insights lead: the reason most people open a profile. */}
+        {f.checkIns && (parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
+        {f.checkIns && (parentDevice || meMemberId === member.id) && <InsightsCard member={member} />}
         {f.chores && <ChoresCard member={member} s={s} />}
         {f.chores && <PointsCard member={member} s={s} word={word} />}
         {books && <BooksCard s={s} />}
@@ -142,8 +147,6 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
           </section>
         )}
         {parentDevice && f.chores && <WaitingCard member={member} />}
-        {f.checkIns && (parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
-        {f.checkIns && (parentDevice || meMemberId === member.id) && <InsightsCard member={member} />}
         {settings.medications && (parentDevice || meMemberId === member.id) && <MedicationsCard member={member} />}
       </div>
     </>
@@ -353,7 +356,7 @@ function JournalCard({ member }: { member: Member }) {
   }, [member.id, evening, settings.timezone, refreshTick])
   return (
     <section className="board-card profile-card" aria-labelledby="pf-journal">
-      <h3 id="pf-journal" className="snap-heading">Journal <span>🔒 Private</span></h3>
+      <h3 id="pf-journal" className="snap-heading">Journal <span>🔒 {privateTag(member)}</span></h3>
       {evening && week && week.of > 0 && <p className="profile-note">🎯 Goals met this week: <strong>{week.met} of {week.of}</strong></p>}
       <p className="profile-note">Check-ins, goals and {member.name}'s own notes, day by day.</p>
       <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>Open the journal</a>
@@ -365,7 +368,7 @@ function JournalCard({ member }: { member: Member }) {
 function InsightsCard({ member }: { member: Member }) {
   return (
     <section className="board-card profile-card" aria-labelledby="pf-insights">
-      <h3 id="pf-insights" className="snap-heading">Insights <span>🔒 Private</span></h3>
+      <h3 id="pf-insights" className="snap-heading">Insights <span>🔒 {privateTag(member)}</span></h3>
       <p className="profile-note">How sleep, feelings and goals have been going, next to chores and busy days.</p>
       <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>Open insights</a>
     </section>
@@ -376,7 +379,7 @@ function InsightsCard({ member }: { member: Member }) {
 function MedicationsCard({ member }: { member: Member }) {
   return (
     <section className="board-card profile-card" aria-labelledby="pf-meds">
-      <h3 id="pf-meds" className="snap-heading">Medicines <span>🔒 Private</span></h3>
+      <h3 id="pf-meds" className="snap-heading">Medicines <span>🔒 {privateTag(member)}</span></h3>
       <p className="profile-note">Today's doses and the last 7 days.</p>
       <a className="btn btn-secondary profile-link" href={`#/medications/${member.id}`}>Open medicines</a>
     </section>
