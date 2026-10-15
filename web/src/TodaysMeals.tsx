@@ -23,7 +23,7 @@ export default function TodaysMeals({ now, meals: all }: { now: Date; meals: Mea
       {meals.length === 0 ? <button className="snap-empty board-empty-tap" onClick={() => { location.hash = '#/meals' }}>No meals planned today.</button> : <ul className="snap-list">
         {meals.map(meal => {
           const assignee = members.find(member => member.id === meal.assigneeMemberId)
-          return <li key={meal.id}><button type="button" onClick={() => setOpen(meal)} className={`snap-row today-meal ${meal.id === next?.id ? 'today-meal-next' : ''}`}>
+          return <li key={meal.id}><button type="button" onClick={() => setOpen(meal)} className={`snap-row today-meal ${meal.id === next?.id ? 'today-meal-next' : at(meal) < minute ? 'today-meal-past' : ''}`}>
             <span className="snap-main"><span className="board-when">{SLOT_LABEL[meal.slot]}{meal.plannedTime ? ` · ${formatTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? at(meal) >= minute ? ' · Next' : ' · Planned' : ''}</span>
               <span className="snap-title">{meal.mealKind === 'dining_out' ? '↗ ' : ''}{meal.title}</span>
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />

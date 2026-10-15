@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useHashParam } from './hashQuery.ts'
 import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -96,7 +96,7 @@ export const ratingOwner = (me: { scope: string; owner?: string | null } | null 
 
 /** Collapsed to the family average (open on a kid's own device, their row first); open it for each member's stars, tappable (tap the same star again to clear), and a heart to mark it their favorite. A member's own device rates only for them. */
 function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | null; onRated?: () => void }) {
-  const { members, toast, actingMemberId } = useApp()
+  const { members, toast, actingMemberId, meMemberId } = useApp()
   const [rating, setRating] = useState<RecipeRating>(recipe.rating ?? { average: null, count: 0, byMember: {} })
   const [loved, setLoved] = useState(recipe.favoritedBy ?? [])
   const [busy, setBusy] = useState('')
@@ -118,7 +118,11 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
   // A wall with someone picked in its header opens the same way, their row first.
   const first = kid ? owner : actingMember(actingMemberId, members)?.id
   const people = first ? [...members].sort((a, b) => Number(b.id === first) - Number(a.id === first)) : members
-  return <details className="settings-disclosure recipe-ratings-box" open={!!first || undefined}>
+  // Whoever this device is (a kid's own, a grown-up's own phone, or who's picked on the wall) hearts it in one tap, without opening the list.
+  const quick = members.find(m => m.id === (first ?? meMemberId)), quickOn = !!quick && loved.includes(quick.id)
+  return <div className="recipe-ratings-wrap">
+  {quick && <button type="button" className={`recipe-heart recipe-quick-heart${quickOn ? ' on' : ''}`} aria-pressed={quickOn} aria-label={`${quick.name}'s favorite`} disabled={busy === quick.id} onClick={() => void love(quick.id, !quickOn)}>{quickOn ? '♥' : '♡'}</button>}
+  <details className="settings-disclosure recipe-ratings-box" open={!!first || undefined}>
     <summary>{kid ? 'How did you like it?' : rating.average !== null ? `★ ${rating.average} · ${rating.count} rating${rating.count === 1 ? '' : 's'}` : 'Rate this recipe'}{!kid && loved.length > 0 && ` · ♥ ${loved.length} favorite${loved.length === 1 ? '' : 's'}`}</summary>
     <ul className="recipe-ratings">{people.map(m => {
       const mine = rating.byMember[m.id] ?? 0, hearted = loved.includes(m.id)
@@ -132,12 +136,15 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
       </li>
     })}</ul>
   </details>
+  </div>
 }
 
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close).
  * `library` is every recipe: where linked basics are found. */
-export default function RecipeSheet({ recipe, library = [], admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal }: {
+export default function RecipeSheet({ recipe, library = [], admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal, meal }: {
   recipe: Recipe | null; library?: Recipe[]; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
+  /** Opened from a planned meal: that meal's when, who and status first (MealQuickSheet's MealStrip). */
+  meal?: ReactNode
   /** Opened from a planned meal: a button back to that meal's details. */
   onEditMeal?: { label: string; open: () => void; back?: boolean }
 }) {
@@ -164,6 +171,7 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
     {admin && <button className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> Edit</button>}
     {onPlan && !recipe.archived && <button className="btn btn-primary" onClick={() => onPlan(recipe)}>Plan this meal</button>}
   </> : undefined}>
+    {meal}
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
     {(time || recipe.archived || isBasic || recipe.makes) && <p className="recipe-time">{isBasic && <span className="kit-tag recipe-kind-tag">Basic</span>}{[recipe.makes && `Makes ${recipe.makes}`, time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
@@ -279,17 +287,21 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
           <legend>Ingredient {index + 1}</legend>
           <div className="field"><label htmlFor={rowIds[index]}>Name</label><input type="text" id={rowIds[index]} required maxLength={200} value={row.name} onChange={e => ingredient(index, { name: e.target.value })} />
             {match && <button type="button" className="link-btn" onClick={() => ingredient(index, { basicId: match.id })}>Link to basic: {match.name}</button>}</div>
-          {basics.length > 0 && <div className="field"><label htmlFor={`${rowIds[index]}-basic`}>Made from a basic</label><PickField id={`${rowIds[index]}-basic`} label={`Made from a basic, ingredient ${index + 1}`} title="Made from a basic" placeholder="Basic name"
-            options={basicOptions} value={[row.basicId ?? '']} onChange={v => ingredient(index, { basicId: v[0] || null })} /></div>}
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${rowIds[index]}-quantity`}>Quantity</label><input id={`${rowIds[index]}-quantity`} type="number" min="0" max="1000000" step="any" value={row.quantity ?? ''} onChange={e => ingredient(index, { quantity: e.target.value === '' ? null : Number(e.target.value) })} /></div>
             <div className="field"><label htmlFor={`${rowIds[index]}-unit`}>Unit</label><input type="text" id={`${rowIds[index]}-unit`} maxLength={50} placeholder="cup, lb…" value={row.unit ?? ''} onChange={e => ingredient(index, { unit: e.target.value || null })} /></div>
           </div>
+          {/* The rest folds away (what's set shows on its line), so a long recipe isn't pages of fields. */}
+          <details className="recipe-ingredient-more">
+            <summary>More{[row.preparation, row.qualifier, row.category, row.basicId && 'from a basic'].some(Boolean) && <span className="field-hint">{[row.preparation, row.qualifier, row.category, row.basicId && 'from a basic'].filter(Boolean).join(' · ')}</span>}</summary>
+          {basics.length > 0 && <div className="field"><label htmlFor={`${rowIds[index]}-basic`}>Made from a basic</label><PickField id={`${rowIds[index]}-basic`} label={`Made from a basic, ingredient ${index + 1}`} title="Made from a basic" placeholder="Basic name"
+            options={basicOptions} value={[row.basicId ?? '']} onChange={v => ingredient(index, { basicId: v[0] || null })} /></div>}
           <div className="field"><label htmlFor={`${rowIds[index]}-preparation`}>Preparation</label><input type="text" id={`${rowIds[index]}-preparation`} maxLength={10000} placeholder="Diced, softened…" value={row.preparation ?? ''} onChange={e => ingredient(index, { preparation: e.target.value || null })} /></div>
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${rowIds[index]}-qualifier`}>Quantity note</label><input type="text" id={`${rowIds[index]}-qualifier`} maxLength={100} placeholder="To taste…" value={row.qualifier ?? ''} onChange={e => ingredient(index, { qualifier: e.target.value || null })} /></div>
             <div className="field"><label htmlFor={`${rowIds[index]}-category`}>Category</label><input type="text" id={`${rowIds[index]}-category`} maxLength={100} placeholder="Produce…" value={row.category ?? ''} onChange={e => ingredient(index, { category: e.target.value || null })} /></div>
           </div>
+          </details>
           <button type="button" className="link-btn" aria-label={`Remove ingredient ${index + 1}${row.name ? `, ${row.name}` : ''}`} onClick={() => { update('ingredients', draft.ingredients.filter((_, i) => i !== index)); setRowIds(ids => ids.filter((_, i) => i !== index)) }}>Remove ingredient</button>
         </fieldset>})}
         <button type="button" className="btn btn-secondary" disabled={draft.ingredients.length >= 300} onClick={() => { update('ingredients', [...draft.ingredients, emptyIngredient()]); setRowIds(ids => [...ids, crypto.randomUUID()]) }}><PlusIcon /> Add ingredient</button>
@@ -307,7 +319,10 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
             </div>
           </fieldset>)}
           <button type="button" className="btn btn-secondary" disabled={steps.length >= 100} onClick={() => { update('steps', [...steps, { text: '', bullets: [], imageUrl: null }]); setStepIds(ids => [...ids, crypto.randomUUID()]) }}><PlusIcon /> Add step</button>
-        </> : <div className="field meal-spaced"><label htmlFor={`${formId}-instructions`}>Instructions</label><textarea id={`${formId}-instructions`} rows={5} maxLength={10000} value={draft.instructions ?? ''} onChange={e => update('instructions', e.target.value || null)} /></div>}
+        </> : <div className="field meal-spaced"><label htmlFor={`${formId}-instructions`}>Instructions</label><textarea id={`${formId}-instructions`} rows={5} maxLength={10000} value={draft.instructions ?? ''} onChange={e => update('instructions', e.target.value || null)} />
+          {/* How Start cooking (and the recipe view) will split it. */}
+          {!!draft.instructions?.trim() && <details className="recipe-steps-preview"><summary>Preview steps ({cookingSteps({ instructions: draft.instructions }).length})</summary>
+            <ol className="recipe-steps">{cookingSteps({ instructions: draft.instructions }).map((step, i) => <li key={i}>{step.text}</li>)}</ol></details>}</div>}
         <div className="field"><label htmlFor={`${formId}-notes`}>Preparation notes</label><textarea id={`${formId}-notes`} maxLength={10000} value={draft.preparationNotes ?? ''} onChange={e => update('preparationNotes', e.target.value || null)} /></div>
         <div className="field"><label htmlFor={`${formId}-url`}>Source URL</label><input id={`${formId}-url`} type="url" pattern="https?://.*" maxLength={2000} placeholder="https://…" value={draft.sourceUrl ?? ''} onChange={e => update('sourceUrl', e.target.value || null)} /><p className="field-hint">Saved as a link. To read a recipe off its website, use Import from a link in the recipe library.</p></div>
         {recipe?.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}

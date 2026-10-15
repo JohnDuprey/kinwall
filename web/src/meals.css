@@ -32,6 +32,9 @@
 .meal-empty { display: block; padding: 12px; color: var(--text-dim); }
 .recipe-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--gap); margin-top: 16px; }
 .recipe-card { background: var(--card); padding: 20px; box-shadow: var(--shadow); }
+.recipe-card > strong { font-size: 1.0625rem; font-weight: 700; } /* a button's 13px otherwise: the name is what you scan for */
+.meals-filters-btn { flex: none; gap: 8px; min-height: 52px; align-self: flex-end; }
+.meals-filter-count { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--accent-strong); color: var(--accent-ink); font-size: 0.8125rem; font-weight: 800; }
 .recipe-card p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-dim); white-space: pre-wrap; }
 .meal-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .meal-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -39,6 +42,10 @@
 .meal-fieldset .field input[type="number"], .meals-view .field input[type="search"] { width: 100%; padding: 13px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-family: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 52px; }
 .recipe-ingredient { min-width: 0; margin: 16px 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .recipe-ingredient legend { padding: 0 6px; font-weight: 800; font-size: 0.875rem; }
+.recipe-ingredient-more summary, .recipe-steps-preview summary { min-height: 44px; display: flex; align-items: center; gap: 4px; font-weight: 700; color: var(--accent-text); cursor: pointer; }
+.recipe-ingredient-more summary::before, .recipe-steps-preview summary::before { content: '▸'; }
+.recipe-ingredient-more[open] summary::before, .recipe-steps-preview[open] summary::before { content: '▾'; }
+.recipe-ingredient-more summary .field-hint { margin: 0; color: var(--text-dim); font-weight: 600; overflow-wrap: anywhere; }
 .meal-spaced { margin-top: 20px; }
 .meal-check { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; min-height: 44px; }
 .meal-check input { flex-shrink: 0; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
@@ -57,6 +64,7 @@
 .recipe-import-updates p { margin: 0; }
 .today-meal { text-decoration: none; color: inherit; border-radius: 10px; }
 .today-meal-next { background: var(--card-soft); border-left: 3px solid var(--accent); }
+.today-meal-past { opacity: 0.6; } /* already eaten: quieter, Next stands out */
 @media (max-width: 600px) {
   .meals-heading { align-items: flex-start; }
   .meals-heading .meal-actions { width: 100%; }
@@ -70,11 +78,22 @@
   .meal-grid tr > th[scope="row"] { width: auto; border-bottom: 1px solid var(--border); }
   .meal-grid td { border-bottom: 0; }
   .meal-grid td::before { content: attr(data-slot); display: block; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
+  /* Week on a phone: only the slots with something in them, then one "Plan a meal" row for the day. */
+  .meal-grid-compact td:not(:has(.meal-card, .meal-poll)), .meal-grid-compact td .meal-add { display: none; }
+  .meal-grid-compact td.meal-day-add { display: block; }
+  .meal-grid-compact td.meal-day-add::before { content: none; }
+  .meal-grid-compact td.meal-day-add .meal-add { display: flex; gap: 6px; font-weight: 700; }
+  .meals-toolbar .segmented button { min-width: 72px; min-height: 44px; }
 }
 @media (max-width: 360px) { .meal-form-row { grid-template-columns: 1fr; gap: 0; } }
 /* "In the kit": a quiet tag after the amount rather than trailing words. */
 .kit-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--card-soft); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.75rem; font-weight: 700; vertical-align: 1px; white-space: nowrap; }
 .recipe-time { color: var(--text-dim); font-weight: 700; }
+/* A planned meal's recipe: when, who and its status (Mark cooked) above the recipe. */
+.meal-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-alt); border: 1px solid var(--border); }
+.meal-strip-when { font-weight: 800; }
+.meal-strip .btn, .meal-strip .chip { margin-left: auto; }
+.meal-strip .btn { min-height: 44px; gap: 6px; }
 /* Recipe card viewer (RecipeCardSheet.tsx): every page on a canvas, fit to width, scrolling down. */
 .sheet-full { max-width: none; width: 100%; height: 100%; max-height: 100% !important; border-radius: 0 !important; padding-top: var(--safe-t); }
 .sheet-full .sheet-body { flex: 1 1 auto; min-height: 0; padding: 0; background: var(--bg-alt); overflow: auto; }
@@ -135,13 +154,17 @@
 .meal-sheet-photo { float: right; width: 96px; height: 72px; margin: 0 0 8px 12px; object-fit: cover; border-radius: 10px; background: var(--bg-alt); }
 /* Family ratings: one row per member with big tappable stars (wall and touch friendly). */
 .recipe-ratings { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; }
-.recipe-ratings li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.recipe-ratings li { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; } /* every row the same: the name, then stars and heart */
 .recipe-rating-who { display: flex; align-items: center; gap: 10px; font-weight: 700; min-width: 0; }
 .recipe-rating-stars { display: flex; }
 .recipe-rating-stars button { width: 48px; height: 48px; padding: 0; border: 0; background: none; font-size: 2rem; line-height: 1; color: var(--control-edge); cursor: pointer; border-radius: 12px; }
 .recipe-rating-stars button.on, .recipe-stars .on { color: var(--accent-strong); }
 .recipe-rating-stars button:disabled:not(.on) { opacity: 0.5; }
-.recipe-rating-stars .recipe-heart { margin-left: 4px; }
+.recipe-rating-stars .recipe-heart { margin-left: 16px; } /* apart from the fifth star */
+.recipe-ratings-wrap { position: relative; }
+.recipe-ratings-wrap:has(.recipe-quick-heart) summary { padding-right: 56px; }
+.recipe-quick-heart { position: absolute; top: 0; right: 0; z-index: 1; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 12px; background: none; font-size: 2rem; line-height: 1; color: var(--control-edge); cursor: pointer; }
+.recipe-quick-heart.on { color: var(--danger); }
 .recipe-rating-stars .recipe-heart.on, .recipe-card > .recipe-loved { color: var(--danger); }
 .recipe-loved { display: flex; align-items: center; gap: 6px; font-weight: 700; }
 .recipe-stars { color: var(--text-dim); font-size: 0.8125rem; font-weight: 700; }

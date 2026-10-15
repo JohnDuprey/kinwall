@@ -4,7 +4,7 @@ The **Meals** tab answers two questions: what are we eating this week, and what 
 
 ## Planning the week
 
-The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day.
+The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day, showing only the slots with something planned and one **Plan a meal** row for the day (it plans dinner when that's free, else the first open slot).
 
 Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with **What's for dinner?** (or breakfast, lunch or snack): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
 
@@ -13,14 +13,14 @@ Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with **Wh
 * **Recipe**: tap it to choose one. The picker opens with a search box (recipe name or ingredient; arrow keys and Enter work too) and lists the family's favorites first ("♥ Favorite"), then the rest, each A to Z, with their photo, time and family rating ("★ 4.5"). Archived recipes stay out unless the meal already uses one. Choosing a recipe fills in the meal's name and servings. The meal's sheet doesn't list the ingredients: **Open recipe** shows them, scaled to any number of servings.
 * **Meal name**, then **Date** and **Meal** (breakfast, lunch, dinner or snack, filled in from the slot you tapped).
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field) and **Cooking** (who's making it). Eating out has only the time: who's eating is who gets asked for their order, and a place that isn't in the binder can have an optional website.
-* **Who's eating**: tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
+* **Who's eating**: **Everyone** (nobody picked), or tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
 * **Status**: **Planned** or **Cooked** (**Ordered** when eating out). A cooked meal shows dashed. Then **Notes**.
 
 Only recipe meals add to the grocery list; something else and eating out don't.
 
 To trade two meals around, open a planned meal's sheet and tap **Swap with…**, right under the meal's name: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.
 
-A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where **Delete meal** at the bottom deletes it (after asking). A night out from the [binder](#restaurants) opens its [orders](#ordering-together) instead, with **Edit meal** (parents) for the meal's sheet. A planned meal shows small avatars of who's eating.
+A slot can hold more than one meal. Tap a meal with a recipe to see the recipe, with the meal's day and time, who's eating and its status on top. **Mark cooked** there (parents, and the cook's own device) marks it **Cooked** in one tap, with **Undo**; **Edit meal** or, for a non-admin, **Meal details** opens the meal sheet; tap a meal without one to open its sheet directly, where **Delete meal** at the bottom deletes it (after asking). A night out from the [binder](#restaurants) opens its [orders](#ordering-together) instead, with **Edit meal** (parents) for the meal's sheet. A planned meal shows small avatars of who's eating.
 
 Can't decide? Start a [family poll](polls.md) for that meal: it shows **🗳 Vote open** in the slot until it closes, and **Plan it** fills the meal in with the winner.
 
@@ -28,7 +28,7 @@ When the header is filtered to one person, the planner and the Board's **Today's
 
 ## Recipes
 
-The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category or [favorites](#favorites), or show archived ones. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
+The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category or [favorites](#favorites), or show archived ones. On a phone the search is on its own and **Filters** opens the rest in a sheet (its badge counts the filters that are on); tablets and larger show them all in a row. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
 
 Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where **More…** next to **Save** also archives or deletes it) and **Plan this meal**, which opens a new meal with the recipe chosen. A kid's device doesn't get **Plan this meal**: a grown-up plans the meals. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
 
@@ -42,7 +42,7 @@ A **basic** is a recipe for something you make to use in other recipes: a season
 
 * The library's **Type** filter shows **All**, **Meals** or **Basics**, and a basic's card has a **Basic** tag.
 * Basics stay out of meal planning: the meal sheet's recipe picker lists meals only until you switch its **Show** to **Meals and basics** (a prep session, say). A basic already planned as a meal is left out of **Swap with…** the same way.
-* An ingredient can be **made from a basic**. In the editor, each ingredient has **Made from a basic** (shown once the family has a basic): tap it to pick one from a list, or **Not from a basic** to unlink it (a long list has a search box), and when an ingredient's name matches a basic Kinwall offers **Link to basic: Taco seasoning** right under the name. Names match in any case and spacing, and words like "blend", "mix" and "homemade" don't count ("Taco Seasoning Blend" matches "Taco seasoning"); when two basics match, nothing is offered.
+* An ingredient can be **made from a basic**. In the editor, each ingredient has **Made from a basic** under **More** (shown once the family has a basic): tap it to pick one from a list, or **Not from a basic** to unlink it (a long list has a search box), and when an ingredient's name matches a basic Kinwall offers **Link to basic: Taco seasoning** right under the name. Names match in any case and spacing, and words like "blend", "mix" and "homemade" don't count ("Taco Seasoning Blend" matches "Taco seasoning"); when two basics match, nothing is offered.
 * In a recipe's view, a linked ingredient's name is a link: tap it to open the basic, and **Back to Tuesday Tacos** returns to the recipe.
 * In [cooking mode](#start-cooking), a linked ingredient in **This step's ingredients** has **Make it**, which opens the basic's own cooking mode on top. Closing it (**✕** or **Done**) comes back to the step you were on.
 * Deleting a basic, or changing it back to a meal, unlinks the lines made from it; their text stays. Planned meals keep their own copy as usual.
@@ -57,7 +57,7 @@ Rating is an everyday action like ticking off a chore: a wall display rates for 
 
 ### Favorites
 
-Each person can also mark a recipe as one of their favorites: the heart at the end of their row of stars (open the ratings summary in the recipe's view). Tap it again to take the heart off. A favorite is separate from stars: Leo can love pancakes without rating them. The summary counts them ("★ 4.7 · 3 ratings · ♥ 2 favorites"), and the recipe's card in the library shows a heart with the faces of everyone who loves it.
+Each person can also mark a recipe as one of their favorites: the heart at the end of their row of stars (open the ratings summary in the recipe's view). On a kid's own device, or a wall with someone picked in its header, a heart next to the summary sets that person's in one tap. Tap it again to take the heart off. A favorite is separate from stars: Leo can love pancakes without rating them. The summary counts them ("★ 4.7 · 3 ratings · ♥ 2 favorites"), and the recipe's card in the library shows a heart with the faces of everyone who loves it.
 
 In the library, **Favorites** shows only **Anyone's favorites** or one person's ("Sam's favorites"). When you plan a meal, favorites come first in the recipe list.
 
@@ -81,7 +81,7 @@ In the Kinwall app for iPhone, a running timer is also a Live Activity on the Lo
 
 The screen stays on while you cook. Kinwall remembers which step you were on for each recipe on this device, so the button says **Resume cooking · step 4** next time, for up to 12 hours; **Start over** goes back to step 1, and reaching the last step or **Done** forgets it. A wall screen doesn't go back to Home after two idle minutes while you cook, and if the page reloads (an update, or the app restarting after the screen slept), cooking mode opens again on your step.
 
-In the recipe editor, a recipe with structured steps edits them as a list: each step has its text and its bullets (one per line), **Move up**, **Move down** and **Remove step**, and **Add step** adds one at the end. **Remove photo** drops a step's photo. A recipe with plain instructions keeps the one **Instructions** box.
+In the recipe editor, a recipe with structured steps edits them as a list: each step has its text and its bullets (one per line), **Move up**, **Move down** and **Remove step**, and **Add step** adds one at the end. **Remove photo** drops a step's photo. A recipe with plain instructions keeps the one **Instructions** box, with **Preview steps** under it showing how the recipe view and cooking mode will split it. Each ingredient shows its name, quantity and unit; **More** opens the rest (made from a basic, preparation, quantity note and category), and what's set there shows on its line.
 
 Amounts read the way a recipe prints them: "½ cup", "1½ cups", "2 ounces". Units that are abbreviations (oz, tsp, tbsp, lb, g) stay as they are.
 
@@ -185,7 +185,7 @@ Tap a restaurant to open it:
 * Buttons for what it has: **Call** (dials its phone), **Order online** (its ordering page), **Website** and **Map** (a Google Maps search for its address).
 * **★ Favorites**: the menu items the family starred, pinned above the menu. Parents tap the ☆ next to any item to star it (or ★ to unstar it); it's one star for the whole family.
 * The full menu by section, in the order the sections come, with prices and short descriptions. A longer menu has a row of its sections at the top: tap one to jump to it. An item with sizes or choices ("Single $8.99 · Double $11.99") shows them in its description instead of one price. Prices are only shown, never added up.
-* **Coming up**: nights planned from here, today on ("Friday dinner · 6:00 PM, Pickup · 3 of 4 orders in"), each opening its meal. Parents also get **Plan a night here**, a new dining-out meal from this place.
+* **Coming up**: nights planned from here, today on ("Friday dinner · 6:00 PM, Pickup · 3 of 4 orders in"), each opening its meal. Parents also get **Plan a night here**, a new dining-out meal from this place on the first dinner in the next two weeks that has nothing planned.
 * Avatars beside a favorite show who had it last time.
 * Notes ("Cash only", "Ask for the crust well done").
 
@@ -352,7 +352,7 @@ An event Kinwall made follows the meal, on whichever calendar it's on. Saving th
 
 ## On the wall and in someone's day
 
-* The Board has a **Today's meals** card, with the next one marked and who's eating. Tapping a meal opens it right there, the same sheet as tapping it in the week planner, and closing it leaves you on the Board.
+* The Board has a **Today's meals** card, with the next one marked, meals already past dimmed, and who's eating. Tapping a meal opens it right there, the same sheet as tapping it in the week planner, and closing it leaves you on the Board.
 * A person's day (tap their avatar) lists today's meals, which open the same way over their day, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
 * The morning summary includes the day's meals. See [Notifications](notifications.md).
 * **Ask Siri** in the Kinwall app for iPhone: "What's for dinner in Kinwall?" says tonight's dinner ("Dinner tonight is Tacos, at 6:00 PM."). On an order night it says the restaurant and how ("Dinner tonight is pickup from Pizza Palace."). With no dinner planned, it says the next meal still ahead today, or that nothing's planned.
