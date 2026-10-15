@@ -2614,7 +2614,7 @@ button.notif-item:active { transform: scale(0.99); }
 .reward-cancel { flex: none; min-height: 44px; margin-left: auto; }
 .reward-status { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); text-align: right; max-width: 45%; overflow-wrap: anywhere; }
 .reward-status.approved, .reward-status.given { color: var(--success); }
-.reward-manage { margin-top: 16px; }
+.stickers-head .reward-manage { flex: none; margin-left: auto; min-height: 44px; }
 .reward-manage-row.archived { opacity: 0.7; }
 .reward-limit-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; }
 .reward-limit-row input { width: 4.5em; }
@@ -2622,6 +2622,9 @@ button.notif-item:active { transform: scale(0.99); }
 .board-goal { display: block; margin-top: 2px; }
 @media (max-width: 600px) {
   .stickers-head { padding: 6px 12px; }
+  /* Phones: Manage rewards on top, the people under it with the whole width (the picked one stays in view). */
+  .stickers-head .reward-manage { order: -1; }
+  .stickers-head:has(.reward-manage) .stickers-members { flex-basis: 100%; }
   .stickers-head [role="tablist"] { flex-basis: 100%; }
   .sticker-tray { padding: 8px 12px 10px; }
   .stickers-shop { padding: 4px 12px 16px; }

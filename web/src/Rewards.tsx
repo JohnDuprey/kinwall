@@ -36,13 +36,19 @@ const SUGGESTIONS: Partial<Reward>[] = [
 /** The Rewards screen (#/rewards, #/rewards/<memberId>): whose rewards, then the panel. A device
  * that belongs to one member shows only theirs, whatever the link says. */
 export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
-  const { members, selectedMemberId, meMemberId, focusLocked, focusMemberId } = useApp()
+  const { members, selectedMemberId, meMemberId, focusLocked, focusMemberId, parentDevice, reloadCore } = useApp()
   const choices = focusLocked && focusMemberId ? members.filter(m => m.id === focusMemberId) : members
-  const memberId = [fromUrl, selectedMemberId, meMemberId].find(id => choices.some(m => m.id === id)) ?? choices[0]?.id
+  // A parent almost always comes here for a kid: the one with a request waiting, else the first kid.
+  const [asking, setAsking] = useState<string | null>(null)
+  useEffect(() => { if (parentDevice) api.getRedemptions({ status: 'pending' }).then(rs => setAsking(rs[0]?.memberId ?? null)).catch(() => {}) }, [parentDevice])
+  const firstKid = parentDevice ? asking ?? members.find(m => !m.grownUp)?.id : undefined
+  const memberId = [fromUrl, selectedMemberId, parentDevice ? null : meMemberId, firstKid].find(id => choices.some(m => m.id === id)) ?? choices[0]?.id
   const member = choices.find(m => m.id === memberId) ?? null
+  const [managing, setManaging] = useState(false)
+  const [managed, setManaged] = useState(0) // reloads the panel after Manage rewards
   return (
     <div className="stickers">
-      {choices.length > 1 && (
+      {(choices.length > 1 || parentDevice) && (
         <div className="stickers-head">
           <div className="chip-row stickers-members" role="group" aria-label="Whose rewards?">
             {choices.map(m => (
@@ -52,9 +58,11 @@ export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
               </button>
             ))}
           </div>
+          {parentDevice && <button type="button" className="btn btn-secondary reward-manage" onClick={() => setManaging(true)}>Manage rewards</button>}
         </div>
       )}
-      {member ? <RewardsPanel key={member.id} member={member} /> : <div className="stickers-empty"><p>Add a family member in Settings to use rewards.</p></div>}
+      {managing && <RewardsManageSheet onClose={() => { setManaging(false); setManaged(n => n + 1); reloadCore() }} />}
+      {member ? <RewardsPanel key={`${member.id}:${managed}`} member={member} /> : <div className="stickers-empty"><p>Add a family member in Settings to use rewards.</p></div>}
     </div>
   )
 }
@@ -66,7 +74,6 @@ function RewardsPanel({ member }: { member: Member }) {
   const [rewards, setRewards] = useState<Reward[] | null>(null)
   const [history, setHistory] = useState<Redemption[]>([])
   const [balance, setBalance] = useState(member.balance)
-  const [managing, setManaging] = useState(false)
   const [adding, setAdding] = useState(false)
   const [splitting, setSplitting] = useState<Reward | null>(null)
   const [ledger, setLedger] = useState(false)
@@ -263,8 +270,6 @@ function RewardsPanel({ member }: { member: Member }) {
           <ul className="snap-list">{past.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
         </section>
       )}
-      {parentDevice && <button className="btn btn-secondary reward-manage" onClick={() => setManaging(true)}>Manage rewards</button>}
-      {managing && <RewardsManageSheet onClose={() => { setManaging(false); load(); reloadCore() }} />}
       {splitting && <SplitSheet reward={splitting} member={{ ...member, balance }} onClose={() => setSplitting(null)}
         onDone={res => { setSplitting(null); setBalance(res.balance); load(); reloadCore() }} />}
       {ledger && <PointsHistorySheet member={member} onClose={() => setLedger(false)} />}

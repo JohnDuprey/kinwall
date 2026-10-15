@@ -12,7 +12,7 @@ Rewards go with **Chores & points**, and have their own **Rewards** switch in **
 * From the sticker shop: "See Maya's rewards".
 * Links: `#/rewards` and `#/rewards/<memberId>`. Old `#/activities/rewards` links still work.
 
-Pick whose rewards from the avatar chips. A device that belongs to one person (its owner is set in **Settings → Access**) shows only theirs, even from a link to someone else's.
+Pick whose rewards from the avatar chips. A parent's device opens on the kid with a request waiting, else the first kid. A device that belongs to one person (its owner is set in **Settings → Access**) shows only theirs, even from a link to someone else's.
 
 ## What's on the screen
 
@@ -29,7 +29,7 @@ With no rewards yet, a parent sees four one-tap suggestions (🍿 Pick the movie
 
 ## Setting up rewards
 
-On a parent's device, open Rewards and tap **Manage rewards** (or a suggestion, when there are none yet). **Add reward** opens the same kind of sheet as the chore editor:
+On a parent's device, open Rewards and tap **Manage rewards** at the top (or a suggestion, when there are none yet). **Add reward** opens the same kind of sheet as the chore editor:
 
 | Field | What it does |
 |---|---|
