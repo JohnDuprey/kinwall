@@ -24,7 +24,7 @@ import { Face, type FaceMember, ChipFace } from './Face'
 import { ChoreTimerText, startChoreTimer } from './ChoreTimer.tsx'
 import { formatTime } from './timeFormat.ts'
 import { durationLabel } from './timers.ts'
-import { SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
+import { PointsStepper, SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
 import { suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
@@ -830,7 +830,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
       </div>
       <div className="field">
         <label>Points</label>
-        <input type="text" inputMode="numeric" value={points} onChange={e => setPoints(Number(e.target.value.replace(/\D/g, '')) || 0)} />
+        <PointsStepper value={points} max={1000} onChange={setPoints} label="Points" />
       </div>
       <div className="field">
         <label>Assign to</label>

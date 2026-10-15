@@ -1116,6 +1116,8 @@ button.month-cell .month-daynum { flex: none; }
 /* Kids suggest chores (ChoreSuggest.tsx). */
 .suggest-stepper { display: flex; align-items: center; gap: 4px; font-weight: 800; }
 .suggest-stepper span { min-width: 88px; text-align: center; }
+.suggest-stepper .stepper-value, .field .suggest-stepper .stepper-value { flex: none; width: 5em; min-width: 0; text-align: center; font-weight: 800; }
+.suggest-stepper .stepper-value + span { min-width: 0; text-align: left; }
 .reward-split-stepper { flex: none; }
 .reward-split-stepper span { min-width: 48px; font-size: 1.125rem; }
 .reward-split-error { display: block; margin: 0; font-size: 0.8125rem; }

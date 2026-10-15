@@ -20,12 +20,15 @@ const DAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const TIMERS = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120]
 const pts = (n: number) => `${n} point${n === 1 ? '' : 's'}`
 
-function PointsStepper({ value, max, onChange, label }: { value: number; max: number; onChange: (n: number) => void; label: string }) {
+/** The points control in every chore and reward sheet: − and + (by `step`), or type a number. */
+export function PointsStepper({ value, max, onChange, label, min = 0, step = 1 }: { value: number; max: number; onChange: (n: number) => void; label: string; min?: number; step?: number }) {
   return (
     <div className="suggest-stepper" role="group" aria-label={label}>
-      <button type="button" className="icon-btn" aria-label="Fewer points" disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))}><MinusIcon width={20} height={20} /></button>
-      <span aria-live="polite">{pts(value)}</span>
-      <button type="button" className="icon-btn" aria-label="More points" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}><PlusIcon width={20} height={20} /></button>
+      <button type="button" className="icon-btn" aria-label={`${step} fewer`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - step))}><MinusIcon width={20} height={20} /></button>
+      <input className="stepper-value" type="text" inputMode="numeric" aria-label={label} value={value}
+        onChange={e => onChange(Math.min(max, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => { if (value < min) onChange(min) }} />
+      <span aria-hidden="true">{value === 1 ? 'point' : 'points'}</span>
+      <button type="button" className="icon-btn" aria-label={`${step} more`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + step))}><PlusIcon width={20} height={20} /></button>
     </div>
   )
 }
@@ -237,7 +240,7 @@ export function SuggestionAnswerSheet({ s, mode, onClose, onDone }: { s: ChoreSu
           {s.done && <p className="field-hint">{kid} already did it today, so these points count now.</p>}
         </div>
         <div className="field suggest-checks">
-          <label className="suggest-check"><input type="checkbox" checked={repeat} onChange={e => setRepeat(e.target.checked)} /> Repeats</label>
+          <label className="suggest-check"><input type="checkbox" checked={repeat} onChange={e => setRepeat(e.target.checked)} /> Make it repeat</label>
           {repeat && customRule && <p className="field-hint">Keeps its repeat ({daysText(s.rrule)}).</p>}
           {repeat && !customRule && <RepeatFields idPrefix="answer" days={days} setDays={setDays} time={time} setTime={setTime} timer={timer} setTimer={setTimer} />}
         </div>

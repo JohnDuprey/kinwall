@@ -34,9 +34,9 @@ On a parent's device, open Rewards and tap **Manage rewards** at the top (or a s
 | Field | What it does |
 |---|---|
 | **Name** and **Emoji** | How the reward shows up, such as "🍿 Movie night pick". |
-| **Points** | What it costs. A whole number, 1 or more. |
+| **Points** | What it costs: **−** and **+** (5 at a time), or type a whole number, 1 or more. |
 | **For** | **Everyone**, or just the people you pick. Others don't see it. |
-| **Needs a parent's OK** | On by default. Redeeming on a wall screen or kid's device then waits for a parent (see below). Off: it's approved as soon as it's redeemed. |
+| **Needs a parent's OK** | **Yes** (the default) or **No**, the same menu as a chore's. With **Yes**, redeeming on a wall screen or kid's device waits for a parent (see below). With **No**, it's approved as soon as it's redeemed. |
 | **Limit** | **No limit**, or **Up to** a number (1 to 20) **a day** or **a week**, for each person. "📺 15 min screen time, up to 3 a day." |
 
 Tap a reward in **Manage rewards** to edit it. At the bottom, **Archive reward** hides it from everyone but keeps it for history; **Restore reward** brings it back. **Delete reward** removes it after you confirm; past requests stay in everyone's history.

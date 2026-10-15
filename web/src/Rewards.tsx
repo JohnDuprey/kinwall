@@ -16,6 +16,7 @@ import { ApprovalQueue } from './Chores.tsx'
 import type { Member, PointEntry, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
 import { Face, ChipFace } from './Face'
 import { evenSplit, movePoints, shareText } from './rewardSplit.ts'
+import { PointsStepper } from './ChoreSuggest.tsx'
 import { MinusIcon, PlusIcon } from './icons.tsx'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -501,8 +502,8 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
         <AnyEmojiField value={emoji} onChange={setEmoji} />
       </div>
       <div className="field">
-        <label htmlFor="reward-cost">Points</label>
-        <input id="reward-cost" type="text" inputMode="numeric" value={cost} onChange={e => setCost(Number(e.target.value.replace(/\D/g, '')) || 0)} />
+        <label>Points</label>
+        <PointsStepper value={cost} min={1} max={10000} step={5} onChange={setCost} label="Points it costs" />
       </div>
       <div className="field">
         <label id="reward-for-label">For</label>
@@ -514,11 +515,13 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
         </div>
       </div>
       <div className="field">
-        <div className="toggle-row">
-          <label id="reward-approval-label">Needs a parent's OK</label>
-          <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="reward-approval-label" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>
-        </div>
-        <p className="field-hint">When it's on, redeeming on a wall screen or kid's device waits for a parent to approve. The points are set aside meanwhile and come back if you say not this time.</p>
+        {/* The same select as a chore's (which also has Default, following the person). */}
+        <label htmlFor="reward-approval">Needs a parent's OK</label>
+        <select id="reward-approval" value={needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'yes')}>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+        <p className="field-hint">With Yes, redeeming on a wall screen or kid's device waits for a parent to approve. The points are set aside meanwhile and come back if you say not this time.</p>
       </div>
       <div className="field">
         <label id="reward-limit-label">Limit</label>

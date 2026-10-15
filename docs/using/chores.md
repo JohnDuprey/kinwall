@@ -28,7 +28,7 @@ Tap **+** (Add chore). The sheet has:
 | Field | Notes |
 |---|---|
 | **Title**, **Emoji** | |
-| **Points** | A whole number. |
+| **Points** | **−** and **+**, or type a whole number. The same control as in the reward sheet and **Say yes…**. |
 | **Assign to** | **🌟 Anyone** or one member. |
 | **Repeat** | **Once**, **Daily** or **Weekly**. |
 | **On** (Weekly) | Pick weekdays. With none picked, it repeats on the weekday it was created. A new chore pre-selects today. |
