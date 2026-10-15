@@ -245,6 +245,10 @@ span.menu-star { width: 44px; text-align: center; }
 /* A long menu's sections, a tap to jump to each: one row that scrolls sideways. */
 .menu-jump { flex-wrap: nowrap; overflow-x: auto; margin: 12px 0 0; padding-bottom: 4px; }
 .menu-jump .chip { flex: none; white-space: nowrap; }
+/* It stays on top as a long menu scrolls (the order picker pins its search there instead). */
+.menu-jump { position: sticky; top: -4px; z-index: 2; background: var(--card); padding-top: 4px; }
+.sheet-body:has(.order-search) .menu-jump { position: static; }
+.sheet-body:has(.menu-jump) .restaurant-section { scroll-margin-top: 64px; }
 .menu-options { margin-top: 6px; }
 .menu-option { gap: 6px; }
 .menu-option .menu-price { font-weight: 700; }
@@ -273,11 +277,20 @@ span.menu-star { width: 44px; text-align: center; }
 .order-item-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .order-item-note { min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text); font: inherit; font-size: max(0.875rem, 16px); }
 .order-addons summary { display: flex; align-items: center; min-height: 44px; font-weight: 700; color: var(--accent-text); cursor: pointer; }
+.order-addons summary::after { content: '▸'; margin-left: 8px; } /* display: flex drops the marker: this shows it opens */
+.order-addons[open] summary::after { content: '▾'; }
 .order-addons .chip-row { padding-bottom: 4px; }
 .order-empty { margin: 4px 0 12px; font-size: 1rem; }
+.order-waiting { margin: 4px 0 8px; font-size: 1rem; font-weight: 700; }
+.order-summary .meal-actions .btn { white-space: nowrap; }
+/* The order so far, pinned with the search: one line, Review jumps back up to it. */
+.order-so-far { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin-bottom: 8px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; }
+.order-so-far span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.order-so-far strong { flex: none; color: var(--accent-text); }
 /* The picker's search stays on top of the sheet as the menu scrolls under it (over .sheet-body's 4px top padding). */
 .order-search { position: sticky; top: -4px; z-index: 2; margin-top: 16px; padding: 6px 0 8px; background: var(--card); }
 .sheet-body:has(.order-search) .restaurant-section { scroll-margin-top: 110px; }
+.sheet-body:has(.order-so-far) .restaurant-section { scroll-margin-top: 162px; }
 @media (max-height: 500px) { /* phone landscape: the box alone, its label for screen readers (as .sr-only) */
   .order-search label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .order-search { padding-top: 4px; }

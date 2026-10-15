@@ -135,7 +135,7 @@ export function MenuList({ menu, onStar, onPick, lastBy, counts }: {
             : <MenuText item={item} options={options.length > 0} />}
           {section.favorites && !!lastBy?.get(item.id)?.length && <span className="menu-who"><EaterAvatars ids={lastBy.get(item.id)!} members={members} label="Had it last time" /></span>}
           {onStar ? <button type="button" className="icon-btn menu-star" aria-pressed={item.favorite} aria-label={`Favorite: ${item.name}`} onClick={() => onStar(item)}>{item.favorite ? '★' : '☆'}</button>
-            : item.favorite && !section.favorites && <span className="menu-star" role="img" aria-label="Favorite">★</span>}
+            : item.favorite && !section.favorites && !onPick && <span className="menu-star" role="img" aria-label="Favorite">★</span>}
         </li>
       })}</ul>
     </section>)}

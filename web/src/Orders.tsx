@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { announce } from './a11y.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
@@ -43,24 +44,32 @@ export function OrderSummary({ meal, restaurant, me, onChanged, onOrder }: {
   const tel = telHref(restaurant?.phone ?? null)
   const ordered = meal.status !== 'planned'
   const waiting = ordered ? [] : waitingOn(meal, members)
-  const run = async (work: () => Promise<Meal | void>, done: string) => {
+  const dialog = useDialog()
+  const run = async (work: () => Promise<Meal | void>, done: string, undo?: () => void) => {
     setBusy(true)
-    try { const saved = await work(); toast(done); if (saved) onChanged(saved) } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
+    try { const saved = await work(); toast(done, false, undo && { label: 'Undo', run: undo }); if (saved) onChanged(saved) } catch (e) { toast(e instanceof Error ? e.message : 'Could not save.', true) } finally { setBusy(false) }
   }
+  const names = new Intl.ListFormat('en-US').format(waiting.map(m => m.name))
+  // Only who hasn't ordered gets the notification (the server skips the rest too).
+  const ask = async () => {
+    if (!await dialog.confirm({ title: waiting.length ? `Ask ${names} for ${waiting.length === 1 ? 'an order' : 'their orders'}?` : 'Ask everyone who hasn’t ordered yet?', body: 'They get a notification that opens the order sheet.', confirmLabel: 'Ask' })) return
+    void run(async () => { await api.askForOrders(meal.id) }, 'Asked for orders')
+  }
+  const reopen = () => void run(() => api.updateMeal(meal.id, { status: 'planned' }), 'Orders open again')
   const copy = async () => {
     try { await navigator.clipboard.writeText(orderText(meal, members)); toast('Order copied') } catch { toast('Could not copy the order.', true) }
   }
   const actions = <div className="meal-actions">
     {(!locked(meal, me) || admin) && <button type="button" className={own && !ordered ? 'btn btn-primary' : 'btn btn-secondary'} disabled={busy} onClick={onOrder}>{own ? (orders.some(o => o.memberId === own) ? 'Change my order' : 'Add my order') : lines.length ? 'Change orders' : 'Add orders'}</button>}
-    {admin && !ordered && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(async () => { await api.askForOrders(meal.id) }, 'Asked for orders')}>Ask for orders</button>}
-    {admin && <button type="button" className={ordered ? 'btn btn-secondary' : 'btn btn-primary'} disabled={busy} onClick={() => void run(() => api.updateMeal(meal.id, { status: ordered ? 'planned' : 'prepared' }), ordered ? 'Orders open again' : 'Marked ordered')}>{ordered ? 'Open orders again' : 'Mark ordered'}</button>}
+    {admin && !ordered && (waiting.length > 0 || !meal.eaterIds.length) && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void ask()}>Ask for orders</button>}
+    {admin && <button type="button" className={ordered ? 'btn btn-secondary' : 'btn btn-primary'} disabled={busy} onClick={() => ordered ? reopen() : void run(() => api.updateMeal(meal.id, { status: 'prepared' }), 'Marked ordered', reopen)}>{ordered ? 'Open orders again' : 'Mark ordered'}</button>}
   </div>
   return <section className="order-summary" aria-label="Orders">
     <div className="order-head">
       <h3>Orders</h3>
       <span className="chip chip-static">{ordered ? '✓ Ordered' : ordersLabel(meal)}</span>
     </div>
-    {waiting.length > 0 && <p className="field-hint">Still waiting on {new Intl.ListFormat('en-US').format(waiting.map(m => m.name))}.</p>}
+    {waiting.length > 0 && <p className="order-waiting">Still waiting on {names}.</p>}
     {/* A kid's own device: their button first, then everyone's order to look at. */}
     {own && actions}
     {!own && (tel || lines.length > 0 || restaurant?.orderUrl) && <div className="restaurant-actions">
@@ -129,8 +138,8 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
   name: string; restaurant: Restaurant | null; current: { items: OrderItem[]; note: string | null } | null; usual: OrderItem[] | null
   onClose: () => void; onSave: (items: OrderItem[], note: string | null) => Promise<void>
 }) {
-  const { toast } = useApp()
   const dialog = useDialog()
+  const top = useRef<HTMLUListElement>(null)
   const [items, setItems] = useState<OrderItem[]>(current?.items ?? [])
   const [note, setNote] = useState(current?.note ?? '')
   const [query, setQuery] = useState('')
@@ -146,8 +155,9 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
       const i = list.findIndex(x => x.name === item.name && !x.note)
       return i >= 0 ? list.map((x, n) => n === i ? { ...x, qty: Math.min(99, x.qty + 1) } : x) : [...list, { ...item, qty: 1, note: null }]
     })
-    toast(`Added: ${item.name}`)
+    announce(`Added: ${item.name}`) // the order line on top of the menu shows it
   }
+  const count = items.reduce((n, i) => n + i.qty, 0)
   const set = (index: number, patch: Partial<OrderItem>) => setItems(list => list.map((x, n) => n === index ? { ...x, ...patch } : x).filter(x => x.qty > 0))
   const save = async () => { setBusy(true); await onSave(items, note.trim() || null); setBusy(false) }
   const changed = JSON.stringify([items, note.trim()]) !== JSON.stringify([current?.items ?? [], current?.note ?? ''])
@@ -160,7 +170,7 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
   return <Sheet title={`${name}’s order`} onClose={() => void close()} dismissable={!busy} actions={<>
     <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button>
   </>}>
-    {items.length ? <ul className="order-items" aria-label={`In ${name}’s order`}>{items.map((item, i) => {
+    {items.length ? <ul ref={top} className="order-items" aria-label={`In ${name}’s order`}>{items.map((item, i) => {
       const extras = addonsFor(fullMenu, fullMenu.find(m => m.id === item.menuItemId))
       return <li key={`${item.name}:${i}`}>
         <div className="order-item-row">
@@ -173,7 +183,7 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
         </div>
         <input type="text" className="order-item-note" aria-label={`Note for ${item.name}`} placeholder="Note for this item: no onions…" maxLength={200} value={item.note ?? ''} onChange={e => set(i, { note: e.target.value || null })} />
         {extras.length > 0 && <details className="order-addons">
-          <summary>Add-ons for {item.name}</summary>
+          <summary>+ Add-ons for {item.name}</summary>
           <div className="chip-row">{extras.map(a => <button key={a.id} type="button" className={`chip${hasAddon(item.note, a.name) ? ' active' : ''}`} aria-pressed={hasAddon(item.note, a.name)} onClick={() => set(i, { note: toggleAddon(item.note, a.name) })}>+ {a.name}</button>)}</div>
         </details>}
       </li>
@@ -182,7 +192,12 @@ function OrderPicker({ name, restaurant, current, usual, onClose, onSave }: {
     <div className="field"><label htmlFor="order-note">Note for the whole order</label><input id="order-note" type="text" maxLength={1000} placeholder="I’ll share with Leo…" value={note} onChange={e => setNote(e.target.value)} /></div>
     {fullMenu.length ? <>
       {/* Typing brings the box to the top so the matches show under it (a phone on its side has room for little else). */}
-      <div className="field order-search"><label htmlFor="order-search">Find on the menu</label><input id="order-search" type="search" placeholder="Pizza, fries…" value={query} onChange={e => { setQuery(e.target.value); e.target.parentElement!.scrollIntoView({ block: 'start' }) }} /></div>
+      <div className="field order-search">
+        {/* The order so far stays in view while you pick; Review goes back up to change how many, notes and add-ons. */}
+        {count > 0 && <button type="button" className="order-so-far" onClick={() => top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })}>
+          <span>{count} {count === 1 ? 'item' : 'items'}: {itemsLabel(items)}</span><strong>Review</strong>
+        </button>}
+        <label htmlFor="order-search">Find on the menu</label><input id="order-search" type="search" placeholder="Pizza, fries…" value={query} onChange={e => { setQuery(e.target.value); e.target.parentElement!.scrollIntoView({ block: 'start' }) }} /></div>
       {q && !menu.length && <div className="state-card">
         <p>Nothing on the menu matches “{query.trim()}”.</p>
         <button type="button" className="btn btn-secondary" onClick={() => { addOther(query); setQuery('') }}><PlusIcon /> Add “{query.trim()}” anyway</button>
