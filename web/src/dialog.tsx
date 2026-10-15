@@ -80,9 +80,9 @@ function DialogView({ req, onDone }: { req: Request; onDone: () => void }) {
     <Sheet title={title} onClose={() => finish(false)} variant="dialog" role={req.kind === 'prompt' ? 'dialog' : 'alertdialog'}
       describedBy={body ? `${ids}-body` : undefined}
       actions={<>
-        {cancelLabel && <button className="btn btn-secondary" onClick={() => finish(false)}>{cancelLabel}</button>}
+        {cancelLabel && <button className="btn btn-secondary" onClick={() => finish(false)} data-autofocus={danger || undefined}>{cancelLabel}</button>}
         <button className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`} onClick={() => finish(true)} disabled={invalid}
-          data-autofocus={req.kind === 'prompt' ? undefined : true}>{confirmLabel}</button>
+          data-autofocus={req.kind === 'prompt' || danger ? undefined : true}>{confirmLabel}</button>
       </>}>
       {body && <p className="dialog-body" id={`${ids}-body`}>{body}</p>}
       {req.kind === 'prompt' && (
