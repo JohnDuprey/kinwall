@@ -33,8 +33,7 @@
 .recipe-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--gap); margin-top: 16px; }
 .recipe-card { background: var(--card); padding: 20px; box-shadow: var(--shadow); }
 .recipe-card > strong { font-size: 1.0625rem; font-weight: 700; } /* a button's 13px otherwise: the name is what you scan for */
-.meals-filters-btn { flex: none; gap: 8px; min-height: 52px; align-self: flex-end; }
-.meals-filter-count { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--accent-strong); color: var(--accent-ink); font-size: 0.8125rem; font-weight: 800; }
+.meals-filters-btn { flex: none; position: relative; width: 52px; height: 52px; align-self: flex-end; }
 .recipe-card p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-dim); white-space: pre-wrap; }
 .meal-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .meal-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

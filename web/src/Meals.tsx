@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { withHashParam } from './hashQuery.ts'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { LoadError, Segmented } from './a11y.tsx'
+import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
-import { ChevronLeft, ChevronRight, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
+import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet, { Stars, ratingOwner } from './RecipeSheet.tsx'
@@ -183,10 +183,11 @@ export default function Meals() {
       <div className="meals-toolbar">
         <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Tacos, rice…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         {/* A phone: the search alone, the rest a tap away in a sheet. */}
-        {isPhone ? <button type="button" className="btn btn-secondary meals-filters-btn" aria-label={`Filters${filterCount ? `, ${filterCount} on` : ''}`} onClick={() => setShowFilters(true)}>Filters{filterCount > 0 && <span className="meals-filter-count" aria-hidden="true">{filterCount}</span>}</button> : filters}
+        {isPhone ? <button type="button" className={`icon-btn filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
+          <FilterIcon width={20} height={20} />{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}</button> : filters}
       </div>
-      {showFilters && isPhone && <Sheet title="Filters" onClose={() => setShowFilters(false)} actions={<>
-        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setSort('name') }}>Clear</button>}
+      {showFilters && isPhone && <Sheet title="Filter and sort" onClose={() => setShowFilters(false)} actions={<>
+        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setSort('name') }}>Clear filters</button>}
         <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>Show {shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</button>
       </>}>{filters}</Sheet>}
       {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(t => t + 1)} />}
