@@ -10,7 +10,7 @@ import { dayName } from './Snapshot.tsx'
 import { announce } from './a11y.tsx'
 import { askWhenTaken, catchUpLabel, doseTimeLabel, earlierInput, pickedTime, scheduleLabel, STATUS, statusLabel, weekCells } from './medications.ts'
 import Sheet from './Sheet.tsx'
-import TakeNow, { WhenTakenSheet } from './TakeNow.tsx'
+import TakeNow, { useDueDoses, WhenTakenSheet } from './TakeNow.tsx'
 import type { Medication, MedicationHistory } from './types.ts'
 import { Face } from './Face'
 import { RefillsCard } from './Refills.tsx'
@@ -26,6 +26,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [refillOpen, setRefillOpen] = useState<string | null>(null) // the refill card's medicine
   const [asking, setAsking] = useState<{ date: string; d: Day['doses'][number] } | null>(null) // Taken, well after its time: when?
+  const takeNow = new Set(useDueDoses().doses.map(d => `${d.date}:${d.medicationId}:${d.time}`)) // these have their buttons on the Take now card
   const [changing, setChanging] = useState<{ date: string; d: Day['doses'][number] } | null>(null) // a marked dose: fix its time or status
   useEffect(() => {
     if (!member) return
@@ -62,8 +63,8 @@ export default function Medications({ memberId }: { memberId?: string }) {
       {doses.map(d => {
         const m = byId.get(d.medicationId)
         const s = STATUS[d.status]
-        const taken = catchUpLabel(d.status)
         const k = `${day.date}:${d.medicationId}:${d.time}`
+        const taken = catchUpLabel(d.status, takeNow.has(k))
         const marked = d.status === 'taken' || d.status === 'skipped'
         const said = <><span aria-hidden="true">{s.emoji}</span> {statusLabel(d)}{d.at && marked ? ` ${formatTime(d.at)}` : ''}{d.edited && <span className="meds-edited"> · edited</span>}</>
         return (
@@ -75,7 +76,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
               : <span className="meds-status">{said}</span>}
             {taken && <div className="meds-now-actions meds-catch-up" role="group" aria-label={`${medName(m)}, ${doseTimeLabel(d)}`}>
               <button className="btn btn-primary" disabled={busy === k} onClick={() => (askWhenTaken(d.dueAt, Date.now()) ? setAsking({ date: day.date, d }) : mark(day.date, d, 'taken'))}>{taken}</button>
-              <button className="btn btn-secondary" disabled={busy === k} onClick={() => mark(day.date, d, 'skipped')}>Skipped</button>
+              <button className="btn btn-secondary" disabled={busy === k} onClick={() => mark(day.date, d, 'skipped')}>Skip</button>
             </div>}
           </li>
         )

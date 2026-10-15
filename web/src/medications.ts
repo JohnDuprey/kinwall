@@ -59,9 +59,10 @@ export const STATUS: Record<DoseStatus, { emoji: string; label: string }> = {
   missed: { emoji: '⭕', label: 'Not marked' },
   upcoming: { emoji: '🕒', label: 'Later' },
 }
-/** The person page's catch-up button for a dose: "Taken" while it's due, "Taken late" once it's past
- *  its late window ("Not marked"), null when it's marked or still to come. */
-export const catchUpLabel = (s: DoseStatus): string | null => (s === 'due' ? 'Taken' : s === 'missed' ? 'Taken late' : null)
+/** The person page's catch-up button for a dose: "Taken" while it's due or not marked (catching up
+ *  asks when, and the log then says "Taken late" if it was), null when it's marked, still to come, or
+ *  already on the Take now card above (one set of buttons per dose). */
+export const catchUpLabel = (s: DoseStatus, inTakeNow = false): string | null => (!inTakeNow && (s === 'due' || s === 'missed') ? 'Taken' : null)
 
 /** What a marked dose says: "Taken late" when it was taken after its late window closed. */
 export const statusLabel = (d: { status: DoseStatus; late: boolean }) => (d.status === 'taken' && d.late ? 'Taken late' : STATUS[d.status].label)

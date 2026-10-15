@@ -53,10 +53,16 @@ test('cheerLine: names the person, and never repeats the last cheer', () => {
   assert.notEqual(cheerLine('Leo', first, r), first)
 })
 
-test('catchUpLabel: a due dose gets "Taken", one past its window "Taken late"; marked or later ones get no buttons', () => {
+test('catchUpLabel: a due or unmarked dose gets "Taken" (the log says "late" once its time is known); marked or later ones get no buttons', () => {
   assert.equal(catchUpLabel('due'), 'Taken')
-  assert.equal(catchUpLabel('missed'), 'Taken late')
+  assert.equal(catchUpLabel('missed'), 'Taken')
   for (const s of ['taken', 'skipped', 'upcoming'] as const) assert.equal(catchUpLabel(s), null)
+})
+
+test('catchUpLabel: a dose the Take now card already shows gets no second set of buttons', () => {
+  assert.equal(catchUpLabel('due', true), null)
+  assert.equal(catchUpLabel('missed', true), null)
+  assert.equal(catchUpLabel('due', false), 'Taken')
 })
 
 test('"When I start my day": its schedule label, and a dose that says when the day started', () => {
