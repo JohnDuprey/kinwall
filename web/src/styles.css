@@ -147,7 +147,7 @@ html { font-size: calc(16px * var(--text-scale) * var(--screen-k)); }
 
 /* Base look for every text-like control. :where() keeps specificity at zero, so any component
    class (.field, .inline-form, .settings-select, …) still wins - but nothing can fall back to the
-   browser's native grey box. */
+   browser's native gray box. */
 :where(input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"], [type="file"], [type="hidden"]), select, textarea) {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
@@ -380,7 +380,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   box-shadow: var(--shadow);
 }
 /* On a card or sheet (the same color as the plain track), a tinted track and an edge, so the
-   control doesn't read as greyed out. */
+   control doesn't read as grayed out. */
 :is(.settings-section, .sheet-body) .segmented { background: var(--bg-alt); box-shadow: inset 0 0 0 1px var(--border); }
 
 /* Home's Board | Newscast and Calendar's Day | Week | Month | Schedule: one flat pill each (Calendar.tsx .view-switch). */
