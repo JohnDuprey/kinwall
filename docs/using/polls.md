@@ -25,7 +25,7 @@ Parents start polls: **Home → Board → 🗳 Polls → New poll**.
 
 ## Voting
 
-Open the poll from the Board, the Polls list, the Meals planner or the notification, then tap a choice. Tap your choice again to take your vote back, or tap another one to change it.
+Open the poll from the Board, the Polls list, the Meals planner or the notification, then tap a choice. Tap your choice again to take your vote back, or tap another one to change it. While voting is open, the choice with the most votes says **⭐ In the lead** (or **Tied for the lead**).
 
 * **A kid's own device** votes only for that kid ("Voting as Leo").
 * **A wall screen** asks "Who's voting?" first: tap your name, then your choice. After each vote it's ready for the next person.

@@ -166,7 +166,7 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
   const open = poll.status === 'open'
   const mine = voteOf(poll, who)
   const winner = poll.options.find(o => o.id === poll.winnerOptionId)
-  const tie = leaders(poll).length > 1
+  const lead = leaders(poll), tie = lead.length > 1
 
   const vote = async (o: PollOption) => {
     if (!who || busy) return
@@ -228,7 +228,7 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
         const body = <>
           <span className="poll-option-main">
             <span className="poll-option-label">{o.id === poll.winnerOptionId && <span aria-hidden="true">🏆 </span>}<ChoiceIcon c={o} /> {o.label}</span>
-            <span className="poll-option-n">{o.votes.length} vote{o.votes.length === 1 ? '' : 's'}{picked && ' · Your vote ✓'}</span>
+            <span className="poll-option-n">{open && lead.includes(o) && <><span aria-hidden="true">⭐</span> {tie ? 'Tied for the lead' : 'In the lead'} · </>}{o.votes.length} vote{o.votes.length === 1 ? '' : 's'}{picked && ' · Your vote ✓'}</span>
           </span>
           <Voters ids={o.votes} members={members} />
         </>
