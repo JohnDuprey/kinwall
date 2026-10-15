@@ -1289,6 +1289,13 @@ button.month-cell .month-daynum { flex: none; }
 .cal-sub.error { color: var(--danger); }
 .cal-actions { display: flex; align-items: center; gap: 16px; margin-top: 4px; padding-left: 22px; }
 .cal-hint { padding-left: 22px; margin-top: 4px; }
+/* A calendar's row is one button (Edit calendar); its Sync now and Remove sit apart below it. */
+.cal-edit-btn { width: 100%; min-height: 44px; flex-wrap: wrap; row-gap: 0; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; border-radius: var(--radius-sm); }
+.cal-edit-btn .cal-sub { flex-basis: 100%; }
+.cal-edit-chevron { flex: none; color: var(--text-dim); }
+.cal-actions .link-btn { padding: 0 10px; font-size: 0.875rem; }
+.cal-actions .link-btn:first-child { margin-left: -10px; }
+.cal-actions .link-btn.cal-remove { margin-left: auto; margin-right: -10px; }
 .cal-actions .cal-reconnect { flex: none; min-height: 44px; padding: 8px 20px; }
 .form-actions { display: flex; align-items: center; gap: 16px; margin: 4px 0 18px; }
 .text-link { color: var(--accent-text); font-weight: 800; text-decoration: none; }
@@ -4043,7 +4050,7 @@ html:root[data-cast] {
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */
 :where(button, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="option"], a[href], select, summary,
   label:has(input[type="checkbox"], input[type="radio"]), input[type="checkbox"], input[type="radio"], input[type="color"],
-  .schedule-item, .member-list-item, .cal-list-item, .month-cell, .day-col, .note) { cursor: pointer; }
+  .schedule-item, .member-list-item, .month-cell, .day-col, .note) { cursor: pointer; }
 :is(button, select, input, textarea):disabled, [aria-disabled="true"], label:has(input:disabled) { cursor: not-allowed; }
 /* Hover only where there's a mouse, so a tap never leaves a stuck highlight. Chosen/selected states
    and focus rings keep their own look. No transition, so low-stimulation mode shows it the same. */
@@ -4056,7 +4063,7 @@ html:root[data-cast] {
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
-    .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
+    .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-edit-btn,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
     .activity-card, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);

@@ -14,13 +14,13 @@ A picked calendar that's removed, turned off or becomes read-only falls back to 
 
 **New events last** is right under it: 15, 30 or 45 minutes, 1 hour (the default), or 1.5, 2 or 3 hours. Picking a start in the event sheet fills in the end this long after it, and it's also how long an event lasts when it's saved with a start and no end: a shared invite with no end time, a checkup from the Health tracker, and a meal on the calendar whose recipe has no total time.
 
-Each calendar row shows its color, name, kind and status: "Synced *time*", "Never synced", "Local calendar", or the last error. Row actions:
+Each calendar row shows its color, name, kind, a › and its status: "Synced *time*", "Never synced", "Local calendar", or the last error. The whole row is a button that opens **Edit calendar**. Under it, **Sync now** sits on the left and **Remove** on the right:
 
 * **Sync now**: synced calendars only.
 * **Reconnect**: for an imported ICS calendar that has no URL. See [Reconnecting after import](../calendars/reconnecting-after-import.md).
 * **Reconnect**: for a Google or Outlook calendar whose sign-in was turned down. The row says so in plain words, for example "Google stopped letting Kinwall see Maya's calendar. Reconnect it to start syncing again.", with the account to sign in as. On a kid's Google calendar it adds "If Maya's Google account is supervised with Family Link, a parent may need to approve Kinwall there too." **Reconnect** starts the same sign-in as **Connect Google**; sign in as that account and its calendars sync again right away, with their settings kept. See [When a calendar stops syncing](../calendars/sync.md#when-a-calendar-stops-syncing).
 * **Remove**: "Remove this calendar and its events from Kinwall?" Nothing is deleted from the original calendar.
-* Tap the row to open **Edit calendar**:
+* Tap the row (anywhere on its name, kind or status) to open **Edit calendar**:
   * **Name** and **Color**.
   * **Members**: whose calendar it is. Its events are tagged with these members unless tagged otherwise. A kid's device can change only events on calendars that are for them.
   * **Default category**: "Applied to events here with no keyword match or their own category."

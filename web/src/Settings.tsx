@@ -2534,26 +2534,28 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
       <DefaultCalendarRow calendars={calendars} onSaved={load} toast={toast} />
       <EventLengthRow toast={toast} />
       {calendars.map(c => (
-        <div key={c.id} className="cal-list-item" onClick={() => setEditCal(c)} style={{ cursor: 'pointer' }}>
-          <div className="cal-list-top">
-            <div className="cal-dot" style={{ background: c.color ?? '#888' }} />
-            <button type="button" className="cal-name plain-btn" onClick={e => { e.stopPropagation(); setEditCal(c) }} aria-label={`Edit ${c.name}, ${c.kind} calendar`}>{c.name}</button>
-            <div className="cal-kind-badge" aria-hidden="true">{c.kind}</div>
-          </div>
-          <div className={`cal-sub ${c.lastError ? 'error' : ''}`}>
-            {c.lastError ? c.lastError : c.kind === 'local' ? 'Local calendar' : c.lastSyncedAt ? `Synced ${new Date(c.lastSyncedAt).toLocaleString()}` : 'Never synced'}
-          </div>
+        <div key={c.id} className="cal-list-item">
+          {/* The whole row opens Edit calendar: members, category, filter, hidden events. */}
+          <button type="button" className="cal-list-top cal-edit-btn" onClick={() => setEditCal(c)}>
+            <span className="cal-dot" style={{ background: c.color ?? '#888' }} />
+            <span className="cal-name"><span className="sr-only">Edit </span>{c.name}</span>
+            <span className="cal-kind-badge">{c.kind}</span>
+            <ChevronRight className="cal-edit-chevron" width={18} height={18} aria-hidden="true" />
+            <span className={`cal-sub ${c.lastError ? 'error' : ''}`}>
+              {c.lastError ? c.lastError : c.kind === 'local' ? 'Local calendar' : c.lastSyncedAt ? `Synced ${new Date(c.lastSyncedAt).toLocaleString()}` : 'Never synced'}
+            </span>
+          </button>
           {c.needsReconnect && c.kind !== 'ics' && (
             <div className="settings-row-sub">Reconnect via {PROVIDER_LABEL[c.kind]}: connect the account below and add this calendar again. Its settings are kept.</div>
           )}
           {revoked(c) && [signInHint(accounts.find(a => a.id === c.accountId)?.name), familyLinkHint(c, members)].filter(Boolean).map(h => (
             <div key={h} className="settings-row-sub cal-hint">{h}</div>
           ))}
-          <div className="cal-actions" onClick={e => e.stopPropagation()}>
+          <div className="cal-actions">
             {revoked(c) && <button className="btn btn-primary cal-reconnect" disabled={!oauth[c.kind]} onClick={() => connectCalendar(c.kind, m => toast(m, true))}>Reconnect</button>}
             {c.needsReconnect && c.kind === 'ics' && <button className="link-btn" onClick={() => reconnectIcs(c)}>Reconnect</button>}
             {c.kind !== 'local' && !c.needsReconnect && <button className="link-btn" onClick={() => sync(c.id)}>Sync now</button>}
-            <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)}>Remove</button>
+            <button className="link-btn cal-remove" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>Remove</button>
           </div>
         </div>
       ))}
