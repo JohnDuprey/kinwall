@@ -301,6 +301,8 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
       onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); activate() } }}>
       {locked && keypad ? <PinKeypad onWake={wake} onIdle={hideKeypad} />
         : sources.length ? <Slideshow sources={sources} device={night} clock={clock} spot={spot} /> : clock(false)}
+      {/* Settings' Preview: say so for 3 s (fades via CSS), so a black screen doesn't look frozen. */}
+      {preview && <div className="saver-preview-pill" aria-hidden="true">Preview: tap to end</div>}
     </div>
   )
 }

@@ -88,7 +88,7 @@ Options once any source is on:
 
 The clock stays fully on screen at any size and in either orientation.
 
-Tapping wakes the display as usual. **Preview Night screen** shows the Night screen for 20 seconds on whatever device you're using, so you can check it from a phone; tap or press Escape to end it early.
+Tapping wakes the display as usual. **Preview Night screen** shows the Night screen for 20 seconds on whatever device you're using, so you can check it from a phone. A "Preview: tap to end" label shows at the top for the first 3 seconds; tap or press Escape to end it early. Over pictures, the clock and caption sit on a small dark patch so they read the same over a picture or the black bars around it.
 
 **Privacy:** Art and Nature are off by default. When chosen, the display fetches pictures **directly** from that service (no Kinwall server in between), so the service sees the display's IP address. Nature makes one request per picture. Art fetches the list of highlight paintings once a night, then looks up one artwork and loads its image per change. Nothing about your household is sent. Drawings never leave the device, and family photos and the photo folder come only from your Kinwall server. Google Photos pictures come through your Kinwall server too, so Google sees your server, not the display (see [Privacy](../your-data/privacy.md#google-photos)). If Google Photos needs reconnecting, has no photos or can't be reached, the display shows its other picks meanwhile (nature pictures if Google Photos is the only one). If a service can't be reached, the display skips it for that change and uses the next source. If none can be used, it quietly shows the clock and tries again at the next change.
 
