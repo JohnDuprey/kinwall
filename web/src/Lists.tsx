@@ -603,18 +603,31 @@ const OPEN_FACTS_NAMES: Partial<Record<BarcodeLookup['source'], string>> = {
   openfoodfacts: 'Open Food Facts', openproductsfacts: 'Open Products Facts', openbeautyfacts: 'Open Beauty Facts', openpetfoodfacts: 'Open Pet Food Facts',
 }
 
-/** After scanning a product the catalog doesn't know: where its name came from, the name to add,
- * and whether to save the barcode to the catalog (off unless chosen; the next scan then adds it at
- * once). Kids' own devices don't change the catalog, so they don't see the switch. */
-function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, onAdd, onClose }: {
+/** After scanning a product the catalog doesn't know: where its name came from, the name to add
+ * (with the catalog's names as you type, and a warning when it looks like something already on the
+ * list: scanMatch), and whether to save the barcode to the catalog (off unless chosen; the next scan
+ * then adds it at once). Kids' own devices don't change the catalog, so they don't see the switch.
+ * While shopping at one store (`place`), where it was found is asked here too, not in a second sheet. */
+function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, suggestions, onListKeys, onList, place, onAdd, onCheckOff, onClose }: {
   code: string; found: BarcodeLookup | null; canSave: boolean; lists: List[]; target: string; checkOff: boolean // shopping: it's in the cart
-  onAdd: (title: string, save: boolean, target: string) => void; onClose: () => void
+  suggestions?: ItemSuggestion[]; onListKeys: Set<string>
+  onList: (ListItem & { listName: string })[] // what's on the list (both lists on a combined trip)
+  place?: { store: string; aisles: string[]; departments: string[] }
+  onAdd: (title: string, save: boolean, target: string, found?: { aisle: string; category: string }) => void
+  onCheckOff: (item: ListItem) => void; onClose: () => void
 }) {
   const [title, setTitle] = useState(found?.title ?? '')
   const [save, setSave] = useState(false)
   const [target, setTarget] = useState(suggested)
+  const [aisle, setAisle] = useState('')
+  const [category, setCategory] = useState<string | null>(null) // null: the catalog's, for the name
+  const titleRef = useRef<HTMLInputElement>(null)
   const name = title.trim()
-  const add = () => { if (name) onAdd(name, canSave && save, target) }
+  const known = suggestions?.find(s => s.key === itemKey(name))
+  const dept = category ?? known?.category ?? ''
+  const here = place && target === suggested ? place : undefined // where it was found: this list's trip only
+  const dupe = name ? scanMatch(onList, name) : undefined
+  const add = () => { if (name) onAdd(name, canSave && save, target, here && { aisle: aisle.trim(), category: dept.trim() }) }
   return (
     <Sheet variant="dialog" title="Scanned product" onClose={onClose}
       actions={<>
@@ -627,7 +640,15 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, o
       </p>
       <div className="field">
         <label htmlFor="scan-title">Name</label>
-        <input id="scan-title" type="text" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }} autoComplete="off" enterKeyHint="done" data-autofocus />
+        {/* Typed (no name found) it opens with the keyboard; a found name opens without it. */}
+        <ItemAddField id="scan-title" value={title} onChange={setTitle} onAdd={t => (t.trim() === name ? add() : setTitle(t))} onPick={setTitle} suggestions={suggestions} onList={onListKeys}
+          inputRef={titleRef} autoFocus={!found} label="Name" placeholder="e.g. Paper towels" />
+        {dupe && (
+          <p className="field-hint scan-dupe" role="status">
+            <span aria-hidden="true">⚠ </span>{dupe.title} is already on {dupe.listName}.
+            {checkOff && <> <button type="button" className="link-btn" onClick={() => onCheckOff(dupe)}>Check it off instead</button></>}
+          </p>
+        )}
       </div>
       {lists.length > 1 && (
         <div className="field">
@@ -637,6 +658,10 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, o
           </select>
         </div>
       )}
+      {here && <>
+        <ValuePicker id="scan-aisle" label={`Aisle at ${here.store}`} value={aisle} options={here.aisles} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} noneLabel="Not sure" />
+        <ValuePicker id="scan-dept" label="Department" value={dept} options={here.departments} newLabel="New department…" placeholder="e.g. Dairy, Pantry" onChange={setCategory} noneLabel="Not sure" />
+      </>}
       {canSave && (
         <div className="scan-save">
           <div>
@@ -652,9 +677,11 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, o
 
 /** "Where did you find it?" after a scan while shopping: the item's aisle at this store and its
  * department, whichever it's missing. Skip leaves it as it is. */
-function PlaceSheet({ title, store, need, category: initialCategory, aisles, departments, onSave, onClose }: {
+function PlaceSheet({ title, store, need, category: initialCategory, aisles, departments, onSave, onStop, onClose }: {
   title: string; store: string | null; need: { aisle: boolean; department: boolean }; category: string
-  aisles: string[]; departments: string[]; onSave: (aisle: string, category: string) => void; onClose: () => void
+  aisles: string[]; departments: string[]; onSave: (aisle: string, category: string) => void
+  onStop: () => void // Stop asking on this trip
+  onClose: () => void
 }) {
   const [aisle, setAisle] = useState('')
   const [category, setCategory] = useState(initialCategory)
@@ -664,9 +691,10 @@ function PlaceSheet({ title, store, need, category: initialCategory, aisles, dep
         <button className="btn btn-secondary" onClick={onClose}>Skip</button>
         <button className="btn btn-primary" onClick={() => onSave(aisle.trim(), category.trim())} disabled={!aisle.trim() && !category.trim()}>Save</button>
       </>}>
-      <p className="scan-source">{title}: so it's in the right place next time.</p>
+      <p className="scan-source">Where was {title}? Next trip it'll be in the right {need.aisle && store ? 'aisle' : 'department'}.</p>
       {need.aisle && store && <ValuePicker id="place-aisle" label={`Aisle at ${store}`} value={aisle} options={aisles} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} noneLabel="Pick an aisle" />}
       {need.department && <ValuePicker id="place-dept" label="Department" value={category} options={departments} newLabel="New department…" placeholder="e.g. Dairy, Pantry" onChange={setCategory} noneLabel="Pick a department" />}
+      <button type="button" className="link-btn" onClick={onStop}>Stop asking on this trip</button>
     </Sheet>
   )
 }
@@ -1594,7 +1622,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const [trip, setTrip] = useState<string | null>(() => tripStore(listId))
   useEffect(() => { setSelectedStore(null); setShowDone(false); setTrip(tripStore(listId)) }, [listId])
   const changeTrip = (store: string | null) => {
-    setTripStore(listId, store); setTrip(store); shopScroll.current = 0
+    setTripStore(listId, store); setTrip(store); shopScroll.current = 0; setQuiet(false)
     announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Shopping ended')
   }
   // Walking this store backwards (trip.ts tripReverse): per store, on this device. Not for Any store.
@@ -1738,8 +1766,9 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // After a scan while shopping: "Where did you find it?" for what the item is missing, its aisle at
   // this store and its department (placeNeeds). Saving teaches them, so the next one walks right.
   const [placing, setPlacing] = useState<{ listId: string; id: string; title: string; category: string; need: { aisle: boolean; department: boolean } } | null>(null)
+  const [quiet, setQuiet] = useState(false) // Stop asking on this trip
   const askPlace = (item: { id: string; listId?: string; title: string; store?: string | null; aisle?: string | null; category?: string | null; places?: ListItem['places'] }, onlyAisle = false) => {
-    if (!detail) return
+    if (!detail || quiet) return
     // A brand-new add: what the catalog remembers for the name (the server fills it in from there too).
     const known = detail.suggestions.items?.find(s => s.key === itemKey(item.title))
     const full = { store: null, aisle: null, places: known?.place ? [known.place] : [], ...item, category: item.category ?? known?.category ?? null }
@@ -1757,7 +1786,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const placeSheet = placing && detail && (
     <PlaceSheet title={placing.title} store={trip && trip !== ANY_STORE ? trip : null} need={placing.need} category={placing.category}
       aisles={trip && trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, aisleOrderMap(detail)) : []} departments={detail.suggestions.categories}
-      onSave={savePlace} onClose={() => setPlacing(null)} />
+      onSave={savePlace} onClose={() => setPlacing(null)} onStop={() => { setPlacing(null); setQuiet(true); announce("Won't ask again on this trip") }} />
   )
 
   // The app's camera (shopping lists): a product saved in the catalog goes straight on the list
@@ -1794,19 +1823,27 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const shoppingLists = lists.filter(l => l.kind === 'shopping' && !l.archived)
   // A product found in another list type's database goes there by default (scanTarget): paper towels
   // scanned on Groceries start out headed for the Shopping list.
-  const addScanned = async (title: string, save: boolean, target: string) => {
+  const addScanned = async (title: string, save: boolean, target: string, place?: { aisle: string; category: string }) => {
     if (!scanned) return
     const barcode = save ? scanned.code : undefined
     setScanned(null)
     const id = await addItem(title, barcode, { checkOff: shopMode, to: target })
-    if (id && shopMode && target === listId) askPlace({ id, title })
+    if (id && place && tripAt && (place.aisle || place.category)) { // where it was found, from the scan sheet
+      try { showQueued(await api.queueUpdateListItem(target, id, { ...(place.aisle ? { aisle: place.aisle, aisleStore: tripAt } : {}), ...(place.category ? { category: place.category } : {}) })) }
+      catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save where it goes', true) }
+    } else if (id && !place && shopMode && target === listId) askPlace({ id, title })
     const where = target === listId ? '' : ` to ${shoppingLists.find(l => l.id === target)?.name ?? 'the other list'}`
     const said = `${shopMode ? 'Added and checked off' : 'Added'}${where}: ${title}`
     toast(said); announce(said)
   }
-  const scanSheet = scanned && (
+  const tripAt = detail?.list.kind === 'shopping' && trip !== ANY_STORE ? trip : null // one store: its aisles, in its order
+  const scanSheet = scanned && detail && (
     <ScanSheet code={scanned.code} found={scanned.found} canSave={!kid} onClose={() => setScanned(null)}
-      lists={shoppingLists} target={scanTarget(shoppingLists, listId, scanned.found?.source ?? null)} checkOff={shopMode} onAdd={addScanned} />
+      lists={shoppingLists} target={scanTarget(shoppingLists, listId, scanned.found?.source ?? null)} checkOff={shopMode} onAdd={addScanned}
+      suggestions={detail.suggestions.items} onListKeys={new Set(detail.items.filter(i => !i.done).map(i => itemKey(i.title)))}
+      onList={[...detail.items.map(i => ({ ...i, listName: detail.list.name })), ...(detail.alsoAtStore ?? [])]}
+      place={shopMode && tripAt ? { store: tripAt, aisles: storeAisles(detail.suggestions, tripAt, aisleOrderMap(detail)), departments: detail.suggestions.categories } : undefined}
+      onCheckOff={async it => { setScanned(null); await toggle(it); toast(`Checked off: ${it.title}`); announce(`Checked off ${it.title}`) }} />
   )
   const scanBtn = detail?.list.kind === 'shopping' && appBarcodeScanner() && (
     <button className="icon-btn list-scan-btn" onClick={scan} aria-label="Scan a barcode"><span aria-hidden="true">📷</span></button>
@@ -1905,7 +1942,6 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const checkoutLabel = CHECKOUT_LABEL[list.kind]
   // On a trip: everything, walked in that store's aisle order; checked items always stay in place.
   const activeTrip = list.kind === 'shopping' ? trip : null
-  const tripAt = activeTrip === ANY_STORE ? null : activeTrip // one store: its aisles, in its order
   const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
   const addSheet = adding && (

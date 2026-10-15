@@ -134,3 +134,10 @@ test('scanMatch: the open item a scanned product is, by name: exact first, else 
   assert.equal(scanMatch(items, 'Buttermilk'), undefined, 'only whole words')
   assert.equal(scanMatch(items, 'Paper Towels'), undefined)
 })
+
+test("scanMatch warns the scan sheet: a scanned brand name is the plain item already on a list, and which list", () => {
+  const onList = [{ title: 'Paper towels', done: false, listName: 'Groceries' }, { title: 'Trash bags', done: false, listName: 'Hardware store' }]
+  assert.equal(scanMatch(onList, 'Bounty Paper Towels')?.listName, 'Groceries')
+  assert.equal(scanMatch(onList, 'Glad Tall Kitchen Trash Bags')?.title, 'Trash bags', "the other list's items on a combined trip too")
+  assert.equal(scanMatch(onList, 'Bounty'), undefined, 'a brand alone is not a match')
+})
