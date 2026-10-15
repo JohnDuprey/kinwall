@@ -1421,6 +1421,8 @@ button.month-cell .month-daynum { flex: none; }
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
   padding: calc(var(--gap) * 1.2); min-height: 0;
 }
+/* A wall: the open list's rows stay a readable width, the quantity near the name. */
+.lists-shell:not(.lists-shell-phone) > .list-detail > :not(.toast) { width: 100%; max-width: calc(900px * var(--screen-k)); align-self: center; }
 .lists-shell-phone .list-detail { background: none; box-shadow: none; padding: 0 var(--pad) calc(60px + var(--safe-b) + 16px); border-radius: 0; }
 .list-detail-empty { align-items: center; justify-content: center; }
 .list-detail-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -1564,6 +1566,7 @@ button.month-cell .month-daynum { flex: none; }
 .list-undo-btn { flex-shrink: 0; }
 .list-undo-btn { background: none; border: none; color: inherit; font: inherit; font-weight: 900; text-decoration: underline; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; }
 .value-picker-new { margin-top: 8px; }
+.leftover-pick label { text-transform: none; letter-spacing: normal; font-size: 1rem; color: var(--text); } /* an item's name, as written */
 .list-trip-other { opacity: 0.6; }
 .list-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .list-actions .btn { flex: none; min-height: 44px; padding: 8px 18px; }
@@ -1734,7 +1737,6 @@ button.month-cell .month-daynum { flex: none; }
 .catalog-hint { margin-bottom: 12px; }
 /* The item's stats, then Forget on its own below a divider, clear of the store picker. */
 .catalog-stats { margin: var(--gap) 0 0; }
-.catalog-forget { margin-top: calc(var(--gap) * 2); padding-top: calc(var(--gap) * 1.5); border-top: 1px solid var(--border); }
 
 /* ---------- Key gate ---------- */
 /* `safe center` and scrolling: on a short screen (a tablet in landscape) a tall card starts at the top
@@ -1974,7 +1976,7 @@ button.month-cell .month-daynum { flex: none; }
 :root[data-saving] .btn-primary, :root[data-saving] .btn-danger { pointer-events: none; opacity: 0.7; }
 
 /* Edit chores / Edit lists mode: a bar saying what a tap does now, and each card a button with a pencil where the check was. */
-.edit-mode-bar { display: flex; align-items: center; gap: 12px; flex: none; padding: 8px 8px 8px 14px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--text); font-weight: 800; }
+.edit-mode-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; flex: none; padding: 8px 8px 8px 14px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--text); font-weight: 800; }
 .edit-mode-bar span { flex: 1; }
 .edit-mode-bar .btn { flex: none; min-height: 44px; }
 .chores-edit-bar { margin: 0 var(--pad) 12px; }
@@ -3935,7 +3937,7 @@ div.meds-person-head { cursor: default; }
 :root[data-density="compact"] .approve-card { padding: 8px 10px; margin-bottom: 6px; }
 
 /* Lists */
-:root[data-density="compact"] .list-item-row { padding: 2px 4px; gap: 10px; }
+:root[data-density="compact"] .list-item-row { padding: 4px; gap: 10px; } /* 4px: the 44px check clears the dividers */
 :root[data-density="compact"] .list-group { margin-top: 2px; }
 :root[data-density="compact"] .list-group-title { padding: 6px 4px 2px; }
 :root[data-density="compact"] .list-checkout-bar { padding-top: 6px; }

@@ -239,13 +239,13 @@ const NEW_VALUE = '\u0000new'
 
 /** A real dropdown of the household's values (a native select: the iPhone wheel, a big list on a
  * wall screen), plus "None" and "New …", which reveals a text field for a value not seen before. */
-function ValuePicker({ id, label, value, options, onChange, newLabel, placeholder, noneLabel = 'None' }: {
-  id: string; label: string; value: string; options: string[]; onChange: (v: string) => void; newLabel: string; placeholder: string; noneLabel?: string
+function ValuePicker({ id, label, value, options, onChange, newLabel, placeholder, noneLabel = 'None', className }: {
+  id: string; label: string; value: string; options: string[]; onChange: (v: string) => void; newLabel: string; placeholder: string; noneLabel?: string; className?: string
 }) {
   const [adding, setAdding] = useState(false)
   const typing = adding || (!!value && !options.includes(value)) // a value from elsewhere shows as typed
   return (
-    <div className="field">
+    <div className={className ? `field ${className}` : 'field'}>
       <label htmlFor={id}>{label}</label>
       <select id={id} value={typing ? NEW_VALUE : value}
         onChange={e => { const v = e.target.value; setAdding(v === NEW_VALUE); onChange(v === NEW_VALUE ? '' : v) }}>
@@ -770,7 +770,7 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
       <div className="field">
         <label htmlFor={`list-sort-${list.id}`}>Sort</label>
         <select id={`list-sort-${list.id}`} value={list.sortBy} onChange={e => onSortBy(e.target.value as ListSortBy)}>
-          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => k !== 'aisle' || shopping || list.sortBy === 'aisle').map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
+          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due')) /* shopping items have no due dates */.map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
         </select>
         <p className="field-hint">{SORT_HINT[list.sortBy]}{list.sortBy !== 'manual' && '. Switch to Manual to drag items into your own order.'}</p>
       </div>
@@ -1429,10 +1429,7 @@ function CatalogItemSheet({ catalog, item, newTitle, suggestions, aisleOrder, fa
   }
   return (
     <Sheet title={item ? 'Edit catalog item' : 'New catalog item'} onClose={onClose}
-      actions={<>
-        <button className="btn btn-secondary" onClick={onClose}>Back</button>
-        <button className="btn btn-primary" onClick={save} disabled={!title.trim()}>Save</button>
-      </>}>
+      actions={<button className="btn btn-primary" onClick={save} disabled={!title.trim()}>Save</button>}>
       <div className="field">
         <label htmlFor="catalog-title">Name</label>
         <input id="catalog-title" type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoComplete="off" autoFocus={!item} placeholder="e.g. Oat milk" />
@@ -1472,9 +1469,7 @@ function CatalogItemSheet({ catalog, item, newTitle, suggestions, aisleOrder, fa
       </div>
       {item && <>
         <p className="field-hint catalog-stats">{boughtLabel(item.uses)}{item.lastStore ? `, last at ${item.lastStore}` : ''}.</p>
-        <div className="catalog-forget">
-          <button className="btn btn-danger btn-block" onClick={forget}><TrashIcon width={18} height={18} />Forget this item</button>
-        </div>
+        <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={forget}>Forget this item</button></div>
       </>}
     </Sheet>
   )
@@ -1496,7 +1491,7 @@ function LeftoversSheet({ items, trip, stores, onDone, onCancel }: {
     </>}>
       <p className="field-hint">Still on the list after {trip}. Pick where to look for them next time.</p>
       {items.map(i => (
-        <ValuePicker key={i.id} id={`leftover-${i.id}`} label={i.title} value={picked[i.id]} options={stores} newLabel="New store…" placeholder="Store name" noneLabel="Anywhere"
+        <ValuePicker key={i.id} id={`leftover-${i.id}`} label={i.title} className="leftover-pick" value={picked[i.id]} options={stores} newLabel="New store…" placeholder="Store name" noneLabel="Anywhere"
           onChange={v => setPicked(p => ({ ...p, [i.id]: v }))} />
       ))}
     </Sheet>
