@@ -125,16 +125,22 @@ function readCollapsed(): ListType[] {
   try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]') } catch { return [] }
 }
 
+// A new list's emoji follows its type until one is picked.
+const TYPE_EMOJI: Record<ListType, string> = { todo: '📝', groceries: '🛒', shopping: '🧺', reusable: '📋' }
+
 function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
-  list: List | 'new'; onClose: () => void; onSaved: () => void; onDeleted: () => void
+  list: List | 'new'; onClose: () => void; onSaved: (created?: List) => void; onDeleted: () => void
 }) {
   const dialog = useDialog()
   const { members, toast } = useApp()
   const existing = list === 'new' ? null : list
   const [name, setName] = useState(existing?.name ?? '')
-  const [type, setType] = useState<ListType>(existing ? listType(existing) : 'todo')
+  const [type, setTypeOnly] = useState<ListType>(existing ? listType(existing) : 'todo')
   const kind = typeFields(type).kind
-  const [emoji, setEmoji] = useState(existing?.emoji ?? LIST_EMOJI[0])
+  const [emoji, setEmojiOnly] = useState(existing?.emoji ?? LIST_EMOJI[0])
+  const [emojiPicked, setEmojiPicked] = useState(!!existing)
+  const setEmoji = (e: string) => { setEmojiOnly(e); setEmojiPicked(true) }
+  const setType = (t: ListType) => { setTypeOnly(t); if (!emojiPicked) setEmojiOnly(TYPE_EMOJI[t]) }
   const [color, setColor] = useState(existing?.color ?? MEMBER_PALETTE[0])
   const [memberIds, setMemberIds] = useState<string[]>(existing?.memberIds ?? [])
   // null = not touched: the kind's default (the server applies it on create and on a kind change).
@@ -147,9 +153,8 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
     if (!name.trim() || !isSingleEmoji(emoji)) return
     const body = { name: name.trim(), ...typeFields(type), emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}), ...(defaultable && isDefault !== !!existing?.isDefault ? { isDefault } : {}) }
     try {
-      if (existing) await api.updateList(existing.id, body)
-      else await api.createList(body)
-      onSaved()
+      if (existing) { await api.updateList(existing.id, body); onSaved() }
+      else onSaved(await api.createList(body)) // opened next
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save list', true) }
   }
   const archive = async () => {
@@ -2412,7 +2417,7 @@ export default function Lists() {
       <div className="content">
         <div className="empty-card"><span className="emoji">📝</span>No lists yet — start a shopping list, to-do list, or packing list.</div>
         <button className="fab" onClick={() => setEditList('new')} aria-label="New list"><PlusIcon /></button>
-        {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={() => { setEditList(null); load() }} onDeleted={() => { setEditList(null); load() }} />}
+        {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={created => { setEditList(null); load(); if (created) openList(created.id) }} onDeleted={() => { setEditList(null); load() }} />}
       </div>
     )
   }
@@ -2471,7 +2476,7 @@ export default function Lists() {
             : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>Pick a list to open it.</div></div>}
         </div>
       )}
-      {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={() => { setEditList(null); load() }} onDeleted={() => { setEditList(null); load() }} />}
+      {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={created => { setEditList(null); load(); if (created) openList(created.id) }} onDeleted={() => { setEditList(null); load() }} />}
     </div>
   )
 }

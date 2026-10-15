@@ -8,7 +8,7 @@
 
 Don't use lists? An admin can turn off **Lists** in **Settings → General** (tap **Change** under **Features**). It's hidden on every screen; nothing is deleted. See [Features](../settings/general.md#features).
 
-The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one, and Back (the ‹ button, the phone's back gesture or the browser's back button) or tapping **Lists** again goes back to all your lists. Each list has its own link, `#/lists/<list id>`, so a reload or a shared link opens it. **New list** or **+** creates a list. To edit a list (on a parent's device), open it and tap **Edit**, or tap **Edit lists** under the lists and then the list. On a computer you can also right-click a list card.
+The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one, and Back (the ‹ button, the phone's back gesture or the browser's back button) or tapping **Lists** again goes back to all your lists. Each list has its own link, `#/lists/<list id>`, so a reload or a shared link opens it. **New list** or **+** creates a list and opens it; its emoji follows the type you pick (🛒 Groceries, 🧺 Shopping) until you choose one. To edit a list (on a parent's device), open it and tap **Edit**, or tap **Edit lists** under the lists and then the list. On a computer you can also right-click a list card.
 
 ## Organizing lists
 
