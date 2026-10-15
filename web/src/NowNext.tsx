@@ -73,8 +73,9 @@ export function NowNextCard({ events, tz, placeholder, warnMinutes = [] }: { eve
         <div className={`now-next-row ${mins !== null && mins <= soonMins ? 'now-next-soon' : ''}`}>
           <span className="now-next-tag next">Next</span>
           <span className="now-next-title">{next.title}</span>
-          <span className="now-next-meta"><span className="nn-long">at </span>{formatTime(next.start, tz)} · <span className="nn-long">in </span>{durationLabel(Date.parse(next.start) - now)}</span>
-          {lead && <span className="now-next-meta">· {leadIcon(lead)} <span className="nn-long">{lead.prep ? 'start prep' : 'leave'} by </span>{formatTime(lead.at, tz)}</span>}
+          {/* A phone drops "at" and "by", never "in" and "leave": "1 h 12 min" alone reads like a length. */}
+          <span className="now-next-meta"><span className="nn-long">at </span>{formatTime(next.start, tz)} · in {durationLabel(Date.parse(next.start) - now)}</span>
+          {lead && <span className="now-next-meta">· {leadIcon(lead)} {lead.prep ? 'start prep' : 'leave'}<span className="nn-long"> by</span> {formatTime(lead.at, tz)}</span>}
         </div>
       )}
     </section>
