@@ -1278,8 +1278,9 @@ button.month-cell .month-daynum { flex: none; }
 .theme-toggle button.active { background: var(--card); box-shadow: var(--shadow); color: var(--text); }
 
 .member-row-list { display: flex; flex-direction: column; gap: 10px; }
-.member-list-item { display: flex; align-items: center; gap: 12px; padding: 10px 4px; }
+.member-list-item { display: flex; align-items: center; gap: 12px; padding: 10px 4px; min-height: 48px; }
 .member-list-item .name { flex: 1; font-weight: 800; }
+.member-list-item > .name.plain-btn { align-self: stretch; min-height: 44px; display: flex; flex-direction: column; justify-content: center; } /* a category's Edit button, not just its text line */
 .add-row-btn { display: flex; align-items: center; gap: 8px; padding: 14px 4px; color: var(--accent-text); font-weight: 800; background: none; border: none; font-size: 0.9375rem; min-height: 48px; }
 
 .cal-list-item { padding: 12px 4px; border-top: 1px solid var(--border); }
@@ -1326,6 +1327,7 @@ button.month-cell .month-daynum { flex: none; }
 .provider-chip.env { color: var(--text); background: color-mix(in srgb, var(--accent) 18%, var(--bg-alt)); }
 .provider-chip.ui { color: var(--text); background: color-mix(in srgb, var(--accent) 18%, var(--bg-alt)); }
 .provider-redirect { display: flex; align-items: center; gap: 8px; }
+.provider-redirect .link-btn { min-width: 52px; flex: none; }
 .provider-redirect code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; background: var(--bg-alt); padding: 8px 10px; border-radius: 10px; }
 .provider-guide { margin: 8px 0 12px; padding-left: 20px; font-size: 0.8125rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
 
@@ -1819,14 +1821,14 @@ button.month-cell .month-daynum { flex: none; }
   padding: 4px 12px 4px 4px; border: none; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--text);
 }
 .family-btn:active { transform: scale(0.97); }
-.family-pile { display: flex; align-items: center; flex-shrink: 0; }
+.family-pile { display: flex; align-items: center; flex-shrink: 1; min-width: 32px; overflow: hidden; } /* the faces tuck away before the name is cut */
 .family-pile .member-avatar-sm { width: 32px; height: 32px; font-size: 1rem; border: 2px solid var(--card); }
 .family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -10px; }
 .family-pile .member-avatar-sm.selected { border-color: var(--text); z-index: 1; }
 .family-more { background: var(--bg-alt); color: var(--text-dim); font-size: 0.6875rem; font-weight: 900; }
 .family-name-sm {
   font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 0.01;
 }
 .family-list { display: flex; flex-direction: column; }
 .family-row-wrap { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }
