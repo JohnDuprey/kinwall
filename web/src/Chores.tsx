@@ -259,7 +259,7 @@ function ChoreCard({ chore, editing, onToggle, onEdit }: { chore: ChoreDay; edit
             aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`, ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
         </div>
-        <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
+        {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>}
       </>
     )
   }
@@ -281,7 +281,7 @@ function ChoreCard({ chore, editing, onToggle, onEdit }: { chore: ChoreDay; edit
         {check}
         {burst && <Confetti />}
       </div>
-      <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
+      {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>}
       {chore.activity && !act && parentDevice && <a className="chore-activity-fix" href="#/activities?more=1">{chore.activity.name ? 'Turn it on in Get more activities' : 'Install it from Get more activities'}</a>}
     </>
   )
