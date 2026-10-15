@@ -1231,6 +1231,8 @@ button.month-cell .month-daynum { flex: none; }
 /* ---------- Settings ---------- */
 .settings-scroll { padding: 16px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); max-width: calc(720px * var(--screen-k)); margin: 0 auto; width: 100%; }
 .settings-tabs { position: sticky; top: 0; z-index: 3; background: var(--bg); margin: -16px calc(var(--pad) * -1) 0; padding: 16px var(--pad) 4px; }
+.settings-page-title { margin: 0 4px -8px; font-size: 1.5rem; font-weight: 900; color: var(--text); }
+.settings-page-title + .settings-tabs { margin-top: 0; padding-top: 4px; }
 /* A section scrolled to (a Manage layouts link, the Settings jump links) stops below the sticky tabs, not under them. */
 .settings-panel [id] { scroll-margin-top: 96px; }
 .settings-group-head { padding: 10px 4px 0; }

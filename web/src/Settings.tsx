@@ -171,6 +171,8 @@ export default function SettingsView() {
   return (
     <div className="content scroll-y">
       <div className="settings-scroll">
+        {/* The page's h1 (App.tsx) is for screen readers; this is the same title, for eyes. */}
+        <div className="settings-page-title" aria-hidden="true">Settings</div>
         <div className="settings-tabs">
           <Segmented tabs idBase="settings-tab" label="Settings sections" value={current} onChange={pickTab} options={tabs} />
         </div>
