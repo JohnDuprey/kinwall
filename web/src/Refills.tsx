@@ -19,12 +19,12 @@ import { askChoices, pharmacyChoices } from './refillChoices.ts'
 const medLabel = (m: Medication) => (m.dose ? `${m.name} · ${m.dose}` : m.name)
 const since = (at: string) => format(new Date(at), 'EEE, MMM d')
 
-/** Ask for a refill: opens the to-do (one per medicine) and says so. */
+/** Ask for a refill: opens the to-do (one per medicine). The refill card that opens next says so in its
+ *  banner, so there's no toast over "What to say"; screen readers hear it. */
 async function startRefill(m: Medication, memberName: string, toast: (s: string, error?: boolean) => void): Promise<boolean> {
   try {
     const r = await api.refillRequest(m.id, 'open')
-    const said = r.created ? `Added to do: Request refill: ${m.name} for ${memberName}` : 'This refill is already on the to-do list.'
-    toast(said); announce(said)
+    announce(r.created ? `Added to do: Request refill: ${m.name} for ${memberName}` : 'This refill is already on the to-do list.')
     return true
   } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true); return false }
 }
