@@ -208,6 +208,12 @@ lists(id, name, emoji NULL, color NULL, kind 'todo'|'shopping'|'reusable', membe
       group_by 'store'|'category'|'none', sort, archived INT, created_at)
 list_items(id, list_id, title, notes NULL, quantity NULL, store NULL, category NULL, member_id NULL,
            due_date NULL, done INT, done_at NULL, done_by NULL, sort, created_at, updated_at)
+task_accounts(id, kind 'todoist'|'google'|'microsoft', name, config, created_at)        -- 0120; config encrypted (AAD = id)
+task_links(list_id PK -> lists, account_id -> task_accounts, remote_id, remote_name, synced_rev NULL,
+       last_synced_at, last_error, last_error_code, sync_failures, retry_after)
+task_link_items(list_id -> task_links, item_id, remote_id, base JSON, PK(list_id, item_id), UNIQUE(list_id, remote_id))
+       -- to-do lists synced with an app (server/src/tasks/): base = the fields both sides last agreed;
+       -- no FK to list_items, so a deleted item's row tells the next sync to delete the app's task
 list_groups(list_id, kind 'store'|'category', name, sort, PK(list_id, kind, name))
        -- user ordering of a list's store/category groups; not every store/category needs a row
 api_keys(id, name, hash, prefix, scope 'admin'|'display', created_at, last_used_at)     -- sha256 of key; key shown once
@@ -246,6 +252,14 @@ POST   /api/oauth/:kind/start       -> { url } of Google/Microsoft consent (admi
 GET    /api/oauth/:kind/callback -> creates account, 302 to /#/settings?account=<id>
 POST   /api/accounts/caldav     {name, serverUrl, username, password} -> account
 GET    /api/accounts/:id/remote-calendars   -> [{remoteId, name, color, writable}]
+
+GET    /api/tasks/accounts      POST /api/tasks/accounts/todoist {token}   DELETE /api/tasks/accounts/:id
+POST   /api/tasks/accounts/:kind/start {loginHint?} -> {url} (google|microsoft; the tasks permission alone,
+         purpose 'tasks' on the same callback, which 302s to /#/settings?tab=calendars&taskAccount=<id>|taskError=)
+GET    /api/tasks/accounts/:id/lists -> [{remoteId, name}]
+GET    /api/tasks/links (display keys too)   PUT /api/tasks/links/:listId {accountId, remoteId | newListName}
+DELETE /api/tasks/links/:listId   POST /api/tasks/links/:listId/sync
+         (sync: tasks/sync.ts, field-by-field against base; both changed -> the later updated time wins, tie Kinwall)
 
 GET    /api/calendars           POST /api/calendars   {kind, name, color?, memberIds?, categoryId?, accountId?, remoteId?, url?}
 PATCH  /api/calendars/:id       DELETE /api/calendars/:id
