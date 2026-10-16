@@ -8,6 +8,7 @@ import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
 import { encryptConfig } from '../src/crypto.ts';
 import { syncDue } from '../src/sync.ts';
+import { runNotifications } from '../src/notify.ts';
 import { syncTaskLink, taskSyncsPending, taskSyncTiming } from '../src/tasks/sync.ts';
 
 const MIGRATIONS_DIR = path.join(import.meta.dirname, '..', 'migrations');
@@ -29,7 +30,7 @@ function fakeTodoist() {
   let n = 0, clock = Date.parse('2026-10-10T12:00:00Z');
   const state = { token: GOOD, limited: 0, calls: [] as string[] };
   const stamp = () => new Date((clock += 1000)).toISOString();
-  const add = (t: Fake) => { const id = `t${++n}`; tasks.set(id, { id, project_id: 'p1', description: '', priority: 1, due: null, checked: false, is_deleted: false, parent_id: null, updated_at: stamp(), ...t }); return id; };
+  const add = (t: Fake) => { const id = `t${++n}`; tasks.set(id, { id, project_id: 'p1', description: '', priority: 1, due: null, checked: false, is_deleted: false, parent_id: null, child_order: n, updated_at: stamp(), ...t }); return id; };
   const page = (items: Fake[], cursor: string | null) => { const at = Number(cursor ?? 0); return { results: items.slice(at, at + 2), next_cursor: at + 2 < items.length ? String(at + 2) : null }; };
   const handle = async (url: URL, init: RequestInit) => {
     const method = init.method ?? 'GET';
@@ -42,16 +43,17 @@ function fakeTodoist() {
     if (p === '/projects' && method === 'GET') return Response.json(page(projects, url.searchParams.get('cursor')));
     if (p === '/projects') { const pr = { id: `p${projects.length + 1}`, name: body.name }; projects.push(pr); return Response.json(pr); }
     if (p === '/tasks' && method === 'GET') return Response.json(page([...tasks.values()].filter((t) => t.project_id === url.searchParams.get('project_id') && !t.checked && !t.is_deleted), url.searchParams.get('cursor')));
-    if (p === '/tasks') { const id = add({ content: body.content, description: body.description ?? '', priority: body.priority ?? 1, project_id: body.project_id, due: body.due_date ? { date: body.due_date, string: body.due_date, is_recurring: false } : null }); return Response.json(tasks.get(id)); }
+    if (p === '/tasks') { const id = add({ content: body.content, description: body.description ?? '', priority: body.priority ?? 1, project_id: body.project_id, parent_id: body.parent_id ?? null, due: body.due_date ? { date: body.due_date, string: body.due_date, is_recurring: false } : null }); return Response.json(tasks.get(id)); }
     const m = /^\/tasks\/([^/]+)(?:\/(close|reopen))?$/.exec(p);
     const t = m && tasks.get(m[1]);
     if (!t || t.is_deleted) return Response.json({ error: 'not found' }, { status: 404 });
     if (method === 'GET') return Response.json(t);
-    if (method === 'DELETE') { t.is_deleted = true; return new Response(null, { status: 204 }); }
+    if (method === 'DELETE') { t.is_deleted = true; for (const x of tasks.values()) if (x.parent_id === t.id) x.is_deleted = true; return new Response(null, { status: 204 }); }
     if (m![2]) { t.checked = m![2] === 'close'; t.updated_at = stamp(); return new Response(null, { status: 204 }); }
     if (body.content !== undefined) t.content = body.content;
     if (body.description !== undefined) t.description = body.description;
     if (body.priority !== undefined) t.priority = body.priority;
+    if (body.child_order !== undefined) t.child_order = body.child_order;
     if (body.due_date !== undefined) t.due = { date: body.due_date, string: body.due_date, is_recurring: false };
     if (body.due_string === 'no date') t.due = null;
     t.updated_at = stamp();
@@ -66,7 +68,11 @@ function fakeTodoist() {
 function fakeGoogle() {
   const tasks = new Map<string, Fake>();
   let n = 0;
-  const state = { revoked: 0, refreshRefused: false, calls: [] as string[] };
+  const state = { revoked: 0, refreshRefused: false, calls: [] as string[], moves: 0 };
+  const renumber = (parent: string | null) => [...tasks.values()].filter((x) => (x.parent ?? null) === parent).sort((a, b) => a.ord - b.ord)
+    .forEach((x, i) => { x.ord = i; x.position = String(i).padStart(8, '0'); });
+  /** A task already in Google Tasks: subtasks under `parent`, in the order added. */
+  const add = (t: Fake) => { const id = t.id ?? `g${++n}`; tasks.set(id, { id, status: 'needsAction', updated: '2026-10-01T00:00:00.000Z', ord: 1e6, ...t }); renumber(t.parent ?? null); return id; };
   const handle = async (url: URL, init: RequestInit) => {
     const method = init.method ?? 'GET';
     if (url.hostname === 'oauth2.googleapis.com' && url.pathname === '/revoke') { state.revoked++; return new Response('', { status: 200 }); }
@@ -74,23 +80,31 @@ function fakeGoogle() {
     state.calls.push(`${method} ${url.pathname}`);
     const body = init.body ? JSON.parse(String(init.body)) : {};
     if (url.pathname === '/tasks/v1/users/@me/lists') return Response.json({ items: [{ id: 'gl1', title: 'Family' }] });
-    const m = /^\/tasks\/v1\/lists\/([^/]+)\/tasks(?:\/([^/]+))?$/.exec(url.pathname)!;
+    const m = /^\/tasks\/v1\/lists\/([^/]+)\/tasks(?:\/([^/]+))?(\/move)?$/.exec(url.pathname)!;
     if (!m[2] && method === 'GET') return Response.json({ items: [...tasks.values()] });
-    if (!m[2]) { const id = `g${++n}`; tasks.set(id, { id, status: 'needsAction', updated: new Date().toISOString(), ...body }); return Response.json(tasks.get(id)); }
+    // Subtasks: ?parent=, after ?previous= (or first); positions renumbered like Google's strings.
+    const place = (t: Fake) => {
+      const parent = url.searchParams.get('parent'), prev = url.searchParams.get('previous');
+      t.parent = parent ?? undefined;
+      t.ord = prev ? tasks.get(prev)!.ord + 0.5 : -0.5;
+      renumber(parent);
+    };
+    if (!m[2]) { const id = `g${++n}`; const t = { id, status: 'needsAction', updated: new Date().toISOString(), ...body }; tasks.set(id, t); place(t); return Response.json(t); }
     const t = tasks.get(m[2]);
     if (!t) return Response.json({ error: { code: 404 } }, { status: 404 });
-    if (method === 'DELETE') { tasks.delete(m[2]); return new Response(null, { status: 204 }); }
+    if (m[3]) { state.moves++; place(t); return Response.json(t); }
+    if (method === 'DELETE') { tasks.delete(m[2]); for (const x of [...tasks.values()]) if (x.parent === m[2]) tasks.delete(x.id); return new Response(null, { status: 204 }); }
     Object.assign(t, body, { updated: new Date().toISOString() });
     return Response.json(t);
   };
-  return { tasks, state, handle };
+  return { tasks, state, handle, add, renumber };
 }
 
 /** Microsoft Graph To Do (and the Microsoft token endpoint). */
 function fakeMicrosoft() {
   const tasks = new Map<string, Fake>();
   let n = 0;
-  const state = { calls: [] as string[], bodies: [] as Fake[], scopes: [] as string[] };
+  const state = { calls: [] as string[], bodies: [] as Fake[], scopes: [] as string[], expand: null as string | null };
   const handle = async (url: URL, init: RequestInit) => {
     const method = init.method ?? 'GET';
     if (url.hostname === 'login.microsoftonline.com') { state.scopes.push(new URLSearchParams(String(init.body)).get('scope') ?? ''); return Response.json({ access_token: 'm-access', expires_in: 3600 }); }
@@ -98,9 +112,18 @@ function fakeMicrosoft() {
     const body = init.body ? JSON.parse(String(init.body)) : {};
     if (init.body) state.bodies.push(body);
     if (url.pathname === '/v1.0/me/todo/lists') return Response.json({ value: [{ id: 'ml1', displayName: 'Tasks' }] });
+    const c = /^\/v1\.0\/me\/todo\/lists\/[^/]+\/tasks\/([^/]+)\/checklistItems(?:\/([^/]+))?$/.exec(url.pathname);
+    if (c) {
+      const list = tasks.get(c[1])!.checklistItems as Fake[];
+      if (!c[2]) { const item = { id: `c${++n}`, isChecked: false, ...body }; list.push(item); return Response.json(item); }
+      const i = list.findIndex((x) => x.id === c[2]);
+      if (method === 'DELETE') { list.splice(i, 1); return new Response(null, { status: 204 }); }
+      Object.assign(list[i], body);
+      return Response.json(list[i]);
+    }
     const m = /^\/v1\.0\/me\/todo\/lists\/([^/]+)\/tasks(?:\/([^/]+))?$/.exec(url.pathname)!;
-    if (!m[2] && method === 'GET') return Response.json({ value: [...tasks.values()] });
-    if (!m[2]) { const id = `m${++n}`; tasks.set(id, { id, status: 'notStarted', importance: 'normal', lastModifiedDateTime: new Date().toISOString(), ...body }); return Response.json(tasks.get(id)); }
+    if (!m[2] && method === 'GET') { state.expand = url.searchParams.get('$expand'); return Response.json({ value: [...tasks.values()] }); }
+    if (!m[2]) { const id = `m${++n}`; tasks.set(id, { id, status: 'notStarted', importance: 'normal', checklistItems: [], lastModifiedDateTime: new Date().toISOString(), ...body }); return Response.json(tasks.get(id)); }
     const t = tasks.get(m[2])!;
     if (method === 'DELETE') { tasks.delete(m[2]); return new Response(null, { status: 204 }); }
     Object.assign(t, body, { lastModifiedDateTime: new Date().toISOString() });
@@ -244,7 +267,7 @@ test('tasks: changes go both ways, a change in Kinwall syncs on its own, and del
     const r = mine.find((i) => i.id === kRake.id);
     assert.equal(r.title, 'Rake the leaves');
     assert.equal(r.dueDate, '2026-10-22');
-    assert.equal(r.steps.length, 1, 'steps stay in Kinwall');
+    assert.equal(r.steps.length, 1, 'its step (now a Todoist subtask) is kept');
 
     // In Kinwall (the debounced sync runs on its own): priority, no due date, reopened, a new item.
     await t.req(`/api/lists/${l.id}/items/${kRake.id}`, 'PATCH', { priority: 'low', dueDate: null });
@@ -260,7 +283,7 @@ test('tasks: changes go both ways, a change in Kinwall syncs on its own, and del
     await t.req(`/api/lists/${l.id}/items/${kMilk.id}`, 'DELETE');
     await settle();
     assert.equal(t.todoist.tasks.get(milk)!.is_deleted, true);
-    t.todoist.edit(rake, { is_deleted: true });
+    t.todoist.edit(rake, { is_deleted: true }); for (const x of t.todoist.tasks.values()) if (x.parent_id === rake) x.is_deleted = true; // Todoist deletes its subtasks with it
     await syncTaskLink(t.env, l.id);
     assert.deepEqual((await t.items(l.id)).map((i) => i.title), ['Buy pumpkins']);
     assert.equal((await t.db.prepare('SELECT count(*) AS n FROM task_link_items').first<{ n: number }>())!.n, 1);
@@ -496,5 +519,247 @@ test('tasks: Microsoft To Do syncs importance (urgent goes as high and stays urg
     await t.req(`/api/lists/${l.id}/items/${bill.id}`, 'DELETE');
     await settle();
     assert.equal(t.ms.tasks.has('x'), false);
+  } finally { t.restore(); }
+});
+
+// --- Steps ↔ subtasks and checklist items -----------------------------------------------------
+
+const stepTitles = (item: any) => [...item.steps].sort((a: any, b: any) => a.sort - b.sort).map((s: any) => `${s.done ? '✓' : '○'} ${s.title}`);
+const subtasks = (fake: ReturnType<typeof fakeTodoist>, parent: string) =>
+  [...fake.tasks.values()].filter((x) => x.parent_id === parent && !x.is_deleted).sort((a, b) => a.child_order - b.child_order).map((x) => `${x.checked ? '✓' : '○'} ${x.content}`);
+
+test('tasks: steps sync with Todoist subtasks: copied both ways in order, ticked, renamed, deleted', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Pack for camp', steps: ['Tent', 'Sleeping bag', 'Flashlight'] });
+    const rake = t.todoist.add({ content: 'Rake leaves' });
+    t.todoist.add({ content: 'Find the rake', parent_id: rake });
+    t.todoist.add({ content: 'Rake the front', parent_id: rake });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+
+    let [pack, rakeItem] = await t.items(l.id);
+    const packId = t.todoist.byTitle('Pack for camp')!.id;
+    assert.deepEqual(subtasks(t.todoist, packId), ['○ Tent', '○ Sleeping bag', '○ Flashlight']);
+    assert.deepEqual(stepTitles(rakeItem), ['○ Find the rake', '○ Rake the front']);
+
+    // Ticked in Kinwall (syncs on its own), ticked and renamed in Todoist.
+    const tent = pack.steps.find((s: any) => s.title === 'Tent');
+    await t.req(`/api/lists/${l.id}/items/${pack.id}/steps/${tent.id}`, 'PATCH', { done: true });
+    await settle();
+    assert.deepEqual(subtasks(t.todoist, packId), ['✓ Tent', '○ Sleeping bag', '○ Flashlight']);
+    t.todoist.edit(t.todoist.byTitle('Find the rake')!.id, { checked: true });
+    t.todoist.edit(t.todoist.byTitle('Rake the front')!.id, { content: 'Rake the front yard' });
+    await syncTaskLink(t.env, l.id);
+    [pack, rakeItem] = await t.items(l.id);
+    assert.deepEqual(stepTitles(rakeItem), ['✓ Find the rake', '○ Rake the front yard']);
+
+    // Deleted in Kinwall → deleted in Todoist; deleted in Todoist → deleted in Kinwall.
+    const bag = pack.steps.find((s: any) => s.title === 'Sleeping bag');
+    await t.req(`/api/lists/${l.id}/items/${pack.id}/steps/${bag.id}`, 'DELETE');
+    await settle();
+    assert.equal(t.todoist.byTitle('Sleeping bag'), undefined);
+    t.todoist.edit(t.todoist.byTitle('Flashlight')!.id, { is_deleted: true });
+    await syncTaskLink(t.env, l.id);
+    [pack] = await t.items(l.id);
+    assert.deepEqual(stepTitles(pack), ['✓ Tent']);
+    // ...and with every step done, the item is done, here and in Todoist.
+    assert.equal(pack.done, true);
+    await syncTaskLink(t.env, l.id);
+    assert.equal(t.todoist.tasks.get(packId)!.checked, true);
+  } finally { t.restore(); }
+});
+
+test('tasks: step order — Kinwall’s on the first sync, then whichever side moved them', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Pack for camp', steps: ['Tent', 'Sleeping bag', 'Flashlight'] });
+    const id = t.todoist.add({ content: 'Pack for camp' });
+    t.todoist.add({ content: 'Flashlight', parent_id: id });
+    t.todoist.add({ content: 'Tent', parent_id: id });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    assert.deepEqual(subtasks(t.todoist, id), ['○ Tent', '○ Sleeping bag', '○ Flashlight'], "the first sync takes Kinwall's order");
+    let pack = (await t.items(l.id))[0];
+    assert.deepEqual(stepTitles(pack), ['○ Tent', '○ Sleeping bag', '○ Flashlight']);
+
+    // Moved in Todoist: Flashlight first.
+    t.todoist.byTitle('Flashlight')!.child_order = 0;
+    await syncTaskLink(t.env, l.id);
+    pack = (await t.items(l.id))[0];
+    assert.deepEqual(stepTitles(pack), ['○ Flashlight', '○ Tent', '○ Sleeping bag']);
+
+    // Moved in Kinwall: Sleeping bag first (syncs on its own).
+    const order = ['Sleeping bag', 'Flashlight', 'Tent'].map((title) => pack.steps.find((s: any) => s.title === title).id);
+    assert.equal((await t.req(`/api/lists/${l.id}/items/${pack.id}/steps/reorder`, 'POST', { stepIds: order })).status, 200);
+    await settle();
+    assert.deepEqual(subtasks(t.todoist, id), ['○ Sleeping bag', '○ Flashlight', '○ Tent']);
+  } finally { t.restore(); }
+});
+
+test('tasks: Google Tasks subtasks are steps, placed and moved by position', async () => {
+  const t = await setup();
+  try {
+    const acc = await t.addOAuthAccount('google', 'sam@example.com');
+    const a = t.google.add({ title: 'Plan the party' });
+    t.google.add({ title: 'Invitations', parent: a });
+    t.google.add({ title: 'Cake', parent: a });
+    const l = await t.list();
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc, remoteId: 'gl1' });
+    let item = (await t.items(l.id))[0];
+    assert.deepEqual(stepTitles(item), ['○ Invitations', '○ Cake']);
+
+    // A step added in Kinwall between them lands between them in Google.
+    await t.req(`/api/lists/${l.id}/items/${item.id}/steps`, 'POST', { title: 'Balloons' });
+    item = (await t.items(l.id))[0];
+    const ids = ['Invitations', 'Balloons', 'Cake'].map((title) => item.steps.find((s: any) => s.title === title).id);
+    await t.req(`/api/lists/${l.id}/items/${item.id}/steps/reorder`, 'POST', { stepIds: ids });
+    await settle();
+    const kids = () => [...t.google.tasks.values()].filter((x) => x.parent === a).sort((x, y) => x.position.localeCompare(y.position)).map((x) => x.title);
+    assert.deepEqual(kids(), ['Invitations', 'Balloons', 'Cake']);
+
+    // Moved in Google: Cake first, and ticked.
+    Object.assign([...t.google.tasks.values()].find((x) => x.title === 'Cake')!, { ord: -1, status: 'completed' });
+    t.google.renumber(a);
+    await syncTaskLink(t.env, l.id);
+    item = (await t.items(l.id))[0];
+    assert.deepEqual(stepTitles(item), ['✓ Cake', '○ Invitations', '○ Balloons']);
+    // Deleting the item deletes the task and its subtasks.
+    await t.req(`/api/lists/${l.id}/items/${item.id}`, 'DELETE');
+    await settle();
+    assert.equal(t.google.tasks.size, 0);
+  } finally { t.restore(); }
+});
+
+test('tasks: Microsoft To Do checklist items are steps (title and done; order stays as added)', async () => {
+  const t = await setup();
+  try {
+    const acc = await t.addOAuthAccount('microsoft', 'alex@example.com');
+    t.ms.tasks.set('x', { id: 'x', title: 'Clean the garage', status: 'notStarted', importance: 'normal', lastModifiedDateTime: '2026-10-01T00:00:00Z', checklistItems: [{ id: 'c1', displayName: 'Sweep', isChecked: true }] });
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Wash the car', steps: ['Soap', 'Rinse'] });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc, remoteId: 'ml1' });
+    assert.equal(t.ms.state.expand, 'checklistItems');
+    const [garage] = await t.items(l.id);
+    assert.deepEqual(stepTitles(garage), ['✓ Sweep']);
+    const car = [...t.ms.tasks.values()].find((x) => x.title === 'Wash the car')!;
+    assert.deepEqual(car.checklistItems.map((c: Fake) => c.displayName), ['Soap', 'Rinse']);
+    // Ticked in To Do, renamed in Kinwall.
+    car.checklistItems[0].isChecked = true;
+    const rinse = (await t.items(l.id))[1].steps.find((s: any) => s.title === 'Rinse');
+    await t.req(`/api/lists/${l.id}/items/${(await t.items(l.id))[1].id}/steps/${rinse.id}`, 'PATCH', { title: 'Rinse and dry' });
+    await settle();
+    await syncTaskLink(t.env, l.id);
+    assert.deepEqual(stepTitles((await t.items(l.id))[1]), ['✓ Soap', '○ Rinse and dry']);
+    assert.deepEqual(car.checklistItems.map((c: Fake) => c.displayName), ['Soap', 'Rinse and dry']);
+    // Removed in To Do → removed here.
+    car.checklistItems.splice(0, 1);
+    await syncTaskLink(t.env, l.id);
+    assert.deepEqual(stepTitles((await t.items(l.id))[1]), ['○ Rinse and dry']);
+  } finally { t.restore(); }
+});
+
+// --- Edge cases --------------------------------------------------------------------------------
+
+test('tasks: a Todoist task deleted while done is removed from Kinwall too', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    const id = t.todoist.add({ content: 'Return library books' });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    t.todoist.edit(id, { checked: true });
+    await syncTaskLink(t.env, l.id);
+    assert.equal((await t.items(l.id))[0].done, true);
+    // Still done there: looked up, kept.
+    await syncTaskLink(t.env, l.id);
+    assert.equal((await t.items(l.id)).length, 1);
+    t.todoist.edit(id, { is_deleted: true });
+    await syncTaskLink(t.env, l.id);
+    assert.equal((await t.items(l.id)).length, 0);
+  } finally { t.restore(); }
+});
+
+test('tasks: an item moved to another Kinwall list leaves the synced list in Todoist', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    const other = await t.list('Someday');
+    const id = t.todoist.add({ content: 'Paint the fence' });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    const item = (await t.items(l.id))[0];
+    assert.equal((await t.req(`/api/lists/${l.id}/items/move`, 'POST', { itemIds: [item.id], toListId: other.id })).status, 200);
+    await settle();
+    assert.equal(t.todoist.tasks.get(id)!.is_deleted, true);
+    assert.equal((await t.items(other.id))[0].title, 'Paint the fence', 'it stays in Kinwall, on the other list');
+  } finally { t.restore(); }
+});
+
+test('tasks: a turned-down sign-in tells the grown-ups once, in their language, until it syncs again', async () => {
+  const t = await setup();
+  try {
+    await t.req('/api/members', 'POST', { name: 'Sam', color: '#57e', grownUp: true });
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list('Weekend To-Dos');
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    const NOON = new Date('2026-10-08T16:00:00Z');
+    const bell = async () => (await t.req('/api/notifications')).json.filter((n: any) => n.url === '/#/settings?tab=calendars&section=todo-apps');
+    t.todoist.state.token = 'fake-reset-token-999';
+    await syncTaskLink(t.env, l.id);
+    await runNotifications(t.env, NOON);
+    await syncTaskLink(t.env, l.id);
+    await runNotifications(t.env, NOON);
+    assert.deepEqual((await bell()).map((n: any) => [n.title, n.body]), [['Weekend To-Dos stopped syncing with Todoist', 'Tap to reconnect it.']]);
+    // Fixed, then turned down again: told again.
+    t.todoist.state.token = GOOD;
+    await syncTaskLink(t.env, l.id);
+    t.todoist.state.token = 'fake-reset-token-999';
+    await syncTaskLink(t.env, l.id);
+    await runNotifications(t.env, NOON);
+    assert.equal((await bell()).length, 2);
+    // German for a German family.
+    await t.req('/api/settings', 'PATCH', { language: 'de' });
+    await t.db.prepare('UPDATE task_links SET reconnect_notified_at = NULL').run();
+    await runNotifications(t.env, NOON);
+    assert.equal((await bell())[0].title, 'Weekend To-Dos synchronisiert nicht mehr mit Todoist');
+  } finally { t.restore(); }
+});
+
+test('tasks: export and import carry synced lists without the account; connecting it again picks up where it was', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Pack for camp', steps: ['Tent'] });
+    t.todoist.add({ content: 'Rake leaves' });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    const file = (await t.req('/api/export')).json;
+    assert.equal(file.taskLinks.length, 1);
+    assert.equal(file.taskLinks[0].items.length, 3); // two items and a step
+    assert.ok(!JSON.stringify(file).includes(GOOD), 'never the token');
+
+    // A fresh Kinwall: the list comes back waiting for Todoist.
+    const fresh = await setup();
+    fresh.restore();
+    globalThis.fetch = (async (input: unknown, init: RequestInit = {}) => t.todoist.handle(new URL(String(input)), init)) as typeof fetch;
+    assert.equal((await fresh.req('/api/import', 'POST', file)).status, 200);
+    let link = (await fresh.req('/api/tasks/links')).json[0];
+    assert.deepEqual([link.needsReconnect, link.accountId, link.app, link.remoteName], [true, null, 'todoist', 'Chores']);
+    assert.equal((await syncTaskLink(fresh.env, l.id)).ok, false);
+    // Connecting Todoist takes it up with its pairings: nothing doubles.
+    const before = t.todoist.tasks.size;
+    await fresh.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD });
+    await syncTaskLink(fresh.env, l.id);
+    link = (await fresh.req('/api/tasks/links')).json[0];
+    assert.equal(link.needsReconnect, false);
+    assert.equal(link.lastError, null);
+    assert.equal(t.todoist.tasks.size, before);
+    assert.equal((await fresh.items(l.id)).length, 2);
+    // A second import changes nothing.
+    assert.equal((await fresh.req('/api/import', 'POST', file)).status, 200);
+    assert.equal((await fresh.req('/api/tasks/links')).json[0].needsReconnect, false);
   } finally { t.restore(); }
 });

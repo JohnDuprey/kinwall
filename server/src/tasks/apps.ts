@@ -1,4 +1,4 @@
-// The two outside to-do apps a Kinwall list can sync with (tasks/sync.ts), over plain fetch:
+// The three outside to-do apps a Kinwall list can sync with (tasks/sync.ts), over plain fetch:
 // - Todoist's API v1 (https://developer.todoist.com/api/v1/), which replaced its REST v2 and
 //   Sync v9 APIs; a parent's personal API token, sent as a Bearer token.
 // - Google Tasks API v1 (https://developers.google.com/workspace/tasks), with Kinwall's Google
@@ -16,7 +16,12 @@ export type TaskAppKind = 'todoist' | 'google' | 'microsoft';
 // Names, not words: the same in every language (msg() only marks them for the check).
 export const APP_NAME: Record<TaskAppKind, string> = { todoist: 'Todoist', google: msg('Google Tasks'), microsoft: msg('Microsoft To Do') };
 export type RemoteList = { remoteId: string; name: string };
-export type RemoteTask = { id: string; fields: TaskFields; updatedAt: string | null };
+/** A step's outside counterpart: a Todoist or Google Tasks subtask, or a To Do checklist item.
+ * position orders them (Todoist child_order, Google's position string, To Do's own order). */
+export type RemoteStep = { id: string; title: string; done: boolean; position: number | string | null };
+/** steps: undefined when unknown (a single task looked up by id). */
+export type RemoteTask = { id: string; fields: TaskFields; updatedAt: string | null; position?: number | string | null; steps?: RemoteStep[] };
+export type StepFields = { title: string; done: boolean };
 
 /** The other app asked Kinwall to slow down (HTTP 429): sync.ts waits `retryAfter` seconds. */
 export class RateLimited extends Error {
@@ -48,14 +53,26 @@ export interface TaskApp {
   fit?(f: TaskFields): TaskFields;
   lists(): Promise<RemoteList[]>;
   createList(name: string): Promise<RemoteList>;
-  /** Top-level tasks only (subtasks stay in the other app). Todoist answers open ones only; Google all. */
+  /** Top-level tasks, each with its steps (direct subtasks or checklist items). Todoist answers open
+   * ones only; Google and To Do all. */
   tasks(listId: string): Promise<RemoteTask[]>;
-  /** One task that tasks() left out: done, or gone (null). Only Todoist needs it. */
+  /** One task or subtask that tasks() left out: done, or gone (null). Only Todoist needs it. */
   task?(id: string): Promise<RemoteTask | null>;
   create(listId: string, f: TaskFields): Promise<RemoteTask>;
   update(listId: string, id: string, patch: Partial<TaskFields>): Promise<void>;
   remove(listId: string, id: string): Promise<void>;
+  /** Whether the app keeps an order for steps Kinwall can read and set (To Do's checklist can't be reordered through its API). */
+  readonly stepOrder: boolean;
+  /** A new step under task `parentId`, after `previousId` (or first) where the app takes that. */
+  createStep(listId: string, parentId: string, f: StepFields, previousId: string | null): Promise<RemoteStep>;
+  updateStep(listId: string, parentId: string, id: string, patch: Partial<StepFields>): Promise<void>;
+  removeStep(listId: string, parentId: string, id: string): Promise<void>;
+  /** Puts the steps `ids` in this order (stepOrder apps). */
+  orderSteps(listId: string, parentId: string, ids: string[]): Promise<void>;
 }
+
+export const byPosition = (a: { position?: number | string | null }, b: { position?: number | string | null }) =>
+  typeof a.position === 'number' && typeof b.position === 'number' ? a.position - b.position : String(a.position ?? '').localeCompare(String(b.position ?? ''));
 
 function retryAfter(res: Response, body: unknown): number {
   const header = Number(res.headers.get('retry-after'));
@@ -121,8 +138,10 @@ function todoistTask(t: any, tz: string): RemoteTask {
     id: String(t.id),
     fields: { title: String(t.content ?? '').trim(), notes: cleanNotes(t.description), due: fromTodoistDue(t.due, tz), done: !!t.checked, priority: fromTodoistPriority(t.priority) },
     updatedAt: t.updated_at ?? t.added_at ?? null,
+    position: typeof t.child_order === 'number' ? t.child_order : null,
   };
 }
+const todoistStep = (t: any): RemoteStep => ({ id: String(t.id), title: String(t.content ?? '').trim(), done: !!t.checked, position: typeof t.child_order === 'number' ? t.child_order : null });
 
 function todoistBody(f: Partial<TaskFields>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
@@ -148,8 +167,9 @@ export function todoistApp(token: string, tz: string): TaskApp {
       return { remoteId: String(p.id), name: String(p.name ?? name) };
     },
     async tasks(listId) {
-      const all = await todoistPages(token, `/tasks?project_id=${encodeURIComponent(listId)}`);
-      return all.filter((t) => !t.parent_id && !t.is_deleted).map((t) => todoistTask(t, tz));
+      const all = (await todoistPages(token, `/tasks?project_id=${encodeURIComponent(listId)}`)).filter((t) => !t.is_deleted);
+      // Direct subtasks are steps; deeper ones stay in Todoist.
+      return all.filter((t) => !t.parent_id).map((t) => ({ ...todoistTask(t, tz), steps: all.filter((x) => String(x.parent_id) === String(t.id)).map(todoistStep).sort(byPosition) }));
     },
     async task(id) {
       const t = await call(`/tasks/${encodeURIComponent(id)}`);
@@ -168,6 +188,21 @@ export function todoistApp(token: string, tz: string): TaskApp {
     },
     async remove(_listId, id) {
       await call(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    stepOrder: true,
+    async createStep(listId, parentId, f) {
+      const t = await call('/tasks', { method: 'POST', body: JSON.stringify({ content: f.title, project_id: listId, parent_id: parentId }) });
+      if (f.done) await call(`/tasks/${encodeURIComponent(t.id)}/close`, { method: 'POST' });
+      return { ...todoistStep(t), done: f.done };
+    },
+    async updateStep(listId, _parentId, id, patch) {
+      await this.update(listId, id, { title: patch.title, done: patch.done });
+    },
+    async removeStep(listId, _parentId, id) {
+      await this.remove(listId, id);
+    },
+    async orderSteps(_listId, _parentId, ids) {
+      for (const [i, id] of ids.entries()) await call(`/tasks/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ child_order: i + 1 }) });
     },
   };
 }
@@ -214,8 +249,10 @@ function googleTask(t: any): RemoteTask {
     id: String(t.id),
     fields: { title: String(t.title ?? '').trim(), notes: cleanNotes(t.notes), due: fromGoogleDue(t.due), done: t.status === 'completed', priority: null },
     updatedAt: t.updated ?? null,
+    position: t.position ?? null,
   };
 }
+const googleStep = (t: any): RemoteStep => ({ id: String(t.id), title: String(t.title ?? '').trim(), done: t.status === 'completed', position: t.position ?? null });
 
 function googleBody(f: Partial<TaskFields>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
@@ -241,8 +278,8 @@ export function googleTasksApp(ctx: OAuthCtx): TaskApp {
     },
     async tasks(listId) {
       // Deleted ones aren't asked for: a task missing here is gone.
-      const all = await googlePages(ctx, list(listId), { showCompleted: 'true', showHidden: 'true' });
-      return all.filter((t) => !t.parent && !t.deleted).map(googleTask);
+      const all = (await googlePages(ctx, list(listId), { showCompleted: 'true', showHidden: 'true' })).filter((t) => !t.deleted);
+      return all.filter((t) => !t.parent).map((t) => ({ ...googleTask(t), steps: all.filter((x) => x.parent === t.id).map(googleStep).sort(byPosition) }));
     },
     async create(listId, f) {
       return googleTask(await call(list(listId), { method: 'POST', body: JSON.stringify(googleBody(f)) }));
@@ -253,6 +290,23 @@ export function googleTasksApp(ctx: OAuthCtx): TaskApp {
     },
     async remove(listId, id) {
       await call(`${list(listId)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    stepOrder: true,
+    async createStep(listId, parentId, f, previousId) {
+      const q = new URLSearchParams({ parent: parentId, ...(previousId ? { previous: previousId } : {}) });
+      return googleStep(await call(`${list(listId)}?${q}`, { method: 'POST', body: JSON.stringify(googleBody(f)) }));
+    },
+    async updateStep(listId, _parentId, id, patch) {
+      await this.update(listId, id, patch);
+    },
+    async removeStep(listId, _parentId, id) {
+      await this.remove(listId, id);
+    },
+    async orderSteps(listId, parentId, ids) {
+      for (const [i, id] of ids.entries()) {
+        const q = new URLSearchParams({ parent: parentId, ...(i ? { previous: ids[i - 1] } : {}) });
+        await call(list(listId) + '/' + encodeURIComponent(id) + '/move?' + q, { method: 'POST' });
+      }
     },
   };
 }
@@ -296,8 +350,11 @@ function msTask(t: any): RemoteTask {
     id: String(t.id),
     fields: { title: String(t.title ?? '').trim(), notes: cleanNotes(notes), due: fromMsDue(t.dueDateTime), done: t.status === 'completed', priority: fromMsImportance(t.importance) },
     updatedAt: t.lastModifiedDateTime ?? null,
+    ...(Array.isArray(t.checklistItems) ? { steps: t.checklistItems.map(msStep) } : {}),
   };
 }
+const msStep = (c: any, i: number): RemoteStep => ({ id: String(c.id), title: String(c.displayName ?? '').trim(), done: !!c.isChecked, position: i });
+const msStepBody = (f: Partial<StepFields>) => ({ ...(f.title !== undefined ? { displayName: f.title } : {}), ...(f.done !== undefined ? { isChecked: f.done } : {}) });
 
 function msBody(f: Partial<TaskFields>, tz: string): Record<string, unknown> {
   const body: Record<string, unknown> = {};
@@ -313,6 +370,7 @@ function msBody(f: Partial<TaskFields>, tz: string): Record<string, unknown> {
 export function microsoftTodoApp(ctx: OAuthCtx, tz: string): TaskApp {
   const call = (path: string, init?: RequestInit) => graphFetch(ctx, path, init);
   const list = (id: string) => `/me/todo/lists/${encodeURIComponent(id)}/tasks`;
+  const checklist = (listId: string, taskId: string, id = '') => list(listId) + '/' + encodeURIComponent(taskId) + '/checklistItems' + (id && '/' + encodeURIComponent(id));
   return {
     kind: 'microsoft',
     keys: ['title', 'notes', 'due', 'done', 'priority'],
@@ -327,7 +385,7 @@ export function microsoftTodoApp(ctx: OAuthCtx, tz: string): TaskApp {
     // Every task, done ones too (checklist items are To Do's steps: they stay there). A task missing
     // here is gone. Polled like the others: a delta query would save little on a family's list.
     async tasks(listId) {
-      return (await graphPages(ctx, list(listId))).map(msTask);
+      return (await graphPages(ctx, `${list(listId)}?${new URLSearchParams({ $expand: 'checklistItems' })}`)).map(msTask);
     },
     async create(listId, f) {
       return msTask(await call(list(listId), { method: 'POST', body: JSON.stringify(msBody(f, tz)) }));
@@ -339,5 +397,17 @@ export function microsoftTodoApp(ctx: OAuthCtx, tz: string): TaskApp {
     async remove(listId, id) {
       await call(`${list(listId)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
+    // Checklist items are in the order they were added; Graph has no way to move one.
+    stepOrder: false,
+    async createStep(listId, parentId, f) {
+      return msStep(await call(checklist(listId, parentId), { method: 'POST', body: JSON.stringify(msStepBody(f)) }), 0);
+    },
+    async updateStep(listId, parentId, id, patch) {
+      await call(checklist(listId, parentId, id), { method: 'PATCH', body: JSON.stringify(msStepBody(patch)) });
+    },
+    async removeStep(listId, parentId, id) {
+      await call(checklist(listId, parentId, id), { method: 'DELETE' });
+    },
+    async orderSteps() {},
   };
 }

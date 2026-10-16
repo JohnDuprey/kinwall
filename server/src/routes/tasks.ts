@@ -35,9 +35,10 @@ const TaskAccountSchema = z
 const TaskLinkSchema = z
   .object({
     listId: z.string(),
-    accountId: z.string(),
+    accountId: z.string().nullable().openapi({ description: 'null: imported from an export without its account; it syncs again once that app is connected (needsReconnect)' }),
     app: AppSchema,
-    accountName: z.string(),
+    accountName: z.string().nullable(),
+    needsReconnect: z.boolean(),
     remoteId: z.string().openapi({ description: 'The Todoist project, Google Tasks list or Microsoft To Do list id' }),
     remoteName: z.string(),
     lastSyncedAt: z.string().nullable(),
@@ -65,15 +66,16 @@ async function accountApi(c: Context<{ Bindings: Env }>, row: TaskAccountRow) {
   return { id: row.id, kind: row.kind, name: row.name, createdAt: row.created_at, alsoCalendar: !!(await sameCalendarAccount(c, row.kind, row.name)) };
 }
 
-type LinkJoin = TaskLinkRow & { kind: TaskAppKind; account_name: string };
-const LINKS = 'SELECT l.*, a.kind, a.name AS account_name FROM task_links l JOIN task_accounts a ON a.id = l.account_id';
+type LinkJoin = TaskLinkRow & { account_name: string | null };
+const LINKS = 'SELECT l.*, a.name AS account_name FROM task_links l LEFT JOIN task_accounts a ON a.id = l.account_id';
 
 function linkApi(row: LinkJoin, lang: Parameters<typeof translateStored>[0]) {
   return {
     listId: row.list_id,
     accountId: row.account_id,
-    app: row.kind,
+    app: row.app,
     accountName: row.account_name,
+    needsReconnect: !row.account_id,
     remoteId: row.remote_id,
     remoteName: row.remote_name,
     lastSyncedAt: row.last_synced_at,
@@ -97,6 +99,9 @@ async function saveTaskAccount(env: Env, kind: TaskAppKind, name: string, config
   const sealed = await encryptConfig(env, id, config); // the row id is the AAD
   if (existing) await env.DB.prepare('UPDATE task_accounts SET config = ? WHERE id = ?').bind(sealed, id).run();
   else await env.DB.prepare('INSERT INTO task_accounts (id, kind, name, config, created_at) VALUES (?,?,?,?,?)').bind(id, kind, name, sealed, new Date().toISOString()).run();
+  // Lists imported from an export (no account: credentials never travel) take the first account of
+  // their app connected after, keeping their item pairings, like calendars reconnect.
+  await env.DB.prepare('UPDATE task_links SET account_id = ? WHERE account_id IS NULL AND app = ?').bind(id, kind).run();
   return id;
 }
 
@@ -324,11 +329,15 @@ tasksRoutes.openapi(
       return c.json({ error: appError(err, account) }, 502);
     }
     if (!remote) return c.json({ error: 'That list is gone from the app. Pick another.' }, 404);
-    // A new link starts over: the old one's item pairs go with it (cascade).
-    await c.env.DB.batch([
-      c.env.DB.prepare('DELETE FROM task_links WHERE list_id = ?').bind(listId),
-      c.env.DB.prepare('INSERT INTO task_links (list_id, account_id, remote_id, remote_name, created_at) VALUES (?,?,?,?,?)').bind(listId, account.id, remote.remoteId, remote.name, new Date().toISOString()),
-    ]);
+    // The same list again (or an imported link's, now connected) keeps its item pairs; another list
+    // starts over: the old one's pairs go with it (cascade).
+    const same = await c.env.DB.prepare('SELECT 1 AS x FROM task_links WHERE list_id = ? AND app = ? AND remote_id = ? AND (account_id IS NULL OR account_id = ?)').bind(listId, account.kind, remote.remoteId, account.id).first();
+    await c.env.DB.batch(same
+      ? [c.env.DB.prepare('UPDATE task_links SET account_id = ?, remote_name = ?, retry_after = NULL WHERE list_id = ?').bind(account.id, remote.name, listId)]
+      : [
+          c.env.DB.prepare('DELETE FROM task_links WHERE list_id = ?').bind(listId),
+          c.env.DB.prepare('INSERT INTO task_links (list_id, account_id, app, remote_id, remote_name, created_at) VALUES (?,?,?,?,?,?)').bind(listId, account.id, account.kind, remote.remoteId, remote.name, new Date().toISOString()),
+        ]);
     await syncTaskLink(c.env, listId, execCtxOf(c));
     publish(c.env, execCtxOf(c), 'list.changed', { id: listId }); // screens show the link; not emit(), which would queue another sync
     return c.json((await loadLink(c, listId))!, 200);

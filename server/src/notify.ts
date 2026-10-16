@@ -3,6 +3,7 @@
 // Called from the Workers cron (every 5 min, worker.ts) and the Node setInterval loop (node.ts,
 // every ~2 min) - both call runNotifications(env, now) directly, no HTTP round trip.
 import type { KinwallDb } from './db.ts';
+import { APP_NAME, type TaskAppKind } from './tasks/apps.ts';
 import { familyLang, isLang, perLang, words, type Lang } from './i18n.ts';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
@@ -1096,6 +1097,31 @@ async function runCalendarReconnect(env: Env, db: KinwallDb, now: Date): Promise
   for (const sub of parents) await sendToSub(env, db, sub, payload);
 }
 
+// A to-do list synced with Todoist, Google Tasks or Microsoft To Do whose sign-in or token was
+// turned down (tasks/sync.ts records last_error_code 'revoked'): told like a calendar's, once per
+// outage (reconnect_notified_at, cleared by a good sync), to the grown-ups' feed and parent devices,
+// opening Settings → Calendars → To-do apps where its Reconnect button is. Held through night hours.
+async function runTaskLinkReconnect(env: Env, db: KinwallDb, now: Date): Promise<void> {
+  const { results } = await db.prepare("SELECT t.list_id, t.app, l.name FROM task_links t JOIN lists l ON l.id = t.list_id WHERE t.last_error_code = 'revoked' AND t.reconnect_notified_at IS NULL ORDER BY l.name")
+    .all<{ list_id: string; app: TaskAppKind; name: string }>();
+  const fresh: typeof results = [];
+  for (const link of results) {
+    const claimed = await db.prepare("UPDATE task_links SET reconnect_notified_at = ? WHERE list_id = ? AND reconnect_notified_at IS NULL AND last_error_code = 'revoked'").bind(now.toISOString(), link.list_id).run();
+    if (claimed.meta.changes) fresh.push(link);
+  }
+  if (!fresh.length) return;
+  const one = fresh.length === 1 ? fresh[0] : null;
+  const payload = perLang((lang) => {
+    const { t, tn } = words(lang);
+    const title = one ? t('{list} stopped syncing with {app}', { list: one.name, app: APP_NAME[one.app] }) : tn(fresh.length, '{n} list stopped syncing', '{n} lists stopped syncing');
+    return { title, body: one ? t('Tap to reconnect it.') : t('Tap to reconnect them.'), url: '/#/settings?tab=calendars&section=todo-apps', tag: 'task-reconnect' };
+  });
+  const grownUps = (await db.prepare('SELECT id FROM members WHERE grown_up = 1').all<{ id: string }>()).results.map((m) => m.id);
+  await recordNotification(db, { kind: 'reminder', ...payload(await familyLang(db)), memberIds: grownUps, source: 'system', at: now });
+  const parents = await loadSubs(db, `${PARENT_SUBS} AND (k.owner IS NULL OR k.owner NOT IN (SELECT id FROM members WHERE grown_up = 0))`);
+  for (const sub of parents) await sendToSub(env, db, sub, payload);
+}
+
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
@@ -1146,6 +1172,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   }
   if (features.outings && !hold) await part('outing reminders', () => runOutings(env, env.DB, now, tz, h12)); // held at night: sent once it's over
   if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile
+  if (!hold) await part('to-do list reconnect', () => runTaskLinkReconnect(env, env.DB, now)); // held at night too: the list shows its warning meanwhile
   await part('prune', () => pruneSentNotifications(env.DB, now));
   if (!retry) await setTickWindowEnd(env.DB, now);
 }

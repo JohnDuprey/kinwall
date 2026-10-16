@@ -203,6 +203,16 @@ const ExportSchema = z
     itemTags: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), tag: z.string() })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
+    // To-do lists synced with Todoist, Google Tasks or Microsoft To Do (0120), with each item's and
+    // step's outside task. Like calendars: never the account or its token. They import waiting for
+    // the family to connect that app again, then sync on with the same pairings (no duplicates).
+    taskLinks: z.array(z.object({
+      listId: z.string(),
+      app: z.enum(['todoist', 'google', 'microsoft']),
+      remoteId: z.string(),
+      remoteName: z.string(),
+      items: z.array(z.object({ itemId: z.string(), remoteId: z.string(), parentId: z.string().nullable(), base: z.record(z.string(), z.unknown()) })),
+    })),
   })
   .openapi('Export');
 
@@ -413,6 +423,7 @@ dataRoutes.openapi(
           }, []),
         passkeys: (passkeys as { name: string; created_at: string }[]).map((p) => ({ name: p.name, createdAt: p.created_at })),
         webhooks: (webhooks as WebhookRow[]).map(webhookToApi),
+        taskLinks: await exportTaskLinks(db),
       },
       200,
     );
@@ -464,6 +475,7 @@ const ImportSchema = ExportSchema.extend({
   itemBarcodes: ExportSchema.shape.itemBarcodes.default([]),
   libraryBooks: ExportSchema.shape.libraryBooks.default([]),
   itemTags: ExportSchema.shape.itemTags.default([]),
+  taskLinks: ExportSchema.shape.taskLinks.default([]),
 }).openapi('Import');
 
 const ImportResultSchema = z
@@ -487,6 +499,7 @@ const ImportResultSchema = z
       lists: z.number(),
       listItems: z.number(),
       listItemSteps: z.number(),
+      taskLinks: z.number(),
       notes: z.number(),
       pointEntries: z.number(),
       stickerPacks: z.number(),
@@ -556,6 +569,19 @@ function upserts(db: KinwallDb, table: string, conflict: string, rows: Row[], op
   }
   flush();
   return stmts;
+}
+
+async function exportTaskLinks(db: KinwallDb) {
+  const [links, rows] = await db.batch<any>([
+    db.prepare('SELECT list_id, app, remote_id, remote_name FROM task_links ORDER BY list_id'),
+    db.prepare('SELECT list_id, item_id, remote_id, parent_id, base FROM task_link_items ORDER BY list_id, item_id'),
+  ]);
+  return (links.results as { list_id: string; app: 'todoist' | 'google' | 'microsoft'; remote_id: string; remote_name: string }[]).map((l) => ({
+    listId: l.list_id, app: l.app, remoteId: l.remote_id, remoteName: l.remote_name,
+    items: (rows.results as { list_id: string; item_id: string; remote_id: string; parent_id: string | null; base: string }[])
+      .filter((r) => r.list_id === l.list_id)
+      .map((r) => ({ itemId: r.item_id, remoteId: r.remote_id, parentId: r.parent_id, base: JSON.parse(r.base) as Record<string, unknown> })),
+  }));
 }
 
 type ImportBody = z.infer<typeof ImportSchema>;
@@ -634,6 +660,8 @@ dataRoutes.openapi(
     const completions = body.choreCompletions.filter((cc) => choreIds.has(cc.choreId));
     const items = body.lists.flatMap((l) => l.items.map((i) => ({ ...i, listId: l.id })));
     const groups = body.lists.flatMap((l) => l.groups.map((g) => ({ ...g, listId: l.id })));
+    // Synced to-do lists: only for to-do lists in the file.
+    const taskLinks = body.taskLinks.filter((l) => body.lists.some((x) => x.id === l.listId && x.kind === 'todo'));
     // Only notes whose target is in the file (a local event or a list item) - never onto something else.
     const targetIds = new Set([...events.map((e) => `event:${e.id}`), ...items.map((i) => `list_item:${i.id}`)]);
     const notes = body.notes.filter((n) => targetIds.has(`${n.targetType}:${n.targetId}`));
@@ -947,6 +975,9 @@ dataRoutes.openapi(
         { ...keepCreated, expr: { added_by: memberRef('added_by'), done_by: memberRef('done_by') } },
       ),
       ...upserts(db, 'list_groups', 'list_id, kind, name', groups.map((g) => ({ list_id: g.listId, kind: g.kind, name: g.name, sort: g.sort }))),
+      // A link already here (connected, or imported before) keeps its account and its own pairings (WHERE false: nothing replaced).
+      ...upserts(db, 'task_links', 'list_id', taskLinks.map((l) => ({ list_id: l.listId, app: l.app, remote_id: l.remoteId, remote_name: l.remoteName, created_at: new Date().toISOString() })), { where: 'false' }),
+      ...upserts(db, 'task_link_items', 'list_id, item_id', taskLinks.flatMap((l) => l.items.map((i) => ({ list_id: l.listId, item_id: i.itemId, remote_id: i.remoteId, parent_id: i.parentId, base: JSON.stringify(i.base) }))), { where: 'false' }),
       ...upserts(
         db,
         'notes',
@@ -1087,6 +1118,7 @@ dataRoutes.openapi(
           lists: body.lists.length,
           listItems: items.length,
           listItemSteps: steps.length,
+          taskLinks: taskLinks.length,
           notes: notes.length,
           pointEntries: pointEntries.length,
           stickerPacks: stickerPacks.length,

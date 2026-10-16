@@ -49,7 +49,7 @@ test('export: seeded household has every section and no credentials', async () =
     const body = JSON.parse(text);
     assert.deepEqual(Object.keys(body), [
       'version', 'exportedAt', 'settings', 'members', 'categories', 'contactCategories', 'contacts', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
-      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'hiddenEvents', 'chores', 'choreLibrary', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'tempChecks', 'journalEntries', 'medications', 'medicationLog', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'restaurants', 'polls', 'outings', 'outingCategories', 'mealShoppingSources', 'itemMemory', 'itemNames', 'libraryBooks', 'itemBarcodes', 'itemTags', 'storeAisles', 'passkeys', 'webhooks',
+      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'hiddenEvents', 'chores', 'choreLibrary', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'tempChecks', 'journalEntries', 'medications', 'medicationLog', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'restaurants', 'polls', 'outings', 'outingCategories', 'mealShoppingSources', 'itemMemory', 'itemNames', 'libraryBooks', 'itemBarcodes', 'itemTags', 'storeAisles', 'passkeys', 'webhooks', 'taskLinks',
     ]);
     assert.equal(body.members[0].name, 'Ada');
     assert.equal(body.calendars.length, 2);
@@ -140,6 +140,15 @@ async function seed(request: ReturnType<typeof makeApp>) {
   const cat = await request.post(`/api/stickers/scrapbook/${ada.id}`, { sticker: '🐱', x: 0.25, y: 0.75 });
   await request(`/api/stickers/scrapbook/${ada.id}/${cat.id}`, { method: 'PATCH', body: JSON.stringify({ scale: 1.5, rotation: 30 }) });
   await request.post(`/api/stickers/scrapbook/${ada.id}`, { sticker: '🍩' });
+  // A to-do list synced with Todoist: the link and its item and step pairings travel; the account and its token never do.
+  const weekend = await request.post('/api/lists', { name: 'Weekend', kind: 'todo' });
+  const [rake] = await request.post(`/api/lists/${weekend.id}/items`, [{ title: 'Rake leaves', steps: ['Find the rake'] }]);
+  await request.env.DB.batch([
+    request.env.DB.prepare("INSERT INTO task_accounts (id, kind, name, config, created_at) VALUES ('ta', 'todoist', 'ada@example.com', 'sealed-todoist-token', '2026-01-01')"),
+    request.env.DB.prepare("INSERT INTO task_links (list_id, account_id, app, remote_id, remote_name, created_at) VALUES (?, 'ta', 'todoist', 'p1', 'Weekend', '2026-01-01')").bind(weekend.id),
+    request.env.DB.prepare("INSERT INTO task_link_items (list_id, item_id, remote_id, base) VALUES (?, ?, 't1', ?)").bind(weekend.id, rake.id, JSON.stringify({ title: 'Rake leaves', notes: null, due: null, done: false, priority: 'normal' })),
+    request.env.DB.prepare("INSERT INTO task_link_items (list_id, item_id, remote_id, base, parent_id) VALUES (?, ?, 't2', ?, ?)").bind(weekend.id, rake.steps[0].id, JSON.stringify({ title: 'Find the rake', done: false, rank: 0 }), rake.id),
+  ]);
   return { ada, cal, dishes, list };
 }
 
@@ -174,6 +183,8 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.deepEqual(file.itemMemory.map((m: any) => [m.nameKey, m.store, m.category, m.aisle]), [['milk', 'Aldi', 'Dairy', 'Aisle 9']]);
   assert.deepEqual(file.storeAisles, [{ catalog: 'groceries', store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }]);
   assert.deepEqual(file.itemTags, [{ catalog: 'groceries', nameKey: 'milk', tag: 'Breakfast' }, { catalog: 'groceries', nameKey: 'milk', tag: 'Staples' }]);
+  assert.deepEqual(file.taskLinks.map((l: any) => [l.app, l.remoteId, l.remoteName, l.items.length, 'accountId' in l]), [['todoist', 'p1', 'Weekend', 2, false]]);
+  assert.equal(JSON.stringify(file).includes('sealed-todoist-token'), false);
   file.settings = { ...file.settings, lateCompletionCredit: 25, streakGraceDays: 3, leaderboardEnabled: false }; // non-defaults must survive too
 
   const target = makeApp();
@@ -181,7 +192,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.equal(res.status, 200);
   const byName = (n: string) => file.calendars.find((c: any) => c.name === n);
   assert.deepEqual(await res.json(), {
-    imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, hiddenEvents: 0, chores: 2, choreCompletions: 1, choreLibrary: 0, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, checkIns: 0, tempChecks: 0, journalEntries: 0, medications: 0, medicationLog: 0, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, restaurants: 0, polls: 0, outings: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2, itemBarcodes: 0, libraryBooks: 0, itemTags: 2 },
+    imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, hiddenEvents: 0, chores: 2, choreCompletions: 1, choreLibrary: 0, lists: 2, listItems: 3, listItemSteps: 3, taskLinks: 1, notes: 2, pointEntries: 2, stickerPacks: 1, checkIns: 0, tempChecks: 0, journalEntries: 0, medications: 0, medicationLog: 0, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, restaurants: 0, polls: 0, outings: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2, itemBarcodes: 0, libraryBooks: 0, itemTags: 2 },
     needsReconnect: [{ id: byName('Work').id, kind: 'google', name: 'Work' }], // the ICS feed came back with its url
     skipped: { passkeys: 1, webhooks: 1, grownUp: [] },
   });
