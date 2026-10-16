@@ -570,6 +570,7 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
           </div>
         </>}
         <div className="gate-links">
+          {inNativeApp() && back && <button className="link-btn" onClick={back}>Back to sign in</button>}
           <button className="link-btn" onClick={() => setMode('manual')}>Enter a key manually</button>
           <button className="link-btn" onClick={() => setMode('recovery')}>Use a recovery code</button>
         </div>
