@@ -303,7 +303,7 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
   return (
     <div className="field settings-search">
       <SearchIcon className="settings-search-icon" width={18} height={18} aria-hidden="true" />
-      <input ref={input} type="search" aria-label="Search all settings" placeholder="Search all settings" autoComplete="off" value={query}
+      <input ref={input} type="search" aria-label="Search all settings" placeholder="Search all settings" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={query}
         onChange={e => onChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); onChange('') } }} />
       {query && <button type="button" className="icon-btn settings-search-clear" aria-label="Clear search" onClick={() => { onChange(''); input.current?.focus() }}><XIcon width={18} height={18} /></button>}
@@ -615,7 +615,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
   return (
-    <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />}>
+    <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
         For the whole family.{overridden.length > 0 && <> This device changes some of it for itself, under Appearance on this device.</>}
       </p>
@@ -1331,12 +1331,15 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
   )
 }
 
+// What people search for when they mean colors and light or dark (Settings' search).
+const THEME_WORDS = ['Theme', 'Dark mode', 'Light mode', 'Colors']
+
 function DeviceAppearanceSection() {
   const { settings, parentPhone } = useApp()
   const summary = deviceChips(settings, useDeviceAppearance(), parentPhone)
   return (
     <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}
-      keywords={['Mode', 'Color scheme', 'Typeface', 'Text size', 'Density', 'Time format', 'Clock time zone', 'Low-stimulation mode']}>
+      keywords={['Mode', 'Color scheme', 'Typeface', 'Text size', 'Density', 'Time format', 'Clock time zone', 'Low-stimulation mode', ...THEME_WORDS]}>
       <DeviceAppearanceRows />
     </SummarySection>
   )
