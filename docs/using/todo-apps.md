@@ -98,8 +98,8 @@ Nothing is ever doubled up: each item keeps the app's id for its task.
 
 ## When it syncs
 
-A few seconds after anything changes on a synced list in Kinwall, and on the calendars' schedule
-(every few minutes, see [Sync behavior](../calendars/sync.md)) to pick up changes made in the app.
+* **Changes in Kinwall** go out a few seconds later.
+* **Changes in the app** come in within about two minutes: a synced list is checked again two minutes after its last sync (on hosted Kinwall, with the five-minute background check). Opening the list on a grown-up's device checks it right away, unless it synced in the last minute.
 
 If the app asks Kinwall to slow down, the list waits as long as the app says (at least a minute, and
 longer each time in a row) before trying again.

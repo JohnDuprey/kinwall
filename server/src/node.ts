@@ -12,6 +12,7 @@ import { syncIntervalMinutes } from './env.ts';
 import { openDb, applyMigrations } from './d1-sqlite.ts';
 import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
+import { syncDueTaskLinks, taskSyncCutoff } from './tasks/sync.ts';
 import { runNotifications } from './notify.ts';
 import { lookUpSome } from './book-details.ts';
 import { refreshDueFeeds } from './routes/outing-feeds.ts';
@@ -201,6 +202,11 @@ setInterval(() => {
   // Outings' community calendars, each once a day (routes/outing-feeds.ts).
   refreshDueFeeds(env).catch((err) => console.error('community calendars loop failed', err instanceof Error ? err.name : 'error'));
 }, intervalMs);
+
+// To-do lists synced with an app: their own one-minute check (tasks/sync.ts TASK_SYNC_MINUTES).
+setInterval(() => {
+  syncDueTaskLinks(env, taskSyncCutoff(), Date.now() + 20_000).catch((err) => console.error('to-do sync loop failed', err instanceof Error ? err.name : 'error'));
+}, 60 * 1000);
 
 // Notifications run on their own short cadence (independent of the sync interval, which can be
 // much longer) so a reminder isn't held up waiting for the next sync tick.

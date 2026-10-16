@@ -391,6 +391,13 @@ export function queueTaskSync(env: Env, execCtx: WaitCtx | undefined, listId: st
 /** Syncs waiting or running (tests wait for none). */
 export const taskSyncsPending = () => queued.size + running.size;
 
+/** To-do lists change by hand, often from the app on a phone, so they're checked more often than
+ * calendars: a list is due again two minutes after its last sync. On Node a one-minute loop runs
+ * this (node.ts); on Workers it rides the calendar cron. Kinwall's own changes still go out
+ * within seconds (queueTaskSync), and opening a list on a grown-up's device pulls it right away. */
+export const TASK_SYNC_MINUTES = 2;
+export const taskSyncCutoff = (now = Date.now()) => new Date(now - TASK_SYNC_MINUTES * 60_000).toISOString();
+
 /** The scheduled part (sync.ts syncDue): links not synced for the sync interval, or changed in
  * Kinwall since their last sync, not waiting out a 429. Stalest first, until `deadline`. */
 export async function syncDueTaskLinks(env: Env, cutoff: string, deadline: number, execCtx?: WaitCtx): Promise<void> {

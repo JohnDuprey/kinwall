@@ -65,3 +65,9 @@ test('task map: only the fields an app keeps are merged, and changed() lists the
   assert.equal(merged.priority, 'high');
   assert.deepEqual(changed(item(), item({ title: 'X', done: true })), { title: 'X', done: true });
 });
+
+test('to-do lists are due again two minutes after their last sync', async () => {
+  const { taskSyncCutoff, TASK_SYNC_MINUTES } = await import('../src/tasks/sync.ts')
+  assert.equal(TASK_SYNC_MINUTES, 2)
+  assert.equal(taskSyncCutoff(Date.parse('2026-10-16T12:00:00Z')), '2026-10-16T11:58:00.000Z')
+})

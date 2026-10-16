@@ -18,3 +18,10 @@ export function calendarAccountFor(kind: 'google' | 'microsoft', calendarAccount
   const taken = new Set(taskAccounts.filter(a => a.kind === kind).map(a => a.name.toLowerCase()))
   return calendarAccounts.find(a => a.kind === kind && a.name.includes('@') && !taken.has(a.name.toLowerCase()))?.name ?? null
 }
+
+/** A synced list worth pulling now: connected, not waiting out a slow-down, last synced over a minute ago. */
+export function pullDue(link: Pick<TaskLink, 'accountId' | 'needsReconnect' | 'retryAfter' | 'lastSyncedAt'>, now: number): boolean {
+  if (!link.accountId || link.needsReconnect) return false
+  if (link.retryAfter && Date.parse(link.retryAfter) > now) return false
+  return !link.lastSyncedAt || now - Date.parse(link.lastSyncedAt) > 60_000
+}

@@ -10,7 +10,7 @@ import { appProviderReturn, inNativeApp } from './native.ts'
 import { ChevronRight } from './icons.tsx'
 import { whenLabel } from './addedBy.ts'
 import { t } from './i18n.ts'
-import { appName, calendarAccountFor, taskLinkBroken } from './taskSync.ts'
+import { appName, calendarAccountFor, pullDue, taskLinkBroken } from './taskSync.ts'
 import type { Account, List, TaskAccount, TaskAppKind, TaskAppList, TaskLink } from './types.ts'
 
 /** Google Tasks or Microsoft To Do: the server answers this browser with the consent URL and the
@@ -135,12 +135,20 @@ function TodoistSheet({ onClose, onConnected, toast }: { onClose: () => void; on
 
 /** A synced list's link, kept fresh as the list changes (rev). null: not synced. */
 export function useTaskLink(listId: string, rev: unknown): TaskLink | null {
+  const { parentDevice } = useApp()
   const [link, setLink] = useState<TaskLink | null>(null)
   useEffect(() => {
     let live = true
-    api.getTaskLinks().then(all => { if (live) setLink(all.find(l => l.listId === listId) ?? null) }).catch(() => {})
+    api.getTaskLinks().then(all => {
+      if (!live) return
+      const found = all.find(l => l.listId === listId) ?? null
+      setLink(found)
+      // Opened (or back in view) on a grown-up's device: bring in what changed in the app now,
+      // rather than at the next scheduled sync. Sync now is for grown-ups' devices only.
+      if (found && parentDevice && pullDue(found, Date.now())) api.syncTaskList(listId).then(l => { if (live) setLink(l) }).catch(() => {})
+    }).catch(() => {})
     return () => { live = false }
-  }, [listId, rev])
+  }, [listId, rev, parentDevice])
   return link
 }
 
