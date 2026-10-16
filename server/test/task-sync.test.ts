@@ -94,6 +94,8 @@ function fakeGoogle() {
     if (!t) return Response.json({ error: { code: 404 } }, { status: 404 });
     if (m[3]) { state.moves++; place(t); return Response.json(t); }
     if (method === 'DELETE') { tasks.delete(m[2]); for (const x of [...tasks.values()]) if (x.parent === m[2]) tasks.delete(x.id); return new Response(null, { status: 204 }); }
+    // Like Google: a subtask of a completed task stays completed (reopen the task first).
+    if (body.status === 'needsAction' && t.parent && tasks.get(t.parent)?.status === 'completed') { const { status: _s, completed: _c, ...rest } = body; Object.assign(t, rest, { updated: new Date().toISOString() }); return Response.json(t); }
     Object.assign(t, body, { updated: new Date().toISOString() });
     return Response.json(t);
   };
@@ -630,6 +632,30 @@ test('tasks: Google Tasks subtasks are steps, placed and moved by position', asy
     await t.req(`/api/lists/${l.id}/items/${item.id}`, 'DELETE');
     await settle();
     assert.equal(t.google.tasks.size, 0);
+  } finally { t.restore(); }
+});
+
+test('tasks: an item with steps reopened in Kinwall stays open in Google Tasks', async () => {
+  const t = await setup();
+  try {
+    const acc = await t.addOAuthAccount('google', 'sam@example.com');
+    const a = t.google.add({ title: 'Pack for camp' });
+    t.google.add({ title: 'Sleeping bag', parent: a });
+    t.google.add({ title: 'Flashlight', parent: a });
+    const l = await t.list();
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc, remoteId: 'gl1' });
+    let item = (await t.items(l.id))[0];
+    await t.req(`/api/lists/${l.id}/items/${item.id}`, 'PATCH', { done: true });
+    await settle();
+    assert.equal(t.google.tasks.get(a)!.status, 'completed');
+    await t.req(`/api/lists/${l.id}/items/${item.id}`, 'PATCH', { done: false });
+    await settle();
+    await syncTaskLink(t.env, l.id); // a pull afterwards must not finish it again
+    item = (await t.items(l.id))[0];
+    assert.equal(item.done, false);
+    assert.deepEqual(stepTitles(item), ['○ Sleeping bag', '○ Flashlight']);
+    assert.equal(t.google.tasks.get(a)!.status, 'needsAction');
+    assert.ok([...t.google.tasks.values()].filter((x) => x.parent === a).every((x) => x.status === 'needsAction'));
   } finally { t.restore(); }
 });
 

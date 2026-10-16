@@ -285,6 +285,13 @@ async function syncOnce(env: Env, listId: string, execCtx?: WaitCtx): Promise<Sy
       if (!item && !rem) { forget(m.item_id); continue; }
       if (!item) { await app.remove(remoteList, m.remote_id); pushed++; forget(m.item_id); continue; }
       if (!rem) { deleteItem(item.id); forget(item.id); continue; }
+      // Reopened here while the app still has it done: reopen the task before its subtasks. Google
+      // keeps a completed task's subtasks completed, so reopening them first doesn't stick, and
+      // "done when every step is" would then finish the item again.
+      if (rem.steps && !item.done && base.done && rem.fields.done) {
+        await app.update(remoteList, rem.id, { done: false }); pushed++;
+        rem = { ...rem, fields: { ...rem.fields, done: false } };
+      }
       if (rem.steps) await syncSteps(item, rem);
       const local = fieldsOf(item, app);
       const merged = mergeFields(base, local, rem.fields, localIsNewer(item.updated_at, rem.updatedAt), keys);
