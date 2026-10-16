@@ -40,6 +40,15 @@ export function setKey(key: string) {
   tellAppSignedIn()
   syncNow() // changes queued before a rejected key was replaced
 }
+/** Tries a key without keeping it: storing a key tells the app the page signed in, and dropping a
+ * rejected one tells it the page signed out, so a mistyped key must never be stored. */
+export async function checkKey(key: string): Promise<'ok' | 'rejected' | 'unreachable'> {
+  if (MOCK) return 'ok'
+  try {
+    const res = await fetch(apiUrl('api/settings'), { headers: { Authorization: `Bearer ${key}` } })
+    return res.ok ? 'ok' : res.status === 401 || res.status === 403 ? 'rejected' : 'unreachable'
+  } catch { return 'unreachable' }
+}
 /** `rejected`: the server refused the key (revoked, or an app's short-lived key lapsed);
  * `signOut`: the person chose to sign out or unpair. */
 export function clearKey(reason: 'signOut' | 'rejected' = 'signOut'): Promise<void> {

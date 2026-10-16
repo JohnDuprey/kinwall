@@ -2,7 +2,7 @@ import { holdAwake } from './wakeLock.ts'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
-import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
+import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
@@ -403,16 +403,11 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
   const submit = async () => {
     if (!value.trim()) return
     setBusy(true); setError('')
-    setKey(value.trim())
-    try {
-      await api.getSettings()
-      onKey()
-    } catch (e) {
-      clearKey('rejected')
-      setError(e instanceof ApiError && e.status === 401 ? 'That key was rejected.' : 'Could not reach the server.')
-    } finally {
-      setBusy(false)
-    }
+    // Checked before it's stored (api.ts checkKey): a wrong key stays on this screen with its error.
+    const result = await checkKey(value.trim())
+    setBusy(false)
+    if (result === 'ok') { setKey(value.trim()); onKey() }
+    else setError(result === 'rejected' ? "That key didn't work. Check it and try again." : "Couldn't reach Kinwall. Check your connection and try again.")
   }
   return (
     <div className="gate-screen" role="main">
