@@ -36,7 +36,7 @@ import { DialogProvider, useDialog } from './dialog.tsx'
 import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
-import { appPlatform, inNativeApp, tellAppHere, tellAppLeaveDemo, tellAppNight } from './native.ts'
+import { appPlatform, inNativeApp, tellAppHere, tellAppLeaveDemo, tellAppNight, tellAppSignedOut } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
 import { TimerButton, TimerHost } from './Timers.tsx'
@@ -537,7 +537,10 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
 
   if (mode === 'recovery') return <RecoveryCodeGate onKey={onKey} onBack={() => setMode(passkeysSupported() ? 'choose' : 'pair')} />
   if (mode === 'manual') return <ManualKeyGate onKey={onKey} onBack={() => setMode(passkeysSupported() ? 'choose' : 'pair')} />
-  if (mode === 'pair') return <DisplayPairing onKey={onKey} onManual={() => setMode('manual')} onBack={passkeysSupported() ? () => setMode('choose') : undefined}
+  // In the app, Back goes to the app's own sign-in screen (and from there, another server): Android's
+  // web view has no passkeys, so this page would otherwise have no way out.
+  const back = inNativeApp() ? () => tellAppSignedOut('signOut') : passkeysSupported() ? () => setMode('choose') : undefined
+  if (mode === 'pair') return <DisplayPairing onKey={onKey} onManual={() => setMode('manual')} onBack={back}
     onRecovery={passkeysSupported() ? undefined : () => setMode('recovery')} />
   return (
     <div className="gate-screen" role="main">
