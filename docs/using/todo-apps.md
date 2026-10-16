@@ -56,6 +56,8 @@ every item on both sides.
 | Due date | ✅ | ✅ | ✅ |
 | Notes | ✅ (description) | ✅ | ✅ (note) |
 | Priority | ✅ | — (Google Tasks has none) | ✅ (importance) |
+| Steps | ✅ (subtasks) | ✅ (subtasks) | ✅ (checklist items) |
+| Step order | ✅ | ✅ | Kinwall only (see below) |
 | New items, deleted items | ✅ | ✅ | ✅ |
 
 **Priority.** Todoist's four levels match Kinwall's: P1 is **Urgent**, P2 **High**, P3 **Low**, and
@@ -66,9 +68,17 @@ P4 (Todoist's "no priority") is **Normal**. Microsoft To Do has three: low, norm
 that time falls on at home; changing something else in Kinwall keeps its time in Todoist. Google Tasks
 and To Do keep a day too, and it stays the same day.
 
-**Stays in Kinwall:** who an item is for, its linked event, its steps and its discussion. Subtasks
-in the app stay there too, and aren't copied in as items. Recurring Todoist tasks work the Todoist
-way: ticking one off moves it to its next date, and Kinwall shows it open again with that date.
+**Steps.** An item's steps are its subtasks in Todoist and Google Tasks, and its checklist in
+Microsoft To Do: added, ticked, renamed and deleted both ways. Only one level: a subtask of a subtask
+stays in the app. As in Kinwall, an item with steps is done when every step is, so ticking the last
+subtask in the app finishes the item here (and in the app). Order: the first sync uses Kinwall's;
+after that, if only one side moved steps, that side's order wins, and if both did, Kinwall's does.
+Microsoft To Do keeps its checklist in the order items were added and its API can't move them, so
+there the order is Kinwall's alone.
+
+**Stays in Kinwall:** who an item is for, its linked event and its discussion. Recurring Todoist
+tasks work the Todoist way: ticking one off moves it to its next date, and Kinwall shows it open
+again with that date.
 
 ## When both sides change
 
@@ -76,8 +86,13 @@ Kinwall remembers each item's fields as both sides last agreed, and checks each 
 
 * Changed on one side only: that side's change wins.
 * The same field changed on both sides since the last sync: the side changed **last** wins, by each
-  side's own time of the change. A tie goes to Kinwall.
-* Deleted on one side: it's deleted on the other, even if it was edited there meanwhile.
+  side's own time of the change. A tie goes to Kinwall. For steps, Kinwall's wins (Kinwall doesn't
+  keep when a step was edited).
+* Deleted on one side: it's deleted on the other, even if it was edited there meanwhile. That
+  includes a task deleted in Todoist after it was done: Kinwall looks a few of those up each sync,
+  so it disappears here within a sync or two.
+* Moved to another Kinwall list: it leaves the synced list in the app (it's deleted there), and stays
+  in Kinwall on the list you moved it to.
 
 Nothing is ever doubled up: each item keeps the app's id for its task.
 
@@ -93,12 +108,22 @@ longer each time in a row) before trying again.
 
 On a parent's device, the list shows a warning, like calendars do: "This list isn't syncing with
 Todoist." with **Repair the connection**. Wall screens and kids' devices only see where it syncs.
+When the app turned down Kinwall's sign-in, the grown-ups also get one notification ("Weekend To-Dos
+stopped syncing with Todoist"), in the bell and on parents' phones, once per outage; it waits until
+morning during night hours.
 
 * **"Todoist stopped letting Kinwall see this list. Reconnect *account* to start syncing again."**:
   the token was reset, or Google or Microsoft turned down the sign-in (a changed password, access
   removed). Tap **Reconnect** in **Settings → Calendars → To-do apps** (for Todoist, paste the new
   token). Lists keep their links.
 * **"… asked Kinwall to slow down."**: nothing to do; it tries again on its own.
+
+## Backups: export and import
+
+**Settings → Access → Your data** exports synced lists the way it exports calendars: the link (which
+app and which list there) and which task each item and step is, but never the account or its token.
+After importing, the list waits ("Connect Todoist again…"); connect the same app in **Settings →
+Calendars → To-do apps** and it picks up where it left off, with nothing doubled.
 
 ## For developers
 

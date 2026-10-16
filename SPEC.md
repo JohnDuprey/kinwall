@@ -209,11 +209,14 @@ lists(id, name, emoji NULL, color NULL, kind 'todo'|'shopping'|'reusable', membe
 list_items(id, list_id, title, notes NULL, quantity NULL, store NULL, category NULL, member_id NULL,
            due_date NULL, done INT, done_at NULL, done_by NULL, sort, created_at, updated_at)
 task_accounts(id, kind 'todoist'|'google'|'microsoft', name, config, created_at)        -- 0120; config encrypted (AAD = id)
-task_links(list_id PK -> lists, account_id -> task_accounts, remote_id, remote_name, synced_rev NULL,
-       last_synced_at, last_error, last_error_code, sync_failures, retry_after)
-task_link_items(list_id -> task_links, item_id, remote_id, base JSON, PK(list_id, item_id), UNIQUE(list_id, remote_id))
+task_links(list_id PK -> lists, account_id NULL -> task_accounts, app, remote_id, remote_name, synced_rev NULL,
+       last_synced_at, last_error, last_error_code, sync_failures, retry_after, reconnect_notified_at)
+       -- account_id NULL: imported from an export (accounts never travel); the next account of that app takes it
+task_link_items(list_id -> task_links, item_id, remote_id, base JSON, parent_id NULL, checked_at NULL,
+       PK(list_id, item_id), UNIQUE(list_id, remote_id))
        -- to-do lists synced with an app (server/src/tasks/): base = the fields both sides last agreed;
-       -- no FK to list_items, so a deleted item's row tells the next sync to delete the app's task
+       -- a step's row has parent_id (its item; base adds rank, its place); no FK to list_items, so a
+       -- deleted item's row tells the next sync to delete the app's task
 list_groups(list_id, kind 'store'|'category', name, sort, PK(list_id, kind, name))
        -- user ordering of a list's store/category groups; not every store/category needs a row
 api_keys(id, name, hash, prefix, scope 'admin'|'display', created_at, last_used_at)     -- sha256 of key; key shown once

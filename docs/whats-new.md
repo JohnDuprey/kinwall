@@ -27,7 +27,9 @@ The full list of changes in every version is in the [changelog](https://github.c
   due dates, notes and priority (not in Google Tasks). Connect the app in **Settings → Calendars →
   To-do apps**, then pick the list in a to-do list's **Edit → Sync with…**. The first sync matches
   items with the same title and copies the rest; after that, each change goes across within seconds,
-  and a field changed on both sides goes to the side that changed it last. See
+  and a field changed on both sides goes to the side that changed it last. Steps sync too, as
+  subtasks or To Do checklist items. Parents get a notification if an app stops letting Kinwall in,
+  and backups bring synced lists back once the app is connected again. See
   [To-do apps](using/todo-apps.md).
 
 ## 1.1.0
