@@ -171,6 +171,9 @@ export const FileIcon = (p: P) => (
 export const ExternalIcon = (p: P) => (
   <svg {...base(p)}><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" /></svg>
 )
+export const FitIcon = (p: P) => (
+  <svg {...base(p)}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+)
 export const MinusIcon = (p: P) => (
   <svg {...base(p)}><path d="M5 12h14" /></svg>
 )

@@ -5,6 +5,7 @@
 // shrinking the picture a little more every turn. Above it: a `wet` canvas showing a Highlighter
 // stroke until it's finished, and a coloring page's lines on their own locked layer (`linesBase`
 // keeps them at their own size, like `base`). Brushes, Fill and line art are in paintTools.ts.
+// Zoom (paintZoom.ts) only moves and scales that layer stack on screen; the picture never changes.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useApp } from './AppContext.tsx'
@@ -16,11 +17,12 @@ import { Face, FacePic } from './Face.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, type Drawing, type Meta } from './drawings-db.ts'
-import { BookIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, MoreIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
+import { BookIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, FitIcon, HeartIcon, ImagesIcon, MinusIcon, MoreIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
 import { preparePhoto } from './photos.ts'
 import { api, ApiError } from './api.ts'
 import { beginStroke, endStroke, floodFill, packRGBA, PAPER, parseSizes, SIZE_NAMES, SIZES, sizeFor, STAMPS, strokeTo, drawStroke, type Brush, type Stroke } from './paintTools.ts'
 import ColoringBook from './ColoringBook.tsx'
+import { FIT, MAX_ZOOM, MIN_ZOOM, zoomTo, type View } from './paintZoom.ts'
 import { intlLocale, msg, t, tm } from './i18n.ts'
 
 // The Colors sheet, one row each: bright, pastel (the member palette), dark, skin tones and browns,
@@ -113,6 +115,7 @@ export default function Paint() {
   const { members, toast, selectedMemberId } = useApp()
   const dialog = useDialog()
   const wrapRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [base] = useState(() => { const c = document.createElement('canvas'); c.width = 0; return c })
   const wetRef = useRef<HTMLCanvasElement>(null)
@@ -132,6 +135,7 @@ export default function Paint() {
   const [colors, setColors] = useState(false)
   const [more, setMore] = useState(false)
   const [recent, setRecent] = useState(loadRecent)
+  const [zoomed, setZoomed] = useState<'fit' | 'in' | 'max'>('fit') // just enough to enable the zoom buttons
   const [printing, setPrinting] = useState<{ url: string; name: string; date: string } | null>(null)
 
   // Mutable drawing state lives in refs: pointer handlers and the unmount autosave must see the latest.
@@ -148,8 +152,27 @@ export default function Paint() {
     lastBrush: 'marker' as Brush, // what picking a color goes back to from the eraser or rainbow
     lines: null as Blob | null,   // this drawing's coloring page (linesBase as a PNG, the same size as the paint), or none
     wall: null as Uint8Array | null, // the lines' alpha per canvas pixel, for Fill (rebuilt after a resize)
+    fillAt: null as null | { id: number; p: number[] }, // Fill waits for the finger to lift, so a pinch never fills
+    view: FIT as View,
+    touches: new Map<number, [number, number]>(), // fingers down on the canvas (client px)
+    pinch: null as null | { start: View; c: [number, number]; d: number }, // set until every finger lifts
   }).current
   const setMeta = (m: Meta) => { r.meta = m; setMetaState(m); ls.set(CURRENT_KEY, m.id) }
+
+  /** Show the picture at view `v` (written straight to the style: a pinch moves it every frame). */
+  const applyView = (v: View, animate = false) => {
+    r.view = v
+    const st = stageRef.current
+    if (st) { st.classList.toggle('paint-stage-anim', animate); st.style.transform = new DOMMatrix([v.z, 0, 0, v.z, v.x, v.y]).toString() }
+    setZoomed(v.z <= MIN_ZOOM ? 'fit' : v.z >= MAX_ZOOM ? 'max' : 'in')
+  }
+  const wrapBox = () => wrapRef.current!.getBoundingClientRect()
+  /** Zoom by `k` around a spot in the canvas box (its center by default). */
+  const zoomBy = (k: number, at?: [number, number], animate = false) => {
+    const b = wrapBox()
+    const p = at ?? [b.width / 2, b.height / 2]
+    applyView(zoomTo(r.view, r.view.z * k, p, p, b.width, b.height), animate)
+  }
 
   /** Canvas → base, then an undo snapshot. toBlob copies the bitmap at call time; only the push waits.
    * A coloring page's lines follow the paint to a new canvas size (after a rotation), so each step's
@@ -252,6 +275,8 @@ export default function Paint() {
   }
   const saveRef = useRef(save)
   saveRef.current = save
+  const zoomRef = useRef(zoomBy)
+  zoomRef.current = zoomBy
 
   // A new drawing asks who's drawing, unless the family is filtered (or the display pinned) to one
   // person, who then becomes the artist.
@@ -264,6 +289,7 @@ export default function Paint() {
     r.stored = false; r.fullWarned = false; r.dirty = false; r.sinceSave = 0
     r.hist = []; r.idx = -1
     base.width = 0
+    applyView(FIT)
     drawContained(canvasRef.current!)
     void showLines(null)
     snapshot(false)
@@ -275,6 +301,7 @@ export default function Paint() {
     setMeta({ id: d.id, name: d.name, memberId: d.memberId, created: d.created, updated: d.updated })
     r.stored = true; r.fullWarned = false; r.dirty = false; r.sinceSave = 0
     r.hist = [{ paint: d.paint ?? d.png, lines: d.lines ?? null }]; r.idx = 0
+    applyView(FIT)
     setHistTick(n => n + 1)
   }
 
@@ -302,14 +329,23 @@ export default function Paint() {
       for (const layer of [wetRef.current!, linesRef.current!]) { layer.width = w; layer.height = h }
       drawContained(linesRef.current!, linesBase, false)
       r.wall = null
+      applyView(FIT)
     }
     fit()
     const ro = new ResizeObserver(fit)
     ro.observe(wrap)
+    // A mouse wheel, or a trackpad pinch (which browsers send as ctrl + wheel), zooms around the pointer.
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const b = wrap.getBoundingClientRect()
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : 1)
+      zoomRef.current(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.002)), [e.clientX - b.left, e.clientY - b.top])
+    }
+    wrap.addEventListener('wheel', onWheel, { passive: false })
     // Reopen the last drawing on this device, else start a fresh one.
     const id = ls.get(CURRENT_KEY)
     ;(id ? getDrawing(id) : Promise.resolve(undefined)).catch(() => undefined).then(d => d ? open(d) : startNew())
-    return () => ro.disconnect()
+    return () => { ro.disconnect(); wrap.removeEventListener('wheel', onWheel) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -360,9 +396,12 @@ export default function Paint() {
   }
 
   // ---------- Drawing ----------
+  /** A pointer → canvas pixels. The canvas's on-screen box already includes the zoom and pan (even
+   * mid-animation), so what's under the finger is what gets painted. */
   const point = (e: { clientX: number; clientY: number }): [number, number] => {
-    const box = canvasRef.current!.getBoundingClientRect()
-    return [(e.clientX - box.left) * r.ratio, (e.clientY - box.top) * r.ratio]
+    const cv = canvasRef.current!, box = cv.getBoundingClientRect()
+    const k = cv.width / box.width
+    return [(e.clientX - box.left) * k, (e.clientY - box.top) * k]
   }
 
   /** Fill, held in by the coloring page's lines (their own layer) when there is one. */
@@ -379,15 +418,48 @@ export default function Paint() {
   }
   const wet = () => wetRef.current!.getContext('2d')!
 
+  // Two fingers zoom (spread/pinch) and move the picture (drag); one finger, a pen or a mouse draws.
+  /** The two fingers' midpoint (in the canvas box) and how far apart they are. */
+  const fingers = () => {
+    const [[ax, ay], [bx, by]] = [...r.touches.values()]
+    const b = wrapBox()
+    return { c: [(ax + bx) / 2 - b.left, (ay + by) / 2 - b.top] as [number, number], d: Math.hypot(ax - bx, ay - by) || 1 }
+  }
+  /** A second finger landed: the stroke the first one started was the pinch beginning, so it goes. */
+  const startPinch = () => {
+    if (r.stroke) {
+      r.stroke = null
+      const w = wetRef.current!
+      w.getContext('2d')!.clearRect(0, 0, w.width, w.height)
+      drawContained(canvasRef.current!, base) // `base` is the picture as of the last finished step
+    }
+    r.fillAt = null
+    r.pinch = { start: r.view, ...fingers() }
+  }
+
   const onDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if ((e.pointerType === 'mouse' && e.button !== 0) || r.stroke) return // one pointer at a time: a resting palm won't scribble
+    if (e.pointerType === 'touch') {
+      r.touches.set(e.pointerId, [e.clientX, e.clientY])
+      if (r.touches.size >= 2) { startPinch(); return }
+      if (r.pinch) return
+    }
+    if ((e.pointerType === 'mouse' && e.button !== 0) || r.stroke || r.fillAt) return // one pointer at a time: a resting palm won't scribble
     const cv = e.currentTarget
     const p = point(e)
-    if (tool === 'fill') { fill(cv, p.map(Math.floor)); return }
+    if (tool === 'fill') { r.fillAt = { id: e.pointerId, p: p.map(Math.floor) }; return }
     try { cv.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
+    // Brush sizes are picture pixels (SIZES × the canvas's own ratio at fit), so a line keeps its
+    // size in the picture: zoomed in it looks bigger on screen, like a closer look at paper.
     r.stroke = { id: e.pointerId, s: beginStroke(cv.getContext('2d')!, wet(), { brush: tool, color, width: SIZES[sizeFor(sizes, tool)] * r.ratio, ratio: r.ratio, stamp }, p, pressureOf(e.nativeEvent)) }
   }
   const onMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (r.touches.has(e.pointerId)) r.touches.set(e.pointerId, [e.clientX, e.clientY])
+    if (r.pinch) {
+      if (r.touches.size < 2) return
+      const { start, c, d } = r.pinch, now = fingers(), b = wrapBox()
+      applyView(zoomTo(start, start.z * now.d / d, c, now.c, b.width, b.height))
+      return
+    }
     const st = r.stroke
     if (!st || st.id !== e.pointerId) return
     const ctx = e.currentTarget.getContext('2d')!
@@ -396,6 +468,18 @@ export default function Paint() {
     for (const ev of coalesced?.length ? coalesced : [e.nativeEvent]) strokeTo(ctx, wet(), st.s, point(ev), pressureOf(ev))
   }
   const onUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    r.touches.delete(e.pointerId)
+    if (r.pinch) {
+      if (r.touches.size >= 2) r.pinch = { start: r.view, ...fingers() } // a third finger lifted: carry on from here
+      else if (r.touches.size === 0) r.pinch = null // drawing again only once every finger is up
+      return
+    }
+    if (r.fillAt?.id === e.pointerId) {
+      const { p } = r.fillAt
+      r.fillAt = null
+      if (e.type === 'pointerup') fill(e.currentTarget, p)
+      return
+    }
     const st = r.stroke
     if (!st || st.id !== e.pointerId) return
     endStroke(e.currentTarget.getContext('2d')!, wet(), st.s)
@@ -548,10 +632,20 @@ export default function Paint() {
         </div>
       </div>
       <div className="paint-canvas-wrap" ref={wrapRef}>
-        <canvas ref={canvasRef} className={`paint-canvas paint-tool-${tool}`} role="img" aria-label={t('Drawing canvas: {name}', { name: meta?.name ?? '' })}
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
-        <canvas ref={wetRef} className="paint-layer paint-wet" aria-hidden="true" />
-        <canvas ref={linesRef} className="paint-layer" aria-hidden="true" />
+        <div className="paint-stage" ref={stageRef}>
+          <canvas ref={canvasRef} className={`paint-canvas paint-tool-${tool}`} role="img" aria-label={t('Drawing canvas: {name}', { name: meta?.name ?? '' })}
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
+          <canvas ref={wetRef} className="paint-layer paint-wet" aria-hidden="true" />
+          <canvas ref={linesRef} className="paint-layer" aria-hidden="true" />
+        </div>
+        <div className="paint-zoom" role="group" aria-label={t('Zoom')}>
+          {zoomed !== 'fit' && <button className="paint-btn" aria-label={t('Show whole picture')} title={t('Show whole picture')} onClick={() => applyView(FIT, true)}>
+            <FitIcon /><span className="paint-zoom-word" aria-hidden="true">{t('Whole picture')}</span></button>}
+          <button className="paint-btn" aria-label={t('Zoom out')} title={t('Zoom out')} disabled={zoomed === 'fit'} onClick={() => zoomBy(1 / 1.5, undefined, true)}>
+            <MinusIcon /><span className="paint-zoom-word" aria-hidden="true">{t('Zoom out')}</span></button>
+          <button className="paint-btn" aria-label={t('Zoom in')} title={t('Zoom in')} disabled={zoomed === 'max'} onClick={() => zoomBy(1.5, undefined, true)}>
+            <PlusIcon /><span className="paint-zoom-word" aria-hidden="true">{t('Zoom in')}</span></button>
+        </div>
       </div>
 
       {brushes && (
