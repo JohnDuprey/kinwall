@@ -84,7 +84,9 @@ function RewardsPanel({ member }: { member: Member }) {
     let canceled = false
     Promise.all([api.getRewards({ memberId: member.id }), api.getRedemptions({ memberId: member.id, limit: 8 })])
       .then(([r, h]) => { if (!canceled) { setRewards(r); setHistory(h) } })
-      .catch(() => { if (!canceled) toast("Couldn't load rewards.", true) })
+      // A background refresh that fails keeps what's showing; only a first load says so, and briefly
+      // (a toast that stays would follow the kid to every other tab).
+      .catch(() => { if (!canceled && rewards === null) toast("Couldn't load rewards.") })
     return () => { canceled = true }
   }
   useEffect(load, [member.id, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
