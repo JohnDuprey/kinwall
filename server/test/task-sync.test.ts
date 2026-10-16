@@ -1,0 +1,500 @@
+// To-do lists synced with Todoist, Google Tasks and Microsoft To Do (routes/tasks.ts, tasks/sync.ts),
+// against small in-memory stand-ins for the three APIs (fetch is mocked: no network, no real tokens).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { createApp } from '../src/app.ts';
+import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
+import type { Env } from '../src/env.ts';
+import { encryptConfig } from '../src/crypto.ts';
+import { syncDue } from '../src/sync.ts';
+import { syncTaskLink, taskSyncsPending, taskSyncTiming } from '../src/tasks/sync.ts';
+
+const MIGRATIONS_DIR = path.join(import.meta.dirname, '..', 'migrations');
+const ADMIN = 'kw_test_tasks_admin';
+const GOOD = 'fake-todoist-token-1234';
+taskSyncTiming.debounceMs = 1;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Until the syncs a change queued (and their own background work) are done. */
+async function settle() {
+  for (let quiet = 0, i = 0; quiet < 3 && i < 500; i++) { await sleep(5); quiet = taskSyncsPending() ? 0 : quiet + 1; }
+}
+
+type Fake = Record<string, any>;
+
+/** Todoist API v1: projects, tasks (open ones listed; done and deleted ones by id), paged two at a time. */
+function fakeTodoist() {
+  const projects: Fake[] = [{ id: 'p1', name: 'Chores' }];
+  const tasks = new Map<string, Fake>();
+  let n = 0, clock = Date.parse('2026-10-10T12:00:00Z');
+  const state = { token: GOOD, limited: 0, calls: [] as string[] };
+  const stamp = () => new Date((clock += 1000)).toISOString();
+  const add = (t: Fake) => { const id = `t${++n}`; tasks.set(id, { id, project_id: 'p1', description: '', priority: 1, due: null, checked: false, is_deleted: false, parent_id: null, updated_at: stamp(), ...t }); return id; };
+  const page = (items: Fake[], cursor: string | null) => { const at = Number(cursor ?? 0); return { results: items.slice(at, at + 2), next_cursor: at + 2 < items.length ? String(at + 2) : null }; };
+  const handle = async (url: URL, init: RequestInit) => {
+    const method = init.method ?? 'GET';
+    state.calls.push(`${method} ${url.pathname}`);
+    if ((init.headers as Record<string, string>).authorization !== `Bearer ${state.token}`) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (state.limited > 0) { state.limited--; return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'retry-after': '30' } }); }
+    const p = url.pathname.replace('/api/v1', '');
+    const body = init.body ? JSON.parse(String(init.body)) : {};
+    if (p === '/user') return Response.json({ email: 'sam@example.com', full_name: 'Sam' });
+    if (p === '/projects' && method === 'GET') return Response.json(page(projects, url.searchParams.get('cursor')));
+    if (p === '/projects') { const pr = { id: `p${projects.length + 1}`, name: body.name }; projects.push(pr); return Response.json(pr); }
+    if (p === '/tasks' && method === 'GET') return Response.json(page([...tasks.values()].filter((t) => t.project_id === url.searchParams.get('project_id') && !t.checked && !t.is_deleted), url.searchParams.get('cursor')));
+    if (p === '/tasks') { const id = add({ content: body.content, description: body.description ?? '', priority: body.priority ?? 1, project_id: body.project_id, due: body.due_date ? { date: body.due_date, string: body.due_date, is_recurring: false } : null }); return Response.json(tasks.get(id)); }
+    const m = /^\/tasks\/([^/]+)(?:\/(close|reopen))?$/.exec(p);
+    const t = m && tasks.get(m[1]);
+    if (!t || t.is_deleted) return Response.json({ error: 'not found' }, { status: 404 });
+    if (method === 'GET') return Response.json(t);
+    if (method === 'DELETE') { t.is_deleted = true; return new Response(null, { status: 204 }); }
+    if (m![2]) { t.checked = m![2] === 'close'; t.updated_at = stamp(); return new Response(null, { status: 204 }); }
+    if (body.content !== undefined) t.content = body.content;
+    if (body.description !== undefined) t.description = body.description;
+    if (body.priority !== undefined) t.priority = body.priority;
+    if (body.due_date !== undefined) t.due = { date: body.due_date, string: body.due_date, is_recurring: false };
+    if (body.due_string === 'no date') t.due = null;
+    t.updated_at = stamp();
+    return Response.json(t);
+  };
+  const edit = (id: string, patch: Fake) => Object.assign(tasks.get(id)!, patch, { updated_at: stamp() });
+  const byTitle = (title: string) => [...tasks.values()].find((t) => t.content === title && !t.is_deleted);
+  return { projects, tasks, state, add, edit, byTitle, handle };
+}
+
+/** Google Tasks API v1 (and its token endpoint): every task listed, done ones too; deleted ones gone. */
+function fakeGoogle() {
+  const tasks = new Map<string, Fake>();
+  let n = 0;
+  const state = { revoked: 0, refreshRefused: false, calls: [] as string[] };
+  const handle = async (url: URL, init: RequestInit) => {
+    const method = init.method ?? 'GET';
+    if (url.hostname === 'oauth2.googleapis.com' && url.pathname === '/revoke') { state.revoked++; return new Response('', { status: 200 }); }
+    if (url.hostname === 'oauth2.googleapis.com') return state.refreshRefused ? Response.json({ error: 'invalid_grant' }, { status: 400 }) : Response.json({ access_token: 'g-access', expires_in: 3600 });
+    state.calls.push(`${method} ${url.pathname}`);
+    const body = init.body ? JSON.parse(String(init.body)) : {};
+    if (url.pathname === '/tasks/v1/users/@me/lists') return Response.json({ items: [{ id: 'gl1', title: 'Family' }] });
+    const m = /^\/tasks\/v1\/lists\/([^/]+)\/tasks(?:\/([^/]+))?$/.exec(url.pathname)!;
+    if (!m[2] && method === 'GET') return Response.json({ items: [...tasks.values()] });
+    if (!m[2]) { const id = `g${++n}`; tasks.set(id, { id, status: 'needsAction', updated: new Date().toISOString(), ...body }); return Response.json(tasks.get(id)); }
+    const t = tasks.get(m[2]);
+    if (!t) return Response.json({ error: { code: 404 } }, { status: 404 });
+    if (method === 'DELETE') { tasks.delete(m[2]); return new Response(null, { status: 204 }); }
+    Object.assign(t, body, { updated: new Date().toISOString() });
+    return Response.json(t);
+  };
+  return { tasks, state, handle };
+}
+
+/** Microsoft Graph To Do (and the Microsoft token endpoint). */
+function fakeMicrosoft() {
+  const tasks = new Map<string, Fake>();
+  let n = 0;
+  const state = { calls: [] as string[], bodies: [] as Fake[], scopes: [] as string[] };
+  const handle = async (url: URL, init: RequestInit) => {
+    const method = init.method ?? 'GET';
+    if (url.hostname === 'login.microsoftonline.com') { state.scopes.push(new URLSearchParams(String(init.body)).get('scope') ?? ''); return Response.json({ access_token: 'm-access', expires_in: 3600 }); }
+    state.calls.push(`${method} ${url.pathname}`);
+    const body = init.body ? JSON.parse(String(init.body)) : {};
+    if (init.body) state.bodies.push(body);
+    if (url.pathname === '/v1.0/me/todo/lists') return Response.json({ value: [{ id: 'ml1', displayName: 'Tasks' }] });
+    const m = /^\/v1\.0\/me\/todo\/lists\/([^/]+)\/tasks(?:\/([^/]+))?$/.exec(url.pathname)!;
+    if (!m[2] && method === 'GET') return Response.json({ value: [...tasks.values()] });
+    if (!m[2]) { const id = `m${++n}`; tasks.set(id, { id, status: 'notStarted', importance: 'normal', lastModifiedDateTime: new Date().toISOString(), ...body }); return Response.json(tasks.get(id)); }
+    const t = tasks.get(m[2])!;
+    if (method === 'DELETE') { tasks.delete(m[2]); return new Response(null, { status: 204 }); }
+    Object.assign(t, body, { lastModifiedDateTime: new Date().toISOString() });
+    return Response.json(t);
+  };
+  return { tasks, state, handle };
+}
+
+async function setup(tz = 'America/New_York') {
+  const db = openDb(':memory:');
+  applyMigrations(db, MIGRATIONS_DIR);
+  await db.prepare("INSERT INTO settings (key, value) VALUES ('timezone', ?)").bind(tz).run();
+  const env = { DB: db, ADMIN_API_KEY: ADMIN, PUBLIC_URL: 'https://kinwall.example', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', GOOGLE_CLIENT_ID: 'fake.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'fake', MS_CLIENT_ID: 'fake-ms', MS_CLIENT_SECRET: 'fake' } as unknown as Env;
+  const app = createApp();
+  const req = async (p: string, method = 'GET', body?: unknown, key = ADMIN) => {
+    const res = await app.request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }, env);
+    return { status: res.status, json: (await res.json()) as any };
+  };
+  const todoist = fakeTodoist(), google = fakeGoogle(), ms = fakeMicrosoft();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown, init: RequestInit = {}) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.hostname === 'api.todoist.com') return todoist.handle(url, init);
+    if (url.hostname.endsWith('googleapis.com')) return google.handle(url, init);
+    if (url.hostname === 'graph.microsoft.com' || url.hostname === 'login.microsoftonline.com') return ms.handle(url, init);
+    return new Response('', { status: 404 });
+  }) as typeof fetch;
+  const restore = () => { globalThis.fetch = realFetch; };
+  const list = async (name = 'Chores') => (await req('/api/lists', 'POST', { name, kind: 'todo' })).json;
+  const items = async (listId: string) => ((await req(`/api/lists/${listId}`)).json.items as any[]).sort((a, b) => a.title.localeCompare(b.title));
+  const addOAuthAccount = async (kind: 'google' | 'microsoft', name: string, expired = false) => {
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO task_accounts (id, kind, name, config, created_at) VALUES (?,?,?,?,?)')
+      .bind(id, kind, name, await encryptConfig(env, id, { access_token: 'x', refresh_token: 'r', expires_at: expired ? 0 : Date.now() + 3_600_000 }), '2026-10-01').run();
+    return id;
+  };
+  return { db, env, req, todoist, google, ms, restore, list, items, addOAuthAccount };
+}
+
+test('tasks: connect Todoist with a token, kept encrypted, never returned', async () => {
+  const t = await setup();
+  try {
+    const bad = await t.req('/api/tasks/accounts/todoist', 'POST', { token: 'wrong-token-123' });
+    assert.equal(bad.status, 400);
+    assert.match(bad.json.error, /didn't accept that token/);
+    const ok = await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD });
+    assert.equal(ok.status, 201);
+    assert.equal(ok.json.kind, 'todoist');
+    assert.equal(ok.json.name, 'sam@example.com');
+    const listed = await t.req('/api/tasks/accounts');
+    assert.equal(listed.json.length, 1);
+    assert.ok(!JSON.stringify(listed.json).includes(GOOD));
+    const raw = await t.db.prepare('SELECT config FROM task_accounts').first<{ config: string }>();
+    assert.ok(!raw!.config.includes(GOOD), 'the token is encrypted at rest');
+    // The same account again replaces its token instead of adding a second.
+    assert.equal((await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json.id, ok.json.id);
+    // Its projects, across pages.
+    t.todoist.projects.push({ id: 'p2', name: 'Errands' }, { id: 'p3', name: 'School' });
+    assert.deepEqual((await t.req(`/api/tasks/accounts/${ok.json.id}/lists`)).json.map((l: any) => l.name), ['Chores', 'Errands', 'School']);
+  } finally { t.restore(); }
+});
+
+test('tasks: parent devices connect and link; every screen may read the links', async () => {
+  const t = await setup();
+  try {
+    const wall = (await t.req('/api/keys', 'POST', { name: 'wall', scope: 'display' })).json.key;
+    assert.equal((await t.req('/api/tasks/links', 'GET', undefined, wall)).status, 200);
+    assert.equal((await t.req('/api/tasks/accounts', 'GET', undefined, wall)).status, 403);
+    assert.equal((await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD }, wall)).status, 403);
+    const l = await t.list();
+    assert.equal((await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: 'x', remoteId: 'p1' }, wall)).status, 403);
+  } finally { t.restore(); }
+});
+
+test('tasks: the first sync pairs same titles, copies open items both ways, and a re-sync adds nothing', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', [
+      { title: 'Milk' },
+      { title: 'Call the vet', priority: 'urgent', dueDate: '2026-10-20', notes: 'Ask about shots' },
+      { title: 'Old thing' },
+    ]);
+    const old = (await t.items(l.id)).find((i) => i.title === 'Old thing');
+    await t.req(`/api/lists/${l.id}/items/${old.id}`, 'PATCH', { done: true });
+    t.todoist.add({ content: 'Milk', description: '2%' });
+    const rake = t.todoist.add({ content: 'Rake leaves', priority: 3, due: { date: '2026-10-21', string: 'Oct 21', is_recurring: false } });
+    t.todoist.add({ content: 'Bag the leaves', parent_id: rake }); // a subtask stays in Todoist
+    t.todoist.add({ content: 'Long done', checked: true });
+
+    const link = await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    assert.equal(link.status, 200);
+    assert.equal(link.json.remoteName, 'Chores');
+    assert.equal(link.json.lastError, null);
+    assert.ok(link.json.lastSyncedAt);
+
+    const mine = await t.items(l.id);
+    assert.deepEqual(mine.map((i) => i.title), ['Call the vet', 'Milk', 'Old thing', 'Rake leaves']);
+    const imported = mine.find((i) => i.title === 'Rake leaves');
+    assert.equal(imported.priority, 'high'); // Todoist 3 = P2
+    assert.equal(imported.dueDate, '2026-10-21');
+    assert.deepEqual(imported.addedBy, { label: 'Todoist' });
+    assert.equal(mine.find((i) => i.title === 'Milk').notes, '2%');
+
+    const vet = t.todoist.byTitle('Call the vet')!;
+    assert.equal(vet.priority, 4); // urgent = P1
+    assert.equal(vet.due.date, '2026-10-20');
+    assert.equal(vet.description, 'Ask about shots');
+    assert.equal(t.todoist.byTitle('Old thing'), undefined, 'a done item that never synced stays in Kinwall');
+    assert.equal([...t.todoist.tasks.values()].filter((x) => x.content === 'Milk').length, 1);
+
+    // Again: nothing new on either side.
+    const before = t.todoist.tasks.size;
+    assert.deepEqual(await syncTaskLink(t.env, l.id), { ok: true, pulled: 0, pushed: 0 });
+    assert.equal(t.todoist.tasks.size, before);
+    assert.equal((await t.items(l.id)).length, 4);
+    await settle();
+  } finally { t.restore(); }
+});
+
+test('tasks: changes go both ways, a change in Kinwall syncs on its own, and deletes follow', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    const milk = t.todoist.add({ content: 'Milk' });
+    const rake = t.todoist.add({ content: 'Rake leaves' });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    let mine = await t.items(l.id);
+    const kMilk = mine.find((i) => i.title === 'Milk'), kRake = mine.find((i) => i.title === 'Rake leaves');
+    await t.req(`/api/lists/${l.id}/items/${kRake.id}/steps`, 'POST', { title: 'Find the rake' });
+
+    // In Todoist: Milk is finished (it leaves the open list), Rake leaves is renamed and gets a time.
+    t.todoist.edit(milk, { checked: true });
+    t.todoist.edit(rake, { content: 'Rake the leaves', due: { date: '2026-10-22T15:00:00', string: 'Oct 22 3pm', is_recurring: false } });
+    await syncTaskLink(t.env, l.id);
+    mine = await t.items(l.id);
+    assert.equal(mine.find((i) => i.id === kMilk.id).done, true);
+    assert.deepEqual(mine.find((i) => i.id === kMilk.id).checkedBy, { label: 'Todoist' });
+    const r = mine.find((i) => i.id === kRake.id);
+    assert.equal(r.title, 'Rake the leaves');
+    assert.equal(r.dueDate, '2026-10-22');
+    assert.equal(r.steps.length, 1, 'steps stay in Kinwall');
+
+    // In Kinwall (the debounced sync runs on its own): priority, no due date, reopened, a new item.
+    await t.req(`/api/lists/${l.id}/items/${kRake.id}`, 'PATCH', { priority: 'low', dueDate: null });
+    await t.req(`/api/lists/${l.id}/items/${kMilk.id}`, 'PATCH', { done: false });
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Buy pumpkins' });
+    await settle();
+    assert.equal(t.todoist.tasks.get(rake)!.priority, 2); // low = P3
+    assert.equal(t.todoist.tasks.get(rake)!.due, null);
+    assert.equal(t.todoist.tasks.get(milk)!.checked, false);
+    assert.ok(t.todoist.byTitle('Buy pumpkins'));
+
+    // Deleted in Kinwall: deleted in Todoist. Deleted in Todoist: deleted in Kinwall.
+    await t.req(`/api/lists/${l.id}/items/${kMilk.id}`, 'DELETE');
+    await settle();
+    assert.equal(t.todoist.tasks.get(milk)!.is_deleted, true);
+    t.todoist.edit(rake, { is_deleted: true });
+    await syncTaskLink(t.env, l.id);
+    assert.deepEqual((await t.items(l.id)).map((i) => i.title), ['Buy pumpkins']);
+    assert.equal((await t.db.prepare('SELECT count(*) AS n FROM task_link_items').first<{ n: number }>())!.n, 1);
+  } finally { t.restore(); }
+});
+
+test('tasks: a field changed on both sides goes to the side changed last', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    const id = t.todoist.add({ content: 'Rake leaves' });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    const item = (await t.items(l.id))[0];
+
+    // Kinwall first, Todoist later: Todoist's title wins, Kinwall's notes (changed only there) stay.
+    await t.db.prepare("UPDATE list_items SET title = 'Kinwall title', notes = 'gloves', updated_at = '2026-10-01T00:00:00.000Z' WHERE id = ?").bind(item.id).run();
+    t.todoist.edit(id, { content: 'Todoist title' });
+    await syncTaskLink(t.env, l.id);
+    let got = (await t.items(l.id))[0];
+    assert.equal(got.title, 'Todoist title');
+    assert.equal(got.notes, 'gloves');
+    assert.equal(t.todoist.tasks.get(id)!.description, 'gloves');
+
+    // Todoist first, Kinwall later: Kinwall's wins.
+    t.todoist.edit(id, { content: 'Todoist again', updated_at: '2026-10-01T00:00:00.000Z' });
+    await t.db.prepare("UPDATE list_items SET title = 'Kinwall again', updated_at = '2026-10-15T00:00:00.000Z' WHERE id = ?").bind(item.id).run();
+    t.todoist.tasks.get(id)!.updated_at = '2026-10-01T00:00:00.000Z';
+    await syncTaskLink(t.env, l.id);
+    got = (await t.items(l.id))[0];
+    assert.equal(got.title, 'Kinwall again');
+    assert.equal(t.todoist.tasks.get(id)!.content, 'Kinwall again');
+  } finally { t.restore(); }
+});
+
+test('tasks: a reset Todoist token says Reconnect; connecting it again clears it', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    t.todoist.state.token = 'fake-new-token-5678';
+    const res = await syncTaskLink(t.env, l.id);
+    assert.equal(res.ok, false);
+    let link = (await t.req('/api/tasks/links')).json[0];
+    assert.equal(link.lastErrorCode, 'revoked');
+    assert.match(link.lastError, /^Todoist stopped letting Kinwall see this list\. Reconnect sam@example\.com/);
+    assert.equal(link.syncFailures, 1);
+    await t.req('/api/tasks/accounts/todoist', 'POST', { token: 'fake-new-token-5678' }); // syncs its lists in the background
+    await syncTaskLink(t.env, l.id);
+    link = (await t.req('/api/tasks/links')).json[0];
+    assert.equal(link.lastErrorCode, null);
+    assert.equal(link.syncFailures, 0);
+  } finally { t.restore(); }
+});
+
+test('tasks: a 429 waits out Retry-After (longer each time), and the schedule skips it meanwhile', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list();
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' });
+    t.todoist.state.limited = 1;
+    const started = Date.now();
+    assert.equal((await syncTaskLink(t.env, l.id)).ok, false);
+    let link = (await t.req('/api/tasks/links')).json[0];
+    assert.match(link.lastError, /asked Kinwall to slow down/);
+    const wait = Date.parse(link.retryAfter) - started;
+    assert.ok(wait >= 59_000 && wait < 70_000, `at least a minute (got ${wait})`);
+    // Waiting: neither the schedule nor Sync now calls Todoist.
+    const calls = t.todoist.state.calls.length;
+    await syncDue(t.env);
+    await t.req(`/api/tasks/links/${l.id}/sync`, 'POST');
+    assert.equal(t.todoist.state.calls.length, calls);
+    // A second refusal in a row waits twice as long.
+    await t.db.prepare('UPDATE task_links SET retry_after = NULL').run();
+    t.todoist.state.limited = 1;
+    await syncTaskLink(t.env, l.id);
+    link = (await t.req('/api/tasks/links')).json[0];
+    assert.ok(Date.parse(link.retryAfter) - Date.now() > 110_000);
+    // Once it's over, the schedule syncs it again.
+    await t.db.prepare("UPDATE task_links SET retry_after = '2000-01-01T00:00:00.000Z', last_synced_at = '2000-01-01T00:00:00.000Z'").run();
+    await syncDue(t.env);
+    link = (await t.req('/api/tasks/links')).json[0];
+    assert.equal(link.lastError, null);
+    assert.equal(link.retryAfter, null);
+  } finally { t.restore(); }
+});
+
+test('tasks: a new list made in the app; unlinking keeps every item; removing the account removes its links', async () => {
+  const t = await setup();
+  try {
+    const acc = (await t.req('/api/tasks/accounts/todoist', 'POST', { token: GOOD })).json;
+    const l = await t.list('Garden');
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Plant bulbs' });
+    const link = await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, newListName: 'Garden' });
+    assert.equal(link.json.remoteName, 'Garden');
+    assert.equal(t.todoist.byTitle('Plant bulbs')!.project_id, link.json.remoteId);
+    // A second Kinwall list can't take the same project.
+    const other = await t.list('Other');
+    assert.equal((await t.req(`/api/tasks/links/${other.id}`, 'PUT', { accountId: acc.id, remoteId: link.json.remoteId })).status, 409);
+    // Shopping lists don't sync.
+    const shop = (await t.req('/api/lists', 'POST', { name: 'Groceries', kind: 'shopping' })).json;
+    assert.equal((await t.req(`/api/tasks/links/${shop.id}`, 'PUT', { accountId: acc.id, remoteId: 'p1' })).status, 400);
+
+    assert.equal((await t.req(`/api/tasks/links/${l.id}`, 'DELETE')).status, 200);
+    assert.equal((await t.items(l.id)).length, 1);
+    assert.ok(t.todoist.byTitle('Plant bulbs'));
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc.id, remoteId: link.json.remoteId });
+    assert.equal([...t.todoist.tasks.values()].filter((x) => x.content === 'Plant bulbs').length, 1, 'linking again pairs by title');
+    assert.equal((await t.req(`/api/tasks/accounts/${acc.id}`, 'DELETE')).status, 200);
+    assert.equal((await t.req('/api/tasks/links')).json.length, 0);
+    assert.equal((await t.db.prepare('SELECT count(*) AS n FROM task_link_items').first<{ n: number }>())!.n, 0);
+    assert.equal((await t.items(l.id)).length, 1);
+    await settle();
+  } finally { t.restore(); }
+});
+
+test('tasks: Google Tasks asks for the tasks scope alone, incrementally, suggesting the calendar account', async () => {
+  const t = await setup();
+  try {
+    const res = await t.req('/api/tasks/accounts/google/start', 'POST', { loginHint: 'sam@example.com' });
+    assert.equal(res.status, 200);
+    const url = new URL(res.json.url);
+    assert.deepEqual(url.searchParams.get('scope')!.split(' ').sort(), ['email', 'https://www.googleapis.com/auth/tasks', 'openid']);
+    assert.equal(url.searchParams.get('include_granted_scopes'), 'true');
+    assert.equal(url.searchParams.get('login_hint'), 'sam@example.com');
+    const ms = new URL((await t.req('/api/tasks/accounts/microsoft/start', 'POST', {})).json.url);
+    assert.deepEqual(ms.searchParams.get('scope')!.split(' ').sort(), ['Tasks.ReadWrite', 'User.Read', 'email', 'offline_access', 'openid']);
+  } finally { t.restore(); }
+});
+
+test('tasks: the Google Tasks sign-in comes back as a task account, not a calendar account', async () => {
+  const t = await setup();
+  try {
+    const app = createApp();
+    const start = await app.request('https://kinwall.example/api/tasks/accounts/google/start', { method: 'POST', headers: { Authorization: `Bearer ${ADMIN}` } }, t.env);
+    const state = new URL(((await start.json()) as { url: string }).url).searchParams.get('state')!;
+    const cookie = start.headers.getSetCookie().map((s) => s.split(';')[0]).join('; ');
+    globalThis.fetch = (async (u: unknown) => String(u).includes('token') ? Response.json({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }) : Response.json({ email: 'sam@example.com' })) as typeof fetch;
+    const back = await app.request(`https://kinwall.example/api/oauth/google/callback?code=c&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers: { Cookie: cookie } }, t.env);
+    assert.equal(back.status, 302);
+    assert.match(back.headers.get('location')!, /#\/settings\?tab=calendars&taskAccount=/);
+    assert.equal((await t.db.prepare('SELECT count(*) AS n FROM accounts').first<{ n: number }>())!.n, 0);
+    const accounts = (await t.req('/api/tasks/accounts')).json;
+    assert.deepEqual(accounts.map((a: any) => [a.kind, a.name, a.alsoCalendar]), [['google', 'sam@example.com', false]]);
+  } finally { t.restore(); }
+});
+
+test('tasks: Google Tasks syncs title, notes, done and a due day; no priority; deletes both ways', async () => {
+  const t = await setup('America/Los_Angeles');
+  try {
+    const acc = await t.addOAuthAccount('google', 'sam@example.com', true); // expired: refreshed first
+    t.google.tasks.set('a', { id: 'a', title: 'Return library books', due: '2026-10-20T00:00:00.000Z', notes: 'Two', status: 'needsAction', updated: '2026-10-01T00:00:00.000Z' });
+    t.google.tasks.set('b', { id: 'b', title: 'Sub', parent: 'a', status: 'needsAction' });
+    t.google.tasks.set('c', { id: 'c', title: 'Done long ago', status: 'completed' });
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Wash the car', priority: 'high', dueDate: '2026-10-25' });
+    assert.equal((await t.req(`/api/tasks/accounts/${acc}/lists`)).json[0].name, 'Family');
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc, remoteId: 'gl1' });
+
+    const mine = await t.items(l.id);
+    assert.deepEqual(mine.map((i) => i.title), ['Return library books', 'Wash the car']);
+    assert.equal(mine[0].dueDate, '2026-10-20', 'the day stays the day in Los Angeles');
+    const car = [...t.google.tasks.values()].find((x) => x.title === 'Wash the car')!;
+    assert.equal(car.due, '2026-10-25T00:00:00.000Z');
+    assert.equal(car.priority, undefined);
+
+    await t.req(`/api/lists/${l.id}/items/${mine[0].id}`, 'PATCH', { done: true });
+    await settle();
+    assert.equal(t.google.tasks.get('a')!.status, 'completed');
+    // Still listed when done (Google lists them), and an edit there comes back.
+    Object.assign(t.google.tasks.get('a')!, { status: 'needsAction', completed: null, updated: '2030-01-01T00:00:00.000Z' });
+    await syncTaskLink(t.env, l.id);
+    assert.equal((await t.items(l.id))[0].done, false);
+    assert.equal((await t.items(l.id))[1].priority, 'high', 'priority stays in Kinwall');
+    t.google.tasks.delete(car.id);
+    await syncTaskLink(t.env, l.id);
+    assert.deepEqual((await t.items(l.id)).map((i) => i.title), ['Return library books']);
+
+    // A refused refresh: revoked, in plain words.
+    await t.db.prepare('UPDATE task_accounts SET config = ? WHERE id = ?').bind(await encryptConfig(t.env, acc, { access_token: 'x', refresh_token: 'r', expires_at: 0 }), acc).run();
+    t.google.state.refreshRefused = true;
+    await syncTaskLink(t.env, l.id);
+    const link = (await t.req('/api/tasks/links')).json[0];
+    assert.equal(link.lastErrorCode, 'revoked');
+    assert.match(link.lastError, /^Google Tasks stopped letting Kinwall see this list/);
+  } finally { t.restore(); }
+});
+
+test('tasks: removing Google Tasks revokes the sign-in only when no calendar uses that account', async () => {
+  const t = await setup();
+  try {
+    const alone = await t.addOAuthAccount('google', 'leo@example.com');
+    await t.req(`/api/tasks/accounts/${alone}`, 'DELETE');
+    assert.equal(t.google.state.revoked, 1);
+    const shared = await t.addOAuthAccount('google', 'sam@example.com');
+    await t.db.prepare("INSERT INTO accounts (id, kind, name, config, created_at) VALUES ('cal', 'google', 'Sam@example.com', '{}', '2026-01-01')").run();
+    assert.equal((await t.req('/api/tasks/accounts')).json[0].alsoCalendar, true);
+    await t.req(`/api/tasks/accounts/${shared}`, 'DELETE');
+    assert.equal(t.google.state.revoked, 1, "the calendar's sign-in is left alone");
+    assert.equal((await t.db.prepare('SELECT count(*) AS n FROM accounts').first<{ n: number }>())!.n, 1);
+  } finally { t.restore(); }
+});
+
+test('tasks: Microsoft To Do syncs importance (urgent goes as high and stays urgent here), due day and notes', async () => {
+  const t = await setup('America/Chicago');
+  try {
+    const acc = await t.addOAuthAccount('microsoft', 'alex@example.com', true);
+    t.ms.tasks.set('x', { id: 'x', title: 'Pay the water bill', importance: 'high', status: 'notStarted', body: { content: 'Online', contentType: 'text' }, dueDateTime: { dateTime: '2026-10-20T00:00:00.0000000', timeZone: 'UTC' }, lastModifiedDateTime: '2026-10-01T00:00:00Z' });
+    const l = await t.list();
+    await t.req(`/api/lists/${l.id}/items`, 'POST', { title: 'Book the dentist', priority: 'urgent', dueDate: '2026-11-02' });
+    await t.req(`/api/tasks/links/${l.id}`, 'PUT', { accountId: acc, remoteId: 'ml1' });
+    assert.ok(t.ms.state.scopes.every((s) => s.includes('Tasks.ReadWrite') && !s.includes('Calendars')), 'refreshes ask for the To Do permission');
+
+    const mine = await t.items(l.id);
+    const bill = mine.find((i) => i.title === 'Pay the water bill');
+    assert.equal(bill.priority, 'high');
+    assert.equal(bill.dueDate, '2026-10-20');
+    assert.equal(bill.notes, 'Online');
+    const dentist = [...t.ms.tasks.values()].find((x) => x.title === 'Book the dentist')!;
+    assert.equal(dentist.importance, 'high');
+    assert.deepEqual(dentist.dueDateTime, { dateTime: '2026-11-02T00:00:00', timeZone: 'America/Chicago' });
+
+    // A sync later: urgent isn't mistaken for a change in To Do, so nothing moves.
+    t.ms.state.bodies.length = 0;
+    assert.deepEqual(await syncTaskLink(t.env, l.id), { ok: true, pulled: 0, pushed: 0 });
+    assert.equal((await t.items(l.id)).find((i) => i.title === 'Book the dentist').priority, 'urgent');
+    // Done in To Do, then deleted in Kinwall.
+    Object.assign(t.ms.tasks.get('x')!, { status: 'completed', lastModifiedDateTime: '2030-01-01T00:00:00Z' });
+    await syncTaskLink(t.env, l.id);
+    assert.equal((await t.items(l.id)).find((i) => i.title === 'Pay the water bill').done, true);
+    await t.req(`/api/lists/${l.id}/items/${bill.id}`, 'DELETE');
+    await settle();
+    assert.equal(t.ms.tasks.has('x'), false);
+  } finally { t.restore(); }
+});

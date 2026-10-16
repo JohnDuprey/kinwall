@@ -19,7 +19,9 @@ const API = 'https://www.googleapis.com/calendar/v3';
 type GoogleConfig = { access_token: string; refresh_token: string; expires_at: number };
 
 // scope: Google Photos (routes/google-photos.ts) asks for its own scope alone, a separate consent.
-export function authUrl(env: ProviderEnv, redirectUri: string, state: string, codeChallenge: string, scope = SCOPES): string {
+// Google Tasks (tasks/apps.ts) too, with include_granted_scopes (incremental consent) and loginHint,
+// the account to suggest when Tasks is added to a calendar account (the chooser still shows).
+export function authUrl(env: ProviderEnv, redirectUri: string, state: string, codeChallenge: string, scope = SCOPES, incremental?: { loginHint?: string }): string {
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID ?? '',
     redirect_uri: redirectUri,
@@ -31,6 +33,8 @@ export function authUrl(env: ProviderEnv, redirectUri: string, state: string, co
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
   });
+  if (incremental) params.set('include_granted_scopes', 'true');
+  if (incremental?.loginHint) params.set('login_hint', incremental.loginHint);
   return `${AUTH_URL}?${params}`;
 }
 
@@ -84,7 +88,7 @@ export async function revokeToken(config: GoogleConfig | undefined): Promise<voi
   }
 }
 
-async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx): Promise<string> {
+export async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx): Promise<string> {
   const cfg = ctx.account?.config as GoogleConfig | undefined;
   if (!cfg) throw new Error('Google account is not connected');
   if (cfg.expires_at - 60_000 > Date.now()) return cfg.access_token;

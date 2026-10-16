@@ -293,6 +293,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/categories$/ },
   { method: 'GET', pattern: /^\/api\/(?:contacts(?:\/categories|\/[0-9a-f-]+)?|contact-categories(?:\/[0-9a-f-]+)?)$/ },
   { method: 'GET', pattern: /^\/api\/lists$/ },
+  { method: 'GET', pattern: /^\/api\/tasks\/links$/ }, // a synced list's status shows on every screen; connecting and linking: parents
   { method: 'POST', pattern: /^\/api\/lists$/ },
   // The grocery catalog: read and edited like list items (which remember the same places); forgetting is for parent devices.
   { method: 'GET', pattern: /^\/api\/lists\/remembered$/ },

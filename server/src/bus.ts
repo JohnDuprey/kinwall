@@ -4,6 +4,7 @@ import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { decrypt } from './crypto.ts';
 import { isSafeWebhookUrl, outboundFetch } from './outbound.ts';
+import { queueTaskSync } from './tasks/sync.ts';
 
 export type BusEventType =
   | 'contact.changed'
@@ -150,6 +151,11 @@ export function emit(c: Context<{ Bindings: Env }>, type: BusEventType, data: un
     ctx = undefined; // Node: no ExecutionContext
   }
   publish(c.env, ctx, type, data);
+  // A list synced with a to-do app syncs again a few seconds after it changes (tasks/sync.ts).
+  if (type === 'list.item.changed' || type === 'list.changed') {
+    const id = (data as { listId?: unknown; id?: unknown }).listId ?? (data as { id?: unknown }).id;
+    if (typeof id === 'string') queueTaskSync(c.env, ctx, id);
+  }
 }
 
 export async function getRev(db: KinwallDb): Promise<number> {

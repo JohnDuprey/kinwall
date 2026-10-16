@@ -16,6 +16,8 @@ import { DEVICE_APP_SCHEME, sha256Hex, timingSafeEqual } from '../auth.ts';
 import { esc } from './recipe-share.ts';
 import type { ProviderEnv } from '../providers/types.ts';
 import { finishGooglePhotosWeb } from './google-photos.ts';
+import { APP_NAME, GOOGLE_TASKS_SCOPE, MS_TASKS_SCOPE } from '../tasks/apps.ts';
+import { finishTaskAppSignIn } from './tasks.ts';
 
 export const oauthRoutes = createRouter();
 
@@ -43,7 +45,9 @@ async function s256Challenge(verifier: string): Promise<string> {
 // must repeat it exactly) alongside it - all consumed together in the callback.
 // purpose 'photos': Google Photos' own sign-in (routes/google-photos.ts), through the same client and
 // callback as Calendar; the callback hands it back there instead of making a calendar account.
-async function saveState(db: KinwallDb, state: string, kind: string, verifier: string, redirectUri: string, purpose?: 'photos'): Promise<void> {
+// purpose 'tasks': Google Tasks' or Microsoft To Do's own sign-in (routes/tasks.ts), finished there too.
+type Purpose = 'photos' | 'tasks';
+async function saveState(db: KinwallDb, state: string, kind: string, verifier: string, redirectUri: string, purpose?: Purpose): Promise<void> {
   const expiresAt = new Date(Date.now() + STATE_TTL_MS).toISOString();
   await db
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
@@ -51,14 +55,15 @@ async function saveState(db: KinwallDb, state: string, kind: string, verifier: s
     .run();
 }
 
-type StoredState = { verifier: string; redirectUri?: string; purpose?: 'photos' };
+type StoredState = { verifier: string; redirectUri?: string; purpose?: Purpose };
 
-async function isPhotosState(db: KinwallDb, state: string): Promise<boolean> {
+async function statePurpose(db: KinwallDb, state: string): Promise<Purpose | undefined> {
   const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(`oauth_state:${state}`).first<{ value: string }>();
   try {
-    return !!row && JSON.parse(row.value).purpose === 'photos';
+    const purpose = row ? JSON.parse(row.value).purpose : undefined;
+    return purpose === 'photos' || purpose === 'tasks' ? purpose : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -131,7 +136,7 @@ async function bindingCookie(state: string, secure: boolean): Promise<{ name: st
   return { name: `${secure ? '__Secure-' : ''}kinwall_oauth_${value.slice(0, 16)}`, value };
 }
 
-async function newState(c: Context<{ Bindings: Env }>, kind: 'google' | 'microsoft', penv: ProviderEnv, purpose?: 'photos') {
+async function newState(c: Context<{ Bindings: Env }>, kind: 'google' | 'microsoft', penv: ProviderEnv, purpose?: Purpose) {
   const { shared, redirect, cookie } = await flowTarget(c, kind, penv);
   const hostLabel = new URL(c.req.url).hostname.split('.')[0];
   const state = shared ? `${hostLabel}.${kind}.${crypto.randomUUID()}` : crypto.randomUUID();
@@ -150,6 +155,17 @@ export async function googlePhotosAuthUrl(c: Context<{ Bindings: Env }>, scope: 
   const penv = await providerEnv(c.env, c.env.DB);
   const { state, redirect, challenge } = await newState(c, 'google', penv, 'photos');
   return google.authUrl(penv, redirect, state, challenge, scope);
+}
+
+/** Google Tasks' or Microsoft To Do's sign-in (routes/tasks.ts): the calendar client, redirect URI
+ * and callback, asking for the tasks permission alone (incremental consent), suggesting
+ * `loginHint`. Returns the consent URL and sets the flow's cookie on `c`'s response. */
+export async function taskAppAuthUrl(c: Context<{ Bindings: Env }>, kind: 'google' | 'microsoft', loginHint?: string): Promise<string> {
+  const penv = await providerEnv(c.env, c.env.DB);
+  const { state, redirect, challenge } = await newState(c, kind, penv, 'tasks');
+  return kind === 'google'
+    ? google.authUrl(penv, redirect, state, challenge, GOOGLE_TASKS_SCOPE, { loginHint })
+    : microsoft.authUrl(penv, redirect, state, challenge, MS_TASKS_SCOPE, loginHint);
 }
 
 oauthRoutes.openapi(
@@ -179,7 +195,14 @@ oauthRoutes.openapi(
     const bound = !!binding && timingSafeEqual(getCookie(c, binding.name) ?? '', binding.value);
     const elsewhere = () => (code && state ? handBack(c, kind, state, code, penv.PUBLIC_URL, purpose) : back(ELSEWHERE));
     // Google Photos' own sign-in (its state says so) finishes there, a refusal included.
-    const purpose = state && (await isPhotosState(c.env.DB, state)) ? ('photos' as const) : undefined;
+    const purpose = state ? await statePurpose(c.env.DB, state) : undefined;
+    if (state && purpose === 'tasks') {
+      if (!bound) return elsewhere();
+      deleteCookie(c, binding!.name, cookie);
+      const stored = await consumeState(c.env.DB, state, kind);
+      const outcome = await finishTaskAppSignIn(c, kind, { code, error, stored, redirectUri: stored?.redirectUri ?? redirectUri(penv.PUBLIC_URL, kind), penv });
+      return c.redirect((penv.PUBLIC_URL ?? '') + '/#/settings?tab=calendars&' + outcome, 302);
+    }
     if (state && purpose) {
       if (!bound) return elsewhere();
       deleteCookie(c, binding!.name, cookie);
@@ -227,10 +250,10 @@ const ELSEWHERE = 'this sign-in was started in a different browser or at a diffe
  * verifier, and finishing needs the cookie. A tap, never an automatic jump: in a browser without
  * the app a custom-scheme link does nothing, and the page still says what to do.
  * Everything from the query is escaped; no script, its own policy (app.ts leaves it alone). */
-function handBack(c: Context<{ Bindings: Env }>, kind: string, state: string, code: string, publicUrl: string | undefined, purpose?: 'photos') {
+function handBack(c: Context<{ Bindings: Env }>, kind: string, state: string, code: string, publicUrl: string | undefined, purpose?: Purpose) {
   const link = `${DEVICE_APP_SCHEME}/provider-return?${new URLSearchParams({ kind, state, code })}`;
-  const settings = `${publicUrl ?? ''}/#/settings${purpose ? '' : '?tab=calendars'}`;
-  const what = purpose ? 'Google Photos' : kind === 'google' ? 'your Google account' : 'your Microsoft account';
+  const settings = `${publicUrl ?? ''}/#/settings${purpose === 'photos' ? '' : '?tab=calendars'}`;
+  const what = purpose === 'photos' ? 'Google Photos' : purpose === 'tasks' ? APP_NAME[kind === 'google' ? 'google' : 'microsoft'] : kind === 'google' ? 'your Google account' : 'your Microsoft account';
   const nonce = crypto.randomUUID().replace(/-/g, '');
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Finish in the Kinwall app</title><style nonce="${nonce}">${HAND_BACK_CSS}</style></head><body><main>
 <h1>Finish connecting in the Kinwall app</h1>

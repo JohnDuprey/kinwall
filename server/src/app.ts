@@ -18,6 +18,7 @@ import { accountsRoutes } from './routes/accounts.ts';
 import { oauthRoutes } from './routes/oauth.ts';
 import { providersRoutes } from './routes/providers.ts';
 import { calendarsRoutes } from './routes/calendars.ts';
+import { tasksRoutes } from './routes/tasks.ts';
 import { categoriesRoutes } from './routes/categories.ts';
 import { eventsRoutes } from './routes/events.ts';
 import { choresRoutes } from './routes/chores.ts';
@@ -173,6 +174,7 @@ export function createApp() {
   app.route('/', oauthRoutes);
   app.route('/', providersRoutes);
   app.route('/', calendarsRoutes);
+  app.route('/', tasksRoutes);
   app.route('/', categoriesRoutes);
   app.route('/', eventsRoutes);
   app.route('/', choresRoutes);

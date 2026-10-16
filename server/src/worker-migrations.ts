@@ -120,6 +120,7 @@ import m0116 from '../migrations/0116_list_item_on_sale.sql';
 import m0117 from '../migrations/0117_store_aisles_catalog.sql';
 import m0118 from '../migrations/0118_notification_by.sql';
 import m0119 from '../migrations/0119_member_language.sql';
+import m0120 from '../migrations/0120_task_sync.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -241,4 +242,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0117_store_aisles_catalog.sql', sql: m0117 },
   { name: '0118_notification_by.sql', sql: m0118 },
   { name: '0119_member_language.sql', sql: m0119 },
+  { name: '0120_task_sync.sql', sql: m0120 },
 ];

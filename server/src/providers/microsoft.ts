@@ -19,18 +19,21 @@ function tenant(env: ProviderEnv): string {
   return env.MS_TENANT || 'common';
 }
 
-export function authUrl(env: ProviderEnv, redirectUri: string, state: string, codeChallenge: string): string {
+// scope: Microsoft To Do (tasks/apps.ts) asks for its own permission alone, a separate consent.
+// loginHint: the account to suggest (adding To Do to a calendar account), still with the chooser.
+export function authUrl(env: ProviderEnv, redirectUri: string, state: string, codeChallenge: string, scope = SCOPES, loginHint?: string): string {
   const params = new URLSearchParams({
     client_id: env.MS_CLIENT_ID ?? '',
     redirect_uri: redirectUri,
     response_type: 'code',
     response_mode: 'query',
-    scope: SCOPES,
+    scope,
     prompt: 'select_account', // otherwise Microsoft silently reuses whoever is signed in
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
   });
+  if (loginHint) params.set('login_hint', loginHint);
   return `https://login.microsoftonline.com/${tenant(env)}/oauth2/v2.0/authorize?${params}`;
 }
 
@@ -39,6 +42,7 @@ export async function exchangeCode(
   code: string,
   redirectUri: string,
   codeVerifier: string,
+  scope = SCOPES,
 ): Promise<{ name: string; config: MsConfig }> {
   const res = await fetch(`https://login.microsoftonline.com/${tenant(env)}/oauth2/v2.0/token`, {
     method: 'POST',
@@ -49,7 +53,7 @@ export async function exchangeCode(
       code,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
-      scope: SCOPES,
+      scope,
       code_verifier: codeVerifier,
     }),
   });
@@ -71,7 +75,7 @@ export async function exchangeCode(
   return { name: info.mail ?? info.userPrincipalName ?? 'Microsoft account', config };
 }
 
-async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx): Promise<string> {
+export async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx, scope = SCOPES): Promise<string> {
   const cfg = ctx.account?.config as MsConfig | undefined;
   if (!cfg) throw new Error('Microsoft account is not connected');
   if (cfg.expires_at - 60_000 > Date.now()) return cfg.access_token;
@@ -84,7 +88,7 @@ async function ensureToken(ctx: Omit<ProviderCtx, 'calendar'> | ProviderCtx): Pr
       client_secret: ctx.env.MS_CLIENT_SECRET ?? '',
       refresh_token: cfg.refresh_token,
       grant_type: 'refresh_token',
-      scope: SCOPES,
+      scope,
     }),
   });
   if (!res.ok) throw await refreshFailure(res, 'microsoft', 'Microsoft');

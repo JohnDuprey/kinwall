@@ -11,6 +11,7 @@ import { redact } from './redact.ts';
 import { stored } from './i18n.ts';
 import { deterministicEventIds } from './event-id.ts';
 import { parseMemberIds } from './calendar-members.ts';
+import { syncDueTaskLinks } from './tasks/sync.ts';
 
 // Calendars imported from an export arrive as placeholders: no account, config = '' (the column is
 // NOT NULL). They keep their settings and per-event overrides but aren't synced until reconnected
@@ -69,7 +70,7 @@ async function failure(db: KinwallDb, cal: CalendarRow, err: unknown): Promise<{
 
 type AccountRow = { id: string; kind: string; name: string; config: string; created_at: string };
 
-async function householdTz(db: KinwallDb): Promise<string> {
+export async function householdTz(db: KinwallDb): Promise<string> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
   return row?.value ?? hostTimezone();
 }
@@ -396,4 +397,6 @@ export async function syncDue(env: Env, execCtx?: WaitCtx): Promise<void> {
     // write), so the other calendars still sync. The error's name only: its message can carry data.
     await syncCalendarTick(env, row.id, execCtx).catch((err) => console.error('calendar sync tick failed:', err instanceof Error ? err.name : 'error'));
   }
+  // To-do lists synced with Todoist, Google Tasks or Microsoft To Do, on the same schedule.
+  await syncDueTaskLinks(env, cutoff, deadline, execCtx);
 }
