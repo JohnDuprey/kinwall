@@ -326,7 +326,11 @@ const accounts: Account[] = [{ id: 'demo-google', kind: 'google', name: 'Demo Go
 // To-do apps: a connected Todoist account, with Weekend To-Dos synced to its Weekend project.
 const taskAccounts: TaskAccount[] = [{ id: 'demo-todoist', kind: 'todoist', name: 'alex@example.com', createdAt: new Date().toISOString(), alsoCalendar: false }]
 const taskAppLists: TaskAppList[] = [{ remoteId: 'tp-inbox', name: 'Inbox' }, { remoteId: 'tp-weekend', name: 'Weekend' }, { remoteId: 'tp-errands', name: 'Errands' }]
-const taskLinks: TaskLink[] = [{ listId: 'l2', accountId: 'demo-todoist', app: 'todoist', accountName: 'alex@example.com', remoteId: 'tp-weekend', remoteName: 'Weekend', lastSyncedAt: new Date(Date.now() - 4 * 60_000).toISOString(), lastError: null, lastErrorCode: null, syncFailures: 0, retryAfter: null }]
+const taskLinks: TaskLink[] = [{ listId: 'l2', accountId: 'demo-todoist', app: 'todoist', accountName: 'alex@example.com', needsReconnect: false, remoteId: 'tp-weekend', remoteName: 'Weekend', lastSyncedAt: new Date(Date.now() - 4 * 60_000).toISOString(), lastError: null, lastErrorCode: null, syncFailures: 0, retryAfter: null }]
+// Demo only: ?taskSync=broken shows the link as Todoist turned the token down (its warning and Reconnect).
+if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('taskSync') === 'broken') {
+  Object.assign(taskLinks[0], { lastError: 'Todoist stopped letting Kinwall see this list. Reconnect alex@example.com to start syncing again.', lastErrorCode: 'revoked', syncFailures: 3 })
+}
 
 const calendars: CalendarEntry[] = [
   { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, memberIds: [], categoryId: null, writable: true, enabled: true, lastSyncedAt: null, lastError: null },
@@ -1261,6 +1265,7 @@ export const mock = {
   connectTodoist: async (_token: string): Promise<TaskAccount> => {
     const a: TaskAccount = taskAccounts.find(x => x.kind === 'todoist') ?? { id: uid(), kind: 'todoist', name: 'alex@example.com', createdAt: iso(), alsoCalendar: false }
     if (!taskAccounts.includes(a)) taskAccounts.push(a)
+    for (const l of taskLinks.filter(l => l.accountId === a.id)) Object.assign(l, { lastError: null, lastErrorCode: null, syncFailures: 0, lastSyncedAt: iso() })
     return a
   },
   deleteTaskAccount: async (id: string) => { taskAccounts.splice(0, taskAccounts.length, ...taskAccounts.filter(a => a.id !== id)); taskLinks.splice(0, taskLinks.length, ...taskLinks.filter(l => l.accountId !== id)); bump() },
@@ -1270,7 +1275,7 @@ export const mock = {
     const account = taskAccounts.find(a => a.id === body.accountId)!
     const remote = body.remoteId ? taskAppLists.find(r => r.remoteId === body.remoteId)! : { remoteId: uid(), name: body.newListName ?? '' }
     if (!body.remoteId) taskAppLists.push(remote)
-    const link: TaskLink = { listId, accountId: account.id, app: account.kind, accountName: account.name, remoteId: remote.remoteId, remoteName: remote.name, lastSyncedAt: iso(), lastError: null, lastErrorCode: null, syncFailures: 0, retryAfter: null }
+    const link: TaskLink = { listId, accountId: account.id, app: account.kind, accountName: account.name, needsReconnect: false, remoteId: remote.remoteId, remoteName: remote.name, lastSyncedAt: iso(), lastError: null, lastErrorCode: null, syncFailures: 0, retryAfter: null }
     taskLinks.splice(0, taskLinks.length, ...taskLinks.filter(l => l.listId !== listId), link)
     bump()
     return { ...link }

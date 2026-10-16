@@ -4911,9 +4911,11 @@
   "Syncs {lists}": "Synchronisiert {lists}",
   "Syncs with {list} in {app}": "Synchronisiert mit {list} in {app}",
   "This list isn't syncing with {app}.": "Diese Liste synchronisiert gerade nicht mit {app}.",
-  "Titles, done, due dates and notes sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for, steps and the discussion stay in Kinwall.": "Titel, Erledigt, Fälligkeitsdatum und Notizen synchronisieren in beide Richtungen, die Priorität mit Todoist und Microsoft To Do. Für wen es ist, Schritte und die Unterhaltung bleiben in Kinwall.",
   "To-do apps": "To-do-Apps",
   "Todoist API token": "Todoist-API-Token",
   "Todoist, Google Tasks or Microsoft To Do": "Todoist, Google Tasks oder Microsoft To Do",
-  "Where to find it: in Todoist, open Settings, then Integrations, then Developer, and copy your API token. Kinwall keeps it locked with your family’s key and uses it only to sync the lists you pick. You can reset it there any time.": "So findest du ihn: Öffne in Todoist die Einstellungen, dann Integrationen, dann Entwickler, und kopiere deinen API-Token. Kinwall verschlüsselt ihn mit dem Schlüssel deiner Familie und nutzt ihn nur, um die Listen zu synchronisieren, die du auswählst. Du kannst ihn dort jederzeit zurücksetzen."
+  "Where to find it: in Todoist, open Settings, then Integrations, then Developer, and copy your API token. Kinwall keeps it locked with your family’s key and uses it only to sync the lists you pick. You can reset it there any time.": "So findest du ihn: Öffne in Todoist die Einstellungen, dann Integrationen, dann Entwickler, und kopiere deinen API-Token. Kinwall verschlüsselt ihn mit dem Schlüssel deiner Familie und nutzt ihn nur, um die Listen zu synchronisieren, die du auswählst. Du kannst ihn dort jederzeit zurücksetzen.",
+  "Titles, done, due dates, notes and steps sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for and the discussion stay in Kinwall.": "Titel, Erledigt, Fälligkeitsdatum, Notizen und Schritte synchronisieren in beide Richtungen, die Priorität mit Todoist und Microsoft To Do. Für wen es ist und die Unterhaltung bleiben in Kinwall.",
+  "Connect {app} again in Settings to pick up where it left off.": "Verbinde {app} in den Einstellungen noch einmal, dann geht es dort weiter, wo es aufgehört hat.",
+  "{lists} will sync again once you connect {app}.": "{lists} synchronisiert wieder, sobald du {app} verbindest."
 }

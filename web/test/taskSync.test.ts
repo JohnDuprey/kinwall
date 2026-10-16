@@ -17,3 +17,7 @@ test('calendarAccountFor: the calendar account of that kind not yet connected fo
   assert.equal(calendarAccountFor('microsoft', cals, [{ kind: 'google', name: 'alex@example.com' }]), 'alex@example.com')
   assert.equal(calendarAccountFor('microsoft', [], []), null)
 })
+
+test('taskLinkBroken: a list imported without its account needs connecting', () => {
+  assert.equal(taskLinkBroken({ lastError: null, lastErrorCode: null, syncFailures: 0, needsReconnect: true }), true)
+})

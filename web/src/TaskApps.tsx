@@ -67,6 +67,7 @@ export function TaskAppsRows({ toast }: { toast: (m: string, persist?: boolean) 
     if (!await dialog.confirm({ title: t('Remove {account}?', { account: a.name }), body, confirmLabel: t('Remove'), danger: true })) return
     try { await api.deleteTaskAccount(a.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not remove the account'), true) }
   }
+  const waiting = links.filter(l => l.needsReconnect) // imported from an export: back once the app is connected
   const googleHint = calendarAccountFor('google', calendarAccounts, accounts)
   const msHint = calendarAccountFor('microsoft', calendarAccounts, accounts)
 
@@ -91,6 +92,10 @@ export function TaskAppsRows({ toast }: { toast: (m: string, persist?: boolean) 
           </div>
         </div>
       )
+    })}
+    {(['todoist', 'google', 'microsoft'] as const).map(app => {
+      const names = waiting.filter(l => l.app === app).map(l => lists.find(x => x.id === l.listId)?.name).filter(Boolean)
+      return names.length > 0 && <p key={app} className="settings-row-sub cal-sub error task-waiting">{t('{lists} will sync again once you connect {app}.', { lists: names.join(', '), app: appName(app) })}</p>
     })}
     <div className="connect-buttons" style={{ marginTop: 14 }}>
       <button className="connect-btn" onClick={() => setTodoist(true)}>{t('Connect {provider}', { provider: 'Todoist' })}</button>
@@ -146,7 +151,7 @@ export function TaskSyncLine({ link }: { link: TaskLink }) {
   if (parentDevice && taskLinkBroken(link)) return (
     <div className="sync-alert task-sync-alert" role="status">
       <span aria-hidden="true">⚠️</span>
-      <span>{t("This list isn't syncing with {app}.", { app: appName(link.app) })} {link.lastError} <a className="text-link" href="#/settings?tab=calendars&section=todo-apps">{t('Repair the connection')}</a></span>
+      <span>{t("This list isn't syncing with {app}.", { app: appName(link.app) })} {link.needsReconnect ? t('Connect {app} again in Settings to pick up where it left off.', { app: appName(link.app) }) : link.lastError} <a className="text-link" href="#/settings?tab=calendars&section=todo-apps">{t('Repair the connection')}</a></span>
     </div>
   )
   return <div className="list-detail-sub task-sync-line">🔄 {link.lastSyncedAt ? t('{where} · synced {time}', { where, time: whenLabel(link.lastSyncedAt) }) : where}</div>
@@ -241,7 +246,7 @@ function TaskSyncSheet({ list, link, onClose, onChanged }: { list: List; link: T
             {remote && <option value={NEW}>{t('Make a new one: {name}', { name: list.name })}</option>}
           </select>
         </div>
-        <p className="field-hint">{t('Titles, done, due dates and notes sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for, steps and the discussion stay in Kinwall.')}</p>
+        <p className="field-hint">{t('Titles, done, due dates, notes and steps sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for and the discussion stay in Kinwall.')}</p>
         <p className="field-hint">{link ? t('Picking another list starts over: items with the same title are matched, the rest are copied across.') : t('Items with the same title are matched; the rest are copied across. Done items stay where they are.')}</p>
         {link && (
           <div className="sheet-danger-zone">

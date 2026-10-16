@@ -645,7 +645,7 @@ export type TaskAppKind = 'todoist' | 'google' | 'microsoft'
 export type TaskAccount = { id: string; kind: TaskAppKind; name: string; createdAt: string; alsoCalendar: boolean }
 export type TaskAppList = { remoteId: string; name: string }
 export type TaskLink = {
-  listId: string; accountId: string; app: TaskAppKind; accountName: string; remoteId: string; remoteName: string
+  listId: string; accountId: string | null; app: TaskAppKind; accountName: string | null; needsReconnect: boolean; remoteId: string; remoteName: string
   lastSyncedAt: string | null; lastError: string | null; lastErrorCode: string | null; syncFailures: number; retryAfter: string | null
 }
 
