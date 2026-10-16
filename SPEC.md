@@ -15,16 +15,16 @@ Self-hosted, open-source family wall calendar + chore chart, displayed full-scre
 - API keys (bearer), OpenAPI docs at `/docs`, near-live updates via a cheap revision poll, outbound webhooks (HMAC-signed).
 - Touch UI: Calendar (day / week / month / schedule), Chores, Settings.
 
-**Later release**: native iPad wrapper app (SwiftUI + WKWebView) to hide the status bar / home indicator and keep the key in the Keychain — needs an Apple developer account for distribution.
+**Since v1**: the phone/tablet apps live in kinwall-mobile (Expo React Native shell around this web app). Meals, recipes, photos, weather, rewards and much more have shipped; this spec still describes the v1 core in detail. For later areas the code, the migrations and `docs/` are the reference.
 
-**Out of v1** (add when asked): meal planning, photo frame, weather, rewards shop, multi-household, webhook retries, SSE/live-updates (would need Durable Objects on Workers; `/api/rev` polling covers it for now), editing a single occurrence of a *local* recurring event.
+**Still out** (add when asked): multi-household, webhook retries, SSE/live-updates (would need Durable Objects on Workers; `/api/rev` polling covers it for now), editing a single occurrence of a *local* recurring event.
 
 ## Tech (fixed — don't swap)
 
 | Concern | Choice | Why |
 |---|---|---|
 | HTTP | **Hono** + `@hono/zod-openapi` + `zod` + `@hono/swagger-ui` | same app runs on Workers and Node; OpenAPI from route schemas |
-| Workers target | `server/src/worker.ts` → `export default { fetch, scheduled }`, root `wrangler.toml` (builds the UI via `[build]`, D1 binding `DB` auto-provisioned), cron `*/10 * * * *`, static assets from `../web/dist` (SPA fallback) | free tier |
+| Workers target | `server/src/worker.ts` → `export default { fetch, scheduled }`, root `wrangler.toml` (builds the UI via `[build]`, D1 binding `DB` auto-provisioned), cron `*/5 * * * *`, static assets from `../web/dist` (SPA fallback) | free tier |
 | Node target | `server/src/node.ts` → `@hono/node-server` + `serveStatic` for `web/dist`, `setInterval` sync loop, `node:sqlite` wrapped by `server/src/d1-sqlite.ts` which implements the **D1 API subset** (`prepare().bind().all()/first()/run()`, `batch()`) | app code only ever sees `D1Database` |
 | Migrations | `server/migrations/NNNN_name.sql` — applied at runtime on both targets, tracked in `_migrations`: the Node entry on boot, the Worker on its first request/cron per isolate (`server/src/migrate.ts`, files bundled via `server/src/worker-migrations.ts`) | one set of SQL |
 | TS | Node runs `.ts` directly (native type stripping); wrangler bundles with esbuild. Rules: `import ... from './x.ts'` (with extension), `import type` for types, **no enums, no namespaces, no constructor parameter properties**. `tsc --noEmit` for typecheck | no build step for server |
@@ -43,7 +43,6 @@ Self-hosted, open-source family wall calendar + chore chart, displayed full-scre
 
 ```
 server/
-  wrangler.toml
   migrations/0001_init.sql
   src/
     app.ts              createApp(): Hono app, auth middleware, routes, /docs, /openapi.json
@@ -153,7 +152,7 @@ An adapter must guarantee:
 
 ## Config (env)
 
-Workers: `[vars]` in wrangler.toml + `wrangler secret put` for secrets. Node: process env. `PORT` (8080, Node only), `DATA_DIR` (./data, Node only), `PUBLIC_URL` (e.g. `https://cal.home.example` — used for OAuth redirects), `ADMIN_API_KEY` (optional bootstrap key; if unset and no keys exist, generate one and log it once), `SYNC_INTERVAL_MINUTES` (10; Workers uses the cron instead), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` (`common`), `OAUTH_REDIRECT_URI` (shared-app hosts, see "Embedding the server").
+Workers: `[vars]` in wrangler.toml + `wrangler secret put` for secrets. Node: process env. `PORT` (8080, Node only), `DATA_DIR` (./data, Node only), `PUBLIC_URL` (e.g. `https://cal.home.example` — used for OAuth redirects), `ADMIN_API_KEY` (optional; also the setup code — without it, a first-run setup code is printed to the log on each boot until the instance is claimed with `POST /api/setup/claim`), `SYNC_INTERVAL_MINUTES` (10; `syncDue` throttles each calendar against it on both targets, the Workers cron just ticks every 5 min), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` (`common`), `OAUTH_REDIRECT_URI` (shared-app hosts, see "Embedding the server"). This list is not complete: `docs/self-hosting/configuration.md` is the maintained list (proxy, passkeys, encryption, push/APNs, photos, plugins, private-address opt-ins).
 
 `PUBLIC_URL` and the Google/Microsoft OAuth credentials can also be configured from the UI
 (Settings → Calendars → Calendar providers, admin only — see `GET/PUT/DELETE /api/providers*` below), stored
@@ -169,12 +168,13 @@ only env configures (or on an env `PUBLIC_URL`) returns 409 — the UI shows "Pr
 All ids are text (`crypto.randomUUID()`). Timestamps are ISO 8601 strings. Timed events stored in UTC ISO (`2026-09-24T14:00:00.000Z`); all-day events stored as `YYYY-MM-DD` dates with `end` exclusive.
 
 ```
-settings(key PK, value)                       -- familyName, timezone, weekStart (0|1), theme, rev
+-- v1 snapshot: later migrations added many columns and tables; server/migrations is the truth.
+settings(key PK, value)                       -- familyName, timezone, weekStart (0|1), themeMode, rev
 members(id, name, color, avatar, sort, created_at)
 accounts(id, kind  'google'|'microsoft'|'caldav', name, config JSON, created_at)
        -- config holds tokens / creds; NEVER returned by the API
 calendars(id, kind 'local'|'ics'|'google'|'microsoft'|'caldav', account_id NULL, remote_id NULL,
-          name, color NULL, member_id NULL, category_id NULL, config JSON, writable INT, enabled INT,
+          name, color NULL, member_ids JSON, category_id NULL, config JSON, writable INT, enabled INT,
           last_synced_at NULL, last_error NULL)
           -- ics: config.url. remote_id = provider calendar id / caldav URL
           -- category_id = default category for events on this calendar with no override/keyword match
@@ -247,7 +247,7 @@ GET    /api/oauth/:kind/callback -> creates account, 302 to /#/settings?account=
 POST   /api/accounts/caldav     {name, serverUrl, username, password} -> account
 GET    /api/accounts/:id/remote-calendars   -> [{remoteId, name, color, writable}]
 
-GET    /api/calendars           POST /api/calendars   {kind, name, color?, memberId?, categoryId?, accountId?, remoteId?, url?}
+GET    /api/calendars           POST /api/calendars   {kind, name, color?, memberIds?, categoryId?, accountId?, remoteId?, url?}
 PATCH  /api/calendars/:id       DELETE /api/calendars/:id
 POST   /api/calendars/:id/sync  -> {ok, count} | 502 {error}
 
@@ -257,12 +257,12 @@ PATCH  /api/categories/:id      DELETE /api/categories/:id   (clears every refer
 POST   /api/categories/reorder  {ids} -> sort = index
          Category = {id, name, emoji, color, keywords, sort, createdAt}
 
-GET    /api/events?from&to[&memberId][&calendarId]   -> EventInstance[] (sorted by start)
+GET    /api/events?from&to[&memberId][&calendarId][&includeHidden]   -> EventInstance[] (sorted by start; ranges over 400 days refused)
 POST   /api/events              {calendarId, title, start, end, allDay, location?, description?, memberIds?, rrule?, categoryId?}
 GET    /api/events/:id          PATCH /api/events/:id     DELETE /api/events/:id
          EventInstance = {id, calendarId, title, start, end, allDay, location, description,
                           memberIds, color, rrule, occurrenceStart, readOnly, categoryId, categorySource}
-         memberIds: event.member_ids, else [calendar.member_id], else []
+         memberIds: the event's own, else its occurrence or series override, else calendar.member_ids, else [] (memberScope says which)
          color: first member's color, else calendar.color, else '#888'
          categoryId/categorySource resolve in order: occurrence override ('event') -> series override
          ('series') -> keyword match against the title, case-insensitive whole-word/phrase ('keyword')
@@ -273,17 +273,18 @@ GET    /api/events/:id          PATCH /api/events/:id     DELETE /api/events/:id
 GET    /api/chores              POST /api/chores   PATCH /api/chores/:id   DELETE /api/chores/:id
 GET    /api/chores/day?date=YYYY-MM-DD  -> [{...chore, completed, completedAt, completedBy}]
          (chores due that date in the household timezone, grouped client-side by member)
-POST   /api/chores/:id/complete   {date, memberId?}      DELETE /api/chores/:id/complete?date=
+POST   /api/chores/:id/complete   {date, memberId?} -> {ok, pending} (pending when the chore needs a parent's OK)      DELETE /api/chores/:id/complete?date=
 
 GET    /api/lists[?archived=true]   POST /api/lists   {name, kind, emoji?, color?, memberIds?, groupBy?}
-         List = {..., memberIds, groupBy 'store'|'category'|'none' (default: shopping -> category, else none),
+         List = {..., memberIds, groupBy 'store'|'category'|'aisle'|'none' (default: shopping -> aisle, else none),
                  sort, archived, itemCount, openCount}   -- archived excluded unless archived=true
-GET    /api/lists/:id   -> {list, items, groups, suggestions: {stores, categories}}   (suggestions = distinct
-         non-null store/category values across all list_items, household-wide)
+GET    /api/lists/:id   -> {list, items, groups, suggestions: {stores, categories}}   (shopping lists only, from that list
+         type's catalog; ?suggestions=false skips them)
 PATCH  /api/lists/:id       DELETE /api/lists/:id   (cascades items + groups)
 POST   /api/lists/:id/items   body: ItemInput | ItemInput[] -> 201 ListItem[] (always an array)
-         "Remembers where things go": store/category omitted (not explicit null) -> filled from the
-         most recently updated list_item (any list) with a matching lower(trim(title))
+         "Remembers where things go" (shopping lists): store/category/aisle omitted (not explicit null) -> filled
+         from that list type's catalog (groceries vs shopping; plurals and spacing ignored; aisles per store;
+         server/src/item-memory.ts). More list routes (remembered, aisles, stores, move, barcodes, steps): /docs
 PATCH  /api/lists/:id/items/:itemId   partial; done:true sets doneAt/doneBy, done:false clears both
 DELETE /api/lists/:id/items/:itemId
 POST   /api/lists/:id/clear-completed -> {deleted}     POST /api/lists/:id/reset -> {reset}
@@ -296,16 +297,17 @@ GET    /api/leaderboard?period=today|week|month   (default week; household timez
          Members with zero activity still appear. streak = consecutive days, ending today (today
          only counts once its assigned chores are already complete), on which every chore assigned
          to the member and due that day was completed; days with nothing due are skipped, not
-         broken; looks back at most 60 days. Read-only, no new bus event.
+         broken (settings.streakGraceDays forgives that many missed days); looks back at most 60 days. Read-only, no new bus event.
 
-GET    /api/keys   POST /api/keys {name} -> {id, name, key}   DELETE /api/keys/:id
+GET    /api/keys   POST /api/keys {name, scope?: 'admin'|'display'} -> 201 {id, name, scope, key}   (scope defaults to display)
+PATCH  /api/keys/:id {kind?, owner?}   DELETE /api/keys/:id
 
 POST   /api/pair                        (no auth) -> {pairingId, code, pollToken, expiresAt}
-POST   /api/pair/approve  {code, name}  (admin only) -> {keyId, name}   404 if code unknown/expired
-POST   /api/pair/poll     {pairingId, pollToken}   (no auth) -> {status:'pending'} | {status:'approved', key} (once)
-GET    /api/webhooks   POST /api/webhooks {url, events[], secret?}   PATCH/DELETE /api/webhooks/:id
+POST   /api/pair/approve  {code, name, kind?: 'wall'|'kid', owner?}  (admin only) -> {keyId, name, kind}   404 if code unknown/expired; 400 for a grown-up owner
+POST   /api/pair/poll     {pairingId, pollToken}   (no auth) -> {status:'pending'} | {status:'approved', key, kind} (once)
+GET    /api/webhooks   POST /api/webhooks {url, events[], secret?}   PATCH/DELETE /api/webhooks/:id   POST /api/webhooks/:id/rotate
 
-GET    /api/rev                 -> {rev}  (integer bumped on every write; UI polls every 15s and refetches on change)
+GET    /api/rev                 -> {rev, revs: {events, lists, chores}, nightScreen}  (rev bumps on every write, revs per area (bus.ts); UI polls every 30 s, a wall 10 s, and refetches what changed)
 
 GET    /api/push/vapid-public-key   -> {publicKey}
 POST   /api/push/subscriptions   {subscription: PushSubscriptionJSON, deviceName, memberIds?, prefs?} -> upsert by endpoint
@@ -322,11 +324,11 @@ POST   /api/notify   (admin only)   {title, body, memberIds?, url?} -> {ok, sent
 
 `POST/GET/DELETE /mcp` - MCP **Streamable HTTP** transport, stateless (no sessions/Durable Objects), same bearer keys as the REST API, or OAuth 2.1 access tokens (401 + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` without one).
 
-**OAuth** (`server/src/routes/mcp-oauth.ts`, migration 0014): Kinwall is its own authorization server per the MCP authorization spec - RFC 9728 protected-resource and RFC 8414 server metadata, RFC 7591 open dynamic registration (https or loopback-http redirect URIs, exact match; unapproved registrations pruned after a day), authorization code with **PKCE S256 only**, public clients. `/oauth/authorize` validates client + redirect (errors shown, never redirected to an unregistered URI) and hands off to the SPA consent screen `#/authorize`, where a signed-in admin (passkey session or API key - never an OAuth token) approves *Full* (`kinwall:admin`) or *Everyday* (`kinwall:display`) access via `POST /api/authorizations/approve`. Codes live 5 min, single use; a replayed code revokes what it produced. Access tokens are `api_keys` rows (`kind='oauth'`, 1 h, linked to an `oauth_grants` row) so REST/MCP auth is unchanged; refresh tokens (90 days) rotate on every use and a reused one revokes the whole grant. `POST /oauth/revoke` (RFC 7009), `GET/DELETE /api/authorizations` for Settings → Access → Connected apps. Kinwall's own app (redirect `family.kinwall.app:/oauth`, migration 0035) also gets "Whose device is this?" on the consent screen: `owner` ('shared' or a member id) is stored on the code, then the grant, and copied onto every access key it issues (so `/api/device-keys` widget/watch keys inherit it); `PATCH /api/authorizations/{id}` changes it. An owner locks the family filter only on display-scope keys (`/api/me` `locked`); on admin keys it's just personal defaults. All secrets stored as sha256 hashes. Implemented with `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (Web Standards - Request/Response/ReadableStream, no `node:*`; runs on Workers and Node unchanged). See `server/src/mcp.ts`.
+**OAuth** (`server/src/routes/mcp-oauth.ts`, migration 0014): Kinwall is its own authorization server per the MCP authorization spec - RFC 9728 protected-resource and RFC 8414 server metadata, RFC 7591 open dynamic registration (https, loopback-http or reverse-domain app-link redirect URIs, at most 5, exact match; unapproved registrations pruned after a day, capped at the newest 100, 20 per hour per address), authorization code with **PKCE S256 only**, public clients. `/oauth/authorize` validates client + redirect (errors shown, never redirected to an unregistered URI) and hands off to the SPA consent screen `#/authorize`, where a signed-in admin (passkey session or API key - never an OAuth token) approves *Full* (`kinwall:admin`) or *Everyday* (`kinwall:display`) access via `POST /api/authorizations/approve`. Codes live 5 min, single use; a replayed code revokes what it produced. Access tokens are `api_keys` rows (`kind='oauth'`, 1 h, linked to an `oauth_grants` row) so REST/MCP auth is unchanged; refresh tokens (90 days) rotate on every use and a reused one revokes the whole grant, except the same client reusing it within 30 s, which gets the same new pair. `POST /oauth/revoke` (RFC 7009), `GET/DELETE /api/authorizations` for Settings → Access → Connected apps. Kinwall's own app (redirect `family.kinwall.app:/oauth`, migration 0035) also gets "Whose device is this?" on the consent screen: `owner` ('shared' or a member id) is stored on the code, then the grant, and copied onto every access key it issues (so `/api/device-keys` widget/watch keys inherit it); `PATCH /api/authorizations/{id}` changes it. An owner locks the family filter only on display-scope keys (`/api/me` `locked`); on admin keys it's just personal defaults. All secrets stored as sha256 hashes. Implemented with `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (Web Standards - Request/Response/ReadableStream, no `node:*`; runs on Workers and Node unchanged). See `server/src/mcp.ts`.
 
 Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `get_event`, `get_event_items`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `update_chore`, `get_leaderboard`, `get_points`, `get_snapshot`, `get_board`, `add_member`, `update_member`, `list_lists`, `create_list`, `update_list`, `get_list`, `add_list_items`, `update_list_item`, `set_list_item_done`, `set_step_done`, `list_categories`, `update_category`, `set_event_category`, `send_notification`, `list_notifications`, `list_notes`, `add_note`, `update_note`, plus [recipes and meals](docs/using/meals.md#api-and-mcp), [tracker entries](docs/using/trackers.md#api-and-mcp) and [color schemes](docs/using/appearance.md#color-schemes) — see [docs/integrations/mcp.md](docs/integrations/mcp.md) for the maintained, complete list. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists and categories likewise by name in `get_list`/`add_list_items` and `set_event_category`.
 
-Bus event types (webhooks; every emit also bumps `rev`, except `calendar.synced` without an error — `events.changed` follows when a sync changed events; a background tick that changed nothing and hit no new error emits nothing at all): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `category.changed`, `settings.changed`, `sticker.changed`, `photo.changed`, `tracker.changed`, `recipe.changed`, `meal.changed`, `display.paired`, `display.night_screen`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
+Bus event types (webhooks; every emit also bumps `rev`, except `calendar.synced` without an error — `events.changed` follows when a sync changed events; a background tick that changed nothing and hit no new error emits nothing at all): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `category.changed`, `settings.changed`, `sticker.changed`, `photo.changed`, `tracker.changed`, `recipe.changed`, `meal.changed`, `display.paired`, `display.night_screen`, and more (contacts, restaurants, chore approvals/library/suggestions, check-ins, Temp check, journal, plugin actions, rewards, points, Newscast, polls, outings): `BusEventType` in `server/src/bus.ts` and `docs/integrations/webhooks.md` have the full list. Webhooks to private addresses are refused unless `ALLOW_PRIVATE_WEBHOOK_URLS=1`; redirects aren't followed. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
 
 ## Provider contract (`server/src/providers/types.ts`)
 
@@ -370,7 +372,7 @@ For a phone in a store with poor or no signal. Design note; user docs in `docs/u
   and that list prunes older builds' files. Only the SPA page itself, never other navigations.
 - **Read cache** (`web/src/api.ts` + `outbox.ts`): GETs an ordinary view needs (`me`, `settings`,
   `members`, `categories`, `lists`, `board`, `snapshot`, `events`, `chores`, `meals`, `recipes`,
-  `notes`, `notifications`, `leaderboard`; never admin-key calls, trackers, keys or accounts) are
+  `notes`, `notifications`, `leaderboard`, `appearance`, `restaurants`, `outings`, `outing-categories`, `outing-feeds`; never admin-key calls, trackers, keys or accounts) are
   network-first with a 4 s timeout, falling back to the last good response in IndexedDB. Stored per
   server by full URL; IndexedDB is per origin, and a hosted family has its own subdomain. Sign-out
   clears it (and Cache Storage), and so does start-up without a key.
@@ -395,33 +397,33 @@ For a phone in a store with poor or no signal. Design note; user docs in `docs/u
 
 ## Security
 
-**Encryption at rest**: `accounts.config`, `calendars.config`, `webhooks.secret` are AES-256-GCM encrypted (Web Crypto) with `ENCRYPTION_KEY` (32 random bytes, base64). Stored as `v1:<iv b64>:<ciphertext b64>`; the row id is the AAD so blobs can't be swapped between rows. Health tracker entries' `title` and `data` are sealed the same way as `enc:v1:<iv b64>:<ciphertext b64>` (AAD `<id>:title` / `<id>:data`); id, kind, member, date and timestamps stay plaintext for queries. Writes fail closed without a key; `sealHealthEntries` (routes/trackers.ts) seals older plaintext rows once per instance from `createKinwall` (per-row compare-and-swap, idempotent). Key source: Workers secret; Docker `ENCRYPTION_KEY` / `ENCRYPTION_KEY_FILE`, else generated once into `$DATA_DIR/encryption.key` (0600) with a startup warning.
+**Encryption at rest**: `accounts.config`, `calendars.config`, `webhooks.secret`, push subscription keys and medication notification text are AES-256-GCM encrypted (Web Crypto) with `ENCRYPTION_KEY` (32 random bytes, base64). Stored as `v1:<iv b64>:<ciphertext b64>`; the row id is the AAD so blobs can't be swapped between rows. Health tracker entries' `title` and `data` are sealed the same way as `enc:v1:<iv b64>:<ciphertext b64>` (AAD `<id>:title` / `<id>:data`); id, kind, member, date and timestamps stay plaintext for queries. Writes fail closed without a key; `sealHealthEntries` (routes/trackers.ts) seals older plaintext rows once per instance from `createKinwall` (per-row compare-and-swap, idempotent). Key source: Workers secret; Docker `ENCRYPTION_KEY` / `ENCRYPTION_KEY_FILE`, else generated once into `$DATA_DIR/encryption.key` (0600) with a startup warning.
 
-**Key scopes**: `admin` = everything. `display` = GET on me/members/calendars (config-free)/events/chores/leaderboard/settings/rev, settings PATCH, member update, event create/update/delete, chore create/update/delete/complete/uncomplete, and all of `/api/lists*` (lists are display-safe end to end - create/update/delete a list, its items, clear-completed, reset, reorder, groups). `display` can NOT touch accounts, oauth, keys, webhooks, passkeys, displays, calendar create/delete, or member create/delete. Wall iPad uses a display key; its Settings tab shows Household, Appearance, This display (paired-as, nav position, unpair) and Members (edit only) — admin sections (calendar accounts, displays, passkeys, API keys, webhooks) don't render at all. The setup wizard's display-role flow and the phone `#/pair?code=` approval screen still use a temporary in-memory/sessionStorage admin key to finish setup/pairing. `ADMIN_API_KEY` env is admin.
+**Key scopes**: `admin` = everything. `display` (wall screens and kids' devices) is deny-by-default: only what `DISPLAY_ALLOWED` in `server/src/auth.ts` lists, and that list is the source of truth. In short, a display reads the family's data (members, calendars without config, events, chores, lists, meals, recipes, notes, rewards, leaderboard, settings, rev) and does the everyday things: event create/update/delete (only on calendars that allow it, `display_edit`), tick and untick chores, suggest chores, redeem rewards and pick a goal, rate and order meals, vote in polls, add and edit lists, list items, steps and groups (clear-completed, reset, reorder), notes, trackers (never health), library books, outings, Newscast posts, plugin data, and add a color scheme. On a kid's own device the routes keep it to that kid's data (their own avatar, picture, language, journal, Temp check, reward goal). It can NOT add, edit or delete chores, change family settings, edit or add members, delete lists or reorder them. Nor can it touch accounts, oauth, keys, webhooks, passkeys, displays, calendar create/delete, or member create/delete. Wall screens and kids' devices use a display key; their Settings shows Language and the "Only on this device" group (whose device it is, This screen/This phone, its own look, time cues, night screen, notifications, troubleshooting), with Members, Categories and Meals read-only. The family group (Household, weather, features, appearance, night) and the parent-only tabs (calendar accounts, devices, passkeys, API keys, webhooks) don't render at all (`web/src/Settings.tsx`). The setup wizard's display-role flow and the phone `#/pair?code=` approval screen still use a temporary in-memory/sessionStorage admin key to finish setup/pairing. `ADMIN_API_KEY` env is admin.
 
-**OAuth**: PKCE + single-use state; Google scopes `calendar.events calendar.readonly openid email` (not full `calendar`); revoke Google token on account delete.
+**OAuth**: PKCE + single-use state; Google scopes `calendar.events calendar.calendarlist.readonly openid email` (not full `calendar`); revoke Google token on account delete.
 
-**Untrusted content**: event titles/descriptions from providers render as text only (never HTML). Server sends `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'` (HA ingress frames it). Never log tokens/keys; redact secrets from `last_error`.
+**Untrusted content**: event titles/descriptions from providers render as text only (never HTML). Server sends the Content-Security-Policy in `CSP_DEFAULT` (`server/src/app.ts`, kept in sync with `web/public/_headers`): `default-src 'self'`, scripts from 'self' plus the hashed legacy loaders, `frame-src 'self'`, `frame-ancestors 'self'` (HA ingress frames it), plus the image and connect hosts the photo frame needs. `/docs`, `/plugins/*`, `/r/*` and the OAuth callback page set their own policies. `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` are always sent. Never log tokens/keys; redact secrets from `last_error`.
 
 **Exposure**
 
-- Every `/api/*` route except `/api/health` and `/api/oauth/:kind/callback` requires a valid key; compare hashes, never plaintext.
+- Every `/api/*` route requires a valid key except `PUBLIC_PATH` in `server/src/auth.ts`: health, appearance, the OAuth callback, pairing (`/api/pair`, `/api/pair/poll`), setup and claim, the passkey register/login ceremonies and recovery-code login. Image GETs also accept a `km_` media token as `?key=`, and the photo zip a one-time `?ticket=`. Compare hashes, never plaintext.
 - Account/calendar `config` (tokens, passwords, ICS URLs with secrets) is never returned by the API.
 - OAuth `state` is single-use and expires; redirect URI is `PUBLIC_URL` + fixed path, or `OAUTH_REDIRECT_URI` for env (host-shared) credentials.
 - An OAuth flow finishes only in the browser that started it, and starting one needs the family's key in the Authorization header, which a link or another site can't supply: `POST /api/oauth/{kind}/start` (no `?key=`, no GET; CORS never allows credentials, so a cross-origin response can't set the cookie). Start (`POST /api/oauth/{kind}/start`, and `POST /api/google-photos/connect` for the web sign-in) sets a cookie `kinwall_oauth_<first 16 hex of the hash>` = SHA-256 hex of `state`: `HttpOnly; SameSite=Lax; Max-Age=600` (the state's lifetime), `Path` = the callback's path as the browser sees it (the path of `PUBLIC_URL` + `/api/oauth/{kind}/callback`; on a shared-app host `/api/oauth/{kind}/callback`), and `Secure` with a `__Secure-` name prefix when that callback URL is https (decided from the callback URL, not the request, which a TLS-terminating proxy delivers as http). One cookie per flow, so two tabs don't clash. The callback compares it in constant time before consuming the state; on a match it clears the cookie. Without a match it leaves the state alone and, given a `code`, answers 200 with a small page (its own CSP: `default-src 'none'`, a nonce for its style, no script; `Cache-Control: no-store`; everything from the query escaped) offering **Open in the Kinwall app**, a link to `family.kinwall.app:/provider-return?kind=<google|microsoft>&state=<state>&code=<code>`, plus the wrong-browser advice and a link to Settings; without a `code` (a declined consent) it redirects to Settings with `oauthError`. The phone app starts a flow in its web view but shows the provider in the system's in-app browser, whose cookies are separate: the app takes the link, checks it, and loads `<its own server>/api/oauth/<kind>/callback?code&state` in its web view, where the cookie is (kinwall-mobile `src/providerReturn.ts`). The link is only a tap, never automatic, so a browser without the app is never left on a failed navigation. The code alone is useless: finishing needs the cookie only the starting browser holds, and the exchange needs the PKCE verifier only this server holds. Start and callback must therefore be reached at the same address: a flow started at a LAN address or through Home Assistant ingress while `PUBLIC_URL` is another host is refused with that message, and works when started from `PUBLIC_URL`.
 - CORS: off by default (same origin); `CORS_ORIGINS` env to allow automation from browsers.
-- README recommends Cloudflare Access (free ≤ 50 users) in front of the UI as a second layer, with a service-token bypass for `/api/*`.
+- The self-hosting docs (`docs/self-hosting/cloudflare.md`) recommend Cloudflare Access (free ≤ 50 users) in front of the UI as a second layer, with a service-token bypass for `/api/*`.
 
 ## Touch UI (Skylight-like)
 
 Target: iPad landscape (1180×820 and 1024×768) first, portrait must work. Safari/WebKit only matters.
 
-- **Look**: white/very light warm background, big rounded cards (16–20px radius), soft shadows, pastel member colors, friendly rounded sans (Nunito via Google Fonts, fallback system-ui). Events are colored rounded chips tinted by member color. Dark theme via `settings.theme` for night.
+- **Look**: white/very light warm background, big rounded cards (16–20px radius), soft shadows, pastel member colors, friendly rounded sans (Nunito, bundled with the app, fallback system-ui). Events are colored rounded chips tinted by member color. Dark theme via `settings.themeMode` (light/dark/auto/scheduled; `theme` accepted as legacy).
 - **Header**: family name, large clock + date, member avatar row (tap opens that member's day/week snapshot, which holds the "show only them" calendar filter).
-- **Bottom tab bar**: Calendar · Chores · Settings. Big icons + labels.
+- **Navigation**: Home, Calendar, Chores, Lists and the other areas (each behind its Settings → Features switch; `web/src/App.tsx`), with Settings last. Big icons + labels.
 - **Calendar**: Week (default, 7 columns with all-day row + timed events; a 3-day window on phones), Day (time grid, a column per member), Month (grid with dots/chips), Schedule (agenda list). Segmented control to switch. Swipe left/right to page, "Today" button. Tap event → bottom sheet with details / Edit / Delete (hidden when readOnly). Floating "+" and tap-on-empty-slot → add sheet prefilled with that time.
 - **Add/Edit sheet**: large inputs, native `<input type="date|time">`, all-day toggle, calendar picker (writable only), member avatars as toggle chips, repeat (none/daily/weekly/monthly).
 - **Chores**: one column per member (+ "Anyone"), avatar + progress ring at top, chore cards (emoji, title, points). Tap = complete with a satisfying check + small confetti burst; tap again = undo. Date strip to look at other days. "+" to add; long-press (500ms) to edit.
-- **Settings**: family name / timezone / week start / theme; members (add/edit color from a fixed pastel palette + emoji); calendars (add ICS URL, "Connect Google", "Connect Outlook", CalDAV form → pick remote calendars → assign member + color; sync now; last error shown); API keys (create shows key once); webhooks.
-- **Kiosk behavior**: ≥ 48px touch targets (prefer 56+), no hover-only affordances, `touch-action: manipulation`, disable text selection & callouts & pinch zoom, no scroll bounce on the shell, pointer events for swipe (no gesture lib). Idle 2 min → return to today's calendar and close sheets. Near-live updates: poll `/api/rev` every 15 s (and on `visibilitychange`), refetch on change. PWA manifest + `apple-mobile-web-app-capable` so it runs full-screen from the home screen.
+- **Settings** (v1 core; it has grown since, see `docs/settings/`): family name / timezone / week start / theme; members (add/edit color from a fixed pastel palette + emoji); calendars (add ICS URL, "Connect Google", "Connect Outlook", CalDAV form → pick remote calendars → assign member(s) + color; sync now; last error shown); API keys (create shows key once); webhooks.
+- **Kiosk behavior**: ≥ 48px touch targets (prefer 56+), no hover-only affordances, `touch-action: manipulation`, disable text selection & callouts & pinch zoom, no scroll bounce on the shell, pointer events for swipe (no gesture lib). Idle 2 min → return to today's calendar and close sheets. Near-live updates: poll `/api/rev` every 30 s, 10 s on a wall (and on `visibilitychange`), refetch on change. PWA manifest + `apple-mobile-web-app-capable` so it runs full-screen from the home screen.
 - **Auth on the display**: a `#key=...` (or older `/?key=...`) link strips the key from the URL at once and stores it in localStorage after the person confirms the family and address (or without asking when it carries the hosted sign-in's own `&from=` marker, or is the key already stored; web/src/keyLink.ts); no key → simple "paste API key" screen.
