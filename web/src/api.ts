@@ -12,7 +12,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
-import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput } from './types.ts'
+import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -500,6 +500,16 @@ export const api = {
     MOCK ? mock.createCaldavAccount(body) : post<Account>('api/accounts/caldav', body, true),
   getRemoteCalendars: (accountId: string) => MOCK ? mock.getRemoteCalendars(accountId) : get<RemoteCalendar[]>(`api/accounts/${accountId}/remote-calendars`, true),
   // The provider's consent URL; the response also sets this browser's cookie for the callback (routes/oauth.ts), so open the URL here.
+  // To-do apps (Todoist, Google Tasks, Microsoft To Do) and the lists synced with them.
+  getTaskAccounts: () => MOCK ? mock.getTaskAccounts() : get<TaskAccount[]>('api/tasks/accounts', true),
+  connectTodoist: (token: string) => MOCK ? mock.connectTodoist(token) : post<TaskAccount>('api/tasks/accounts/todoist', { token }, true),
+  startTaskApp: (kind: 'google' | 'microsoft', loginHint?: string) => MOCK ? Promise.reject(new Error(t("The demo doesn't connect to Google or Microsoft."))) : post<{ url: string }>('api/tasks/accounts/' + kind + '/start', loginHint ? { loginHint } : {}, true),
+  deleteTaskAccount: (id: string) => MOCK ? mock.deleteTaskAccount(id) : del('api/tasks/accounts/' + id, true),
+  getTaskAppLists: (accountId: string) => MOCK ? mock.getTaskAppLists(accountId) : get<TaskAppList[]>('api/tasks/accounts/' + accountId + '/lists', true),
+  getTaskLinks: () => MOCK ? mock.getTaskLinks() : get<TaskLink[]>('api/tasks/links'),
+  linkTaskList: (listId: string, body: { accountId: string; remoteId?: string; newListName?: string }) => MOCK ? mock.linkTaskList(listId, body) : put<TaskLink>('api/tasks/links/' + listId, body, true),
+  unlinkTaskList: (listId: string) => MOCK ? mock.unlinkTaskList(listId) : del('api/tasks/links/' + listId, true),
+  syncTaskList: (listId: string) => MOCK ? mock.syncTaskList(listId) : post<TaskLink>('api/tasks/links/' + listId + '/sync', undefined, true),
   oauthStart: (kind: 'google' | 'microsoft') => MOCK ? Promise.reject(new Error(t("The demo doesn't connect to Google or Microsoft."))) : post<{ url: string }>(`api/oauth/${kind}/start`, undefined, true),
 
   // includeHidden (parents' devices): also the events the family doesn't see, each with `hidden` saying why.

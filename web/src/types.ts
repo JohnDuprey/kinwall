@@ -640,6 +640,15 @@ export interface PhotoQuota { count: number; bytes: number; memoryPhotos: number
 
 export type StickerPatch = Partial<Pick<StickerPlacement, 'x' | 'y' | 'scale' | 'rotation' | 'z'>>
 
+// To-do apps a to-do list syncs with (server routes/tasks.ts).
+export type TaskAppKind = 'todoist' | 'google' | 'microsoft'
+export type TaskAccount = { id: string; kind: TaskAppKind; name: string; createdAt: string; alsoCalendar: boolean }
+export type TaskAppList = { remoteId: string; name: string }
+export type TaskLink = {
+  listId: string; accountId: string; app: TaskAppKind; accountName: string; remoteId: string; remoteName: string
+  lastSyncedAt: string | null; lastError: string | null; lastErrorCode: string | null; syncFailures: number; retryAfter: string | null
+}
+
 export type AccountKind = 'google' | 'microsoft' | 'caldav'
 
 export interface Account {

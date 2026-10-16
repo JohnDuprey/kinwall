@@ -56,6 +56,8 @@ import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
 import { CommunityCalendars } from './Outings.tsx'
+import { TaskAppsRows } from './TaskApps.tsx'
+import { appName } from './taskSync.ts'
 import { intlLocale, lang, languageName, LANGUAGES, pickLang, t, tc, tn, type Lang, msg, tm } from './i18n.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
@@ -76,7 +78,7 @@ export default function SettingsView() {
   // return (?account=...) lands on Calendars, where the new account's calendar picker opens.
   const tabFromHash = (): SettingsTab => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
-    if (q.get('account') || q.get('oauthError')) return 'calendars'
+    if (q.get('account') || q.get('oauthError') || q.get('taskAccount') || q.get('taskError')) return 'calendars'
     const v = linkTab(q.get('tab'), q.get('section'))
     return SETTINGS_TABS.some(x => x.key === v) ? (v as SettingsTab) : 'general'
   }
@@ -219,6 +221,8 @@ export default function SettingsView() {
             </>}
             {k === 'calendars' && <>
               <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
+              {/* Beside calendars: the same sign-ins, and connected accounts live here. */}
+              {settings.features.lists && <Section id="todo-apps" title={t('To-do apps')} keywords={[appName('todoist'), appName('google'), appName('microsoft')]}><TaskAppsRows toast={toast} /></Section>}
               <CalendarProvidersSection toast={toast} />
             </>}
             {k === 'access' && <>

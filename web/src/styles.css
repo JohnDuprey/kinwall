@@ -1316,7 +1316,9 @@ button.month-cell .month-daynum { flex: none; }
 .cal-hint { padding-left: 22px; margin-top: 4px; }
 /* A calendar's row is one button (Edit calendar); its Sync now and Remove sit apart below it. */
 .cal-edit-btn { width: 100%; min-height: 44px; flex-wrap: wrap; row-gap: 0; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; border-radius: var(--radius-sm); }
-.cal-edit-btn .cal-sub { flex-basis: 100%; }
+.cal-edit-btn .cal-sub, .task-account-top .cal-sub { flex-basis: 100%; }
+.task-account-top { flex-wrap: wrap; row-gap: 0; min-height: 44px; }
+.task-account-top .cal-sub { padding-left: 0; }
 .cal-edit-chevron { flex: none; color: var(--text-dim); }
 .cal-actions .link-btn { padding: 0 10px; font-size: 0.875rem; }
 .cal-actions .link-btn:first-child { margin-left: -10px; }
@@ -1552,6 +1554,9 @@ button.month-cell .month-daynum { flex: none; }
 /* "Added by Maya · Tue 4:12 PM" under the title in the item sheet; "Last done" under a reusable list's name. */
 .item-by-lines { margin-top: 6px; font-size: 0.8125rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 2px; }
 .list-detail-sub.list-last-done { font-weight: 600; margin-top: 2px; }
+/* A list synced with a to-do app (TaskApps.tsx): where, and on parent devices a warning when it can't. */
+.list-detail-sub.task-sync-line { font-weight: 600; margin-top: 2px; }
+.sync-alert.task-sync-alert { margin: 6px 0 0; padding: 8px 12px; font-size: 0.875rem; }
 /* A kid's device, someone else's item: the tick shows but doesn't change, and the sheet is read-only. */
 .list-item-check.read-only, .shop-row.read-only { opacity: 0.4; cursor: default; }
 .item-sheet-fields { border: 0; padding: 0; margin: 0; min-width: 0; }

@@ -34,6 +34,7 @@ import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_L
 import { Face, ChipFace, InlineFaces } from './Face'
 import { useBackClose } from './backStack.ts'
 import { intlLocale, t, tn, msg, tm } from './i18n.ts'
+import { TaskSyncField, TaskSyncLine, useTaskLink } from './TaskApps.tsx'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -230,6 +231,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
         </div>
       </div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label={t('Owners')} noneLabel={t('Everyone')} />
+      {existing && existing.kind === 'todo' && kind === 'todo' && <TaskSyncField list={existing} />}
       {existing && (
         <div className="sheet-danger-zone">
           <button className="link-btn" onClick={archive}>{t('Archive list')}</button>
@@ -1657,6 +1659,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const doing = gsd === listId
   const inputRef = useRef<HTMLInputElement>(null)
   const { upcoming, byId } = useEventWindow(refreshTick)
+  const taskLink = useTaskLink(listId, refreshTick) // synced with a to-do app (TaskApps.tsx)
 
   // On a one-store trip, the other list type's items for that store come too (alsoAtStore).
   const load = () => {
@@ -2150,6 +2153,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           <h2 className="list-detail-name">{list.name}</h2>
           <div className="list-detail-sub">{tm(TYPE_LABEL[listType(list)])} · <CountLine list={list} /></div>
           {lastDoneLine(list, members) && <div className="list-detail-sub list-last-done">{lastDoneLine(list, members)}</div>}
+          {taskLink && <TaskSyncLine link={taskLink} />}
         </div>
         {parentDevice && <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={t('Edit list {name}', { name: list.name })}>{t('Edit')}</button>} {/* a list's settings, archive and delete are for parent devices; View stays */}
       </div>

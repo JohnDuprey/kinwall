@@ -5,7 +5,7 @@ import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalog
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, RewardShare, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
-import type { ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput } from './types.ts'
+import type { ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
@@ -323,6 +323,11 @@ const PHOTO_LIMITS = { maxCount: 200, maxBytes: 104_857_600, maxPhotoBytes: 614_
 
 const accounts: Account[] = [{ id: 'demo-google', kind: 'google', name: 'Demo Google', createdAt: new Date().toISOString() }]
 
+// To-do apps: a connected Todoist account, with Weekend To-Dos synced to its Weekend project.
+const taskAccounts: TaskAccount[] = [{ id: 'demo-todoist', kind: 'todoist', name: 'alex@example.com', createdAt: new Date().toISOString(), alsoCalendar: false }]
+const taskAppLists: TaskAppList[] = [{ remoteId: 'tp-inbox', name: 'Inbox' }, { remoteId: 'tp-weekend', name: 'Weekend' }, { remoteId: 'tp-errands', name: 'Errands' }]
+const taskLinks: TaskLink[] = [{ listId: 'l2', accountId: 'demo-todoist', app: 'todoist', accountName: 'alex@example.com', remoteId: 'tp-weekend', remoteName: 'Weekend', lastSyncedAt: new Date(Date.now() - 4 * 60_000).toISOString(), lastError: null, lastErrorCode: null, syncFailures: 0, retryAfter: null }]
+
 const calendars: CalendarEntry[] = [
   { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, memberIds: [], categoryId: null, writable: true, enabled: true, lastSyncedAt: null, lastError: null },
   { id: 'c2', kind: 'ics', accountId: null, remoteId: null, name: 'School (ICS)', color: '#FFD166', memberId: null, memberIds: [], categoryId: null, writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
@@ -525,7 +530,7 @@ const libraryRow = (body: LibraryChoreInput, from?: Chore): DemoLibrary => ({
 const lists: List[] = [
   { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
-  { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', keepChecked: false, sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
+  { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', keepChecked: false, sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 6, openCount: 5 },
   { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4,
     lastDoneAt: new Date(Date.now() - 4 * 86_400_000 - 2 * 3_600_000).toISOString(), lastDoneBy: { memberId: 'm3' } },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
@@ -550,6 +555,7 @@ let listItems: ListItem[] = ([
   { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(-3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
   { id: 'li8', listId: 'l2', title: 'Book dentist appointment', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li13', listId: 'l2', title: 'Pack shin guards + water bottle', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: 'e1', done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li17', listId: 'l2', title: 'Rake the leaves', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: inDays(1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso(), addedBy: { label: 'Todoist' } },
   { id: 'li14', listId: 'l2', title: 'Clean out backpack', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: inDays(4), eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li9', listId: 'l3', title: 'Tent', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li10', listId: 'l3', title: 'Sleeping bags', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
@@ -1251,6 +1257,26 @@ export const mock = {
     const a: Account = { id: uid(), kind: 'caldav', name: _body.name, createdAt: new Date().toISOString() }
     accounts.push(a); return a
   },
+  getTaskAccounts: async (): Promise<TaskAccount[]> => [...taskAccounts],
+  connectTodoist: async (_token: string): Promise<TaskAccount> => {
+    const a: TaskAccount = taskAccounts.find(x => x.kind === 'todoist') ?? { id: uid(), kind: 'todoist', name: 'alex@example.com', createdAt: iso(), alsoCalendar: false }
+    if (!taskAccounts.includes(a)) taskAccounts.push(a)
+    return a
+  },
+  deleteTaskAccount: async (id: string) => { taskAccounts.splice(0, taskAccounts.length, ...taskAccounts.filter(a => a.id !== id)); taskLinks.splice(0, taskLinks.length, ...taskLinks.filter(l => l.accountId !== id)); bump() },
+  getTaskAppLists: async (_accountId: string): Promise<TaskAppList[]> => [...taskAppLists],
+  getTaskLinks: async (): Promise<TaskLink[]> => taskLinks.map(l => ({ ...l })),
+  linkTaskList: async (listId: string, body: { accountId: string; remoteId?: string; newListName?: string }): Promise<TaskLink> => {
+    const account = taskAccounts.find(a => a.id === body.accountId)!
+    const remote = body.remoteId ? taskAppLists.find(r => r.remoteId === body.remoteId)! : { remoteId: uid(), name: body.newListName ?? '' }
+    if (!body.remoteId) taskAppLists.push(remote)
+    const link: TaskLink = { listId, accountId: account.id, app: account.kind, accountName: account.name, remoteId: remote.remoteId, remoteName: remote.name, lastSyncedAt: iso(), lastError: null, lastErrorCode: null, syncFailures: 0, retryAfter: null }
+    taskLinks.splice(0, taskLinks.length, ...taskLinks.filter(l => l.listId !== listId), link)
+    bump()
+    return { ...link }
+  },
+  unlinkTaskList: async (listId: string) => { taskLinks.splice(0, taskLinks.length, ...taskLinks.filter(l => l.listId !== listId)); bump() },
+  syncTaskList: async (listId: string): Promise<TaskLink> => { const l = taskLinks.find(x => x.listId === listId)!; l.lastSyncedAt = iso(); return { ...l } },
   getRemoteCalendars: async (_accountId: string): Promise<RemoteCalendar[]> => ([
     { remoteId: 'remote-1', name: 'Work', color: '#7AB8FF', writable: true },
     { remoteId: 'remote-2', name: 'Holidays', color: '#FFD166', writable: false },
