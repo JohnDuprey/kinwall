@@ -19,7 +19,7 @@ function fakeHistory(url = '#/home') {
   }
   const navigate = (u: string) => { h.pushState(null, '', u); onPop() } // location.hash = …: a new entry, and popstate
   const back = () => h.go(-1)
-  const settle = async () => { await Promise.resolve(); while (queue.length) { queue.shift()!(); await Promise.resolve() } }
+  const settle = async () => { await new Promise(r => setTimeout(r, 0)); while (queue.length) { queue.shift()!(); await new Promise(r => setTimeout(r, 0)) } }
   return { h, entries, index: () => i, navigate, back, settle, listen: (fn: () => void) => { onPop = fn } }
 }
 
@@ -123,6 +123,18 @@ test('onGone runs once the sheet’s entry is off history, so the caller can nav
   t.back(); await t.settle()
   t.sh.closed('b', () => { gone = 42 }); await t.settle() // already off history: right away
   assert.equal(gone, 42)
+})
+
+test('a link that closes its sheet on click: the navigation after the click stays (WebKit order)', async () => {
+  const t = setup()
+  t.sh.opened('more', () => {})
+  t.sh.closed('more') // onClick closes the sheet…
+  await Promise.resolve() // …the click's microtasks run…
+  t.navigate('#/meals') // …then the link navigates. A step back queued before it would undo it.
+  await t.settle()
+  assert.equal(t.h.url, '#/meals')
+  t.back(); await t.settle()
+  assert.equal(t.h.url, '#/home') // the sheet's leftover entry is skipped on the way back
 })
 
 test('other state on the entry (an open activity) is kept on the sheet entry', async () => {

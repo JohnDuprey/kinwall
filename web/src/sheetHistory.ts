@@ -58,12 +58,14 @@ export function createSheetHistory(h: HistoryLike) {
       settle()
     },
     /** A sheet unmounted. Checked a moment later (StrictMode mounts it again at once). onGone runs
-     * once its entry is off history. */
+     * once its entry is off history. The check waits for the next task, not a microtask: a link
+     * that closes its sheet on click (the More sheet) navigates after the click's microtasks, and
+     * WebKit doesn't cancel a step back queued before that navigation, so it would undo it. */
     closed(token: string, onGone?: () => void) {
       const o = open.find(x => x.token === token)
       if (!o) { onGone?.(); return }
       o.closed = true; o.onGone = onGone
-      void Promise.resolve().then(flush)
+      setTimeout(flush, 0)
     },
     /** Back asked a sheet that stays open (unsaved changes, busy): its entry goes back on top. */
     keep(token: string) {
