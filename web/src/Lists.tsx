@@ -34,7 +34,7 @@ import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_L
 import { Face, ChipFace, InlineFaces } from './Face'
 import { useBackClose } from './backStack.ts'
 import { intlLocale, t, tn, msg, tm } from './i18n.ts'
-import { TaskSyncField, TaskSyncLine, useTaskLink } from './TaskApps.tsx'
+import { TaskSyncAlert, TaskSyncField, TaskSyncLine, useTaskLink } from './TaskApps.tsx'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -2157,6 +2157,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         </div>
         {parentDevice && <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={t('Edit list {name}', { name: list.name })}>{t('Edit')}</button>} {/* a list's settings, archive and delete are for parent devices; View stays */}
       </div>
+      {taskLink && <TaskSyncAlert link={taskLink} />}
 
       {list.kind !== 'shopping' && (
         <div className="list-add-bar">

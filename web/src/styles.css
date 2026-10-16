@@ -1318,7 +1318,7 @@ button.month-cell .month-daynum { flex: none; }
 .cal-edit-btn { width: 100%; min-height: 44px; flex-wrap: wrap; row-gap: 0; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; border-radius: var(--radius-sm); }
 .cal-edit-btn .cal-sub, .task-account-top .cal-sub { flex-basis: 100%; }
 .task-account-top { flex-wrap: wrap; row-gap: 0; min-height: 44px; }
-.task-account-top .cal-sub { padding-left: 0; }
+.task-account-top .cal-sub, .task-account-top + .cal-actions { padding-left: 0; }
 .cal-edit-chevron { flex: none; color: var(--text-dim); }
 .cal-actions .link-btn { padding: 0 10px; font-size: 0.875rem; }
 .cal-actions .link-btn:first-child { margin-left: -10px; }
@@ -1556,7 +1556,7 @@ button.month-cell .month-daynum { flex: none; }
 .list-detail-sub.list-last-done { font-weight: 600; margin-top: 2px; }
 /* A list synced with a to-do app (TaskApps.tsx): where, and on parent devices a warning when it can't. */
 .list-detail-sub.task-sync-line { font-weight: 600; margin-top: 2px; }
-.sync-alert.task-sync-alert { margin: 6px 0 0; padding: 8px 12px; font-size: 0.875rem; }
+.sync-alert.task-sync-alert { margin: 8px 0 4px; padding: 8px 12px; font-size: 0.875rem; }
 /* A kid's device, someone else's item: the tick shows but doesn't change, and the sheet is read-only. */
 .list-item-check.read-only, .shop-row.read-only { opacity: 0.4; cursor: default; }
 .item-sheet-fields { border: 0; padding: 0; margin: 0; min-width: 0; }

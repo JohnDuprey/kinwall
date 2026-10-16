@@ -144,17 +144,22 @@ export function useTaskLink(listId: string, rev: unknown): TaskLink | null {
   return link
 }
 
-/** Under a synced list's name: where it syncs, and on parent devices a warning when it can't. */
+/** Under a synced list's name: where it syncs and when it last did. */
 export function TaskSyncLine({ link }: { link: TaskLink }) {
-  const { parentDevice } = useApp()
   const where = t('Syncs with {list} in {app}', { list: link.remoteName, app: appName(link.app) })
-  if (parentDevice && taskLinkBroken(link)) return (
+  return <div className="list-detail-sub task-sync-line">🔄 {link.lastSyncedAt ? t('{where} · synced {time}', { where, time: whenLabel(link.lastSyncedAt) }) : where}</div>
+}
+
+/** On parent devices, a warning when the list can't sync, with the way to fix it (like Calendar.tsx SyncAlert). */
+export function TaskSyncAlert({ link }: { link: TaskLink }) {
+  const { parentDevice } = useApp()
+  if (!parentDevice || !taskLinkBroken(link)) return null
+  return (
     <div className="sync-alert task-sync-alert" role="status">
       <span aria-hidden="true">⚠️</span>
       <span>{t("This list isn't syncing with {app}.", { app: appName(link.app) })} {link.needsReconnect ? t('Connect {app} again in Settings to pick up where it left off.', { app: appName(link.app) }) : link.lastError} <a className="text-link" href="#/settings?tab=calendars&section=todo-apps">{t('Repair the connection')}</a></span>
     </div>
   )
-  return <div className="list-detail-sub task-sync-line">🔄 {link.lastSyncedAt ? t('{where} · synced {time}', { where, time: whenLabel(link.lastSyncedAt) }) : where}</div>
 }
 
 /** The Edit sheet's row: what the list syncs with, opening the Sync with… sheet. */
@@ -229,6 +234,7 @@ function TaskSyncSheet({ list, link, onClose, onChanged }: { list: List; link: T
         {link && (
           <div className="field">
             <TaskSyncLine link={link} />
+            <TaskSyncAlert link={link} />
             {link.lastError && !taskLinkBroken(link) && <p className="field-hint">{link.lastError}</p>}
           </div>
         )}
