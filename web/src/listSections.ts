@@ -48,3 +48,9 @@ export function boardListTiles<T extends Typed & { openCount: number }>(lists: T
  * theirs, nobody's, or any on a list that's theirs. The server's rule (routes/lists.ts itemOwnerBlock). */
 export const canChangeItem = (item: { memberId: string | null }, list: { memberIds: string[] }, kid: string | null) =>
   !kid || !item.memberId || item.memberId === kid || list.memberIds.includes(kid)
+
+/** A list grouped by aisle (Lists.tsx groupItems): "store\0aisle"; with no aisle known (no store
+ * picked yet), its department as a store-less group, so a new Groceries list shows Dairy, Produce, …
+ * rather than one Other heap; null (Other) when neither is known. */
+export const aisleGroup = (i: { store: string | null; aisle: string | null; category: string | null }): string | null =>
+  i.aisle ? `${i.store ?? ''}\u0000${i.aisle}` : i.category ? `\u0000${i.category}` : null

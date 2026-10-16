@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The Lists page's sections by type, and reordering inside one.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { canChangeItem, listSections, listType, reorderWithin, typeFields } from '../src/listSections.ts'
+import { canChangeItem, listSections, listType, reorderWithin, typeFields, aisleGroup } from '../src/listSections.ts'
 
 type L = { id: string; kind: 'todo' | 'shopping' | 'reusable'; catalog?: 'groceries' | 'shopping' | null; sort: number; createdAt: string }
 const l = (id: string, kind: L['kind'], sort: number, createdAt = '2026-01-01', catalog?: L['catalog']) => ({ id, kind, sort, createdAt, catalog })
@@ -55,4 +55,12 @@ test('canChangeItem: a kid\'s device changes theirs, nobody\'s, and anything on 
   assert.equal(canChangeItem({ memberId: 'maya' }, family, 'leo'), false)
   assert.equal(canChangeItem({ memberId: 'maya' }, leos, 'leo'), true)
   assert.equal(canChangeItem({ memberId: 'maya' }, family, null), true, 'wall screens and parents: anything')
+})
+
+test('aisleGroup: by store and aisle; with no aisle, by department instead of one Other heap', () => {
+  assert.equal(aisleGroup({ store: 'Market', aisle: 'Produce', category: 'Fruit' }), 'Market\u0000Produce')
+  assert.equal(aisleGroup({ store: null, aisle: '4', category: 'Dairy' }), '\u00004')
+  assert.equal(aisleGroup({ store: null, aisle: null, category: 'Dairy' }), '\u0000Dairy', 'no store chosen: its department')
+  assert.equal(aisleGroup({ store: 'Market', aisle: null, category: 'Household' }), '\u0000Household')
+  assert.equal(aisleGroup({ store: null, aisle: null, category: null }), null, 'nothing known: Other')
 })

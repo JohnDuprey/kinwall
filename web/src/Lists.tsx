@@ -29,7 +29,7 @@ import { shoppingActivity } from './liveActivity.ts'
 import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, tellAppHere, wallCamera } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
-import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
+import { aisleGroup, canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 import { Face, ChipFace, InlineFaces } from './Face'
 import { useBackClose } from './backStack.ts'
@@ -1068,7 +1068,7 @@ const OTHER_GROUP = 'Other'
  * order then the store's aisle order. Returns [] (flat) when groupBy is 'none'. */
 function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[], sortBy: ListSortBy, cmp: (a: ListItem, b: ListItem) => number, aisleOrder: AisleOrder): { name: string; items: ListItem[] }[] {
   if (groupBy === 'none') return []
-  const keyOf = (i: ListItem) => groupBy === 'aisle' ? (i.aisle ? `${i.store ?? ''}\u0000${i.aisle}` : null) : i[groupBy]
+  const keyOf = (i: ListItem) => groupBy === 'aisle' ? aisleGroup(i) : i[groupBy]
   const byKey = new Map<string, ListItem[]>()
   for (const item of items) {
     const key = keyOf(item) ?? OTHER_GROUP

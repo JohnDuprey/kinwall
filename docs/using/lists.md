@@ -120,6 +120,8 @@ On a shopping list, the item sheet puts **Quantity**, **Store**, **Aisle** and *
 
 When an item has no aisle known at a store (none set for that store and none remembered there), but its department matches one of that store's aisles (ignoring capitals), it goes in that aisle. "Apples" with the department Produce shows under Produce at a store that has a Produce aisle, in **Aisle** sort and grouping and on a [trip](#shopping-at-a-store), with nothing typed. Groceries added from [Meals](meals.md#adding-to-the-grocery-list) come with a department, so they land in the right aisle too.
 
+Grouped by **Aisle**, an item with no aisle at all (no store picked yet) goes under its department (**Dairy**, **Household**, …), and only items with neither go under **Other**.
+
 This is only how the item is shown. The aisle isn't saved, so if the store's aisles change, the item follows. The item sheet shows it under Aisle ("Produce, from its department"). An aisle you set yourself always wins.
 
 ### Remembered places
