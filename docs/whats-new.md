@@ -23,6 +23,13 @@ The full list of changes in every version is in the [changelog](https://github.c
   [Language](settings/general.md#language), and [Translations](contributing/translations.md) to
   help add another language.
 
+* **To-do lists sync with Todoist, Google Tasks and Microsoft To Do**, both ways: titles, done,
+  due dates, notes and priority (not in Google Tasks). Connect the app in **Settings → Calendars →
+  To-do apps**, then pick the list in a to-do list's **Edit → Sync with…**. The first sync matches
+  items with the same title and copies the rest; after that, each change goes across within seconds,
+  and a field changed on both sides goes to the side that changed it last. See
+  [To-do apps](using/todo-apps.md).
+
 ## 1.1.0
 
 Kinwall is now more than a calendar on the wall: it's the family life organizer, for the day, the

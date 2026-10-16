@@ -44,6 +44,10 @@ After connecting an account, **Calendars for *account*** lists its calendars. Pi
 
 Synced calendars bring each event's free/busy ("Show as") along from Google, Outlook, CalDAV and ICS, and write it back where the calendar is writable. There's no per-calendar setting: mark single events free in their edit sheet. See [Free or busy](../using/events.md#free-or-busy).
 
+## To-do apps
+
+Below the calendars: connect **Todoist** (its API token), **Google Tasks** or **Microsoft To Do** (the Google and Microsoft sign-ins set up under **Calendar providers**), so a to-do list can sync with one of their lists. Each account shows the lists it syncs, **Reconnect** when its sign-in or token was turned down, and **Remove**. Picking the list to sync is in the list's **Edit → Sync with…**. See [To-do apps](../using/todo-apps.md). Hidden when Lists is turned off.
+
 ## Calendar providers
 
 * **Public URL**: the base URL used for OAuth redirect URIs and the passkey domain, for example `https://cal.home.example`. The server warns about a bare IP address or plain `http` on a non-localhost host. If `PUBLIC_URL` is set in the environment, this shows "Set via PUBLIC_URL" and is locked.

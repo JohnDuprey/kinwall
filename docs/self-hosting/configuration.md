@@ -93,6 +93,10 @@ Apple only accepts HTTP/2. Docker and Node send with Node's HTTP/2 client. A dep
 
 **Self-hosted servers and the Kinwall app:** only the app's publisher can sign pushes for the official Kinwall app (the `.p8` key belongs to that developer account), so a self-hosted server can't send Live Activity pushes to it with keys of its own. The plan is a push gateway at push.kinwall.family (itself a Worker) that relays them for self-hosted servers. It doesn't exist yet; until then, the app starts leave-by activities itself while it's open.
 
+### Todoist, Google Tasks and Microsoft To Do
+
+[To-do apps](../using/todo-apps.md) need no variables of their own. Todoist uses each family's own API token, kept encrypted with `ENCRYPTION_KEY`. Google Tasks uses the Google client (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` or the UI) with the **Google Tasks API** enabled and the `https://www.googleapis.com/auth/tasks` scope on its consent screen ([Google](../calendars/google.md#google-tasks)). Microsoft To Do uses the Microsoft app with the delegated `Tasks.ReadWrite` permission added ([Microsoft](../calendars/microsoft.md#microsoft-to-do)). Lists sync on the calendar sync interval (`SYNC_INTERVAL_MINUTES`) and a few seconds after a change in Kinwall.
+
 ### Precedence for provider settings
 
 * `PUBLIC_URL` from the environment **always wins**, and the UI field is locked.

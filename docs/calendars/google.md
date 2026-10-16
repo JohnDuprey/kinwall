@@ -10,7 +10,7 @@ You can do this entirely in the UI, with no restart. On an admin device, open **
 2. Open the **Google** card. It links this guide and shows these steps under **Show the steps here**, then the exact **Redirect URI** (`<public URL>/api/oauth/google/callback`) with a copy button:
    1. In Google Cloud Console, create an OAuth client of type "Web application".
    2. Add the redirect URI to its Authorized redirect URIs.
-   3. Enable the Google Calendar API for the project.
+   3. Enable the Google Calendar API for the project (and the **Google Tasks API**, for [Google Tasks](../using/todo-apps.md)).
    4. Under the consent screen's **Data access**, add the scopes `calendar.events` and `calendar.calendarlist.readonly` (plus `openid` and `email`). See [Scopes and tokens](#scopes-and-tokens).
    5. If the consent screen is in Testing, add yourself as a test user.
 3. Paste the **Client ID** and **Client secret**, then **Save**. **Test sign-in** tries the flow.
@@ -36,6 +36,10 @@ If you cancel the Google sign-in, or it fails, you land back on **Settings → C
 ## Scopes and tokens
 
 Kinwall asks only for `calendar.events` (read and write events), `calendar.calendarlist.readonly` (the list of your calendars, so you can pick which to show), `openid` and `email`, not full calendar access. In your OAuth consent screen's **Data access**, declare exactly these: `calendar.events` is a sensitive scope, so until Google verifies your app, people connecting see "Google hasn't verified this app" and choose **Advanced → Go to … (unsafe)** to continue. Accounts connected before this change keep working with their earlier grant. The flow uses PKCE and a single-use state, and it has to finish in the browser that started it, at the same address (your **Public URL**): a sign-in link passed to another browser or device is refused. In the Kinwall phone app, Google's page opens in the app's own browser and ends with **Open in the Kinwall app**, which finishes the sign-in back in the app. The refresh token is encrypted at rest. Removing the account revokes the Google token (best effort) and deletes its calendars from Kinwall. Nothing is deleted in Google.
+
+## Google Tasks
+
+[Google Tasks](../using/todo-apps.md) uses this same OAuth client and redirect URI, so there's nothing new to register. In your Google Cloud project, also **enable the Google Tasks API**, and add the scope `https://www.googleapis.com/auth/tasks` under the consent screen's **Data access**. Kinwall asks for it on its own sign-in (with `openid` and `email`, and Google's incremental consent), never as part of Calendar's, so families who don't use Google Tasks are never asked. Like `calendar.events`, it's a sensitive scope: until Google verifies your app for it, people see "Google hasn't verified this app" when they connect Google Tasks.
 
 ## Reminders
 

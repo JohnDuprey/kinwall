@@ -40,6 +40,10 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 
 **Edit** opens **Name**, **Type**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners** (**Everyone**, the default, or one or more people). At the bottom it has **Archive list** and **Delete list**, which asks first and removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. **Edit**, the list order and the **Archived** section are only on a parent's device; see [Wall screens and kids' devices](#wall-screens-and-kids-devices). The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
 
+### Sync with a to-do app
+
+A to-do list's **Edit** sheet also has **Sync with…**, to keep it in step with a list in Todoist, Google Tasks or Microsoft To Do. See [To-do apps](todo-apps.md).
+
 ### Default list for each type
 
 A Groceries list and a Shopping list can each be the family's **default**: turn on **Default Groceries list** (or **Default Shopping list**) in its **Edit** sheet. Its card shows **⭐ Default**. Turning it on for one list turns it off on the other list of that type, and a list that changes type stops being the default.

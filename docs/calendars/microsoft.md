@@ -8,7 +8,7 @@ In **Settings → Calendars → Calendar providers → Microsoft**, the card lin
 
 1. In Microsoft Entra, go to App registrations → New registration.
 2. Add the redirect URI under a **Web** platform.
-3. Add the delegated permissions `Calendars.ReadWrite`, `User.Read` and `offline_access`.
+3. Add the delegated permissions `Calendars.ReadWrite`, `User.Read` and `offline_access`, and `Tasks.ReadWrite` for [Microsoft To Do](../using/todo-apps.md).
 4. Create a client secret and paste it in.
 
 Fill in **Client ID**, **Client secret** and **Tenant** (default `common`, which accepts personal and work accounts), then **Save**.
@@ -36,3 +36,7 @@ Outlook's **published calendar** ICS link works as an [ICS feed](ics-feeds.md).
 ## Free or busy
 
 Outlook's **Show as** comes along: **Free** shows as [free](../using/events.md#free-or-busy) in Kinwall; **Tentative**, **Busy**, **Away** and **Working elsewhere** show as busy, since they all hold the time. Changing **Show as** in Kinwall writes **Free** or **Busy** back; edits that don't touch it leave a tentative or away event as it is.
+
+## Microsoft To Do
+
+[Microsoft To Do](../using/todo-apps.md) uses this same app registration and redirect URI. Add the delegated permission `Tasks.ReadWrite` to it (step 3 above). Kinwall asks for it on its own sign-in (`Tasks.ReadWrite`, `User.Read`, `offline_access`, `openid`, `email`) only when a family connects Microsoft To Do, never as part of the calendar sign-in. In a work or school tenant that limits user consent, an admin may need to grant it.

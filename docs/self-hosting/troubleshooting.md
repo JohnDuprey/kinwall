@@ -51,6 +51,14 @@ The calendar's row in **Settings → Calendars** shows the last error.
 
 Old events stay visible after a failed sync. **Sync now** retries straight away.
 
+A [to-do list synced with an app](../using/todo-apps.md) shows its error under its name on a parent's device and in its **Sync with…** sheet:
+
+| Error | Fix |
+|---|---|
+| "Google Tasks had a problem (HTTP 403, accessNotConfigured)…" | The Google Tasks API isn't enabled in your Google Cloud project. Enable it, then **Sync now**. |
+| "Microsoft To Do had a problem (HTTP 403…)" | `Tasks.ReadWrite` is missing from the Microsoft app registration, or a work tenant's admin hasn't allowed it. |
+| "… stopped letting Kinwall see this list" | The Todoist token was reset, or the sign-in was turned down. **Reconnect** in **Settings → Calendars → To-do apps**. |
+
 ## Push notifications not arriving
 
 1. **iPhone/iPad**: iOS 16.4+, Kinwall added to the Home Screen and opened from there. Safari tabs can't receive push.
