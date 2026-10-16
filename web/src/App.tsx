@@ -36,6 +36,7 @@ import { DialogProvider, useDialog } from './dialog.tsx'
 import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
+import { latestOnly } from './latest.ts'
 import { appPlatform, inNativeApp, tellAppHere, tellAppLeaveDemo, tellAppNight, tellAppSignedOut } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
@@ -1170,10 +1171,13 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // viewport also carries this device's Screen scale (screenScale.ts).
   useEffect(() => { applyScreenScale(device.screenScale, scope === 'display', device.cast) }, [scope, device.screenScale, device.cast])
 
+  // Newest load wins: the one started right after a chore tick (before its change reached the server)
+  // can answer after the one the sync started, and mustn't put the old points back.
+  const freshCore = useRef(latestOnly()).current
   const loadCore = useCallback(async () => {
     if (!hasKey) return
     try {
-      const [s, m, cats, me] = await Promise.all([api.getSettings(), api.getMembers(), api.getCategories(), api.meStrict().catch(() => null)])
+      const [s, m, cats, me] = await freshCore(Promise.all([api.getSettings(), api.getMembers(), api.getCategories(), api.meStrict().catch(() => null)]))
       // First-run default for a fresh household: no timezone set yet, so adopt this display's.
       const settings = s.timezone ? s : await api.adoptTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone).catch(() => s)
       setSettings(settings)
@@ -1185,7 +1189,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
       if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setRejected(true); setHasKey(false); return }
       setLoadError(true)
     }
-  }, [hasKey])
+  }, [hasKey, freshCore])
 
   // Settings, members (their points too) and categories: not after a change to a list alone.
   useEffect(() => { loadCore() }, [loadCore, areaTicks.events, areaTicks.chores, manualTick])

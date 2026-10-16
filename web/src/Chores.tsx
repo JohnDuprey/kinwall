@@ -28,6 +28,7 @@ import { PointsStepper, SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCard
 import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
+import { latestOnly } from './latest.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -58,8 +59,9 @@ function Leaderboard() {
   const prevLeaderId = useRef<string | null | undefined>(undefined) // undefined = not loaded yet, don't bounce on first paint
   const [bounceId, setBounceId] = useState<string | null>(null)
 
+  const fresh = useRef(latestOnly()).current // newest answer wins (latest.ts)
   useEffect(() => {
-    api.getLeaderboard(period).then(list => {
+    fresh(api.getLeaderboard(period)).then(list => {
       setBoard(list)
       const leader = list.find(e => e.rank === 1 && e.points > 0)?.memberId ?? null
       if (prevLeaderId.current !== undefined && leader && leader !== prevLeaderId.current) {
@@ -68,7 +70,7 @@ function Leaderboard() {
       }
       prevLeaderId.current = leader
     }).catch(() => { /* leave the last-known board up rather than blanking it on a transient error */ })
-  }, [period, refreshTick])
+  }, [period, refreshTick, fresh])
 
   if (board.length === 0) return null
   const maxPoints = Math.max(1, ...board.map(e => e.points))
