@@ -1070,3 +1070,26 @@ test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\'
   assert.equal(parentSees.length, 11, 'a parent sees everything but privacy notes');
   assert.ok(!parentSees.some((t) => t.includes('belongs to') || t.includes('journal')));
 });
+
+test('notify: a list update skips the device and the person who made it, in the feed and in pushes', async () => {
+  const { env, request, alex, leo, kid, wall } = await kidSetup();
+  const leoPhone = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: "Leo's phone", scope: 'display' }) })).json()) as any;
+  await request(`/api/keys/${leoPhone.id}`, { method: 'PATCH', body: JSON.stringify({ owner: leo.id }) });
+  const alexKey = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: "Alex's phone", scope: 'admin' }) })).json()) as any;
+  await request(`/api/keys/${alexKey.id}`, { method: 'PATCH', body: JSON.stringify({ owner: alex.id }) });
+  for (const [key, name] of [[kid, 'leo-ipad'], [leoPhone.key, 'leo-phone'], [wall, 'kitchen'], [alexKey.key, 'alex-phone']]) await subscribe(request, key, name, { listUpdates: true });
+  const list = (await (await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) })).json()) as any;
+  const push = stubPush();
+  assert.equal((await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ title: 'Blueberries' }) }, kid)).status, 201);
+  // The background (waitUntil) task on Node: wait for both pushes (slow under a full test run), then a little for any extra.
+  for (let t = 0; t < 100 && push.sent.length < 2; t++) await new Promise((r) => setTimeout(r, 20));
+  await new Promise((r) => setTimeout(r, 50));
+  push.restore();
+  const sees = async (key: string) => (await feed(request, '', key)).some((n) => n.kind === 'list');
+  assert.equal(await sees(kid), false, 'not on the device that added it');
+  assert.equal(await sees(leoPhone.key), false, "nor on Leo's other devices");
+  assert.equal(await sees(wall), true);
+  assert.equal(await sees(alexKey.key), true);
+  assert.equal(await sees(ADMIN_KEY), true);
+  assert.deepEqual(push.sent.map((s) => s.url.split('/').pop()).sort(), ['alex-phone', 'kitchen']);
+});

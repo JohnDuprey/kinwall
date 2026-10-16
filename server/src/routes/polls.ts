@@ -18,7 +18,7 @@ import type { Env, WaitCtx } from '../env.ts';
 import { waitUntil } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
 import { emit } from '../bus.ts';
-import { actorOf, ownerBlock } from '../auth.ts';
+import { actorOf, changedBy, ownerBlock } from '../auth.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { MealDateSchema, MealSlotSchema } from '../meal-schemas.ts';
 import { readFeatures } from './settings.ts';
@@ -120,9 +120,10 @@ function execCtx(c: Context<{ Bindings: Env }>): WaitCtx | undefined {
 /** "New poll: Which movie tonight?" in the bell, and pushed to every device that has notifications on. */
 function notifyPoll(c: Context<{ Bindings: Env }>, poll: Poll): void {
   waitUntil(execCtx(c), (async () => {
+    const by = await changedBy(c); // not to whoever asked
     const n = { title: `🗳 New poll: ${poll.question}`, body: poll.options.map((o) => o.label).join(' · '), url: `/#/home?poll=${encodeURIComponent(poll.id)}` };
-    await recordNotification(c.env.DB, { kind: 'poll', ...n, source: 'system' });
-    for (const sub of await loadSubs(c.env.DB)) await sendToSub(c.env, c.env.DB, sub, { ...n, tag: `poll:${poll.id}` });
+    await recordNotification(c.env.DB, { kind: 'poll', ...n, source: 'system', by });
+    for (const sub of await loadSubs(c.env.DB, by)) await sendToSub(c.env, c.env.DB, sub, { ...n, tag: `poll:${poll.id}` });
   })());
 }
 

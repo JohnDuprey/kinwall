@@ -6,7 +6,7 @@ import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
-import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Actor } from '../auth.ts';
+import { actorOf, changedBy, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
 import { hiddenFromDisplay } from './events.ts';
 import { checkRate } from '../ratelimit.ts';
@@ -957,7 +957,7 @@ listsRoutes.openapi(
       } catch {
         execCtx = undefined; // Node: no ExecutionContext
       }
-      notifyListUpdate(c.env, execCtx, id, list.name);
+      notifyListUpdate(c.env, execCtx, id, list.name, await changedBy(c));
     }
     const stepsByItem = groupSteps(steps);
     const out = await Promise.all(inputs.map(async (input) => {

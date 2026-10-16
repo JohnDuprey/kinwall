@@ -251,17 +251,21 @@ pushRoutes.openapi(
 // The medicine notes' text is sealed (notify.ts openNote), so "hasn't been marked yet" is told apart
 // after opening (hideLate), not in SQL.
 const PRIVACY_MINE = " AND (kind != 'privacy' OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?))";
+// Not your own change (a list update you made, a poll you asked): not from this device, nor from
+// another of your own (notify.ts recordNotification `by`).
+const NOT_MINE = ' AND (by_key IS NULL OR by_key != ?) AND (by_member IS NULL OR by_member != ?)';
 // A note that a device now belongs to someone is security activity, for grown-ups: a kid's device
 // leaves it out (it's the privacy note without a link, notify.ts recordDeviceOwner) but keeps the
 // ones about its kid's own journal. A wall screen is nobody's, so it gets no privacy notes at all.
 async function feedFilter(c: Parameters<typeof deviceOwner>[0]): Promise<{ sql: string; binds: string[]; hideLate: boolean }> {
   const key = await requestKey(c);
   const mine = (await ownDevice(c)) ?? '';
-  if (key?.scope !== 'display') return { sql: PRIVACY_MINE, binds: [mine], hideLate: false };
+  const self = [key?.id ?? '', mine];
+  if (key?.scope !== 'display') return { sql: `${PRIVACY_MINE}${NOT_MINE}`, binds: [mine, ...self], hideLate: false };
   const kid = await deviceOwner(c);
-  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary' AND NOT (kind = 'privacy' AND url IS NULL)${PRIVACY_MINE}`, binds: [kid, mine], hideLate: true };
+  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary' AND NOT (kind = 'privacy' AND url IS NULL)${PRIVACY_MINE}${NOT_MINE}`, binds: [kid, mine, ...self], hideLate: true };
   const grownUpsOnly = "kind = 'message' AND json_array_length(member_ids) > 0 AND NOT EXISTS (SELECT 1 FROM json_each(member_ids) j JOIN members m ON m.id = j.value WHERE m.grown_up = 0)";
-  return { sql: ` AND NOT (${grownUpsOnly})${PRIVACY_MINE}`, binds: [mine], hideLate: true };
+  return { sql: ` AND NOT (${grownUpsOnly})${PRIVACY_MINE}${NOT_MINE}`, binds: [mine, ...self], hideLate: true };
 }
 
 type NotificationRow = { id: string; at: string; kind: string; title: string; body: string | null; url: string | null; member_ids: string; source: string | null };

@@ -155,6 +155,13 @@ export async function actorOf(c: Context<{ Bindings: Env }>): Promise<Actor> {
   return { memberId: null, label: key?.id && (key.scope === 'display' || key.kind === 'api') ? key.name : null };
 }
 
+/** Who made a change, for notifications about it (notify.ts): the device's key and, on someone's own
+ * device, that person (actorOf). Neither the feed nor pushes tell them about their own change. */
+export type ChangedBy = { keyId: string | null; memberId: string | null };
+export async function changedBy(c: Context<{ Bindings: Env }>): Promise<ChangedBy> {
+  return { keyId: (await requestKey(c))?.id ?? null, memberId: (await actorOf(c)).memberId };
+}
+
 /** A parent's phone's widgets key (and its Watch's) is shared, so it shows the whole family, but
  * what it adds or ticks is credited to the grown-up whose full-access sign-in made it (its parent
  * key's or app sign-in's owner; a Watch key's parent is the widgets' key). Only for actorOf: what

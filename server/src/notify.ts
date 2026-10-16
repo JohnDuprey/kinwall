@@ -17,7 +17,7 @@ import { newscastPrunes } from './routes/newscast.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
 import { addDays, doseAt, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
 import { openRefillRequest } from './routes/medication-refills.ts';
-import { sha256Hex } from './auth.ts';
+import { sha256Hex, type ChangedBy } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { eveningPending, LAST_NIGHT_UNTIL, lastNightSkipKey, morningAnswered } from './routes/temp-check.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
@@ -111,11 +111,14 @@ function subPrefs(row: PushSubRow): typeof DEFAULT_PUSH_PREFS {
 // Every push subscription, for sends that pick devices by who they follow. A kid's own device (a
 // display key owned by a member, auth.ts deviceOwner) follows only that kid, whatever its row says:
 // routes/push.ts saves it that way, and this covers rows saved before it did.
-export async function loadSubs(db: KinwallDb): Promise<PushSubRow[]> {
+// `by`: who made the change being announced; their device and their other devices are left out.
+export async function loadSubs(db: KinwallDb, by?: ChangedBy): Promise<PushSubRow[]> {
   const { results } = await db
-    .prepare("SELECT s.*, CASE WHEN k.scope = 'display' AND k.owner IS NOT NULL AND k.owner <> 'shared' THEN k.owner END AS kid FROM push_subscriptions s LEFT JOIN api_keys k ON k.id = s.api_key_id")
-    .all<PushSubRow & { kid: string | null }>();
-  return results.map(({ kid, ...s }) => (kid ? { ...s, member_ids: JSON.stringify([kid]) } : s));
+    .prepare("SELECT s.*, CASE WHEN k.scope = 'display' AND k.owner IS NOT NULL AND k.owner <> 'shared' THEN k.owner END AS kid, k.owner AS key_owner FROM push_subscriptions s LEFT JOIN api_keys k ON k.id = s.api_key_id")
+    .all<PushSubRow & { kid: string | null; key_owner: string | null }>();
+  return results
+    .filter((s) => !(by?.keyId && s.api_key_id === by.keyId) && !(by?.memberId && s.key_owner === by.memberId))
+    .map(({ kid, key_owner: _owner, ...s }) => (kid ? { ...s, member_ids: JSON.stringify([kid]) } : s));
 }
 
 /** The end of a parent-facing medicine note's title ("Leo's 8:00 AM medicine hasn't been marked
@@ -218,7 +221,7 @@ export async function sealMedicationNotes(env: EncryptionEnv & { DB: KinwallDb }
 // note needs the key (`keys`): without it this throws before anything is written, never plaintext.
 export async function recordNotification(
   db: KinwallDb,
-  n: { kind: NotificationKind; title: string; body?: string | null; url?: string | null; memberIds?: string[]; source: NotificationSource; at?: Date },
+  n: { kind: NotificationKind; title: string; body?: string | null; url?: string | null; memberIds?: string[]; source: NotificationSource; at?: Date; by?: ChangedBy },
   keys: EncryptionEnv = {},
 ): Promise<void> {
   const id = crypto.randomUUID();
@@ -226,8 +229,8 @@ export async function recordNotification(
   const row = n.kind === 'medication' ? await sealNote(keys, id, text) : text;
   await db.batch([
     db
-      .prepare('INSERT INTO notifications (id, at, kind, title, body, url, member_ids, source) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(id, row.at, n.kind, row.title, row.body, n.url ?? null, JSON.stringify(n.memberIds ?? []), n.source),
+      .prepare('INSERT INTO notifications (id, at, kind, title, body, url, member_ids, source, by_key, by_member) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .bind(id, row.at, n.kind, row.title, row.body, n.url ?? null, JSON.stringify(n.memberIds ?? []), n.source, n.by?.keyId ?? null, n.by?.memberId ?? null),
     db.prepare("INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"),
   ]);
 }
@@ -693,7 +696,8 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
 // Called from routes/lists.ts right after a list item is created (not on the periodic tick - a
 // new grocery item should notify promptly). Debounced to one notification per list per 10 min via
 // sent_notifications' key granularity (a 10-min time bucket).
-export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId: string, listName: string): void {
+// Not to the device (or person) that added them (`by`).
+export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId: string, listName: string, by: ChangedBy): void {
   waitUntil(
     execCtx,
     (async () => {
@@ -704,9 +708,8 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
       if (await alreadySent(env.DB, key)) return;
       await markSent(env.DB, key, now);
       const payload = { title: 'List updated', body: `${listName} has new items`, url: `/#/lists?list=${encodeURIComponent(listId)}`, tag: `list:${listId}` }; // tap opens that list
-      await recordNotification(env.DB, { kind: 'list', title: payload.title, body: payload.body, url: payload.url, source: 'system', at: now });
-      const { results } = await env.DB.prepare('SELECT * FROM push_subscriptions').all<PushSubRow>();
-      for (const sub of results.filter((s) => subPrefs(s).listUpdates)) await sendToSub(env, env.DB, sub, payload);
+      await recordNotification(env.DB, { kind: 'list', title: payload.title, body: payload.body, url: payload.url, source: 'system', at: now, by });
+      for (const sub of (await loadSubs(env.DB, by)).filter((s) => subPrefs(s).listUpdates)) await sendToSub(env, env.DB, sub, payload);
     })(),
   );
 }
