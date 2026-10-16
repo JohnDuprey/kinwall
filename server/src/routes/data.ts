@@ -65,6 +65,7 @@ import {
   SettingsSchema,
   WebhookSchema,
   LibraryBookSchema,
+  LanguageSchema,
 } from '../schemas.ts';
 
 export const dataRoutes = createRouter();
@@ -76,7 +77,7 @@ const ExportSchema = z
     version: z.number(),
     exportedAt: z.string(),
     settings: SettingsSchema,
-    members: z.array(MemberSchema.omit({ picture: true, pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true, todayGoal: true, tempCheck: true, privateJournal: true }).extend({ tempCheck: TempCheckSettingsSchema.optional(), tempCheckFeelings: z.array(z.string()).default([]),  birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
+    members: z.array(MemberSchema.omit({ picture: true, pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true, todayGoal: true, tempCheck: true, privateJournal: true }).extend({ tempCheck: TempCheckSettingsSchema.optional(), tempCheckFeelings: z.array(z.string()).default([]),  birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null), language: LanguageSchema.nullable().default(null) })),
     categories: z.array(CategorySchema),
     contactCategories: z.array(ContactCategorySchema),
     contacts: z.array(ContactSchema),
@@ -205,7 +206,7 @@ const ExportSchema = z
   })
   .openapi('Export');
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; grown_up: number; needs_approval: number; transitions: string | null; reward_goal: string | null; temp_check: string | null; temp_check_feelings: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; grown_up: number; needs_approval: number; transitions: string | null; reward_goal: string | null; temp_check: string | null; temp_check_feelings: string | null; language: string | null };
 type CalendarRow = { id: string; kind: z.infer<typeof CalendarSchema>['kind']; remote_id: string | null; name: string; color: string | null; member_ids: string; category_id: string | null; enabled: number; display_edit: number; filter: string | null };
 type EventRow = {
   id: string; calendar_id: string; title: string; start: string; end: string; all_day: number; location: string | null;
@@ -239,7 +240,7 @@ dataRoutes.openapi(
     const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
     const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, tempChecks, journal, scrapbook, rewards, redemptions, trackers, passkeys, webhooks, hiddenEvents] = (await db.batch<unknown>([
-      db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings FROM members ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings, language FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, color, sort, created_at, updated_at FROM contact_categories ORDER BY sort, name COLLATE NOCASE, id'),
       db.prepare('SELECT id, kind, name, organization, title, given_name, family_name, nickname, relationship, favorite, emergency, phones, emails, addresses, websites, dates, notes, category_ids, tags, member_ids, service_hours, service_area, always_open, wall_visible, emergency_visible, phone_visible_on_wall, address_visible_on_wall, visibility, selected_member_ids, source_metadata, private_fields, created_at, updated_at FROM contacts ORDER BY name COLLATE NOCASE, id'),
@@ -291,8 +292,8 @@ dataRoutes.openapi(
         version: EXPORT_VERSION,
         exportedAt: date,
         settings: (({ googlePhotos: _, ...settings }) => settings)(await readSettings(db)), // a connection, not a setting
-        members: await Promise.all((members as MemberRow[]).map(async ({ id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings }) => ({
-          id, name, color, avatar, birthday, sort, grownUp: !!grown_up, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal,
+        members: await Promise.all((members as MemberRow[]).map(async ({ id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings, language }) => ({
+          id, name, color, avatar, birthday, sort, language: LanguageSchema.safeParse(language).data ?? null, grownUp: !!grown_up, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal,
           tempCheck: parseTempCheck(temp_check), tempCheckFeelings: healthHidden ? [] : await readCustom(c.env, id, temp_check_feelings),
         }))),
         categories: (categories as CategoryRow[]).map(categoryToApi),
@@ -714,7 +715,7 @@ dataRoutes.openapi(
     const sealedTrackers = await Promise.all(trackers.map((t) => sealRow(c.env, { id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })));
     const writes = [
       ...settingsWrites(db, settings.data),
-      ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, grown_up: grownUp(m) ? 1 : 0, needs_approval: m.needsApproval && !grownUp(m) ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, temp_check: m.tempCheck ? JSON.stringify(m.tempCheck) : null, ...(healthHidden ? {} : { temp_check_feelings: memberFeelings.get(m.id) }), created_at: stamp(i) })), keepCreated),
+      ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, grown_up: grownUp(m) ? 1 : 0, needs_approval: m.needsApproval && !grownUp(m) ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, temp_check: m.tempCheck ? JSON.stringify(m.tempCheck) : null, language: m.language, ...(healthHidden ? {} : { temp_check_feelings: memberFeelings.get(m.id) }), created_at: stamp(i) })), keepCreated),
       ...(await Promise.all(flips.map((m) => grownUpChangeStmts(c, m.id, grownUp(m), m.name)))).flat(),
       ...upserts(
         db,

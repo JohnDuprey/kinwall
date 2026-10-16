@@ -7,7 +7,7 @@ import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
 import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
 import { isSingleEmoji } from '../emoji.ts';
-import { BoardPresetSchema, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, NightLookSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { BoardPresetSchema, LANGUAGES, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, NightLookSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -75,6 +75,7 @@ export async function readSettings(db: KinwallDb) {
     timeFormat: TIME_FORMATS.find((t) => t === map.get('timeFormat')) ?? 'auto',
     defaultGroceryStore: map.get('defaultGroceryStore') || null, // routes/lists.ts: Shop starts there; follows a store rename
     defaultShoppingStore: map.get('defaultShoppingStore') || null,
+    language: LANGUAGES.find((l) => l === map.get('language')) ?? 'en',
     defaultCalendarId: map.get('defaultCalendarId') || null, // default-calendar.ts; GET /api/calendars marks the one in use
     defaultEventMinutes: Number(map.get('defaultEventMinutes') || DEFAULTS.defaultEventMinutes),
     defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),

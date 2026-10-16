@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
+import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -602,7 +602,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'Get household',
       description:
-        'Household settings (family name, timezone, week start), members, and a summary of calendars. Always check the ' +
+        'Household settings (family name, timezone, week start, language), members, and a summary of calendars. Always check the ' +
         'returned timezone before interpreting or producing dates/times for this household.',
       inputSchema: {},
     },
@@ -1403,6 +1403,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         transitionReminders: TransitionRemindersSchema.optional().describe(
           'Admin: pushes to this person\'s own devices before their events. { on, minutes: [10, 5] (1-120, up to 8), repeat: { every: 5, within: 30 } or null, leaveBy: true (count to the leave-by time when there is travel time) }. Replaces the whole setting.',
         ),
+        language: LanguageSchema.nullable().optional().describe("The app's language on their own devices and in activities they play ('en' or 'de'); null follows the device and the family's language."),
       },
     },
     async ({ member, ...input }) => {
