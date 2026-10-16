@@ -783,6 +783,16 @@ button.month-cell .month-daynum { flex: none; }
    The app's own header, tabs, rail and add button give way, so the field and its Add/Save get the
    ~170-380px a phone or tablet on its side has left. They come back when the keyboard goes down. */
 :root[data-keyboard] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint) { display: none; }
+/* The keyboard covers the home indicator: a sheet's buttons sit right on it (or on the iPhone's ↑ ↓ ✓
+   bar), with no strip of page between them. */
+:root[data-keyboard] .sheet .sheet-actions { padding-bottom: 6px; }
+/* The iPhone app has no status bar, and with the header gone WebKit scrolls the page up to the field,
+   under the Dynamic Island or notch. A strip of page color over that area (at the top of what you can
+   see: --kbd-top) keeps text out from under it, like a browser's status bar. Under sheets (50). */
+:root[data-native="ios"][data-keyboard]::before {
+  content: ''; position: fixed; left: 0; right: 0; top: var(--kbd-top, 0px); height: var(--safe-t); z-index: 44;
+  background: var(--bg); pointer-events: none;
+}
 /* An activity open (Plugins.tsx): the same chrome gives way for everyone, so a child can't tap out by
    accident; the activity's own bar keeps the way back. Pinch zoom is off on this page meanwhile. */
 :root[data-activity-open] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint, .install-card) { display: none; }
