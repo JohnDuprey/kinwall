@@ -1042,7 +1042,7 @@ test('notify: a kid\'s device that still follows everyone (an older row) gets no
   assert.equal(to('alex-phone'), 4, 'the parent hears everything');
 });
 
-test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\' or parent-facing ones; privacy notes only on that person\'s own devices', async () => {
+test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\' or parent-facing ones; no device notes on kids\' devices or walls', async () => {
   const { env, request, alex, leo, maya, kid, wall } = await kidSetup();
   await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ medications: true }) });
   const add = (kind: Parameters<typeof recordNotification>[1]['kind'], title: string, memberIds: string[] = []) => recordNotification(env.DB, { kind, title, memberIds, source: 'system' }, env); // a medicine note is sealed with the key
@@ -1055,12 +1055,13 @@ test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\'
   await add('summary', 'Today');
   await add('list', 'List updated');
   await add('privacy', "Alex's phone now belongs to Alex", [alex.id]);
-  await add('privacy', "Leo's journal: an entry is now private", [leo.id]);
+  await recordNotification(env.DB, { kind: 'privacy', title: "Leo's journal: an entry is now private", url: `/#/journal/${leo.id}`, memberIds: [leo.id], source: 'system' });
   await add('medication', "Time for Leo's medicine", [leo.id]);
   await add('medication', `Leo's 8:00 AM${MED_LATE}`, [leo.id]);
   await add('medication', `Maya's 7:30 PM${MED_LATE}`, [maya.id]);
   const titles = async (key: string) => (await feed(request, '', key)).map((n) => n.title).sort();
-  assert.deepEqual(await titles(kid), ['Dinner at 6', 'Family dinner', 'For Leo', 'Leo soccer', "Leo's iPad now belongs to Leo", "Leo's journal: an entry is now private", 'List updated', "Time for Leo's medicine"].sort());
+  // Notes about devices are security activity, for grown-ups; the kid's own journal notes still show.
+  assert.deepEqual(await titles(kid), ['Dinner at 6', 'Family dinner', 'For Leo', 'Leo soccer', "Leo's journal: an entry is now private", 'List updated', "Time for Leo's medicine"].sort());
   const wallSees = await titles(wall);
   for (const t of ['For Alex only', "Alex's phone now belongs to Alex", "Leo's iPad now belongs to Leo", `Leo's 8:00 AM${MED_LATE}`, `Maya's 7:30 PM${MED_LATE}`]) assert.ok(!wallSees.includes(t), t);
   for (const t of ['Today', 'Alex dentist', 'For Leo']) assert.ok(wallSees.includes(t), t);

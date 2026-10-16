@@ -78,9 +78,8 @@ test("pairing: the family's log says what kind of device it is", async () => {
   const { req, member, pair } = setup();
   const leo = await member('Leo', false);
   const kid = await pair({ kind: 'kid', owner: leo });
-  const line = ((await req('/api/notifications', 'GET', undefined, kid.poll.json.key)).json as any[]).find((n) => n.kind === 'privacy');
-  assert.match(line.title, /Tablet now belongs to Leo/, "Leo's device tells him");
-  assert.match(line.body, /kid's device/);
+  const onKid = ((await req('/api/notifications', 'GET', undefined, kid.poll.json.key)).json as any[]).filter((n) => n.kind === 'privacy');
+  assert.deepEqual(onKid, [], "security notes are for grown-ups, not Leo's device");
   const events = (await req('/api/security-events')).json as any[];
   assert.deepEqual(events.filter((e) => e.kind === 'device.paired').map((e) => e.summary), ['"Tablet" paired as Leo\'s device']);
 });

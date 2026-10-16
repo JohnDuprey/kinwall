@@ -236,6 +236,7 @@ export async function recordNotification(
  * belongs to them: it can read their private journal (routes/journal.ts), so that never changes
  * silently. Shown only on their own devices (routes/push.ts feedFilter); callers also write the
  * Security activity line (routes/security-events.ts), which is where parents see it. */
+// No url: that's how a kid's device and a wall leave it out (routes/push.ts feedFilter).
 export async function recordDeviceOwner(db: KinwallDb, device: string, owner: string | null | undefined, kind?: 'wall' | 'kid' | 'grownup' | null): Promise<void> {
   if (!owner || owner === 'shared') return;
   const m = await db.prepare('SELECT name FROM members WHERE id = ?').bind(owner).first<{ name: string }>();
