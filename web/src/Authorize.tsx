@@ -100,7 +100,7 @@ export default function AuthorizeScreen() {
         {needsSignIn ? (
           <>
             <h1>Sign in to continue</h1>
-            <p>An app wants to connect to Kinwall. Sign in as an admin to review it.</p>
+            <p>An app wants to connect to Kinwall. Sign in as a parent to review it.</p>
             {passkeysSupported() && <button className="btn btn-primary btn-block" onClick={() => signIn('passkey')} disabled={busy}>{busy ? 'Checking…' : 'Sign in with passkey'}</button>}
             <div className="field" style={{ textAlign: 'left', marginTop: 16 }}>
               <label htmlFor="authorize-recovery">No passkey here? Use a recovery code</label>

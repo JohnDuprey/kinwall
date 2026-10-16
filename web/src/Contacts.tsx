@@ -454,7 +454,7 @@ export default function Contacts() {
   const addContact = () => { setSelectedId(null); setSheet('create') }
   return <div className="contacts-page scroll-y">
     <div className="contacts-inner">
-      <div className="contacts-heading"><div><h2>Contacts</h2><p>{count} household contact{count === 1 ? '' : 's'}{!parentDevice && ' available on this display'}</p></div>
+      <div className="contacts-heading"><div><h2>Contacts</h2><p>{count} household contact{count === 1 ? '' : 's'}{!parentDevice && ' available on this device'}</p></div>
         {parentDevice && <div className="contacts-heading-actions">
           <button className="btn btn-secondary" onClick={() => setSheet('import')}>Import</button>
           <button className="btn btn-primary" onClick={addContact}><PlusIcon width={16} height={16} /> Add</button></div>}</div>

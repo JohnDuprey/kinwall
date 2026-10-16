@@ -232,7 +232,7 @@ Shopping mode is the list and nothing else, for your phone in the store: no head
 
 Get stuff done is one checklist, full screen, for working through a routine like **Bedtime**, **After school** or **Morning**: big type, big buttons, nothing else on the screen. It works on to-do and reusable lists (shopping lists have [Shopping mode](#shopping-mode) instead), on any device.
 
-* Tap **Get stuff done** on the list. It also opens from a [chore with a checklist](chores.md#checklists), from the Board's [Get stuff done card](calendar.md#board-layouts), and by itself on a screen with a [pinned checklist](../settings/this-display.md#this-display).
+* Tap **Get stuff done** on the list. It also opens from a [chore with a checklist](chores.md#checklists), from the Board's [Get stuff done card](calendar.md#board-layouts), and by itself on a screen with a [pinned checklist](../settings/this-display.md#this-screen).
 * The top bar shows **Get stuff done: *list***, how many are done ("3 of 8 done") and a bar filling up.
 * Items come in the list's own [sort](#sorting) (Due date, Priority, your Manual order…), the same order as on the list. Ticking one doesn't move it.
 * **One at a time** (where it starts) shows the next open item big and centered, with the avatar of the person it's for, its priority, its due date ("Overdue · Oct 10" in red), its linked event and its [steps](#steps) to tick one by one. Dots show where you are (filled for done, a ring for to do, a bigger ring for this one) with "Item 3 of 8" under them. **Done** ticks it and moves to the next open one; **Skip** leaves it for later (Skip comes back round to it); **Back** goes to the one before. A done item says **✓ Done** and has **Not done** instead.

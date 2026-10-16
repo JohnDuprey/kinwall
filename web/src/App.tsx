@@ -420,9 +420,9 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
         <Brand />
         <HelpButton className="help-float" />
         <h1>Welcome home 👋</h1>
-        <p>Paste the Kinwall API key for this display to unlock it.</p>
+        <p>Paste the key a parent made for this device under Settings → Access.</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>API key</label>
+          <label>Key</label>
           <input
             type="password"
             value={value}

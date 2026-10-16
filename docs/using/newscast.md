@@ -11,7 +11,7 @@ The [bell](notifications.md) is for things to act on (reminders, summaries, mess
 ## Opening it
 
 * Tap **Newscast** in Home's **Board | Newscast** switch, on any device.
-* A display can be locked to it: **Settings → General → This display → Lock view → Newscast**. See [This display](../settings/this-display.md).
+* A display can be locked to it: **Settings → General → This screen → Lock view → Newscast**. See [This screen](../settings/this-display.md).
 
 Turning **Newscast** off in [Settings → General → Features](../settings/general.md#features) hides the tab everywhere (with it Home's switch, and a screen locked to it shows the Board) and the Newscast API answers 404. Posts and reactions already saved are kept until they age out.
 
@@ -79,7 +79,7 @@ The person who posted can delete their own post from their own device (**⋯ →
 
 ## Calm and accessible
 
-* Low-stimulation mode (**Settings → General → This display**) drops the pictures (a "📸 A picture in family photos" line instead) and all motion.
+* Low-stimulation mode (**Settings → General → This screen**) drops the pictures (a "📸 A picture in family photos" line instead) and all motion.
 * Every item reads as one sentence to a screen reader, reactions say who gave them ("Clap, from Alex, Sam"), and every button is at least 44 points.
 * No streaks, no "you missed", no comparing people.
 

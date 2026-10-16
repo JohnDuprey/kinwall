@@ -1499,7 +1499,7 @@ function ScreenFocusRows() {
               onClick={() => set({ focusHideShared: !device.focusHideShared || undefined })}><span className="knob" /></button>
           </div>
         )}
-        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This display is shared by the whole family. A parent can change who it belongs to under Settings → Access.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
+        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This screen is shared by the whole family. A parent can change who it belongs to under Settings → Access.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
         <div className="device-pref-row">
           <span>Lock view</span>
           {/* Home's views, then Calendar's. Locked to a calendar view, Calendar takes Home's place in the nav. */}
@@ -1807,7 +1807,7 @@ function NightScreenSection() {
           ? <NightRows value={nightFieldsFor(device, settings.nightLook)} onChange={patch => setDeviceAppearance({ ...device, ...patch })} here />
           : <div className="settings-row-sub">This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night.</div>}
         <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview Night screen</button>
-        <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
+        <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This screen.</div>
       </div>
     </SummarySection>
   )
@@ -1838,8 +1838,8 @@ function NightRows({ value, onChange, here = false, label = 'Show' }: { value: N
     </div>
     {sources.length > 1 && <div className="settings-row-sub">Takes turns between the ones you pick.</div>}
     {sources.includes('drawings') && !here && <div className="settings-row-sub">Each screen shows the drawings made on it (Activities → Paint).</div>}
-    {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this display yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
-    {services && <div className="settings-row-sub">Pictures are fetched by {here ? 'this display' : 'each screen'} directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see {here ? "this device's" : "the screen's"} address.</div>}
+    {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this screen yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
+    {services && <div className="settings-row-sub">Pictures are fetched by {here ? 'this device' : 'each screen'} directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see {here ? "this device's" : "the screen's"} address.</div>}
     {sources.includes('folder') && <div className="settings-row-sub">Pictures from the photo folder on your Kinwall server. The name of the folder a picture is in shows as its caption.</div>}
     {sources.includes('google') && <div className="settings-row-sub">Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.</div>}
     {sources.length > 0 && <>
@@ -1978,10 +1978,10 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
   const { pref } = useNavMode()
   const { settings } = useApp()
   return (
-    <Section title="This display" icon={<MonitorIcon width={16} height={16} />}>
+    <Section id="this-display" title={isPhone ? 'This phone' : 'This screen'} icon={<MonitorIcon width={16} height={16} />}>
       {keyName !== undefined && (
         <div className="settings-row">
-          <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
+          <div className="settings-row-label">Paired as {keyName || 'this screen'}</div>
         </div>
       )}
       <h4 className="settings-subhead">This screen's layout</h4>
@@ -2028,7 +2028,7 @@ function ScreenScaleRow() {
 function TroubleshootSection({ keyName }: { keyName?: string }) {
   const dialog = useDialog()
   const unpair = async () => {
-    if (!await dialog.confirm({ title: 'Unpair this display?', body: 'You\'ll need to pair it again from an admin device to use it here.', confirmLabel: 'Unpair', danger: true })) return
+    if (!await dialog.confirm({ title: 'Unpair this device?', body: 'You\'ll need to pair it again from a parent\'s phone or computer to use it here.', confirmLabel: 'Unpair', danger: true })) return
     await clearKey()
     location.reload()
   }
@@ -2065,7 +2065,7 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
         </div>
       ) : keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
+          <button className="btn btn-danger" onClick={unpair}>Unpair this device</button>
           <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. A parent can do that under Settings → Access → Paired devices.</div>
         </div>
       )}

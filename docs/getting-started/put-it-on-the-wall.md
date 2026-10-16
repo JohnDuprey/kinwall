@@ -24,7 +24,7 @@ You can also tap **Enter a key manually** on the sign-in screen and paste any AP
 
 In Safari, tap **Share → Add to Home Screen**, then always launch Kinwall from the home screen icon. It runs full screen with no browser bars. On Android, Chrome's **Install app** / **Add to Home screen** does the same.
 
-On phones, Kinwall also offers this itself. From the second visit in a browser, a card above the tab bar says **Add Kinwall to your Home Screen**. On Android its **Install** button opens the install dialog; on iPhone and iPad **Show me how** walks through Share → **Add to Home Screen**. **Not now** hides it for 30 days, and it never shows once Kinwall runs from the Home Screen. The same option is always under **Settings → General → This display → Add to Home Screen**.
+On phones, Kinwall also offers this itself. From the second visit in a browser, a card above the tab bar says **Add Kinwall to your Home Screen**. On Android its **Install** button opens the install dialog; on iPhone and iPad **Show me how** walks through Share → **Add to Home Screen**. **Not now** hides it for 30 days, and it never shows once Kinwall runs from the Home Screen. The same option is always under **Settings → General → This screen → Add to Home Screen**.
 
 There are also native Kinwall apps for iPhone, iPad, Apple Watch and Android, in a separate [kinwall-mobile](https://github.com/JohnDuprey/kinwall-mobile) repository. They aren't on the App Store or Play Store yet, so this Home Screen install is the way to get Kinwall on a phone today; see [MCP server → Native apps](../integrations/mcp.md#native-apps) for how they sign in once you do build one.
 
@@ -82,7 +82,7 @@ Kinwall needs a connection to your server whether it's installed or not. It does
 * After 2 minutes without a touch it goes back to Home (the Board, or Calendar on today when it's locked to a calendar view) and closes any open sheet.
 * It checks for changes every 30 seconds (`GET /api/rev`), so edits from phones show up within about 30 seconds.
 * When a new version is deployed, a **Kinwall updated — tap to reload** banner appears.
-* **Settings** on a display shows **General** (the family cards and this device's cards) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This display](../settings/this-display.md).
+* **Settings** on a display shows **General** (the family cards and this device's cards) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This screen](../settings/this-display.md).
 
 ## Nest Hub and other smart displays (DashCast)
 
@@ -90,7 +90,7 @@ A Google Nest Hub (7", 1024×600), Nest Hub Max (10", 1280×800) or another Cast
 
 1. Cast `https://<your-kinwall>/?screen=cast`. The `?screen=cast` part turns on **cast screen** mode, which this display remembers. Kinwall also turns it on by itself when the display says it's a Cast device, so the address works without it too; `?screen=normal` turns it off again.
 2. The first time, the display shows the sign-in screen. Tap **Set up a wall screen or kid's device** on the display and approve its code from a parent's phone, as in [Pair the display](#1-pair-the-display). The display keeps its key, so the next cast opens straight on Home.
-3. If you like, pick a [Board layout](../using/calendar.md#board-layouts) with fewer cards for this screen (**Settings → General → This display → Board layout**). Cast screen mode keeps whatever layout the display has.
+3. If you like, pick a [Board layout](../using/calendar.md#board-layouts) with fewer cards for this screen (**Settings → General → This screen → Board layout**). Cast screen mode keeps whatever layout the display has.
 
 In cast screen mode Kinwall is drawn bigger, to read from across the kitchen: a bigger clock, Board text and buttons, and a side bar of six big buttons (Home, Calendar, Chores, Lists, Contacts and Meals) with the rest under **More**; **🎟 Outings** is still on Home's toolbar. The Board shares out the screen in its layout's columns instead of scrolling, and is drawn a little smaller when its cards still don't fit. Everything else works as on any wall screen: going back to Home after 2 idle minutes, and the [Night screen](../using/night.md) at night.
 
@@ -98,5 +98,5 @@ A cast page closes after a while (about 10 minutes on a Nest Hub, when nothing i
 
 ## Unpair or replace a display
 
-* On the display: **Settings → General → Troubleshooting → Unpair this display**.
+* On the display: **Settings → General → Troubleshooting → Unpair this device**.
 * From an admin device: **Settings → Access → Paired devices**, then remove the display. It's signed out at once and needs pairing again.

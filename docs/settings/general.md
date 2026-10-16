@@ -30,7 +30,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 
 ### Quotes & facts
 
-What the Board's quote card shows. The row shows what's on; **Change** opens a sheet with the choices. The card takes turns through every source that's on, changing every half hour, and every screen on the family's choice shows the same one. Turn everything off to hide the card. A screen can show its own picks, or several cards, instead: see [This display → Board quotes & facts](this-display.md#this-display). API: `tidbits` (see below).
+What the Board's quote card shows. The row shows what's on; **Change** opens a sheet with the choices. The card takes turns through every source that's on, changing every half hour, and every screen on the family's choice shows the same one. Turn everything off to hide the card. A screen can show its own picks, or several cards, instead: see [This screen → Board quotes & facts](this-display.md#this-screen). API: `tidbits` (see below).
 
 | Source | Notes |
 |---|---|
@@ -46,7 +46,7 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 
 ### Board presets
 
-Board layouts for the family: which cards, in which columns, how tall and how big their text is. Every screen can pick one under [This display → Board layout](this-display.md#this-display) or Home's **Layout and filter** sheet, next to the built-in **Kids**, **Kitchen**, **Parents** and **Simple**. **Add a preset** opens the [layout editor](../using/calendar.md#board-layouts) with a name; **Edit** changes one, and **Delete this preset** is at the bottom of its editor. Screens using a deleted preset go back to the family wall layout. Up to 10, on parent devices only.
+Board layouts for the family: which cards, in which columns, how tall and how big their text is. Every screen can pick one under [This screen → Board layout](this-display.md#this-screen) or Home's **Layout and filter** sheet, next to the built-in **Kids**, **Kitchen**, **Parents** and **Simple**. **Add a preset** opens the [layout editor](../using/calendar.md#board-layouts) with a name; **Edit** changes one, and **Delete this preset** is at the bottom of its editor. Screens using a deleted preset go back to the family wall layout. Up to 10, on parent devices only.
 
 API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id, name, layout }` with `id` `p_` and up to 40 lowercase letters, digits, `_` or `-`, `name` 1 to 40 characters, and `layout` `{ tiles, columns }`: `tiles` a boolean (the count tiles across the top) and `columns` 1 to 4 lists of up to 6 cards, each `{ id, size, density, listId? }`. `id` is `clock`, `today`, `meals`, `photo`, `coming`, `due`, `chores`, `tidbit`, `tidbit2`, `tidbit3` or `checklist` (each once), `size` `s`, `m` or `l`, and `density` `big`, `normal` or `small`. `listId` is the list the `checklist` card ([Get stuff done](../using/calendar.md#board-layouts)) shows; left out, it shows the first reusable list. A display key gets 403.
 
@@ -103,6 +103,6 @@ API: the night hours are `quietFrom` / `quietTo`, the two effects `nightRest` an
 
 ## Only on this device
 
-**This display**, **Appearance on this device**, **Time cues**, **Night screen on this device**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen on this device show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to Home when idle** are under **This display**. See [This device](this-display.md).
+**This screen**, **Appearance on this device**, **Time cues**, **Night screen on this device**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen on this device show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to Home when idle** are under **This screen**. See [This device](this-display.md).
 
 Chore settings (late completion credit, streak grace, daily check-in points, leaderboard, sticker shop and sticker prices) live on the **Family** tab, on parent devices, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).

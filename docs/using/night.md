@@ -15,7 +15,7 @@ A family that had quiet hours before keeps both effects on, so nothing changes. 
 
 ## Walls rest at night
 
-* It applies **only to wall screens**: paired displays (devices using a display key), and any other device with **Use as a wall screen** on under [Settings → This display](../settings/this-display.md#this-display). Other phones and parent devices are never dimmed. A parent's iPad or a kitchen laptop can be a wall screen and keep its parent access.
+* It applies **only to wall screens**: paired displays (devices using a display key), and any other device with **Use as a wall screen** on under [Settings → This screen](../settings/this-display.md#this-screen). Other phones and parent devices are never dimmed. A parent's iPad or a kitchen laptop can be a wall screen and keep its parent access.
 * During the night hours, with **Rest at night** on, the display shows the Night screen: the time on a dark screen, or the pictures picked under **What they show**. By default the clock moves around: every few minutes it fades in at a new spot, so no pixels stay lit in one place.
 * **Tap the screen** to wake it (or enter the [PIN](#pin-to-wake), if the family set one). It returns to the Night screen after **five minutes** without a touch.
 * With **Rest at night** off, walls stay on overnight. The [moon button](#night-screen-now) and [Home Assistant](#start-it-from-home-assistant) can still start the Night screen.
