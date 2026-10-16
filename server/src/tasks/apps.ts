@@ -385,7 +385,8 @@ export function microsoftTodoApp(ctx: OAuthCtx, tz: string): TaskApp {
     // Every task, done ones too (checklist items are To Do's steps: they stay there). A task missing
     // here is gone. Polled like the others: a delta query would save little on a family's list.
     async tasks(listId) {
-      return (await graphPages(ctx, `${list(listId)}?${new URLSearchParams({ $expand: 'checklistItems' })}`)).map(msTask);
+      // Graph leaves checklistItems out when a task has none, even when asked for: none, not unknown.
+      return (await graphPages(ctx, `${list(listId)}?${new URLSearchParams({ $expand: 'checklistItems' })}`)).map((t) => ({ ...msTask(t), steps: msTask(t).steps ?? [] }));
     },
     async create(listId, f) {
       return msTask(await call(list(listId), { method: 'POST', body: JSON.stringify(msBody(f, tz)) }));

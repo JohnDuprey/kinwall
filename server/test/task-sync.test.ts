@@ -116,7 +116,7 @@ function fakeMicrosoft() {
     if (url.pathname === '/v1.0/me/todo/lists') return Response.json({ value: [{ id: 'ml1', displayName: 'Tasks' }] });
     const c = /^\/v1\.0\/me\/todo\/lists\/[^/]+\/tasks\/([^/]+)\/checklistItems(?:\/([^/]+))?$/.exec(url.pathname);
     if (c) {
-      const list = tasks.get(c[1])!.checklistItems as Fake[];
+      const list = (tasks.get(c[1])!.checklistItems ??= []) as Fake[];
       if (!c[2]) { const item = { id: `c${++n}`, isChecked: false, ...body }; list.push(item); return Response.json(item); }
       const i = list.findIndex((x) => x.id === c[2]);
       if (method === 'DELETE') { list.splice(i, 1); return new Response(null, { status: 204 }); }
@@ -124,7 +124,8 @@ function fakeMicrosoft() {
       return Response.json(list[i]);
     }
     const m = /^\/v1\.0\/me\/todo\/lists\/([^/]+)\/tasks(?:\/([^/]+))?$/.exec(url.pathname)!;
-    if (!m[2] && method === 'GET') { state.expand = url.searchParams.get('$expand'); return Response.json({ value: [...tasks.values()] }); }
+    // Like Graph: a task with no checklist items has no checklistItems at all, even when expanded.
+    if (!m[2] && method === 'GET') { state.expand = url.searchParams.get('$expand'); return Response.json({ value: [...tasks.values()].map(({ checklistItems, ...t }) => (checklistItems as Fake[])?.length ? { ...t, checklistItems } : t) }); }
     if (!m[2]) { const id = `m${++n}`; tasks.set(id, { id, status: 'notStarted', importance: 'normal', checklistItems: [], lastModifiedDateTime: new Date().toISOString(), ...body }); return Response.json(tasks.get(id)); }
     const t = tasks.get(m[2])!;
     if (method === 'DELETE') { tasks.delete(m[2]); return new Response(null, { status: 204 }); }
@@ -684,6 +685,16 @@ test('tasks: Microsoft To Do checklist items are steps (title and done; order st
     car.checklistItems.splice(0, 1);
     await syncTaskLink(t.env, l.id);
     assert.deepEqual(stepTitles((await t.items(l.id))[1]), ['○ Rinse and dry']);
+    // A task with no checklist yet (Graph leaves the field out): the first step added here goes across.
+    const [garage2] = await t.items(l.id);
+    const sweep = garage2.steps[0];
+    await t.req(`/api/lists/${l.id}/items/${garage2.id}/steps/${sweep.id}`, 'DELETE');
+    await settle();
+    assert.equal(t.ms.tasks.get('x')!.checklistItems.length, 0);
+    await t.req(`/api/lists/${l.id}/items/${garage2.id}/steps`, 'POST', { title: 'Hang the bikes' });
+    await settle();
+    await syncTaskLink(t.env, l.id);
+    assert.deepEqual(t.ms.tasks.get('x')!.checklistItems.map((c: Fake) => c.displayName), ['Hang the bikes']);
   } finally { t.restore(); }
 });
 
