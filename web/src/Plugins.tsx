@@ -29,6 +29,7 @@ import { ActivityRing } from './ActivityRing.tsx'
 import { useKeyboard } from './keyboard.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
+import { useBackClose } from './backStack.ts'
 
 type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean; text?: unknown; rate?: unknown; lang?: unknown; item?: unknown }
 
@@ -290,6 +291,7 @@ export function PluginPlayer({ id }: { id: string }) {
     if (ok) leave()
   }
   useEffect(() => { leaveRef.current = leave; askLeaveRef.current = () => void askLeave() })
+  useBackClose(() => askLeaveRef.current(), !!playing) // the app's Back button: like Escape
 
   if (plugin === undefined) return null
   if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to leave Kinwall, so it was stopped. <a href="#/activities">Back to Activities</a></div>

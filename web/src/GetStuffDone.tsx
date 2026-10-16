@@ -13,6 +13,7 @@ import { useEventWindow } from './useEventWindow.ts'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { Face } from './Face'
+import { useBackClose } from './backStack.ts'
 
 /** Opened from a chore with this checklist: only its person's items (and nobody's), and once
  * they're all ticked the chore completes the usual way (`onComplete`: approval, points, reset).
@@ -60,6 +61,7 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   const exit = () => { if (pinned) location.hash = '#/home'; onClose() } // pinned: back to the Board
   const close = useRef(exit)
   close.current = exit
+  useBackClose(() => close.current()) // the app's Back button: like Escape
   useEffect(() => { if (detail) heading.current?.focus({ preventScroll: true }) }, [!!detail]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const list = detail?.list

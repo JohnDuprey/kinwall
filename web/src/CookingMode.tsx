@@ -10,6 +10,7 @@ import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { start, TimerList, useNow, useTimers } from './Timers.tsx'
 import { clock, isRunning, phase, soonestFirst, untilNext } from './timers.ts'
+import { useBackClose } from './backStack.ts'
 
 /** Full-screen cooking: one step at a time in big type, its ingredients (scaled to `servings`) and
  * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
@@ -54,6 +55,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
     return () => { holdAwake(`cooking-mode:${recipe.id}`, false); behind.forEach(el => el.removeAttribute('inert')); if (ownsMode) delete document.documentElement.dataset.fullscreenMode; opener?.focus?.({ preventScroll: true }) }
   }, [opener, recipe.id])
 
+  useBackClose(() => { if (showAll) closeDrawer(); else onClose() }) // the app's Back button: like Escape
   const keys = useRef<(e: KeyboardEvent) => void>(() => {})
   keys.current = e => {
     if (basic || e.altKey || e.ctrlKey || e.metaKey) return

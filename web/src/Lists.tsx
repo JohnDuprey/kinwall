@@ -32,6 +32,7 @@ import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 import { Face, ChipFace, InlineFaces } from './Face'
+import { useBackClose } from './backStack.ts'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -1691,6 +1692,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // which left shopping mode one Back away, ready to start an ended trip again).
   const enterShop = () => { location.hash = `#/lists/${listId}/shop`; history.replaceState({ ...history.state, kinwallShopFrom: true }, '') }
   const exitShop = () => { if (history.state?.kinwallShopFrom) history.back(); else location.replace(`#/lists/${listId}`) }
+  useBackClose(exitShop, shopMode) // the app's Back button: like Escape
   const freshLink = useRef(false) // shopping mode opened by a link (Siri), not come back to with Back or Forward
   const [picking, setPicking] = useState(false) // the store step
   const [adding, setAdding] = useState(false) // the Add item sheet (shopping lists)

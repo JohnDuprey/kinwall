@@ -5,6 +5,7 @@ import { reducedMotion } from './a11y.tsx'
 import { useKeyboard } from './keyboard.ts'
 import { sheetHistory, unsavedChanges } from './sheetHistory.ts'
 import { useDialogMaybe } from './dialog.tsx'
+import { useBackClose } from './backStack.ts'
 
 let nextToken = 0
 
@@ -51,6 +52,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   const escape = dismissable ? onClose : onCancel
   const onEscapeRef = useRef<() => void>(() => {})
   onEscapeRef.current = () => void dismissRef.current(escape)
+  useBackClose(() => onEscapeRef.current()) // the app's Back button (backStack.ts): like Escape
 
   // Back closes the sheet (sheetHistory.ts). One that stays open (unsaved changes, busy) gets its
   // history entry back, so the next Back still lands here.
