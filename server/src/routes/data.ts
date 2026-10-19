@@ -1,6 +1,8 @@
 // "Your data": GET /api/export (everything the family entered, minus credentials), POST /api/import
 // (merges an export back in) and GET /api/host-events (see host-events.ts). All admin-only -
 // display keys are denied by default in auth.ts.
+import type { MilestoneRow, EnrollmentRow } from '../milestones.ts';
+import { MilestoneSchema, MilestoneMemberSchema } from '../schemas.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { bodyLimit } from 'hono/body-limit';
 import { createRouter } from '../router.ts';
@@ -71,6 +73,22 @@ import {
 export const dataRoutes = createRouter();
 
 const EXPORT_VERSION = 1;
+
+const MilestoneExportSchema = MilestoneSchema.extend({ members: z.array(MilestoneMemberSchema.omit({ progress: true }).extend({ baseline: z.array(z.string()), pausedSources: z.array(z.string()).nullable(), pausedProgress: z.number().nullable() })) });
+
+async function exportMilestones(db: KinwallDb) {
+  const [definitions, enrollments] = await db.batch<unknown>([
+    db.prepare('SELECT * FROM reward_milestones ORDER BY created_at, id'),
+    db.prepare('SELECT * FROM reward_milestone_members ORDER BY milestone_id, member_id'),
+  ]);
+  return (definitions.results as MilestoneRow[]).map(m => ({
+    id: m.id, title: m.title, emoji: m.emoji, reward: m.reward, metric: m.metric, target: m.target, active: !!m.active, createdAt: m.created_at,
+    members: (enrollments.results as EnrollmentRow[]).filter(p => p.milestone_id === m.id).map(p => ({
+      memberId: p.member_id, startedAt: p.started_at, earnedAt: p.earned_at, givenAt: p.given_at,
+      baseline: JSON.parse(p.baseline) as string[], pausedSources: p.paused_sources ? JSON.parse(p.paused_sources) as string[] : null, pausedProgress: p.paused_progress,
+    })),
+  }));
+}
 
 const ExportSchema = z
   .object({
@@ -177,6 +195,7 @@ const ExportSchema = z
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.
     rewards: z.array(RewardSchema.omit({ used: true })),
     rewardRedemptions: z.array(RedemptionSchema),
+    rewardMilestones: z.array(MilestoneExportSchema),
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
     recipes: z.array(RecipeSchema),
     meals: z.array(MealSchema),
@@ -397,6 +416,7 @@ dataRoutes.openapi(
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
+        rewardMilestones: await exportMilestones(db),
         // opened: the export is the family's own backup; a connected app without aiHealthAccess gets no health
         trackers: (await Promise.all((trackers as TrackerRow[]).filter((r) => r.kind !== 'health' || !healthHidden).map((r) => openRow(c.env, r)))).map(toTrackerApi),
         recipes: await readRecipes(db, { archived: true }),
@@ -461,6 +481,7 @@ const ImportSchema = ExportSchema.extend({
   rewards: ExportSchema.shape.rewards.default([]),
   choreLibrary: ExportSchema.shape.choreLibrary.default([]),
   rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
+  rewardMilestones: ExportSchema.shape.rewardMilestones.default([]),
   trackers: ExportSchema.shape.trackers.default([]),
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
@@ -1012,6 +1033,8 @@ dataRoutes.openapi(
         body.rewards.map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, cost: r.cost, member_ids: JSON.stringify(r.memberIds), needs_approval: r.needsApproval ? 1 : 0, limit_period: r.limit?.period ?? null, limit_count: r.limit?.count ?? null, active: r.active ? 1 : 0, sort: r.sort, created_at: r.createdAt })),
         keepCreated,
       ),
+      ...upserts(db, 'reward_milestones', 'id', body.rewardMilestones.map(m => ({ id: m.id, title: m.title, emoji: m.emoji, reward: m.reward, metric: m.metric, target: m.target, active: m.active ? 1 : 0, created_at: m.createdAt })), { keep: ['title', 'emoji', 'reward', 'metric', 'target', 'active'], where: '0' }),
+      ...upserts(db, 'reward_milestone_members', 'milestone_id, member_id', body.rewardMilestones.flatMap(m => m.members.filter(p => fileMembers.has(p.memberId)).map(p => ({ milestone_id: m.id, member_id: p.memberId, started_at: p.startedAt, baseline: JSON.stringify(p.baseline), paused_sources: p.pausedSources ? JSON.stringify(p.pausedSources) : null, paused_progress: p.pausedProgress, earned_at: p.earnedAt, given_at: p.givenAt }))), { keep: ['baseline', 'paused_sources', 'paused_progress', 'earned_at', 'given_at'], where: '0' }),
       ...upserts(
         db,
         'reward_redemptions',

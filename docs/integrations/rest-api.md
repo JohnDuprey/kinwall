@@ -239,3 +239,20 @@ The Contacts Directory is available through `GET /api/contacts`, `POST /api/cont
 `POST/PATCH /api/chores` accepts `repeatGoal: { times, every, unit, weekStart }` (`unit`: `day`, `week`, or `month`; `weekStart`: 0–6, Sunday–Saturday, default Monday). Set a valid `dueDate` start. Omit `rrule` on create or use `FREQ=DAILY`, optionally followed by `;UNTIL=YYYYMMDD`. A goal cannot have fixed weekdays or `COUNT`. Pass `repeatGoal: null` to remove it and set `rrule` for the desired replacement schedule.
 
 `GET /api/chores/day` returns `goalProgress: { done, pending, target, from, to, full }` for a goal, otherwise `null`. Dates are household calendar dates, inclusive. Each distinct completion date counts once; pending approvals reserve capacity. The server atomically refuses extra dates with `400` when an interval is full. Retrying the same date stays one completion. Undo/reject frees capacity. Existing points and completion history are preserved when settings change. Goals and history survive export/import. Creating or editing goals requires full access; devices can complete only within their existing permissions.
+
+### Reward milestones
+
+* `GET /api/reward-milestones?memberId=&archived=true`: definitions with `members` containing
+  `{ memberId, startedAt, progress, earnedAt, givenAt }`. Without `archived=true`, returns active
+  definitions. Member devices see only their own enrollment and get 403 for another member's filter.
+* `POST /api/reward-milestones`: parent only; `{ title, emoji?, reward, metric: "points" | "chores",
+  target, memberIds }`. Target is a whole number, 1–1,000,000. Explicit members start at zero now;
+  earlier work is excluded. Target and membership are immutable. Returns the milestone (201).
+* `PATCH /api/reward-milestones/{id} { active }`: parent only; archive/restore, preserving awards.
+  Archived work is excluded on restore. Other fields are refused (400).
+* `POST /api/reward-milestones/{id}/given { memberId }`: parent only; marks an earned reward given
+  once (200); unearned or already given returns 409. Supports archived earned rewards.
+
+All four operations return 403 with Rewards or Chores & points off. Milestones never charge points.
+Earning is reconciled after successful writes that can affect earned sources, milestones, imports,
+or feature switches; GET requests never create awards. See [Rewards](../using/rewards.md#reward-milestones).

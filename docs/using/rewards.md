@@ -102,3 +102,40 @@ The Rewards screen shows the goal at the top with a progress bar. When the **Boa
 * `PUT /api/members/{id}/reward-goal {rewardId}` (`null` clears it). `GET /api/members` includes `rewardGoal`.
 * Webhooks: `reward.redeemed` (with `status`, and `shares` for a split), `reward.approved`, `reward.declined`, `reward.given` and `reward.changed`. See [Webhooks](../integrations/webhooks.md#events).
 * MCP: `list_rewards`, `create_reward`, `update_reward`, `redeem_reward`, `list_reward_requests`, `approve_reward`, `decline_reward`, `mark_reward_given`. See [MCP server](../integrations/mcp.md).
+
+## Reward milestones
+
+Milestones earn a reward without spending points: **Earn 100 points → pick the family movie**, or
+**Complete 20 chores → an ice cream trip**. They appear alongside the rewards points can buy.
+
+On a parent's device, choose a person in Rewards and tap **Add milestone**. Give it a name, emoji,
+reward, target type (**Points earned** or **Approved chores**), target number, and the people taking
+part. Each chosen person starts at zero when you add it and earns the reward independently, once.
+Earlier points and chores do not count. The target and participants are fixed; archive a milestone
+and create another if the plan changes. Newly added family members are not enrolled automatically.
+
+Points earned includes approved chore points, daily check-ins, and bonus points. Spending points,
+splitting a purchased reward, and getting a refund do not change milestone progress. Only approved
+chores count toward a chore target, including chores worth zero points; chores waiting for an OK do
+not count. Undoing new work or removing bonus points reduces unfinished progress. Undoing and
+re-ticking work that predates enrollment does not turn it into new progress.
+
+At the target, the reward says **Earned! Ask a grown-up to arrange it.** Your points are still yours
+to spend. Your own devices get a notification, and a grown-up taps **Mark given** after handing over
+the reward. Earned and given records survive corrections to points or chores. There is no approval
+request, points charge, automatic screen-time action, or Newscast post for a milestone.
+
+**Archive milestone** pauses unfinished progress and hides it; an earned reward still waiting to be
+given stays visible. Parents can **Show archived milestones** and **Restore milestone**. Work done
+while archived does not count after restoring. Existing progress and awards stay recorded.
+
+The Board shows up to two current milestone summaries. A member's own device shows only their own
+progress; shared screens show family progress. Both the **Rewards** and **Chores & points** switches
+apply to every milestone surface and API action. When off, awarding pauses without deleting data.
+Turning them back on reconciles eligible progress once. Work while those switches are off counts
+when re-enabled, unlike an individually archived milestone.
+
+Exports include milestone definitions, enrollment baselines, archive state, and earned/given dates.
+Imports restore them on a new instance; matching definitions and enrollments already on the instance
+are preserved, so an old export cannot revoke an award or a handoff. The migration creates empty
+tables only: it does not enroll anyone or award milestones retroactively.

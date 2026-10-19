@@ -1578,3 +1578,11 @@ export const MemberStatsSchema = z
     birthday: z.object({ date: z.string(), daysUntil: z.number(), turning: z.number().nullable() }).nullable(), // turning is null without a birth year
   })
   .openapi('MemberStats');
+
+// Reward milestones are separate from purchased rewards: earning never charges points.
+export const MilestoneMemberSchema = z.object({ memberId: z.string(), startedAt: z.string(), progress: z.number(), earnedAt: z.string().nullable(), givenAt: z.string().nullable() });
+export const MilestoneInputSchema = z.object({
+  title: z.string().trim().min(1).max(80), emoji: EmojiSchema.nullable().optional(), reward: z.string().trim().min(1).max(300),
+  metric: z.enum(['points', 'chores']), target: z.number().int().min(1).max(1000000), memberIds: z.array(z.string()).min(1).max(100),
+}).strict();
+export const MilestoneSchema = MilestoneInputSchema.omit({ memberIds: true }).extend({ id: z.string(), emoji: z.string().nullable(), active: z.boolean(), createdAt: z.string(), members: z.array(MilestoneMemberSchema) });

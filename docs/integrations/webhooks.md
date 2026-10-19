@@ -84,3 +84,13 @@ const ok = timingSafeEqual(Buffer.from(expected), Buffer.from(req.headers['x-kin
 * Webhooks are sent in the background after the change is saved, with a **5-second timeout**.
 * There are **no retries**. If you need every change, poll `GET /api/rev` as a backstop.
 * A disabled webhook (`enabled: false`) is skipped.
+
+### Reward milestones
+
+* `reward.milestone.changed { id }`: created, archived, or restored.
+* `reward.milestone.earned { id, memberId, title, reward }`: this member reached the target, once.
+* `reward.milestone.given { id, memberId }`: a grown-up marked the earned reward given, once.
+
+These events advance the `chores` revision. They are distinct from purchased reward events such as
+`reward.redeemed`; an existing Home Assistant automation for purchased rewards will not run just
+because someone reaches a milestone. No new Home Assistant entities or native widgets are added.

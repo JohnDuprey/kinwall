@@ -1163,3 +1163,7 @@ export type OutingPile = { feed: { id: string; name: string }; outings: Outing[]
 export interface OutingIdea { key: string; emoji: string; title: string; note: string | null; outingIds: string[] }
 export interface OutingIdeas { ideas: OutingIdea[]; outings: Outing[]; openTime: { day: string; from: string; to: string }[]; forecast: { date: string; text: string; rainy: boolean }[] }
 export interface OutingCategory { id: string; name: string; emoji: string | null; sort: number }
+
+export interface MilestoneInput { title: string; emoji?: string | null; reward: string; metric: 'points' | 'chores'; target: number; memberIds: string[] }
+export interface MilestoneMember { memberId: string; startedAt: string; progress: number; earnedAt: string | null; givenAt: string | null }
+export interface Milestone extends Omit<MilestoneInput, 'memberIds'> { id: string; emoji: string | null; active: boolean; createdAt: string; members: MilestoneMember[] }

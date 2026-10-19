@@ -138,7 +138,8 @@ test('round trips: hot GET/write paths stay within budget', async () => {
   await measure('GET /api/settings', () => auth('/api/settings'), 2, 200);
   await measure('GET /api/setup', () => auth('/api/setup'), 3, 200); // no auth: /api/setup is a public route
   await measure('GET /api/rev', () => auth('/api/rev'), 2, 200);
-  await measure('POST chore complete', () => auth(`/api/chores/${seed.choreId}/complete`, { method: 'POST', body: JSON.stringify({ date: seed.today }) }), 4, 200);
+  // Milestones add one conditional award UPDATE (including feature gates) after a point-source write.
+  await measure('POST chore complete', () => auth(`/api/chores/${seed.choreId}/complete`, { method: 'POST', body: JSON.stringify({ date: seed.today }) }), 5, 200);
   await measure(
     'PATCH event memberIds',
     () => auth(`/api/events/${seed.localEventId}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [seed.members[3].id] }) }),

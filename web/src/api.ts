@@ -15,7 +15,7 @@ import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, 
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
+  Milestone, MilestoneInput, StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
@@ -23,6 +23,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, Pl
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
+const milestonePath = (id?: string) => ['api', 'reward-milestones', ...(id ? [encodeURIComponent(id)] : [])].join('/')
 export const MOCK = import.meta.env.VITE_MOCK === '1'
 /** This device's push subscription id (Settings → This display → Notifications), for its own prefs. */
 export const PUSH_SUB_ID_KEY = 'kinwall.pushSubId'
@@ -624,6 +625,10 @@ export const api = {
   // Rewards: anyone lists and redeems (a member's own device only for them); parents manage and decide.
   getRewards: (opts: { memberId?: string; archived?: boolean } = {}) => MOCK ? mock.getRewards(opts)
     : get<Reward[]>(`api/rewards?${new URLSearchParams({ ...(opts.memberId ? { memberId: opts.memberId } : {}), ...(opts.archived ? { archived: 'true' } : {}) })}`),
+  getMilestones: (opts: { memberId?: string; archived?: boolean } = {}) => MOCK ? mock.getMilestones(opts) : get<Milestone[]>(`${milestonePath()}?${new URLSearchParams({ ...(opts.memberId ? { memberId: opts.memberId } : {}), ...(opts.archived ? { archived: 'true' } : {}) })}`),
+  createMilestone: (body: MilestoneInput) => MOCK ? mock.createMilestone(body) : post<Milestone>(milestonePath(), body),
+  updateMilestone: (id: string, active: boolean) => MOCK ? mock.updateMilestone(id, active) : patch<{ ok: boolean }>(milestonePath(id), { active }),
+  giveMilestone: (id: string, memberId: string) => MOCK ? mock.giveMilestone(id, memberId) : post<{ ok: boolean }>([milestonePath(id), 'given'].join('/'), { memberId }),
   createReward: (body: Partial<Reward>) => MOCK ? mock.createReward(body) : post<Reward>('api/rewards', body),
   updateReward: (id: string, body: Partial<Reward>) => MOCK ? mock.updateReward(id, body) : patch<Reward>(`api/rewards/${id}`, body),
   deleteReward: (id: string) => MOCK ? mock.deleteReward(id) : del(`api/rewards/${id}`),

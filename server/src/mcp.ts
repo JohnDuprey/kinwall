@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { ChoreGoalSchema, BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
+import { ChoreGoalSchema, BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, MilestoneSchema, MilestoneInputSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -241,6 +241,10 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   reject_chore_suggestion: { suggestion: ChoreSuggestionSchema },
   list_chore_library: { library: z.array(LibraryChoreSchema) },
   assign_chore_from_library: { chore: ChoreSchema },
+  list_reward_milestones: { milestones: z.array(MilestoneSchema) },
+  create_reward_milestone: { milestone: MilestoneSchema },
+  update_reward_milestone: OK,
+  mark_milestone_given: OK,
   list_rewards: { rewards: z.array(RewardSchema) },
   create_reward: { reward: RewardSchema },
   update_reward: { reward: RewardSchema },
@@ -321,6 +325,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_suggestions: READ, approve_chore_suggestion: WRITE, reject_chore_suggestion: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
+  list_reward_milestones: READ, create_reward_milestone: WRITE, update_reward_milestone: SET, mark_milestone_given: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, move_list_items: SET, update_category: SET, add_note: WRITE, update_note: SET,
@@ -1062,6 +1067,45 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(`Not this time: "${(res.json as { title: string }).title}".`, { suggestion: res.json as Record<string, unknown> });
     },
   );
+
+  tool('list_reward_milestones', {
+    title: 'List reward milestones', description: 'Read one-time reward milestones, points or approved-chore progress, earned awards and handoff status. member accepts a name or id. Own devices only see their member. Refused when Rewards is off.',
+    inputSchema: { member: z.string().optional(), archived: z.boolean().optional() },
+  }, async ({ member, archived }) => {
+    let memberId: string | undefined;
+    try { memberId = member ? await resolveMember(app, env, auth, member) : undefined; }
+    catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const query = new URLSearchParams({ ...(memberId ? { memberId } : {}), ...(archived ? { archived: 'true' } : {}) });
+    const res = await call(app, env, auth, 'GET', `/api/reward-milestones?${query}`);
+    return res.status >= 400 ? errorResult(res.json, 'failed to list milestones') : okResult('Reward milestones', { milestones: res.json });
+  });
+  tool('create_reward_milestone', {
+    title: 'Create reward milestone', description: 'Parent: enroll explicitly chosen members in a one-time reward milestone. Starts at zero now, earlier work excluded; points are never spent. Target and membership are immutable.',
+    inputSchema: MilestoneInputSchema.shape,
+  }, async input => {
+    let memberIds: string[];
+    try { memberIds = await resolveMemberIds(app, env, auth, input.memberIds); }
+    catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const res = await call(app, env, auth, 'POST', '/api/reward-milestones', { ...input, memberIds });
+    return res.status >= 400 ? errorResult(res.json, 'failed to create milestone') : okResult('Milestone created', { milestone: res.json });
+  });
+  tool('update_reward_milestone', {
+    title: 'Archive or restore reward milestone', description: 'Parent: archive with active=false, restore with active=true. Keeps awards and handoff history.',
+    inputSchema: { milestoneId: z.string(), active: z.boolean() },
+  }, async ({ milestoneId, active }) => {
+    const res = await call(app, env, auth, 'PATCH', `/api/reward-milestones/${encodeURIComponent(milestoneId)}`, { active });
+    return res.status >= 400 ? errorResult(res.json, 'failed to update milestone') : okResult('Milestone updated', { ok: true });
+  });
+  tool('mark_milestone_given', {
+    title: 'Mark milestone reward given', description: 'Parent: mark an already earned milestone reward given to one member. Does not spend points. milestoneId comes from list_reward_milestones.',
+    inputSchema: { milestoneId: z.string(), member: z.string() },
+  }, async ({ milestoneId, member }) => {
+    let memberId: string;
+    try { memberId = await resolveMember(app, env, auth, member); }
+    catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const res = await call(app, env, auth, 'POST', `/api/reward-milestones/${encodeURIComponent(milestoneId)}/given`, { memberId });
+    return res.status >= 400 ? errorResult(res.json, 'failed to give milestone reward') : okResult('Milestone reward given', { ok: true });
+  });
 
   // ---- Rewards: thin wrappers over routes/rewards.ts. Members by name or id, like chores.
   const rewardsFor = async (member: string | undefined) => {

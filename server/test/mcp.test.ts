@@ -105,6 +105,7 @@ test('mcp: tools/list returns the tools', async () => {
     'create_recipe',
     'create_restaurant',
     'create_reward',
+    'create_reward_milestone',
     'decline_reward',
     'delete_chore',
     'delete_color_scheme',
@@ -165,9 +166,11 @@ test('mcp: tools/list returns the tools', async () => {
     'list_recipes',
     'list_remembered_items',
     'list_restaurants',
+    'list_reward_milestones',
     'list_reward_requests',
     'list_rewards',
     'list_tracker_entries',
+    'mark_milestone_given',
     'mark_outing_interest',
     'mark_reward_given',
     'merge_contacts',
@@ -211,6 +214,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_remembered_item',
     'update_restaurant',
     'update_reward',
+    'update_reward_milestone',
     'update_tracker_entry',
     'vote_poll',
   ]);
@@ -1116,4 +1120,22 @@ test('mcp: activity actions are listed, queued for a person by name, and their s
   assert.match(reset.content[0].text, /Reset maya's Spelling practice time for \d{4}-\d{2}-\d{2}/);
   assert.deepEqual(reset.structuredContent.chores.map((c: any) => [c.choreId, c.doneSeconds]), [[chore.id, 0]]);
   assert.equal((await call('reset_activity_time', { activity: 'spelling', member: 'Maya', date: 'soon' })).isError, true);
+});
+
+test('mcp: reward milestones round-trip with schemas, parent access and feature switches', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const member = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#123456' }) })).json() as any;
+  const invoke = async (name: string, args: unknown) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  const created = await invoke('create_reward_milestone', { title: 'Movie night', reward: 'Pick the family movie', metric: 'points', target: 5, memberIds: [member.id] });
+  assert.equal(created.isError, undefined, JSON.stringify(created));
+  const id = created.structuredContent.milestone.id;
+  assert.equal((await invoke('list_reward_milestones', { member: 'missing' })).isError, true);
+  const listed = await invoke('list_reward_milestones', { member: 'Maya' });
+  assert.equal(listed.structuredContent.milestones[0].members[0].progress, 0);
+  await rest('/api/points/awards', { method: 'POST', body: JSON.stringify({ memberId: member.id, points: 5 }) });
+  assert.equal((await invoke('mark_milestone_given', { milestoneId: id, member: 'Maya' })).structuredContent.ok, true);
+  assert.equal((await invoke('update_reward_milestone', { milestoneId: id, active: false })).structuredContent.ok, true);
+  await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ rewardsEnabled: false }) });
+  assert.equal((await invoke('list_reward_milestones', {})).isError, true);
 });

@@ -4,6 +4,7 @@
 // waiting for a grown-up, and a way into the sticker shop. Several people can split one reward. Parents also decide on requests (the
 // same queue as Chores' "To approve") and add, edit and archive rewards here.
 import { useEffect, useState } from 'react'
+import { MilestonesPanel } from './Milestones.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -220,6 +221,7 @@ function RewardsPanel({ member }: { member: Member }) {
           </div>
         )}
       </section>
+      <MilestonesPanel memberId={member.id} />
 
       {parentDevice && <ApprovalQueue only="rewards" />}
 

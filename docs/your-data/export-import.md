@@ -56,3 +56,7 @@ API: `POST /api/import` with the export JSON as the body.
 4. Reconnect Google, Outlook and CalDAV accounts, then add a passkey and recovery codes.
 
 If you're moving between Docker hosts, copying the whole `/data` directory also works and keeps *everything*. See [Backups](backups.md).
+
+Reward milestones also export their definitions, participants, the earlier work excluded at enrollment,
+paused progress, and earned/given dates (`rewardMilestones`). Importing restores missing definitions
+and enrollments; existing ones are kept so older files cannot undo earned or given rewards.

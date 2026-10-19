@@ -4212,3 +4212,13 @@ html:root[data-cast] {
 
 .chore-card-goal-met { cursor: default; }
 .chore-card-goal-met:active { transform: none; }
+
+/* Earned rewards sit alongside the spendable reward catalog. */
+.milestones { margin-block: 1rem; }
+.milestones-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.milestones-heading .btn { flex: none; }
+.milestones-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem; padding: 0; list-style: none; }
+.milestone-card { padding: 1rem; border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); overflow-wrap: anywhere; }
+.milestone-card h3 { margin-top: 0; }
+.milestone-progress { display: grid; gap: .5rem; margin-block: .75rem; }
+.milestone-progress progress { width: 100%; height: .75rem; accent-color: var(--accent); }

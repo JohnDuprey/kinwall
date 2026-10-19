@@ -50,6 +50,8 @@ import { journalRoutes } from './routes/journal.ts';
 import { insightsRoutes } from './routes/insights.ts';
 import { medicationsRoutes } from './routes/medications.ts';
 import { medicationRefillRoutes } from './routes/medication-refills.ts';
+import { milestoneRoutes } from './routes/milestones.ts';
+import { reconcileMilestones } from './milestones.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { bonusPointsRoutes } from './routes/bonus-points.ts';
 import { photosRoutes, MAX_ZIP_BYTES as MAX_PHOTO_ZIP_BYTES } from './routes/photos.ts';
@@ -155,6 +157,11 @@ export function createApp() {
     c.res = new Response(JSON.stringify({ ...body, error }), { status: c.res.status, headers });
   });
   app.use('/api/*', requireAuth);
+  // All earning paths (including timed activity chores) reconcile before replying. GETs stay read-only.
+  app.use('/api/*', async (c, next) => {
+    await next();
+    if (c.res.status < 400 && !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && /^\/api\/(chores(?:\/|$)|chore-suggestions(?:\/|$)|plugins(?:\/|$)|points\/awards|members\/[^/]+\/check-in$|settings$|import$|reward-milestones(?:\/|$))/.test(c.req.path)) await reconcileMilestones(c);
+  });
   app.use('/api/*', bodyLimits); // after auth: nobody unauthenticated gets a big upload buffered
   app.use('/mcp', defaultLimit);
   app.use('/oauth/*', defaultLimit);
@@ -195,6 +202,7 @@ export function createApp() {
   app.route('/', insightsRoutes);
   app.route('/', medicationsRoutes);
   app.route('/', medicationRefillRoutes);
+  app.route('/', milestoneRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', bonusPointsRoutes);
   app.route('/', photosRoutes);

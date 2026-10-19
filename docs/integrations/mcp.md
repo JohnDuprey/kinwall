@@ -237,3 +237,12 @@ Tools: `list_contacts` (with an optional search), `get_contact`, `create_contact
 ### Flexible chore goals
 
 `create_chore` and `update_chore` accept `repeatGoal: { times, every, unit, weekStart }` for goals like three times per week, at most once per day. `unit` is `day`, `week`, or `month`; `dueDate` sets the start. Omit `rrule` when creating or use `FREQ=DAILY` with an optional date-only `UNTIL`; fixed weekdays and `COUNT` cannot be combined with a goal. `repeatGoal: null` removes the goal. `list_chores` includes `goalProgress` (approved and pending counts, target, interval dates and whether full). Pending approvals reserve capacity; completing another date after the target is full is refused. Existing full-access and device ownership rules apply.
+
+### Reward milestones
+
+`list_reward_milestones { member?, archived? }` reads targets, individual progress, and earned/given
+status (member by name or id). `create_reward_milestone { title, emoji?, reward, metric, target,
+memberIds }` enrolls explicit members (names or ids) starting at zero. `update_reward_milestone {
+milestoneId, active }` archives/restores; `mark_milestone_given { milestoneId, member }` records
+handoff. All writes are parent only. Reads respect own-device visibility, and all actions are refused
+when Rewards or Chores & points is off. Milestones earn rewards without spending points.

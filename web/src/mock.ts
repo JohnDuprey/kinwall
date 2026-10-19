@@ -3,13 +3,13 @@ import { goalPeriod } from './choreGoal.ts'
 import { scheduleDates } from './choreSchedule.ts'
 import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
 import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
-  Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Milestone, MilestoneInput, Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, RewardShare, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import type { ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
-import { aisleOrderMap, compareItems } from './types.ts'
+import { aisleOrderMap, compareItems, rewardsOn } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
@@ -102,7 +102,7 @@ for (let n = 1; n <= 6; n++) {
 }
 medLog.set(`med3:${demoDay(0)}`, { wake: { startedAt: startedAt(0) } })
 const doseStatus = (date: string, e: MockDose | undefined): DoseStatus => e?.status ?? (date < dateKey(new Date()) ? 'missed' : 'due')
-const bump = () => { rev++ }
+const bump = () => { reconcileMockMilestones(); rev++ }
 
 let quietPin: string | null = null
 const settings: Settings = {
@@ -945,6 +945,37 @@ function mockNewscast(q: { days?: number; before?: string }): Newscast {
   return { today, from, to, earlier: from > oldest, items }
 }
 
+const milestones: Milestone[] = [
+  { id: 'ms1', title: 'Movie night', emoji: '🍿', reward: 'Pick the family movie', metric: 'points', target: 100, active: true, createdAt: '2026-01-01T00:00:00Z', members: [
+    { memberId: 'm3', startedAt: '2026-01-01T00:00:00Z', progress: 65, earnedAt: null, givenAt: null },
+    { memberId: 'm4', startedAt: '2026-01-01T00:00:00Z', progress: 40, earnedAt: null, givenAt: null },
+  ] },
+  { id: 'ms2', title: 'Helping hands', emoji: '🍦', reward: 'An ice cream trip together', metric: 'chores', target: 20, active: true, createdAt: '2026-01-02T00:00:00Z', members: [
+    { memberId: 'm3', startedAt: '2026-01-02T00:00:00Z', progress: 20, earnedAt: new Date().toISOString(), givenAt: null },
+    { memberId: 'm4', startedAt: '2026-01-02T00:00:00Z', progress: 12, earnedAt: null, givenAt: null },
+  ] },
+]
+
+function milestoneSources(memberId: string) {
+  const sources = new Map<string, { points: number; chores: number }>()
+  for (const [key, c] of completions) if (c.memberId === memberId && !c.pending) sources.set(`chore:${key}`, { points: c.points ?? chores.find(chore => key.startsWith(`${chore.id}:`))?.points ?? 0, chores: 1 })
+  for (const a of pointAwards) if (a.memberId === memberId) sources.set(`bonus:${a.id}`, { points: a.points, chores: 0 })
+  for (const e of ledger) if (e.memberId === memberId && e.reason === 'check_in') sources.set(`checkin:${e.ref}`, { points: e.amount, chores: 0 })
+  return sources
+}
+type MockMilestoneBaseline = { excluded: Set<string>; initial: number; paused: Set<string> | null }
+const milestoneBaselines = new Map<string, MockMilestoneBaseline>(milestones.flatMap(m => m.members.map(p => [`${m.id}:${p.memberId}`, { excluded: new Set(milestoneSources(p.memberId).keys()), initial: p.progress, paused: null }])))
+function reconcileMockMilestones() {
+  if (!rewardsOn(settings)) return
+  for (const m of milestones) if (m.active) for (const p of m.members) {
+    if (p.earnedAt) continue
+    const baseline = milestoneBaselines.get(`${m.id}:${p.memberId}`)
+    if (!baseline) continue
+    p.progress = Math.min(m.target, Math.max(0, baseline.initial + [...milestoneSources(p.memberId)].reduce((n, [key, value]) => n + (baseline.excluded.has(key) ? 0 : value[m.metric]), 0)))
+    if (p.progress >= m.target) p.earnedAt = new Date().toISOString()
+  }
+}
+
 export const mock = {
   getContacts: async () => contacts.map(c => ({ ...c, phones: [...c.phones], emails: [...c.emails] })),
   getContactCategories: async () => [...contactCategories],
@@ -1463,6 +1494,31 @@ export const mock = {
     })
   },
 
+  getMilestones: async ({ memberId, archived }: { memberId?: string; archived?: boolean } = {}) => {
+    const owner = demoOwner && demoOwner !== 'shared' ? demoOwner : memberId
+    return milestones.filter(m => archived || m.active).map(m => ({ ...m, members: m.members.filter(p => !owner || p.memberId === owner).map(p => ({ ...p })) })).filter(m => m.members.length)
+  },
+  createMilestone: async (body: MilestoneInput) => {
+    const { memberIds, ...definition } = body
+    const now = new Date().toISOString()
+    const m: Milestone = { ...definition, emoji: body.emoji ?? null, id: uid(), active: true, createdAt: now, members: memberIds.map(memberId => ({ memberId, startedAt: now, progress: 0, earnedAt: null, givenAt: null })) }
+    for (const p of m.members) milestoneBaselines.set(`${m.id}:${p.memberId}`, { excluded: new Set(milestoneSources(p.memberId).keys()), initial: 0, paused: null })
+    milestones.push(m); bump(); return m
+  },
+  updateMilestone: async (id: string, active: boolean) => {
+    const m = milestones.find(m => m.id === id)
+    if (m && m.active !== active) {
+      for (const p of m.members) {
+        const b = milestoneBaselines.get(`${id}:${p.memberId}`)!
+        const current = new Set(milestoneSources(p.memberId).keys())
+        if (!active) b.paused = current
+        else if (b.paused) { for (const key of current) if (!b.paused.has(key)) b.excluded.add(key); b.paused = null }
+      }
+      m.active = active
+    }
+    bump(); return { ok: true }
+  },
+  giveMilestone: async (id: string, memberId: string) => { const p = milestones.find(m => m.id === id)?.members.find(p => p.memberId === memberId); if (p?.earnedAt && !p.givenAt) p.givenAt = new Date().toISOString(); rev++; return { ok: true } },
   getRewards: async ({ memberId, archived }: { memberId?: string; archived?: boolean } = {}) =>
     rewards.filter(r => (archived || r.active) && (!memberId || !r.memberIds.length || r.memberIds.includes(memberId)))
       .map(r => ({ ...r, used: memberId && r.limit ? usedOf(r, memberId) : 0 })),

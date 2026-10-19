@@ -7,7 +7,7 @@ import { useHashParam } from './hashQuery.ts'
 import { createPortal } from 'react-dom'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent, TimedChore } from './types.ts'
+import type { Board as BoardData, Milestone, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent, TimedChore } from './types.ts'
 import { rewardsOn } from './types.ts'
 import { zonedParts } from './date.ts'
 import { LoadError } from './a11y.tsx'
@@ -255,10 +255,12 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const [lists, setLists] = useState<List[]>([])
   const [earlierOpen, setEarlierOpen] = useState(false) // Today's events that are over, in a sheet
   const [doing, setDoing] = useHashParam('gsd') // the Checklist card's list, in Get stuff done (in the link: back after a reload)
+  const [milestones, setMilestones] = useState<Milestone[]>([])
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   useEffect(() => {
     let canceled = false
     if (f.lists) api.getLists().then(l => { if (!canceled) setLists(l) }).catch(() => { /* keep the last count */ })
+    if (rewards) api.getMilestones().then(rows => { if (!canceled) setMilestones(rows) }).catch(() => {})
     if (rewards) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRedemptions(r) }).catch(() => { /* likewise */ })
     return () => { canceled = true }
   }, [refreshTick, tick, f.lists, rewards])
@@ -432,6 +434,9 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const goalsText = goals.map(m => `${m.name} ${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? t('Ready!') : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' · ')
   const goalsShort = goals.map(m => `${m.rewardGoal!.emoji ?? '🎁'} ${m.balance >= m.rewardGoal!.cost ? '✓' : `${Math.max(0, m.balance)}/${m.rewardGoal!.cost}`}`).join(' ')
   const goalsSaid = goals.map(m => `${m.name} ${goalText(m)!.label}`).join(', ')
+  const milestoneLines = !rewards ? [] : milestones.flatMap(m => m.members.filter(p => !p.givenAt && (!selectedMemberId || p.memberId === selectedMemberId) && (!focusMemberId || p.memberId === focusMemberId)).map(p => t('{name}: {milestone} · {progress}', { name: byId.get(p.memberId)?.name ?? t('Someone'), milestone: m.title, progress: p.earnedAt ? t('Earned!') : t('{have} of {target}', { have: p.progress, target: m.target }) }))).slice(0, 2)
+  const milestonesChip = <a className="board-slot-chip" href="#/rewards" aria-label={t('Reward milestones')}><span aria-hidden="true">🏅</span><span className="board-slot-chip-text">{t('Milestones')}</span></a>
+  const milestonesLink = milestoneLines.length > 0 && <a className="board-slot-row" href="#/rewards"><span aria-hidden="true">🏅</span><span className="board-slot-row-text">{t('Reward milestones: {progress}', { progress: milestoneLines.join(' · ') })}</span></a>
   const goalsLine = goals.length > 0 && <span className="board-goal-chips" aria-hidden="true">🎯 {goalsText}</span>
   const choresName = timed.length ? t('Other chores') : t('Chores')
   const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
@@ -451,6 +456,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       row: <a className="board-slot-row" href="#/rewards" aria-label={`Saving for: ${goalsSaid}`}><span aria-hidden="true">🎯</span><span className="board-slot-row-text" aria-hidden="true">{goalsText}</span></a>,
       full: <a className="board-slot-row" href="#/rewards" aria-label={`Saving for: ${goalsSaid}`}><span aria-hidden="true">🎯</span><span className="board-slot-row-text" aria-hidden="true">{goalsText}</span></a>,
     },
+    todayTiles && choresTile && milestoneLines.length > 0 && { key: 'milestones', chip: milestonesChip, row: milestonesLink, full: milestonesLink },
     todayTiles && dueTile && items.length > 0 && dueSummary && {
       key: 'due',
       chip: <a className="board-slot-chip" href="#/lists" aria-label={t('Due: {summary}', { summary: dueSummary })}><span aria-hidden="true">📝</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${overdue ? 'snap-overdue' : ''}`}>{dueToday.length || dueLater}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${overdue ? 'snap-overdue' : ''}`}>{overdue && overdue === dueToday.length ? tn(overdue, '{n} to-do overdue', '{n} to-dos overdue') : dueToday.length ? tn(dueToday.length, '{n} to-do due', '{n} to-dos due') : tn(dueLater, '{n} to-do due soon', '{n} to-dos due soon')}</span></a>,
@@ -623,6 +629,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         </Card>}
 
         {has('chores') && <Card title={t('Chores today')} area="chores" density={dense('chores')} link={rewards && <a className="board-card-link" href="#/rewards">🎁 {t('Rewards')}</a>}>
+          {milestonesLink}
           {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">{t('No chores today.')}</p> : (
             <ul className="snap-list">
               {chores.map(c => {
