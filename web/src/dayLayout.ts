@@ -1,6 +1,6 @@
 // Where a day's timed events go in the Day and Week grids (Calendar.tsx). Pure, so
 // web/test/dayLayout.test.ts covers it.
-import { minutesSinceMidnight } from './date.ts'
+import { minutesSinceMidnight, zonedDayKey } from './date.ts'
 import type { EventInstance } from './types.ts'
 
 /** Matches --hour-h in styles.css (comfortable/compact, 44px on a phone on its side, compact's
@@ -26,10 +26,17 @@ export function gridTop(now: number, visible: number, isToday: boolean): number 
 
 /** Greedy column packing for overlapping timed events on one day. Simple, not cluster-optimal.
  * ponytail: good enough for a wall calendar's visual density; revisit with an interval-graph
- * algorithm if events routinely overlap 4+ ways. */
-export function layoutColumns(evs: EventInstance[], tz: string, minMinutes = 20) {
+ * algorithm if events routinely overlap 4+ ways. `day` clips each event to that date in `tz`,
+ * retaining the original event for opening/editing; without it, uses the starting day. */
+export function layoutColumns(evs: EventInstance[], tz: string, minMinutes = 20, day?: string) {
   const withMin = evs
-    .map(ev => ({ ev, s: minutesSinceMidnight(ev.start, tz), e: Math.max(minutesSinceMidnight(ev.end, tz), minutesSinceMidnight(ev.start, tz) + minMinutes) }))
+    .filter(ev => !day || isTimedOnDate(ev, day, tz))
+    .map(ev => {
+      const key = day ?? zonedDayKey(ev.start, tz)
+      const s = zonedDayKey(ev.start, tz) < key ? 0 : minutesSinceMidnight(ev.start, tz)
+      const end = zonedDayKey(ev.end, tz) > key ? 1440 : minutesSinceMidnight(ev.end, tz)
+      return { ev, s, e: Math.min(1440, Math.max(end, s + minMinutes)) }
+    })
     .sort((a, b) => a.s - b.s)
   // Columns are counted per cluster of overlapping events, not per day - otherwise one 9am
   // clash would halve the width of every other event that day.
@@ -58,9 +65,9 @@ export const FREE_EDGE = 'max(14px, min(22%, 100px))'
  * delivery window never squeezes a real appointment into half a column, and step in by FREE_EDGE
  * where they overlap a free one so its edge and title stay visible (`covered`: a free one some busy
  * event overlaps, whose words keep to that lane). left/width are CSS values. */
-export function layoutDay(evs: EventInstance[], tz: string, minMinutes = 20) {
-  const free = layoutColumns(evs.filter(e => e.busy === false), tz, minMinutes)
-  const busy = layoutColumns(evs.filter(e => e.busy !== false), tz, minMinutes)
+export function layoutDay(evs: EventInstance[], tz: string, minMinutes = 20, day?: string) {
+  const free = layoutColumns(evs.filter(e => e.busy === false), tz, minMinutes, day)
+  const busy = layoutColumns(evs.filter(e => e.busy !== false), tz, minMinutes, day)
   const place = (col: number, total: number, inset: string) => ({
     left: `calc(${inset} + (100% - ${inset}) * ${col / total} + 2px)`,
     width: `calc((100% - ${inset}) / ${total} - 4px)`,
@@ -129,3 +136,9 @@ export type RepeatChoice = '' | 'daily' | 'weekly' | 'monthly' | 'yearly'
 export const repeatChoice = (rrule: string | null | undefined): RepeatChoice =>
   (['daily', 'weekly', 'monthly', 'yearly'] as const).find(f => rrule?.includes(`FREQ=${f.toUpperCase()}`)) ?? ''
 export const repeatRule = (choice: RepeatChoice): string | null => choice ? `FREQ=${choice.toUpperCase()}` : null
+
+/** Timed events end exclusively: midnight belongs to the preceding day only. */
+export function isTimedOnDate(ev: EventInstance, key: string, tz: string) {
+  const lastInstant = new Date(Date.parse(ev.end) - 1).toISOString()
+  return zonedDayKey(ev.start, tz) <= key && key <= zonedDayKey(lastInstant, tz)
+}

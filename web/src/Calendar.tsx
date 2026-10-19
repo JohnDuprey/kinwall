@@ -34,7 +34,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { dedupeEvents, eventPeople, gridTop, hourPx, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx, type RepeatChoice } from './dayLayout.ts'
+import { dedupeEvents, eventPeople, gridTop, hourPx, isTimedOnDate, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx, type RepeatChoice } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
@@ -59,8 +59,13 @@ function isAllDayOnDate(ev: EventInstance, key: string) {
   // all-day start/end are date strings, end exclusive
   return ev.start <= key && key < ev.end
 }
-function isTimedOnDate(ev: EventInstance, key: string, tz: string) {
-  return zonedDayKey(ev.start, tz) === key || (zonedDayKey(ev.start, tz) < key && zonedDayKey(ev.end, tz) >= key)
+/** Show the portion on this day, while opening/editing the original event. */
+function eventTimeOnDate(ev: EventInstance, key: string, tz: string) {
+  const startDay = zonedDayKey(ev.start, tz), endDay = zonedDayKey(ev.end, tz)
+  if (startDay === endDay) return formatTime(ev.start, tz)
+  const start = startDay < key ? t('Midnight') : formatTime(ev.start, tz)
+  const end = endDay > key ? t('Midnight') : formatTime(ev.end, tz)
+  return `${start} – ${end}`
 }
 
 /** Current minute-of-day in `tz`, refreshed every minute (for the now-line + auto-scroll). */
@@ -641,10 +646,10 @@ type ChipMember = { id: string; name: string; color: string; avatar: string; pic
 type ChipCategory = { id: string; name: string; color: string; emoji: string | null }
 
 /** What a screen reader hears for an event block: "4:00 PM Soccer Practice, Sam, Park field". */
-function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[]): string {
+function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[], day?: string): string {
   const who = new Intl.ListFormat(intlLocale()).format(members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name))
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  const head = `${ev.allDay ? t('All day') : formatTime(ev.start, tz)} ${ev.title}`
+  const head = `${ev.allDay ? t('All day') : day ? eventTimeOnDate(ev, day, tz) : formatTime(ev.start, tz)} ${ev.title}`
   return [ev.hidden ? t('Hidden: {event}', { event: head }) : head, ev.busy === false && t('free'), who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && tn(ev.noteCount, '{n} note', '{n} notes'), ev.meal && t('meal: {status}', { status: mealEventStatus(ev.meal).text.replace('✓ ', '') })].filter(Boolean).join(', ')
 }
 
@@ -803,7 +808,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
           {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : formatTime(`${h}:00`, undefined, { hourOnly: true })}</div>)}
         </div>
         {days.map((d, i) => {
-          const laidOut = layoutDay(timedByDay[i], tz, minMinutes)
+          const laidOut = layoutDay(timedByDay[i], tz, minMinutes, dayKeys[i])
           return (
             <div key={i} className={`day-col ${dateKey(d) === todayStr ? 'today' : ''}`}
               onClick={e => {
@@ -817,7 +822,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
               {laidOut.map(({ ev, s, e, left, width, covered }) => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 10)
-                const time = `${formatTime(ev.start, tz)}${ev.meal ? timedMealText(ev.meal, days.length === 1) : ''}`
+                const time = `${eventTimeOnDate(ev, dayKeys[i], tz)}${ev.meal ? timedMealText(ev.meal, days.length === 1) : ''}`
                 // Too short for a second line (under about 48px): "Title · 4:00 PM" on one.
                 const oneLine = ((e - s) / 60) * HOUR_PX < 48
                 return (
@@ -825,7 +830,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
                     <LeaveMarker ev={ev} tz={tz} dayKey={dayKeys[i]} hourPx={HOUR_PX} left={left} width={width} color={solid} />
                     <div className={`timed-event${evClass(ev)}${covered ? ' ev-covered' : ''}${oneLine ? ' ev-one-line' : ''}`}
                       style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
-                      {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
+                      {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories, dayKeys[i])}>
                       <div className="event-title-row"><EventTitle title={oneLine ? `${ev.title} · ${time}` : ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} /></div>
                       {!oneLine && <span className={`ev-time${pill ? ' event-title-pill' : ''}`}>{time}</span>}
                     </div>
@@ -924,9 +929,9 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
               {shown.map(ev => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 6)
                 return (
-                  <div key={ev.id} className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
+                  <div key={ev.id} className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories, key)}>
                     {/* A phone's month cell is ~50px wide: time or avatars alone filled it, so show just the title. */}
-                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
+                    <EventTitle title={`${ev.allDay || isPhone ? '' : eventTimeOnDate(ev, key, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
                   </div>
                 )
               })}
@@ -965,9 +970,9 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
               // The whole row is tappable; its title is the real button (the location link can't nest in one).
               <div key={ev.id} className={`schedule-item${evClass(ev)}`} onClick={() => onTap(ev)}>
                 <div className="schedule-color-bar" style={{ background }} />
-                <div className="schedule-time" aria-hidden="true">{ev.allDay ? t('All day') : formatTime(ev.start, tz)}</div>
+                <div className="schedule-time" aria-hidden="true">{ev.allDay ? t('All day') : eventTimeOnDate(ev, key, tz)}</div>
                 <div>
-                  <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
+                  <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories, key)}
                     onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{ev.meal && <><span className="event-emoji">🍽️</span> </>}{emoji && !(ev.meal && emoji.startsWith('🍽')) && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <InlineFaces who={avatars} className="event-avatars schedule-avatars" />}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}{ev.meal && <span className={`chip chip-static schedule-meal${ev.meal.status === 'prepared' ? ' done' : ''}`} aria-hidden="true">{mealEventStatus(ev.meal).text}</span>}</button>
                   {leadOf(ev) && <div className="leave-by" aria-hidden="true">{leadText(ev, t => formatTime(t, tz))}</div>}
                   {ev.location && (() => {

@@ -2,7 +2,7 @@
 // which events count for Now / Next and leave-by (leadTime.ts blocksTime).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dedupeEvents, eventPeople, FREE_EDGE, gridTop, hourPx, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx } from '../src/dayLayout.ts'
+import { dedupeEvents, eventPeople, FREE_EDGE, gridTop, hourPx, isTimedOnDate, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx } from '../src/dayLayout.ts'
 import { blocksTime } from '../src/leadTime.ts'
 import type { EventInstance } from '../src/types.ts'
 
@@ -125,4 +125,40 @@ test('repeat menu: Yearly saves FREQ=YEARLY, and a stored rule shows as its freq
   assert.equal(repeatChoice('FREQ=WEEKLY;BYDAY=MO,WE'), 'weekly')
   assert.equal(repeatChoice('FREQ=MONTHLY;BYDAY=+2TU'), 'monthly')
   assert.equal(repeatChoice(null), '')
+})
+
+
+test('overnight events occupy each day only until their actual end, keeping the original event', () => {
+  const overnight = ev('night', '2026-10-03T00:30:00Z', '2026-10-03T13:00:00Z')
+  const tz = 'America/Chicago' // Oct 2 7:30 PM to Oct 3 8 AM
+  const range = (day: string) => layoutDay([overnight], tz, 20, day).map(p => [p.s, p.e])
+  assert.deepEqual(range('2026-10-02'), [[1170, 1440]])
+  assert.deepEqual(range('2026-10-03'), [[0, 480]])
+  assert.equal(layoutDay([overnight], tz, 20, '2026-10-03')[0].ev, overnight)
+  assert.deepEqual(range('2026-10-04'), [])
+  const morning = ev('breakfast', '2026-10-03T12:00:00Z', '2026-10-03T14:00:00Z')
+  assert.deepEqual(layoutDay([overnight, morning], tz, 20, '2026-10-03').map(p => p.totalCols), [2, 2])
+})
+
+test('multi-day events fill middle days and treat midnight ends as exclusive', () => {
+  const trip = ev('trip', '2026-10-02T19:30:00Z', '2026-10-05T00:00:00Z')
+  assert.deepEqual(layoutDay([trip], 'UTC', 20, '2026-10-03').map(p => [p.s, p.e]), [[0, 1440]])
+  assert.deepEqual(layoutDay([trip], 'UTC', 20, '2026-10-04').map(p => [p.s, p.e]), [[0, 1440]])
+  assert.equal(isTimedOnDate(trip, '2026-10-05', 'UTC'), false)
+  assert.deepEqual(layoutDay([trip], 'UTC', 20, '2026-10-05'), [])
+  const late = ev('late', '2026-10-04T23:55:00Z', '2026-10-05T00:00:00Z')
+  assert.deepEqual(layoutDay([late], 'UTC', 20, '2026-10-04').map(p => [p.s, p.e]), [[1435, 1440]])
+})
+
+test('day segments follow the household timezone across daylight saving changes', () => {
+  const night = ev('dst', '2026-11-01T03:30:00Z', '2026-11-01T13:00:00Z')
+  assert.deepEqual(layoutDay([night], 'America/New_York', 20, '2026-10-31').map(p => [p.s, p.e]), [[1410, 1440]])
+  assert.deepEqual(layoutDay([night], 'America/New_York', 20, '2026-11-01').map(p => [p.s, p.e]), [[0, 480]])
+})
+
+
+test('midnight boundary keeps a visit ending a few seconds into the next day', () => {
+  const visit = ev('seconds', '2026-10-02T19:30:00Z', '2026-10-03T00:00:30Z')
+  assert.equal(isTimedOnDate(visit, '2026-10-03', 'UTC'), true)
+  assert.deepEqual(layoutDay([visit], 'UTC', 20, '2026-10-03').map(p => [p.s, p.e]), [[0, 20]])
 })

@@ -155,6 +155,8 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 
 ## Navigating
 
+Timed events that span several days fill the part of each day they cover in Day, Week and 3 Day views. An overnight event from 7:30 PM to 8 AM runs to midnight on its first day and from midnight to 8 AM on the next. Events ending at midnight do not appear on the following day. Tap any part to open or edit the same event.
+
 * **◀ / ▶** or **swipe** left and right to page. The new period slides in from the side you swiped toward.
 * **Today** jumps back to the current date.
 * Tap a **day header** (Week) or a **day cell** (Month) to open that day in Day view.

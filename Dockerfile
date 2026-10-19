@@ -3,8 +3,8 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
-# web/src/nudges.ts re-exports the server's nudge lines (it imports nothing).
-COPY server/src/nudges.ts /app/server/src/nudges.ts
+# The web app shares these pure modules with the server.
+COPY server/src/nudges.ts server/src/chore-goal.ts /app/server/src/
 RUN npm run build
 
 FROM node:24-slim
