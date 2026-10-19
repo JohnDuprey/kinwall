@@ -8,6 +8,9 @@ import type { KinwallDb } from '../db.ts';
 import { todayInTz } from './members.ts';
 import { emit } from '../bus.ts';
 import { expand, isValidRrule, rruleOccurs } from '../recurrence.ts';
+import { goalPeriod, maxGoalTimes, readChoreGoal } from '../chore-goal.ts';
+import { goalProgressFor } from '../chore-goals.ts';
+import type { ChoreGoal } from '../chore-goal.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
 import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
@@ -23,6 +26,7 @@ export type ChoreRow = {
   member_id: string | null;
   points: number;
   rrule: string | null;
+  repeat_goal?: string | null;
   due_date: string | null;
   due_time: string | null;
   active: number;
@@ -46,6 +50,7 @@ export function toApi(row: ChoreRow) {
     memberId: row.member_id,
     points: row.points,
     rrule: row.rrule,
+    repeatGoal: readChoreGoal(row.repeat_goal),
     dueDate: row.due_date,
     dueTime: row.due_time,
     active: !!row.active,
@@ -86,9 +91,9 @@ async function checkLibrary(c: { env: Env }, libraryId: string | null | undefine
 export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
   await db
     .prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null)
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null)
     .run();
 }
 
@@ -122,6 +127,11 @@ choresRoutes.openapi(
   }),
   async (c) => {
     const body = c.req.valid('json');
+    if (body.repeatGoal) {
+      const error = goalInputError(body.repeatGoal, body.rrule, body.dueDate);
+      if (error) return c.json({ error }, 400);
+      body.rrule ??= 'FREQ=DAILY';
+    }
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
     const neverError = await choreRepeatError(c.env.DB, body.rrule, body.dueDate);
     if (neverError) return c.json({ error: neverError }, 400);
@@ -134,6 +144,7 @@ choresRoutes.openapi(
       member_id: body.memberId ?? null,
       points: body.points ?? 0,
       rrule: body.rrule ?? null,
+      repeat_goal: body.repeatGoal ? JSON.stringify(body.repeatGoal) : null,
       due_date: body.dueDate ?? null,
       due_time: body.dueTime ?? null,
       active: body.active === false ? 0 : 1,
@@ -175,6 +186,12 @@ choresRoutes.openapi(
     if (listError) return c.json({ error: listError }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
+    const goal = body.repeatGoal !== undefined ? body.repeatGoal : readChoreGoal(existing.repeat_goal);
+    if (goal) {
+      const error = goalInputError(goal, body.rrule !== undefined ? body.rrule : existing.rrule, body.dueDate !== undefined ? body.dueDate : existing.due_date);
+      if (error) return c.json({ error }, 400);
+      body.rrule ??= existing.rrule ?? 'FREQ=DAILY';
+    }
     // A new start day can turn a repeat that happened into one that never does.
     const neverError = body.rrule !== undefined || body.dueDate !== undefined
       ? await choreRepeatError(c.env.DB, body.rrule !== undefined ? body.rrule : existing.rrule, body.dueDate !== undefined ? body.dueDate : existing.due_date, existing.created_at)
@@ -182,6 +199,7 @@ choresRoutes.openapi(
     if (neverError) return c.json({ error: neverError }, 400);
     const updated: ChoreRow = {
       ...existing,
+      repeat_goal: goal ? JSON.stringify(goal) : null,
       title: body.title ?? existing.title,
       emoji: body.emoji !== undefined ? body.emoji : existing.emoji,
       member_id: body.memberId !== undefined ? body.memberId : existing.member_id,
@@ -199,9 +217,9 @@ choresRoutes.openapi(
     };
     updated.plugin_minutes = updated.plugin_id ? body.pluginMinutes ?? existing.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null;
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, id)
       .run();
     emit(c, 'chore.changed', { id });
     return c.json(toApi(updated), 200);
@@ -258,6 +276,13 @@ export function activityProgress(row: ChoreRow, plugins: Map<string, PluginInfo>
 // for "which chores are due on date X".
 export function dueOnDate(row: ChoreRow, date: string, tz: string): boolean {
   return dueDates(row, date, date, tz).has(date);
+}
+
+export function goalInputError(goal: ChoreGoal, rrule: string | null | undefined, start: string | null | undefined): string | null {
+  if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start) || Number.isNaN(Date.parse(start)) || new Date(`${start}T00:00:00Z`).toISOString().slice(0, 10) !== start) return stored('error', 'Choose a valid start date for this goal.');
+  if (goal.times > maxGoalTimes(goal)) return stored('error', 'This goal needs more days than the interval has. Count at most once per day.');
+  if (rrule && !/^FREQ=DAILY(?:;UNTIL=\d{8})?$/.test(rrule)) return stored('error', 'A flexible goal cannot also have fixed weekdays or a scheduled occurrence count.');
+  return null;
 }
 
 /** Why a chore's repeat can't be saved, or null: one that never happens (the 30th of February) would be
@@ -323,6 +348,7 @@ choresRoutes.openapi(
 
     const due = chores.filter((row) => dueOnDate(row, date, tz));
     const byChore = new Map(completions.map((row) => [row.chore_id, row]));
+    const goals = await goalProgressFor(c.env.DB, due, date);
 
     return c.json(
       due.map((row) => {
@@ -331,6 +357,7 @@ choresRoutes.openapi(
         const rejection = rejections.get(row.id);
         return {
           ...toApi(row),
+          goalProgress: goals.get(row.id) ?? null,
           // A completion waiting for a parent's OK isn't done yet (no points, not counted).
           completed: completion?.status === 'approved',
           pending: completion?.status === 'pending',
@@ -417,14 +444,18 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   // Re-ticking an existing completion (e.g. to change who did it) keeps the points and status it
   // already has, unless it now names someone else whose tick needs a parent's OK: that one waits.
   const waits = "excluded.status = 'pending' AND chore_completions.member_id IS NOT excluded.member_id";
+  const goal = readChoreGoal(chore.repeat_goal);
+  const period = goal && chore.due_date ? goalPeriod(goal, chore.due_date, date) : null;
+  const capacity = period && goal ? ` WHERE EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?) OR (SELECT COUNT(*) FROM chore_completions WHERE chore_id = ? AND date BETWEEN ? AND ?) < ?` : ' WHERE 1';
+  const capacityArgs = period && goal ? [id, date, id, chore.due_date! > period.from ? chore.due_date! : period.from, period.to, goal.times] : [];
   const [writtenRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) VALUES (?,?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO ${timedPlay ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
-    ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved'),
-    c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ?').bind(id, date), // ticked again: the "Not yet" note goes
+      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) SELECT ?,?,?,?,?,?,?${capacity} ON CONFLICT(chore_id, date) DO ${timedPlay ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
+    ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved', ...capacityArgs),
+    c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ? AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?)').bind(id, date, id, date), // ticked again: the "Not yet" note goes
   ]);
   const written = writtenRes.results[0] as { status: string; points_awarded: number } | undefined;
-  if (!written) return false;
+  if (!written) return goal && !timedPlay ? { notDue: stored('error', 'This goal is full for this interval. Undo a completion to make room.') } : false;
   // A reusable checklist starts fresh for the next time the chore comes round - just this
   // member's items and the shared ones, so a sibling's ticks on the same list survive.
   if (chore.list_id && checklistKind === 'reusable') {

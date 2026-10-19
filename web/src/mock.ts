@@ -1,4 +1,6 @@
+import { goalPeriod } from './choreGoal.ts'
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
+import { scheduleDates } from './choreSchedule.ts'
 import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
 import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
@@ -465,7 +467,7 @@ const chores: Chore[] = [
   { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4', pluginId: null, pluginMinutes: null },
   { id: 'ch7', title: 'Bedtime routine', emoji: '🌙', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '20:00', active: true, sort: 7, listId: 'l6', pluginId: null, pluginMinutes: null },
   // An activity chore: tapping the card plays Spelling practice as Maya, and 10 minutes of it ticks it.
-  { id: 'ch9', title: 'Practice piano', emoji: '🎹', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '16:00', timerMinutes: 20, active: true, sort: 9, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch9', title: 'Practice piano', emoji: '🎹', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: dateOnly(-7), repeatGoal: { times: 3, every: 1, unit: 'week', weekStart: 0 }, dueTime: '16:00', timerMinutes: 20, active: true, sort: 9, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
@@ -1334,17 +1336,17 @@ export const mock = {
 
   getChoresDay: async (date: string): Promise<ChoreDay[]> => {
     const plugins = await installedPlugins()
-    return chores.filter(c => c.active && (c.rrule || !c.dueDate || c.dueDate === date)).map(c => {
+    return chores.filter(c => c.active && dueOn(c, date)).map(c => {
       const comp = completions.get(`${c.id}:${date}`)
       const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
       const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
       const p = c.pluginId ? plugins.find(x => x.id === c.pluginId) : undefined
       const activity = c.pluginId ? { pluginId: c.pluginId, name: p?.name ?? null, emoji: p?.emoji ?? null, available: !!p?.enabled, needSeconds: (c.pluginMinutes ?? 5) * 60, doneSeconds: playtime.get(`${date}:${c.memberId}:${c.pluginId}`) ?? 0 } : null
-      return { ...c, completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
+      return { ...c, goalProgress: mockGoalProgress(c, date), completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
     })
   },
   createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null }
+    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null }
     chores.push(nc); bump(); return nc
   },
   updateChore: async (id: string, patch: Partial<Chore>) => {
@@ -1375,6 +1377,7 @@ export const mock = {
   },
   completeChore: async (id: string, date: string, memberId?: string) => {
     const c = chores.find(x => x.id === id)
+    if (c && !completions.has(`${id}:${date}`) && mockGoalProgress(c, date)?.full) throw new Error('This goal is full for this interval.')
     if (c?.listId) {
       const mine = (i: ListItem) => i.listId === c.listId && (!c.memberId || !i.memberId || i.memberId === c.memberId)
       const open = listItems.filter(i => mine(i) && !i.done)
@@ -1951,7 +1954,7 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
   const all = eventsThrough(last)
   const mine = all.filter(e => !isBday(e) && (e.memberIds.length === 0 || e.memberIds.includes(memberId)))
   const birthdays = birthdaysOn(dates, all)
-  const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date, today))
+  const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date) && (!mockGoalProgress(c, date)?.full || completions.has(`${c.id}:${date}`)))
     .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date, done: completions.has(`${c.id}:${date}`), doneBy: completions.get(`${c.id}:${date}`)?.memberId ?? null, shared: !c.memberId })))
   const open = settings.features.lists ? openItems(today, i => i.memberId === memberId) : []
   const items = open.filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent')
@@ -1995,11 +1998,20 @@ function eventsThrough(last: string) {
     .sort((a, b) => a.start.localeCompare(b.start))
 }
 
-function dueOn(c: Chore, d: string, today: string) {
+function mockGoalProgress(c: Chore, date: string) {
+  if (!c.repeatGoal || !c.dueDate) return null
+  const period = goalPeriod(c.repeatGoal, c.dueDate, date)
+  let done = 0, pending = 0
+  for (const [key, completion] of completions) if (key.startsWith(`${c.id}:`)) {
+    const day = key.slice(c.id.length + 1)
+    if (day >= period.from && day >= c.dueDate && day <= period.to) { if (completion.pending) pending++; else done++ }
+  }
+  return { ...period, done, pending, target: c.repeatGoal.times, full: done + pending >= c.repeatGoal.times }
+}
+
+function dueOn(c: Chore, d: string) {
   if (!c.rrule) return c.dueDate === d
-  const day = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${d}T12:00`).getDay()]
-  const byDay = /BYDAY=([A-Z,]+)/.exec(c.rrule)?.[1]
-  return c.rrule.includes('DAILY') || (byDay ? byDay.split(',').includes(day) : d === today)
+  return scheduleDates(c.rrule, c.dueDate ?? dateOnly(-28), d, 1)[0] === d
 }
 
 /** Open, unarchived list items, soonest due first (so overdue leads), undated last. */
@@ -2030,7 +2042,7 @@ function mockBoard(days: number): Board {
   const to = dates[dates.length - 1]
   const all = eventsThrough(to)
   const birthdays = birthdaysOn(dates, all)
-  const todays = chores.filter(c => c.active && dueOn(c, today, today))
+  const todays = chores.filter(c => c.active && dueOn(c, today) && (!mockGoalProgress(c, today)?.full || completions.has(`${c.id}:${today}`)))
   const owners = [...members.map(m => m.id), null]
   return {
     today, to, generatedAt: new Date().toISOString(),

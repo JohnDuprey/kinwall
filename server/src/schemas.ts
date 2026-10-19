@@ -582,6 +582,14 @@ export const EventInputSchema = z
   })
   .openapi('EventInput');
 
+export const ChoreGoalSchema = z.object({
+  times: z.number().int().min(1).max(9999),
+  every: z.number().int().min(1).max(365),
+  unit: z.enum(['day', 'week', 'month']),
+  weekStart: z.number().int().min(0).max(6).default(1),
+}).openapi('ChoreGoal', { description: 'Complete on any times distinct days per every calendar days/weeks/months. At most once per day. Weeks use weekStart; months begin on the first. dueDate anchors the first interval.' });
+export const ChoreGoalProgressSchema = z.object({ done: z.number(), pending: z.number(), target: z.number(), from: z.string(), to: z.string(), full: z.boolean() });
+
 export const ChoreSchema = z
   .object({
     id: z.string(),
@@ -589,6 +597,7 @@ export const ChoreSchema = z
     emoji: z.string().nullable(),
     memberId: z.string().nullable(),
     points: z.number(),
+    repeatGoal: ChoreGoalSchema.nullable().default(null),
     rrule: z.string().nullable(),
     dueDate: z.string().nullable(),
     dueTime: z.string().nullable().openapi({ description: 'Start time, "HH:MM" (24-hour, household time): when the chore should start each day it is due. It shows on the chore and as its own row on the Board\'s Today card.' }),
@@ -610,6 +619,7 @@ export const ChoreInputSchema = z
     emoji: EmojiSchema.nullable().optional(),
     memberId: z.string().nullable().optional(),
     points: z.number().optional(),
+    repeatGoal: ChoreGoalSchema.nullable().optional(),
     rrule: z.string().nullable().optional(),
     dueDate: z.string().nullable().optional(),
     dueTime: z.string().regex(HHMM_RE, 'Use a time like 16:00.').nullable().optional().openapi({ description: 'Start time, "HH:MM" (24-hour, household time); null for none.' }),
@@ -637,6 +647,7 @@ export const ActivityProgressSchema = z.object({
 });
 
 export const ChoreDaySchema = ChoreSchema.extend({
+  goalProgress: ChoreGoalProgressSchema.nullable().optional(),
   completed: z.boolean().openapi({ description: "Done and counted (a completion waiting for a parent's OK is pending instead)." }),
   pending: z.boolean().openapi({ description: "Ticked from a wall screen or kid's device, waiting for a parent's OK: no points yet." }),
   rejection: z.object({ note: z.string().nullable(), at: z.string() }).nullable().openapi({ description: "A parent's \"Not yet\" for this day, until it's ticked again." }),

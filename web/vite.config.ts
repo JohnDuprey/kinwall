@@ -53,7 +53,7 @@ export default defineConfig({
   build: { assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined), cssTarget: ['safari12', 'chrome111', 'firefox114', 'edge111'] },
   server: {
     host: true,
-    fs: { allow: ['.', '../server/src/nudges.ts'] }, // web/src/nudges.ts re-exports it
+    fs: { allow: ['.', '../server/src/nudges.ts', '../server/src/chore-goal.ts'] }, // web/src/nudges.ts re-exports it
     proxy: {
       '/api': 'http://localhost:8080',
       '/docs': 'http://localhost:8080',

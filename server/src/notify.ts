@@ -1,3 +1,4 @@
+import { goalProgressFor } from './chore-goals.ts';
 // Push notification scheduling: event reminders, daily summary, chore nudge, list updates.
 // Each one is also recorded once (household-wide) in the in-app feed via recordNotification.
 // Called from the Workers cron (every 5 min, worker.ts) and the Node setInterval loop (node.ts,
@@ -697,7 +698,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
         addTodo(row);
       }
     }
-    const chores = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz));
+    const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
+    const chores = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full);
     const first = todaysTitles.slice(0, 2).join(', ') + (todaysTitles.length > 2 ? '…' : '');
     const counts = [tn(eventCount, '{n} event', '{n} events'), ...(features.chores ? [tn(chores.length, '{n} chore', '{n} chores')] : [])];
     let body = `${counts.join(' · ')}${first ? ` — ${first}` : ''}`;
@@ -727,7 +729,8 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
   ]);
   const chores = choresRes.results as unknown as ChoreRow[];
   const done = new Set((completionsRes.results as unknown as { chore_id: string }[]).map((r) => r.chore_id));
-  const dueToday = chores.filter((c) => dueOnDate(c, today, tz) && !done.has(c.id));
+  const goalStates = await goalProgressFor(db, chores, today);
+  const dueToday = chores.filter((c) => dueOnDate(c, today, tz) && !done.has(c.id) && !goalStates.get(c.id)?.full);
   const fam = await familyLang(db);
 
   for (const sub of targets) {

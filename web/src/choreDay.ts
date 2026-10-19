@@ -17,9 +17,9 @@ export const isLate = (dueTime: string | null | undefined, now: string) => !!due
 
 /** A column in reading order: what's still to do first (by start time, then the rest in their own
  * order), then what's ticked. Stable, so cards without a time keep the order a parent gave them. */
-export function choreOrder<C extends { dueTime: string | null; completed: boolean; pending?: boolean }>(list: C[]): C[] {
+export function choreOrder<C extends { dueTime: string | null; completed: boolean; pending?: boolean; goalProgress?: { full: boolean } | null }>(list: C[]): C[] {
   const time = (c: C) => (c.dueTime && /^\d{2}:\d{2}$/.test(c.dueTime) ? c.dueTime : '99:99')
-  const ticked = (c: C) => (c.completed || c.pending ? 1 : 0)
+  const ticked = (c: C) => (c.completed || c.pending || c.goalProgress?.full ? 1 : 0)
   return list.map((c, i) => ({ c, i })).sort((a, b) => ticked(a.c) - ticked(b.c) || (ticked(a.c) ? 0 : time(a.c).localeCompare(time(b.c))) || a.i - b.i).map(x => x.c)
 }
 

@@ -1,3 +1,4 @@
+import { goalProgressFor } from '../chore-goals.ts';
 // A member's day (or week) at a glance: greeting, weather, their events + everyone's, their chores,
 // their due/important list items, birthdays, and a peek at tomorrow. What the header avatar opens,
 // and the MCP get_snapshot tool.
@@ -141,9 +142,10 @@ snapshotRoutes.openapi(
       ((await db.prepare('SELECT chore_id, date, member_id, status FROM chore_completions WHERE date >= ? AND date <= ?').bind(today, to).all<{ chore_id: string; date: string; member_id: string | null; status: string }>()).results).map((r) => [`${r.chore_id}:${r.date}`, r] as const),
     );
     // A feature that's off answers empty, in the same shape (settings.features).
+    const goalDays = new Map(await Promise.all(choreDays.map(async date => [date, await goalProgressFor(db, choresRes.results as ChoreRow[], date)] as const)));
     const chores = !settings.features.chores ? [] : choreDays.flatMap((date) =>
       (choresRes.results as unknown as ChoreRow[])
-        .filter((row) => dueOnDate(row, date, tz))
+        .filter((row) => dueOnDate(row, date, tz) && (!goalDays.get(date)?.get(row.id)?.full || completions.has(`${row.id}:${date}`)))
         .map((row) => {
           const cc = completions.get(`${row.id}:${date}`);
           // Waiting for a parent's OK is not done yet.
@@ -244,7 +246,8 @@ snapshotRoutes.openapi(
     const todays = completionsRes.results as { chore_id: string; status: string }[];
     const completedToday = new Set(todays.filter((r) => r.status === 'approved').map((r) => r.chore_id));
     const pendingToday = new Set(todays.filter((r) => r.status === 'pending').map((r) => r.chore_id));
-    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz));
+    const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
+    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && (!goalStates.get(row.id)?.full || completedToday.has(row.id) || pendingToday.has(row.id)));
     const byMember = new Map<string | null, ChoreRow[]>();
     for (const row of dueToday) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
     const memberById = new Map(members.map((m) => [m.id, m]));

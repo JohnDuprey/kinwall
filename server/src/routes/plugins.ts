@@ -1,3 +1,4 @@
+import { goalProgressFor } from '../chore-goals.ts';
 // Activity plugins. A plugin is a small web page (HTML/JS/CSS/images) that shows up under Activities.
 //
 // Packages, not source: a plugin's GitHub repo builds a `kinwall-plugin.zip` (with
@@ -715,7 +716,8 @@ async function choreProgress(c: Context<{ Bindings: Env }>, id: string, member: 
   const total = Number((playRes.results[0] as { seconds: number } | undefined)?.seconds ?? 0);
   const done = new Set((doneRes.results as { chore_id: string }[]).map((r) => r.chore_id));
   const out: z.infer<typeof ActivityChoreProgressSchema>[] = [];
-  for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => dueOnDate(r, date, tz))) {
+  const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], date);
+  for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => dueOnDate(r, date, tz) && (!goalStates.get(r.id)?.full || done.has(r.id)))) {
     const needSeconds = (ch.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60;
     let completed = done.has(ch.id);
     let justCompleted = false;

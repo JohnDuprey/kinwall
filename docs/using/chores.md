@@ -30,9 +30,10 @@ Tap **+** (Add chore). The sheet has:
 | **Title**, **Emoji** | |
 | **Points** | **−** and **+**, or type a whole number. The same control as in the reward sheet and **Say yes…**. |
 | **Assign to** | **🌟 Anyone** or one member. |
-| **Repeat** | **Once**, **Daily** or **Weekly**. |
-| **On** (Weekly) | Pick weekdays. With none picked, it repeats on the weekday it was created. A new chore pre-selects today. |
-| **Ends (optional)** (Daily/Weekly) | The last date it's due. It's stored as `UNTIL` in the rule. |
+| **Repeat** | **Once**, **Daily**, **Weekly** or **Custom…**. Custom repeats every N days, weeks, months or years. |
+| **On** (Weekly) | Pick weekdays. With none picked, it repeats on the weekday of its start date. A new chore pre-selects today. |
+| **Starts** (repeating) | The first date the schedule can happen. It also anchors the interval. Existing chores without a start date keep their original creation day. |
+| **Ends** (repeating) | **Never**, **On a date** (inclusive), or **After a number of occurrences**. Occurrences count scheduled dates from the start, including dates already passed. |
 | **Due date** (Once) | The day a one-off chore is due. |
 | **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See [Checklists](#checklists). |
 | **Start time (optional)** | When the chore should start, such as 4:00 PM. One time for every day it's due. It shows on the chore and on the Board's Today card. **No start time** clears it. |
@@ -40,7 +41,27 @@ Tap **+** (Add chore). The sheet has:
 | **Do an activity (optional)** | One of the family's [activities](activities.md) and **Minutes** (1–60, default 5). Playing it completes the chore. See [Activity chores](#activity-chores). Shown once an activity is installed. |
 | **Needs a parent's OK** | **Default**, **Yes** or **No**. See [Parent approval](#parent-approval). With an activity, also **Needs a parent's OK even for timed play**. |
 
-Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone. A chore repeats daily or slower: a repeat within a day (hourly, say) is refused, and so is one that never happens, like the 30th of February.
+**Custom…** adds a repeat interval and unit. Weekly schedules let you choose weekdays and which day begins each week. Monthly schedules repeat on a numbered date, the same date as the start, or a weekday such as the third Sunday or last Monday. Months without the chosen date or weekday are skipped. Yearly schedules use the month and day of the start date; February 29 only occurs in leap years. The editor shows upcoming dates when a start date is set.
+
+### A number of times per interval
+
+Choose **Times per interval…** for a flexible goal, such as **Practice piano — 3 times per week** or **Water plants — 2 times every 3 days**. Pick **Times**, **Every**, days/weeks/months, and a start date. You choose which days to do it; each chore counts **at most once per day**, with points for each completion. The card shows progress such as **1 of 3 done this week**.
+
+Weekly intervals begin on **Weeks begin on**. Monthly intervals begin on the first of the month; multiweek and multimonth cycles are anchored to the week or month containing the start date. Day intervals start on the chosen date. The first interval can be shorter when the start is partway through a week or month. Unfinished progress does not carry over. Monthly targets allow at most 28 completions per month in the interval so February has enough days.
+
+When the target is met, the card says **Goal reached** and offers no extra tick for another day in that interval. Today's actual tick can still be undone. To undo a different day, open that day in the date strip; undo makes room in the interval again. Pending approvals reserve places until a parent approves or rejects them. **Anyone** goals share one target for the household. Unchosen days do not break a streak; the target is checked at the interval's end. Goals can end on a date, but do not use the scheduled repeat's occurrence limit.
+
+### Alternating weekly duties
+
+For dishes every day, with Maya doing one week and Leo the next:
+
+1. Add **Dishes** for Maya. Choose **Custom… → Repeat every 2 Weeks** and select all seven weekdays.
+2. Set **Weeks begin on** to Monday, and **Starts** to the Monday of Maya's first week.
+3. Add **Dishes** for Leo with the same settings, starting the following Monday.
+
+Each child sees a daily chore during their assigned week and none during the other week. Select just Monday for a chore that needs completing once every other week instead. The two chores are edited separately; the app does not automatically rotate a single chore between people.
+
+Chores created through the API or MCP can use other RRULE options. The editor keeps unsupported rules intact when you change unrelated details; choosing another repeat option replaces the rule. Recurring chores without an explicit start date use their creation day in the household timezone. Chores repeat daily or slower: repeats within a day and schedules that never happen are refused.
 
 **More… → Delete chore…** (in the chore's edit sheet) removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept, it still counts on [profiles](profiles.md), and it stays in the data export. A chore that was never done is removed completely.
 

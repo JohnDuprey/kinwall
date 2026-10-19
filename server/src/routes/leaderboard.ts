@@ -1,3 +1,4 @@
+import { goalPeriod, readChoreGoal, shiftGoalDate } from '../chore-goal.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
@@ -47,7 +48,26 @@ export function computeStreak(memberChores: ChoreRow[], completedKeys: Set<strin
 // leaderboard's rule, grace days included. A run ended by a miss starts again the day before it.
 export function streakStats(memberChores: ChoreRow[], completedKeys: Set<string>, tz: string, today: string, graceDays = 0, days = STREAK_LOOKBACK_DAYS) {
   const first = addDaysStr(today, 1 - days);
-  const due = memberChores.map((c) => ({ id: c.id, on: dueDates(c, first, today, tz) }));
+  // Flexible goals are judged at interval end; freely chosen rest days never break a streak.
+  completedKeys = new Set(completedKeys);
+  const due = memberChores.map(c => {
+    const dates = dueDates(c, first, today, tz);
+    const goal = readChoreGoal(c.repeat_goal);
+    if (!goal || !c.due_date) return { id: c.id, on: dates };
+    const on = new Set<string>();
+    for (const date of dates) {
+      const period = goalPeriod(goal, c.due_date, date);
+      if (date !== period.to) continue;
+      const countFrom = c.due_date > period.from ? c.due_date : period.from;
+      if (countFrom < first) continue; // the streak's history window cannot judge a partial interval
+      on.add(date);
+      let count = 0;
+      for (let day = countFrom; day <= period.to; day = shiftGoalDate(day, 1)) if (completedKeys.has(`${c.id}:${day}`)) count++;
+      if (count >= goal.times) completedKeys.add(`${c.id}:${date}`);
+      else completedKeys.delete(`${c.id}:${date}`);
+    }
+    return { id: c.id, on };
+  });
   let current: number | null = null;
   let best = 0;
   let streak = 0;

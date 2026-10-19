@@ -1,3 +1,5 @@
+import { goalLabel, goalProgressLabel, validGoal } from './choreGoal.ts'
+import type { ChoreGoal, GoalProgress } from './choreGoal.ts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useHashParam } from './hashQuery.ts'
 import { addDays, isSameDay } from 'date-fns'
@@ -8,7 +10,7 @@ import { actingMember } from './actingAs.ts'
 import { api, ApiError } from './api.ts'
 import type { Chore, ChoreDay, ChoreSuggestion, LeaderboardEntry, LeaderboardPeriod, List, PendingApproval, Plugin, Redemption } from './types.ts'
 import { MEMBER_EMOJI, rewardsOn } from './types.ts'
-import { dateKey } from './date.ts'
+import { dateKey, todayKeyInTz } from './date.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
@@ -19,7 +21,10 @@ import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { ChoreLibrarySheet, type RepeatDraft } from './ChoreLibrary.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
-import { intervalRrule, repeatText } from './choreLibrary.ts'
+import { intervalRrule } from './choreLibrary.ts'
+import { rruleToForm, scheduleBody, scheduleDates, scheduleText, validSchedule } from './choreSchedule.ts'
+import type { ScheduleForm } from './choreSchedule.ts'
+import { ChoreScheduleFields } from './ChoreScheduleFields.tsx'
 import { Face, type FaceMember, ChipFace } from './Face'
 import { ChoreTimerText, startChoreTimer } from './ChoreTimer.tsx'
 import { formatTime } from './timeFormat.ts'
@@ -29,7 +34,12 @@ import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 import { latestOnly } from './latest.ts'
-import { DAY, formatDate, LONG_DAY, MONTH_DAY, msg, t, tn, tm } from './i18n.ts'
+import { DAY, formatDate, LONG_DAY, msg, t, tn, tm } from './i18n.ts'
+
+function updatedGoalProgress(progress: GoalProgress, doneDelta: number, pendingDelta: number): GoalProgress {
+  const done = Math.max(0, progress.done + doneDelta), pending = Math.max(0, progress.pending + pendingDelta)
+  return { ...progress, done, pending, full: done + pending >= progress.target }
+}
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -145,68 +155,17 @@ function ProgressRing({ pct, m, label }: { pct: number; m: FaceMember; label: st
   )
 }
 
-// Chore schedule <-> rrule. Only the subset the sheet edits: FREQ=DAILY|WEEKLY, BYDAY, date-only UNTIL.
-// Anything else (INTERVAL, COUNT, MONTHLY - e.g. set via MCP) is reported as `custom` and left untouched.
-const RR_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-// A weekday's name in the current language (0 = Sunday): 2023-01-01 was a Sunday.
-const dayName = (d: number, weekday: 'short' | 'long' | 'narrow') => formatDate(new Date(2023, 0, 1 + d), { weekday }) // 2023-01-01 was a Sunday
-const REPEAT_LABELS = { once: msg('Once'), daily: msg('Daily'), weekly: msg('Weekly') }
-type Repeat = 'once' | 'daily' | 'weekly'
-type ScheduleForm = { repeat: Repeat; days: number[]; until: string; custom: boolean }
-
-function rruleToForm(rrule: string | null): ScheduleForm {
-  const form: ScheduleForm = { repeat: 'once', days: [], until: '', custom: false }
-  if (!rrule) return form
-  for (const part of rrule.replace(/^RRULE:/i, '').split(';')) {
-    const [k, v = ''] = part.split('=').map(x => x.trim().toUpperCase())
-    if (k === 'FREQ' && (v === 'DAILY' || v === 'WEEKLY')) form.repeat = v.toLowerCase() as Repeat
-    else if (k === 'BYDAY' && v.split(',').every(d => RR_DAYS.includes(d))) form.days = v.split(',').map(d => RR_DAYS.indexOf(d)).sort()
-    else if (k === 'UNTIL' && /^\d{8}/.test(v)) form.until = `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`
-    else form.custom = true
-  }
-  if (form.repeat === 'once') form.custom = true // had an rrule but not one we can show
-  return form
-}
-
-/** Empty `days` on weekly = plain FREQ=WEEKLY, which the server anchors on the creation weekday. */
-function formToRrule(f: ScheduleForm): string | null {
-  if (f.repeat === 'once') return null
-  let r = `FREQ=${f.repeat.toUpperCase()}`
-  if (f.repeat === 'weekly' && f.days.length) r += `;BYDAY=${[...f.days].sort().map(d => RR_DAYS[d]).join(',')}`
-  if (f.until) r += `;UNTIL=${f.until.replaceAll('-', '')}`
-  return r
-}
-
-/** The first day a new chore shows up on, from the form: its due date, today for daily, or the
- * next selected weekday (today counts). Undefined when the form can't tell (custom rrule). */
-function firstScheduledDay(f: ScheduleForm, dueDate: string): Date | undefined {
-  const today = new Date()
-  if (f.custom) return undefined
-  if (f.repeat === 'once') return new Date(`${dueDate}T00:00:00`)
-  if (f.repeat === 'daily' || !f.days.length) return today
-  const offset = Math.min(...f.days.map(d => (d - today.getDay() + 7) % 7))
-  return addDays(today, offset)
-}
-
-function scheduleLabel(rrule: string | null): string {
-  const f = rruleToForm(rrule)
-  if (f.repeat === 'once') return f.custom ? t('Repeats') : ''
-  const what = f.repeat === 'daily' || f.days.length === 7 ? t('Daily')
-    : !f.days.length ? t('Weekly')
-    : f.days.length <= 3 ? f.days.map(d => dayName(d, 'short')).join(', ') : t('{n}×/wk', { n: f.days.length })
-  if (!f.until) return what
-  const [y, m, d] = f.until.split('-').map(Number)
-  return t('{what} · until {date}', { what, date: formatDate(new Date(y, m - 1, d), MONTH_DAY) })
-}
-
 function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
-  const schedule = scheduleLabel(chore.rrule)
+  const schedule = chore.repeatGoal ? goalLabel(chore.repeatGoal) : scheduleText(chore.rrule)
   // An Anyone chore says who got the points once it's done.
   const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? t('nobody in particular')) : null
   // Waiting for a parent's OK: ticked (tapping unticks it) but not done.
   const pending = !!chore.pending
   const ticked = chore.completed || pending
+  const goalBlocked = !!chore.goalProgress?.full && !ticked
+  const goalProgress = chore.goalProgress
+  const goalText = goalProgress && chore.repeatGoal ? goalProgressLabel(chore.repeatGoal, goalProgress.done) : ''
   const notYet = !ticked && chore.rejection ? (chore.rejection.note ? t('Not yet: {note}', { note: chore.rejection.note }) : t('Not yet')) : ''
   const cl = chore.checklist
   const checklist = cl && !ticked ? `☑ ${cl.done}/${cl.total} ${cl.name}` : '' // a reusable list resets once done: "0/1" would look unfinished
@@ -233,6 +192,9 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
       <div className="chore-info">
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
         <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}</div>
+        {goalText && <div className="chore-pts">{goalText}</div>}
+        {goalBlocked && <div className="chore-waiting">{goalProgress!.done >= goalProgress!.target ? t('Goal reached') : t('Waiting for OK')}</div>}
+        {goalProgress && goalProgress.pending > 0 && <div className="chore-waiting">{t('{n} waiting for OK this interval', { n: goalProgress.pending })}</div>}
         {timer > 0 && <div className="chore-pts chore-activity"><ChoreTimerText chore={chore} /></div>}
         {pending && <div className="chore-waiting">{t('Waiting for OK')}</div>}
         {notYet && <div className="chore-notyet">{notYet}</div>}
@@ -253,6 +215,10 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
       </button>
     )
   }
+  if (goalBlocked) return <div className="chore-card chore-card-goal-met" onContextMenu={editOnRightClick}>
+    {info}
+    {parentDevice && <button type="button" className="icon-btn" aria-label={t('Edit {title}', { title: chore.title })} onClick={onEdit}><EditIcon width={18} height={18} /></button>}
+  </div>
   if (act || timer) {
     // Two controls: play or start the timer (the card) and done (the check). Right-click still edits.
     return (
@@ -280,7 +246,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={pending ? 'mixed' : chore.completed} tabIndex={0}
-        aria-label={[chore.title, startsAt && t('starts at {time}', { time: startsAt }), by && t('done by {name}', { name: by }), tn(chore.points, '{n} point', '{n} points'), schedule, checklist && t('checklist {name} {done} of {total} done', { name: cl!.name, done: cl!.done, total: cl!.total }), actLabel, ...said].filter(Boolean).join(', ')}
+        aria-label={[chore.title, startsAt && t('starts at {time}', { time: startsAt }), by && t('done by {name}', { name: by }), tn(chore.points, '{n} point', '{n} points'), schedule, goalText, checklist && t('checklist {name} {done} of {total} done', { name: cl!.name, done: cl!.done, total: cl!.total }), actLabel, ...said].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={editOnRightClick} onClick={handleClick}>
         {info}
         {check}
@@ -526,6 +492,7 @@ export default function Chores() {
   // "Who did it?" for an Anyone chore when the tab isn't filtered or pinned to one person.
   const [whoFor, setWhoFor] = useState<ChoreDay | null>(null)
   const toggle = async (c: ChoreDay, doneBy?: string | null) => {
+    if (c.goalProgress?.full && !c.completed && !c.pending) return
     const ticked = c.completed || !!c.pending // a pending tick unticks like a done one
     // Unticking is deliberate: a stray tap on a done chore shouldn't quietly take points back.
     if (ticked && !await dialog.confirm({
@@ -546,7 +513,7 @@ export default function Chores() {
     // Off a parent's device it's approved at once; otherwise the chore (or the person's default) says.
     // An activity chore whose activity is gone always waits off a parent's device (as on the server).
     const waits = !ticked && waitsForOk(c, members.find(m => m.id === creditTo), parentDevice)
-    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null } : x)) // optimistic
+    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null, goalProgress: x.goalProgress ? updatedGoalProgress(x.goalProgress, ticked ? -(c.completed ? 1 : 0) : waits ? 0 : 1, ticked ? -(c.pending ? 1 : 0) : waits ? 1 : 0) : null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !ticked && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points
@@ -563,7 +530,7 @@ export default function Chores() {
       else if (late && !waits) toast(t('+{n} (late)', { n: pts }))
       reloadCore()
     } catch (e) {
-      setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection } : x)) // revert
+      setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection, goalProgress: c.goalProgress } : x)) // revert
       toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
     }
   }
@@ -662,7 +629,7 @@ export default function Chores() {
         <div className="chore-columns" style={columnsGridStyle}>
           {active.map(col => {
             const list = choreOrder(chores.filter(c => col.id === '__anyone' ? !c.memberId : c.memberId === col.id))
-            const done = list.filter(c => c.completed).length
+            const done = list.filter(c => c.completed || c.goalProgress?.full).length
             const pct = list.length ? done / list.length : 0
             return (
               <div key={col.id} className="chore-column">
@@ -759,6 +726,7 @@ export default function Chores() {
 function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: Chore | null; draft?: RepeatDraft | null; resetTime?: { label: string; run: () => void }; onClose: () => void; onSaved: (firstDate?: Date) => void }) {
   const dialog = useDialog()
   const { members, toast, settings } = useApp()
+  const [repeatGoal, setRepeatGoal] = useState<ChoreGoal | null>(chore?.repeatGoal ?? null)
   const from = draft?.item
   const draftRrule = from ? intervalRrule(from.everyN, from.everyUnit) : null
   const storedRrule = chore ? chore.rrule : draftRrule // sent back as-is unless the schedule is edited
@@ -779,28 +747,27 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   useEffect(() => { api.getPlugins().then(setPlugins).catch(() => { /* no activities to offer */ }) }, [])
   // The family's activities that are on, plus the linked one even if it's off (so saving keeps it).
   const activities = plugins.filter(p => p.enabled || p.id === pluginId)
-  const [dueDate, setDueDate] = useState(chore?.dueDate ?? draft?.date ?? dateKey(new Date()))
+  const today = todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [dueDate, setDueDate] = useState(chore ? chore.dueDate ?? '' : draft?.date ?? today)
   const [sched, setSched] = useState(() => {
     const f = rruleToForm(storedRrule)
-    return chore || draft ? f : { ...f, days: [new Date().getDay()] } // new chore: preselect today, the day it anchors on
+    return chore || draft ? f : { ...f, weekStart: settings.weekStart, days: [new Date(`${today}T12:00:00`).getDay()] } // new chore: preselect today, the day it anchors on
   })
   const [schedTouched, setSchedTouched] = useState(false) // untouched = send the stored rrule back as-is (keeps custom rules)
   const editSched = (patch: Partial<ScheduleForm>) => { setSched(s => ({ ...s, ...patch, custom: false })); setSchedTouched(true) }
-  const repeat = sched.custom ? null : sched.repeat
-  const weekOrder = Array.from({ length: 7 }, (_, i) => (i + settings.weekStart) % 7)
-  const today = dateKey(new Date())
+  const scheduleValid = validSchedule(sched, dueDate) && (!repeatGoal || !!dueDate && validGoal(repeatGoal))
   const assignee = members.find(m => m.id === memberId)
   const defaultApproval = !!assignee?.needsApproval
 
   const submit = async () => {
-    if (!title.trim() || !isSingleEmoji(emoji)) return
-    const rrule = schedTouched || (!chore && !draft) ? formToRrule(sched) : storedRrule
-    // A repeat from the library starts on the day picked there (its anchor); others on their creation day.
-    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule && !draft ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
+    if (!title.trim() || !isSingleEmoji(emoji) || !scheduleValid) return
+    const schedule = scheduleBody({ rrule: storedRrule, dueDate: chore?.dueDate ?? draft?.date ?? today }, sched, schedTouched || (!chore && !draft), dueDate)
+    const body = { title: title.trim(), emoji, points, memberId, ...schedule, repeatGoal, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
-      onSaved(chore ? undefined : firstScheduledDay(sched, dueDate))
+      const first = scheduleDates(schedule.rrule, dueDate || today, schedule.rrule && dueDate < today ? today : dueDate || today, 1)[0]
+      onSaved(chore || !first ? undefined : new Date(`${first}T12:00:00`))
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('Could not save chore'), true)
     }
@@ -825,7 +792,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
             {resetTime && <option value="reset">{resetTime.label}</option>}
             <option value="delete">{t('Delete chore…')}</option>
           </select>}
-          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? t('Save') : t('Add chore')}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji) || !scheduleValid}>{chore ? t('Save') : t('Add chore')}</button>
         </>
       }>
       <div className="field">
@@ -913,41 +880,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
           ? (pluginId ? t("Default follows {name}'s setting in Settings → Family; timed play approves itself unless the switch above is on.", { name: assignee.name }) : t("Default follows {name}'s setting in Settings → Family.", { name: assignee.name }))
           : (pluginId ? t('Default follows the setting of whoever does it in Settings → Family; timed play approves itself unless the switch above is on.') : t('Default follows the setting of whoever does it in Settings → Family.'))}</p>
       </div>
-      <div className="field">
-        <label htmlFor="chore-repeat">{t('Repeat')}</label>
-        <select id="chore-repeat" value={repeat ?? 'custom'} onChange={e => editSched({ repeat: e.target.value as NonNullable<typeof repeat> })}>
-          {repeat === null && <option value="custom" disabled>{t('Custom')}</option>}
-          {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{tm(REPEAT_LABELS[r])}</option>)}
-        </select>
-        {sched.custom && <p className="field-hint">{t('Custom schedule ({rule}). Picking an option replaces it.', { rule: repeatText(storedRrule) })}</p>}
-      </div>
-      {repeat === 'weekly' && (
-        <div className="field">
-          <label id="chore-days-label">{t('On')}</label>
-          <div className="day-toggles" role="group" aria-labelledby="chore-days-label">
-            {weekOrder.map(d => {
-              const on = sched.days.includes(d)
-              return (
-                <button key={d} type="button" className={on ? 'active' : ''} aria-pressed={on} aria-label={dayName(d, 'long')}
-                  onClick={() => editSched({ days: on ? sched.days.filter(x => x !== d) : [...sched.days, d] })}>{dayName(d, 'short')}</button>
-              )
-            })}
-          </div>
-          {!sched.days.length && <p className="field-hint">{t('No days picked: repeats on the weekday it was created.')}</p>}
-        </div>
-      )}
-      {(repeat === 'daily' || repeat === 'weekly') && (
-        <div className="field">
-          <label htmlFor="chore-until">{t('Ends (optional)')}</label>
-          <input id="chore-until" type="date" value={sched.until} min={today} onChange={e => editSched({ until: e.target.value })} />
-        </div>
-      )}
-      {(repeat === 'once' || (draft && !schedTouched)) && (
-        <div className="field">
-          <label>{repeat === 'once' ? t('Due date') : t('Starts')}</label>
-          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-        </div>
-      )}
+      <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={today} onChange={editSched} onStart={setDueDate} />
     </Sheet>
   )
 }

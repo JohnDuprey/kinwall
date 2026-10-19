@@ -420,6 +420,7 @@ export interface Chore {
   emoji: string
   memberId: string | null
   points: number
+  repeatGoal?: import('./choreGoal.ts').ChoreGoal | null
   rrule: string | null
   dueDate: string | null
   dueTime: string | null // start time, "HH:MM"
@@ -456,6 +457,7 @@ export interface LibraryChore {
 export type LibraryChoreInput = Partial<Pick<LibraryChore, 'title' | 'emoji' | 'points' | 'listId' | 'memberId' | 'everyN' | 'everyUnit' | 'needsApproval' | 'notes'>> & { fromChoreId?: string }
 
 export interface ChoreDay extends Chore {
+  goalProgress?: import('./choreGoal.ts').GoalProgress | null
   completed: boolean // done and counted
   pending?: boolean // ticked on a wall screen or kid's device, waiting for a parent's OK (no points yet)
   rejection?: { note: string | null; at: string } | null // a parent's "Not yet", until it's ticked again

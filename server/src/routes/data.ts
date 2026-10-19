@@ -14,7 +14,7 @@ import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
 import { CATALOGS, itemKey, looksLikeGroceries, type Catalog } from '../item-memory.ts';
 import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
-import { toApi as choreToApi, type ChoreRow } from './chores.ts';
+import { goalInputError, toApi as choreToApi, type ChoreRow } from './chores.ts';
 import { LibraryChoreSchema, type LibraryRow } from './chore-library.ts';
 import { toLibraryApi, type LibraryRow as LibraryBookRow } from './library.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
@@ -264,7 +264,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -656,6 +656,10 @@ dataRoutes.openapi(
     const seriesMemberOverrides = body.eventSeriesMemberOverrides.filter((o) => calendarIds.has(o.calendarId));
     const seriesCategoryOverrides = body.eventSeriesCategoryOverrides.filter((o) => calendarIds.has(o.calendarId));
     const hiddenEvents = body.hiddenEvents.filter((h) => calendarIds.has(h.calendarId));
+    for (const chore of body.chores) if (chore.repeatGoal) {
+      const error = goalInputError(chore.repeatGoal, chore.rrule, chore.dueDate);
+      if (error) return c.json({ error }, 400);
+    }
     const choreIds = new Set(body.chores.map((ch) => ch.id));
     const completions = body.choreCompletions.filter((cc) => choreIds.has(cc.choreId));
     const items = body.lists.flatMap((l) => l.items.map((i) => ({ ...i, listId: l.id })));
@@ -874,6 +878,7 @@ dataRoutes.openapi(
           member_id: ch.memberId,
           points: ch.points,
           rrule: ch.rrule,
+          repeat_goal: ch.repeatGoal ? JSON.stringify(ch.repeatGoal) : null,
           due_date: ch.dueDate,
           due_time: ch.dueTime,
           active: ch.active ? 1 : 0,

@@ -121,6 +121,7 @@ import m0117 from '../migrations/0117_store_aisles_catalog.sql';
 import m0118 from '../migrations/0118_notification_by.sql';
 import m0119 from '../migrations/0119_member_language.sql';
 import m0120 from '../migrations/0120_task_sync.sql';
+import m0121 from '../migrations/0121_chore_goals.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -243,4 +244,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0118_notification_by.sql', sql: m0118 },
   { name: '0119_member_language.sql', sql: m0119 },
   { name: '0120_task_sync.sql', sql: m0120 },
+  { name: '0121_chore_goals.sql', sql: m0121 },
 ];

@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
+import { ChoreGoalSchema, BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -800,6 +800,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         emoji: z.string().optional(),
         member: z.string().optional().describe('Assign to a member by name or id; omit for "anyone".'),
         points: z.number().optional(),
+        repeatGoal: ChoreGoalSchema.nullable().optional().describe('Flexible target: times on distinct days every N days/weeks/months; dueDate required. Omit rrule or use FREQ=DAILY with optional UNTIL. null removes the goal.'),
         rrule: z.string().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR. Omit for a one-off chore.'),
         dueDate: z.string().optional().describe('YYYY-MM-DD. Required if rrule is omitted (one-off); anchors the recurrence otherwise.'),
         dueTime: z.string().optional().describe('Start time, HH:MM 24-hour household time, e.g. 16:00 for "practice at 4 PM". It shows on the chore and as its own row on the Board\'s Today card.'),
@@ -842,6 +843,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         emoji: z.string().optional(),
         member: z.string().nullable().optional().describe('Assign to a member by name or id; null for "anyone".'),
         points: z.number().optional(),
+        repeatGoal: ChoreGoalSchema.nullable().optional().describe('Flexible target: times on distinct days every N days/weeks/months; dueDate required. Omit rrule or use FREQ=DAILY with optional UNTIL. null removes the goal.'),
         rrule: z.string().nullable().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally with ;UNTIL=YYYYMMDD. null to clear (one-off).'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD.'),
         dueTime: z.string().nullable().optional().describe('Start time, HH:MM 24-hour household time; null to clear.'),

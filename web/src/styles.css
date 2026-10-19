@@ -4204,3 +4204,11 @@ html:root[data-cast] {
   .pairing-body svg { width: min(300px, 26vh); height: auto; }
   .gate-links .link-btn { font-size: 1rem; }
 }
+
+/* Keep the repeat interval and its unit usable on a narrow phone. */
+.chore-repeat-interval { display: flex; gap: 8px; }
+.chore-repeat-interval input { flex: 0 1 90px; min-width: 0; }
+.chore-repeat-interval select { flex: 1; min-width: 0; }
+
+.chore-card-goal-met { cursor: default; }
+.chore-card-goal-met:active { transform: none; }

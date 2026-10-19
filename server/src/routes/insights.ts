@@ -1,3 +1,4 @@
+import { readChoreGoal } from '../chore-goal.ts';
 // Insights (#/insights/<id>) and the energy battery (battery.ts, GET /api/members/{id}/battery): a person's check-ins over time (sleep, feelings, goals and how they
 // went, journal entry counts and moods) next to what Kinwall already knows (chores done, activity
 // time, books finished, calendar busyness), with plain summaries and, after about 3 weeks of
@@ -233,6 +234,8 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
     for (const c of completions) if (c.member_id === memberId) days.get(c.date)!.choreDone += c.points;
     for (const row of chores.results as ChoreRow[]) for (const d of dueDates(row, from, to, tz)) {
       const day = days.get(d)!;
+      // Flexible goals are optional on individual days: only actual work adds daily effort.
+      if (readChoreGoal(row.repeat_goal) && !doneKeys.has(`${row.id}:${d}`)) continue;
       day.chores++;
       if (!doneKeys.has(`${row.id}:${d}`)) day.choreDue += row.points;
     }
