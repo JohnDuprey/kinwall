@@ -68,7 +68,9 @@ On a parent's device an outing with ticket dates has **🎟 We have tickets**, w
 
 ## Add to our calendar
 
-On a parent's device, an outing's **Add to our calendar** asks for the day (for a run, which day you're going), the time or **All day**, the calendar, and **Who's going** (to start: everyone who ⭐ it and the people it's for). It becomes a normal event, so sync, reminders and leave-by all work. It goes in the **🎟 Outing** [category](categories.md), made the first time you use this; rename or recolor it like any category. The event has the place, notes, price and links, and says "From Kinwall Outings".
+On a parent's device, an outing's **Add to our calendar** asks for **Starts** and **Ends** dates, the time or **All day**, the calendar, and **Who's going** (to start: everyone who ⭐ it and the people it's for). It becomes a normal event, so sync, reminders and leave-by all work. It goes in the **🎟 Outing** [category](categories.md), made the first time you use this; rename or recolor it like any category. The event has the place, notes, price and links, and says "From Kinwall Outings".
+
+Choose separate dates for an overnight visit or a trip spanning several days. For **All day**, **Ends** is the last day you are going. Timed visits spanning days need an end time. For an outing with announced dates, your visit must stay within those dates.
 
 The outing then shows "On our calendar: Sat, Oct 10" with a link to the event, and the event links back. Deleting the event takes the link away; the outing stays. Deleting the outing leaves the event.
 

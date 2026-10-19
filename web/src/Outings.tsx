@@ -515,7 +515,7 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
   </Sheet>
 }
 
-/** Add to our calendar: the day (a run or an undated outing asks which), the time, the calendar and who's going. */
+/** Add to our calendar: independent start/end dates, the time, calendar and who is going. */
 function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; onClose: () => void; onSaved: (o: Outing) => void }) {
   const { members, toast } = useApp()
   const who = useWho()
@@ -523,9 +523,12 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
   const [calendars, setCalendars] = useState<CalendarEntry[] | null>(null)
   const [calendarId, setCalendarId] = useState('')
   const [date, setDate] = useState(o.endsOn ? (o.startsOn && o.startsOn > who.today ? o.startsOn : who.today) : o.startsOn ?? '')
+  const [endDate, setEndDate] = useState(date)
   const [allDay, setAllDay] = useState(!o.startTime)
   const [start, setStart] = useState(o.startTime ?? '10:00')
   const [end, setEnd] = useState(o.endTime ?? '')
+  const endBeforeStart = !!date && !!endDate && (endDate < date || (!allDay && !!end && `${endDate}T${end}` <= `${date}T${start}`))
+  const needsEndTime = !allDay && endDate !== date && !end
   const [going, setGoing] = useState(() => [...new Set([...o.interest.filter(i => i.level === 'really').map(i => i.memberId), ...o.memberIds])])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -539,25 +542,33 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
     return () => { canceled = true }
   }, [])
   const save = async () => {
-    if (!date) { setError(t('Pick a day.')); return }
+    if (!date || !endDate) { setError(t('Pick a day.')); return }
+    if (endBeforeStart || needsEndTime) return
     setBusy(true); setError('')
     try {
-      const saved = await api.addOutingToCalendar(o.id, { date, startTime: allDay ? null : start, endTime: allDay || !end ? null : end, ...(calendarId ? { calendarId } : {}), memberIds: going })
+      const saved = await api.addOutingToCalendar(o.id, { date, endDate, startTime: allDay ? null : start, endTime: allDay || !end ? null : end, ...(calendarId ? { calendarId } : {}), memberIds: going })
       toast(t('On the calendar: {title}', { title: saved.title })); onSaved(saved)
     } catch (e) { setError(e instanceof Error ? e.message : t('Could not add it to the calendar.')) } finally { setBusy(false) }
   }
   return <Sheet title={t('Add to our calendar')} onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>
     <button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('Cancel')}</button>
-    <button className="btn btn-primary" disabled={busy || !calendars} onClick={() => void save()}>{busy ? t('Adding…') : t('Add to calendar')}</button>
+    <button className="btn btn-primary" disabled={busy || !calendars || !date || !endDate || endBeforeStart || needsEndTime} onClick={() => void save()}>{busy ? t('Adding…') : t('Add to calendar')}</button>
   </>}>
     <p>{o.title}{o.placeName ? ` · ${o.placeName}` : ''}</p>
     <fieldset className="meal-fieldset" disabled={busy}>
-      <div className="field"><label htmlFor={`${id}-day`}>{o.endsOn ? t('Which day are you going?') : t('Day')}</label><input id={`${id}-day`} type="date" min={o.startsOn ?? undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={date} onChange={e => setDate(e.target.value)} /></div>
       <label className="meal-check"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> {t('All day')}</label>
-      {!allDay && <div className="meal-form-row">
-        <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>
-        <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} /></div>
-      </div>}
+      <div className={allDay ? 'row-2' : 'row-datetime'}>
+        <div className="field"><label htmlFor={`${id}-day`}>{t('Starts')}</label><input id={`${id}-day`} type="date" min={o.startsOn ?? undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={date} onChange={e => {
+          const next = e.target.value
+          setDate(next)
+          if (!endDate || endDate === date || endDate < next) setEndDate(next)
+        }} /></div>
+        {!allDay && <div className="field"><label htmlFor={`${id}-t1`}>{t('Start time')}</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>}
+        <div className="field"><label htmlFor={`${id}-end-day`}>{t('Ends')}</label><input id={`${id}-end-day`} type="date" min={date || o.startsOn || undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={endDate} onChange={e => setEndDate(e.target.value)} aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? `${id}-end-error` : undefined} /></div>
+        {!allDay && <div className="field"><label htmlFor={`${id}-t2`}>{t('End time')}</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} aria-invalid={endBeforeStart || needsEndTime || undefined} aria-describedby={endBeforeStart || needsEndTime ? `${id}-end-error` : undefined} /></div>}
+      </div>
+      {endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('The end has to be after the start.')}</p>}
+      {needsEndTime && !endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('Pick an end time for a visit that spans days.')}</p>}
       {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><select id={`${id}-cal`} value={calendarId} onChange={e => setCalendarId(e.target.value)}>{calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
       <LabeledPick label={t('Who’s going')} multiple none={t('Everyone')} value={going} onChange={setGoing} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
       <p className="field-hint">{t('It goes on the calendar as a normal event in the 🎟 Outing category, with the place, notes and links. Change it there any time.')}</p>

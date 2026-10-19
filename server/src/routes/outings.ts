@@ -11,7 +11,7 @@
 //
 // Its own feature switch (settings.features.outings): off, every route here answers 404 (so MCP
 // tools refuse). Nothing is deleted.
-import { stored } from '../i18n.ts';
+import { stored, wordsFor } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -119,6 +119,7 @@ export const OutingCalendarInputSchema = z
     date: DAY.optional().openapi({ description: "Which day. Left out: the outing's day (a run or an undated one needs it)." }),
     startTime: TIME.nullable().optional().openapi({ description: "Left out: the outing's. null: all day." }),
     endTime: TIME.nullable().optional(),
+    endDate: DAY.optional().openapi({ description: 'Last day of the visit (inclusive for all-day events). Left out: date. Timed visits spanning days require endTime.' }),
     calendarId: z.string().optional().openapi({ description: 'Left out: the default calendar.' }),
     memberIds: z.array(z.string()).optional().openapi({ description: "Who's going. Left out: everyone who ⭐ it and the people it's for." }),
   })
@@ -491,15 +492,20 @@ outingsRoutes.openapi(
     const date = input.date ?? (o.kind === 'upcoming' && !o.endsOn ? o.startsOn : null);
     if (!date) return c.json({ error: o.endsOn ? 'Pick which day you are going.' : 'Pick a day first.' }, 400);
     if (o.kind === 'upcoming' && o.startsOn && (date < o.startsOn || date > (o.endsOn ?? o.startsOn))) return c.json({ error: "That day isn't one the outing is on." }, 400);
+    const { t } = await wordsFor(c);
+    const endDate = input.endDate ?? date;
+    if (endDate < date) return c.json({ error: t('The end has to be after the start.') }, 400);
+    if (o.kind === 'upcoming' && o.startsOn && endDate > (o.endsOn ?? o.startsOn)) return c.json({ error: "That day isn't one the outing is on." }, 400);
     const startTime = input.startTime === undefined ? o.startTime : input.startTime;
     const endTime = input.endTime === undefined ? (input.startTime === undefined ? o.endTime : null) : input.endTime;
     const settings = await readSettings(db);
     const tz = settings.timezone || hostTimezone();
     let start: string, end: string;
-    if (!startTime) { start = date; end = addDays(date, 1); } else {
-      const at = (t: string) => { const [y, mo, d] = date.split('-').map(Number); const [h, mi] = t.split(':').map(Number); return zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, tz).getTime(); };
-      const from = at(startTime);
-      const to = endTime && endTime > startTime ? at(endTime) : from + (settings.defaultEventMinutes || 60) * 60000;
+    if (startTime && input.endDate !== undefined && ((!endTime && endDate !== date) || (endTime && `${endDate}T${endTime}` <= `${date}T${startTime}`))) return c.json({ error: t('The end has to be after the start.') }, 400);
+    if (!startTime) { start = date; end = addDays(endDate, 1); } else {
+      const at = (day: string, t: string) => { const [y, mo, d] = day.split('-').map(Number); const [h, mi] = t.split(':').map(Number); return zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, tz).getTime(); };
+      const from = at(date, startTime);
+      const to = endTime && (endDate > date || endTime > startTime) ? at(endDate, endTime) : from + (settings.defaultEventMinutes || 60) * 60000;
       start = new Date(from).toISOString(); end = new Date(to).toISOString();
     }
     const memberIds = input.memberIds ?? [...new Set([...o.interest.filter((i) => i.level === 'really').map((i) => i.memberId), ...o.memberIds])];

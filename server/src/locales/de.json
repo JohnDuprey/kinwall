@@ -816,5 +816,6 @@
   "{list} stopped syncing with {app}": "{list} synchronisiert nicht mehr mit {app}",
   "{n} list stopped syncing": "{n} Liste synchronisiert nicht mehr",
   "{n} lists stopped syncing": "{n} Listen synchronisieren nicht mehr",
-  "error|Connect {app} again to sync this list.": "Verbinde {app} noch einmal, damit diese Liste synchronisiert."
+  "error|Connect {app} again to sync this list.": "Verbinde {app} noch einmal, damit diese Liste synchronisiert.",
+  "The end has to be after the start.": "Das Ende muss nach dem Beginn liegen."
 }

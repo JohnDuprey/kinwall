@@ -237,3 +237,42 @@ test('outings: export and import carry outings, their marks and categories', asy
   const back = (await t.send('GET', `/api/outings/${o.id}`)).body;
   assert.deepEqual([back.categoryId, back.addedBy, back.visitStatus, back.interest], [cat.id, t.maya.id, 'been', [{ memberId: t.leo.id, level: 'really' }]]);
 });
+
+
+test('outings: overnight and multi-day visits use independent dates in the family timezone', async () => {
+  const t = await setup();
+  await t.send('PATCH', '/api/settings', { timezone: 'America/Chicago' });
+  const add = async (body: object) => {
+    const outing = (await t.send('POST', '/api/outings', { title: 'Cedar Hollow camping', kind: 'place' })).body;
+    const added = await t.send('POST', `/api/outings/${outing.id}/calendar`, { calendarId: t.cal.id, ...body });
+    assert.equal(added.status, 200, JSON.stringify(added.body));
+    return (await t.send('GET', `/api/events/${added.body.calendarEventId}`)).body;
+  };
+  const night = await add({ date: '2026-10-02', endDate: '2026-10-03', startTime: '19:30', endTime: '08:00' });
+  assert.deepEqual([night.start, night.end, night.allDay], ['2026-10-03T00:30:00.000Z', '2026-10-03T13:00:00.000Z', false]);
+  const days = await add({ date: '2026-10-02', endDate: '2026-10-04', startTime: null });
+  assert.deepEqual([days.start, days.end, days.allDay], ['2026-10-02', '2026-10-05', true], 'all-day end date is inclusive in the request');
+  const dst = await add({ date: '2026-10-31', endDate: '2026-11-01', startTime: '19:30', endTime: '08:00' });
+  assert.deepEqual([dst.start, dst.end], ['2026-11-01T00:30:00.000Z', '2026-11-01T14:00:00.000Z']);
+  const legacy = await add({ date: '2026-10-02', startTime: '19:30', endTime: '08:00' });
+  assert.equal(Date.parse(legacy.end) - Date.parse(legacy.start), 3600000, 'old requests keep their default duration');
+});
+
+test('outings: invalid visit ranges cannot create or link events', async () => {
+  const t = await setup();
+  const outing = (await t.send('POST', '/api/outings', { title: 'Pumpkin patch', startsOn: '2026-10-01', endsOn: '2026-10-31' })).body;
+  for (const body of [
+    { date: '2026-10-02', endDate: '2026-10-01' },
+    { date: '2026-10-30', endDate: '2026-11-01' },
+    { date: '2026-10-02', endDate: '2026-10-02', startTime: '19:30', endTime: '08:00' },
+    { date: '2026-10-02', endDate: '2026-10-02', startTime: '19:30', endTime: '19:30' },
+    { date: '2026-10-02', endDate: '2026-10-03', startTime: '19:30', endTime: null },
+  ]) {
+    const res = await t.send('POST', `/api/outings/${outing.id}/calendar`, { calendarId: t.cal.id, ...body });
+    assert.equal(res.status, 400, JSON.stringify(body));
+    assert.equal((await t.send('GET', `/api/outings/${outing.id}`)).body.calendarEventId, null);
+  }
+  const range = { date: '2026-10-02', endDate: '2026-10-03' };
+  assert.equal((await t.send('POST', `/api/outings/${outing.id}/calendar`, range, t.mayaKey)).status, 403);
+  assert.equal((await t.send('POST', `/api/outings/${outing.id}/calendar`, range, t.wallKey)).status, 403);
+});

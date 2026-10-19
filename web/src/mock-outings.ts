@@ -126,15 +126,17 @@ export async function mockOutingRequest(path: string, options: RequestInit): Pro
   }
   if (action === 'calendar') {
     const date = body.date ?? o.startsOn
+    const endDate = body.endDate ?? date
     const cals = await mock.getCalendars()
     const cal = cals.find(c => c.id === body.calendarId) ?? cals.find(c => c.writable && c.kind === 'local') ?? cals[0]
     if (!outingCategoryId) outingCategoryId = (await mock.createCategory({ name: 'Outing', emoji: '🎟', color: '#7c3aed' })).id
     const startTime = body.startTime === undefined ? o.startTime : body.startTime
-    const endTime = body.endTime === undefined ? o.endTime : body.endTime
-    const at = (t: string) => new Date(`${date}T${t}:00`).toISOString()
+    const endTime = body.endTime === undefined ? (body.startTime === undefined ? o.endTime : null) : body.endTime
+    if (endDate < date || (startTime && body.endDate !== undefined && ((!endTime && endDate !== date) || (endTime && `${endDate}T${endTime}` <= `${date}T${startTime}`)))) throw new Error('The end has to be after the start.')
+    const at = (day: string, t: string) => new Date(`${day}T${t}:00`).toISOString()
     const ev = await mock.createEvent({
       calendarId: cal.id, title: o.title, allDay: !startTime, categoryId: outingCategoryId,
-      start: startTime ? at(startTime) : date, end: startTime ? (endTime ? at(endTime) : new Date(Date.parse(at(startTime)) + 3600_000).toISOString()) : addDays(date, 1),
+      start: startTime ? at(date, startTime) : date, end: startTime ? (endTime && (endDate > date || endTime > startTime) ? at(endDate, endTime) : new Date(Date.parse(at(date, startTime)) + 3600_000).toISOString()) : addDays(endDate, 1),
       location: [o.placeName, o.address].filter(Boolean).join(', ') || null, description: [o.notes, 'From Kinwall Outings'].filter(Boolean).join('\n\n'),
       memberIds: body.memberIds ?? [...new Set([...o.interest.filter(i => i.level === 'really').map(i => i.memberId), ...o.memberIds])],
     })
