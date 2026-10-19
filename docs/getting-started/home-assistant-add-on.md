@@ -30,4 +30,15 @@ What this repository does for the add-on:
 
 Provider credentials set as add-on options appear as "Provided by your host" in **Settings → Calendars → Calendar providers** and are read-only there. See [Configuration](../self-hosting/configuration.md).
 
+## Network setting for a tablet kiosk
+
+The add-on's **Network** section controls optional direct access to Kinwall on your home network. It is disabled by default; opening Kinwall through Home Assistant's sidebar uses ingress and does not need it. An always-on tablet kiosk can use the direct address so it does not need to keep a Home Assistant session signed in.
+
+1. In Home Assistant, go to **Settings → Apps → Kinwall → Configuration** (**Settings → Add-ons** in older versions) and find **Network**.
+2. For `8080/tcp`, enter an unused host port, such as `8080`. Save and restart the add-on.
+3. On the tablet, open `http://<home-assistant-ip>:8080` in its browser, replacing `<home-assistant-ip>` with your Home Assistant device's local IP address. If you chose another host port, use that number in the address instead.
+4. Follow the add-on's [kiosk setup guide](https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/kinwall/DOCS.md#ipad-kiosk-setup) to connect with a display key. For quick access, use your browser's option to add Kinwall to the home screen.
+
+Direct access does not use Home Assistant's login protection. Enable it only on a trusted home network and use a display key for the kiosk. The direct address uses plain HTTP; passkeys need an HTTPS proxy, as described above.
+
 For automations (entities, services), see [Home Assistant](../integrations/home-assistant.md).

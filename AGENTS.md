@@ -49,6 +49,9 @@ search the code as usual.
 
 ## Commits
 
+- Review the complete diff before making any commit. Check correctness, regressions, and missing
+  tests or documentation; address any findings before committing.
+
 [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, imperative,
 lowercase, no period, under ~72 characters. The body says why when that isn't obvious.
 
