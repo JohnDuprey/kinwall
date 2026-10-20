@@ -4,8 +4,8 @@ import type { Features } from './types.ts'
 export type FeatureRow = { key: keyof Features; label: string; sub: string; section: 'Everyday' | 'Spaces'; group?: string }
 
 /** Every household feature has one row here, so the settings list and its summary stay complete.
- * Two headings: Everyday (the small things used daily) and Spaces (areas of their own with several
- * parts inside). "Spaces" is only ever a heading; the tabs keep their own names. */
+ * Two headings: Everyday (the small things used daily) and Nooks (areas of their own with several
+ * parts inside). "Nooks" is only ever a heading; the tabs keep their own names. */
 export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'chores', section: 'Everyday', label: msg('Chores & points'), sub: msg('The Chores tab and chore library, points, rewards and the sticker book. The leaderboard, sticker shop and rewards have their own switches in Family → Chores.') },
   { key: 'lists', section: 'Everyday', label: msg('Lists'), sub: msg('The Lists tab with Groceries and shopping mode, “Due soon” and list counts on the Board, and tasks on events.') },

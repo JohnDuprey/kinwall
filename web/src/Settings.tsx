@@ -445,7 +445,7 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
     <SummarySection title={t('Features')} summary={summary} detail={detail ?? t("Turn off what your family doesn't use.")} keywords={FEATURE_ROWS.map(featureName)}>
       <p className="settings-row-sub">{t("Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.")}</p>
       {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
-        {FEATURE_ROWS[i - 1]?.section !== f.section && <h3 className="features-section">{f.section === 'Everyday' ? t('Everyday') : t('Spaces')}</h3>}
+        {FEATURE_ROWS[i - 1]?.section !== f.section && <h3 className="features-section">{f.section === 'Everyday' ? t('Everyday') : t('Nooks')}</h3>}
         {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h4 className="features-group">{tm(f.group)}</h4>}
         <div className={`toggle-row ${f.group ? 'features-grouped' : ''}`}>
           <div>

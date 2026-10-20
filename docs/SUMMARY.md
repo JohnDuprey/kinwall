@@ -30,7 +30,7 @@
 * [Medications](using/medications.md)
 * [Lists](using/lists.md)
   * [To-do apps: Todoist, Google Tasks, Microsoft To Do](using/todo-apps.md)
-* Spaces
+* Nooks
   * [Meals](using/meals.md)
   * [Outings](using/outings.md)
   * [Trackers](using/trackers.md)

@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { DAY, formatDate, intlLocale, lang, msg, pickLang, playerLang, setLang, t, tc, tn } from '../src/i18n.ts'
 
 const de = {
@@ -102,4 +103,15 @@ test("an activity's locale: the player's language, regional when the browser's m
   assert.equal(intlLocale('en-US', playerLang('de', lang())), 'de')
   assert.equal(intlLocale('de-AT', playerLang('de', lang())), 'de-AT')
   assert.equal(intlLocale('en-GB', playerLang(null, lang())), 'en-GB')
+})
+
+test('the Nooks heading keeps its German translation', async () => {
+  const english = JSON.parse(readFileSync(new URL('../src/locales/en.json', import.meta.url), 'utf8'))
+  const german = JSON.parse(readFileSync(new URL('../src/locales/de.json', import.meta.url), 'utf8'))
+  await setLang('en')
+  assert.equal(english.Nooks, 'Nooks')
+  assert.equal(t('Nooks'), 'Nooks')
+  await setLang('de', async () => german)
+  assert.equal(t('Nooks'), 'Ecken')
+  await setLang('en')
 })
