@@ -111,6 +111,8 @@ Each row goes once it's done, and the card goes when none are left. **Not now** 
 
 ### Board layouts
 
+On a cast screen such as a Nest Hub, the Board can shrink slightly to fit its cards. It keeps that size as rows and text settle, and fits again when the available space, layout or appearance changes. In a two-column custom layout, each column fits independently. On a short cast screen, tips and other text cards take only the height they need, leaving more room for trivia.
+
 Each screen can arrange its own Board. Under [Settings → This screen → Board layout](../settings/this-display.md#this-screen), pick a built-in layout (**Kids** with big text, **Kitchen** with meals up front, **Parents** with more on the screen, **Simple** with just the clock, a picture and today), one of the family's [presets](../settings/general.md#board-presets), or **Own layout** to make one just for this screen.
 
 To switch quickly, tap **Layout and filter** (the sliders at the end of Home's toolbar). Its **Layout on this screen** chips list the same layouts, with a line under them on the one picked, and the Board changes behind the sheet as you tap. **Own layout…** opens the editor the first time; once this screen has one, **Edit this screen's layout** shows. **Manage layouts** goes to Settings (to **Board presets** on a parent device, to **Board layout** under This screen otherwise). Under the layouts are the [categories](#filtering-by-category). On a screen locked under **Lock view**, the button is just the category filter, so a locked wall stays as set.

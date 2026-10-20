@@ -2,7 +2,7 @@
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
 import { boardListTiles } from './listSections.ts'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Children, isValidElement, Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useHashParam } from './hashQuery.ts'
 import { createPortal } from 'react-dom'
 import { api } from './api.ts'
@@ -30,7 +30,7 @@ import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardFixed, boardShort, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
-import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
+import { columnRows, type BoardCardSpec, cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
 import { clockTimeZone } from './timezone.ts'
@@ -48,6 +48,34 @@ function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar' | 'picture'
 
 /** A card's text size in a layout (boardLayout.ts), as a class. */
 const densityClass = (d: CardDensity | undefined) => d && d !== 'normal' ? ` board-density-${d}` : ''
+
+function fitCastBoard(el: HTMLElement) {
+  const current = Number(el.style.getPropertyValue('--board-fit')) || 1
+  const z = castFit(el.clientHeight, el.scrollHeight, current)
+  if (z !== current) el.style.setProperty('--board-fit', String(z))
+}
+
+/** Cast two-column custom layouts share height within each column, so the clock's minimum height cannot
+ * inflate a tip in another column. Unplaced children are sheets, which keep their normal owner. */
+function BoardGrid({ columns, compact, style, children }: {
+  columns?: BoardCardSpec[][]; compact: ReadonlySet<string>; style: React.CSSProperties; children: React.ReactNode
+}) {
+  if (!columns) return <div className="board" style={style}>{children}</div>
+  const slots = new Map<string, React.ReactNode>(), sheets: React.ReactNode[] = []
+  Children.toArray(children).forEach(child => {
+    if (!isValidElement<{ area?: string; 'data-board-area'?: string }>(child)) return
+    const area = child.props.area ?? child.props['data-board-area']
+    if (area) slots.set(area, child); else sheets.push(child)
+  })
+  const tiles = slots.get('tiles')
+  return <div className="board board-custom-columns" style={{ ...style, gridTemplateAreas: 'none', gridTemplateRows: tiles ? 'auto minmax(0, 1fr)' : 'minmax(0, 1fr)' }}>
+    {tiles}
+    {columns.map((col, i) => <div className="board-custom-column" key={i} style={{ gridColumn: i + 1, gridRow: tiles ? 2 : 1, gridTemplateRows: columnRows(col, compact) }}>
+      {col.map(c => slots.get(c.id))}
+    </div>)}
+    {sheets}
+  </div>
+}
 
 /** `foot`: something right under the rows that always shows (the "in Today" slot), taking its space from them. */
 function Card({ title, area, link, density, foot, what, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; what?: [string, string]; children: React.ReactNode }) {
@@ -307,21 +335,33 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     for (const e of c.children) ro.observe(e)
     return () => ro.disconnect()
   }, [fixed, loaded, data?.weather, device.boardLayout, device.boardCustom])
-  // A cast screen (a Nest Hub) can't be scrolled from across the room: when the cards' smallest sizes
-  // (the clock, Today with its counts) are still taller than the screen, the whole Board is drawn a
-  // little smaller (boardFit.ts castFit, --board-fit in styles.css). Measured at full size each time.
+  // Cast fitting can resize its own cards. Keep the current scale on those notifications; only
+  // start at full size again when the available space or appearance changes, otherwise wrapping
+  // and the Today slot can send the board back and forth between two sizes without settling.
+  useLayoutEffect(() => {
+    const el = scrollRef.current, host = el?.parentElement
+    if (!el || !host) return
+    el.style.removeProperty('--board-fit')
+    if (!cast || !fixed) return
+    // Observe the unscaled host, not the board whose dimensions our own zoom changes.
+    let width = host.clientWidth, height = host.clientHeight
+    const space = new ResizeObserver(() => {
+      if (width === host.clientWidth && height === host.clientHeight) return
+      width = host.clientWidth; height = host.clientHeight
+      el.style.removeProperty('--board-fit')
+      fitCastBoard(el)
+    })
+    space.observe(host)
+    return () => space.disconnect()
+  }, [cast, fixed, loaded, device, settings])
+  // Reattach after rendering: a quote can rotate or a feature can add a card without resizing its
+  // column. Measure those new children at the existing scale, without restarting the fitting loop.
   useLayoutEffect(() => {
     const el = scrollRef.current
-    if (!el) return
-    const set = () => {
-      el.style.removeProperty('--board-fit')
-      if (!cast || !fixed) return
-      const z = castFit(el.clientHeight, el.scrollHeight)
-      if (z < 1) el.style.setProperty('--board-fit', String(z))
-    }
-    set()
-    const ro = new ResizeObserver(set)
-    for (const e of el.querySelectorAll(':scope > *, :scope > .board > *')) ro.observe(e)
+    if (!el || !cast || !fixed) return
+    fitCastBoard(el)
+    const ro = new ResizeObserver(() => fitCastBoard(el))
+    for (const e of el.querySelectorAll(':scope > *, :scope > .board > *, :scope > .board > .board-custom-column > *')) ro.observe(e)
     return () => ro.disconnect()
   })
 
@@ -493,9 +533,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
       {medsSlot.sheets}{pollSlot.sheets}
-      <div className="board" style={custom ? custom.style : boardAreas(shown, short)}>
+      <BoardGrid columns={cast && fixed && custom?.columns.length === 2 ? custom.columns : undefined}
+        compact={new Set(cast && short ? tidbitAreas.filter((_, i) => tidbits[i] && tidbits[i]?.kind !== 'trivia') : [])}
+        style={custom ? custom.style : boardAreas(shown, short)}>
         {has('tiles') && (
-          <nav className="board-tiles" aria-label={t('At a glance')} style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
+          <nav data-board-area="tiles" className="board-tiles" aria-label={t('At a glance')} style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
             {tiles.includes('meds') && <TakeNowTile {...meds} />}
             {tiles.includes('chores') && (
               <a className="board-tile" href="#/chores">
@@ -530,7 +572,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             ))}
           </nav>
         )}
-        {has('clock') && <section ref={clockRef} className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label={t('Time and weather')}>
+        {has('clock') && <section data-board-area="clock" ref={clockRef} className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label={t('Time and weather')}>
           {/* A phone puts today's weather beside the time (styles.css); everywhere else it stacks below. */}
           <div className="board-clock-top">
             <div className="board-clock-when">
@@ -688,12 +730,12 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         })()}
         {doing && <GetStuffDone listId={doing} onClose={() => { setDoing(null); setTick(n => n + 1) }} />}
 
-        {has('photo') && <PhotoCard density={dense('photo')} />}
+        {has('photo') && <PhotoCard area="photo" density={dense('photo')} />}
 
         {tidbits.map((t, i) => t && has(tidbitAreas[i]) && (
           <TidbitCard density={dense(tidbitAreas[i])} key={`${i}:${t.kind === 'trivia' ? t.question : t.text}`} tidbit={t} area={tidbitAreas[i]} title={own ? tidbitCardTitle(cards[i]) : undefined} heading={cards[i].sources.length > 1} />
         ))}
-      </div>
+      </BoardGrid>
     </div>
   )
 }
@@ -813,7 +855,7 @@ function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
 
 /** The screensaver's pictures, a new one every minute: this display's sources, or if none are picked
  * the family's own (Google Photos and family photos; nature photos until there are some). */
-function PhotoCard({ density }: { density?: CardDensity }) {
+function PhotoCard({ area, density }: { area: string; density?: CardDensity }) {
   const device = useDeviceAppearance()
   const { refreshTick, settings } = useApp()
   const [hasPhotos, setHasPhotos] = useState(false)
@@ -823,7 +865,7 @@ function PhotoCard({ density }: { density?: CardDensity }) {
   const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos, photoFolder: settings.photoFolder }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
-    <section className={`board-card board-photo${densityClass(density)}`} aria-label={t('Picture')}>
+    <section style={{ gridArea: area }} className={`board-card board-photo${densityClass(density)}`} aria-label={t('Picture')}>
       {!failed && current ? (
         <>
           {/* The whole picture, never cropped (drawings and tall photos lose too much to cover), over a

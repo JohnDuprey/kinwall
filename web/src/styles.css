@@ -4141,6 +4141,12 @@ html:root[data-cast] {
   :root[data-cast] .board-scroll[data-fixed] .board-polls:not(:empty) ~ .board { height: auto; flex: 1 1 0; min-height: 0; }
 }
 
+/* Each custom Cast column fits independently. Text-only quote/tip rows use their content height,
+   leaving the rest for trivia; the other columns keep their own clock and Today minimums. */
+.board-custom-column { min-width: 0; min-height: 0; display: grid; gap: var(--gap); }
+.board-custom-column > .board-card { grid-area: auto !important; }
+.board-custom-columns > .board-tiles { grid-area: auto; grid-column: 1 / -1; }
+
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */

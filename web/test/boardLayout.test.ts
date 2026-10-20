@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  addCard, BUILT_IN_PRESETS, cardOn, CUSTOM, layoutAreas, layoutFor, MAX_PER_COLUMN, moveCard, normalizeLayout, removeCard, rowSpans,
+  columnRows, addCard, BUILT_IN_PRESETS, cardOn, CUSTOM, layoutAreas, layoutFor, MAX_PER_COLUMN, moveCard, normalizeLayout, removeCard, rowSpans,
   setColumnCount, unplaced, updateCard, type BoardLayout,
 } from '../src/boardLayout.ts'
 
@@ -94,4 +94,12 @@ test('cardOn: Meals, Due soon, Chores and Checklist go with their features; the 
   assert.deepEqual(unplaced({ tiles: true, columns: [] }).filter(id => !cardOn(id, off)), ['meals', 'due', 'chores', 'checklist'])
   assert.equal(cardOn('photo', off), true)
   assert.equal(cardOn('meals', { ...off, meals: true }), true)
+})
+
+test('cast columns: a short tip takes its content height and leaves trivia the remaining room', () => {
+  const col = normalizeLayout({ columns: [[{ id: 'tidbit', size: 'l' }, { id: 'tidbit2', size: 'm' }]] }).columns[0]
+  assert.equal(columnRows(col, new Set(['tidbit'])), 'auto minmax(auto,2fr)')
+  assert.equal(columnRows(col, new Set()), 'minmax(auto,3fr) minmax(auto,2fr)')
+  const l = L(false, ['clock', 'today'], ['tidbit', 'tidbit2'])
+  assert.deepEqual(layoutAreas(l, () => true).columns, l.columns, 'render each column independently')
 })

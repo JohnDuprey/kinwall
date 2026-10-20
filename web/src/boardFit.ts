@@ -88,9 +88,11 @@ export const boardShort = (height: number) => height < 700
 export const boardFixed = (width: number, tall: boolean, cast = false) => cast ? width >= 620 : width >= 880 && tall
 
 /** A cast screen's Board drawn smaller when even its cards' smallest sizes are taller than the screen
- *  (`client`: the Board's height, `need`: what its cards take at full size), so nothing is cut off
+ *  (`client`: the Board's height, `need`: what its cards take at the current scale), so nothing is cut off
  *  and nothing scrolls; never under 75%, where a long Board scrolls rather than go unreadable. */
-export const castFit = (client: number, need: number) => need > client + 0.5 ? Math.max(0.75, Math.floor(client / need * 1000) / 1000) : 1
+// Keep an existing fit when its cards resize: zoom changes wrapping and which rows fit, so growing
+// back to full size on those notifications can start an endless shrink/grow loop. A fresh fit uses 1.
+export const castFit = (client: number, need: number, current = 1) => need > client + 0.5 ? Math.max(0.75, Math.floor(current * client / need * 1000) / 1000) : current
 
 /** Columns for the Board's count tiles: one row when each gets `min` px, else as few balanced rows as
  * fit (six on a tablet: 3 + 3, not six slivers with their words cut off, nor 4 + 2). */

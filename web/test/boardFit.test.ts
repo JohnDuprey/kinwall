@@ -192,6 +192,19 @@ test('castFit: full size when the cards fit, else just small enough, never under
   assert.equal(castFit(300, 1000), 0.75)
 })
 
+test('castFit: resizing the fitted cards preserves their scale instead of starting over', () => {
+  const fitted = castFit(380, 400)
+  assert.equal(fitted, 0.95)
+  assert.equal(castFit(400, 400, fitted), fitted, 'its own resize must not enlarge the board again')
+  assert.equal(castFit(400, 390, fitted), fitted, 'wrapping or hidden rows can free space')
+  assert.equal(castFit(400, 420, fitted), 0.904, 'new overflow shrinks relative to the current scale')
+  assert.equal(castFit(400, 1000, fitted), 0.75, 'the readability floor still applies')
+  let scale = fitted
+  for (let i = 0; i < 100; i++) scale = castFit(400, 400, scale)
+  assert.equal(scale, fitted, 'repeated ResizeObserver deliveries settle at the same scale')
+  assert.equal(castFit(400, 400), 1, 'a fresh fit after a viewport or appearance change may grow')
+})
+
 test('short three-column board: Today takes its whole column; meals go under the picture, no quote card', () => {
   assert.equal(boardShort(507), true) // a tablet on its side (1280x800)
   assert.equal(boardShort(780), false) // a wall

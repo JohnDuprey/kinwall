@@ -71,6 +71,11 @@ export function layoutFor(choice: string | undefined, custom: unknown, presets: 
 const WEIGHT: Record<CardSize, number> = { s: 1, m: 2, l: 3 }
 const ROWS = 12
 
+/** Independent Cast columns: short text cards take their content height so trivia gets the rest.
+ * Other cards keep their chosen proportions after their minimum content has been accommodated. */
+export const columnRows = (cards: BoardCardSpec[], compact: ReadonlySet<string>) => cards.map(c =>
+  compact.has(c.id) ? 'auto' : 'minmax(auto,' + WEIGHT[c.size] + 'fr)').join(' ')
+
 /** How many of ROWS each card spans: its share of the column's weight, at least 1, adding up to ROWS. */
 export function rowSpans(sizes: CardSize[]): number[] {
   const total = sizes.reduce((n, s) => n + WEIGHT[s], 0)
@@ -88,7 +93,7 @@ export function rowSpans(sizes: CardSize[]): number[] {
  * that can show (`can`: a feature that's off, a quote card with nothing to say, no tiles to show).
  * A column left empty goes and the others widen, but never down to one column. `shown`: the cards on the Board, in reading order
  * (column by column), which is also the order on a phone. */
-export function layoutAreas(layout: BoardLayout, can: (id: BoardCardId | 'tiles') => boolean): { shown: string[]; style: Record<string, string>; density: Map<string, CardDensity> } {
+export function layoutAreas(layout: BoardLayout, can: (id: BoardCardId | 'tiles') => boolean): { shown: string[]; columns: BoardCardSpec[][]; style: Record<string, string>; density: Map<string, CardDensity> } {
   let cols = layout.columns.map(col => col.filter(x => can(x.id))).filter(col => col.length)
   // Two or more columns never close up to one (the others' cards can't show, or a column was left
   // empty): one long column runs off a short screen, so its cards split in two, the halves as even as they go.
@@ -107,6 +112,7 @@ export function layoutAreas(layout: BoardLayout, can: (id: BoardCardId | 'tiles'
   const two = [...(tiles ? [['tiles']] : []), ...Array.from({ length: Math.ceil(flat.length / 2) }, (_, i) => flat.slice(i * 2, i * 2 + 2))]
   return {
     shown,
+    columns: cols,
     density: new Map(cols.flat().map(x => [x.id, x.density])),
     style: {
       '--board-cols-3': `repeat(${n}, minmax(0, 1fr))`,
