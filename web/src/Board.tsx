@@ -36,6 +36,8 @@ import { onMinute } from './minuteTick.ts'
 import { clockTimeZone } from './timezone.ts'
 import { Face } from './Face'
 import { ChoreTimerButton } from './ChoreTimer.tsx'
+import { useUpkeepDue } from './Upkeep.tsx'
+import { dueLabel } from './upkeep.ts'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -260,6 +262,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const { settings, members, refreshTick, selectedMemberId, focusMemberId, focusShowsShared, parentDevice, meMemberId } = useApp()
   const kidDevice = !parentDevice && !!meMemberId && members.find(m => m.id === meMemberId)?.grownUp === false
   const device = useDeviceAppearance()
+  const upkeepDue = useUpkeepDue() // Home upkeep jobs late or due soon, shown in Due soon
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const [now, setNow] = useState(() => new Date())
   const [tick, setTick] = useState(0)
@@ -456,6 +459,8 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const restLeft = restChores.reduce((n, c) => n + c.remaining, 0)
   const overdue = items.filter(i => i.overdue).length
   const dueWeek = items.filter(i => !i.overdue && i.dueDate).length
+  // Upkeep jobs follow who's shown like the rest: theirs, and nobody's when shared ones show.
+  const upkeep = upkeepDue.filter(j => !focusMemberId || j.memberId === focusMemberId || (focusShowsShared && !j.memberId))
   const dueToday = items.filter(i => i.overdue || i.dueDate === today)
   const dueLater = items.filter(i => !i.overdue && i.dueDate && i.dueDate > today).length
   const dueSummary = [overdue > 0 && t('{n} overdue', { n: overdue }), dueToday.length - overdue > 0 && t('{n} due today', { n: dueToday.length - overdue }), dueLater > 0 && t('{n} later this week', { n: dueLater })].filter(Boolean).join(' · ')
@@ -479,6 +484,9 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const milestonesLink = milestoneLines.length > 0 && <a className="board-slot-row" href="#/rewards"><span aria-hidden="true">🏅</span><span className="board-slot-row-text">{t('Reward milestones: {progress}', { progress: milestoneLines.join(' · ') })}</span></a>
   const goalsLine = goals.length > 0 && <span className="board-goal-chips" aria-hidden="true">🎯 {goalsText}</span>
   const choresName = timed.length ? t('Other chores') : t('Chores')
+  const upkeepLate = upkeep.filter(j => j.status === 'overdue').length
+  const upkeepSummary = upkeepLate ? tn(upkeepLate, '{n} upkeep job late', '{n} upkeep jobs late') : tn(upkeep.length, '{n} upkeep job due soon', '{n} upkeep jobs due soon')
+  const upkeepRow = <a className="board-slot-row" href="#/upkeep"><span aria-hidden="true">🔧</span><span className={`board-slot-row-text ${upkeepLate ? 'snap-overdue' : ''}`}>{upkeepSummary}</span></a>
   const dueRow = <a className="board-slot-row" href="#/lists"><span aria-hidden="true">📝</span><span className="board-slot-row-text">{dueSummary}</span></a>
   // Today's slot, in order: Take now, today's chores, what's due today (the week's still a tap away), an open poll.
   const todaySlot = [
@@ -505,6 +513,13 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         <a className="board-slot-head board-slot-head-link" href="#/lists"><span aria-hidden="true">📝</span>{t('Due today')}<span className="board-slot-row-meta">{dueLater > 0 ? t('{n} later this week ›', { n: dueLater }) : t('All lists ›')}</span></a>
         <ul className="snap-list">{dueToday.map(i => <ItemRow key={i.id} i={i} today={today} close={noop} />)}</ul>
       </div>,
+    },
+    // Home upkeep jobs late or due soon (Upkeep.tsx), after the to-dos: a count that opens Upkeep.
+    todayTiles && dueTile && upkeep.length > 0 && {
+      key: 'upkeep',
+      chip: <a className="board-slot-chip" href="#/upkeep" aria-label={upkeepSummary}><span aria-hidden="true">🔧</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-short ${upkeepLate ? 'snap-overdue' : ''}`}>{upkeep.length}</span><span aria-hidden="true" className={`board-slot-chip-text board-slot-chip-long ${upkeepLate ? 'snap-overdue' : ''}`}>{upkeepSummary}</span></a>,
+      row: upkeepRow,
+      full: upkeepRow,
     },
     pollHost(shown) === 'today' && pollSlot.item,
   ].filter(Boolean) as SlotItem[]
@@ -560,7 +575,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
               <a className="board-tile" href="#/lists">
                 <span className="board-tile-label">📝 {t('Due soon')}</span>
                 <span className="board-tile-value">
-                  {!overdue && !dueWeek ? t('All caught up') : <>{overdue > 0 && <span className="snap-overdue">{t('{n} overdue', { n: overdue })}</span>}{overdue > 0 && dueWeek > 0 && ' · '}{dueWeek > 0 && <span>{t('{n} due this week', { n: dueWeek })}</span>}</>}
+                  {!overdue && !dueWeek && !upkeep.length ? t('All caught up') : <>{overdue > 0 && <span className="snap-overdue">{t('{n} overdue', { n: overdue })}</span>}{overdue > 0 && dueWeek > 0 && ' · '}{dueWeek > 0 && <span>{t('{n} due this week', { n: dueWeek })}</span>}{upkeep.length > 0 && <span>{(overdue || dueWeek) ? ' · ' : ''}🔧 {tn(upkeep.length, '{n} upkeep job', '{n} upkeep jobs')}</span>}</>}
                 </span>
               </a>
             )}
@@ -660,7 +675,10 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         </Card>}
 
         {has('due') && <Card title={t('Due soon')} area="due" density={dense('due')}>
-          {items.length === 0 ? <p className="snap-empty">{t('Nothing due — all caught up.')}</p> : (
+          {upkeep.length > 0 && <ul className="snap-list board-upkeep">{upkeep.map(j => (
+            <li key={`upkeep:${j.id}`}><a href={`#/upkeep?job=${encodeURIComponent(j.id)}`}><span aria-hidden="true">{j.emoji || '🔧'}</span> {j.title} · <span className={j.status === 'overdue' ? 'snap-overdue' : ''}>{dueLabel(j, today)}</span></a></li>
+          ))}</ul>}
+          {items.length === 0 ? (upkeep.length ? null : <p className="snap-empty">{t('Nothing due — all caught up.')}</p>) : (
             <ul className="snap-list">
               {items.map(i => {
                 const owner = i.memberId ? byId.get(i.memberId) : undefined

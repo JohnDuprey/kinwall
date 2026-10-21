@@ -109,6 +109,10 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_outing` | One outing or place by ID or title. |
 | `suggest_outings` | [Outings ideas](../using/outings.md#ideas) by simple rules: this weekend, an open stretch, rain (indoor), nothing planned next weekend, free things, next month, date night (grown-ups), haven't been in a while, surprise me; with the weekend's open time and the forecast. `when` (`this_weekend`, `next_weekend`, `next_month`), `for` (names or IDs), `free_only`. |
 | `list_outing_categories` | Outings' categories, for picking one by name. |
+| `list_upkeep_jobs` | [Home upkeep](../using/upkeep.md) jobs, soonest due first, each with its status (overdue, due, soon, later, or done for a one-off), next due date and the last time it was done. Filters: `status`, `thing`, `member` (names or IDs), `include_archived`. |
+| `get_upkeep_job` | One upkeep job by ID or title: its schedule, steps, supplies and who does it. |
+| `list_upkeep_history` | Every Done, newest first ("When did we last change the furnace filter?"): filter by `job`, `thing`, `member`, `year` or `search`. Costs only through an admin sign-in. |
+| `list_upkeep_things` | The things home upkeep tracks, with their room, brand, model, part notes and warranty (admin), and the areas. |
 | `list_polls` | [Family polls](../using/polls.md), open ones first (`status` to pick open or closed): each choice with the member IDs who voted for it, the winner once closed, and the meal planned from it. |
 | `list_activity_actions` | [Activities](../using/activities.md#activities-from-others) that take actions, each action's description and the input it takes (properties with types, which are required). See [Actions](../contributing/plugins.md#actions). |
 | `get_activity_data` | What an activity saved for one person (`member` by name or ID; omit for the family's shared data), as `{ key: value }`. The format is the activity's own. |
@@ -180,6 +184,11 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `mark_outing_interest` | Sets a member's interest: `interested`, `really` or `none`. A person's own device marks only for them. |
 | `import_outing` | Adds an outing from a link (a page's event or place to visit; a Maps link is a place to visit) or a flyer's text (cost, ticket dates and ages are read too), through the same path as the share sheet (admin). Checks first: `preview` defaults to true and saves nothing; call again with `preview: false` (and the preview's `token` for a link) to save, or send `outing` (the preview's, changed). The same name on the same day only fills in empty fields. Community calendars have no MCP tools; they're managed in the app or over REST. |
 | `add_outing_to_calendar` | Puts an outing on the family calendar as a normal event in the "🎟 Outing" category, linked both ways (admin): `date` (first day; needed for a run or an undated outing), `endDate` (last day, inclusive for all-day events; defaults to `date`), `startTime`/`endTime` (end time required for timed visits spanning days), `calendarId`, `members` going. |
+| `create_upkeep_job` | Adds an upkeep job (admin): `repeatKind` `after` (`every` + `unit`), `on` (`onMonths` + `onDay`) or `once` (`dueOn`), `thing`, `member` and `area` by name, `headsUpDays`, `steps`, `supplies`, `chorePoints` for a kid. |
+| `update_upkeep_job` | Changes an upkeep job (by ID or title): any field of `create_upkeep_job`; `archived: true` puts it away. Admin. |
+| `log_upkeep_done` | Marks an upkeep job done: `doneOn` (default today), `member`, `cost` in dollars, `reading` with `readingUnit` (`mi`, `km`, `h`), `notes`. Moves its next due date. Cost, reading and notes need an admin sign-in. |
+| `create_upkeep_thing` | Adds a thing for home upkeep (admin): name, room, brand, model, serial, part notes, bought on, price, warranty end, manual link, notes. |
+| `update_upkeep_thing` | Changes a thing (by ID or name); `archived: true` is "Sold or gone". Admin. |
 | `create_poll` | Starts a [family poll](../using/polls.md) and notifies everyone (admin): `question`, `ideas` (typed choices), `recipes` and/or `restaurants` from the binder (IDs or exact names; both need Meals on), at least two in all, and optional `date` and `slot` for the meal it decides. |
 | `vote_poll` | Sets, changes or takes back (`option: null`) a member's vote (`member` by name or ID, `option` by label or ID) in an open poll (`poll` by ID or exact question; left out, the one open poll). A person's own device votes only for them. |
 | `close_poll` | Ends voting on a poll and picks the winner (admin): `option`, else the most votes (a tie goes to the first listed). On a poll whose voting already ended, it changes the winner. Plan the winning meal with `create_meal`. |
@@ -204,6 +213,7 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 | `delete_chore` | Deletes a chore. One that was ever done is archived instead: it leaves every list, but its completion history and the points earned from it stay. `update_chore` with `active: false` pauses it instead. Full access. |
 | `delete_tracker_entry` | Deletes a book, memory or health entry. A memory's own photo goes with it, unless it's also a family photo. Full access. Health entries only once a parent turns on [health for connected apps](#health-entries). |
 | `delete_outing` | Marks an outing "Not for us" (kept), or with `hard: true` deletes it and its interest marks. Its calendar event stays. Admin. |
+| `delete_upkeep_job` | Puts an upkeep job away (kept, no more reminders), or with `hard: true` deletes it. Its history stays either way. Admin. |
 | `delete_meal` | Deletes a planned meal and the calendar event Kinwall created for it. A linked event of your own and groceries already on a list stay. Full access. |
 | `delete_recipe` | Deletes a recipe (by ID or exact name) and its ingredients. Planned meals keep their own copy. Full access. |
 | `delete_reward` | Deletes a reward (by ID or exact title). Past requests stay in history; anyone saving for it loses that goal. Full access. |

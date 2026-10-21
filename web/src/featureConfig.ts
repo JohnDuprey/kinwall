@@ -21,5 +21,6 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'paint', section: 'Spaces', group: msg('Activities'), label: msg('Paint'), sub: msg('Drawing and coloring in Activities.') },
   { key: 'photos', section: 'Spaces', group: msg('Activities'), label: msg('Photos'), sub: msg('Family photos in Activities, Newscast and memories, and on the Board and Night screen. Google Photos and nature pictures still show.') },
   { key: 'contacts', section: 'Spaces', label: msg('Contacts'), sub: msg('The household contacts directory.') },
+  { key: 'upkeep', section: 'Spaces', label: msg('Home upkeep'), sub: msg('The things you look after, the jobs that keep them working and when each was last done. Reminders, kids’ upkeep chores and supplies for the shopping list.') },
   { key: 'newscast', section: 'Spaces', label: msg('Newscast'), sub: msg('Home’s Newscast tab: chores done, rewards, photos and drawings, books, memories, birthdays and announcements, with reactions.') },
 ]

@@ -1,0 +1,27 @@
+/* Home upkeep (Upkeep.tsx). Rows and sheets borrow Outings' classes (outings.css); this adds the Done
+   button beside a row, the history list and the month boxes. */
+.upkeep-row { display: flex; gap: 8px; align-items: stretch; }
+.upkeep-row-main { flex: 1; min-width: 0; }
+.upkeep-done-btn { flex: none; min-height: 44px; align-self: center; }
+.upkeep-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.upkeep-entry { display: flex; gap: 12px; padding: 10px 12px; background: var(--card); border-radius: var(--radius-sm, 10px); }
+.upkeep-entry-day { flex: none; min-width: 7.5em; color: var(--text-dim); }
+.upkeep-entry-main { display: grid; gap: 2px; min-width: 0; }
+.upkeep-files, .upkeep-file-list { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.upkeep-file-list { list-style: none; margin: 0 0 8px; padding: 0; flex-direction: column; }
+.upkeep-file-list li { display: flex; gap: 12px; align-items: center; }
+.upkeep-steps { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
+.upkeep-months { border: 0; padding: 0; margin: 0 0 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5em, 1fr)); gap: 0 8px; }
+.upkeep-months legend { padding: 0; margin-bottom: 4px; font-weight: 600; }
+/* An emoji and a name: the emoji's box stays small. */
+.meal-form-row.upkeep-name-row { grid-template-columns: 5em minmax(0, 1fr); }
+.upkeep-starter small { display: block; }
+.upkeep-put-away { margin-top: 16px; }
+.upkeep-put-away .outing-list { margin-top: 8px; }
+.outing-section h2 small { font-weight: normal; color: var(--text-dim); }
+/* A phone keeps the row wide: Done is a ✓ button (its label still names the job). */
+@media (max-width: 480px) {
+  .upkeep-entry { flex-direction: column; gap: 2px; }
+  .upkeep-done-btn { min-width: 48px; padding-inline: 12px; }
+  .upkeep-done-word { display: none; }
+}

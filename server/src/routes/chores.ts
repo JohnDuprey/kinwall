@@ -16,6 +16,7 @@ import { resetListItems } from './lists.ts';
 import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
+import { logFromChore, unlogFromChore } from '../upkeep.ts';
 
 export const choresRoutes = createRouter();
 
@@ -399,11 +400,11 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      'SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days, (SELECT enabled FROM plugins WHERE id = c.plugin_id) AS plugin_enabled FROM chores c WHERE c.id = ? AND c.archived = 0',
+      'SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days, (SELECT enabled FROM plugins WHERE id = c.plugin_id) AS plugin_enabled, (SELECT id FROM upkeep_jobs WHERE handed_chore_id = c.id) AS upkeep_job FROM chores c WHERE c.id = ? AND c.archived = 0',
     ).bind(memberId ?? null, date, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);
-  const chore = choreRes.results[0] as (ChoreRow & { approve_timed_play: number; member_needs_approval: number | null; done_by: string | null; other_days: number; plugin_enabled: number | null }) | undefined;
+  const chore = choreRes.results[0] as (ChoreRow & { approve_timed_play: number; member_needs_approval: number | null; done_by: string | null; other_days: number; plugin_enabled: number | null; upkeep_job: string | null }) | undefined;
   if (!chore) return 'not found';
   const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
   if (blocked) return { blocked };
@@ -477,7 +478,14 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   }
   // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
   emit(c, 'chore.completed', { id, date, title: chore.title, memberId: who, points: written.points_awarded });
+  if (chore.upkeep_job) await upkeepDone(c, id, date, who); // a kid's upkeep chore (upkeep.ts): logs the job
   return true;
+}
+
+/** A kid's upkeep chore ticked off and approved (upkeep.ts): the job is logged as done by them. */
+async function upkeepDone(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | null | undefined): Promise<void> {
+  const done = await logFromChore(c.env.DB, id, date, memberId ?? null);
+  if (done) emit(c, 'upkeep.done', done);
 }
 
 function execCtx(c: Context<{ Bindings: Env }>) {
@@ -541,6 +549,8 @@ choresRoutes.openapi(
     if (blocked) return c.json({ error: blocked }, 403);
     await c.env.DB.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).run();
     emit(c, 'chore.uncompleted', { id, date, title: chore?.title ?? null, memberId: chore?.member_id ?? null });
+    const upkeepJob = await unlogFromChore(c.env.DB, id, date); // a kid's upkeep chore: its Done goes too
+    if (upkeepJob) emit(c, 'upkeep.changed', { id: upkeepJob, kind: 'job' });
     return c.json({ ok: true }, 200);
   },
 );
@@ -617,6 +627,7 @@ choresRoutes.openapi(
     const res = await c.env.DB.prepare("UPDATE chore_completions SET status = 'approved', points_awarded = ? WHERE chore_id = ? AND date = ? AND status = 'pending'").bind(points, id, date).run();
     if (res.meta.changes === 0) return c.json({ error: 'nothing waiting for approval' }, 404);
     emit(c, 'chore.completed', { id, date, title: row.title, memberId: row.member_id, points });
+    await upkeepDone(c, id, date, row.member_id);
     return c.json({ ok: true, points }, 200);
   },
 );

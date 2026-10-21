@@ -106,6 +106,8 @@ test('mcp: tools/list returns the tools', async () => {
     'create_restaurant',
     'create_reward',
     'create_reward_milestone',
+    'create_upkeep_job',
+    'create_upkeep_thing',
     'decline_reward',
     'delete_chore',
     'delete_color_scheme',
@@ -122,6 +124,7 @@ test('mcp: tools/list returns the tools', async () => {
     'delete_recipe',
     'delete_reward',
     'delete_tracker_entry',
+    'delete_upkeep_job',
     'favorite_recipe',
     'get_activity_data',
     'get_board',
@@ -139,6 +142,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_recipe',
     'get_restaurant',
     'get_snapshot',
+    'get_upkeep_job',
     'import_contacts',
     'import_outing',
     'import_recipe',
@@ -170,6 +174,10 @@ test('mcp: tools/list returns the tools', async () => {
     'list_reward_requests',
     'list_rewards',
     'list_tracker_entries',
+    'list_upkeep_history',
+    'list_upkeep_jobs',
+    'list_upkeep_things',
+    'log_upkeep_done',
     'mark_milestone_given',
     'mark_outing_interest',
     'mark_reward_given',
@@ -216,6 +224,8 @@ test('mcp: tools/list returns the tools', async () => {
     'update_reward',
     'update_reward_milestone',
     'update_tracker_entry',
+    'update_upkeep_job',
+    'update_upkeep_thing',
     'vote_poll',
   ]);
 });
@@ -637,6 +647,19 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('import_outing', { text: flyer, preview: false })).summary, 'Added Pumpkin carving to Outings');
   assert.equal((await call('delete_outing', { outing: fest.id })).outing.archived, true);
   assert.equal((await call('delete_outing', { outing: fest.id, hard: true })).ok, true);
+  const van = (await call('create_upkeep_thing', { name: 'Blue van', area: 'cars & bikes', model: 'Odyssey' })).thing;
+  assert.equal((await call('update_upkeep_thing', { thing: 'blue van', room: 'Driveway' })).thing.room, 'Driveway');
+  assert.ok((await call('list_upkeep_things')).areas.some((a: any) => a.name === 'Cars & bikes'));
+  const oil = (await call('create_upkeep_job', { title: 'Oil change', thing: van.id, every: 6, unit: 'month', startOn: today, member: 'ava' })).job;
+  assert.deepEqual([oil.status, oil.thingId], ['due', van.id]);
+  assert.equal((await call('list_upkeep_jobs', { status: ['due'] })).jobs.length, 1);
+  assert.equal((await call('update_upkeep_job', { job: 'oil', headsUpDays: 14 })).job.headsUpDays, 14);
+  const logged = await call('log_upkeep_done', { job: 'Oil change', cost: 54.5, reading: 48210, notes: 'Synthetic' });
+  assert.deepEqual([logged.entry.costCents, logged.entry.reading, logged.job.status], [5450, 48210, 'later']);
+  assert.equal((await call('list_upkeep_history', { thing: 'blue van' })).entries.length, 1);
+  assert.equal((await call('get_upkeep_job', { job: oil.id })).job.lastDone.doneOn, today);
+  assert.equal((await call('delete_upkeep_job', { job: oil.id })).job.archived, true);
+  assert.equal((await call('delete_upkeep_job', { job: oil.id, hard: true })).ok, true);
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });

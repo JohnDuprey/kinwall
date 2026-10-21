@@ -300,6 +300,7 @@ export const FeaturesSchema = z
     newscast: z.boolean().default(true), // Home's Newscast tab: GET /api/newscast and its routes answer 404 while off
     polls: z.boolean().default(true), // Family polls: /api/polls and its routes answer 404 while off, no poll notifications
     outings: z.boolean().default(true), // Outings: /api/outings and its routes answer 404 while off, no outing reminders
+    upkeep: z.boolean().default(true), // Home upkeep: /api/upkeep and its routes answer 404 while off, no upkeep notes, chores or supplies
     checkIns: z.boolean().default(true), // Temp check, goal checks, the energy battery, journals, Insights: no check-in, goal or battery notifications and no check-in points while off
   })
   .openapi('Features');
@@ -1072,6 +1073,7 @@ export const PushSubscriptionPrefsSchema = z
     choreNudgeTime: z.string().regex(HHMM_RE),
     listUpdates: z.boolean(),
     outingReminders: z.boolean().default(true).openapi({ description: 'Outings: heads-ups for ⭐ outings, ticket dates and last chances.' }),
+    upkeepReminders: z.boolean().default(true).openapi({ description: 'Home upkeep: jobs coming up, due and late, and warranties ending.' }),
     medicationNames: z.boolean().openapi({ description: 'Medicine names and doses in medication reminders on this device (off: "Time for Leo\'s medicine" only; push text shows on lock screens).' }),
   })
   .openapi('PushSubscriptionPrefs');

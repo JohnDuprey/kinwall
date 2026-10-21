@@ -12,6 +12,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
@@ -187,7 +188,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = msg("You're offline. This will work when you're back online.")
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|outings|outing-categories|outing-feeds|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|outings|outing-categories|outing-feeds|upkeep|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -271,6 +272,10 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockOutingRequest } = await import('./mock-outings.ts')
     return mockOutingRequest(path, opts) as Promise<T>
   }
+  if (MOCK && /^api\/upkeep([/?]|$)/.test(path)) {
+    const { mockUpkeepRequest } = await import('./mock-upkeep.ts')
+    return mockUpkeepRequest(path, opts) as Promise<T>
+  }
   if (MOCK && /^api\/polls([/?]|$)/.test(path)) {
     const { mockPollRequest } = await import('./mock-polls.ts')
     return mockPollRequest(path, opts) as Promise<T>
@@ -313,6 +318,10 @@ const post = <T,>(path: string, body?: unknown, useAdmin?: boolean) => req<T>(pa
 const patch = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path, { method: 'PATCH', body: JSON.stringify(body), useAdmin })
 const put = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path, { method: 'PUT', body: JSON.stringify(body), useAdmin })
 const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DELETE', useAdmin })
+
+/** Home upkeep's paths: an id in a path, and a query from what's set. */
+const U = (id: string) => encodeURIComponent(id)
+const qs = (q: Record<string, string | undefined>) => { const p = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => !!e[1])).toString(); return p ? '?' + p : '' }
 
 export const api = {
   getContacts: () => MOCK ? mock.getContacts() : get<Contact[]>('api/contacts'),
@@ -358,6 +367,34 @@ export const api = {
   closePoll: (id: string, optionId?: string) => post<Poll>(`api/polls/${encodeURIComponent(id)}/close`, { optionId }),
   updatePoll: (id: string, body: { question?: string; mealId?: string | null }) => patch<Poll>(`api/polls/${encodeURIComponent(id)}`, body),
   deletePoll: (id: string) => del<{ ok: boolean }>(`api/polls/${encodeURIComponent(id)}`),
+  // Home upkeep (routes/upkeep.ts). A wall or kid's device gets its own jobs and no costs or files.
+  getUpkeepJobs: (status?: string) => get<UpkeepJob[]>('api/upkeep/jobs' + qs({ status })),
+  getArchivedUpkeepJobs: () => get<UpkeepJob[]>('api/upkeep/jobs?archived=true'),
+  getUpkeepJob: (id: string) => get<UpkeepJob>('api/upkeep/jobs/' + U(id)),
+  createUpkeepJob: (body: UpkeepJobInput & { title: string }) => post<UpkeepJob>('api/upkeep/jobs', body),
+  updateUpkeepJob: (id: string, body: UpkeepJobInput) => patch<UpkeepJob>('api/upkeep/jobs/' + U(id), body),
+  deleteUpkeepJob: (id: string) => del<{ ok: boolean }>('api/upkeep/jobs/' + U(id)),
+  markUpkeepDone: (id: string, body: UpkeepDoneInput) => post<{ entry: UpkeepEntry; job: UpkeepJob }>('api/upkeep/jobs/' + U(id) + '/done', body),
+  snoozeUpkeepJob: (id: string, until: string | null) => post<UpkeepJob>('api/upkeep/jobs/' + U(id) + '/snooze', { until }),
+  skipUpkeepJob: (id: string) => post<UpkeepJob>('api/upkeep/jobs/' + U(id) + '/skip'),
+  addUpkeepToCalendar: (id: string, body: { date?: string; startTime?: string | null; endTime?: string | null; calendarId?: string }) => post<UpkeepJob>('api/upkeep/jobs/' + U(id) + '/calendar', body),
+  getUpkeepThings: (archived = false) => get<UpkeepThing[]>('api/upkeep/things' + (archived ? '?archived=all' : '')),
+  createUpkeepThing: (body: UpkeepThingInput & { name: string }) => post<UpkeepThing>('api/upkeep/things', body),
+  updateUpkeepThing: (id: string, body: UpkeepThingInput) => patch<UpkeepThing>('api/upkeep/things/' + U(id), body),
+  deleteUpkeepThing: (id: string) => del<{ ok: boolean }>('api/upkeep/things/' + U(id)),
+  getUpkeepAreas: () => get<UpkeepArea[]>('api/upkeep/areas'),
+  getUpkeepLog: (q: { job?: string; thing?: string; year?: string; q?: string } = {}) => get<UpkeepEntry[]>('api/upkeep/log' + qs(q)),
+  updateUpkeepEntry: (id: string, body: Partial<Pick<UpkeepEntry, 'doneOn' | 'memberId' | 'contactId' | 'costCents' | 'reading' | 'readingUnit' | 'notes'>>) => patch<UpkeepEntry>('api/upkeep/log/' + U(id), body),
+  deleteUpkeepEntry: (id: string) => del<{ ok: boolean }>('api/upkeep/log/' + U(id)),
+  getUpkeepStarters: () => get<UpkeepStarter[]>('api/upkeep/starters'),
+  addUpkeepStarters: (keys: string[]) => post<UpkeepJob[]>('api/upkeep/starters', { keys }),
+  /** A receipt, manual or photo (at most 2 MB) on a thing or a Done. */
+  uploadUpkeepFile: (to: { thing: string } | { entry: string }, file: Blob, name: string) => req<UpkeepFile>('api/upkeep/files' + qs(to), {
+    method: 'POST', body: file, useAdmin: true, headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(name) },
+  }),
+  deleteUpkeepFile: (id: string) => del<{ ok: boolean }>('api/upkeep/files/' + U(id), true),
+  /** A file to open in a new tab: the media token as ?key=, like photos ('' until it's known). */
+  upkeepFileUrl: (id: string) => MOCK ? '' : mediaUrl('api/upkeep/files/' + U(id)),
   getOutings: () => get<Outing[]>('api/outings?past=all'),
   getOutingIdeas: () => get<OutingIdeas>('api/outings/ideas'),
   getOuting: (id: string) => get<Outing>(`api/outings/${encodeURIComponent(id)}`),

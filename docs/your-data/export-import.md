@@ -21,6 +21,7 @@
 | Notes threads on local events and list items | Notes on synced events, and [Newscast](../using/newscast.md) announcements and reactions (they last 30 days, like the bell's feed lasts 90; everything else in Newscast comes from what is exported) |
 | [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos and coloring pages (download them separately from Photos) |
 | [Family polls](../using/polls.md) with their choices and votes | |
+| [Home upkeep](../using/upkeep.md): areas, things, jobs and every Done, costs and notes too | Its receipts and manuals: they're in the photo backup zip, under `upkeep/` |
 | [Meals](../using/meals.md): recipes (archived ones too, basics with their links), planned meals with their own ingredient copies, and which ingredients were already added to which shopping list | |
 | ICS feed URLs | |
 | Passkey and webhook *names/URLs*, for reference | [Security activity](../using/sign-in-and-security.md#security-activity) (it's about this server's sign-ins and devices, and an import shouldn't be able to write one) |

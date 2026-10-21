@@ -18,6 +18,7 @@ const LOAD_ERRORS: Record<string, string> = {
   events: msg("Couldn't load events. Check your connection."),
   Newscast: msg("Couldn't load Newscast. Check your connection."),
   outings: msg("Couldn't load outings. Check your connection."),
+  upkeep: msg("Couldn't load home upkeep. Check your connection."),
   recipes: msg("Couldn't load recipes. Check your connection."),
   restaurants: msg("Couldn't load restaurants. Check your connection."),
   'the board': msg("Couldn't load the board. Check your connection."),

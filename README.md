@@ -18,7 +18,7 @@ Kinwall is built with neurodivergent family members in mind, and it's free, open
 
 ## What lives in Kinwall
 
-Use all of it or just a few parts. Turn off what you don't use (chores, lists, meals, contacts, Paint, photos, notes, messages, Newscast, check-ins, rewards, any tracker) and it disappears from every screen.
+Use all of it or just a few parts. Turn off what you don't use (chores, lists, meals, contacts, home upkeep, Paint, photos, notes, messages, Newscast, check-ins, rewards, any tracker) and it disappears from every screen.
 
 - **The Board**: the first thing every screen shows, readable from across the room: a big clock, the weather and the next four days, today, coming up, chores, lists, meals, a family photo and a card with a quote, fun fact, "On this day", trivia or tip. Each screen can have its own layout, big and simple for the kids or meals first in the kitchen.
 - **Calendar**: Google, Microsoft 365 / Outlook and iCloud / CalDAV (two-way) and any ICS feed (read-only), merged and color-coded by person. Day, Week, Month and Schedule views, with 3 Day on phones. Events get reminders, a leave-by time for the drive, categories (🎂 Birthdays, 🏥 Appointments) and linked tasks. Filter a busy school or team calendar down to what matters, skip all-day noise, or hide one event or a whole series.
@@ -29,6 +29,7 @@ Use all of it or just a few parts. Turn off what you don't use (chores, lists, m
 - **Routines and reminders**: a Now / Next strip with a live countdown, calm transition warnings before it's time to switch, push reminders, a morning summary and timers anyone can start from the header.
 - **Medicines and health**: medication reminders with a Take now card on the wall, plus checkups, vaccines and measurements. Off until a parent turns it on, always encrypted, and shared screens say "Meds", not the medicine.
 - **Contacts**: the household's people and places outside the family: the babysitter, grandparents, the school office, the pediatrician.
+- **Home upkeep**: the jobs that come round every few months or years, like the furnace filter, smoke alarms and the oil change, with reminders before they're due and a log of when each was done, by whom and what it cost. Keep each thing's model, part sizes, warranty and receipts, hand a job to a kid as a chore, and put its supplies on the shopping list.
 - **Memories and play**: a shared photo album for the Board, a reading log, a family memories journal, Paint with drawings saved to the album, and sandboxed learning games like [Sight words](https://github.com/JohnDuprey/kinwall-plugin-sight-words) and [Math practice](https://github.com/JohnDuprey/kinwall-plugin-math) (no internet, no family data). [Build your own](docs/contributing/plugins.md) from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
 - **Check-ins**: an optional Temp check, energy battery and evening check-in, with a private journal and insights for each person.
 - **Newscast**: a Home tab with the family's last month: chores done, rewards, photos and drawings, books, memories and birthdays, plus short announcements anyone can post and react to.

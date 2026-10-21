@@ -106,6 +106,7 @@ export interface Features {
   newscast: boolean // Home's Newscast tab (with its routes)
   polls: boolean // Family polls: the Board card, the Polls sheet, poll notifications (their routes answer 404 while off)
   outings: boolean // Outings: the tab, the Board's Outings button and its reminders (their routes answer 404 while off)
+  upkeep: boolean // Home upkeep: the tab, its jobs in Due soon, its reminders, chores and supplies (on unless turned off; its routes answer 404 while off)
   checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
 
@@ -990,6 +991,7 @@ export interface PushSubscriptionPrefs {
   choreNudgeTime: string
   listUpdates: boolean
   outingReminders?: boolean // Outings: heads-ups for ⭐ outings, ticket dates and last chances (on unless turned off)
+  upkeepReminders?: boolean // Home upkeep: jobs coming up, due and late, warranties ending (on unless turned off)
   medicationNames: boolean // medicine names in medication reminders on this device (off: generic text)
 }
 
@@ -997,7 +999,7 @@ export interface PushSubscriptionPrefs {
 export interface AppNotification {
   id: string
   at: string
-  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll' | 'outing'
+  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll' | 'outing' | 'upkeep'
   title: string
   body: string | null
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens
@@ -1167,3 +1169,30 @@ export interface OutingCategory { id: string; name: string; emoji: string | null
 export interface MilestoneInput { title: string; emoji?: string | null; reward: string; metric: 'points' | 'chores'; target: number; memberIds: string[] }
 export interface MilestoneMember { memberId: string; startedAt: string; progress: number; earnedAt: string | null; givenAt: string | null }
 export interface Milestone extends Omit<MilestoneInput, 'memberIds'> { id: string; emoji: string | null; active: boolean; createdAt: string; members: MilestoneMember[] }
+// Home upkeep (server: routes/upkeep.ts, upkeep-rules.ts). A thing is something the family looks
+// after; a job keeps it working and repeats 'after' (every N units from the last Done), 'on' (fixed
+// months and day) or 'once'. A wall or kid's device gets no costs, serials, notes, files or pros.
+export interface UpkeepArea { id: string; name: string; emoji: string | null; sort: number }
+export interface UpkeepFile { id: string; name: string; mime: string; bytes: number }
+export interface UpkeepThing {
+  id: string; name: string; emoji: string | null; areaId: string | null; room: string | null; brand: string | null; model: string | null; serial: string | null
+  partNotes: string | null; boughtOn: string | null; priceCents: number | null; warrantyUntil: string | null; manualUrl: string | null; contactId: string | null
+  notes: string | null; archived: boolean; createdAt: string; updatedAt: string; files: UpkeepFile[]
+}
+export type UpkeepThingInput = Partial<Omit<UpkeepThing, 'id' | 'createdAt' | 'updatedAt' | 'files'>>
+export type UpkeepStatus = 'overdue' | 'due' | 'soon' | 'later' | 'done'
+export interface UpkeepJob {
+  id: string; title: string; emoji: string | null; thingId: string | null; areaId: string | null; repeatKind: 'once' | 'after' | 'on'
+  every: number | null; unit: 'day' | 'week' | 'month' | 'year' | null; onMonths: number[]; onDay: number | null; startOn: string | null; dueOn: string | null
+  headsUpDays: number; snoozedUntil: string | null; skippedUntil: string | null; memberId: string | null; contactId: string | null; usualCostCents: number | null
+  steps: string[]; supplies: { name: string }[]; suppliesListId: string | null; suppliesDays: number; chorePoints: number | null; handedChoreId: string | null
+  calendarEventId: string | null; calendarEventStart: string | null; wallVisible: boolean; libraryKey: string | null; archived: boolean; createdAt: string; updatedAt: string
+  nextDue: string | null; status: UpkeepStatus; lastDone: { id: string; doneOn: string; memberId: string | null } | null
+}
+export type UpkeepJobInput = Partial<Omit<UpkeepJob, 'id' | 'createdAt' | 'updatedAt' | 'nextDue' | 'status' | 'lastDone' | 'handedChoreId' | 'calendarEventId' | 'calendarEventStart' | 'libraryKey' | 'snoozedUntil' | 'skippedUntil'>>
+export interface UpkeepEntry {
+  id: string; jobId: string | null; thingId: string | null; title: string; doneOn: string; memberId: string | null; contactId: string | null; costCents: number | null
+  reading: number | null; readingUnit: 'mi' | 'km' | 'h' | null; notes: string | null; choreId: string | null; createdBy: string | null; createdAt: string; files: UpkeepFile[]
+}
+export interface UpkeepDoneInput { doneOn?: string; memberId?: string | null; contactId?: string | null; costCents?: number | null; reading?: number | null; readingUnit?: 'mi' | 'km' | 'h' | null; notes?: string | null }
+export interface UpkeepStarter { key: string; title: string; emoji: string; areaId: string; repeatKind: UpkeepJob['repeatKind']; every: number | null; unit: UpkeepJob['unit']; onMonths: number[]; onDay: number | null; supplies: string[] }
