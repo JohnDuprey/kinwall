@@ -466,6 +466,7 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null; owner: string | null; device_kind: KeyDeviceKind | null }>();
   if (!row) return null;
   if (row.expires_at && row.expires_at < new Date().toISOString()) return null; // expired session key
+  if (!(await derivedOwnerIsCurrent(c.env.DB, row))) return null;
   return {
     id: row.id,
     name: row.name,
@@ -475,6 +476,29 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     owner: row.owner,
     deviceKind: row.device_kind,
   };
+}
+
+/** A personal widgets/Watch key must still belong to the person whose sign-in made it.
+ * Walk its parent chain too: a child of an invalid personal key cannot retain private access.
+ * Shared keys stay shared, and legacy keys without a recorded parent retain their old behavior. */
+async function derivedOwnerIsCurrent(db: KinwallDb, key: { id: string; owner: string | null; device_kind: KeyDeviceKind | null }): Promise<boolean> {
+  if (key.device_kind !== 'widgets' || !key.owner || key.owner === 'shared') return true;
+  const mismatch = await db.prepare(`
+    WITH RECURSIVE chain AS (
+      SELECT id, owner, device_kind, parent_key_id, parent_grant_id FROM api_keys WHERE id = ?
+      UNION ALL
+      SELECT p.id, p.owner, p.device_kind, p.parent_key_id, p.parent_grant_id
+        FROM api_keys p JOIN chain child ON p.id = child.parent_key_id
+    )
+    SELECT 1 AS invalid FROM chain k
+      LEFT JOIN api_keys p ON p.id = k.parent_key_id
+      LEFT JOIN oauth_grants g ON g.id = k.parent_grant_id
+    WHERE k.device_kind = 'widgets' AND k.owner IS NOT NULL AND k.owner != 'shared'
+      AND (k.parent_key_id IS NOT NULL OR k.parent_grant_id IS NOT NULL)
+      AND k.owner IS NOT CASE WHEN k.parent_grant_id IS NOT NULL THEN g.owner ELSE p.owner END
+    LIMIT 1
+  `).bind(key.id).first<{ invalid: number }>();
+  return !mismatch;
 }
 
 // ---- Media tokens: what an <img src> carries instead of the full key ----
@@ -556,7 +580,7 @@ async function resolveMediaToken(env: Env, token: string): Promise<ResolvedKey |
            AND (expires_at > ? OR EXISTS (SELECT 1 FROM oauth_refresh_tokens r WHERE r.grant_id = k.oauth_grant_id AND r.used_at IS NULL AND r.expires_at > ?))
          ORDER BY expires_at DESC LIMIT 1`,
       ).bind(id, now, now).first<KeyRow>();
-  return row ? { ...toResolved(row), media: true } : null;
+  return row && await derivedOwnerIsCurrent(env.DB, row) ? { ...toResolved(row), media: true } : null;
 }
 
 // ---- Photo download links: a one-time ticket for GET /api/photos/export.zip ----

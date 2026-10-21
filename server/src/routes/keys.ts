@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { stored } from '../i18n.ts';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { actorOf, createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type KeyDeviceKind } from '../auth.ts';
+import { actorOf, createApiKey, DEVICE_KINDS, deviceKindOwner, ownDevice, resolveKey, type KeyDeviceKind } from '../auth.ts';
 import { deviceOwnerEvent, recordSecurityEvent, securityEventStmts } from './security-events.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -148,23 +148,29 @@ keysRoutes.openapi(
     tags: ['API Keys'],
     summary: "Create an everyday-access key for this app's widgets or watch (plaintext key returned once)",
     security: [{ Bearer: [] }],
-    request: { body: { content: { 'application/json': { schema: z.object({ name: z.string().trim().min(1).max(60) }) } } } },
+    request: { body: { content: { 'application/json': { schema: z.object({
+      name: z.string().trim().min(1).max(60),
+      purpose: z.enum(['widgets', 'watch']).optional().openapi({ description: 'Defaults to widgets (shared on a parent phone). A watch belongs only to the signed-in device owner; no member id can be supplied.' }),
+    }) } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: ApiKeyCreatedSchema } } },
       429: { description: 'too many keys', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
-    const { name } = c.req.valid('json');
+    const { name, purpose } = c.req.valid('json');
     const me = await resolveKey(c);
     const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE kind = 'api'").first<{ n: number }>();
     if (Number(count?.n ?? 0) >= MAX_KEYS) return c.json({ error: 'This household has too many keys. Remove some under Settings → Access.' }, 429);
+    // A Watch is personal only when this credential already belongs to someone.
+    // Never derive a parent's private identity through the shared widgets credential.
+    const watchOwner = purpose === 'watch' ? await ownDevice(c) : null;
     // Widgets follow the device only when the device itself is pinned (a kid's phone signed in
     // with everyday access). They're everyday-access keys, and an owner pins those, so a parent's
     // phone (full access, never locked) gets shared widgets that show the whole family.
     const grant = me?.kind === 'oauth' ? await c.env.DB.prepare('SELECT oauth_grant_id FROM api_keys WHERE id = ?').bind(me.id).first<{ oauth_grant_id: string | null }>() : null;
     const { id, key } = await createApiKey(c.env.DB, name, 'display', {
-      owner: me?.scope === 'display' ? me.owner ?? null : 'shared', deviceKind: 'widgets',
+      owner: watchOwner ?? (me?.scope === 'display' ? me.owner ?? null : 'shared'), deviceKind: 'widgets',
       ...(grant ? { parentGrantId: grant.oauth_grant_id } : { parentKeyId: me?.id ?? null }),
     });
     await recordSecurityEvent(c.env.DB, { kind: 'widgets.added', summary: stored('security', 'Widgets key "{name}" added', { name }), by: await actorOf(c), device: name });

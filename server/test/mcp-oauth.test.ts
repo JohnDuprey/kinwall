@@ -445,3 +445,23 @@ test("oauth migration: the Kinwall app's existing sign-ins stay family devices; 
   assert.deepEqual(rows.map((r) => [r.id, r.device_app]), [['g-ai', 0], ['g-app', 1], ['g-mixed', 0]]);
   fs.rmSync(dir, { recursive: true });
 });
+
+
+test('OAuth personal Watch keys survive refresh but lose access when the phone changes person', async () => {
+  const t = setup();
+  const alex = await addMember(t, 'Alex');
+  const sam = await addMember(t, 'Sam');
+  for (const id of [alex, sam]) await t.req(`/api/members/${id}`, { method: 'PATCH', body: JSON.stringify({ grownUp: true }) }, ADMIN_KEY);
+  const tok = await appSignIn(t, 'admin', alex);
+  const watch = await (await t.req('/api/device-keys', { method: 'POST', body: JSON.stringify({ name: 'Apple Watch', purpose: 'watch' }) }, tok.access_token)).json() as any;
+  assert.equal((await me(t, watch.key)).owner, alex);
+  const { mediaTokenFor } = await import('../src/auth.ts');
+  const media = await mediaTokenFor(t.env, { id: watch.id, scope: 'display', kind: 'api', name: 'Watch', owner: alex, deviceKind: 'widgets' });
+  assert.ok(media);
+  const next = await (await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }))).json() as any;
+  assert.ok(next.access_token);
+  assert.equal((await me(t, watch.key)).owner, alex);
+  assert.equal((await t.req('/api/me/owner', { method: 'PUT', body: JSON.stringify({ owner: sam }) }, next.access_token)).status, 200);
+  assert.equal((await t.req('/api/me', {}, watch.key)).status, 401);
+  assert.equal((await t.req(`/api/photos/missing/image?key=${media}`, {}, '')).status, 401, 'media tokens also lose the previous owner’s access');
+});
