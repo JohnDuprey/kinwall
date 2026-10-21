@@ -48,7 +48,10 @@ test('reminders: buy tickets 3 days before and that morning, on sale the day bef
   assert.deepEqual([announced?.key, announced?.title, announced?.body, announced?.memberIds], ['outing:o1:dated:2027-06-12', '🎪 Fall Fest: the date is set', "It's Saturday, June 12.", ['sam']]);
 });
 
-test('reminders: the morning tick sends each once, to who it is for; date announced; the ideas route', async () => {
+test('reminders: the morning tick sends each once, to who it is for; date announced; the ideas route', async (t) => {
+  const now = new Date('2026-10-07T09:30:00Z');
+  // The ideas route reads today's date, so keep it on the reminder fixtures' day too.
+  t.mock.timers.enable({ apis: ['Date'], now });
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
   const env: Env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' };
@@ -57,7 +60,6 @@ test('reminders: the morning tick sends each once, to who it is for; date announ
   await send('PATCH', '/api/settings', { timezone: 'UTC', quietFrom: '22:00', quietTo: '06:00' });
   const maya = await send('POST', '/api/members', { name: 'Maya', color: '#339966' });
   await send('POST', '/api/members', { name: 'Alex', color: '#336699', grownUp: true });
-  const now = new Date('2026-10-07T09:30:00Z');
   const fest = await send('POST', '/api/outings', { title: 'Fall Fest', startsOn: '2026-10-08', categoryId: 'oc-fairs' });
   await send('PUT', `/api/outings/${fest.id}/interest`, { memberId: maya.id, level: 'really' });
   const feed = async () => (await send('GET', '/api/notifications')).filter((n: any) => n.kind === 'outing').map((n: any) => n.title);
