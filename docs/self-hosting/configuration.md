@@ -132,6 +132,7 @@ your Kinwall server. The environment variable takes precedence over the saved ad
 Gateway delivery activates when the app registers its device
 credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key. It makes outbound
 HTTPS requests only; the home server does not need a public inbound endpoint.
+Credentials are sent only to this fixed gateway; the server refuses gateway redirects.
 
 The official production iOS app verifies its installation with Apple App Attest before obtaining
 a device credential. It keeps the credential in secure device storage, renews it before expiry

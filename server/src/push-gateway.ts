@@ -34,7 +34,9 @@ async function smallJson(response: Response): Promise<unknown> {
 }
 
 const call = (env: PushGatewayEnv, path: string, credential: string, body?: unknown) =>
-  (env.PUSH_GATEWAY_FETCH ?? fetch)(`${ORIGIN}${path}`, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
+  // Workers rejects redirect:error. Keep redirects visible so callers reject their non-200 status
+  // without ever forwarding the scoped credential to another origin.
+  (env.PUSH_GATEWAY_FETCH ?? fetch)(`${ORIGIN}${path}`, { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10000),
     headers: { Authorization: 'Bearer ' + credential, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 
 /** Verify destination ownership metadata without displaying a test notification. No notification

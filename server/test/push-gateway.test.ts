@@ -41,7 +41,7 @@ test('self-hosted gateway: verifies and encrypts a device credential; sends only
   assert.ok(!JSON.stringify(row).includes(CREDENTIAL));
   assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Test', url: '/#/lists' }), 1);
   assert.equal(calls[1].url, 'https://push.kinwall.family/v1/send');
-  assert.equal(calls[1].init?.redirect, 'error');
+  assert.equal(calls[1].init?.redirect, 'manual');
   assert.equal(new Headers(calls[1].init?.headers).get('Authorization'), `Bearer ${CREDENTIAL}`);
   assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { type: 'alert', payload: { title: 'Hello', body: 'Test', url: '/#/lists' } });
   assert.ok(!String(calls[1].init?.body).includes(TOKEN));
@@ -206,4 +206,30 @@ test('self-hosted gateway: the environment public URL overrides Settings and mis
   await DB.prepare("DELETE FROM settings WHERE key='publicUrl'").run();
   assert.equal((await register({ token: TOKEN, gateway: { credential: CREDENTIAL } })).status, 400);
   assert.equal(calls.length, 1, 'request origin cannot substitute for an explicitly configured public URL');
+});
+
+test('self-hosted gateway: verification and sends work when the runtime rejects redirect error mode', async () => {
+  const { env, register } = await fixture();
+  const transport = env.PUSH_GATEWAY_FETCH!;
+  env.PUSH_GATEWAY_FETCH = async (input, init) => {
+    // Cloudflare's fetch supports follow/manual, and throws before sending for redirect:error.
+    if (init?.redirect === 'error') throw new TypeError('Invalid redirect value');
+    return transport(input, init);
+  };
+  assert.equal((await register({ token: TOKEN, gateway: { credential: CREDENTIAL } })).status, 200);
+  assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Test' }), 1);
+});
+
+test('self-hosted gateway: redirects cannot verify credentials or forward alerts to another origin', async () => {
+  const { env, register, calls } = await fixture();
+  await register({ token: TOKEN, gateway: { credential: CREDENTIAL } });
+  calls.length = 0;
+  env.PUSH_GATEWAY_FETCH = async (input, init) => {
+    assert.equal(init?.redirect, 'manual', 'never automatically follow a credential-bearing redirect');
+    calls.push({ url: String(input), init });
+    return new Response(null, { status: 302, headers: { Location: 'https://other.example/collect' } });
+  };
+  assert.equal((await register({ token: TOKEN, gateway: { credential: CREDENTIAL } })).status, 400);
+  assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Test' }), 0);
+  assert.deepEqual(calls.map(c => c.url), ['https://push.kinwall.family/v1/registration/verify', 'https://push.kinwall.family/v1/send']);
 });
