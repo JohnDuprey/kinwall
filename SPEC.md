@@ -79,6 +79,8 @@ import { MIGRATIONS } from './server/src/worker-migrations.ts'; // bundler must 
 const kinwall = createKinwall(env, { migrations: MIGRATIONS }); // env: Env, env.DB: KinwallDb
 await kinwall.fetch(request, ctx?);  // Response
 await kinwall.scheduled(now?, ctx?); // one cron tick: syncDue + runNotifications
+await kinwall.reminders(now?);       // medicine reminders only, without calendar sync
+const next = await kinwall.nextReminderAt(now, nextRoutineTick); // Unix ms or null
 ```
 
 - Create one per database and keep it: `migrations` are applied lazily before the first

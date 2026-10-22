@@ -1,9 +1,10 @@
 // Workers-compatible. The one way to host the server: worker.ts, node.ts and embedders (e.g. a
 // Durable Object per household) all go through createKinwall. See SPEC.md "Embedding the server".
+import { nextReminderAt } from './reminder-schedule.ts';
 import { createApp } from './app.ts';
 import type { Env, WaitCtx } from './env.ts';
 import { syncDue } from './sync.ts';
-import { runNotifications, sealMedicationNotes } from './notify.ts';
+import { runNotifications, runMedicineReminders, sealMedicationNotes } from './notify.ts';
 import { runMigrations, type Migration } from './migrate.ts';
 import { sealHealthEntries } from './routes/trackers.ts';
 import { shelveReadingEntries } from './shelve.ts';
@@ -73,6 +74,16 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
     async fetch(request: Request, ctx?: ExecutionContext): Promise<Response> {
       await ready();
       return app.fetch(request, env, ctx);
+    },
+    /** Medicine reminders only; hosts may wake at exact due times between routine ticks. */
+    async reminders(now = new Date()): Promise<void> {
+      await ready();
+      await runMedicineReminders(env, now);
+    },
+    /** Earliest pending medicine deadline before the next routine tick, or null. */
+    async nextReminderAt(now: Date, before: Date): Promise<number | null> {
+      await ready();
+      return nextReminderAt(env, now, before);
     },
     /** One cron tick: sync calendars that are due (self-throttled) + send due notifications + look up a few library books' details + read Outings' community calendars once a day. Each
      * runs to the end whatever the other does, and a failure is logged rather than thrown: the next

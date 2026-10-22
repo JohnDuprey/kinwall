@@ -1,3 +1,4 @@
+import { MED_GRACE_MS, REFILL_REMIND_AT, medicineReminderTimes } from './medicine-reminder-times.ts';
 import { goalProgressFor } from './chore-goals.ts';
 // Push notification scheduling: event reminders, daily summary, chore nudge, list updates.
 // Each one is also recorded once (household-wide) in the in-app feed via recordNotification.
@@ -19,7 +20,7 @@ import { sendPush } from './push-delivery.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { newscastPrunes } from './routes/newscast.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
-import { addDays, doseAt, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
+import { addDays, doseAt, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, type Medication } from './routes/medications.ts';
 import { openRefillRequest } from './routes/medication-refills.ts';
 import { sha256Hex, type ChangedBy } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
@@ -879,9 +880,7 @@ async function runLastNightReminders(env: Env, db: KinwallDb, now: Date, tz: str
 // insert into sent_notifications, keyed by a hash so the table never says what or when) and only
 // within GRACE of its time, so a late tick still sends and a restart never repeats. Medicine pushes
 // go out during night hours too: a missed dose matters more than a quiet night (the family asked).
-const MED_GRACE_MS = 30 * 60_000;
-const NOTE_BEFORE_END_MS = 60 * 60_000;
-export const REFILL_REMIND_AT = '09:00';
+export { REFILL_REMIND_AT } from './medicine-reminder-times.ts';
 async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
   const meds = await loadMedications(env);
   if (!meds.length) { await db.prepare('DELETE FROM push_retries').run(); return; }
@@ -913,19 +912,19 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
         if (e?.status) continue;
         // A "When I start my day" dose: from when their day started (startDay), else its latest time.
         // The claims are keyed by 'wake', so a start that comes in later never sends it twice.
-        const at = dueAt(t, date, tz, e);
-        const end = windowEnd(m.lateWindow, date, at, tz);
-        if (end - at > DUE_MS && (await claim(at + (end - at) / 2, `follow:${m.id}:${date}:${time}`))) {
+        const targets = medicineReminderTimes(m, date, t, tz, e, !!member.grown_up);
+        const end = targets.end;
+        if (targets.follow && (await claim(targets.follow.at, targets.follow.key))) {
           const k = `${m.memberId}:${end}`;
           follow.set(k, { memberId: m.memberId, seed: `${m.id}:${date}:${time}`, end, meds: [...(follow.get(k)?.meds ?? []), m] });
         }
-        const first = await claim(at, `due:${m.id}:${date}:${time}`);
-        if (first || (e?.snoozedUntil && (await claim(Date.parse(e.snoozedUntil), `snooze:${m.id}:${date}:${time}:${e.snoozedUntil}`)))) {
+        const first = await claim(targets.due.at, targets.due.key);
+        if (first || (targets.snooze && (await claim(targets.snooze.at, targets.snooze.key)))) {
           const d = due.get(m.memberId) ?? { meds: [], feed: false };
           due.set(m.memberId, { meds: [...d.meds, m], feed: d.feed || first });
         }
         // A long window: parents hear when about an hour is left, not 30 minutes in.
-        if (!member.grown_up && (await claim(end - at > DUE_MS ? end - NOTE_BEFORE_END_MS : at + LATE_MS, `late:${m.id}:${date}:${time}`))) {
+        if (targets.late && (await claim(targets.late.at, targets.late.key))) {
           const k = `${m.memberId}:${date}:${time}`;
           late.set(k, { memberId: m.memberId, time, meds: [...(late.get(k)?.meds ?? []), m] });
         }
@@ -987,6 +986,16 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
     await recordNotification(db, { kind: 'medication', title: text(fam).title, url, memberIds: [l.memberId], source: 'system', at: now, late: true }, env);
     await send(parents, text, l.meds, url, `med-late:${l.memberId}`);
   }
+}
+
+/** Due medicine reminders only, for hosts that wake between maintenance ticks. */
+export async function runMedicineReminders(env: Env, now: Date): Promise<void> {
+  if (!(await readFeatures(env.DB)).trackersHealth || (await env.DB.prepare("SELECT value FROM settings WHERE key='medications'").first<{ value: string }>())?.value !== 'true') return;
+  const { results } = await env.DB.prepare("SELECT key,value FROM settings WHERE key IN ('timezone','timeFormat','location')").all<{ key: string; value: string }>();
+  const prefs = new Map(results.map(r => [r.key,r.value]));
+  let countryCode: string | undefined;
+  try { countryCode = JSON.parse(prefs.get('location') ?? 'null')?.countryCode; } catch { /* no location */ }
+  await runMedicationReminders(env, env.DB, now, prefs.get('timezone') ?? hostTimezone(), hour12For(prefs.get('timeFormat'), countryCode));
 }
 
 // Energy battery heads-up (battery.ts, Temp check → battery): when a person's next day looks likely

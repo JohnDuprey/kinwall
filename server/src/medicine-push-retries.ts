@@ -50,3 +50,19 @@ export async function retryMedicinePushes<T extends Sub>(env: Env, subs: T[], ve
     if (result.ok || result.gone || row.attempts + 1 >= 2) await discard();
   }
 }
+
+/** Pending retry times remain sealed; a host can fold their earliest deadline into its alarm. */
+export async function nextMedicinePushRetryAt(env: Env, now: number, before: number): Promise<number | null> {
+  const { results } = await env.DB.prepare('SELECT * FROM push_retries ORDER BY rowid LIMIT 50').all<Row>();
+  let next: number | null = null;
+  for (const row of results) {
+    if (row.attempts >= 2) continue;
+    try {
+      const pending: Pending = JSON.parse(await unseal(env, row.payload, aad(row.id)));
+      if (pending.expiresAt <= now || !Number.isFinite(pending.notBefore)) continue;
+      const at = Math.max(now,pending.notBefore);
+      if (at <= before) next = Math.min(next ?? Infinity,at);
+    } catch { /* a corrupt transient retry is discarded by the next delivery pass */ }
+  }
+  return next;
+}

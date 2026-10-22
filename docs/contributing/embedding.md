@@ -8,12 +8,31 @@ import { MIGRATIONS } from './server/src/worker-migrations.ts'; // bundler must 
 const kinwall = createKinwall(env, { migrations: MIGRATIONS }); // env: Env, env.DB: KinwallDb
 await kinwall.fetch(request, ctx?);  // Response
 await kinwall.scheduled(now?, ctx?); // one cron tick: syncDue + runNotifications
+await kinwall.reminders(now?);       // medicine reminders only, without calendar sync
+const next = await kinwall.nextReminderAt(now, nextRoutineTick); // Unix ms or null
 ```
 
 * **Create one instance per database and keep it.** Migrations are applied lazily before the first `fetch`/`scheduled` and memoised (retried if they fail). Leave out `migrations` if you migrate yourself. `runMigrations(db, migrations)` is exported too.
 * **`fetch` serves the API only** (`/api/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/plugins/*`, `/r/*`, `/docs`, `/openapi.json`). A host must route `/plugins/*` and `/r/*` (shared recipe pages and their photos) to it unchanged: both carry their own CSP, which the host mustn't replace. Everything else is a plain 404. Serving `web/dist` is the host's job.
 * **`ctx`** is anything with `waitUntil`, and it's optional. Without it, background work (webhooks) runs fire-and-forget with logged errors.
 * **`Env` is plain data** (`server/src/env.ts`). The app never reads `process.env`. `ENCRYPTION_KEY` is required for anything that stores secrets or health entries; `createKinwall` also encrypts any older plaintext health entries once per instance, before its first request. See [Configuration](../self-hosting/configuration.md).
+
+## Reminder alarms
+
+An embedding host with a durable timer can call `nextReminderAt(now, nextRoutineTick)` to find a
+pending medicine deadline before its normal maintenance tick (up to 24 hours ahead). It includes
+dose times, snoozes, follow-ups, parent late notes, refills and pending gateway retries, using the
+household timezone and the same timing rules and claim keys as delivery. Taken/skipped doses,
+disabled medicine reminders and completed claims are excluded. An overdue, unclaimed reminder
+within its delivery grace window returns `now`; a host should schedule a short asynchronous wake.
+
+Wake at the earlier of that deadline and the routine tick. For an earlier wake, call `reminders`;
+it sends only due medicine reminders and keeps existing feed/push deduplication. Keep the routine
+sync deadline independently, and recalculate after successful writes, reminders and routine ticks.
+A host should retain a fallback alarm before outbound work and back off failures. These methods
+do not change the bundled Node or cron intervals, and do not guarantee APNs/device delivery time.
+The planner returns a timestamp only; medicine schedules and retry payloads remain encrypted in
+storage. No schema migration or backfill is required.
 
 ## The database interface
 
