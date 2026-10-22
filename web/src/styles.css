@@ -786,10 +786,10 @@ button.month-cell .month-daynum { flex: none; }
 /* The keyboard covers the home indicator: a sheet's buttons sit right on it (or on the iPhone's ↑ ↓ ✓
    bar), with no strip of page between them. */
 :root[data-keyboard] .sheet .sheet-actions { padding-bottom: 6px; }
-/* The iPhone app has no status bar, and with the header gone WebKit scrolls the page up to the field,
+/* With the iPhone app's status bar hidden and the header gone, WebKit scrolls up to the field,
    under the Dynamic Island or notch. A strip of page color over that area (at the top of what you can
    see: --kbd-top) keeps text out from under it, like a browser's status bar. Under sheets (50). */
-:root[data-native="ios"][data-keyboard]::before {
+:root[data-native="ios"][data-status-bar="hidden"][data-keyboard]::before {
   content: ''; position: fixed; left: 0; right: 0; top: var(--kbd-top, 0px); height: var(--safe-t); z-index: 44;
   background: var(--bg); pointer-events: none;
 }
@@ -1983,15 +1983,15 @@ button.month-cell .month-daynum { flex: none; }
 }
 .save-indicator.saved { color: var(--accent-text); }
 @media (max-width: 600px) { .save-indicator { top: calc(var(--safe-t) + 76px); } }
-/* Inside the iPhone/iPad app the status bar is hidden: no gap under it, just clear of the notch or island. */
-:root[data-native="ios"] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
+/* When the iPhone/iPad app hides its status bar: no gap under it, just clear of the notch or island. */
+:root[data-native="ios"][data-status-bar="hidden"] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
 /* The full-screen modes' top bars (Shopping, Cooking, Get stuff done) sit under the same status-bar fade
    as the phone header, so on a phone they get its clearance too; in the app, where the status bar is
    hidden, they only clear the notch. */
 @media (max-width: 600px) { :root :is(.shop-bar, .cook-bar) { padding-top: calc(var(--safe-t) + 18px); } } /* :root: outranks meals.css, which loads later */
-:root[data-native="ios"] :is(.shop-bar, .cook-bar) { padding-top: calc(var(--safe-t) + 8px); }
-:root[data-native="ios"] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
-@media (max-width: 600px) { :root[data-native="ios"] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
+:root[data-native="ios"][data-status-bar="hidden"] :is(.shop-bar, .cook-bar) { padding-top: calc(var(--safe-t) + 8px); }
+:root[data-native="ios"][data-status-bar="hidden"] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
+@media (max-width: 600px) { :root[data-native="ios"][data-status-bar="hidden"] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
 .authorize-more { margin-top: 14px; text-align: left; }
 .authorize-more summary { cursor: pointer; font-weight: 700; color: var(--accent-text); min-height: 44px; display: flex; align-items: center; }
 .authorize-passkey { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 12px 14px; margin: 4px 0 14px; border-radius: var(--radius-sm); background: var(--bg-alt); }
@@ -4094,7 +4094,7 @@ div.meds-person-head { cursor: default; }
 /* Phone standing up: the header row and screen heads (a phone on its side has its own one-row header). */
 @media (max-width: 600px) {
   :root[data-density="compact"] .header-phone { padding-top: calc(var(--safe-t) + 10px); padding-bottom: 2px; }
-  :root[data-native="ios"][data-density="compact"] .header-phone { padding-top: calc(var(--safe-t) + 2px); }
+  :root[data-native="ios"][data-status-bar="hidden"][data-density="compact"] .header-phone { padding-top: calc(var(--safe-t) + 2px); }
   :root[data-density="compact"] .chores-header { padding-top: 2px; padding-bottom: 0; }
   :root[data-density="compact"] .date-strip { padding-bottom: 4px; }
   :root[data-density="compact"] .schedule-list, :root[data-density="compact"] .chore-columns, :root[data-density="compact"] .settings-scroll { padding-bottom: calc(52px + 14px + var(--safe-b) + 12px); }

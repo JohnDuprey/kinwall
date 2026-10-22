@@ -40,7 +40,7 @@ import { countDrawings } from './drawings-db.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames } from './native.ts'
+import { appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -2095,6 +2095,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
       <h4 className="settings-subhead">{t("This screen's layout")}</h4>
       <ScreenFocusRows />
       <ScreenScaleRow />
+      <StatusBarRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">{t('Navigation position')}</div>
         <Segmented label={t('Navigation position')} value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS.map(o => ({ ...o, label: tm(o.label) }))} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
@@ -2111,6 +2112,24 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
       </div>}
     </Section>
   )
+}
+
+/** Native storage keeps this display choice across reloads, sign-ins and server changes. */
+function StatusBarRow() {
+  const [hidden, setHidden] = useState(appStatusBarHidden)
+  useEffect(() => {
+    const update = () => setHidden(appStatusBarHidden())
+    window.addEventListener('kinwallnative', update)
+    return () => window.removeEventListener('kinwallnative', update)
+  }, [])
+  if (hidden === null) return null
+  return <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+    <div className="toggle-row">
+      <label id="status-bar-label">{t('Hide status bar')}</label>
+      <button className={`switch ${hidden ? 'on' : ''}`} role="switch" aria-checked={hidden} aria-labelledby="status-bar-label" aria-describedby="status-bar-sub" onClick={() => setAppStatusBarHidden(!hidden)}><span className="knob" /></button>
+    </div>
+    <div className="settings-row-sub" id="status-bar-sub">{t('Hides the time, battery and signal icons at the top of the app. Only on this device.')}</div>
+  </div>
 }
 
 /** How big the whole app is drawn here (screenScale.ts): Auto fits a 10" tablet to the tablet layout. */

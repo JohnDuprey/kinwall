@@ -1,6 +1,6 @@
 # Settings → General → Only on this device
 
-The second group of cards on **Settings → General**. Everything here applies to **this device only** and is stored in the browser, not on the server. It isn't in exports.
+The second group of cards on **Settings → General**. Everything here applies to **this device only** and is stored in the browser (or in the mobile app for native display settings), not on the server. It isn't in exports.
 
 ## This device
 
@@ -13,6 +13,7 @@ Called **This phone** on a phone. What this screen shows, how you get around it,
 | Item | Notes |
 |---|---|
 | **Paired as *name*** | Shown on paired displays. |
+| **Hide status bar** | In updated iPhone, iPad and Android apps only. Hides the time, battery and signal icons at the top of the app. Changes immediately and stays after closing the app, signing out or changing servers. Hidden by default on iPhone and iPad; visible by default on Android, preserving each app's previous behavior. When shown, it uses this device's accent color with white or black icons for contrast; the Night screen keeps it dark. Camera cutouts and the home indicator or navigation bar still have safe space. Older apps and browsers do not show this switch. |
 | **Show only** | Pin this screen to one member, which is handy for a display in a bedroom. On a display an admin paired, this follows **What is this device?** and reads "Set by a parent": change it under [Access → Paired devices](access.md#paired-devices). Displays paired before that option existed pick a member, or **Everyone**, here. |
 | **Also show things for everyone** | Only shown once a member is picked. On (default): shared events, chores and lists (nobody assigned) still show alongside that member's own. Off: only their items. |
 | **Lock view** | Fixes the screen to one view and hides the view tabs, so a pinned display can't be bumped into a different view. **Home**: **Board** or [Newscast](../using/newscast.md); the nav then has no Calendar button. **Calendar**: **Day**, **Week** (**3 Day** on a phone), **Month** or **Schedule**; Calendar then takes Home's place in the nav, and the screen goes back to it when idle. **Off** leaves the switchers free. |

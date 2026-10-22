@@ -13,6 +13,7 @@ import { watchKeyboard } from './keyboard.ts'
 import { watchIsland } from './safeArea.ts'
 import { setLang, startLang, t } from './i18n.ts'
 markNativeApp()
+window.addEventListener('kinwallnative', markNativeApp)
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
 // Android / Chrome / Edge offer to install once the page qualifies, often before the App chunk

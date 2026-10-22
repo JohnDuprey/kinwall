@@ -8,7 +8,7 @@ import { deviceTimeFormat } from './timeFormat.ts'
 import { accentFill, logoHeads, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
 import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts'
-import { surfaces, tellAppAppearance } from './native.ts'
+import { statusBarColors, surfaces, tellAppAppearance } from './native.ts'
 import { inTimeWindow } from './wallScreen.ts'
 import { effectiveDensity } from './density.ts'
 import { castScale, castScreen } from './cast.ts'
@@ -216,7 +216,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance, parent
     if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); metas.push(m) }
     const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#0B1622' : '#EEF3F8')
     for (const m of metas) { m.dataset.day = bg; if (!document.documentElement.dataset.night) m.content = bg } // native.ts tellAppNight
-    tellAppAppearance({ mode: a.themeMode, dark, colors: surfaces(skin, custom) })
+    tellAppAppearance({ mode: a.themeMode, dark, colors: surfaces(skin, custom), statusBarColors: statusBarColors(skin, custom) })
   }
 
   apply()
