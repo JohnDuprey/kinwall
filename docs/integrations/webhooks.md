@@ -54,6 +54,9 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
 | `meal.changed` | A meal is planned, edited or deleted, or someone's order for it changed. `data`: `{ id }`. |
 | `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too, or by an [import from a phone](../using/meals.md#add-restaurants-from-your-phone) that changed something), archived or deleted. `data`: `{ id }`. |
+| `upkeep.changed` | A [home upkeep](../using/upkeep.md) job, thing, area or Done was added, changed or deleted, a job was snoozed or skipped, or a file was added or removed. `data`: `{ id, kind }` (`kind`: `job`, `thing`, `area` or `log`; plus `deleted: true`). |
+| `upkeep.done` | An upkeep job was marked done (also when a kid ticks off its chore). `data`: `{ id, jobId, thingId, title, doneOn, memberId }`, where `id` is the Done; never the cost, reading or notes. |
+| `upkeep.due` | The morning's heads-up, due or late note went out for an upkeep job, once per job and due date. `data`: `{ jobId, title, dueOn, status }` (`soon`, `due` or `overdue`). Enough for "flash the hall light". |
 | `outing.changed` | An [outing](../using/outings.md) or place was added, changed, marked (👀 / ⭐), put on the calendar or deleted, or its categories changed. `data`: `{ id }` (or `{ categoryId }`), never who marked what. |
 | `poll.changed` | A [family poll](../using/polls.md) was started, voted in, closed, linked to a meal or deleted. `data`: `{ id, status }` (`open`, `closed` with `winnerOptionId`, or `deleted`), never who voted for what. |
 | `display.paired` | A wall display was paired. |

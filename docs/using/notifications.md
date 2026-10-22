@@ -12,6 +12,7 @@ On the device that should get notifications, go to **Settings → General → No
 | **Daily summary** + time | off, 07:30 | "Today": event and chore counts, the first event titles, and open linked tasks. |
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
 | **Outing reminders** | on | Heads-ups for [outings](outings.md#reminders) someone ⭐ (a week before and the day before), ticket dates ("🎟 Get tickets for the sewing class by Tuesday"), and last chances. Shown while Outings is on. |
+| **Home upkeep** | on | [Upkeep](upkeep.md#reminders) jobs coming up, due today and late, and warranties about to end. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |
 | **Which family members?** | Everyone | Only events and chores for these people. A device following nobody gets everything. A kid's own device doesn't have this: it follows only that kid (and everything for the whole family), and says so. |
 
@@ -60,6 +61,10 @@ When a parent starts a [family poll](polls.md), every device with notifications 
 ## Outings
 
 Outings sends a few notes from 9 AM (household time), each once, and holds them through quiet hours: a heads-up a week before and the day before an outing someone ⭐ (to them, and to the grown-ups when a kid ⭐ it; not once it's on the calendar, since the event reminds you then), **buy tickets** 3 days before and on the **Get tickets by** day, **tickets on sale** the day before and at that time, **last chance** a week before a run ends, and **the date is set** when someone fills in a date on an outing others ⭐. See [Outings](outings.md#reminders).
+
+## Home upkeep
+
+Home upkeep sends its notes from 9 AM (household time), each once, and holds them through quiet hours: a heads-up the job's heads-up days before it's due, **due today**, a note to the grown-ups a week late and then every two weeks (three at most), and **the warranty ends** 30 days before. See [Home upkeep](upkeep.md#reminders).
 
 ## Notification feed
 

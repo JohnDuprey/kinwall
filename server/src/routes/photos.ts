@@ -17,7 +17,8 @@ import type { Context } from 'hono';
 import type { Env } from '../env.ts';
 import { ErrorSchema } from '../schemas.ts';
 import type { KinwallDb } from '../db.ts';
-import { readZip, zipStream, type ZipFile } from '../zip.ts';
+import { readZip, zipStream, type ZipEntry, type ZipFile } from '../zip.ts';
+import { MAX_UPKEEP_FILE_BYTES } from '../upkeep.ts';
 
 export const photosRoutes = createRouter();
 
@@ -301,7 +302,7 @@ photosRoutes.openapi(
     path: '/api/photos/export.zip',
     tags: ['Photos'],
     summary:
-      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo). Admin only. Takes the key as the Bearer header, or ?ticket= from POST /api/photos/export-link (a plain download link); never a key in the URL.',
+      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo), and home upkeep\'s receipts and manuals as upkeep/<id>.<ext> with upkeep/files.json. Admin only. Takes the key as the Bearer header, or ?ticket= from POST /api/photos/export-link (a plain download link); never a key in the URL.',
     security: [{ Bearer: [] }],
     request: { query: z.object({ ticket: z.string().optional() }) },
     responses: { 200: { description: 'the zip, streamed', content: { 'application/zip': binary } } },
@@ -316,14 +317,27 @@ photosRoutes.openapi(
     const manifest: ManifestEntry[] = results.map((r) => ({
       id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at, family: r.family !== 0, ...(r.coloring ? { coloring: true } : {}), ...(r.avatar ? { picture: true } : {}),
     }));
-    // The manifest first, then one photo's bytes fetched per pull: only one photo in memory at a time.
-    let i = -1;
+    // Home upkeep's files (routes/upkeep.ts) ride along under upkeep/, listed in upkeep/files.json.
+    const upkeep = (await db.prepare('SELECT id, thing_id, log_id, name, mime, created_at FROM upkeep_files ORDER BY created_at').all<UpkeepFileRow>()).results;
+    const upkeepFileOf = (r: UpkeepFileRow) => 'upkeep/' + r.id + '.' + (UPKEEP_EXT[r.mime] ?? 'bin');
+    // The manifests first, then one file's bytes fetched per pull: only one in memory at a time.
+    let i = -2, u = 0;
     const next = async (): Promise<ZipFile | null> => {
-      if (i === -1) { i++; return { name: 'manifest.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)), modified: new Date() }; }
+      if (i === -2) { i++; return { name: 'manifest.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)), modified: new Date() }; }
+      if (i === -1) {
+        i++;
+        const list = upkeep.map((r) => ({ id: r.id, file: upkeepFileOf(r), name: r.name, mime: r.mime, thingId: r.thing_id, entryId: r.log_id, createdAt: r.created_at }));
+        if (list.length) return { name: UPKEEP_MANIFEST, data: new TextEncoder().encode(JSON.stringify(list, null, 2)), modified: new Date() };
+      }
       while (i < results.length) {
         const r = results[i++];
         const row = await db.prepare('SELECT data FROM photos WHERE id = ?').bind(r.id).first<{ data: unknown }>();
         if (row) return { name: fileOf(r), data: blobBytes(row.data), modified: new Date(r.created_at) }; // else deleted meanwhile
+      }
+      while (u < upkeep.length) {
+        const r = upkeep[u++];
+        const row = await db.prepare('SELECT data FROM upkeep_files WHERE id = ?').bind(r.id).first<{ data: unknown }>();
+        if (row) return { name: upkeepFileOf(r), data: blobBytes(row.data), modified: new Date(r.created_at) };
       }
       return null;
     };
@@ -345,7 +359,7 @@ photosRoutes.openapi(
     security: [{ Bearer: [] }],
     request: { body: { required: true, content: { 'application/zip': binary } } },
     responses: {
-      200: { description: 'ok', content: json(z.object({ imported: z.number(), skipped: z.number() })) },
+      200: { description: 'ok', content: json(z.object({ imported: z.number(), skipped: z.number(), upkeepFiles: z.number().openapi({ description: "Home upkeep files restored (upkeep/files.json): only ones whose thing or Done is here and that aren't here yet." }) })) },
       400: { description: 'not a zip', content: json(ErrorSchema) },
       413: { description: 'zip too large', content: json(ErrorSchema) },
       415: { description: 'not application/zip', content: json(ErrorSchema) },
@@ -369,7 +383,7 @@ photosRoutes.openapi(
 
     const base = (name: string) => name.split('/').pop() ?? name;
     const manifest = new Map<string, Partial<ManifestEntry>>();
-    const manifestEntry = entries.find((e) => base(e.name) === 'manifest.json');
+    const manifestEntry = entries.find((e) => base(e.name) === 'manifest.json' && !e.name.startsWith('upkeep/'));
     const manifestBytes = await manifestEntry?.read(5 * 1024 * 1024);
     if (manifestBytes) {
       try {
@@ -391,7 +405,7 @@ photosRoutes.openapi(
     for (const entry of entries) {
       const name = base(entry.name);
       const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
-      if (entry.name.endsWith('/') || entry.name.startsWith('__MACOSX/') || name.startsWith('.') || !MIME_OF_EXT[ext]) continue; // not a photo
+      if (entry.name.endsWith('/') || entry.name.startsWith('__MACOSX/') || entry.name.startsWith('upkeep/') || name.startsWith('.') || !MIME_OF_EXT[ext]) continue; // not a photo
       const meta = manifest.get(name) ?? {};
       const stem = name.slice(0, -(ext.length + 1));
       const candidate = str(meta.id, 64) ?? stem.replace(/^\d{4}-\d{2}-\d{2}-/, '');
@@ -415,9 +429,43 @@ photosRoutes.openapi(
       imported++;
     }
     if (imported) { emit(c, 'photo.changed', { imported }); emit(c, 'member.changed', {}); }
-    return c.json({ imported, skipped }, 200);
+    const upkeepFiles = await importUpkeepFiles(db, entries);
+    if (upkeepFiles) emit(c, 'upkeep.changed', { imported: upkeepFiles });
+    return c.json({ imported, skipped, upkeepFiles }, 200);
   },
 );
+
+// Home upkeep's receipts and manuals in the backup zip: upkeep/files.json lists them with the thing
+// or Done each belongs to. On import, one comes back when that thing or Done is here (import the
+// JSON export first) and its id isn't.
+type UpkeepFileRow = { id: string; thing_id: string | null; log_id: string | null; name: string; mime: string; created_at: string };
+const UPKEEP_MANIFEST = 'upkeep/files.json';
+const UPKEEP_EXT: Record<string, string> = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
+async function importUpkeepFiles(db: KinwallDb, entries: ZipEntry[]): Promise<number> {
+  const list = entries.find((e) => e.name === UPKEEP_MANIFEST);
+  const bytes = await list?.read(5 * 1024 * 1024);
+  if (!bytes) return 0;
+  let items: unknown;
+  try { items = JSON.parse(new TextDecoder().decode(bytes)); } catch { return 0; }
+  if (!Array.isArray(items)) return 0;
+  let n = 0;
+  for (const m of items as Record<string, unknown>[]) {
+    const id = typeof m.id === 'string' && /^[\w-]{1,64}$/.test(m.id) ? m.id : null;
+    const entry = typeof m.file === 'string' ? entries.find((e) => e.name === m.file) : undefined;
+    const mime = typeof m.mime === 'string' && UPKEEP_EXT[m.mime] ? m.mime : null;
+    if (!id || !entry || !mime || (await db.prepare('SELECT id FROM upkeep_files WHERE id = ?').bind(id).first())) continue;
+    const thingId = typeof m.thingId === 'string' && (await db.prepare('SELECT id FROM upkeep_things WHERE id = ?').bind(m.thingId).first()) ? m.thingId : null;
+    const logId = !thingId && typeof m.entryId === 'string' && (await db.prepare('SELECT id FROM upkeep_log WHERE id = ?').bind(m.entryId).first()) ? m.entryId : null;
+    if (!thingId && !logId) continue;
+    const data = await entry.read(MAX_UPKEEP_FILE_BYTES);
+    if (!data?.byteLength) continue;
+    const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 200) : 'File';
+    const created = typeof m.createdAt === 'string' && !Number.isNaN(Date.parse(m.createdAt)) ? new Date(m.createdAt).toISOString() : new Date().toISOString();
+    await db.prepare('INSERT INTO upkeep_files (id, thing_id, log_id, name, mime, bytes, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, thingId, logId, name, mime, data.byteLength, data, created).run();
+    n++;
+  }
+  return n;
+}
 
 // ---------- Coloring pages (Paint's coloring book) ----------
 // The built-in pages ship with the app (web/src/coloringPages.ts); these are the family's own, added

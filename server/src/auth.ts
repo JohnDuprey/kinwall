@@ -225,6 +225,11 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/outings$/ },
   { method: 'PATCH', pattern: /^\/api\/outings\/[^/]+$/ },
   { method: 'PUT', pattern: /^\/api\/outings\/[^/]+\/interest$/ },
+  // Home upkeep: walls and kids' devices read jobs, things and areas, mark jobs done and undo a Done
+  // they just made; a kid's device reads its own history (routes/upkeep.ts leaves costs and the rest out).
+  { method: 'GET', pattern: /^\/api\/upkeep\/(jobs|things)(\/[^/]+)?$|^\/api\/upkeep\/(areas|log)$/ },
+  { method: 'POST', pattern: /^\/api\/upkeep\/jobs\/[^/]+\/done$/ },
+  { method: 'DELETE', pattern: /^\/api\/upkeep\/log\/[^/]+$/ },
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },
@@ -448,7 +453,7 @@ function isDisplayAllowed(method: string, path: string): boolean {
 // which opens nothing but them. A full key is never taken from a URL (it would land in browser
 // history and access logs): everything else, the photo zip included, takes the Bearer header (the
 // zip also a one-time ?ticket=, photoExportTicket).
-const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/library\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
+const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/library\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$|^\/api\/upkeep\/files\/[^/]+$/;
 // Shared by requireAuth and GET /api/me: resolves the Bearer key (or a media token as ?key= on
 // GET MEDIA_PATH) to its scope. Returns null if the key is missing/unknown.
 export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {

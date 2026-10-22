@@ -137,7 +137,7 @@ test('picture: the photo zip carries it, and importing it into a fresh family gi
   const b = makeApp();
   const maya = (await b.req('/api/members', 'POST', { name: 'Maya', color: '#57e' })).json;
   const imported = await b.raw('POST', '/api/photos/import', { body: zip, headers: { 'Content-Type': 'application/zip' } });
-  assert.deepEqual(await imported.json(), { imported: 1, skipped: 0 });
+  assert.deepEqual(await imported.json(), { imported: 1, skipped: 0, upkeepFiles: 0 });
   const pic = (await b.member(maya.id)).picture;
   assert.ok(pic);
   assert.deepEqual(new Uint8Array(await (await b.raw('GET', pic)).arrayBuffer()), bytes(1200, 3));

@@ -84,6 +84,7 @@ export const FEATURE_CARDS: readonly FeatureCard[] = [
   { id: 'news', emoji: '📰', title: msg('Family news and messages'), sub: msg("Newscast, messages and notes on events and lists."), keys: ['newscast', 'messages', 'notes'] },
   { id: 'checkIns', emoji: '💭', title: msg('Check-ins and journals'), sub: msg('How everyone feels today, goals and private journals.'), keys: ['checkIns'] },
   { id: 'contacts', emoji: '📇', title: msg('Family contacts'), sub: msg('Doctors, sitters, schools and friends in one place.'), keys: ['contacts'] },
+  { id: 'upkeep', emoji: '🔧', title: msg('Home upkeep'), sub: msg('Furnace filters, smoke alarms, the oil change: reminders and a log of when each was done.'), keys: ['upkeep'] },
 ]
 /** A card is on when every switch it stands for is on. */
 export const cardOn = (f: Features, c: FeatureCard) => c.keys.every(k => f[k])

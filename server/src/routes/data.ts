@@ -40,6 +40,8 @@ import { convertRefillPlaces } from './medication-refills.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
 import { PollSchema, readPolls } from './polls.ts';
 import { OutingCategorySchema, OutingSchema, readOutingCategories, readOutings } from './outings.ts';
+import { UpkeepAreaSchema, UpkeepEntrySchema, UpkeepJobSchema, UpkeepThingSchema } from './upkeep.ts';
+import { readAreas, readJobs, readLog, readThings } from '../upkeep.ts';
 import {
   CalendarSchema,
   CalendarFilterSchema,
@@ -206,6 +208,12 @@ const ExportSchema = z
     // Outings (0111): things to do and places to go, with who marked them, and their categories.
     outings: z.array(OutingSchema),
     outingCategories: z.array(OutingCategorySchema),
+    // Home upkeep (0126): areas, the things looked after, their jobs and every Done. Receipts and
+    // other files are in the photo backup zip (upkeep/), not here.
+    upkeepAreas: z.array(UpkeepAreaSchema),
+    upkeepThings: z.array(UpkeepThingSchema.omit({ files: true })),
+    upkeepJobs: z.array(UpkeepJobSchema.omit({ nextDue: true, status: true, lastDone: true, calendarEventStart: true })),
+    upkeepLog: z.array(UpkeepEntrySchema.omit({ files: true })),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
@@ -425,6 +433,10 @@ dataRoutes.openapi(
         polls: await readPolls(db),
         outings: await readOutings(db),
         outingCategories: await readOutingCategories(db),
+        upkeepAreas: await readAreas(db),
+        upkeepThings: (await readThings(db)).map(({ files: _, ...t }) => t),
+        upkeepJobs: (await readJobs(db, '0000-01-01', (iso) => iso.slice(0, 10))).map(({ nextDue: _n, status: _s, lastDone: _l, calendarEventStart: _e, ...j }) => j),
+        upkeepLog: (await readLog(db)).map(({ files: _, ...e }) => e),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
@@ -489,6 +501,10 @@ const ImportSchema = ExportSchema.extend({
   polls: ExportSchema.shape.polls.default([]),
   outings: ExportSchema.shape.outings.default([]),
   outingCategories: ExportSchema.shape.outingCategories.default([]),
+  upkeepAreas: ExportSchema.shape.upkeepAreas.default([]),
+  upkeepThings: ExportSchema.shape.upkeepThings.default([]),
+  upkeepJobs: ExportSchema.shape.upkeepJobs.default([]),
+  upkeepLog: ExportSchema.shape.upkeepLog.default([]),
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
@@ -538,6 +554,7 @@ const ImportResultSchema = z
       restaurants: z.number(),
       polls: z.number(),
       outings: z.number(),
+      upkeep: z.number(),
       mealShoppingSources: z.number(),
       itemMemory: z.number(),
       storeAisles: z.number(),
@@ -1076,6 +1093,14 @@ dataRoutes.openapi(
       db.prepare('DELETE FROM outing_interest WHERE outing_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.outings.map((o) => o.id))),
       db.prepare("INSERT INTO outing_interest (outing_id, member_id, level, updated_at) SELECT j.value->>'outing_id', j.value->>'member_id', j.value->>'level', ? FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(outing_id, member_id) DO UPDATE SET level = excluded.level")
         .bind(new Date().toISOString(), JSON.stringify(body.outings.flatMap((o) => o.interest.map((i) => ({ outing_id: o.id, member_id: i.memberId, level: i.level }))))),
+      // Home upkeep: areas, then things, jobs and the log, each pointing only at what's here (else none).
+      ...upserts(db, 'upkeep_areas', 'id', body.upkeepAreas.map((a) => ({ id: a.id, name: a.name, emoji: a.emoji, sort: a.sort, created_at: new Date().toISOString() })), keepCreated),
+      ...upserts(db, 'upkeep_things', 'id', body.upkeepThings.map((t) => ({ id: t.id, name: t.name, emoji: t.emoji, area_id: t.areaId, room: t.room, brand: t.brand, model: t.model, serial: t.serial, part_notes: t.partNotes, bought_on: t.boughtOn, price_cents: t.priceCents, warranty_until: t.warrantyUntil, manual_url: t.manualUrl, contact_id: t.contactId, notes: t.notes, archived: t.archived ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt })),
+        { ...keepCreated, expr: { area_id: "(SELECT id FROM upkeep_areas WHERE id = j.value->>'area_id')", contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')" } }),
+      ...upserts(db, 'upkeep_jobs', 'id', body.upkeepJobs.map((u) => ({ id: u.id, title: u.title, emoji: u.emoji, thing_id: u.thingId, area_id: u.areaId, repeat_kind: u.repeatKind, every: u.every, unit: u.unit, on_months: JSON.stringify(u.onMonths), on_day: u.onDay, start_on: u.startOn, due_on: u.dueOn, heads_up_days: u.headsUpDays, snoozed_until: u.snoozedUntil, skipped_until: u.skippedUntil, member_id: u.memberId, contact_id: u.contactId, usual_cost_cents: u.usualCostCents, steps: JSON.stringify(u.steps), supplies: JSON.stringify(u.supplies), supplies_list_id: u.suppliesListId, supplies_days: u.suppliesDays, chore_points: u.chorePoints, handed_chore_id: u.handedChoreId, calendar_event_id: u.calendarEventId, wall_visible: u.wallVisible ? 1 : 0, library_key: u.libraryKey, archived: u.archived ? 1 : 0, created_at: u.createdAt, updated_at: u.updatedAt })),
+        { ...keepCreated, expr: { thing_id: "(SELECT id FROM upkeep_things WHERE id = j.value->>'thing_id')", area_id: "(SELECT id FROM upkeep_areas WHERE id = j.value->>'area_id')", member_id: memberRef('member_id'), contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')", supplies_list_id: "(SELECT id FROM lists WHERE id = j.value->>'supplies_list_id')", calendar_event_id: "(SELECT id FROM events WHERE id = j.value->>'calendar_event_id')", handed_chore_id: "(SELECT id FROM chores WHERE id = j.value->>'handed_chore_id')" } }),
+      ...upserts(db, 'upkeep_log', 'id', body.upkeepLog.map((e) => ({ id: e.id, job_id: e.jobId, thing_id: e.thingId, title: e.title, done_on: e.doneOn, member_id: e.memberId, contact_id: e.contactId, cost_cents: e.costCents, reading: e.reading, reading_unit: e.readingUnit, notes: e.notes, chore_id: e.choreId, created_by: e.createdBy, created_at: e.createdAt })),
+        { ...keepCreated, expr: { job_id: "(SELECT id FROM upkeep_jobs WHERE id = j.value->>'job_id')", thing_id: "(SELECT id FROM upkeep_things WHERE id = j.value->>'thing_id')", member_id: memberRef('member_id'), created_by: memberRef('created_by'), contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')" } }),
       // A poll's choices in the file replace its choices here; votes by members or for choices not here are dropped.
       ...upserts(db, 'polls', 'id', body.polls.map((p) => ({ id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winner_option_id: p.winnerOptionId, meal_id: p.mealId, created_by: p.createdBy, created_at: p.createdAt, closed_at: p.closedAt })), { ...keepCreated, expr: { meal_id: "(SELECT id FROM meals WHERE id = j.value->>'meal_id')", created_by: memberRef('created_by') } }),
       db.prepare('DELETE FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.polls.map((p) => p.id))),
@@ -1122,6 +1147,7 @@ dataRoutes.openapi(
       ['restaurant.changed', body.restaurants.length],
       ['poll.changed', body.polls.length],
       ['outing.changed', body.outings.length + body.outingCategories.length],
+      ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1164,6 +1190,7 @@ dataRoutes.openapi(
           restaurants: body.restaurants.length,
           polls: body.polls.length,
           outings: body.outings.length,
+          upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

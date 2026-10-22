@@ -4,6 +4,11 @@ The full list of changes in every version is in the [changelog](https://github.c
 
 ## Coming in the next version
 
+* **Home upkeep**: a new **Upkeep** tab for the jobs that come round every few months or years:
+  the furnace filter, smoke alarms, the gutters, the oil change. Each job repeats from the last time
+  it was done or on set dates, reminds you before it's due, and keeps a history of who did it and
+  what it cost. Keep each thing's model, part sizes, warranty and receipts, give a job to a kid as a
+  chore with points, and have its supplies go on the shopping list. See [Home upkeep](using/upkeep.md).
 * **Calendar has its own place** in the navigation, right after Home, with **Day | Week | Month |
   Schedule** in one switch (3 Day on a phone). Home is now **Board | Newscast**, and the Board's
   layouts moved into **Layout and filter** (the sliders on its toolbar), together with the category

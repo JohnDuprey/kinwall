@@ -5,7 +5,7 @@ import { goalProgressFor } from './chore-goals.ts';
 // every ~2 min) - both call runNotifications(env, now) directly, no HTTP round trip.
 import type { KinwallDb } from './db.ts';
 import { APP_NAME, type TaskAppKind } from './tasks/apps.ts';
-import { familyLang, isLang, perLang, words, type Lang } from './i18n.ts';
+import { familyLang, isLang, LOCALES, perLang, words, type Lang } from './i18n.ts';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { hostTimezone } from './env.ts';
@@ -33,6 +33,9 @@ import { formatTime, hour12For } from './timeFormat.ts';
 import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from './routes/events.ts';
 import { readOutings } from './routes/outings.ts';
 import { dueReminders, type OutingReminder } from './outing-reminders.ts';
+import { publish } from './bus.ts';
+import { addSupplies, handOutChore, readJobs, readThings, suppliesList, type UpkeepJob } from './upkeep.ts';
+import { daysBetween, dueNotes, suppliesDue, type UpkeepNote } from './upkeep-rules.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -42,6 +45,7 @@ export const DEFAULT_PUSH_PREFS = {
   choreNudgeTime: '08:00',
   listUpdates: false,
   outingReminders: true, // Outings: heads-ups for ⭐ outings, ticket dates, last chance (notify.ts runOutings)
+  upkeepReminders: true, // Home upkeep: jobs coming up, due and late, warranties ending (notify.ts runUpkeep)
   medicationNames: false, // medicine names in medication reminders on this device (push text shows on lock screens)
 };
 
@@ -213,7 +217,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll' | 'outing';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal' | 'poll' | 'outing' | 'upkeep';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // Medicine notes (kind 'medication') are health data (AGENTS.md "Health data"): the title (whose
@@ -1091,6 +1095,71 @@ export async function sendOutingReminder(env: Env, db: KinwallDb, r: OutingRemin
   for (const sub of results.filter((x) => subPrefs(x).outingReminders)) await sendToSub(env, db, sub, (lang) => ({ ...r.text(lang), url, tag: r.key }));
 }
 
+// Home upkeep (routes/upkeep.ts, upkeep-rules.ts): from UPKEEP_AT (household) on, a kid's due job
+// becomes a one-off chore for the day, supplies go on the shopping list, and the heads-up, due,
+// late and warranty notes go out, each once by its key in upkeep_sent (kept a year: a heads-up
+// window can be weeks long, past sent_notifications' 3 days). Held through night hours.
+export const UPKEEP_AT = '09:00';
+export async function runUpkeep(env: Env, db: KinwallDb, now: Date, tz: string, execCtx?: WaitCtx): Promise<void> {
+  if (new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now) < UPKEEP_AT) return;
+  const today = todayInTz(tz, now);
+  const claim = async (key: string) => !!(await db.prepare('INSERT INTO upkeep_sent (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run()).meta.changes;
+  const [jobs, things, people] = await Promise.all([
+    readJobs(db, today, (iso) => todayInTz(tz, new Date(iso))),
+    readThings(db),
+    db.prepare('SELECT id, grown_up FROM members').all<{ id: string; grown_up: number }>(),
+  ]);
+  const open = jobs.filter((j) => !j.archived && j.nextDue);
+  const kids = new Set(people.results.filter((m) => !m.grown_up).map((m) => m.id));
+  const fam = await familyLang(db);
+  for (const j of open) {
+    // A kid's job on (or past) its day: a chore for today, which logs the job when ticked.
+    if (j.chorePoints != null && j.memberId && kids.has(j.memberId) && j.nextDue! <= today && (await claim('upkeep:chore:' + j.id + ':' + j.nextDue))) {
+      await handOutChore(db, j, today);
+      publish(env, execCtx, 'chore.changed', { upkeepJobId: j.id });
+    }
+    if (j.supplies.length && suppliesDue(j.nextDue, j.suppliesDays, today) && (await claim('upkeep:supplies:' + j.id + ':' + j.nextDue))) {
+      const list = await suppliesList(db, j.suppliesListId);
+      if (list && (await addSupplies(db, list, j.supplies, words(fam).t('For {job}', { job: j.title }))).length) publish(env, execCtx, 'list.item.changed', { listId: list.id });
+    }
+  }
+  const byId = new Map(open.map((j) => [j.id, j]));
+  const thingById = new Map(things.map((t) => [t.id, t]));
+  for (const n of dueNotes(open.map((j) => ({ id: j.id, due: j.nextDue, headsUpDays: j.headsUpDays })), things, today)) {
+    if (!(await claim(n.key))) continue;
+    if (n.kind === 'warranty') { await sendUpkeepNote(env, db, n, null, thingById.get(n.thingId)!.name, today, now, kids); continue; }
+    const j = byId.get(n.jobId)!;
+    await sendUpkeepNote(env, db, n, j, j.thingId ? thingById.get(j.thingId)?.name ?? null : null, today, now, kids);
+    publish(env, execCtx, 'upkeep.due', { jobId: j.id, title: j.title, dueOn: n.due, status: j.status }, false);
+  }
+  await db.prepare('DELETE FROM upkeep_sent WHERE sent_at < ?').bind(new Date(now.getTime() - 400 * 86400000).toISOString()).run();
+}
+
+/** One upkeep note: in the bell and pushed (where "Home upkeep" is on) to the job's person, and the
+ * grown-ups unless that person is a grown-up; late and warranty notes go to the grown-ups. */
+async function sendUpkeepNote(env: Env, db: KinwallDb, n: UpkeepNote, j: UpkeepJob | null, thing: string | null, today: string, now: Date, kids: Set<string>): Promise<void> {
+  const day = (lang: Lang, d: string) => {
+    const at = new Date(`${d}T12:00:00Z`);
+    return new Intl.DateTimeFormat(LOCALES[lang], daysBetween(today, d) < 7 ? { weekday: 'long', timeZone: 'UTC' } : { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(at);
+  };
+  const text = perLang((lang) => {
+    const { t, tn } = words(lang);
+    if (n.kind === 'warranty') return { title: `🧾 ${t('The warranty on {thing} ends {day}', { thing: thing ?? '', day: day(lang, n.until) })}`, body: t('Open Upkeep to see its receipts and details.') };
+    const job = j!.title, emoji = j!.emoji ?? '🔧';
+    const title = n.kind === 'heads-up' ? t('{job} is due {day}', { job, day: day(lang, n.due) }) : n.kind === 'due' ? t('{job} is due today', { job }) : tn(n.late ?? 0, '{job} is {n} day late', '{job} is {n} days late', { job });
+    return { title: `${emoji} ${title}`, body: thing ? t('{thing} · Open Upkeep to mark it done.', { thing }) : t('Open Upkeep to mark it done.') };
+  });
+  const person = n.kind === 'warranty' || n.kind === 'late' ? null : j!.memberId;
+  const grownUps = !person || kids.has(person);
+  const url = n.kind === 'warranty' ? `/#/upkeep?thing=${encodeURIComponent(n.thingId)}` : `/#/upkeep?job=${encodeURIComponent(n.jobId)}`;
+  const grownUpIds = grownUps ? (await db.prepare('SELECT id FROM members WHERE grown_up = 1').all<{ id: string }>()).results.map((m) => m.id) : [];
+  await recordNotification(db, { kind: 'upkeep', ...text(await familyLang(db)), url, memberIds: [...new Set([...(person ? [person] : []), ...grownUpIds])], source: 'system', at: now });
+  const subs = await loadSubs(db,
+    "k.owner = ?1 OR (?2 AND k.scope = 'admin' AND (k.owner IS NULL OR k.owner NOT IN (SELECT id FROM members WHERE grown_up = 0)))",
+    person ?? '', grownUps ? 1 : 0);
+  for (const sub of subs.filter((x) => subPrefs(x).upkeepReminders)) await sendToSub(env, db, sub, (lang) => ({ ...text(lang), url, tag: n.key }));
+}
+
 // A calendar whose sign-in Google or Microsoft revoked (sync.ts records last_error_code 'revoked'):
 // one note to the grown-ups, "Leo's calendar stopped syncing", in the feed (for grown-ups only, so
 // not on kids' devices) and pushed to parent devices (full-access keys not owned by a kid), opening
@@ -1196,6 +1265,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
     await part('discard disabled medicine retries', async () => env.DB.prepare('DELETE FROM push_retries').run());
   }
   if (features.outings && !hold) await part('outing reminders', () => runOutings(env, env.DB, now, tz, h12)); // held at night: sent once it's over
+  if (features.upkeep && !hold) await part('home upkeep', () => runUpkeep(env, env.DB, now, tz, _execCtx)); // held at night too
   if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile
   if (!hold) await part('to-do list reconnect', () => runTaskLinkReconnect(env, env.DB, now)); // held at night too: the list shows its warning meanwhile
   await part('prune', () => pruneSentNotifications(env.DB, now));

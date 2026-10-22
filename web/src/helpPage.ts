@@ -1,6 +1,6 @@
 // Help → "Help with this page": the docs page for the screen that's open (#/meals → using/meals).
 
-const PAGES = new Set(['activities', 'calendar', 'chores', 'contacts', 'insights', 'journal', 'lists', 'meals', 'medications', 'newscast', 'outings', 'photos', 'polls', 'rewards', 'trackers'])
+const PAGES = new Set(['activities', 'calendar', 'chores', 'contacts', 'insights', 'journal', 'lists', 'meals', 'medications', 'newscast', 'outings', 'photos', 'upkeep', 'polls', 'rewards', 'trackers'])
 const ALIASES: Record<string, string> = { home: 'calendar', board: 'calendar', profile: 'profiles', recipes: 'meals', restaurants: 'meals', stickers: 'activities', paint: 'activities' }
 const TABS = new Set(['general', 'family', 'calendars', 'access'])
 

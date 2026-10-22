@@ -61,7 +61,7 @@ import { appName } from './taskSync.ts'
 import { intlLocale, lang, languageName, LANGUAGES, pickLang, t, tc, tn, type Lang, msg, tm } from './i18n.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'chore.suggestion.changed', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'chore.suggestion.changed', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'restaurant.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'poll.changed', 'outing.changed', 'upkeep.changed', 'upkeep.done', 'upkeep.due', 'contact.changed', 'contact.category.changed', 'plugin.action', 'display.paired', 'display.night_screen']
 
 type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
 const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
@@ -880,7 +880,7 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, medicationNames: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
@@ -1068,6 +1068,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
               <div className="settings-row-sub" id="push-outings-sub">{t('A week and a day before outings someone ⭐, ticket dates, and last chances.')}</div>
             </div>
             <button className={`switch ${prefs.outingReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.outingReminders !== false} aria-labelledby="push-outings-label" aria-describedby="push-outings-sub" onClick={() => savePrefs({ outingReminders: prefs.outingReminders === false })}><span className="knob" /></button>
+          </div>}
+          {settings.features.upkeep !== false && <div className="toggle-row">
+            <div>
+              <label id="push-upkeep-label">{t('Home upkeep')}</label>
+              <div className="settings-row-sub" id="push-upkeep-sub">{t('Jobs coming up, due today and late, and warranties about to end.')}</div>
+            </div>
+            <button className={`switch ${prefs.upkeepReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.upkeepReminders !== false} aria-labelledby="push-upkeep-label" aria-describedby="push-upkeep-sub" onClick={() => savePrefs({ upkeepReminders: prefs.upkeepReminders === false })}><span className="knob" /></button>
           </div>}
           {settings.medications && <div className="toggle-row">
             <div>

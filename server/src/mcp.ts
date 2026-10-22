@@ -23,6 +23,7 @@ import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
 import { OutingCategorySchema, OutingCalendarInputSchema, OutingIdeasSchema, OutingPatchSchema, OutingSchema } from './routes/outings.ts';
 import { ShareResultSchema } from './routes/share.ts';
+import { UpkeepAreaSchema, UpkeepDoneResultSchema, UpkeepEntrySchema, UpkeepJobPatchSchema, UpkeepJobSchema, UpkeepThingPatchSchema, UpkeepThingSchema } from './routes/upkeep.ts';
 import { RestaurantImportResultSchema, RestaurantImportSchema } from './routes/restaurants.ts';
 import { MealSlotSchema } from './meal-schemas.ts';
 import { ChoreSuggestionSchema } from './routes/chore-suggestions.ts';
@@ -294,6 +295,8 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_newscast: NewscastSchema.shape,
   list_outings: { outings: z.array(OutingSchema) }, get_outing: { outing: OutingSchema }, create_outing: { outing: OutingSchema }, update_outing: { outing: OutingSchema }, delete_outing: { ok: z.boolean(), outing: OutingSchema.optional() },
   mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) }, suggest_outings: OutingIdeasSchema.shape, import_outing: ShareResultSchema.shape,
+  list_upkeep_jobs: { jobs: z.array(UpkeepJobSchema) }, get_upkeep_job: { job: UpkeepJobSchema }, create_upkeep_job: { job: UpkeepJobSchema }, update_upkeep_job: { job: UpkeepJobSchema }, delete_upkeep_job: { ok: z.boolean(), job: UpkeepJobSchema.optional() },
+  log_upkeep_done: UpkeepDoneResultSchema.shape, list_upkeep_history: { entries: z.array(UpkeepEntrySchema) }, list_upkeep_things: { things: z.array(UpkeepThingSchema), areas: z.array(UpkeepAreaSchema) }, create_upkeep_thing: { thing: UpkeepThingSchema }, update_upkeep_thing: { thing: UpkeepThingSchema },
   list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
@@ -320,7 +323,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_upkeep_jobs: READ, get_upkeep_job: READ, create_upkeep_job: WRITE, update_upkeep_job: SET, delete_upkeep_job: DELETE, log_upkeep_done: WRITE, list_upkeep_history: READ, list_upkeep_things: READ, create_upkeep_thing: WRITE, update_upkeep_thing: SET, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1857,6 +1860,109 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(`Voting ended. Winner: ${p.options.find((o) => o.id === p.winnerOptionId)?.label ?? 'none'}. ${tally(p)}`, { poll: p });
     },
   );
+
+  // Home upkeep: a job by id or its exact title (or the one title containing it); a thing likewise by
+  // name; an area by id or name. Costs only reach a parent's sign-in (routes/upkeep.ts leaves them out).
+  type JobOut = { id: string; title: string; emoji: string | null; nextDue: string | null; status: string; lastDone: { doneOn: string } | null; thingId: string | null };
+  const findBy = async <T extends { id: string }>(path: string, ref: string, label: (x: T) => string, what: string): Promise<T> => {
+    const res = await call(app, env, auth, 'GET', path);
+    if (res.status >= 400) throw new MemberResolutionError(String((res.json as { error?: string })?.error ?? `failed to read ${what}s`));
+    const all = res.json as T[];
+    const q = ref.trim().toLowerCase();
+    const byId = all.filter((x) => x.id === ref), exact = all.filter((x) => label(x).toLowerCase() === q), some = all.filter((x) => label(x).toLowerCase().includes(q));
+    const hits = byId.length ? byId : exact.length ? exact : some;
+    if (hits.length === 1) return hits[0];
+    throw new MemberResolutionError(hits.length ? `"${ref}" matches ${hits.length} ${what}s (${hits.slice(0, 5).map((x) => `"${label(x)}"`).join(', ')}); use the id` : `no ${what} with id or name "${ref}"`);
+  };
+  const findJob = (ref: string) => findBy<JobOut>('/api/upkeep/jobs?archived=all', ref, (j) => j.title, 'upkeep job');
+  const findThing = (ref: string) => findBy<{ id: string; name: string }>('/api/upkeep/things?archived=all', ref, (t) => t.name, 'thing');
+  const jobLine = (j: JobOut) => `${j.emoji ? `${j.emoji} ` : ''}${j.title} [${j.id}]: ${j.status === 'done' ? 'done' : `${j.status}, due ${j.nextDue}`}${j.lastDone ? `, last done ${j.lastDone.doneOn}` : ', never done'}`;
+  const UpkeepJobFields = {
+    ...UpkeepJobPatchSchema.omit({ thingId: true, memberId: true, areaId: true, contactId: true }).shape,
+    thing: z.string().nullable().optional().describe('Thing name or id (see list_upkeep_things); null for none.'),
+    member: z.string().nullable().optional().describe('Who usually does it: member name or id; null for any grown-up.'),
+    area: z.string().nullable().optional().describe('Area name or id (see list_upkeep_things); null for none.'),
+  };
+  const area = async (ref: string | null | undefined) => (ref === undefined ? undefined : !ref ? null : (await resolveExact(app, env, auth, '/api/upkeep/areas', ref, 'area')).id);
+  const jobBody = async ({ thing, member, area: a, ...rest }: { thing?: string | null; member?: string | null; area?: string | null } & Record<string, unknown>) => ({
+    ...rest, ...(thing !== undefined ? { thingId: thing ? (await findThing(thing)).id : null } : {}), ...(member !== undefined ? { memberId: member ? await resolveMember(app, env, auth, member) : null } : {}), ...(a !== undefined ? { areaId: await area(a) } : {}),
+  });
+  tool('list_upkeep_jobs', { title: 'List home upkeep jobs', description: "The family's home upkeep jobs (furnace filter, smoke alarms, oil change…), soonest due first, each with its status (overdue, due today, soon within its heads-up days, later, or done for a one-off), next due date and the last time it was done. status: only those; thing/member: name or id.", inputSchema: { status: jsonList(z.array(z.enum(['overdue', 'due', 'soon', 'later', 'done']))).optional(), thing: z.string().optional(), member: z.string().optional(), include_archived: z.boolean().optional() } }, async (a) => {
+    const q = new URLSearchParams();
+    try {
+      if (a.status?.length) q.set('status', a.status.join(','));
+      if (a.thing) q.set('thing', (await findThing(a.thing)).id);
+      if (a.member) q.set('member', await resolveMember(app, env, auth, a.member));
+      if (a.include_archived) q.set('archived', 'all');
+    } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'GET', `/api/upkeep/jobs?${q}`);
+    if (res.status >= 400) return errorResult(res.json, 'failed to read upkeep jobs');
+    const list = res.json as JobOut[];
+    return okResult(list.length ? list.slice(0, 20).map(jobLine).join('; ') + (list.length > 20 ? `; and ${list.length - 20} more` : '') : 'No upkeep jobs match.', { jobs: list as unknown as Record<string, unknown>[] });
+  });
+  tool('get_upkeep_job', { title: 'Get a home upkeep job', description: 'One upkeep job (id or title): its schedule, steps, supplies, who does it, next due date and last time done.', inputSchema: { job: z.string() } }, async ({ job }) => {
+    try { const j = await findJob(job); const res = await call(app, env, auth, 'GET', `/api/upkeep/jobs/${encodeURIComponent(j.id)}`); return res.status >= 400 ? errorResult(res.json, 'job not found') : okResult(jobLine(res.json as JobOut), { job: res.json }); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+  });
+  tool('create_upkeep_job', { title: 'Add a home upkeep job', description: "Admin: add an upkeep job. repeatKind after (the default: every + unit day/week/month/year from the last time it's done), on (onMonths 1-12 and onDay: every April 15 and October 15) or once (dueOn). startOn: first due date if never done. headsUpDays: how early it shows as due soon. supplies [{name}] go on the shopping list suppliesDays before it's due. chorePoints with a kid as member: it becomes their chore on the day.", inputSchema: { ...UpkeepJobFields, title: z.string().min(1).max(200) } }, async (input) => {
+    let b;
+    try { b = await jobBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'POST', '/api/upkeep/jobs', b);
+    return res.status >= 400 ? errorResult(res.json, 'failed to add the job') : okResult(`Added: ${jobLine(res.json as JobOut)}`, { job: res.json });
+  });
+  tool('update_upkeep_job', { title: 'Change a home upkeep job', description: 'Admin: change an upkeep job (id or title): any field of create_upkeep_job; archived true puts it away (its history stays).', inputSchema: { job: z.string(), ...UpkeepJobFields } }, async ({ job, ...input }) => {
+    let id, b;
+    try { id = (await findJob(job)).id; b = await jobBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'PATCH', `/api/upkeep/jobs/${encodeURIComponent(id)}`, b);
+    return res.status >= 400 ? errorResult(res.json, 'failed to change the job') : okResult(`Saved: ${jobLine(res.json as JobOut)}`, { job: res.json });
+  });
+  tool('delete_upkeep_job', { title: 'Remove a home upkeep job', description: 'Admin: archive an upkeep job (kept, no more reminders), or with hard: true delete it for good. Its history stays either way.', inputSchema: { job: z.string(), hard: z.boolean().optional() } }, async ({ job, hard }) => {
+    let id;
+    try { id = (await findJob(job)).id; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    if (hard) { const res = await call(app, env, auth, 'DELETE', `/api/upkeep/jobs/${encodeURIComponent(id)}`); return res.status >= 400 ? errorResult(res.json, 'failed to delete the job') : okResult('Deleted. Its history stays.', { ok: true }); }
+    const res = await call(app, env, auth, 'PATCH', `/api/upkeep/jobs/${encodeURIComponent(id)}`, { archived: true });
+    return res.status >= 400 ? errorResult(res.json, 'failed to archive the job') : okResult('Archived. update_upkeep_job with archived false brings it back.', { ok: true, job: res.json });
+  });
+  tool('log_upkeep_done', { title: 'Log a home upkeep job as done', description: 'Mark an upkeep job (id or title) done: doneOn YYYY-MM-DD (default today), member (who did it, name or id), cost in dollars, reading (odometer or hours) with readingUnit mi/km/h, notes. Moves its next due date. Cost, reading and notes need an admin sign-in.', inputSchema: { job: z.string(), doneOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), member: z.string().optional(), cost: z.number().min(0).max(1_000_000).optional().describe('Dollars, like 54.99.'), reading: z.number().int().min(0).optional(), readingUnit: z.enum(['mi', 'km', 'h']).optional(), notes: z.string().max(10_000).optional() } }, async ({ job, member, cost, ...rest }) => {
+    let id, memberId;
+    try { id = (await findJob(job)).id; memberId = member ? await resolveMember(app, env, auth, member) : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'POST', `/api/upkeep/jobs/${encodeURIComponent(id)}/done`, { ...rest, ...(memberId ? { memberId } : {}), ...(cost !== undefined ? { costCents: Math.round(cost * 100) } : {}) });
+    if (res.status >= 400) return errorResult(res.json, 'failed to log it');
+    const r = res.json as { job: JobOut; entry: { doneOn: string } };
+    return okResult(`Done on ${r.entry.doneOn}. ${jobLine(r.job)}`, r as unknown as Record<string, unknown>);
+  });
+  tool('list_upkeep_history', { title: 'Home upkeep history', description: 'Every time an upkeep job was done, newest first ("when did we last change the furnace filter?"): who, cost (admin), reading and notes. Filter by job or thing (id or name), member, year (YYYY) or search (titles and notes).', inputSchema: { job: z.string().optional(), thing: z.string().optional(), member: z.string().optional(), year: z.string().regex(/^\d{4}$/).optional(), search: z.string().max(200).optional() } }, async (a) => {
+    const q = new URLSearchParams({ limit: '200' });
+    try {
+      if (a.job) q.set('job', (await findJob(a.job)).id);
+      if (a.thing) q.set('thing', (await findThing(a.thing)).id);
+      if (a.member) q.set('member', await resolveMember(app, env, auth, a.member));
+      if (a.year) q.set('year', a.year);
+      if (a.search) q.set('q', a.search);
+    } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'GET', `/api/upkeep/log?${q}`);
+    if (res.status >= 400) return errorResult(res.json, 'failed to read the history');
+    const list = res.json as { title: string; doneOn: string; costCents: number | null }[];
+    return okResult(list.length ? list.slice(0, 20).map((e) => `${e.doneOn} ${e.title}${e.costCents != null ? ` ($${(e.costCents / 100).toFixed(2)})` : ''}`).join('; ') : 'Nothing logged yet.', { entries: list as unknown as Record<string, unknown>[] });
+  });
+  tool('list_upkeep_things', { title: 'List things the family looks after', description: 'The things home upkeep tracks (furnace, fridge, the van…) with their room, brand, model, part notes and warranty (admin), plus the areas they sit in.', inputSchema: { include_archived: z.boolean().optional() } }, async ({ include_archived }) => {
+    const [things, areas] = await Promise.all([call(app, env, auth, 'GET', `/api/upkeep/things${include_archived ? '?archived=all' : ''}`), call(app, env, auth, 'GET', '/api/upkeep/areas')]);
+    if (things.status >= 400) return errorResult(things.json, 'failed to read things');
+    const list = things.json as { id: string; name: string; room: string | null }[];
+    return okResult(list.length ? list.map((t) => `${t.name}${t.room ? ` (${t.room})` : ''} [${t.id}]`).join('; ') : 'No things yet.', { things: list as unknown as Record<string, unknown>[], areas: areas.json as Record<string, unknown>[] });
+  });
+  const ThingFields = { ...UpkeepThingPatchSchema.omit({ areaId: true }).shape, area: z.string().nullable().optional().describe('Area name or id; null for none.') };
+  tool('create_upkeep_thing', { title: 'Add a thing to look after', description: 'Admin: add a thing for home upkeep: name, room, brand, model, serial, partNotes (what to buy for it), boughtOn, priceCents, warrantyUntil (YYYY-MM-DD), manualUrl, notes.', inputSchema: { ...ThingFields, name: z.string().min(1).max(200) } }, async ({ area: a, ...input }) => {
+    let areaId;
+    try { areaId = await area(a); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'POST', '/api/upkeep/things', { ...input, ...(areaId !== undefined ? { areaId } : {}) });
+    return res.status >= 400 ? errorResult(res.json, 'failed to add the thing') : okResult(`Added: ${(res.json as { name: string }).name}`, { thing: res.json });
+  });
+  tool('update_upkeep_thing', { title: 'Change a thing', description: 'Admin: change a thing (id or name): any field of create_upkeep_thing; archived true is "Sold or gone" (its jobs go quiet, its history stays).', inputSchema: { thing: z.string(), ...ThingFields } }, async ({ thing, area: a, ...input }) => {
+    let id, areaId;
+    try { id = (await findThing(thing)).id; areaId = await area(a); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'PATCH', `/api/upkeep/things/${encodeURIComponent(id)}`, { ...input, ...(areaId !== undefined ? { areaId } : {}) });
+    return res.status >= 400 ? errorResult(res.json, 'failed to change the thing') : okResult(`Saved: ${(res.json as { name: string }).name}`, { thing: res.json });
+  });
 
   // Outings: an outing by id or its exact title (or the one title containing it); a category by id or name.
   type OutingOut = { id: string; title: string; kind: string; startsOn: string | null; endsOn: string | null; startTime: string | null; priceCents: number | null; interest: { memberId: string; level: string }[]; calendarEventId: string | null };

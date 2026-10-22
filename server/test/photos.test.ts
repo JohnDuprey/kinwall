@@ -193,21 +193,21 @@ test('photos zip: export -> import into a fresh family keeps bytes, captions and
 
   const b = makeApp();
   const maya2 = (await b.send('POST', '/api/members', { name: 'maya ', color: '#00ff00' })).body; // different id, same name
-  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 2, skipped: 0 });
+  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 2, skipped: 0, upkeepFiles: 0 });
   const list = (await b.send('GET', '/api/photos')).body;
   const zoo = list.find((p: any) => p.id === p1.id);
   assert.deepEqual([zoo.caption, zoo.memberId, zoo.createdAt, zoo.width], ['Zoo', maya2.id, p1.createdAt, 640]);
   assert.equal(list.find((p: any) => p.id === p2.id).mime, 'image/png');
   assert.deepEqual(new Uint8Array(await (await b.raw('GET', zoo.url)).arrayBuffer()), bytes(3000, 1));
 
-  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 0, skipped: 2 });
+  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 0, skipped: 2, upkeepFiles: 0 });
   assert.equal((await importZip(a.raw, zip)).body.skipped, 2); // back into the family it came from: nothing doubles
 });
 
 test('photos zip: a deflated entry without a manifest imports, sized from its header', async () => {
   const { raw, send } = makeApp();
   const zip = await deflatedZip('Holiday/2026-07-04-beach-1.png', png(5000));
-  assert.deepEqual((await importZip(raw, zip)).body, { imported: 1, skipped: 0 });
+  assert.deepEqual((await importZip(raw, zip)).body, { imported: 1, skipped: 0, upkeepFiles: 0 });
   const [p] = (await send('GET', '/api/photos')).body;
   assert.deepEqual([p.id, p.mime, p.width, p.height, p.bytes, p.caption], ['beach-1', 'image/png', 3, 2, 5033, null]);
   assert.deepEqual(new Uint8Array(await (await raw('GET', p.url)).arrayBuffer()), png(5000));
@@ -223,10 +223,10 @@ test('photos zip: import respects the quota and the per-photo cap; bad input; ad
   for (let i = 0; i < PHOTO_LIMITS.maxCount - 1; i++) {
     await b.db.prepare("INSERT INTO photos (id, mime, width, height, bytes, data, created_at) VALUES (?, 'image/webp', 1, 1, 1, ?, '2026-01-01')").bind(`p${i}`, bytes(1)).run();
   }
-  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 1, skipped: 1 });
+  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 1, skipped: 1, upkeepFiles: 0 });
 
   const big = await deflatedZip('huge.png', png(PHOTO_LIMITS.maxPhotoBytes));
-  assert.deepEqual((await importZip(a.raw, big)).body, { imported: 0, skipped: 1 });
+  assert.deepEqual((await importZip(a.raw, big)).body, { imported: 0, skipped: 1, upkeepFiles: 0 });
   assert.equal((await importZip(a.raw, bytes(100))).status, 400);
   assert.equal((await a.raw('POST', '/api/photos/import', { body: zip, headers: { 'Content-Type': 'application/json' } })).status, 415);
 
@@ -290,7 +290,7 @@ test('coloring pages: travel in the photos zip and come back as pages', async ()
   assert.equal(manifest[0].coloring, true);
 
   const b = makeApp();
-  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 1, skipped: 0 });
+  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 1, skipped: 0, upkeepFiles: 0 });
   assert.deepEqual((await b.send('GET', '/api/coloring-pages')).body.map((p: any) => [p.id, p.name]), [[page.id, 'Castle']]);
   assert.deepEqual((await b.send('GET', '/api/photos')).body, []);
 });
