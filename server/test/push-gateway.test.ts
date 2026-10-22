@@ -182,3 +182,28 @@ test('self-hosted gateway: medicine failures retry per destination, and taken do
   assert.equal(calls.filter(c => c.url.endsWith('/send')).length, 3, 'a taken dose discards the pending reminder');
   assert.equal(await DB.prepare('SELECT * FROM push_retries').first(), null);
 });
+
+test('self-hosted gateway: a public URL saved in Settings enables alert and Live Activity registration', async () => {
+  const { DB, env, metadata, register, activity } = await fixture();
+  env.PUBLIC_URL = undefined;
+  await DB.prepare("INSERT INTO settings(key,value) VALUES ('publicUrl',?)").bind(metadata.server + '/').run();
+  const alert = await register({ token: TOKEN, gateway: { credential: CREDENTIAL } });
+  assert.equal(alert.status, 200);
+  assert.equal((await alert.json() as any).delivery, 'gateway');
+  metadata.kind = 'liveactivity-start';
+  const live = await activity({ token: TOKEN, kind: 'start', gateway: { credential: CREDENTIAL } });
+  assert.equal(live.status, 200);
+  assert.equal((await live.json() as any).delivery, 'gateway');
+});
+
+test('self-hosted gateway: the environment public URL overrides Settings and missing configuration fails closed', async () => {
+  const { DB, env, metadata, register, calls } = await fixture();
+  await DB.prepare("INSERT INTO settings(key,value) VALUES ('publicUrl',?)").bind(metadata.server).run();
+  env.PUBLIC_URL = 'https://other.example';
+  assert.equal((await register({ token: TOKEN, gateway: { credential: CREDENTIAL } })).status, 400);
+  assert.equal(calls.length, 1, 'verification refuses a credential for the saved URL when the environment overrides it');
+  env.PUBLIC_URL = undefined;
+  await DB.prepare("DELETE FROM settings WHERE key='publicUrl'").run();
+  assert.equal((await register({ token: TOKEN, gateway: { credential: CREDENTIAL } })).status, 400);
+  assert.equal(calls.length, 1, 'request origin cannot substitute for an explicitly configured public URL');
+});

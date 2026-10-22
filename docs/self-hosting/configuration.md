@@ -127,7 +127,9 @@ credentials or a verified gateway registration, native local reminders remain av
 
 The server can forward native alerts and Live Activities to `https://push.kinwall.family` using
 a credential issued for a specific phone token, server origin and push type. Configure `PUBLIC_URL`
-to identify your Kinwall server; gateway delivery activates when the app registers its device
+or save your server's public address in **Settings → Calendars → Calendar providers** to identify
+your Kinwall server. The environment variable takes precedence over the saved address.
+Gateway delivery activates when the app registers its device
 credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key. It makes outbound
 HTTPS requests only; the home server does not need a public inbound endpoint.
 

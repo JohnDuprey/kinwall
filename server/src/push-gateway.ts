@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { KinwallDb } from './db.ts';
 import { decrypt, type EncryptionEnv } from './crypto.ts';
 import { sha256Hex } from './auth.ts';
+import { storedPublicUrl } from './providers/config.ts';
 import type { NativePushRequest, NativePushResult } from './native-push.ts';
 
 export type GatewayKind = 'alert' | 'liveactivity-start' | 'liveactivity-update';
@@ -39,14 +40,16 @@ const call = (env: PushGatewayEnv, path: string, credential: string, body?: unkn
 /** Verify destination ownership metadata without displaying a test notification. No notification
  * or URL supplied by the caller can choose the gateway or the registered server origin. */
 export async function verifyGateway(env: PushGatewayEnv, credential: string, token: string, kind: GatewayKind): Promise<number | null> {
-  if (!env.PUBLIC_URL || !GatewayInput.safeParse({ credential }).success) return null;
+  if (!GatewayInput.safeParse({ credential }).success) return null;
   try {
+    const publicUrl = env.PUBLIC_URL || (env.DB ? await storedPublicUrl(env.DB) : undefined);
+    if (!publicUrl) return null;
     const response = await call(env, '/v1/registration/verify', credential);
     if (response.status !== 200) return null;
     const data = z.object({ server: z.string(), tokenHash: z.string(), kind: z.string(), expiresAt: z.number().int() }).safeParse(await smallJson(response));
     if (!data.success) return null;
     const m = data.data;
-    return m.server === new URL(env.PUBLIC_URL).origin && m.tokenHash === await sha256Hex(token.toLowerCase()) && m.kind === kind
+    return m.server === new URL(publicUrl).origin && m.tokenHash === await sha256Hex(token.toLowerCase()) && m.kind === kind
       && m.expiresAt > Date.now() && m.expiresAt <= Date.now() + 31 * 86400000 ? m.expiresAt : null;
   } catch { return null; }
 }
