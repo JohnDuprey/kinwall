@@ -24,8 +24,17 @@ export async function nativePushConfigured(env: NativePushEnv): Promise<boolean>
     .bind(now, now).first();
 }
 
+export async function nativePushStatus(env: NativePushEnv, token: string, kind: GatewayKind): Promise<{
+  push: boolean; delivery: 'direct' | 'gateway' | 'unavailable'; gatewayExpiresAt?: number;
+}> {
+  if (env.NATIVE_PUSH_SEND || apnsConfigured(env)) return { push: true, delivery: 'direct' };
+  const gateway = await gatewayForToken(env, token, kind);
+  return gateway ? { push: true, delivery: 'gateway', gatewayExpiresAt: gateway.expiresAt }
+    : { push: false, delivery: 'unavailable' };
+}
+
 export const nativePushReady = async (env: NativePushEnv, token: string, kind: GatewayKind): Promise<boolean> =>
-  !!env.NATIVE_PUSH_SEND || apnsConfigured(env) || !!await gatewayForToken(env, token, kind);
+  (await nativePushStatus(env, token, kind)).push;
 
 export async function sendNativeAlert(env: NativePushEnv, token: string, payload: NativeAlert): Promise<NativePushResult> {
   const url = payload.url && /^\/(?!\/)/.test(payload.url) && !/[\\\u0000-\u001f]/.test(payload.url) ? payload.url : '/';

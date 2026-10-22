@@ -74,7 +74,7 @@ failures, invalid gateway credentials and rate limits must return `gone: false`.
 retain the destination and are not logged, because they may contain secrets.
 
 This adapter takes precedence over direct APNs and needs no `APNS_*` credentials. Both token
-registration routes report `push: true` when the adapter exists; this reports configured
+registration routes report `push: true, delivery: "direct"` when the adapter exists; this reports configured
 capability, not confirmed device delivery. The host must resolve and authorize each destination registration
 and forward the family's server identity when constructing notification links. Device tokens
 and notification content must never be logged. Without this adapter, direct APNs is unchanged.

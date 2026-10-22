@@ -7,9 +7,9 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { requestKey, sha256Hex } from '../auth.ts';
 import { encrypt, seal } from '../crypto.ts';
-import { nativePushReady } from '../native-push.ts';
+import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
-import { ErrorSchema } from '../schemas.ts';
+import { ErrorSchema, NativePushStatusSchema } from '../schemas.ts';
 import type { Env } from '../env.ts';
 import type { Context } from 'hono';
 
@@ -52,7 +52,7 @@ liveActivitiesRoutes.openapi(
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: TokenSchema } } } },
     responses: {
-      200: { description: 'ok; `push` reports native delivery readiness for this token; not confirmation of device delivery', content: { 'application/json': { schema: z.object({ push: z.boolean() }) } } },
+      200: { description: 'ok; `push` reports native delivery readiness for this token; not confirmation of device delivery', content: { 'application/json': { schema: NativePushStatusSchema } } },
       400: { description: 'invalid, or not a device key', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -81,7 +81,7 @@ liveActivitiesRoutes.openapi(
     await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND id NOT IN (SELECT id FROM live_activity_tokens WHERE device = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)')
       .bind(d.device, d.device, MAX_TOKENS_PER_DEVICE)
       .run();
-    return c.json({ push: await nativePushReady(c.env, token, kind) }, 200);
+    return c.json(await nativePushStatus(c.env, token, kind), 200);
   },
 );
 

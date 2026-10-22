@@ -5,14 +5,14 @@ import { deviceOwner, ownDevice, requestKey, resolveKey, sha256Hex } from '../au
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey } from '../webpush.ts';
 import { nativeEndpoint, sendPush } from '../push-delivery.ts';
-import { nativePushReady } from '../native-push.ts';
+import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import type { Context } from 'hono';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
 import { DEFAULT_PUSH_PREFS, MED_LATE, openNote, pushToMembers, recordNotification } from '../notify.ts';
 import { medicationFeedFilter } from './medications.ts';
-import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
+import { NativePushStatusSchema, ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
 import { wordsFor } from '../i18n.ts';
 
 export const pushRoutes = createRouter();
@@ -69,7 +69,7 @@ pushRoutes.openapi(createRoute({
   summary: 'Register this native iOS device for Apple push; preserves preferences and replaces rotated tokens',
   request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().regex(/^[0-9a-f]{16,400}$/i), deviceName: z.string().min(1).max(100).default('iPhone'), gateway: GatewayInput.nullable().optional() }).strict() } } } },
   responses: {
-    200: { description: 'push reports native delivery readiness for this token; not confirmation of device delivery', content: { 'application/json': { schema: z.object({ push: z.boolean(), subscription: PushSubscriptionSchema }) } } },
+    200: { description: 'push reports native delivery readiness for this token; not confirmation of device delivery', content: { 'application/json': { schema: NativePushStatusSchema.extend({ subscription: PushSubscriptionSchema }) } } },
     400: { description: 'not a device key', content: { 'application/json': { schema: ErrorSchema } } },
   },
 }), async c => {
@@ -97,7 +97,7 @@ pushRoutes.openapi(createRoute({
       JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []),
       JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
   const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
-  return c.json({ push: await nativePushReady(c.env, token, 'alert'), subscription: toApi(row!) }, 200);
+  return c.json({ ...await nativePushStatus(c.env, token, 'alert'), subscription: toApi(row!) }, 200);
 });
 
 pushRoutes.openapi(

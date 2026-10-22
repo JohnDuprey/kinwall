@@ -1076,6 +1076,12 @@ export const PushSubscriptionPrefsSchema = z
   })
   .openapi('PushSubscriptionPrefs');
 
+export const NativePushStatusSchema = z.object({
+  push: z.boolean(),
+  delivery: z.enum(['direct', 'gateway', 'unavailable']),
+  gatewayExpiresAt: z.number().int().optional(),
+});
+
 export const PushSubscriptionSchema = z
   .object({
     id: z.string(),

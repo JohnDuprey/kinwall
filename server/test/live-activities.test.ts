@@ -76,7 +76,7 @@ test('apns: the provider token is an ES256 JWT that verifies with the key', asyn
 
 test('live activities: a device registers its tokens (sealed), and revoking the key deletes them', async () => {
   const { db, request, json, phone } = await fixture(false);
-  assert.deepEqual(await json('/api/live-activities/tokens', 'PUT', { kind: 'start', token: TOKEN }, phone.key), { push: false });
+  assert.deepEqual(await json('/api/live-activities/tokens', 'PUT', { kind: 'start', token: TOKEN }, phone.key), { push: false, delivery: 'unavailable' });
   assert.equal((await request('/api/live-activities/tokens', 'PUT', { kind: 'start', token: 'not hex!' }, phone.key)).status, 400);
   assert.equal((await request('/api/live-activities/tokens', 'PUT', { kind: 'update', token: TOKEN }, phone.key)).status, 400, 'an update token needs its activity');
   assert.equal((await request('/api/live-activities/tokens', 'PUT', { kind: 'start', token: TOKEN })).status, 400, 'ADMIN_API_KEY is no device');

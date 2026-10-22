@@ -131,12 +131,18 @@ to identify your Kinwall server; gateway delivery activates when the app registe
 credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key. It makes outbound
 HTTPS requests only; the home server does not need a public inbound endpoint.
 
-Gateway delivery requires a device credential supplied by the app. A phone keeps its local
-reminders until registration succeeds. Direct APNs
+The official production iOS app verifies its installation with Apple App Attest before obtaining
+a device credential. It keeps the credential in secure device storage, renews it before expiry
+when the app refreshes, and revokes it on sign-out or a server change. Builds without App Attest
+keep local reminders. A phone keeps its local medicine reminders until registration succeeds;
+expired gateway registrations allow local scheduling again on the next reminder refresh. Direct APNs
 takes precedence when its credentials are configured.
 
 Device credentials are verified and stored encrypted. Expired or rejected credentials require
-registration again; temporary delivery failures leave the registration intact.
+registration again; temporary delivery failures leave the registration intact. Failed medicine
+alerts get at most two further attempts over ten minutes. Pending text is encrypted and discarded
+when its dose log, schedule, recipient or privacy settings change. A timeout can still cause a
+duplicate alert if Apple accepted the first request; registration does not guarantee delivery.
 
 The gateway and Apple can read notification text. Medicine names remain off unless explicitly
 enabled for that device. The gateway does not make the home server reachable when tapping a

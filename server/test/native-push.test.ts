@@ -20,7 +20,7 @@ test('native push: host provider enables registration and encrypted alert delive
   assert.equal(push, true);
   const activity = await request('/api/live-activities/tokens', 'PUT', { token: TOKEN, kind: 'start' });
   assert.equal(activity.status, 200);
-  assert.deepEqual(await activity.json(), { push: true });
+  assert.deepEqual(await activity.json(), { push: true, delivery: 'direct' });
   assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Family message', url: '/#/lists' }), 1);
   assert.deepEqual(requests, [{ type: 'alert', token: TOKEN, payload: { title: 'Hello', body: 'Family message', url: '/#/lists' } }]);
   assert.equal(sent.length, 0, 'Apple transport is bypassed');
@@ -55,6 +55,7 @@ test('native push: encrypted registration, stable preferences through rotation, 
   const { db, env, phone, other, request, register } = await fixture();
   const first = await register();
   assert.equal(first.push, true);
+  assert.equal(first.delivery, 'direct');
   assert.equal(first.subscription.prefs.eventReminders, false, 'events already scheduled locally');
   assert.equal(first.subscription.prefs.medicationNames, false);
   const id = first.subscription.id;

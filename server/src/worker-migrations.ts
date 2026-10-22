@@ -125,6 +125,7 @@ import m0121 from '../migrations/0121_chore_goals.sql';
 import m0122 from '../migrations/0122_reward_milestones.sql';
 import m0123 from '../migrations/0123_native_push.sql';
 import m0124 from '../migrations/0124_push_gateway.sql';
+import m0125 from '../migrations/0125_push_retries.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -251,4 +252,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0122_reward_milestones.sql', sql: m0122 },
   { name: '0123_native_push.sql', sql: m0123 },
   { name: '0124_push_gateway.sql', sql: m0124 },
+  { name: '0125_push_retries.sql', sql: m0125 },
 ];

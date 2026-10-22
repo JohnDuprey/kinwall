@@ -261,9 +261,11 @@ or feature switches; GET requests never create awards. See [Rewards](../using/re
 
 `PUT /api/push/native` accepts `{token, deviceName?, gateway?: {credential} | null}` from an authenticated device. The token is
 hexadecimal APNs data (16–400 characters); it is encrypted at rest and never returned. The response
-is `{push, subscription}`, where `push` reports whether direct APNs, a host provider or a verified
+is `{push, delivery, gatewayExpiresAt?, subscription}`, where `push` reports whether direct APNs, a host provider or a verified
 unexpired gateway credential is available for that token (not confirmed phone delivery), and
-`subscription` has the existing preference/targeting fields. Re-registration replaces a rotated
+`delivery` is `direct`, `gateway` or `unavailable`. Gateway delivery also returns
+`gatewayExpiresAt` as Unix milliseconds so the app can renew before expiry. `subscription` has
+the existing preference/targeting fields. Re-registration replaces a rotated
 token while preserving preferences. Native event reminders are forced off in server preferences
 because the app schedules them locally. Existing subscription PATCH, DELETE and test routes apply.
 
@@ -281,6 +283,6 @@ Rotating the APNs token without a replacement credential clears the old gateway 
 
 `PUT /api/live-activities/tokens` accepts the same optional `gateway` field. Its credential must
 permit `liveactivity-start` for a start token or `liveactivity-update` for an update token. The
-registration response reports readiness for that token. Gateway authorization failures invalidate
+registration response is `{push, delivery, gatewayExpiresAt?}` and reports readiness for that token. Gateway authorization failures invalidate
 the matching stored credential without deleting the APNs destination; temporary failures and
 rate limits preserve it.
