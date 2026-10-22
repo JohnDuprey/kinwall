@@ -48,6 +48,11 @@ const fetchSend: ApnsSend = async (r) => {
   return { status: res.status, reason };
 };
 
+// Provider responses are untrusted text. Both alert and Live Activity errors use this list so
+// neither a response body nor transport exception can leak a token or notification into logs.
+const safeReasons = new Set(['Unregistered', 'BadDeviceToken', 'DeviceTokenNotForTopic', 'ExpiredProviderToken', 'InvalidProviderToken', 'TopicDisallowed', 'BadTopic', 'Forbidden', 'TooManyProviderTokenUpdates', 'TooManyRequests', 'PayloadTooLarge', 'ServiceUnavailable']);
+const safeReason = (reason?: string) => reason && safeReasons.has(reason) ? reason : 'request rejected';
+
 /** Ordinary native notifications. No offline backlog: a reminder that cannot reach the phone
  * now should not appear hours after it was resolved. Routes stay on the family's own server. */
 export async function sendAlert(env: ApnsEnv & { PUBLIC_URL?: string }, token: string, payload: { title: string; body: string; url?: string; tag?: string }): Promise<{ ok: boolean; gone: boolean }> {
@@ -64,8 +69,7 @@ export async function sendAlert(env: ApnsEnv & { PUBLIC_URL?: string }, token: s
     });
     if (status !== 200) {
       // Only known Apple error codes: never arbitrary response text, the token, key or payload.
-      const safeReasons = ['Unregistered', 'BadDeviceToken', 'DeviceTokenNotForTopic', 'ExpiredProviderToken', 'InvalidProviderToken', 'TopicDisallowed', 'BadTopic', 'Forbidden', 'TooManyProviderTokenUpdates', 'TooManyRequests', 'PayloadTooLarge', 'ServiceUnavailable'];
-      console.error('Apple push failed:', status, reason && safeReasons.includes(reason) ? reason : 'request rejected');
+      console.error('Apple push failed:', status, safeReason(reason));
     }
     return { ok: status === 200, gone: status === 410 || reason === 'Unregistered' || reason === 'BadDeviceToken' };
   } catch {
@@ -89,10 +93,10 @@ export async function sendLiveActivity(env: ApnsEnv, token: string, aps: Record<
       body: JSON.stringify({ aps }),
     });
     if (status === 200) return { ok: true, gone: false };
-    console.error(`Live Activity push failed: ${status} ${reason ?? ''}`.trim()); // never the token
+    console.error('Live Activity push failed:', status, safeReason(reason));
     return { ok: false, gone: status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered' };
-  } catch (e) {
-    console.error('Live Activity push failed:', e instanceof Error ? e.name : 'error');
+  } catch {
+    console.error('Live Activity push failed: transport error');
     return { ok: false, gone: false };
   }
 }

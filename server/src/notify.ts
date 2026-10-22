@@ -24,7 +24,8 @@ import { batteryFor } from './routes/insights.ts';
 import { eveningPending, LAST_NIGHT_UNTIL, lastNightSkipKey, morningAnswered } from './routes/temp-check.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
 import { medFollowup, nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen, type NudgeWords } from './nudges.ts';
-import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
+import { swiftDate, unixSeconds } from './apns.ts';
+import { nativePushConfigured, sendNativeLiveActivity } from './native-push.ts';
 import { isSealed, seal, unseal, type EncryptionEnv } from './crypto.ts';
 import { formatTime, hour12For } from './timeFormat.ts';
 import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from './routes/events.ts';
@@ -183,7 +184,7 @@ export async function pushToMembers(env: Env, memberIds: string[] | undefined, p
       sent++;
       await env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
     } else if (result.gone) {
-      await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ? AND auth = ?').bind(row.id, row.auth).run();
     }
   }
   return sent;
@@ -333,7 +334,7 @@ const fmtTime = (iso: string, tz: string, h12: boolean): string => formatTime(is
 export async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: PushText): Promise<void> {
   const result = await sendPush(env, db, row, inLang(payload, row.lang));
   if (result.ok) await db.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
-  else if (result.gone) await db.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();
+  else if (result.gone) await db.prepare('DELETE FROM push_subscriptions WHERE id = ? AND auth = ?').bind(row.id, row.auth).run();
 }
 
 // One timed or all-day occurrence in the search window, with what the regular reminders use.
@@ -577,7 +578,7 @@ const LIVE_GRACE_MS = 5 * 60000; // web/src/liveActivity.ts GRACE_MIN
 type LiveTokenRow = { id: string; device: string; kind: 'start' | 'update'; activity: string; token: string; ends_at: string | null; owner: string | null };
 
 async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], hold: boolean): Promise<void> {
-  if (!apnsConfigured(env)) return;
+  if (!await nativePushConfigured(env)) return;
   const [tokensRes, membersRes] = await db.batch<unknown>([
     db.prepare('SELECT t.id, t.device, t.kind, t.activity, t.token, t.ends_at, COALESCE(k.owner, g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id'),
     db.prepare('SELECT id, name, transitions, language FROM members WHERE transitions IS NOT NULL'),
@@ -585,8 +586,8 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   const tokens = tokensRes.results as LiveTokenRow[];
   if (!tokens.length) return;
   const send = async (t: LiveTokenRow, aps: Record<string, unknown>) => {
-    const res = await sendLiveActivity(env, await unseal(env, t.token, `live-activity-token:${t.id}`), aps);
-    if (res.gone) await db.prepare('DELETE FROM live_activity_tokens WHERE id = ?').bind(t.id).run();
+    const res = await sendNativeLiveActivity(env, await unseal(env, t.token, `live-activity-token:${t.id}`), aps);
+    if (res.gone) await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();
     return res;
   };
   const key = (occ: Occurrence) => `leaveBy:${occ.eventId}@${new Date(occ.start).toISOString()}`;
@@ -609,7 +610,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   // End the ones that are over (sent or not, the token is done).
   for (const t of tokens.filter((x) => x.kind === 'update' && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
     await send(t, { timestamp: unixSeconds(now.getTime()), event: 'end', 'dismissal-date': unixSeconds(now.getTime()) });
-    await db.prepare('DELETE FROM live_activity_tokens WHERE id = ?').bind(t.id).run();
+    await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();
   }
   if (hold) return;
 

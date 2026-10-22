@@ -1,10 +1,65 @@
 // node --test test/ (npm test). The colors the page hands the iPhone/Android app for its frame.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { surfaces } from '../src/native.ts'
+import { surfaces, statusBarColors } from '../src/native.ts'
+import { accentFill } from '../src/color.ts'
 import { SKINS } from '../src/skins.ts'
 
 const peach = SKINS.find(s => s.id === 'meadow')!
+
+test('status bar colors match the painted accent, including custom accents and Night', async () => {
+  assert.deepEqual(statusBarColors(peach, {}), { light: accentFill(peach.light.accent), dark: accentFill(peach.dark.accent) })
+  assert.deepEqual(statusBarColors(peach, { accent: '#ffff00' }), { light: accentFill('#ffff00'), dark: accentFill('#ffff00') })
+  const { tellAppAppearance, tellAppNight } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown; document?: unknown }
+  const sent: Record<string, unknown>[] = []
+  g.window = { webkit: { messageHandlers: { kinwall: { postMessage: (m: Record<string, unknown>) => sent.push(m) } } } }
+  g.document = { documentElement: { dataset: {} }, querySelectorAll: () => [] }
+  try {
+    const look = { mode: 'light' as const, dark: false, colors: surfaces(peach, {}), statusBarColors: statusBarColors(peach, {}) }
+    tellAppAppearance(look)
+    assert.deepEqual(sent.at(-1)?.statusBarColors, look.statusBarColors)
+    tellAppNight(true)
+    assert.deepEqual(sent.at(-1)?.statusBarColors, { light: '#050403', dark: '#050403' })
+    tellAppNight(false)
+    assert.deepEqual(sent.at(-1)?.statusBarColors, look.statusBarColors)
+  } finally { delete g.window; delete g.document }
+})
+
+test('status bar: only capable apps offer a choice, and the app owns the saved state', async () => {
+  const { appStatusBarHidden, setAppStatusBarHidden, markNativeApp } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown; document?: unknown }
+  const sent: unknown[] = []
+  const dataset: Record<string, string> = {}
+  g.document = { documentElement: { dataset } }
+  try {
+    g.window = {}
+    assert.equal(appStatusBarHidden(), null)
+    setAppStatusBarHidden(true)
+    assert.deepEqual(sent, [])
+    for (const platform of ['ios', 'android']) {
+      g.window = { kinwallNative: { platform } }
+      assert.equal(appStatusBarHidden(), null, 'older clients have no switch')
+      markNativeApp()
+      assert.equal(dataset.statusBar, platform === 'ios' ? 'hidden' : 'visible', 'older clients keep their layout')
+      for (const hidden of [true, false]) {
+        const native = { platform, statusBar: true, statusBarHidden: hidden }
+        g.window = { kinwallNative: native, webkit: { messageHandlers: { kinwall: { postMessage: (m: unknown) => sent.push(m) } } } }
+        assert.equal(appStatusBarHidden(), hidden)
+        markNativeApp()
+        assert.equal(dataset.statusBar, hidden ? 'hidden' : 'visible')
+        setAppStatusBarHidden(!hidden)
+        assert.deepEqual(sent.at(-1), { type: 'statusBar', hidden: !hidden })
+        assert.equal(appStatusBarHidden(), hidden, 'wait for the native acknowledgement')
+        native.statusBarHidden = !hidden // same state supplied on a reload
+        markNativeApp()
+        assert.equal(dataset.statusBar, hidden ? 'visible' : 'hidden')
+      }
+    }
+    g.window = { kinwallNative: { platform: 'ios', statusBar: true, statusBarHidden: 'false' } }
+    assert.equal(appStatusBarHidden(), null, 'malformed state cannot offer a misleading switch')
+  } finally { delete g.window; delete g.document }
+})
 
 test('surfaces: the scheme\'s own bg and card, light and dark', () => {
   assert.deepEqual(surfaces(peach, {}), {

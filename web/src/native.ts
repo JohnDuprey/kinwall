@@ -1,4 +1,5 @@
 import { t } from './i18n.ts'
+import { accentFill } from './color.ts'
 import type { Skin } from './skins.ts'
 import type { CustomColors, ThemeMode } from './types.ts'
 import type { DoseChange } from './doseChanges.ts'
@@ -23,12 +24,28 @@ export function appPlatform(): 'ios' | 'android' | null {
   return (window as Window & { kinwallNative?: { platform?: unknown } }).kinwallNative?.platform === 'android' ? 'android' : 'ios'
 }
 
-/** Marks <html data-native="ios|android"> so styles can use the space the app gives them: the
- * iPhone app hides the status bar, so the header doesn't need the gap it keeps under it in the
- * browser (Android keeps its status bar, so those rules are iOS-only). */
+/** Marks the app and its status bar so iOS styles can use the space the app gives them.
+ * Older clients keep their original layout (hidden on iOS, visible on Android). */
 export function markNativeApp() {
   const p = appPlatform()
-  if (p) document.documentElement.dataset.native = p
+  if (p) {
+    document.documentElement.dataset.native = p
+    document.documentElement.dataset.statusBar = (appStatusBarHidden() ?? p === 'ios') ? 'hidden' : 'visible'
+  }
+}
+
+/** null in a browser or an older app: only a capable app with valid state offers the setting. */
+export function appStatusBarHidden(): boolean | null {
+  if (typeof window === 'undefined') return null
+  const n = (window as Window & { kinwallNative?: { statusBar?: unknown; statusBarHidden?: unknown } }).kinwallNative
+  return n?.statusBar === true && typeof n.statusBarHidden === 'boolean' ? n.statusBarHidden : null
+}
+
+/** Native storage owns this device's choice; the app acknowledges it through kinwallnative. */
+export function setAppStatusBarHidden(hidden: boolean) {
+  if (appStatusBarHidden() === null) return
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'statusBar', hidden }) } catch { /* app unavailable */ }
 }
 
 /** Tells the app the page signed out (Unpair, or its key stopped working), so it can refresh an
@@ -72,6 +89,13 @@ export function surfaces(skin: Skin, custom: CustomColors): { light: Surface; da
   return { light: pick(skin.light), dark: pick(skin.dark) }
 }
 
+/** The same filled accent that the page paints (including the demo banner), in either theme. */
+export function statusBarColors(skin: Skin, custom: CustomColors): { light: string; dark: string } {
+  return { light: accentFill(custom.accent || skin.light.accent), dark: accentFill(custom.accent || skin.dark.accent) }
+}
+
+type AppAppearance = { mode: ThemeMode; dark: boolean; colors: { light: Surface; dark: Surface }; statusBarColors?: { light: string; dark: string } }
+
 let lastAppearance = ''
 let realLook: Parameters<typeof tellAppAppearance>[0] | null = null
 let nightOn = false
@@ -79,7 +103,7 @@ const NIGHT_BG = '#050403' // .quiet-overlay's background
 /** The look in effect, so the app paints its frame (and the next launch) in the page's colors
  * instead of flashing its own. Both variants go, so in 'auto' the app can follow the system on
  * its own. Sent only when something changed. No-op in a browser. */
-export function tellAppAppearance(a: { mode: ThemeMode; dark: boolean; colors: { light: Surface; dark: Surface } }) {
+export function tellAppAppearance(a: AppAppearance) {
   realLook = a
   if (!nightOn) postAppearance(a)
 }
@@ -96,11 +120,11 @@ export function tellAppNight(on: boolean) {
     if (on) { m.dataset.day = m.content; m.content = NIGHT_BG } else if (m.dataset.day) m.content = m.dataset.day
   }
   const night = { bg: NIGHT_BG, card: NIGHT_BG }
-  if (on) postAppearance({ mode: 'dark', dark: true, colors: { light: night, dark: night } })
+  if (on) postAppearance({ mode: 'dark', dark: true, colors: { light: night, dark: night }, statusBarColors: { light: NIGHT_BG, dark: NIGHT_BG } })
   else if (realLook) postAppearance(realLook)
 }
 
-function postAppearance(a: { mode: ThemeMode; dark: boolean; colors: { light: Surface; dark: Surface } }) {
+function postAppearance(a: AppAppearance) {
   const json = JSON.stringify(a)
   if (json === lastAppearance) return
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }

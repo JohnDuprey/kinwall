@@ -10,6 +10,25 @@ import { runNotifications } from '../src/notify.ts';
 import type { Env } from '../src/env.ts';
 
 const TOKEN = 'ab'.repeat(32); // an obvious fake
+
+test('apns: Live Activity logs only allowlisted reasons and never transport exception details', async () => {
+  const { sendLiveActivity } = await import('../src/apns.ts');
+  const secret = `private payload ${TOKEN}`;
+  const env = { APNS_KEY_ID: crypto.randomUUID(), APNS_TEAM_ID: 'TESTTEAM', APNS_KEY: (await p8()).pem, APNS_BUNDLE_ID: 'family.kinwall.app',
+    APNS_SEND: async () => ({ status: 503, reason: secret }) };
+  const logs: string[] = [], error = console.error;
+  console.error = (...args: unknown[]) => { logs.push(args.join(' ')); };
+  try {
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, {}), { ok: false, gone: false });
+    env.APNS_SEND = async () => ({ status: 410, reason: 'Unregistered' });
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, {}), { ok: false, gone: true });
+    env.APNS_SEND = async () => { const e = new Error(secret); e.name = secret; throw e; };
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, {}), { ok: false, gone: false });
+    assert.ok(logs.some(l => l.includes('503') && l.includes('request rejected')));
+    assert.ok(logs.some(l => l.includes('410') && l.includes('Unregistered')));
+    assert.ok(logs.every(l => !l.includes(secret) && !l.includes(TOKEN)));
+  } finally { console.error = error; }
+});
 const b64 = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4)), (c) => c.charCodeAt(0));
 
 async function p8() {
@@ -74,6 +93,20 @@ test('live activities: nothing is sent without APNs set up, and nothing fails', 
   await json('/api/live-activities/tokens', 'PUT', { kind: 'start', token: TOKEN }, phone.key);
   await runNotifications(env, new Date('2030-03-04T15:20:00Z'));
   assert.deepEqual(sent, []);
+});
+
+test('live activities: ending an old token cannot delete a replacement registered while sending', async () => {
+  const { env, db, json, phone, soccer } = await fixture(true);
+  const activity = `leaveBy:${soccer.id}@2030-03-04T16:00:00.000Z`;
+  await json('/api/live-activities/tokens', 'PUT', { kind: 'update', token: TOKEN, activity, endsAt: '2030-03-04T16:00:00Z' }, phone.key);
+  let finish!: () => void, started!: () => void;
+  const sending = new Promise<void>(resolve => { started = resolve; });
+  env.APNS_SEND = async () => { started(); await new Promise<void>(resolve => { finish = resolve; }); return { status: 200 }; };
+  const pending = runNotifications(env, new Date('2030-03-04T16:00:00Z'));
+  await sending;
+  await json('/api/live-activities/tokens', 'PUT', { kind: 'update', token: 'cd'.repeat(32), activity, endsAt: '2030-03-04T17:00:00Z' }, phone.key);
+  finish(); await pending;
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM live_activity_tokens WHERE kind='update'").first<{ n: number }>())!.n, 1);
 });
 
 test('live activities: push-to-start at the first transition warning, once; ended when the event starts', async () => {

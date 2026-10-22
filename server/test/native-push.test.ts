@@ -10,6 +10,25 @@ import type { Env } from '../src/env.ts';
 import type { ApnsRequest } from '../src/apns.ts';
 
 const TOKEN = 'ab'.repeat(32);
+
+test('native push: host provider enables registration and encrypted alert delivery without Apple keys', async () => {
+  const { env, sent, register, request, db } = await fixture();
+  env.APNS_KEY = undefined;
+  const requests: import('../src/native-push.ts').NativePushRequest[] = [];
+  env.NATIVE_PUSH_SEND = async r => { requests.push(r); return { ok: true, gone: false }; };
+  const { push, subscription } = await register();
+  assert.equal(push, true);
+  const activity = await request('/api/live-activities/tokens', 'PUT', { token: TOKEN, kind: 'start' });
+  assert.equal(activity.status, 200);
+  assert.deepEqual(await activity.json(), { push: true });
+  assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Family message', url: '/#/lists' }), 1);
+  assert.deepEqual(requests, [{ type: 'alert', token: TOKEN, payload: { title: 'Hello', body: 'Family message', url: '/#/lists' } }]);
+  assert.equal(sent.length, 0, 'Apple transport is bypassed');
+  env.NATIVE_PUSH_SEND = async () => { throw new Error('temporary gateway failure'); };
+  assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Retry later' }), 0);
+  assert.ok(await db.prepare('SELECT id FROM push_subscriptions WHERE id=?').bind(subscription.id).first(), 'outages retain subscriptions');
+});
+
 async function fixture() {
   const db = openDb(':memory:');
   applyMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
