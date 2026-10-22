@@ -77,3 +77,16 @@ A device with a display key gets two tabs:
 * **Family**: Members and Categories (read-only) and, with Meals on, the usual meal times (read-only). Chore settings are for parent devices.
 
 **Calendars** and **Access** are never shown to a display, not even briefly. Settings shows the display view until the server confirms the device is an admin.
+
+### Apple push in the iPhone and iPad app
+
+A current paid-team build can receive family messages and the server reminders selected here.
+**Send test** confirms whether the server successfully handed the alert to Apple; it does not prove
+that the phone displayed it. The app must have notification permission and the server must have
+APNs configured. Event reminders remain local. Medicine and chore reminders switch to server
+notifications after APNs registration succeeds, avoiding duplicate local copies. Older apps,
+Android and servers without APNs continue using local reminders and the bell feed.
+
+The medicine countdown’s names setting and the separate **Show medicine names in notifications on
+this device** setting apply to different surfaces. Both default off. Names sent in a notification
+pass through Apple and may appear on the Lock Screen; enable them only deliberately.

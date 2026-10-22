@@ -256,3 +256,17 @@ The Contacts Directory is available through `GET /api/contacts`, `POST /api/cont
 All four operations return 403 with Rewards or Chores & points off. Milestones never charge points.
 Earning is reconciled after successful writes that can affect earned sources, milestones, imports,
 or feature switches; GET requests never create awards. See [Rewards](../using/rewards.md#reward-milestones).
+
+### Native Apple push
+
+`PUT /api/push/native` accepts `{token, deviceName?}` from an authenticated device. The token is
+hexadecimal APNs data (16–400 characters); it is encrypted at rest and never returned. The response
+is `{push, subscription}`, where `push` reports whether APNs credentials are configured and
+`subscription` has the existing preference/targeting fields. Re-registration replaces a rotated
+token while preserving preferences. Native event reminders are forced off in server preferences
+because the app schedules them locally. Existing subscription PATCH, DELETE and test routes apply.
+
+OAuth device registrations belong to the stable grant and survive access-key rotation. Revoking
+the grant removes them. Non-device OAuth clients receive 403; the setup ADMIN_API_KEY is not a
+registrable device. Medicine names remain off by default. The migration adds a nullable grant
+reference and index only: no existing subscriptions or family data are backfilled or deleted.

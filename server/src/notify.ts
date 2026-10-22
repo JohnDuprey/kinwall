@@ -13,7 +13,7 @@ import { expand, zonedTimeToUtc } from './recurrence.ts';
 import { dueOnDate, type ChoreRow } from './routes/chores.ts';
 import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
-import { sendWebPush } from './webpush.ts';
+import { sendPush } from './push-delivery.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { newscastPrunes } from './routes/newscast.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
@@ -125,7 +125,14 @@ function subPrefs(row: PushSubRow): typeof DEFAULT_PUSH_PREFS {
 export async function loadSubs(db: KinwallDb, where = '', ...binds: unknown[]): Promise<PushSubRow[]> {
   const stmt = db.prepare(`SELECT s.*, CASE WHEN k.scope = 'display' AND k.owner IS NOT NULL AND k.owner <> 'shared' THEN k.owner END AS kid,
       o.language AS owner_lang, (SELECT value FROM settings WHERE key = 'language') AS family_lang
-      FROM push_subscriptions s LEFT JOIN api_keys k ON k.id = s.api_key_id LEFT JOIN members o ON o.id = k.owner${where ? ` WHERE (${where})` : ''}`);
+      FROM push_subscriptions s LEFT JOIN api_keys k ON k.id = COALESCE(s.api_key_id,
+        (SELECT id FROM api_keys WHERE oauth_grant_id = s.oauth_grant_id ORDER BY created_at DESC, rowid DESC LIMIT 1))
+      LEFT JOIN members o ON o.id = k.owner
+      ${where ? `WHERE (${where}) AND` : 'WHERE'}
+        (s.endpoint NOT LIKE 'apns:%' OR (k.id IS NOT NULL AND
+          (k.expires_at IS NULL OR k.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') OR EXISTS
+            (SELECT 1 FROM oauth_refresh_tokens r WHERE r.grant_id = s.oauth_grant_id
+              AND r.used_at IS NULL AND r.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')))))`);
   const { results } = await (binds.length ? stmt.bind(...binds) : stmt)
     .all<Omit<PushSubRow, 'lang'> & { kid: string | null; owner_lang: string | null; family_lang: string | null }>();
   return results.map(({ kid, owner_lang, family_lang, ...s }) => {
@@ -137,7 +144,7 @@ export async function loadSubs(db: KinwallDb, where = '', ...binds: unknown[]): 
  * their other devices. Spread it into loadSubs: loadSubs(db, ...notBy(by)). */
 export function notBy(by?: ChangedBy): [string, ...unknown[]] {
   const where: string[] = [], binds: unknown[] = [];
-  if (by?.keyId) { where.push('s.api_key_id IS NOT ?'); binds.push(by.keyId); }
+  if (by?.keyId) { where.push('COALESCE(s.api_key_id,k.id) IS NOT ?'); binds.push(by.keyId); }
   if (by?.memberId) { where.push('k.owner IS NOT ?'); binds.push(by.memberId); }
   return [where.join(' AND '), ...binds];
 }
@@ -167,7 +174,7 @@ export async function pushToMembers(env: Env, memberIds: string[] | undefined, p
   let sent = 0;
   for (const row of await loadSubs(env.DB)) {
     if (!memberMatch(parseMemberIds(row.member_ids), memberIds)) continue;
-    const result = await sendWebPush(env, env.DB, row, inLang(payload, row.lang));
+    const result = await sendPush(env, env.DB, row, inLang(payload, row.lang));
     if (result.ok) {
       sent++;
       await env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
@@ -320,7 +327,7 @@ function fireTime(startIso: string, allDay: boolean, minutes: number, tz: string
 const fmtTime = (iso: string, tz: string, h12: boolean): string => formatTime(iso, { tz, h12 });
 
 export async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: PushText): Promise<void> {
-  const result = await sendWebPush(env, db, row, inLang(payload, row.lang));
+  const result = await sendPush(env, db, row, inLang(payload, row.lang));
   if (result.ok) await db.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
   else if (result.gone) await db.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();
 }

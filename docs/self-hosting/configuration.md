@@ -29,7 +29,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `HOST_PORTAL_URL` | — | For hosts running Kinwall for other families: a page where a family can manage or delete their instance. It's linked from **Settings → Access → Your data**. |
 | `PLUGIN_CATALOG_URL` | `https://app.kinwall.family/plugins/catalog.json` | Where the list of reviewed activity plugins comes from (fetched hourly). See [Building activity plugins](../contributing/plugins.md#getting-reviewed). |
 | `PLUGINS_CATALOG_ONLY` | — | `1` allows only reviewed plugins: no other repositories and no uploads. |
-| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | — | Apple push for the iPhone app's Live Activities. See [below](#live-activities-apple-push). |
+| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | — | Apple push for native alerts and the iPhone app's Live Activities. See [below](#live-activities-apple-push). |
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
 | `TZ` | system | Docker/Node: the fallback timezone until the household sets one. |
@@ -116,3 +116,10 @@ Apple only accepts HTTP/2. Docker and Node send with Node's HTTP/2 client. A dep
 ## Home Assistant add-on options
 
 The add-on maps its options onto these variables. See [Home Assistant add-on](../getting-started/home-assistant-add-on.md).
+
+Ordinary native alerts use the same APNs credentials as Live Activities, with the app's normal
+bundle topic. These credentials must belong to the team signing that app; a self-hosted server
+cannot send to the official Kinwall app using an unrelated developer team's key. Never distribute
+the official private key to self-hosted servers or bundle it in the app. Without matching
+credentials, native local reminders remain available. Native token registration reports `push:
+false` until all required fields are configured.

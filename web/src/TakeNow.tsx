@@ -2,7 +2,8 @@
 // until it's taken, skipped or its late window closes; a snooze hides it for 10 minutes). In a person's Day view and on their medications page;
 // on the Board it's one of the count tiles (TakeNowTile), which opens the list in a sheet. The server decides what this device may see: a shared wall gets
 // everyone's doses as "Meds" unless the family turned names on, a person's own device only theirs.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { doseChanges, sameDose } from './doseChanges.ts'
 import { api, ApiError, PUSH_SUB_ID_KEY } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
@@ -22,8 +23,15 @@ const RECHECK_MS = 60_000 // a dose shows up at its time without waiting for the
 
 // The board's tile and the phone app's Live Activity both ask, at the same moments (a refresh, the
 // top of each minute): they share one request.
-let dueRequest: Promise<MedicationsDue> | null = null
-const fetchDue = () => (dueRequest ??= api.getMedicationsDue().finally(() => { dueRequest = null }))
+let dueRequest: { revision: number; request: Promise<MedicationsDue> } | null = null
+const fetchDue = () => {
+  if (!dueRequest || !doseChanges.current(dueRequest.revision)) {
+    const read = { revision: doseChanges.revision, request: api.getMedicationsDue() }
+    dueRequest = read
+    read.request.finally(() => { if (dueRequest === read) dueRequest = null }).catch(() => {})
+  }
+  return dueRequest
+}
 
 /** Today's due doses for this device, refetched on each refresh and at the top of every minute
  * while the screen is showing. The Board uses it to know whether to show its Take now tile; `drop`
@@ -36,9 +44,14 @@ export function useDueDoses() {
   useEffect(() => {
     if (!on) return
     let canceled = false
-    fetchDue().then(d => { if (!canceled) setDue(d) }).catch(() => { if (!canceled) setDue(null) }) // no card rather than an error
+    const read = fetchDue()
+    read.request.then(d => { if (!canceled && doseChanges.current(read.revision)) setDue(d) }).catch(() => { if (!canceled && doseChanges.current(read.revision)) setDue(null) }) // no card rather than an error
     return () => { canceled = true }
   }, [on, refreshTick, tick])
+  useEffect(() => doseChanges.listen(change => {
+    if (change.action !== 'unmark') setDue(x => x && { ...x, doses: x.doses.filter(d => !sameDose(d, change)) })
+    setTick(x => x + 1)
+  }), [])
   useEffect(() => {
     if (!on) return
     let t: ReturnType<typeof setTimeout>
@@ -81,6 +94,17 @@ export function MedicationLiveActivity() {
   const me = members.find(m => m.id === meMemberId)
   const kids = activityPeople(me, members, parentDevice, appKidDoses()).slice(1) // namesTick re-reads it
   const a = me ? medicationActivity(doses, me, now, names, kids) : null
+  const liveDoses = useRef(doses)
+  liveDoses.current = doses
+  // Send the replacement/end in the save's own turn, not after the celebration, polling or a
+  // React effect that the WebView may suspend when the person immediately leaves the app.
+  useEffect(() => doseChanges.listen(change => {
+    if (change.action === 'unmark') return // the confirmed refetch decides what is due again
+    liveDoses.current = liveDoses.current.filter(d => !sameDose(d, change))
+    const next = me ? medicationActivity(liveDoses.current, me, Date.now(), names, kids) : null
+    if (next) tellAppActivity('medication', next)
+    else endAppActivity('medication')
+  }), [me, names, JSON.stringify(kids)]) // eslint-disable-line react-hooks/exhaustive-deps
   const json = JSON.stringify(a)
   useEffect(() => { if (a) tellAppActivity('medication', a); else endAppActivity('medication') }, [json]) // eslint-disable-line react-hooks/exhaustive-deps
   return null

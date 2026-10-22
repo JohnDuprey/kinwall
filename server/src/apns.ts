@@ -43,10 +43,35 @@ export async function apnsJwt(env: ApnsEnv, now = Date.now()): Promise<string> {
 }
 
 const fetchSend: ApnsSend = async (r) => {
-  const res = await fetch(`https://${r.host}${r.path}`, { method: 'POST', headers: r.headers, body: r.body });
+  const res = await fetch(`https://${r.host}${r.path}`, { method: 'POST', headers: r.headers, body: r.body, signal: AbortSignal.timeout(10_000) });
   const reason = res.ok ? undefined : ((await res.json().catch(() => null)) as { reason?: string } | null)?.reason;
   return { status: res.status, reason };
 };
+
+/** Ordinary native notifications. No offline backlog: a reminder that cannot reach the phone
+ * now should not appear hours after it was resolved. Routes stay on the family's own server. */
+export async function sendAlert(env: ApnsEnv & { PUBLIC_URL?: string }, token: string, payload: { title: string; body: string; url?: string; tag?: string }): Promise<{ ok: boolean; gone: boolean }> {
+  if (!apnsConfigured(env)) return { ok: false, gone: false };
+  const url = payload.url && /^\/(?!\/)/.test(payload.url) && !/[\\\u0000-\u001f]/.test(payload.url) ? payload.url : '/';
+  try {
+    const { status, reason } = await (env.APNS_SEND ?? fetchSend)({
+      host: env.APNS_SANDBOX === '1' ? 'api.sandbox.push.apple.com' : 'api.push.apple.com',
+      path: `/3/device/${token}`,
+      headers: { authorization: `bearer ${await apnsJwt(env)}`, 'apns-topic': env.APNS_BUNDLE_ID!,
+        'apns-push-type': 'alert', 'apns-priority': '10', 'apns-expiration': '0', 'content-type': 'application/json' },
+      body: JSON.stringify({ aps: { alert: { title: payload.title, body: payload.body }, sound: 'default',
+        ...(payload.tag?.startsWith('med:') ? { 'interruption-level': 'time-sensitive' } : {}) }, body: { url, ...(env.PUBLIC_URL ? { server: env.PUBLIC_URL } : {}) } }),
+    });
+    if (status !== 200) {
+      // Only known Apple error codes: never arbitrary response text, the token, key or payload.
+      const safeReasons = ['Unregistered', 'BadDeviceToken', 'DeviceTokenNotForTopic', 'ExpiredProviderToken', 'InvalidProviderToken', 'TopicDisallowed', 'BadTopic', 'Forbidden', 'TooManyProviderTokenUpdates', 'TooManyRequests', 'PayloadTooLarge', 'ServiceUnavailable'];
+      console.error('Apple push failed:', status, reason && safeReasons.includes(reason) ? reason : 'request rejected');
+    }
+    return { ok: status === 200, gone: status === 410 || reason === 'Unregistered' || reason === 'BadDeviceToken' };
+  } catch {
+    return { ok: false, gone: false };
+  }
+}
 
 /** Sends one Live Activity push. `gone`: Apple says the token is no longer valid, so drop it. */
 export async function sendLiveActivity(env: ApnsEnv, token: string, aps: Record<string, unknown>, priority: 5 | 10 = 10): Promise<{ ok: boolean; gone: boolean }> {
