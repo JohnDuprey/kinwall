@@ -13,6 +13,8 @@ import { expand, zonedTimeToUtc } from './recurrence.ts';
 import { dueOnDate, type ChoreRow } from './routes/chores.ts';
 import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
+import { enqueueMedicinePush, retryMedicinePushes } from './medicine-push-retries.ts';
+import type { PushSendResult } from './webpush.ts';
 import { sendPush } from './push-delivery.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { newscastPrunes } from './routes/newscast.ts';
@@ -107,6 +109,9 @@ type PushSubRow = {
   last_success_at: string | null;
   /** The language its text goes out in: its owner's (members.language), else the family's (i18n.ts). */
   lang: Lang;
+  gateway_credential?: string | null;
+  delivery_owner?: string | null;
+  delivery_scope?: string | null;
 };
 /** A push's words, or how to write them in a device's language (i18n.ts perLang for many devices). */
 type PushPayload = { title: string; body: string; url?: string; tag?: string };
@@ -128,7 +133,7 @@ function subPrefs(row: PushSubRow): typeof DEFAULT_PUSH_PREFS {
 // member, auth.ts deviceOwner) follows only that kid, whatever its row says: routes/push.ts saves
 // it that way, and this covers rows saved before it did.
 export async function loadSubs(db: KinwallDb, where = '', ...binds: unknown[]): Promise<PushSubRow[]> {
-  const stmt = db.prepare(`SELECT s.*, CASE WHEN k.scope = 'display' AND k.owner IS NOT NULL AND k.owner <> 'shared' THEN k.owner END AS kid,
+  const stmt = db.prepare(`SELECT s.*, k.owner AS delivery_owner, k.scope AS delivery_scope, CASE WHEN k.scope = 'display' AND k.owner IS NOT NULL AND k.owner <> 'shared' THEN k.owner END AS kid,
       o.language AS owner_lang, (SELECT value FROM settings WHERE key = 'language') AS family_lang
       FROM push_subscriptions s LEFT JOIN api_keys k ON k.id = COALESCE(s.api_key_id,
         (SELECT id FROM api_keys WHERE oauth_grant_id = s.oauth_grant_id ORDER BY created_at DESC, rowid DESC LIMIT 1))
@@ -331,10 +336,11 @@ function fireTime(startIso: string, allDay: boolean, minutes: number, tz: string
 
 const fmtTime = (iso: string, tz: string, h12: boolean): string => formatTime(iso, { tz, h12 });
 
-export async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: PushText): Promise<void> {
+export async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: PushText): Promise<PushSendResult> {
   const result = await sendPush(env, db, row, inLang(payload, row.lang));
   if (result.ok) await db.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
   else if (result.gone) await db.prepare('DELETE FROM push_subscriptions WHERE id = ? AND auth = ?').bind(row.id, row.auth).run();
+  return result;
 }
 
 // One timed or all-day occurrence in the search window, with what the regular reminders use.
@@ -878,12 +884,16 @@ const NOTE_BEFORE_END_MS = 60 * 60_000;
 export const REFILL_REMIND_AT = '09:00';
 async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
   const meds = await loadMedications(env);
-  if (!meds.length) return;
+  if (!meds.length) { await db.prepare('DELETE FROM push_retries').run(); return; }
   const today = todayInTz(tz, now);
   const yesterday = addDays(today, -1);
   const logs = await loadLogs(env, meds.map((m) => m.id), yesterday, today);
   const { results: members } = await db.prepare('SELECT id, name, grown_up FROM members').all<{ id: string; name: string; grown_up: number }>();
   const byId = new Map(members.map((m) => [m.id, m]));
+  // Bind pending text to the complete current dose/recipient state. A taken, skipped, snoozed,
+  // edited or removed dose cancels it conservatively, including grouped reminders.
+  const retryVersion = await sha256Hex(JSON.stringify([tz, h12, meds, [...logs].sort(([a], [b]) => a.localeCompare(b)), members]));
+  await retryMedicinePushes(env, await loadSubs(db), retryVersion, now.getTime(), (sub, payload) => sendToSub(env, db, sub, payload));
   const claim = async (target: number, what: string) => {
     if (now.getTime() < target || now.getTime() - target >= MED_GRACE_MS) return false;
     const key = `med:${await sha256Hex(what)}`;
@@ -926,7 +936,9 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   const send = async (subs: PushSubRow[], text: (lang: Lang) => { title: string; generic: string }, named: Medication[], url: string, tag: string) => {
     for (const sub of subs) {
       const { title, generic } = text(sub.lang);
-      await sendToSub(env, db, sub, { title, body: subPrefs(sub).medicationNames ? named.map(medicineLabel).join(', ') : generic, url, tag });
+      const payload = { title, body: subPrefs(sub).medicationNames ? named.map(medicineLabel).join(', ') : generic, url, tag };
+      const result = await sendToSub(env, db, sub, payload);
+      if (!result.ok && !result.gone && !tag.startsWith('med-refill:')) await enqueueMedicinePush(env, sub, payload, retryVersion, now.getTime());
     }
   };
   const fam = await familyLang(db);
@@ -1249,6 +1261,8 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   if (features.checkIns && !hold) await part('last night reminders', () => runLastNightReminders(env, env.DB, now, tz)); // held at night
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     await part('medication reminders', () => runMedicationReminders(env, env.DB, now, tz, h12));
+  } else {
+    await part('discard disabled medicine retries', async () => env.DB.prepare('DELETE FROM push_retries').run());
   }
   if (features.outings && !hold) await part('outing reminders', () => runOutings(env, env.DB, now, tz, h12)); // held at night: sent once it's over
   if (features.upkeep && !hold) await part('home upkeep', () => runUpkeep(env, env.DB, now, tz, _execCtx)); // held at night too

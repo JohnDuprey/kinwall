@@ -1,4 +1,4 @@
-// Home upkeep (docs/using/upkeep.md, migration 0125): the things a family looks after, the jobs that
+// Home upkeep (docs/using/upkeep.md, migration 0126): the things a family looks after, the jobs that
 // keep them working and a log of every time one was done. Dates come from upkeep-rules.ts, the
 // shared reads and the chore hand-off from upkeep.ts, the morning notes from notify.ts runUpkeep.
 //

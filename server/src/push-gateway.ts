@@ -62,7 +62,7 @@ export async function gatewayForToken(env: PushGatewayEnv, token: string, kind: 
   if (!row?.gateway_credential?.startsWith('v1:') || !row.gateway_expires_at || row.gateway_expires_at <= Date.now()) return null;
   try {
     const credential = await decrypt(env, row.gateway_credential, gatewayAad(row.id));
-    return GatewayInput.safeParse({ credential }).success ? { credential, ciphertext: row.gateway_credential, table, id: row.id } : null;
+    return GatewayInput.safeParse({ credential }).success ? { credential, ciphertext: row.gateway_credential, table, id: row.id, expiresAt: row.gateway_expires_at } : null;
   } catch { return null; }
 }
 

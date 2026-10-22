@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { createApiKey, sha256Hex } from '../src/auth.ts';
-import { pushToMembers } from '../src/notify.ts';
+import { pushToMembers, runNotifications } from '../src/notify.ts';
 import { sendNativeLiveActivity } from '../src/native-push.ts';
 import type { Env } from '../src/env.ts';
 
@@ -33,7 +33,10 @@ test('self-hosted gateway: verifies and encrypts a device credential; sends only
   assert.equal((await (await register({ token: TOKEN })).json() as any).push, false, 'an unregistered device keeps local reminders');
   const response = await register({ token: TOKEN, gateway: { credential: CREDENTIAL } });
   assert.equal(response.status, 200);
-  assert.equal((await response.json() as any).push, true);
+  const result = await response.json() as any;
+  assert.equal(result.push, true);
+  assert.equal(result.delivery, 'gateway');
+  assert.equal(result.gatewayExpiresAt, (await DB.prepare('SELECT gateway_expires_at FROM push_subscriptions').first<any>()).gateway_expires_at);
   const row = await DB.prepare('SELECT * FROM push_subscriptions').first<any>();
   assert.ok(!JSON.stringify(row).includes(CREDENTIAL));
   assert.equal(await pushToMembers(env, [], { title: 'Hello', body: 'Test', url: '/#/lists' }), 1);
@@ -142,4 +145,40 @@ test('self-hosted gateway: a retired response for an old token cannot delete its
   finish(Response.json({ ok: false, gone: true }, { status: 410 }));
   await pending;
   assert.equal((await (await register({ token: rotated })).json() as any).push, true);
+});
+
+test('self-hosted gateway: medicine failures retry per destination, and taken doses cancel pending text', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2030-03-04T08:01:00Z') });
+  t.after(() => t.mock.timers.reset());
+  const { DB, env, phone, calls, register, setStatus } = await fixture();
+  env.ADMIN_API_KEY = 'test-admin';
+  const app = createApp();
+  const admin = async (path: string, method: string, body: unknown) => {
+    const res = await app.request(path, { method, headers: { Authorization: 'Bearer test-admin', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, env);
+    assert.ok(res.ok, await res.clone().text()); return await res.json() as any;
+  };
+  await admin('/api/settings', 'PATCH', { timezone: 'UTC', medications: true });
+  const sam = await admin('/api/members', 'POST', { name: 'Sam', color: '#FF8FA3', grownUp: true });
+  await DB.prepare('UPDATE api_keys SET owner=? WHERE id=?').bind(sam.id,phone.id).run();
+  await register({ token: TOKEN, gateway: { credential: CREDENTIAL } });
+  const med = await admin('/api/medications', 'POST', { memberId: sam.id, name: 'Sample medicine', dose: '1 tablet', times: ['08:00'] });
+  setStatus(503);
+  await runNotifications(env, new Date('2030-03-04T08:01:00Z'));
+  assert.equal(calls.filter(c => c.url.endsWith('/send')).length, 1);
+  assert.ok((await DB.prepare('SELECT payload FROM push_retries').first<any>()).payload.startsWith('enc:v1:'));
+  setStatus(200);
+  await runNotifications(env, new Date('2030-03-04T08:06:00Z'));
+  assert.equal(calls.filter(c => c.url.endsWith('/send')).length, 2);
+  assert.equal(await DB.prepare('SELECT * FROM push_retries').first(), null);
+  await runNotifications(env, new Date('2030-03-04T08:11:00Z'));
+  assert.equal(calls.filter(c => c.url.endsWith('/send')).length, 2, 'accepted reminders are not replayed');
+  t.mock.timers.setTime(new Date('2030-03-05T08:01:00Z').getTime());
+  await DB.prepare('UPDATE push_subscriptions SET gateway_expires_at=?').bind(Date.now()+3600000).run();
+  setStatus(503);
+  await runNotifications(env, new Date('2030-03-05T08:01:00Z'));
+  await admin(`/api/medications/${med.id}/doses`, 'POST', { date: '2030-03-05', time: '08:00', action: 'taken' });
+  setStatus(200);
+  await runNotifications(env, new Date('2030-03-05T08:06:00Z'));
+  assert.equal(calls.filter(c => c.url.endsWith('/send')).length, 3, 'a taken dose discards the pending reminder');
+  assert.equal(await DB.prepare('SELECT * FROM push_retries').first(), null);
 });

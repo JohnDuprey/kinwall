@@ -208,7 +208,7 @@ const ExportSchema = z
     // Outings (0111): things to do and places to go, with who marked them, and their categories.
     outings: z.array(OutingSchema),
     outingCategories: z.array(OutingCategorySchema),
-    // Home upkeep (0125): areas, the things looked after, their jobs and every Done. Receipts and
+    // Home upkeep (0126): areas, the things looked after, their jobs and every Done. Receipts and
     // other files are in the photo backup zip (upkeep/), not here.
     upkeepAreas: z.array(UpkeepAreaSchema),
     upkeepThings: z.array(UpkeepThingSchema.omit({ files: true })),
