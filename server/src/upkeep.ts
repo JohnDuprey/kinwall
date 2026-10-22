@@ -26,7 +26,7 @@ export type UpkeepJob = {
 };
 export type UpkeepEntry = {
   id: string; jobId: string | null; thingId: string | null; title: string; doneOn: string; memberId: string | null; contactId: string | null; costCents: number | null;
-  reading: number | null; readingUnit: 'mi' | 'km' | 'h' | null; notes: string | null; choreId: string | null; createdBy: string | null; createdAt: string; files: UpkeepFile[];
+  reading: number | null; readingUnit: 'mi' | 'km' | 'h' | null; notes: string | null; choreId: string | null; choreDate?: string | null; createdBy: string | null; createdAt: string; files: UpkeepFile[];
 };
 
 const json = <T>(s: string | null, fallback: T): T => { try { return s ? (JSON.parse(s) as T) : fallback; } catch { return fallback; } };
@@ -62,7 +62,7 @@ type JobRow = {
   start_on: string | null; due_on: string | null; heads_up_days: number; snoozed_until: string | null; skipped_until: string | null; member_id: string | null; contact_id: string | null;
   usual_cost_cents: number | null; steps: string; supplies: string; supplies_list_id: string | null; supplies_days: number; chore_points: number | null; handed_chore_id: string | null;
   calendar_event_id: string | null; event_start: string | null; wall_visible: number; library_key: string | null; archived: number; created_at: string; updated_at: string;
-  last_id: string | null; last_on: string | null; last_member: string | null;
+  last_id: string | null; last_on: string | null; last_member: string | null; thing_archived: number | null;
 };
 
 /** The facts upkeep-rules.ts works from, with the day it was added in the family's timezone. */
@@ -74,9 +74,9 @@ export const factsOf = (j: Pick<UpkeepJob, 'repeatKind' | 'every' | 'unit' | 'on
 /** Jobs with their next due date, where they stand today and the last time they were done, soonest
  * first (done one-offs last). `today` and `dayOf` (an ISO time as a household day) come from the
  * family's timezone. */
-export async function readJobs(db: KinwallDb, today: string, dayOf: (iso: string) => string, opts: { id?: string } = {}): Promise<UpkeepJob[]> {
-  const rows = (await db.prepare(`SELECT j.*, e.start AS event_start, l.id AS last_id, l.done_on AS last_on, l.member_id AS last_member
-    FROM upkeep_jobs j LEFT JOIN events e ON e.id = j.calendar_event_id
+export async function readJobs(db: KinwallDb, today: string, dayOf: (iso: string) => string, opts: { id?: string; rawArchive?: boolean } = {}): Promise<UpkeepJob[]> {
+  const rows = (await db.prepare(`SELECT j.*, t.archived AS thing_archived, e.start AS event_start, l.id AS last_id, l.done_on AS last_on, l.member_id AS last_member
+    FROM upkeep_jobs j LEFT JOIN upkeep_things t ON t.id = j.thing_id LEFT JOIN events e ON e.id = j.calendar_event_id
     LEFT JOIN upkeep_log l ON l.id = (SELECT id FROM upkeep_log WHERE job_id = j.id ORDER BY done_on DESC, created_at DESC LIMIT 1)
     ${opts.id ? 'WHERE j.id = ?' : ''}`).bind(...(opts.id ? [opts.id] : [])).all<JobRow>()).results;
   const jobs = rows.map((r): UpkeepJob => {
@@ -85,10 +85,10 @@ export async function readJobs(db: KinwallDb, today: string, dayOf: (iso: string
       onDay: r.on_day, startOn: r.start_on, dueOn: r.due_on, headsUpDays: r.heads_up_days, snoozedUntil: r.snoozed_until, skippedUntil: r.skipped_until, memberId: r.member_id,
       contactId: r.contact_id, usualCostCents: r.usual_cost_cents, steps: json<string[]>(r.steps, []), supplies: json<UpkeepSupply[]>(r.supplies, []), suppliesListId: r.supplies_list_id,
       suppliesDays: r.supplies_days, chorePoints: r.chore_points, handedChoreId: r.handed_chore_id, calendarEventId: r.event_start ? r.calendar_event_id : null, calendarEventStart: r.event_start,
-      wallVisible: !!r.wall_visible, libraryKey: r.library_key, archived: !!r.archived, createdAt: r.created_at, updatedAt: r.updated_at,
+      wallVisible: !!r.wall_visible, libraryKey: r.library_key, archived: !!r.archived || (!opts.rawArchive && !!r.thing_archived), createdAt: r.created_at, updatedAt: r.updated_at,
       lastDone: r.last_id && r.last_on ? { id: r.last_id, doneOn: r.last_on, memberId: r.last_member } : null,
     };
-    const due = r.archived ? null : nextDue(factsOf(base, dayOf(r.created_at)), base.lastDone?.doneOn ?? null);
+    const due = base.archived ? null : nextDue(factsOf(base, dayOf(r.created_at)), base.lastDone?.doneOn ?? null);
     return { ...base, nextDue: due, status: statusOf(due, today, r.heads_up_days) };
   });
   return jobs.sort((a, b) => (a.nextDue ?? '9999') < (b.nextDue ?? '9999') ? -1 : (a.nextDue ?? '9999') > (b.nextDue ?? '9999') ? 1 : a.title.localeCompare(b.title));
@@ -96,7 +96,7 @@ export async function readJobs(db: KinwallDb, today: string, dayOf: (iso: string
 
 type LogRow = {
   id: string; job_id: string | null; thing_id: string | null; title: string; done_on: string; member_id: string | null; contact_id: string | null; cost_cents: number | null;
-  reading: number | null; reading_unit: UpkeepEntry['readingUnit']; notes: string | null; chore_id: string | null; created_by: string | null; created_at: string;
+  reading: number | null; reading_unit: UpkeepEntry['readingUnit']; notes: string | null; chore_id: string | null; chore_date: string | null; created_by: string | null; created_at: string;
 };
 export type LogFilter = { id?: string; jobId?: string; thingId?: string; memberId?: string; year?: string; q?: string; limit?: number };
 /** The log, newest first. */
@@ -117,21 +117,22 @@ export async function readLog(db: KinwallDb, f: LogFilter = {}): Promise<UpkeepE
   const files = await filesBy(db, 'log_id', rows.map((r) => r.id));
   return rows.map((r) => ({
     id: r.id, jobId: r.job_id, thingId: r.thing_id, title: r.title, doneOn: r.done_on, memberId: r.member_id, contactId: r.contact_id, costCents: r.cost_cents, reading: r.reading,
-    readingUnit: r.reading_unit, notes: r.notes, choreId: r.chore_id, createdBy: r.created_by, createdAt: r.created_at, files: files.get(r.id) ?? [],
+    readingUnit: r.reading_unit, notes: r.notes, choreId: r.chore_id, choreDate: r.chore_date, createdBy: r.created_by, createdAt: r.created_at, files: files.get(r.id) ?? [],
   }));
 }
 
-export type DoneInput = { doneOn: string; memberId?: string | null; contactId?: string | null; costCents?: number | null; reading?: number | null; readingUnit?: UpkeepEntry['readingUnit']; notes?: string | null; choreId?: string | null; createdBy?: string | null };
+export type DoneInput = { doneOn: string; memberId?: string | null; contactId?: string | null; costCents?: number | null; reading?: number | null; readingUnit?: UpkeepEntry['readingUnit']; notes?: string | null; choreId?: string | null; choreDate?: string | null; createdBy?: string | null; createdKeyId?: string | null };
 /** Writes one Done for a job (or nothing when the job is gone) and clears its snooze and skip. */
 export async function logDone(db: KinwallDb, jobId: string, d: DoneInput): Promise<string | null> {
-  const job = await db.prepare('SELECT title, thing_id FROM upkeep_jobs WHERE id = ?').bind(jobId).first<{ title: string; thing_id: string | null }>();
+  const job = await db.prepare('SELECT title, thing_id, snoozed_until, skipped_until, calendar_event_id FROM upkeep_jobs WHERE id = ?').bind(jobId).first<{ title: string; thing_id: string | null; snoozed_until: string | null; skipped_until: string | null; calendar_event_id: string | null }>();
   if (!job) return null;
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.batch([
-    db.prepare('INSERT INTO upkeep_log (id, job_id, thing_id, title, done_on, member_id, contact_id, cost_cents, reading, reading_unit, notes, chore_id, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .bind(id, jobId, job.thing_id, job.title, d.doneOn, d.memberId ?? null, d.contactId ?? null, d.costCents ?? null, d.reading ?? null, d.reading != null ? d.readingUnit ?? 'mi' : null, d.notes?.trim() || null, d.choreId ?? null, d.createdBy ?? null, now),
-    db.prepare('UPDATE upkeep_jobs SET snoozed_until = NULL, skipped_until = NULL, updated_at = ? WHERE id = ?').bind(now, jobId),
+    db.prepare('INSERT INTO upkeep_log (id, job_id, thing_id, title, done_on, member_id, contact_id, cost_cents, reading, reading_unit, notes, chore_id, created_by, created_at, created_key_id, chore_date, undo_state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .bind(id, jobId, job.thing_id, job.title, d.doneOn, d.memberId ?? null, d.contactId ?? null, d.costCents ?? null, d.reading ?? null, d.reading != null ? d.readingUnit ?? 'mi' : null, d.notes?.trim() || null, d.choreId ?? null, d.createdBy ?? null, now, d.createdKeyId ?? null, d.choreDate ?? null, JSON.stringify({ snoozedUntil: job.snoozed_until, skippedUntil: job.skipped_until, calendarEventId: job.calendar_event_id })),
+    db.prepare('UPDATE upkeep_jobs SET snoozed_until = NULL, skipped_until = NULL, calendar_event_id = NULL, updated_at = ? WHERE id = ?').bind(now, jobId),
+    ...(d.choreId && d.choreDate ? [db.prepare('DELETE FROM upkeep_pending WHERE chore_id = ? AND date = ?').bind(d.choreId, d.choreDate)] : []),
   ]);
   return id;
 }
@@ -139,18 +140,40 @@ export async function logDone(db: KinwallDb, jobId: string, d: DoneInput): Promi
 /** A kid's upkeep chore was ticked off (routes/chores.ts completeChore and approve): the job is
  * logged as done by them that day, once. Returns the Done (for the upkeep.done webhook), or null
  * for any other chore. */
-export async function logFromChore(db: KinwallDb, choreId: string, date: string, memberId: string | null): Promise<{ id: string; jobId: string; thingId: string | null; title: string; doneOn: string; memberId: string | null } | null> {
+export async function logFromChore(db: KinwallDb, choreId: string, date: string, memberId: string | null, input: Partial<DoneInput> = {}): Promise<{ id: string; jobId: string; thingId: string | null; title: string; doneOn: string; memberId: string | null } | null> {
   const job = await db.prepare('SELECT id, title, thing_id FROM upkeep_jobs WHERE handed_chore_id = ?').bind(choreId).first<{ id: string; title: string; thing_id: string | null }>();
   if (!job) return null;
-  if (await db.prepare('SELECT id FROM upkeep_log WHERE chore_id = ? AND done_on = ?').bind(choreId, date).first()) return null;
-  const id = await logDone(db, job.id, { doneOn: date, memberId, choreId, createdBy: memberId });
-  return id ? { id, jobId: job.id, thingId: job.thing_id, title: job.title, doneOn: date, memberId } : null;
+  if (await db.prepare('SELECT id FROM upkeep_log WHERE chore_id = ? AND coalesce(chore_date, done_on) = ?').bind(choreId, date).first()) return null;
+  const pending = await db.prepare('SELECT input FROM upkeep_pending WHERE chore_id = ? AND date = ?').bind(choreId, date).first<{ input: string }>();
+  const done = { doneOn: date, createdBy: memberId, ...input, ...json<Partial<DoneInput>>(pending?.input ?? null, {}), memberId, choreId, choreDate: date };
+  const id = await logDone(db, job.id, done);
+  return id ? { id, jobId: job.id, thingId: job.thing_id, title: job.title, doneOn: done.doneOn, memberId } : null;
+}
+
+export async function savePendingChore(db: KinwallDb, choreId: string, date: string, input: DoneInput): Promise<void> {
+  await db.prepare('INSERT INTO upkeep_pending (chore_id, date, input) VALUES (?,?,?) ON CONFLICT(chore_id, date) DO UPDATE SET input = excluded.input').bind(choreId, date, JSON.stringify(input)).run();
+}
+
+/** Remove a completion and its points together. Restore overrides only while the job is still in
+ * the state that completion left: later edits, bookings and completions must survive. */
+export async function undoDone(db: KinwallDb, id: string): Promise<{ jobId: string | null; choreId: string | null; choreDate: string } | null> {
+  const e = await db.prepare('SELECT job_id, chore_id, coalesce(chore_date, done_on) AS chore_date, created_at, undo_state FROM upkeep_log WHERE id = ?').bind(id).first<{ job_id: string | null; chore_id: string | null; chore_date: string; created_at: string; undo_state: string | null }>();
+  if (!e) return null;
+  const before = json<{ snoozedUntil: string | null; skippedUntil: string | null; calendarEventId: string | null } | null>(e.undo_state, null);
+  await db.batch([
+    ...(before && e.job_id ? [db.prepare('UPDATE upkeep_jobs SET snoozed_until = ?, skipped_until = ?, calendar_event_id = ?, updated_at = ? WHERE id = ? AND updated_at = ? AND snoozed_until IS NULL AND skipped_until IS NULL AND calendar_event_id IS NULL AND NOT EXISTS (SELECT 1 FROM upkeep_log WHERE job_id = ? AND rowid > (SELECT rowid FROM upkeep_log WHERE id = ?))')
+      .bind(before.snoozedUntil, before.skippedUntil, before.calendarEventId, new Date().toISOString(), e.job_id, e.created_at, e.job_id, id)] : []),
+    ...(e.chore_id ? [db.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(e.chore_id, e.chore_date), db.prepare('DELETE FROM upkeep_pending WHERE chore_id = ? AND date = ?').bind(e.chore_id, e.chore_date)] : []),
+    db.prepare('DELETE FROM upkeep_log WHERE id = ?').bind(id),
+  ]);
+  return { jobId: e.job_id, choreId: e.chore_id, choreDate: e.chore_date };
 }
 
 /** Its tick was undone: so is the Done it made. */
 export async function unlogFromChore(db: KinwallDb, choreId: string, date: string): Promise<string | null> {
-  const row = await db.prepare('DELETE FROM upkeep_log WHERE chore_id = ? AND done_on = ? RETURNING job_id').bind(choreId, date).first<{ job_id: string | null }>();
-  return row?.job_id ?? null;
+  const row = await db.prepare('SELECT id FROM upkeep_log WHERE chore_id = ? AND coalesce(chore_date, done_on) = ?').bind(choreId, date).first<{ id: string }>();
+  await db.prepare('DELETE FROM upkeep_pending WHERE chore_id = ? AND date = ?').bind(choreId, date).run();
+  return row ? (await undoDone(db, row.id))?.jobId ?? null : null;
 }
 
 /** Hands a due job to its kid as a one-off chore for `day`, with the job's points. Returns the chore's id. */

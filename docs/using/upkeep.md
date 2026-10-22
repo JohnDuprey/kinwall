@@ -43,6 +43,10 @@ A link to `#/upkeep?job=<job id>` opens that job, and `#/upkeep?thing=<thing id>
 
 **Done** asks only what it needs: **When** (today; up to 7 days back from a wall or a kid's device, any day from a parent's) and **Who did it**. A parent's device also takes the **Cost** (the job's usual cost is filled in), a **Reading** in miles, kilometers or hours, **Notes** and a **Receipt or photo**. Under it, **Next due** shows where the schedule moves. The toast says "Done: Change the furnace filter" with **Undo**.
 
+A wall or kid's device can undo only a Done made from that same device within the last 15 minutes. A parent can remove any entry. Undo also removes a linked chore's completion and points. It restores the previous snooze, skip and calendar link while the job has had no later changes.
+
+After a recurring job is done, **Add to the calendar…** is available for its next visit. The previous visit stays on the calendar.
+
 ## On the Board
 
 Jobs late or due soon show with the to-dos: as **🔧 2 upkeep jobs due soon** (or **late**) in Today, and in the **Due soon** card with each job and when it's due. When someone is picked at the top, it's their jobs and the ones nobody is set to do. Jobs with **Show it on wall screens** off stay off wall screens.
@@ -50,6 +54,10 @@ Jobs late or due soon show with the to-dos: as **🔧 2 upkeep jobs due soon** (
 ## Kids' upkeep chores
 
 Set **Usually done by** to a kid and tick **Make it their chore on the day it's due** with some points. On the day the job comes due (from 9 AM, household time), it becomes a one-off [chore](chores.md) for them with those points. Ticking that chore off marks the job done by them that day; undoing the tick takes it back.
+
+Marking the job **Done** in Upkeep completes that outstanding chore too, with the same points and approval rules. If a grown-up's approval is needed, the app says **Waiting for a grown-up** and the upkeep schedule stays unchanged until approval. The history keeps the day the job was actually done, even when it differs from the chore's due day.
+
+Marking a thing **Sold or gone** pauses its jobs without changing which jobs were individually put away. Bringing the thing back resumes only jobs that were active before.
 
 ## Supplies on the shopping list
 

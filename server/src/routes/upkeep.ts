@@ -23,10 +23,11 @@ import { requestLang, stored, tm, wordsFor } from '../i18n.ts';
 import { readFeatures, readSettings } from './settings.ts';
 import { todayInTz } from './members.ts';
 import { createEvent } from './events.ts';
+import { completeChore } from './chores.ts';
 import { blobBytes } from './photos.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { addDays, scheduledDue } from '../upkeep-rules.ts';
-import { factsOf, logDone, MAX_UPKEEP_FILE_BYTES, readAreas, readJobs, readLog, readThings, type UpkeepEntry, type UpkeepJob, type UpkeepThing } from '../upkeep.ts';
+import { factsOf, logDone, MAX_UPKEEP_FILE_BYTES, readAreas, readJobs, readLog, readThings, undoDone, type DoneInput, type UpkeepEntry, type UpkeepJob, type UpkeepThing } from '../upkeep.ts';
 import { UPKEEP_STARTERS } from '../upkeep-starters.ts';
 
 export const upkeepRoutes = createRouter();
@@ -77,7 +78,7 @@ export const UpkeepEntrySchema = z
   .object({
     id: z.string(), jobId: z.string().nullable(), thingId: z.string().nullable(), title: z.string(), doneOn: z.string(), memberId: z.string().nullable(), contactId: z.string().nullable(),
     costCents: z.number().int().nullable(), reading: z.number().int().nullable().openapi({ description: 'Odometer or hour meter, as read.' }), readingUnit: z.enum(['mi', 'km', 'h']).nullable(),
-    notes: z.string().nullable(), choreId: z.string().nullable(), createdBy: z.string().nullable(), createdAt: z.string(), files: z.array(FileSchema),
+    notes: z.string().nullable(), choreId: z.string().nullable(), choreDate: z.string().nullable().optional().openapi({ description: 'The linked chore occurrence day, which may differ from doneOn.' }), createdBy: z.string().nullable(), createdAt: z.string(), files: z.array(FileSchema),
   })
   .openapi('UpkeepEntry', { description: "A kid's device gets no cost, reading, notes or files." });
 
@@ -108,7 +109,7 @@ export const UpkeepDoneInputSchema = z
     notes: z.string().max(10_000).nullable().optional(),
   })
   .openapi('UpkeepDoneInput', { description: "From a wall screen or a kid's device only doneOn and memberId count (a kid's device: always its kid)." });
-export const UpkeepDoneResultSchema = z.object({ entry: UpkeepEntrySchema, job: UpkeepJobSchema }).openapi('UpkeepDoneResult');
+export const UpkeepDoneResultSchema = z.object({ entry: UpkeepEntrySchema.nullable(), job: UpkeepJobSchema, pending: z.boolean().optional().openapi({ description: 'True while the linked chore awaits parent approval; entry is null and the schedule has not advanced.' }) }).openapi('UpkeepDoneResult');
 const EntryPatchSchema = z.object({ doneOn: DAY, memberId: z.string().nullable(), contactId: z.string().nullable(), costCents: CENTS.nullable(), reading: z.number().int().min(0).nullable(), readingUnit: z.enum(['mi', 'km', 'h']).nullable(), notes: z.string().max(10_000).nullable() }).partial().openapi('UpkeepEntryPatch');
 export const UpkeepCalendarInputSchema = z
   .object({
@@ -317,8 +318,7 @@ upkeepRoutes.openapi(
     const now = new Date().toISOString();
     await db.batch([
       ...(cols.length ? [db.prepare(`UPDATE upkeep_things SET ${cols.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`).bind(...cols.map(([, v]) => v), now, id)] : []),
-      // Gone: its jobs go quiet too (archived), and come back if it does.
-      ...(input.archived !== undefined ? [db.prepare('UPDATE upkeep_jobs SET archived = ?, updated_at = ? WHERE thing_id = ?').bind(input.archived ? 1 : 0, now, id)] : []),
+      // readJobs suppresses a gone thing's jobs without changing their own archived state.
     ]);
     emit(c, 'upkeep.changed', { id, kind: 'thing' });
     return c.json((await readThings(db, { id }))[0], 200);
@@ -449,11 +449,25 @@ upkeepRoutes.openapi(
     if (blocked) return c.json({ error: blocked }, 403);
     if (!(await exists(db, 'members', memberId))) return c.json({ error: 'member not found' }, 400);
     if (who.parent && !(await exists(db, 'contacts', input.contactId))) return c.json({ error: 'contact not found' }, 400);
-    const entryId = (await logDone(db, id, {
-      doneOn, memberId, createdBy: who.kid ?? (await actorOf(c)).memberId,
+    const doneInput: DoneInput = {
+      doneOn, memberId, createdBy: who.kid ?? (await actorOf(c)).memberId, createdKeyId: (await requestKey(c))?.id ?? null,
       ...(who.parent ? { contactId: input.contactId, costCents: input.costCents, reading: input.reading, readingUnit: input.readingUnit, notes: input.notes } : {}),
-    }))!;
-    emit(c, 'upkeep.done', { id: entryId, jobId: id, thingId: job.thingId, title: job.title, doneOn, memberId });
+    };
+    // Use the normal chore path for an outstanding hand-off, including points, checklist gates
+    // and parent approval. The chore occurrence date and the actual upkeep day may differ.
+    const chore = job.handedChoreId ? await db.prepare("SELECT ch.id, ch.due_date FROM chores ch WHERE ch.id = ? AND ch.active = 1 AND ch.archived = 0 AND NOT EXISTS (SELECT 1 FROM chore_completions cc WHERE cc.chore_id = ch.id AND cc.date = ch.due_date AND cc.status = 'approved')")
+      .bind(job.handedChoreId).first<{ id: string; due_date: string }>() : null;
+    let entryId: string;
+    if (chore) {
+      const result = await completeChore(c, chore.id, chore.due_date, memberId ?? undefined, false, doneInput);
+      if (result === 'pending') return c.json({ entry: null, job: shownJob((await jobsNow(db, { id }))[0], who), pending: true }, 200);
+      if (typeof result === 'object') return c.json({ error: 'blocked' in result ? result.blocked : result.notDue }, 403);
+      if (result !== true) return c.json({ error: 'Complete this job in Chores first.' }, 400);
+      entryId = (await db.prepare('SELECT id FROM upkeep_log WHERE chore_id = ? AND coalesce(chore_date, done_on) = ?').bind(chore.id, chore.due_date).first<{ id: string }>())!.id;
+    } else {
+      entryId = (await logDone(db, id, doneInput))!;
+      emit(c, 'upkeep.done', { id: entryId, jobId: id, thingId: job.thingId, title: job.title, doneOn, memberId });
+    }
     const [entry] = await readLog(db, { id: entryId });
     const [saved] = await jobsNow(db, { id });
     return c.json({ entry: shownEntry(entry, who), job: shownJob(saved, who) }, 200);
@@ -587,8 +601,10 @@ upkeepRoutes.openapi(
     const who = await viewer(c);
     const [e] = await readLog(db, { id });
     if (!e) return c.json({ error: 'entry not found' }, 404);
-    if (!who.parent && (Date.now() - Date.parse(e.createdAt) > UNDO_MS || (who.kid && e.memberId !== who.kid))) return c.json({ error: "Ask a grown-up to remove this from the history." }, 403);
-    await db.prepare('DELETE FROM upkeep_log WHERE id = ?').bind(id).run();
+    const creator = await db.prepare('SELECT created_key_id FROM upkeep_log WHERE id = ?').bind(id).first<{ created_key_id: string | null }>();
+    if (!who.parent && (Date.now() - Date.parse(e.createdAt) > UNDO_MS || !creator?.created_key_id || creator.created_key_id !== (await requestKey(c))?.id || (who.kid && e.memberId !== who.kid))) return c.json({ error: "Ask a grown-up to remove this from the history." }, 403);
+    const undone = await undoDone(db, id);
+    if (undone?.choreId) emit(c, 'chore.uncompleted', { id: undone.choreId, date: undone.choreDate });
     emit(c, 'upkeep.changed', { id, kind: 'log', deleted: true });
     return c.json({ ok: true }, 200);
   },
@@ -684,9 +700,10 @@ upkeepRoutes.openapi(
     const used = new Set((await db.prepare('SELECT library_key FROM upkeep_jobs WHERE library_key IS NOT NULL').all<{ library_key: string }>()).results.map((r) => r.library_key));
     const lang = await requestLang(c);
     const ids: string[] = [];
+    const areas = new Set((await readAreas(db)).map((a) => a.id));
     for (const s of UPKEEP_STARTERS.filter((x) => keys.includes(x.key) && !used.has(x.key))) {
       ids.push(await insertJob(db, {
-        title: tm(lang, s.title), emoji: s.emoji, areaId: s.areaId, repeatKind: s.repeatKind, every: s.every ?? null, unit: s.unit ?? null, onMonths: s.onMonths ?? [], onDay: s.onDay ?? null,
+        title: tm(lang, s.title), emoji: s.emoji, areaId: areas.has(s.areaId) ? s.areaId : null, repeatKind: s.repeatKind, every: s.every ?? null, unit: s.unit ?? null, onMonths: s.onMonths ?? [], onDay: s.onDay ?? null,
         headsUpDays: s.headsUpDays ?? 7, supplies: (s.supplies ?? []).map((n) => ({ name: tm(lang, n) })),
       }, { library_key: s.key }));
     }

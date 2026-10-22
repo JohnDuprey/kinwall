@@ -127,6 +127,7 @@ import m0123 from '../migrations/0123_native_push.sql';
 import m0124 from '../migrations/0124_push_gateway.sql';
 import m0125 from '../migrations/0125_push_retries.sql';
 import m0126 from '../migrations/0126_upkeep.sql';
+import m0127 from '../migrations/0127_upkeep_completion.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -255,4 +256,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0124_push_gateway.sql', sql: m0124 },
   { name: '0125_push_retries.sql', sql: m0125 },
   { name: '0126_upkeep.sql', sql: m0126 },
+  { name: '0127_upkeep_completion.sql', sql: m0127 },
 ];

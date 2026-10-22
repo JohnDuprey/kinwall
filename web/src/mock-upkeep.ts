@@ -33,6 +33,7 @@ const jobBase: Omit<UpkeepJob, 'id' | 'title' | 'nextDue' | 'status' | 'lastDone
   handedChoreId: null, calendarEventId: null, calendarEventStart: null, wallVisible: true, libraryKey: null, archived: false, createdAt: stamp(addDays(today, -400)), updatedAt: stamp(addDays(today, -400)),
 }
 type Stored = Omit<UpkeepJob, 'nextDue' | 'status' | 'lastDone'>
+const undoState = new Map<string, Pick<Stored, 'snoozedUntil' | 'skippedUntil' | 'calendarEventId' | 'calendarEventStart'>>()
 let jobs: Stored[] = [
   { ...jobBase, id: 'demo-filter', title: 'Change the furnace filter', emoji: '🌬️', thingId: 'demo-furnace', areaId: 'ua-heating', every: 3, unit: 'month', memberId: 'm1', usualCostCents: 1800, steps: ['Turn the furnace off', 'Slide the old filter out', 'Arrow on the new one points at the furnace'], supplies: [{ name: 'Furnace filter 16x25x1' }], libraryKey: 'hvac-filter' },
   { ...jobBase, id: 'demo-oil', title: 'Oil change', emoji: '🛢️', thingId: 'demo-van', areaId: 'ua-cars', every: 6, unit: 'month', memberId: 'm2', headsUpDays: 14, usualCostCents: 5400, libraryKey: 'oil-change' },
@@ -64,8 +65,9 @@ const STARTERS: UpkeepStarter[] = [
 function shown(j: Stored): UpkeepJob {
   const last = log.filter(e => e.jobId === j.id).sort((a, b) => b.doneOn.localeCompare(a.doneOn))[0]
   const facts = { ...j, createdOn: j.createdAt.slice(0, 10) }
-  const due = j.archived ? null : nextDue(facts, last?.doneOn ?? null)
-  const out = { ...j, nextDue: due, status: statusOf(due, today, j.headsUpDays), lastDone: last ? { id: last.id, doneOn: last.doneOn, memberId: last.memberId } : null }
+  const archived = j.archived || !!things.find(x => x.id === j.thingId)?.archived
+  const due = archived ? null : nextDue(facts, last?.doneOn ?? null)
+  const out = { ...j, archived, nextDue: due, status: statusOf(due, today, j.headsUpDays), lastDone: last ? { id: last.id, doneOn: last.doneOn, memberId: last.memberId } : null }
   return kid() ? { ...out, usualCostCents: null, contactId: null, supplies: [], suppliesListId: null } : out
 }
 const visible = (j: Stored) => !kid() || j.memberId === kid()
@@ -91,7 +93,8 @@ export async function mockUpkeepRequest(path: string, options: RequestInit): Pro
     grownUp()
     const used = new Set(jobs.map(j => j.libraryKey))
     if (method === 'GET') return copy(STARTERS.filter(s => !used.has(s.key)))
-    const added = STARTERS.filter(s => (body.keys as string[]).includes(s.key) && !used.has(s.key)).map(s => ({ ...jobBase, id: crypto.randomUUID(), title: s.title, emoji: s.emoji, areaId: s.areaId, repeatKind: s.repeatKind, every: s.every, unit: s.unit, onMonths: s.onMonths, onDay: s.onDay, supplies: s.supplies.map(name => ({ name })), libraryKey: s.key, createdAt: now, updatedAt: now }))
+    const added: Stored[] = STARTERS.filter(s => (body.keys as string[]).includes(s.key) && !used.has(s.key)).map(s => ({ ...jobBase, id: crypto.randomUUID(), title: s.title, emoji: s.emoji, areaId: s.areaId, repeatKind: s.repeatKind, every: s.every, unit: s.unit, onMonths: s.onMonths, onDay: s.onDay, supplies: s.supplies.map(name => ({ name })), libraryKey: s.key, createdAt: now, updatedAt: now }))
+    added.forEach(j => { if (!areas.some(a => a.id === j.areaId)) j.areaId = null })
     jobs.push(...added); return added.map(shown)
   }
   if (kind === 'files') throw new Error('Files aren’t kept in the demo.')
@@ -102,7 +105,12 @@ export async function mockUpkeepRequest(path: string, options: RequestInit): Pro
         && (!f.get('q') || `${e.title} ${e.notes ?? ''}`.toLowerCase().includes(f.get('q')!.toLowerCase()))).sort((a, b) => b.doneOn.localeCompare(a.doneOn))
         .map(e => kid() ? { ...e, costCents: null, reading: null, readingUnit: null, notes: null, contactId: null } : e))
     }
-    if (method === 'DELETE') { log = log.filter(e => e.id !== id); return { ok: true } }
+    if (method === 'DELETE') {
+      const e = log.find(e => e.id === id), j = jobs.find(j => j.id === e?.jobId), before = id ? undoState.get(id) : undefined
+      if (e && j && before && j.updatedAt === e.createdAt && log.filter(x => x.jobId === j.id).at(-1)?.id === id) Object.assign(j, before, { updatedAt: now })
+      if (id) undoState.delete(id)
+      log = log.filter(e => e.id !== id); return { ok: true }
+    }
     grownUp(); Object.assign(log.find(e => e.id === id)!, body); return copy(log.find(e => e.id === id))
   }
   if (kind === 'things') {
@@ -113,7 +121,6 @@ export async function mockUpkeepRequest(path: string, options: RequestInit): Pro
     if (method === 'DELETE') { things = things.filter(x => x.id !== id); jobs.forEach(j => { if (j.thingId === id) j.thingId = null }); return { ok: true } }
     const x = things.find(y => y.id === id)!
     Object.assign(x, body, { updatedAt: now })
-    if (body.archived !== undefined) jobs.forEach(j => { if (j.thingId === id) j.archived = body.archived })
     return copy(x)
   }
   // jobs
@@ -132,16 +139,17 @@ export async function mockUpkeepRequest(path: string, options: RequestInit): Pro
   if (method === 'GET') return copy(shown(j))
   if (action === 'done') {
     const e = entryBase(crypto.randomUUID(), j.id, j.title, body.doneOn ?? today, { memberId: kid() ?? body.memberId ?? mock.myOwner() ?? null, createdAt: now, ...(kid() ? {} : { costCents: body.costCents ?? null, reading: body.reading ?? null, readingUnit: body.reading != null ? body.readingUnit ?? 'mi' : null, notes: body.notes || null }) })
-    log.push(e); j.snoozedUntil = null; j.skippedUntil = null
+    undoState.set(e.id, { snoozedUntil: j.snoozedUntil, skippedUntil: j.skippedUntil, calendarEventId: j.calendarEventId, calendarEventStart: j.calendarEventStart })
+    log.push(e); j.snoozedUntil = null; j.skippedUntil = null; j.calendarEventId = null; j.calendarEventStart = null; j.updatedAt = now
     return copy({ entry: e, job: shown(j) })
   }
   grownUp()
-  if (action === 'snooze') { j.snoozedUntil = body.until; return copy(shown(j)) }
+  if (action === 'snooze') { j.snoozedUntil = body.until; j.updatedAt = now; return copy(shown(j)) }
   if (action === 'skip') {
     const last = log.filter(e => e.jobId === j.id).sort((a, b) => b.doneOn.localeCompare(a.doneOn))[0]
-    j.skippedUntil = scheduledDue({ ...j, createdOn: j.createdAt.slice(0, 10) }, last?.doneOn ?? null); j.snoozedUntil = null; return copy(shown(j))
+    j.skippedUntil = scheduledDue({ ...j, createdOn: j.createdAt.slice(0, 10) }, last?.doneOn ?? null); j.snoozedUntil = null; j.updatedAt = now; return copy(shown(j))
   }
-  if (action === 'calendar') { j.calendarEventId = `demo-event-${j.id}`; j.calendarEventStart = body.date ?? shown(j).nextDue; return copy(shown(j)) }
+  if (action === 'calendar') { j.calendarEventId = `demo-event-${j.id}`; j.calendarEventStart = body.date ?? shown(j).nextDue; j.updatedAt = now; return copy(shown(j)) }
   if (method === 'DELETE') { jobs = jobs.filter(x => x.id !== id); log.forEach(e => { if (e.jobId === id) e.jobId = null }); return { ok: true } }
   Object.assign(j, body, { updatedAt: now }); return copy(shown(j))
 }

@@ -1927,8 +1927,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     try { id = (await findJob(job)).id; memberId = member ? await resolveMember(app, env, auth, member) : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'POST', `/api/upkeep/jobs/${encodeURIComponent(id)}/done`, { ...rest, ...(memberId ? { memberId } : {}), ...(cost !== undefined ? { costCents: Math.round(cost * 100) } : {}) });
     if (res.status >= 400) return errorResult(res.json, 'failed to log it');
-    const r = res.json as { job: JobOut; entry: { doneOn: string } };
-    return okResult(`Done on ${r.entry.doneOn}. ${jobLine(r.job)}`, r as unknown as Record<string, unknown>);
+    const r = res.json as { job: JobOut; entry: { doneOn: string } | null; pending?: boolean };
+    return okResult(r.entry ? `Done on ${r.entry.doneOn}. ${jobLine(r.job)}` : 'Waiting for a grown-up to approve the chore. The upkeep schedule has not changed.', r as unknown as Record<string, unknown>);
   });
   tool('list_upkeep_history', { title: 'Home upkeep history', description: 'Every time an upkeep job was done, newest first ("when did we last change the furnace filter?"): who, cost (admin), reading and notes. Filter by job or thing (id or name), member, year (YYYY) or search (titles and notes).', inputSchema: { job: z.string().optional(), thing: z.string().optional(), member: z.string().optional(), year: z.string().regex(/^\d{4}$/).optional(), search: z.string().max(200).optional() } }, async (a) => {
     const q = new URLSearchParams({ limit: '200' });

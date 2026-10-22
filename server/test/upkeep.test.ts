@@ -234,6 +234,138 @@ async function app_get(t: Awaited<ReturnType<typeof setup>>, p: string) {
   return res.status;
 }
 
+test('upkeep: Undo belongs to the creating device, not the credited person', async () => {
+  const t = await setup();
+  try {
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Filter', every: 1, unit: 'month', memberId: t.leo.id })).json;
+    const parent = (await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', { memberId: t.leo.id, costCents: 2500 })).json.entry;
+    const file = await t.raw(`/api/upkeep/files?entry=${parent.id}`, { method: 'POST', body: new Uint8Array([1]), headers: { 'Content-Type': 'application/pdf' } });
+    assert.equal(file.status, 201);
+    for (const key of [t.wallKey, t.leoKey]) assert.equal((await t.req(`/api/upkeep/log/${parent.id}`, 'DELETE', undefined, key)).status, 403);
+    assert.equal((await t.req('/api/upkeep/log')).json[0].files.length, 1);
+    const wall = (await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', { memberId: t.leo.id }, t.wallKey)).json.entry;
+    assert.equal((await t.req(`/api/upkeep/log/${wall.id}`, 'DELETE', undefined, t.leoKey)).status, 403);
+    assert.equal((await t.req(`/api/upkeep/log/${wall.id}`, 'DELETE', undefined, t.wallKey)).status, 200);
+  } finally { await t.restore(); }
+});
+
+test('upkeep: Done completes the handed chore once and Undo removes its points', async () => {
+  const t = await setup();
+  try {
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Alarms', every: 1, unit: 'month', memberId: t.leo.id, chorePoints: 5 })).json;
+    await runUpkeep(t.env, t.env.DB, new Date(`${t.today}T09:30:00Z`), 'UTC', t.ctx);
+    const chore = (await t.req(`/api/upkeep/jobs/${job.id}`)).json.handedChoreId;
+    const done = await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', {}, t.leoKey);
+    assert.equal(done.status, 200);
+    assert.equal((await t.env.DB.prepare('SELECT points_awarded FROM chore_completions WHERE chore_id = ?').bind(chore).first<{ points_awarded: number }>())?.points_awarded, 5);
+    await t.req(`/api/chores/${chore}/complete`, 'POST', { date: t.today }, t.leoKey);
+    assert.equal((await t.req('/api/upkeep/log')).json.length, 1);
+    assert.equal((await t.req(`/api/upkeep/log/${done.json.entry.id}`, 'DELETE', undefined, t.leoKey)).status, 200);
+    assert.equal((await t.env.DB.prepare('SELECT count(*) AS n FROM chore_completions WHERE chore_id = ?').bind(chore).first<{ n: number }>())?.n, 0);
+  } finally { await t.restore(); }
+});
+
+test('upkeep: Done respects approval and retains the requested completion day', async () => {
+  const t = await setup();
+  try {
+    await t.req(`/api/members/${t.leo.id}`, 'PATCH', { needsApproval: true });
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Alarms', every: 1, unit: 'month', memberId: t.leo.id, chorePoints: 5 })).json;
+    await runUpkeep(t.env, t.env.DB, new Date(`${t.today}T09:30:00Z`), 'UTC', t.ctx);
+    const chore = (await t.req(`/api/upkeep/jobs/${job.id}`)).json.handedChoreId;
+    const doneOn = addDays(t.today, -1);
+    const pending = await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', { doneOn }, t.leoKey);
+    assert.equal(pending.status, 200);
+    assert.equal(pending.json.pending, true);
+    assert.equal(pending.json.entry, null);
+    assert.equal((await t.req('/api/upkeep/log')).json.length, 0);
+    assert.equal((await t.req(`/api/chores/${chore}/approve`, 'POST', { date: t.today })).status, 200);
+    const entry = (await t.req('/api/upkeep/log')).json[0];
+    assert.equal(entry.doneOn, doneOn);
+    await t.req(`/api/chores/${chore}/complete?date=${t.today}`, 'DELETE', undefined, t.leoKey);
+    assert.equal((await t.req('/api/upkeep/log')).json.length, 0, 'chore Undo uses the chore occurrence, not the upkeep completion day');
+  } finally { await t.restore(); }
+});
+
+test('upkeep: recurring calendar visits and snooze/skip survive Undo', async () => {
+  const t = await setup();
+  try {
+    const calendar = (await t.req('/api/calendars', 'POST', { name: 'Home', kind: 'local' })).json;
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Service', every: 6, unit: 'month' })).json;
+    const booked = (await t.req(`/api/upkeep/jobs/${job.id}/calendar`, 'POST', { calendarId: calendar.id })).json;
+    for (const action of ['snooze', 'skip']) {
+      const before = (await t.req(`/api/upkeep/jobs/${job.id}/${action}`, 'POST', action === 'snooze' ? { until: addDays(t.today, 7) } : undefined)).json;
+      const done = (await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', {})).json;
+      assert.equal(done.job.calendarEventId, null);
+      await t.req(`/api/upkeep/log/${done.entry.id}`, 'DELETE');
+      const restored = (await t.req(`/api/upkeep/jobs/${job.id}`)).json;
+      assert.deepEqual([restored.nextDue, restored.snoozedUntil, restored.skippedUntil, restored.calendarEventId], [before.nextDue, before.snoozedUntil, before.skippedUntil, booked.calendarEventId]);
+    }
+    const done = (await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', {})).json;
+    assert.equal((await t.req(`/api/upkeep/jobs/${job.id}/calendar`, 'POST', { date: done.job.nextDue, calendarId: calendar.id })).status, 200);
+    assert.equal((await t.req(`/api/events/${booked.calendarEventId}`)).status, 200, 'the old visit stays on the calendar');
+  } finally { await t.restore(); }
+});
+
+test('upkeep: rejection discards the pending day before a parent logs the work', async () => {
+  const t = await setup();
+  try {
+    await t.req(`/api/members/${t.leo.id}`, 'PATCH', { needsApproval: true });
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Alarms', every: 1, unit: 'month', memberId: t.leo.id, chorePoints: 5 })).json;
+    await runUpkeep(t.env, t.env.DB, new Date(`${t.today}T09:30:00Z`), 'UTC', t.ctx);
+    const chore = (await t.req(`/api/upkeep/jobs/${job.id}`)).json.handedChoreId;
+    await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', { doneOn: addDays(t.today, -1) }, t.leoKey);
+    assert.equal((await t.req(`/api/chores/${chore}/reject`, 'POST', { date: t.today })).status, 200);
+    const done = (await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', { costCents: 2500 })).json;
+    assert.deepEqual([done.entry.doneOn, done.entry.costCents], [t.today, 2500]);
+  } finally { await t.restore(); }
+});
+
+test('upkeep: restoring a thing preserves individually archived jobs and their backup', async () => {
+  const t = await setup();
+  try {
+    const thing = (await t.req('/api/upkeep/things', 'POST', { name: 'Furnace' })).json;
+    const make = async (title: string, archived: boolean) => (await t.req('/api/upkeep/jobs', 'POST', { title, every: 1, unit: 'year', thingId: thing.id, archived })).json;
+    const retired = await make('Old filter', true), active = await make('New filter', false);
+    await t.req(`/api/upkeep/things/${thing.id}`, 'PATCH', { archived: true });
+    assert.equal((await t.req('/api/upkeep/jobs')).json.length, 0);
+    const exported = (await t.req('/api/export')).json.upkeepJobs;
+    assert.equal(exported.find((j: any) => j.id === active.id).archived, false, 'export saves the job state separately from its thing');
+    await t.req(`/api/upkeep/things/${thing.id}`, 'PATCH', { archived: false });
+    assert.equal((await t.req(`/api/upkeep/jobs/${retired.id}`)).json.archived, true);
+    assert.equal((await t.req(`/api/upkeep/jobs/${active.id}`)).json.archived, false);
+  } finally { await t.restore(); }
+});
+
+test('upkeep: Undo preserves changes and bookings made after completion', async () => {
+  const t = await setup();
+  try {
+    const calendar = (await t.req('/api/calendars', 'POST', { name: 'Home', kind: 'local' })).json;
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Service', every: 6, unit: 'month' })).json;
+    await t.req(`/api/upkeep/jobs/${job.id}/snooze`, 'POST', { until: addDays(t.today, 7) });
+    const done = (await t.req(`/api/upkeep/jobs/${job.id}/done`, 'POST', {})).json;
+    const visit = (await t.req(`/api/upkeep/jobs/${job.id}/calendar`, 'POST', { calendarId: calendar.id })).json;
+    const later = addDays(t.today, 30);
+    await t.req(`/api/upkeep/jobs/${job.id}/snooze`, 'POST', { until: later });
+    // A later edit must survive even when the clock reports the same millisecond.
+    await t.env.DB.prepare('UPDATE upkeep_jobs SET updated_at = ? WHERE id = ?').bind(done.entry.createdAt, job.id).run();
+    await t.req(`/api/upkeep/log/${done.entry.id}`, 'DELETE');
+    const kept = (await t.req(`/api/upkeep/jobs/${job.id}`)).json;
+    assert.deepEqual([kept.snoozedUntil, kept.calendarEventId], [later, visit.calendarEventId]);
+  } finally { await t.restore(); }
+});
+
+test('upkeep: starter jobs still work after an area is deleted', async () => {
+  const t = await setup();
+  try {
+    await t.req('/api/upkeep/areas/ua-heating', 'DELETE');
+    const added = await t.req('/api/upkeep/starters', 'POST', { keys: ['hvac-filter', 'gutters'] });
+    assert.equal(added.status, 201);
+    assert.equal(added.json.length, 2);
+    assert.equal(added.json.find((j: any) => j.libraryKey === 'hvac-filter').areaId, null);
+    assert.equal((await t.req('/api/upkeep/starters', 'POST', { keys: ['hvac-filter', 'gutters'] })).json.length, 0);
+  } finally { await t.restore(); }
+});
+
 test('upkeep: starters are offered once, in order', async () => {
   const t = await setup();
   try {

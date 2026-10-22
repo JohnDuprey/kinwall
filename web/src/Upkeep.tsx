@@ -227,9 +227,11 @@ function DoneSheet({ job, onClose }: { job: UpkeepJob; onClose: () => void }) {
     setBusy(true); setError('')
     try {
       const r = await api.markUpkeepDone(job.id, { doneOn, memberId: memberId || null, ...(who.parent ? { costCents: cents, reading: reading ? Number(reading.replace(/,/g, '')) : null, readingUnit: reading ? unit : null, notes: notes.trim() || null } : {}) })
-      if (file) await api.uploadUpkeepFile({ entry: r.entry.id }, file, file.name).catch(e => toast(err(e, t('Could not add the file.')), true))
+      if (!r.entry) { changed(); onClose(); toast(t('Waiting for a grown-up')); return }
+      const entryId = r.entry.id
+      if (file) await api.uploadUpkeepFile({ entry: entryId }, file, file.name).catch(e => toast(err(e, t('Could not add the file.')), true))
       changed(); onClose()
-      toast(t('Done: {title}', { title: job.title }), false, { label: t('Undo'), run: () => { void api.deleteUpkeepEntry(r.entry.id).then(changed).catch(e => toast(err(e, t('Could not undo.')), true)) } })
+      toast(t('Done: {title}', { title: job.title }), false, { label: t('Undo'), run: () => { void api.deleteUpkeepEntry(entryId).then(changed).catch(e => toast(err(e, t('Could not undo.')), true)) } })
     } catch (e) { setError(err(e, t('Could not save.'))) } finally { setBusy(false) }
   }
   return <Sheet title={`${jobEmoji(job)} ${job.title}`} onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>

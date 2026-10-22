@@ -16,7 +16,7 @@ import { resetListItems } from './lists.ts';
 import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
-import { logFromChore, unlogFromChore } from '../upkeep.ts';
+import { logFromChore, savePendingChore, unlogFromChore, type DoneInput } from '../upkeep.ts';
 
 export const choresRoutes = createRouter();
 
@@ -395,7 +395,7 @@ export function lateCompletionPoints(points: number, late: boolean, creditPercen
  * when that gates it, 'not found', or { blocked } when a member's own device tries it for
  * someone else (their chore, crediting them, or taking over their completion).
  */
-export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false): Promise<boolean | 'pending' | number | 'not found' | { blocked: string } | { notDue: string }> {
+export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false, upkeepInput?: DoneInput): Promise<boolean | 'pending' | number | 'not found' | { blocked: string } | { notDue: string }> {
   // A member's own device credits them when no one is named (an Anyone chore, like the app does).
   memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
@@ -464,6 +464,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
     emit(c, 'list.changed', { id: chore.list_id });
   }
   if (written.status === 'pending') {
+    if (chore.upkeep_job) await savePendingChore(c.env.DB, id, date, { doneOn: date, createdBy: who, createdKeyId: (await requestKey(c))?.id ?? null, ...upkeepInput });
     emit(c, 'chore.pending', { id, date, title: chore.title, memberId: who });
     const name = who ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(who).first<{ name: string }>())?.name : null;
     notifyChoreApproval(c.env, execCtx(c), 'parents', `approve:${id}:${date}`, {
@@ -478,13 +479,13 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   }
   // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
   emit(c, 'chore.completed', { id, date, title: chore.title, memberId: who, points: written.points_awarded });
-  if (chore.upkeep_job) await upkeepDone(c, id, date, who); // a kid's upkeep chore (upkeep.ts): logs the job
+  if (chore.upkeep_job) await upkeepDone(c, id, date, who, upkeepInput); // a kid's upkeep chore (upkeep.ts): logs the job
   return true;
 }
 
 /** A kid's upkeep chore ticked off and approved (upkeep.ts): the job is logged as done by them. */
-async function upkeepDone(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | null | undefined): Promise<void> {
-  const done = await logFromChore(c.env.DB, id, date, memberId ?? null);
+async function upkeepDone(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | null | undefined, input?: DoneInput): Promise<void> {
+  const done = await logFromChore(c.env.DB, id, date, memberId ?? null, { createdKeyId: (await requestKey(c))?.id ?? null, ...input });
   if (done) emit(c, 'upkeep.done', done);
 }
 
@@ -654,6 +655,7 @@ choresRoutes.openapi(
     const now = new Date().toISOString();
     await c.env.DB.batch([
       c.env.DB.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND date = ? AND status = 'pending'").bind(id, date),
+      c.env.DB.prepare('DELETE FROM upkeep_pending WHERE chore_id = ? AND date = ?').bind(id, date),
       c.env.DB.prepare(
         'INSERT INTO chore_rejections (chore_id, date, member_id, note, rejected_at) VALUES (?,?,?,?,?) ON CONFLICT(chore_id, date) DO UPDATE SET member_id = excluded.member_id, note = excluded.note, rejected_at = excluded.rejected_at',
       ).bind(id, date, row.member_id, note, now),

@@ -290,6 +290,7 @@
   "error|Chores and points are turned off": "Chores and points are turned off",
   "error|clientSecret is required the first time a provider is configured": "clientSecret is required the first time a provider is configured",
   "error|Code not found or expired": "Code not found or expired",
+  "error|Complete this job in Chores first.": "Complete this job in Chores first.",
   "error|Connect {app} again to sync this list.": "Connect {app} again to sync this list.",
   "error|Connected apps can't add or update activities. Do this from a parent's own device.": "Connected apps can't add or update activities. Do this from a parent's own device.",
   "error|Connected apps can't change profile pictures. Do this from the family's own devices.": "Connected apps can't change profile pictures. Do this from the family's own devices.",
