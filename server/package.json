@@ -28,7 +28,7 @@
     "@cloudflare/workers-types": "^5.20261004.1",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
-    "wrangler": "^4.151.0"
+    "wrangler": "^4.151.1"
   },
   "overrides": {
     "sharp": "^0.35.5"
