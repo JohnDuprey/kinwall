@@ -28,7 +28,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-legacy": "^8.2.3",
     "@vitejs/plugin-react": "^6.1.2",
-    "fake-indexeddb": "^6.2.5",
+    "fake-indexeddb": "^6.2.6",
     "oxlint": "^1.88.0",
     "terser": "^5.51.2",
     "typescript": "~6.0.2",
