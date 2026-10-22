@@ -270,11 +270,13 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
   // #/home?checkin=<member> (the check-in widget): their day, at the check-in. Only for someone this
   // device could tap in the header (a display pinned to one person: just them); anyone else, just the calendar.
   const [checkIn, setCheckIn] = useState<string | null>(null)
+  const [morningCheckIn, setMorningCheckIn] = useState(false)
   useEffect(() => {
     const read = () => {
       const id = hashQuery(location.hash).get('checkin')
       if (id === null || !home || !isHere(true)) return
       setCheckIn(id)
+      setMorningCheckIn(hashQuery(location.hash).get('checkinPart') === 'morning')
       clearQuery()
     }
     read()
@@ -637,7 +639,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
           onSave={saveEvent}
         />
       )}
-      {checkInMember && <SnapshotSheet member={checkInMember} toCheckIn onClose={() => setCheckIn(null)} />}
+      {checkInMember && <SnapshotSheet member={checkInMember} toCheckIn={morningCheckIn ? 'morning' : true} onClose={() => setCheckIn(null)} />}
     </div>
   )
 }

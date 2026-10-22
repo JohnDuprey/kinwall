@@ -31,3 +31,11 @@ test('checkInFocus: a check-in link lands on the Temp check, or the evening chec
   assert.equal(checkInFocus({ ...tc, on: false }, 22 * 60), 'checkin') // no Temp check: the daily check-in
   assert.equal(checkInFocus(undefined, 22 * 60), 'checkin')
 })
+
+
+test('morning reminder: always lands at the morning questions, even when opened after evening time', () => {
+  const tc = { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '20:30', journal: true }
+  assert.equal(checkInFocus(tc, 8 * 60, true), 'temp')
+  assert.equal(checkInFocus(tc, 22 * 60, true), 'temp')
+  assert.equal(checkInFocus({ ...tc, on: false }, 22 * 60, true), 'checkin')
+})

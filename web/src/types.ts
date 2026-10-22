@@ -987,6 +987,8 @@ export interface PushSubscriptionPrefs {
   eventReminders: boolean
   dailySummary: boolean
   summaryTime: string // HH:MM, household timezone
+  morningCheckIn?: boolean
+  morningCheckInTime?: string
   choreNudge: boolean
   choreNudgeTime: string
   listUpdates: boolean

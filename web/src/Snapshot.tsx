@@ -45,7 +45,7 @@ function go(hash: string, close: () => void) { close(); location.hash = hash }
 const eventHash = (e: SnapshotEvent) => `#/calendar?event=${encodeURIComponent(e.id)}&at=${encodeURIComponent(e.start)}`
 
 /** Header avatar tap: one member's day (or week) - weather, their events, chores, due items, birthdays. */
-export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: Member; onClose: () => void; toCheckIn?: boolean }) {
+export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: Member; onClose: () => void; toCheckIn?: boolean | 'morning' }) {
   const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast, parentDevice, meMemberId, members } = useApp()
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const [range, setRange] = useState<Range>('day')
@@ -68,7 +68,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
   useEffect(() => {
     if (!toCheckIn) return
     const temp = '.snap-temp:not(.snap-goalcheck)'
-    const order = { evening: ['.snap-goalcheck', temp, '.snap-checkin'], temp: [temp, '.snap-checkin'], checkin: ['.snap-checkin', temp] }[checkInFocus(member.tempCheck, minutesSinceMidnight(new Date().toISOString(), tz))]
+    const order = { evening: ['.snap-goalcheck', temp, '.snap-checkin'], temp: [temp, '.snap-checkin'], checkin: ['.snap-checkin', temp] }[checkInFocus(member.tempCheck, minutesSinceMidnight(new Date().toISOString(), tz), toCheckIn === 'morning')]
     const started = Date.now()
     const id = setInterval(() => {
       const waited = Date.now() - started

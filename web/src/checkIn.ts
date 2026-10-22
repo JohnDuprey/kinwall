@@ -18,8 +18,9 @@ export function checkInLabel(state: CheckInState, points: number): string {
 
 /** Where a check-in link (#/home?checkin=<member>) lands in their day: the evening check from
  * their evening time (goal check or battery), else the Temp check, else the daily check-in row. */
-export function checkInFocus(tc: TempCheckSettings | undefined, nowMinutes: number): 'evening' | 'temp' | 'checkin' {
+export function checkInFocus(tc: TempCheckSettings | undefined, nowMinutes: number, morning = false): 'evening' | 'temp' | 'checkin' {
   if (!tc?.on) return 'checkin'
+  if (morning) return 'temp'
   const [h, m] = tc.eveningTime.split(':').map(Number)
   return (tc.evening || tc.battery) && nowMinutes >= h * 60 + m ? 'evening' : 'temp'
 }

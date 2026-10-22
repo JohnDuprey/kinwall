@@ -258,6 +258,10 @@ All four operations return 403 with Rewards or Chores & points off. Milestones n
 Earning is reconciled after successful writes that can affect earned sources, milestones, imports,
 or feature switches; GET requests never create awards. See [Rewards](../using/rewards.md#reward-milestones).
 
+### Morning check-in preferences
+
+Push subscription `prefs` accepts `morningCheckIn` (boolean, default `false`) and `morningCheckInTime` (`HH:MM` before noon, default `07:30`, household time). These are per-device choices. Morning reminders go only to the device owner's enabled, unanswered Temp check, wait out night hours when configured, and expire at noon. They contain generic text, open `/#/home?checkin=<memberId>&checkinPart=morning`, and create no family-feed entry.
+
 ### Native Apple push
 
 `PUT /api/push/native` accepts `{token, deviceName?, gateway?: {credential} | null}` from an authenticated device. The token is

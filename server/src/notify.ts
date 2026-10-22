@@ -42,6 +42,8 @@ export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
   dailySummary: false,
   summaryTime: '07:30',
+  morningCheckIn: false,
+  morningCheckInTime: '07:30',
   choreNudge: false,
   choreNudgeTime: '08:00',
   listUpdates: false,
@@ -833,6 +835,31 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
   }
 }
 
+// Optional morning Temp check reminder, per own device. Due times held at night catch up
+// until noon. Generic text only, no family feed or health answers in the dedupe key.
+async function runMorningCheckIns(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
+  const clock = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+  if (clock >= '12:00') return;
+  const today = todayInTz(tz, now);
+  const { results } = await db.prepare(`SELECT m.id, m.temp_check, t.sleep, t.feelings, t.goal, t.goal_skipped
+    FROM members m LEFT JOIN temp_checks t ON t.member_id = m.id AND t.date = ? WHERE m.temp_check IS NOT NULL`)
+    .bind(today).all<{ id: string; temp_check: string; sleep: string | null; feelings: string | null; goal: string | null; goal_skipped: number }>();
+  for (const m of results) {
+    const s = parseTempCheck(m.temp_check);
+    if (!s.on || !(s.sleep || s.feelings || s.goal) || morningAnswered(m)) continue;
+    for (const sub of await ownSubs(db, m.id)) {
+      const prefs = subPrefs(sub);
+      if (!prefs.morningCheckIn || clock < prefs.morningCheckInTime) continue;
+      const key = `morning:${await sha256Hex(`${sub.id}:${m.id}:${today}`)}`;
+      if (!(await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run()).meta.changes) continue;
+      await sendToSub(env, db, sub, (lang) => {
+        const { t } = words(lang);
+        return { title: t('Time for your morning check-in ☀️'), body: t('Take a moment to check in for today.'), url: `/#/home?checkin=${encodeURIComponent(m.id)}&checkinPart=morning`, tag: `morning:${m.id}` };
+      });
+    }
+  }
+}
+
 // Last night's check-in (routes/temp-check.ts): when yesterday's evening check (goal check or
 // "How drained?") was left unanswered and is still open (not skipped, their morning Temp check not
 // answered), one generic push to devices that belong to them, from LAST_NIGHT_PUSH_AT until the
@@ -1267,6 +1294,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // Check-ins turned off: no evening goal check, battery heads-up or morning check-in reminder.
   if (features.checkIns) await part('goal follow-ups', () => runGoalFollowups(env, env.DB, now, tz, windowStart), true);
   if (features.checkIns && !hold) await part('battery heads-up', () => runBatteryHeadsUp(env, env.DB, now, tz)); // held at night
+  if (features.checkIns && !hold) await part('morning check-ins', () => runMorningCheckIns(env, env.DB, now, tz));
   if (features.checkIns && !hold) await part('last night reminders', () => runLastNightReminders(env, env.DB, now, tz)); // held at night
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     await part('medication reminders', () => runMedicationReminders(env, env.DB, now, tz, h12));

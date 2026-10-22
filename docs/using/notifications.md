@@ -34,6 +34,12 @@ For someone with the [energy battery](battery.md) on, their own phones and table
 
 When Google or Microsoft takes away Kinwall's access to a calendar (for example a parent removed Kinwall in Family Link), the grown-ups get one note: **Maya's calendar stopped syncing**, "Tap to reconnect it.", which opens **Settings → Calendars** with a **Reconnect** button. It's in the bell for grown-ups and pushed to parents' phones, never to kids' devices, and waits for the [night hours](night.md) to end. One per outage: no repeat until the calendar has synced again and then stops again. See [When a calendar stops syncing](../calendars/sync.md#when-a-calendar-stops-syncing).
 
+## Morning check-in reminder
+
+On a device that belongs to someone with Temp check enabled, **Settings → This display → Notifications** offers **Morning check-in reminder**. It is off by default. Turn it on and choose a time before noon (7:30 AM by default), in the family's time zone. Each device has its own choice.
+
+It sends **Time for your morning check-in ☀️**, “Take a moment to check in for today.” Tap it to open your day's check-in. It sends at most once a day on that device, only if you have not started today's sleep, feelings or goal questions. It waits for night hours to end and expires at noon. No answers appear in the notification or the family's feed. Turning off check-ins for the family or that person stops these reminders.
+
 ## Last night's check-in
 
 When someone's evening check (the goal check or **How drained do you feel?**) is still unanswered in the morning, their own phones and tablets get one push from 7:00 AM: **Last night's check-in is still open 🌙**, "Finish it or skip it." It waits for the [night hours](night.md) to end, stops at noon, never says what they answered or their goal, and isn't in the family's feed. None once they finished it, skipped it or answered their morning Temp check. See [Last night's check-in](snapshot.md#last-nights-check-in).

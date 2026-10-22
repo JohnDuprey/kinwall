@@ -1069,6 +1069,8 @@ export const PushSubscriptionPrefsSchema = z
     eventReminders: z.boolean(),
     dailySummary: z.boolean(),
     summaryTime: z.string().regex(HHMM_RE),
+    morningCheckIn: z.boolean().openapi({ description: "Morning Temp check reminder on this person's own device, when their check-ins are enabled and unanswered." }),
+    morningCheckInTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).refine(value => value < '12:00', 'Choose a time before noon').openapi({ description: 'Household time, before noon; held during night hours until noon.' }),
     choreNudge: z.boolean(),
     choreNudgeTime: z.string().regex(HHMM_RE),
     listUpdates: z.boolean(),

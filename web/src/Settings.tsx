@@ -880,7 +880,7 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
@@ -1023,6 +1023,8 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
 
   const prefs = sub?.prefs ?? DEFAULT_PUSH_PREFS
+  const checkInOwner = members.find(m => m.id === meMemberId)
+  const morningCheckInAvailable = settings.features.checkIns && checkInOwner?.tempCheck?.on && (checkInOwner.tempCheck.sleep || checkInOwner.tempCheck.feelings || checkInOwner.tempCheck.goal)
 
   return (
     <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
@@ -1051,6 +1053,16 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             </div>
             {prefs.dailySummary && <input type="time" aria-label={t('Daily summary time')} value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
           </div>
+          {morningCheckInAvailable && <>
+            <div className="settings-row">
+              <div className="toggle-row" style={{ flex: 1 }}>
+                <label id="push-morning-label">{t('Morning check-in reminder')}</label>
+                <button className={`switch ${prefs.morningCheckIn ? 'on' : ''}`} role="switch" aria-checked={!!prefs.morningCheckIn} aria-labelledby="push-morning-label" aria-describedby="push-morning-sub" onClick={() => savePrefs({ morningCheckIn: !prefs.morningCheckIn })}><span className="knob" /></button>
+              </div>
+              {prefs.morningCheckIn && <input type="time" max="11:59" aria-label={t('Morning check-in time')} value={prefs.morningCheckInTime ?? '07:30'} onChange={e => { if (e.target.value && e.target.value < '12:00') savePrefs({ morningCheckInTime: e.target.value }) }} />}
+            </div>
+            <p className="settings-row-sub" id="push-morning-sub">{t('On this device, in the family’s time zone. Skipped once you start today’s check-in. Waits for night hours to end, until noon.')}</p>
+          </>}
           {settings.features.chores && <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
               <label>{t('Chore reminder')}</label>

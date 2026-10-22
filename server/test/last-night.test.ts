@@ -223,3 +223,54 @@ test('morning reminder: once, generic, to their own devices only, after quiet ho
     assert.equal(JSON.stringify(got).includes('Last night'), false);
   }
 });
+
+
+test('morning Temp check: opt-in per own device, chosen household time, once, generic and no family feed', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup();
+  const tick = await devices(s, [['maya-phone', await s.key(s.maya.id)], ['maya-tablet', await s.key(s.maya.id)], ['wall', await s.key()], ['alex-phone', await s.key(s.alex.id, 'admin')]]);
+  const sub = s.db.prepare("SELECT id FROM push_subscriptions WHERE device_name = 'maya-phone'").first<{ id: string }>()!;
+  const saved = await s.req(`/api/push/subscriptions/${sub.id}`, 'PATCH', { prefs: { morningCheckIn: true, morningCheckInTime: '08:15' } });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.prefs.morningCheckIn, true);
+  assert.equal(saved.json.prefs.morningCheckInTime, '08:15');
+  const unrelated = await s.req(`/api/push/subscriptions/${sub.id}`, 'PATCH', { prefs: { listUpdates: true } });
+  assert.equal(unrelated.json.prefs.morningCheckIn, true, 'another preference does not reset the morning reminder');
+  assert.equal(unrelated.json.prefs.morningCheckInTime, '08:15');
+  const morning = async (hm: string) => Object.fromEntries(Object.entries(await tick(at(NEXT, hm))).map(([k, v]) => [k, v.filter(p => p.title === 'Time for your morning check-in ☀️')]).filter(([, v]) => (v as unknown[]).length));
+  assert.deepEqual(await morning('08:10'), {});
+  assert.deepEqual(await morning('08:17'), { 'maya-phone': [{ title: 'Time for your morning check-in ☀️', body: 'Take a moment to check in for today.', url: `/#/home?checkin=${s.maya.id}&checkinPart=morning`, tag: `morning:${s.maya.id}` }] });
+  assert.deepEqual(await morning('09:00'), {});
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE title LIKE 'Time for your morning%'").first<{ n: number }>()!.n, 0);
+});
+
+test('morning Temp check: held at night, suppressed after answering, disabled checks, and noon', async (t) => {
+  t.after(() => mock.timers.reset());
+  for (const mode of ['held', 'answered', 'member-off', 'feature-off', 'no-questions', 'noon']) {
+    const s = await setup();
+    const tick = await devices(s, [['maya-phone', await s.key(s.maya.id)]]);
+    await s.db.prepare('UPDATE push_subscriptions SET prefs = ?').bind(JSON.stringify({ morningCheckIn: true, morningCheckInTime: '07:30' })).run();
+    await s.req('/api/settings', 'PATCH', { quietFrom: '22:00', quietTo: '08:00' });
+    s.clock(NEXT, '07:00');
+    if (mode === 'answered') await s.req(tc(s.maya.id), 'PUT', { sleep: 'good' });
+    if (mode === 'member-off' || mode === 'no-questions') await s.req(`/api/members/${s.maya.id}`, 'PATCH', { tempCheck: { ...KIDS, on: mode !== 'member-off', sleep: false, feelings: false, goal: false } });
+    if (mode === 'feature-off') {
+      const features = (await s.req('/api/settings')).json.features;
+      assert.equal((await s.req('/api/settings', 'PATCH', { features: { ...features, checkIns: false } })).status, 200);
+    }
+    assert.equal(JSON.stringify(await tick(at(NEXT, '07:35'))).includes('Time for your morning'), false, mode);
+    const sent = await tick(at(NEXT, mode === 'noon' ? '12:00' : '08:05'));
+    assert.equal(JSON.stringify(sent).includes('Time for your morning'), mode === 'held', mode);
+  }
+});
+
+
+test('morning Temp check: rejects times at noon or later and malformed times', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup();
+  await devices(s, [['maya-phone', await s.key(s.maya.id)]]);
+  const sub = s.db.prepare('SELECT id FROM push_subscriptions').first<{ id: string }>()!;
+  for (const time of ['12:00', '18:00', '07:99', 'bad']) {
+    assert.equal((await s.req(`/api/push/subscriptions/${sub.id}`, 'PATCH', { prefs: { morningCheckInTime: time } })).status, 400, time);
+  }
+});
