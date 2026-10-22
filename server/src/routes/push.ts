@@ -1,9 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { deviceOwner, ownDevice, requestKey, resolveKey } from '../auth.ts';
+import { deviceOwner, ownDevice, requestKey, resolveKey, sha256Hex } from '../auth.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
-import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
+import { getVapidPublicKey } from '../webpush.ts';
+import { nativeEndpoint, sendPush } from '../push-delivery.ts';
+import { apnsConfigured } from '../apns.ts';
+import type { Context } from 'hono';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
 import { DEFAULT_PUSH_PREFS, MED_LATE, openNote, pushToMembers, recordNotification } from '../notify.ts';
@@ -18,6 +21,7 @@ const MAX_SUBS_PER_KEY = 10;
 type PushSubRow = {
   id: string;
   api_key_id: string | null;
+  oauth_grant_id: string | null;
   endpoint: string;
   p256dh: string;
   auth: string;
@@ -46,9 +50,47 @@ function toApi(row: PushSubRow) {
 }
 
 // A key may only see/touch subscriptions it created, unless it's admin-scoped.
-function ownsOrAdmin(resolved: Awaited<ReturnType<typeof resolveKey>>, row: PushSubRow): boolean {
-  return resolved?.scope === 'admin' || row.api_key_id === resolved?.id;
+async function grantFor(c: Context<{ Bindings: Env }>): Promise<string | null> {
+  const me = await requestKey(c);
+  return me?.id && me.kind === 'oauth'
+    ? (await c.env.DB.prepare('SELECT oauth_grant_id FROM api_keys WHERE id = ?').bind(me.id).first<{ oauth_grant_id: string | null }>())?.oauth_grant_id ?? null
+    : null;
 }
+async function ownsOrAdmin(c: Context<{ Bindings: Env }>, row: PushSubRow): Promise<boolean> {
+  const resolved = await resolveKey(c);
+  return resolved?.scope === 'admin' || (!!resolved?.id && row.api_key_id === resolved.id) || (!!row.oauth_grant_id && row.oauth_grant_id === await grantFor(c));
+}
+
+pushRoutes.openapi(createRoute({
+  method: 'put', path: '/api/push/native', tags: ['Push'], security: [{ Bearer: [] }],
+  summary: 'Register this native iOS device for Apple push; preserves preferences and replaces rotated tokens',
+  request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().regex(/^[0-9a-f]{16,400}$/i), deviceName: z.string().min(1).max(100).default('iPhone') }).strict() } } } },
+  responses: {
+    200: { description: 'push indicates whether the server has APNs credentials', content: { 'application/json': { schema: z.object({ push: z.boolean(), subscription: PushSubscriptionSchema }) } } },
+    400: { description: 'not a device key', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+}), async c => {
+  const key = await requestKey(c);
+  if (!key?.id) return c.json({ error: 'register from a device key' }, 400);
+  const grant = await grantFor(c);
+  const keyId = grant ? null : key.id;
+  const body = c.req.valid('json');
+  const token = body.token.toLowerCase();
+  const endpoint = `apns:${await sha256Hex(token)}`;
+  const existing = await c.env.DB.prepare("SELECT * FROM push_subscriptions WHERE endpoint LIKE 'apns:%' AND (api_key_id = ? OR oauth_grant_id = ?) ORDER BY created_at DESC LIMIT 1").bind(keyId, grant).first<PushSubRow>();
+  const id = existing?.id ?? `native:${await sha256Hex(grant ? `grant:${grant}` : `key:${keyId}`)}`;
+  const kid = await deviceOwner(c);
+  const prefs = { ...DEFAULT_PUSH_PREFS, ...(existing ? JSON.parse(existing.prefs) : {}), eventReminders: false };
+  // The same physical phone may sign in again. Move its token out of the previous sign-in so
+  // it cannot receive two copies, or continue receiving the previous person's notifications.
+  await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND id != ?').bind(endpoint, id).run();
+  await c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs')
+    .bind(id, keyId, grant, endpoint, '', await encrypt(c.env, token, id), body.deviceName,
+      JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []),
+      JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString()).run();
+  const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
+  return c.json({ push: apnsConfigured(c.env), subscription: toApi(row!) }, 200);
+});
 
 pushRoutes.openapi(
   createRoute({
@@ -74,7 +116,8 @@ pushRoutes.openapi(
   async (c) => {
     const resolved = await resolveKey(c);
     const { results } = await c.env.DB.prepare('SELECT * FROM push_subscriptions ORDER BY created_at').all<PushSubRow>();
-    const rows = resolved?.scope === 'admin' ? results : results.filter((r) => r.api_key_id === resolved?.id);
+    const grant = await grantFor(c);
+    const rows = resolved?.scope === 'admin' ? results : results.filter((r) => (!!resolved?.id && r.api_key_id === resolved.id) || (!!grant && r.oauth_grant_id === grant));
     return c.json(rows.map(toApi), 200);
   },
 );
@@ -151,12 +194,13 @@ pushRoutes.openapi(
     const body = c.req.valid('json');
     const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
     if (!row) return c.json({ error: 'not found' }, 404);
-    if (!ownsOrAdmin(await resolveKey(c), row)) return c.json({ error: 'forbidden' }, 403);
+    if (!(await ownsOrAdmin(c, row))) return c.json({ error: 'forbidden' }, 403);
 
     const kid = await deviceOwner(c);
     const memberIds = kid ? [kid] : body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(row.member_ids);
     const existingPrefs = { ...DEFAULT_PUSH_PREFS, ...JSON.parse(row.prefs || '{}') };
     const prefs = body.prefs !== undefined ? { ...existingPrefs, ...body.prefs } : existingPrefs;
+    if (nativeEndpoint(row.endpoint)) prefs.eventReminders = false; // local scheduling owns event reminders
     const deviceName = body.deviceName ?? row.device_name;
 
     await c.env.DB.prepare('UPDATE push_subscriptions SET device_name = ?, member_ids = ?, prefs = ? WHERE id = ?')
@@ -185,7 +229,7 @@ pushRoutes.openapi(
     const { id } = c.req.valid('param');
     const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
     if (!row) return c.json({ error: 'not found' }, 404);
-    if (!ownsOrAdmin(await resolveKey(c), row)) return c.json({ error: 'forbidden' }, 403);
+    if (!(await ownsOrAdmin(c, row))) return c.json({ error: 'forbidden' }, 403);
     await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(id).run();
     return c.json({ ok: true }, 200);
   },
@@ -209,9 +253,9 @@ pushRoutes.openapi(
     const { id } = c.req.valid('param');
     const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
     if (!row) return c.json({ error: 'not found' }, 404);
-    if (!ownsOrAdmin(await resolveKey(c), row)) return c.json({ error: 'forbidden' }, 403);
+    if (!(await ownsOrAdmin(c, row))) return c.json({ error: 'forbidden' }, 403);
     const { t } = await wordsFor(c); // the screen asking for the test is this device's
-    const result = await sendWebPush(c.env, c.env.DB, row, { title: t('Notifications are on 🎉'), body: t('This device will get the reminders you picked in Settings.'), url: '/' });
+    const result = await sendPush(c.env, c.env.DB, row, { title: t('Notifications are on 🎉'), body: t('This device will get the reminders you picked in Settings.'), url: '/' });
     if (result.ok) await c.env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
     else if (result.gone) await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(id).run();
     return c.json({ ok: result.ok }, 200);

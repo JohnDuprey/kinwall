@@ -40,7 +40,7 @@ import { countDrawings } from './drawings-db.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames } from './native.ts'
+import { appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -862,7 +862,7 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
 
 
 function pushSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  return appNativePush() || 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
 // iOS Safari (not yet added to the Home Screen) can't do push at all - detect that specifically
@@ -907,20 +907,27 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     try { storedId = localStorage.getItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked */ }
     if (!storedId) { setSub(null); return }
     try {
-      const reg = await navigator.serviceWorker.ready
-      const existing = await reg.pushManager.getSubscription()
-      if (!existing) { localStorage.removeItem(PUSH_SUB_ID_KEY); setSub(null); return }
+      if (!appNativePush()) {
+        const reg = await navigator.serviceWorker.ready
+        const existing = await reg.pushManager.getSubscription()
+        if (!existing) { localStorage.removeItem(PUSH_SUB_ID_KEY); setSub(null); return }
+      }
       const mine = await api.getPushSubscriptions()
       setSub(mine.find(s => s.id === storedId) ?? null)
     } catch {
       setSub(null)
     }
   }
-  useEffect(() => { if (pushSupported()) reconcile() }, [])
+  useEffect(() => {
+    const update = () => { if (pushSupported()) reconcile() }
+    update(); window.addEventListener('kinwallnative', update)
+    return () => window.removeEventListener('kinwallnative', update)
+  }, [])
 
   const turnOn = async () => {
     setBusy(true)
     try {
+      if (appNativePush()) { setAppPushEnabled(true); return }
       const perm = await Notification.requestPermission() // must run from this tap
       if (perm !== 'granted') { toast(t('Notifications permission was not granted'), true); return }
       const { publicKey } = await api.getVapidPublicKey()
@@ -938,6 +945,14 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
 
   const turnOff = async () => {
     setBusy(true)
+    if (appNativePush()) {
+      try {
+        if (sub) await api.deletePushSubscription(sub.id)
+        setAppPushEnabled(false); setSub(null)
+      } catch { toast(t('Could not turn off notifications. Try again when connected.'), true) }
+      finally { setBusy(false) }
+      return
+    }
     try {
       const reg = await navigator.serviceWorker.ready
       const existing = await reg.pushManager.getSubscription()
@@ -963,15 +978,11 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
   const sendTest = async () => {
     if (!sub) return
-    try { await api.testPush(sub.id); toast(t('Test notification sent')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not send test'), true) }
+    try { const result = await api.testPush(sub.id); if (!result.ok) throw new Error('push delivery failed'); toast(t('Test notification sent')) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not send test'), true) }
   }
 
-  if (inNativeApp()) {
-    const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
-    return (
-      <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
-        {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
-        <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.")}</p>
+  const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
+  const nativeDetails = <>
         {liveLine && <p className="settings-row-sub">{liveLine}</p>}
         {settings.medications && <div className="toggle-row">
           <div>
@@ -991,8 +1002,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
           <button className="btn btn-secondary" onClick={() => openAppNotificationSettings('medicine')}>{t('Let medicine reminders through Do Not Disturb')}</button>
           <div className="settings-row-sub">{t("Opens Android's settings for Kinwall's Medicine notifications. Turn on Override Do Not Disturb.")}</div>
         </div>}
-      </Section>
-    )
+  </>
+  if (inNativeApp() && !appNativePush()) {
+    return <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
+      {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
+      <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.")}</p>
+      {nativeDetails}
+    </Section>
   }
   if (!pushSupported()) {
     return (
@@ -1010,6 +1026,11 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
 
   return (
     <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
+      {appNativePush() && <>
+        <p className="settings-row-sub">{t('Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through Apple push notifications.')}</p>
+        {sub && !appPushReady() && <p className="settings-row-sub">{t('This server has not enabled Apple push delivery yet. Local reminders remain on.')}</p>}
+        {nativeDetails}
+      </>}
       {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}
       {sub === undefined ? (
         <div className="settings-row-sub">{t('Checking…')}</div>
@@ -1019,10 +1040,10 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
         </div>
       ) : (
         <>
-          <div className="toggle-row">
+          {!appNativePush() && <div className="toggle-row">
             <label>{t('Event reminders')}</label>
             <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} role="switch" aria-checked={prefs.eventReminders} aria-label={t('Event reminders')} onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
-          </div>
+          </div>}
           <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
               <label>{t('Daily summary')}</label>

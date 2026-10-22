@@ -1,6 +1,14 @@
 import { t } from './i18n.ts'
 import type { Skin } from './skins.ts'
 import type { CustomColors, ThemeMode } from './types.ts'
+import type { DoseChange } from './doseChanges.ts'
+
+/** Cancel this dose's scheduled/delivered alerts on the phone as soon as its save succeeds.
+ * Only identifiers cross the bridge; never a medicine name, notes or a response body. */
+export function tellAppDoseChanged(dose: DoseChange) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'doseChanged', payload: dose }) } catch { /* browser or older app */ }
+}
 
 // Inside the Kinwall iPhone/iPad/Android app (kinwall-mobile repo: a native frame around this web
 // app). The app injects window.kinwallNative before the page loads and adds "KinwallApp/<version>"
@@ -262,4 +270,16 @@ export function tellAppSpeak(m: { id: number; text: string; rate: number; lang: 
 export function tellAppStopSpeaking() {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'stopSpeaking' }) } catch { /* not in the app */ }
+}
+
+/** Native APNs is available only in an entitled iOS build. Tokens never cross this bridge. */
+export function appNativePush(): boolean {
+  return (window as Window & { kinwallNative?: { nativePush?: boolean } }).kinwallNative?.nativePush === true
+}
+export function appPushReady(): boolean {
+  return (window as Window & { kinwallNative?: { pushReady?: boolean } }).kinwallNative?.pushReady === true
+}
+export function setAppPushEnabled(on: boolean) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'nativePush', on })
 }

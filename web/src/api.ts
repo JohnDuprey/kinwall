@@ -1,7 +1,8 @@
 import { lang, msg, t, tm, type Lang } from './i18n.ts'
 import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
-import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
+import { tellAppSignedIn, tellAppSignedOut, tellAppDoseChanged } from './native.ts'
+import { doseChanges } from './doseChanges.ts'
 import { changedAreas, type RevAnswer } from './revs.ts'
 import { failureMessage } from './failureMessage.ts'
 import { mediaTokenStale } from './mediaToken.ts'
@@ -26,6 +27,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, Pl
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
 const milestonePath = (id?: string) => ['api', 'reward-milestones', ...(id ? [encodeURIComponent(id)] : [])].join('/')
 export const MOCK = import.meta.env.VITE_MOCK === '1'
+doseChanges.listen(tellAppDoseChanged)
 /** This device's push subscription id (Settings → This display → Notifications), for its own prefs. */
 export const PUSH_SUB_ID_KEY = 'kinwall.pushSubId'
 const KEY_STORAGE = 'kinwall.apiKey'
@@ -640,7 +642,7 @@ export const api = {
   deleteAllMedications: () => MOCK ? mock.deleteAllMedications() : del<{ deleted: number }>('api/medications'),
   getMedicationsDue: () => MOCK ? mock.getMedicationsDue() : req<MedicationsDue>('api/medications/due'),
   markDose: (medicationId: string, body: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' | 'unmark'; at?: string }) =>
-    MOCK ? mock.markDose(medicationId, body) : post<MedicationDose>(`api/medications/${encodeURIComponent(medicationId)}/doses`, body),
+    doseChanges.saved(MOCK ? mock.markDose(medicationId, body) : post<MedicationDose>(`api/medications/${encodeURIComponent(medicationId)}/doses`, body), { medicationId, date: body.date, time: body.time, action: body.action }),
   dayStarted: (memberId: string) => MOCK ? Promise.resolve() : post<void>(`api/members/${encodeURIComponent(memberId)}/day-started`),
   // Refills: the card and request on parent devices and the person's own device.
   getRefillCard: (medicationId: string) => MOCK ? mock.getRefillCard(medicationId) : req<RefillCard>(`api/medications/${encodeURIComponent(medicationId)}/refill`),

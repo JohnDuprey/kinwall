@@ -201,6 +201,7 @@ const PUBLIC_PATH =
 // Central allow-list of what a 'display' scoped key may do (the wall iPad). Anything not
 // listed here is denied for display keys - deny by default, not scattered checks.
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
+  { method: 'PUT', pattern: /^\/api\/push\/native$/ },
   { method: 'GET', pattern: /^\/api\/recipes(\/[^/]+)?$/ },
   { method: 'PUT', pattern: /^\/api\/recipes\/[^/]+\/(rating|favorite)$/ }, // family members rate and heart dinners (a member's own device only for them)
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/source\.pdf$/ }, // the recipe card viewer
@@ -390,6 +391,7 @@ const NOT_A_DEVICE = stored('error', "Connected apps can't get push notification
 const NO_WEBHOOKS = stored('error', "Connected apps can't set up webhooks. Do this from a parent's own device.");
 const NO_PLUGINS = stored('error', "Connected apps can't add or update activities. Do this from a parent's own device.");
 const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[] = [
+  { method: /^(PUT)$/, pattern: /^\/api\/push\/native$/, error: NOT_A_DEVICE },
   { method: /^(POST)$/, pattern: /^\/api\/keys$/ },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/keys\/[^/]+$/ },
   { method: /^(POST)$/, pattern: /^\/api\/device-keys$/ },
