@@ -6,7 +6,7 @@
 // Who does what: a parent's device everything; a kid's own device adds outings, edits the ones it
 // added and marks interest only for that kid (grown-ups-only outings aren't listed there); a shared
 // wall marks interest after picking who. The server checks all of it too.
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
@@ -21,6 +21,7 @@ import { formatTime } from './timeFormat.ts'
 import { DAY, formatDate, MONTH_DAY, t, tn } from './i18n.ts'
 import { mapHref, parsePrice } from './restaurants.ts'
 import { hashQuery, withHashParam } from './hashQuery.ts'
+import { tellAppHere } from './native.ts'
 import { addDays, FOR_BOXES, interestOf, type ForBox } from './outing-rules.ts'
 import { audienceLabel, boxLabel, filterChips, placeSections, priceLabel, reallyCount, shownOutings, startFilters, timeLabel, trayRows, upcomingSections, whenLabel, type Cost, type Filters, type When } from './outings.ts'
 import type { CalendarEntry, Member, Outing, OutingAudience, OutingCategory, OutingFeed, OutingIdea, OutingIdeas, OutingInput, OutingPile } from './types.ts'
@@ -218,16 +219,16 @@ export default function Outings() {
   const [picked, setFilters] = useState<Filters | null>(null)
   const filters = picked ?? startFilters(who.kidId)
   const [filtering, setFiltering] = useState(false)
-  const [open, setOpen] = useState<string | null>(() => hashQuery(location.hash).get('outing'))
+  const [open, openOne] = useState<string | null>(linkedOuting)
   const [editing, setEditing] = useState<Outing | 'new' | null>(null)
   const [cats, setCats] = useState(false)
-  // A link (#/outings?outing=<id>: the bell, the Board's tray, an event) opens that outing; it stays in the link while open.
+  useLayoutEffect(dropOutingLink, []) // before the opened sheet's history entry (Sheet's useEffect)
+  // A link while Outings is open (the bell, the Board's tray, an event) opens that outing too.
   useEffect(() => {
-    const read = () => { const id = hashQuery(location.hash).get('outing'); if (id && location.hash.startsWith('#/outings')) setOpen(id) }
+    const read = () => { const id = linkedOuting(); dropOutingLink(); if (id) openOne(id) }
     window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)
   }, [])
-  const openOne = useCallback((id: string | null) => { history.replaceState(history.state, '', withHashParam(location.hash, 'outing', id)); setOpen(id) }, [])
   const linked = open ? outings.find(o => o.id === open) : null
   useEffect(() => { if (linked?.kind) setView(v => v === 'ideas' ? v : linked.kind) }, [linked?.kind])
 
@@ -267,6 +268,18 @@ export default function Outings() {
     {editing && <OutingEditSheet outing={editing === 'new' ? null : editing} kind={kind} categories={categories} onClose={() => setEditing(null)} onSaved={o => { setEditing(null); if (view !== 'ideas') setView(o.kind); openOne(o.id) }} />}
     {cats && <CategoriesSheet categories={categories} onClose={() => setCats(false)} />}
   </div>
+}
+
+/** A link into Outings (#/outings?outing=<id>): the outing it opens. */
+const linkedOuting = () => (location.hash.startsWith('#/outings') ? hashQuery(location.hash).get('outing') : null)
+/** Takes the link out of the address once it's read. Left in, closing the sheet steps back
+ * (sheetHistory.ts) onto the entry that still has it, and the outing opens again: you could never
+ * leave it. Called before the sheet's own history entry is made (a layout effect, or the
+ * hashchange). A tap opens a sheet without touching the address. */
+function dropOutingLink() {
+  if (!linkedOuting()) return
+  history.replaceState(history.state, '', withHashParam(location.hash, 'outing', null))
+  tellAppHere()
 }
 
 /** Filters: when, categories, who it's for (a person's boxes), marked by, cost. */
