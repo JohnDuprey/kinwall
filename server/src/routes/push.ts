@@ -5,7 +5,8 @@ import { deviceOwner, ownDevice, requestKey, resolveKey, sha256Hex } from '../au
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey } from '../webpush.ts';
 import { nativeEndpoint, sendPush } from '../push-delivery.ts';
-import { apnsConfigured } from '../apns.ts';
+import { nativePushReady } from '../native-push.ts';
+import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import type { Context } from 'hono';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
@@ -30,6 +31,8 @@ type PushSubRow = {
   prefs: string;
   created_at: string;
   last_success_at: string | null;
+  gateway_credential: string | null;
+  gateway_expires_at: number | null;
 };
 
 function toApi(row: PushSubRow) {
@@ -64,9 +67,9 @@ async function ownsOrAdmin(c: Context<{ Bindings: Env }>, row: PushSubRow): Prom
 pushRoutes.openapi(createRoute({
   method: 'put', path: '/api/push/native', tags: ['Push'], security: [{ Bearer: [] }],
   summary: 'Register this native iOS device for Apple push; preserves preferences and replaces rotated tokens',
-  request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().regex(/^[0-9a-f]{16,400}$/i), deviceName: z.string().min(1).max(100).default('iPhone') }).strict() } } } },
+  request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().regex(/^[0-9a-f]{16,400}$/i), deviceName: z.string().min(1).max(100).default('iPhone'), gateway: GatewayInput.nullable().optional() }).strict() } } } },
   responses: {
-    200: { description: 'push indicates whether the server has APNs credentials', content: { 'application/json': { schema: z.object({ push: z.boolean(), subscription: PushSubscriptionSchema }) } } },
+    200: { description: 'push reports native delivery readiness for this token; not confirmation of device delivery', content: { 'application/json': { schema: z.object({ push: z.boolean(), subscription: PushSubscriptionSchema }) } } },
     400: { description: 'not a device key', content: { 'application/json': { schema: ErrorSchema } } },
   },
 }), async c => {
@@ -76,20 +79,25 @@ pushRoutes.openapi(createRoute({
   const keyId = grant ? null : key.id;
   const body = c.req.valid('json');
   const token = body.token.toLowerCase();
+  const gatewayExpiry = body.gateway ? await verifyGateway(c.env, body.gateway.credential, token, 'alert') : null;
+  if (body.gateway && !gatewayExpiry) return c.json({ error: 'Push gateway registration could not be verified' }, 400);
   const endpoint = `apns:${await sha256Hex(token)}`;
   const existing = await c.env.DB.prepare("SELECT * FROM push_subscriptions WHERE endpoint LIKE 'apns:%' AND (api_key_id = ? OR oauth_grant_id = ?) ORDER BY created_at DESC LIMIT 1").bind(keyId, grant).first<PushSubRow>();
   const id = existing?.id ?? `native:${await sha256Hex(grant ? `grant:${grant}` : `key:${keyId}`)}`;
+  const keepGateway = body.gateway === undefined && existing?.endpoint === endpoint;
+  const gatewayCredential = body.gateway ? await encrypt(c.env, body.gateway.credential, gatewayAad(id)) : keepGateway ? existing.gateway_credential : null;
+  const gatewayExpiresAt = body.gateway ? gatewayExpiry : keepGateway ? existing.gateway_expires_at : null;
   const kid = await deviceOwner(c);
   const prefs = { ...DEFAULT_PUSH_PREFS, ...(existing ? JSON.parse(existing.prefs) : {}), eventReminders: false };
   // The same physical phone may sign in again. Move its token out of the previous sign-in so
   // it cannot receive two copies, or continue receiving the previous person's notifications.
   await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND id != ?').bind(endpoint, id).run();
-  await c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs')
+  await c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at,gateway_credential,gateway_expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs,gateway_credential=excluded.gateway_credential,gateway_expires_at=excluded.gateway_expires_at')
     .bind(id, keyId, grant, endpoint, '', await encrypt(c.env, token, id), body.deviceName,
       JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []),
-      JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString()).run();
+      JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
   const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
-  return c.json({ push: apnsConfigured(c.env), subscription: toApi(row!) }, 200);
+  return c.json({ push: await nativePushReady(c.env, token, 'alert'), subscription: toApi(row!) }, 200);
 });
 
 pushRoutes.openapi(
@@ -257,7 +265,7 @@ pushRoutes.openapi(
     const { t } = await wordsFor(c); // the screen asking for the test is this device's
     const result = await sendPush(c.env, c.env.DB, row, { title: t('Notifications are on 🎉'), body: t('This device will get the reminders you picked in Settings.'), url: '/' });
     if (result.ok) await c.env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
-    else if (result.gone) await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(id).run();
+    else if (result.gone) await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ? AND auth = ?').bind(id, row.auth).run();
     return c.json({ ok: result.ok }, 200);
   },
 );

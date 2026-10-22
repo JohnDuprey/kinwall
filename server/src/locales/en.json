@@ -438,6 +438,7 @@
   "error|Product not found": "Product not found",
   "error|provider does not support listing calendars": "provider does not support listing calendars",
   "error|PUBLIC_URL is set via environment variable (read-only)": "PUBLIC_URL is set via environment variable (read-only)",
+  "error|Push gateway registration could not be verified": "Push gateway registration could not be verified",
   "error|Recipe and restaurant choices need Meals on in Settings → General → Features": "Recipe and restaurant choices need Meals on in Settings → General → Features",
   "error|recipe is not shared": "recipe is not shared",
   "error|recipe not found": "recipe not found",

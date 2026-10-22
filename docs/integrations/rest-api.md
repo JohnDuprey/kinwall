@@ -259,9 +259,10 @@ or feature switches; GET requests never create awards. See [Rewards](../using/re
 
 ### Native Apple push
 
-`PUT /api/push/native` accepts `{token, deviceName?}` from an authenticated device. The token is
+`PUT /api/push/native` accepts `{token, deviceName?, gateway?: {credential} | null}` from an authenticated device. The token is
 hexadecimal APNs data (16–400 characters); it is encrypted at rest and never returned. The response
-is `{push, subscription}`, where `push` reports whether APNs credentials are configured and
+is `{push, subscription}`, where `push` reports whether direct APNs, a host provider or a verified
+unexpired gateway credential is available for that token (not confirmed phone delivery), and
 `subscription` has the existing preference/targeting fields. Re-registration replaces a rotated
 token while preserving preferences. Native event reminders are forced off in server preferences
 because the app schedules them locally. Existing subscription PATCH, DELETE and test routes apply.
@@ -270,3 +271,16 @@ OAuth device registrations belong to the stable grant and survive access-key rot
 the grant removes them. Non-device OAuth clients receive 403; the setup ADMIN_API_KEY is not a
 registrable device. Medicine names remain off by default. The migration adds a nullable grant
 reference and index only: no existing subscriptions or family data are backfilled or deleted.
+
+Gateway registration requires an explicit `PUBLIC_URL` identifying the Kinwall server. Before storing the
+credential, Kinwall verifies its destination fingerprint, server origin, push type and expiry
+with the fixed official gateway; failure returns 400 without replacing the existing subscription.
+The credential is encrypted and never returned in subscription lists or registration responses.
+Omitting `gateway` preserves a credential for the same token; `gateway: null` clears it locally.
+Rotating the APNs token without a replacement credential clears the old gateway association.
+
+`PUT /api/live-activities/tokens` accepts the same optional `gateway` field. Its credential must
+permit `liveactivity-start` for a start token or `liveactivity-update` for an update token. The
+registration response reports readiness for that token. Gateway authorization failures invalidate
+the matching stored credential without deleting the APNs destination; temporary failures and
+rate limits preserve it.

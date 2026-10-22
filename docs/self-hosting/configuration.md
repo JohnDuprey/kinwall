@@ -91,7 +91,7 @@ The app registers its tokens with `PUT /api/live-activities/tokens`, for its own
 
 Apple only accepts HTTP/2. Docker and Node send with Node's HTTP/2 client. A deployed Cloudflare Worker sends with a plain `fetch`, which reaches Apple over HTTP/2 from Cloudflare's edge; local `wrangler dev` on macOS can't, so test pushes on a deployed Worker. A host can also pass its own sender as `APNS_SEND` (optional; see [Embedding the server](../contributing/embedding.md)).
 
-**Self-hosted servers and the Kinwall app:** only the app's publisher can sign pushes for the official Kinwall app (the `.p8` key belongs to that developer account), so a self-hosted server can't send Live Activity pushes to it with keys of its own. The plan is a push gateway at push.kinwall.family (itself a Worker) that relays them for self-hosted servers. It doesn't exist yet; until then, the app starts leave-by activities itself while it's open.
+**Self-hosted servers and the Kinwall app:** a self-hosted server cannot send to the official app with an unrelated developer team's key. The [push gateway](#push-gateway) uses credentials scoped to each device, without distributing the publisher's Apple signing key.
 
 ### Todoist, Google Tasks and Microsoft To Do
 
@@ -121,5 +121,23 @@ Ordinary native alerts use the same APNs credentials as Live Activities, with th
 bundle topic. These credentials must belong to the team signing that app; a self-hosted server
 cannot send to the official Kinwall app using an unrelated developer team's key. Never distribute
 the official private key to self-hosted servers or bundle it in the app. Without matching
-credentials, native local reminders remain available. Native token registration reports `push:
-false` until all required fields are configured.
+credentials or a verified gateway registration, native local reminders remain available.
+
+### Push gateway
+
+The server can forward native alerts and Live Activities to `https://push.kinwall.family` using
+a credential issued for a specific phone token, server origin and push type. Configure `PUBLIC_URL`
+to identify your Kinwall server; gateway delivery activates when the app registers its device
+credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key. It makes outbound
+HTTPS requests only; the home server does not need a public inbound endpoint.
+
+Gateway delivery requires a device credential supplied by the app. A phone keeps its local
+reminders until registration succeeds. Direct APNs
+takes precedence when its credentials are configured.
+
+Device credentials are verified and stored encrypted. Expired or rejected credentials require
+registration again; temporary delivery failures leave the registration intact.
+
+The gateway and Apple can read notification text. Medicine names remain off unless explicitly
+enabled for that device. The gateway does not make the home server reachable when tapping a
+notification, and remote delivery still depends on the server and gateway being available.

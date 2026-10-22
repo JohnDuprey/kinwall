@@ -64,3 +64,17 @@ A household that configures its own app in the UI keeps its per-instance redirec
 The iPhone app's Live Activities use Apple push (`APNS_*`, see [Configuration](../self-hosting/configuration.md#live-activities-apple-push)). Apple only accepts HTTP/2. On Workers the default is a plain `fetch`, which works on a deployed Worker (Cloudflare's edge speaks HTTP/2 to Apple) but not in local `wrangler dev` on macOS. The Node entry point passes its HTTP/2 sender (`server/src/apns-node.ts`), since Node's `fetch` is HTTP/1.1.
 
 `APNS_SEND` in `env` is optional and overrides the default: `(req: { host, path, headers, body }) => Promise<{ status, reason? }>`, sending one POST however the host likes (a relay, say). Kinwall builds the request, including its signed token, and handles Apple's answer the same way either way (410, `BadDeviceToken` or `Unregistered` drops the token).
+
+For a provider that manages Apple credentials itself, a trusted embedding host can supply
+`NATIVE_PUSH_SEND` instead. Its `NativePushRequest` argument (`server/src/native-push.ts`) is
+either `{ type: 'alert', token, payload: { title, body, url, tag? } }` or
+`{ type: 'liveactivity', token, aps, priority }`. It returns `{ ok, gone }`: `ok` means the
+provider accepted the request, and `gone` means the destination has been retired. Temporary
+failures, invalid gateway credentials and rate limits must return `gone: false`. Exceptions
+retain the destination and are not logged, because they may contain secrets.
+
+This adapter takes precedence over direct APNs and needs no `APNS_*` credentials. Both token
+registration routes report `push: true` when the adapter exists; this reports configured
+capability, not confirmed device delivery. The host must resolve and authorize each destination registration
+and forward the family's server identity when constructing notification links. Device tokens
+and notification content must never be logged. Without this adapter, direct APNs is unchanged.

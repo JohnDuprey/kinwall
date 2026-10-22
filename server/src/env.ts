@@ -1,10 +1,10 @@
 // Workers-compatible. Env shape shared by worker.ts and node.ts (Node passes process.env + adapted DB).
 import type { KinwallDb } from './db.ts';
-import type { ApnsEnv } from './apns.ts';
+import type { NativePushEnv } from './native-push.ts';
 import type { Fetch } from './outbound.ts';
 import type { PhotoFolder } from './routes/photo-folder.ts';
-// APNS_*: Apple push for the iPhone app's Live Activities (apns.ts); off unless all are set.
-export type Env = ApnsEnv & {
+// Native push: direct APNS_* credentials, a trusted host adapter, or verified gateway registrations.
+export type Env = NativePushEnv & {
   DB: KinwallDb;
   PUBLIC_URL?: string;
   ADMIN_API_KEY?: string;
