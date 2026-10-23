@@ -1,5 +1,6 @@
 import { holdAwake } from './wakeLock.ts'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { navRailFit } from './navRailFit.ts'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
 import RoutineMode from './RoutineMode.tsx'
@@ -127,6 +128,24 @@ const MAX_SHORT_RAIL = 7
 
 function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: string; mode: NavMode; items: NavItem[]; toApprove?: number; rewardRequests?: number }) {
   const [more, setMore] = useState(false)
+  const rail = useRef<HTMLElement>(null), measure = useRef<HTMLDivElement>(null)
+  const [railLimit, setRailLimit] = useState(Infinity)
+  const itemKeys = items.map(item => item.key).join(',')
+  useLayoutEffect(() => {
+    const nav = rail.current, sizes = measure.current
+    if (mode === 'bottom' || !nav || !sizes) return
+    const fit = () => {
+      const style = getComputedStyle(nav)
+      const heights = [...sizes.children].map(child => child.getBoundingClientRect().height)
+      const moreHeight = heights.pop() ?? 44
+      const available = nav.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+      setRailLimit(navRailFit(available, heights, parseFloat(style.rowGap) || 0, moreHeight))
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(nav); observer.observe(sizes)
+    return () => observer.disconnect()
+  }, [mode, itemKeys])
   // A cast screen (a Nest Hub, 600px tall) too: its rail buttons are drawn big, so seven fit, the rest under More.
   const cast = !!useDeviceAppearance().cast
   const shortRail = useMediaQuery('(max-height: 500px) and (orientation: landscape)') || cast
@@ -137,14 +156,18 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
     : null
   const badge = (key: string) => badgeFor(count(key))
   const bottom = mode === 'bottom'
-  const max = bottom ? MAX_TABS : shortRail ? MAX_SHORT_RAIL : Infinity
+  const max = bottom ? MAX_TABS : Math.min(railLimit, shortRail ? MAX_SHORT_RAIL : Infinity)
   const overflow = items.length > max
   const shown = overflow ? items.slice(0, max - 1) : items
   const rest = overflow ? items.slice(max - 1) : []
   const inRest = rest.some(i => i.key === tab)
   const btn = bottom ? 'tab-btn' : 'nav-rail-btn'
   return (
-    <nav className={bottom ? 'tab-bar' : `nav-rail nav-rail-${mode}`} aria-label={t('Main')}>
+    <nav ref={rail} className={bottom ? 'tab-bar' : `nav-rail nav-rail-${mode}`} aria-label={t('Main')}>
+      {!bottom && <div ref={measure} className="nav-rail-measure" aria-hidden="true">
+        {items.map(item => <div key={item.key} className="nav-rail-btn"><item.Icon /><span>{tm(item.label)}</span></div>)}
+        <div className="nav-rail-btn"><MoreIcon /><span>{t('More')}</span></div>
+      </div>}
       {shown.map(item => (
         <a key={item.key} href={item.href} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${tm(item.label)}` : <span>{tm(item.label)}</span>}{badge(item.key)}</a>
       ))}
