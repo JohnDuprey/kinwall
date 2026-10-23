@@ -4,7 +4,7 @@ COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
 # The web app shares these pure modules with the server.
-COPY server/src/nudges.ts server/src/chore-goal.ts /app/server/src/
+COPY server/src/nudges.ts server/src/chore-goal.ts server/src/routine-websites.ts /app/server/src/
 RUN npm run build
 
 FROM node:24-slim

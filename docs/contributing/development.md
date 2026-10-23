@@ -21,6 +21,10 @@ cd web && npm run build && npm run lint      # tsc -b + vite build; oxlint
 
 CI (`.github/workflows/ci.yml`) runs the server typecheck and tests, plus the web build, on every push and pull request.
 
+When the web app imports a pure module from `server/src`, include that module in the Dockerfile's
+web build stage too. Run `docker build -t kinwall:local .` to check the isolated build context;
+the local web build can otherwise pass with files that are missing from the image.
+
 ## Conventions
 
 * Server code must run on **both** Workers and Node. Shared code uses only `fetch`, Web Crypto and `Intl`. No `fs`, `node:crypto` or `process` outside `node.ts` / `d1-sqlite.ts`.
