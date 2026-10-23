@@ -72,10 +72,10 @@ export async function gatewayForToken(env: PushGatewayEnv, token: string, kind: 
 }
 
 export async function sendGateway(env: PushGatewayEnv, request: NativePushRequest): Promise<NativePushResult> {
-  const kind = request.type === 'alert' ? 'alert' : request.aps.event === 'start' ? 'liveactivity-start' : 'liveactivity-update';
+  const kind = request.type !== 'liveactivity' ? 'alert' : request.aps.event === 'start' ? 'liveactivity-start' : 'liveactivity-update';
   const registration = await gatewayForToken(env, request.token, kind);
   if (!registration) return { ok: false, gone: false };
-  const body = request.type === 'alert' ? { type: request.type, payload: request.payload } : { type: request.type, aps: request.aps, priority: request.priority };
+  const body = request.type === 'background' ? { type: request.type } : request.type === 'alert' ? { type: request.type, payload: request.payload } : { type: request.type, aps: request.aps, priority: request.priority };
   try {
     const response = await call(env, '/v1/send', registration.credential, body);
     if (response.status === 401 || response.status === 403) {

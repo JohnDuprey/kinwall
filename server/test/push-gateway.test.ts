@@ -5,7 +5,17 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { createApiKey, sha256Hex } from '../src/auth.ts';
 import { pushToMembers, runNotifications } from '../src/notify.ts';
-import { sendNativeLiveActivity } from '../src/native-push.ts';
+import { sendNativeLiveActivity, sendNativeBackground } from '../src/native-push.ts';
+
+test('self-hosted routine hints reuse only a verified alert registration with no destination or policy in the request', async () => {
+  const { env, register, calls } = await fixture();
+  assert.equal((await register({ token: TOKEN, gateway: { credential: CREDENTIAL } })).status, 200);
+  assert.deepEqual(await sendNativeBackground(env, TOKEN), { ok: true, gone: false });
+  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { type: 'background' });
+  assert.equal(calls[1].url, 'https://push.kinwall.family/v1/send');
+  assert.deepEqual(await sendNativeBackground(env, 'cd'.repeat(32)), { ok: false, gone: false });
+  assert.equal(calls.length, 2, 'a missing scoped credential never sends to the gateway');
+});
 import type { Env } from '../src/env.ts';
 
 const TOKEN = 'ab'.repeat(32), CREDENTIAL = `${'a'.repeat(8)}-aaaa-aaaa-aaaa-${'a'.repeat(12)}.${'b'.repeat(64)}`;

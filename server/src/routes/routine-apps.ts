@@ -1,4 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import { emit } from '../bus.ts';
 import type { Context } from 'hono';
 import type { Env } from '../env.ts';
 import { createRouter } from '../router.ts';
@@ -50,6 +51,7 @@ routineAppsRoutes.openapi(createRoute({ method: 'put', path: '/api/routine-mode/
   const result = await c.env.DB.prepare(`INSERT INTO routine_app_selections (member_id, data, revision, selected_apps, selected_categories, allowed_apps, updated_at) VALUES (?, ?, 1, ?, ?, ?, ?)
     ON CONFLICT(member_id) DO UPDATE SET data = excluded.data, revision = routine_app_selections.revision + 1, selected_apps = excluded.selected_apps, selected_categories = excluded.selected_categories, allowed_apps = excluded.allowed_apps, updated_at = excluded.updated_at WHERE routine_app_selections.revision = ?`).bind(memberId, data, input.selectedApps, input.selectedCategories, input.allowedApps, at, input.expectedRevision).run();
   if (!result.meta.changes) return c.json({ error: stored('error', 'App choices changed on another device. Open the picker again.') }, 409);
+  emit(c, 'settings.changed', { routineMemberId: memberId });
   c.header('Cache-Control', 'no-store');
   return c.json({ revision: input.expectedRevision + 1, selectedApps: input.selectedApps, selectedCategories: input.selectedCategories, allowedApps: input.allowedApps, updatedAt: at }, 200);
 });

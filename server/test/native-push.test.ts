@@ -8,8 +8,20 @@ import { decrypt } from '../src/crypto.ts';
 import { pushToMembers, ownSubs, runNotifications } from '../src/notify.ts';
 import type { Env } from '../src/env.ts';
 import type { ApnsRequest } from '../src/apns.ts';
+import { sendNativeBackground } from '../src/native-push.ts';
 
 const TOKEN = 'ab'.repeat(32);
+
+test('routine background push contains only a refresh hint and uses background APNs headers', async () => {
+  const { env, sent } = await fixture();
+  env.PUBLIC_URL = 'https://family.example/';
+  assert.deepEqual(await sendNativeBackground(env, TOKEN), { ok: true, gone: false });
+  assert.equal(sent[0].headers['apns-push-type'], 'background');
+  assert.equal(sent[0].headers['apns-priority'], '5');
+  assert.equal(sent[0].headers['apns-topic'], 'family.kinwall.app');
+  assert.equal(sent[0].headers['apns-collapse-id'], 'kinwall.routine.sync');
+  assert.deepEqual(JSON.parse(sent[0].body), { aps: { 'content-available': 1 }, kinwall: { type: 'routine-sync', server: 'https://family.example' } });
+});
 
 test('native push: host provider enables registration and encrypted alert delivery without Apple keys', async () => {
   const { env, sent, register, request, db } = await fixture();

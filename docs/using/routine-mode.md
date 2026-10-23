@@ -1,5 +1,11 @@
 # Routine mode (development preview)
 
+With matching iOS builds, changes from a parent's phone can also trigger background refresh on
+the child's iPad. Apple controls delivery, so it may take time or require opening Kinwall. The
+app also checks during its periodic background refresh. Local schedule cutoffs still apply when
+a remote update has not arrived. A notification cannot unlock apps by itself: the device checks
+the family's current policy and approved chores first.
+
 Open **Chores → Free time**. In **Settings → Family → Routine mode**, a parent picks a child, enables routine mode, and sets its start and free-time end times in the family's timezone. By default, all active chores assigned to that child and due today must
 have approved completions. Pending parent approvals do not count. Shared chores are excluded;
 a day without assigned chores is free until the cutoff. Undoing a completion re-locks apps at

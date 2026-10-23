@@ -350,3 +350,11 @@ Routine app-choice endpoints (matching iOS build required):
 
 Responses containing selections or delivery metadata are uncached. Migration 0129 adds empty,
 opt-in tables; it does not backfill selections, enable routines, or change existing restrictions.
+
+Matching iOS builds receive best-effort silent refresh hints after routine policy/app-choice
+changes and relevant chore, member or family-setting changes. Settings changes target the selected
+child; general changes refresh configured child devices. Destinations are resolved from current,
+unexpired child-owned display keys, not notification-following preferences. The APNs payload is
+only `{aps: {"content-available": 1}, kinwall: {type: "routine-sync", server: "<origin>"}}`.
+It carries no member ID, Apple selection or unlock decision. The receiver fetches fresh authenticated
+state. Direct APNs and the official gateway use the same format; iOS may delay or drop these hints.

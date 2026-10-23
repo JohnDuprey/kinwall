@@ -1,10 +1,11 @@
-import type { KinwallDb } from './db.ts';
+import type { KinwallDb, KinwallStatement } from './db.ts';
 import type { Context } from 'hono';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { decrypt } from './crypto.ts';
 import { isSafeWebhookUrl, outboundFetch } from './outbound.ts';
 import { queueTaskSync } from './tasks/sync.ts';
+import { refreshRoutineDevices, routineRefreshQuery, type RoutineRefreshSub } from './routine-refresh.ts';
 
 export type BusEventType =
   | 'contact.changed'
@@ -75,12 +76,14 @@ const BUMP_AREA =
 
 // Bumps rev (and the change's area rev) and fetches enabled webhooks in a single D1 round trip: the
 // increments are done entirely in SQL (no read-then-write) so they sit in the same batch as the lookup.
-async function bumpRevAndListWebhooks(db: KinwallDb, type: BusEventType, bumpRev: boolean): Promise<WebhookRow[]> {
+async function bumpRevAndListWebhooks(db: KinwallDb, type: BusEventType, bumpRev: boolean, routine: KinwallStatement | null): Promise<{ webhooks: WebhookRow[]; routines: RoutineRefreshSub[] }> {
   const list = db.prepare('SELECT id, url, events, secret FROM webhooks WHERE enabled = 1');
-  if (!bumpRev) return (await list.all<WebhookRow>()).results;
+  if (!bumpRev) return { webhooks: (await list.all<WebhookRow>()).results, routines: [] };
   const area = revArea(type);
-  const results = await db.batch<WebhookRow>([db.prepare(BUMP_REV), ...(area ? [db.prepare(BUMP_AREA).bind(area)] : []), list]);
-  return results[results.length - 1].results;
+  const statements = [db.prepare(BUMP_REV), ...(area ? [db.prepare(BUMP_AREA).bind(area)] : []), list];
+  const webhookIndex = statements.length - 1;
+  const results = await db.batch<WebhookRow | RoutineRefreshSub>([...statements, ...(routine ? [routine] : [])]);
+  return { webhooks: results[webhookIndex].results as WebhookRow[], routines: routine ? results[webhookIndex + 1].results as RoutineRefreshSub[] : [] };
 }
 
 // SSRF guard for webhook targets lives in outbound.ts (shared with calendar feeds). Webhooks never
@@ -142,8 +145,8 @@ export function publish(env: Env, execCtx: WaitCtx | undefined, type: BusEventTy
   waitUntil(
     execCtx,
     (async () => {
-      const webhooks = await bumpRevAndListWebhooks(env.DB, type, bumpRev);
-      await deliverWebhooks(env, type, data, webhooks);
+      const { webhooks, routines } = await bumpRevAndListWebhooks(env.DB, type, bumpRev, bumpRev ? routineRefreshQuery(env.DB, type, data) : null);
+      await Promise.all([deliverWebhooks(env, type, data, webhooks), refreshRoutineDevices(env, routines)]);
     })(),
   );
 }

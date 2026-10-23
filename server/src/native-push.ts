@@ -1,9 +1,11 @@
-import { apnsConfigured, sendAlert, sendLiveActivity, type ApnsEnv } from './apns.ts';
+import { apnsConfigured, sendAlert, sendBackground, sendLiveActivity, type ApnsEnv } from './apns.ts';
+import { storedPublicUrl } from './providers/config.ts';
 import { gatewayForToken, sendGateway, type GatewayKind, type PushGatewayEnv } from './push-gateway.ts';
 
 export type NativeAlert = { title: string; body: string; url?: string; tag?: string };
 export type NativePushResult = { ok: boolean; gone: boolean };
 export type NativePushRequest =
+  | { type: 'background'; token: string }
   | { type: 'alert'; token: string; payload: NativeAlert }
   | { type: 'liveactivity'; token: string; aps: Record<string, unknown>; priority: 5 | 10 };
 
@@ -58,4 +60,13 @@ export async function sendNativeLiveActivity(env: NativePushEnv, token: string, 
   } catch {
     return { ok: false, gone: false };
   }
+}
+
+export async function sendNativeBackground(env: NativePushEnv, token: string): Promise<NativePushResult> {
+  try {
+    if (env.NATIVE_PUSH_SEND) return await env.NATIVE_PUSH_SEND({ type: 'background', token });
+    if (!apnsConfigured(env)) return await sendGateway(env, { type: 'background', token });
+    const publicUrl = env.PUBLIC_URL || (env.DB ? await storedPublicUrl(env.DB) : undefined);
+    return await sendBackground({ ...env, PUBLIC_URL: publicUrl }, token);
+  } catch { return { ok: false, gone: false }; }
 }

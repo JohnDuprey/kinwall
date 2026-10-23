@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nativePushConfigured, sendNativeAlert, sendNativeLiveActivity, type NativePushEnv, type NativePushRequest } from '../src/native-push.ts';
+import { nativePushConfigured, sendNativeAlert, sendNativeLiveActivity, sendNativeBackground, type NativePushEnv, type NativePushRequest } from '../src/native-push.ts';
+
+test('routine wake-ups use the native provider without forwarding policy or caller-controlled payloads', async () => {
+  const calls: NativePushRequest[] = [];
+  assert.deepEqual(await sendNativeBackground({ NATIVE_PUSH_SEND: async request => { calls.push(request); return { ok: true, gone: false }; } }, 'fake-device-token'), { ok: true, gone: false });
+  assert.deepEqual(calls, [{ type: 'background', token: 'fake-device-token' }]);
+  assert.deepEqual(await sendNativeBackground({ NATIVE_PUSH_SEND: async () => { throw new Error('secret-token'); } }, 'fake-device-token'), { ok: false, gone: false });
+  assert.deepEqual(await sendNativeBackground({}, 'fake-device-token'), { ok: false, gone: false });
+});
 
 test('native push provider: sends alerts and activities without Apple credentials', async () => {
   const requests: NativePushRequest[] = [];

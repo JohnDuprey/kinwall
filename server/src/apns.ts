@@ -77,6 +77,22 @@ export async function sendAlert(env: ApnsEnv & { PUBLIC_URL?: string }, token: s
   }
 }
 
+/** A fixed, data-only wake-up. The receiver must fetch a new authenticated decision. */
+export async function sendBackground(env: ApnsEnv & { PUBLIC_URL?: string }, token: string): Promise<{ ok: boolean; gone: boolean }> {
+  if (!apnsConfigured(env) || !env.PUBLIC_URL) return { ok: false, gone: false };
+  try {
+    const server = new URL(env.PUBLIC_URL);
+    if (!['http:', 'https:'].includes(server.protocol) || server.username || server.password) return { ok: false, gone: false };
+    const { status, reason } = await (env.APNS_SEND ?? fetchSend)({
+      host: env.APNS_SANDBOX === '1' ? 'api.sandbox.push.apple.com' : 'api.push.apple.com', path: `/3/device/${token}`,
+      headers: { authorization: `bearer ${await apnsJwt(env)}`, 'apns-topic': env.APNS_BUNDLE_ID!,
+        'apns-push-type': 'background', 'apns-priority': '5', 'apns-collapse-id': 'kinwall.routine.sync', 'apns-expiration': '0', 'content-type': 'application/json' },
+      body: JSON.stringify({ aps: { 'content-available': 1 }, kinwall: { type: 'routine-sync', server: server.origin } }),
+    });
+    return { ok: status === 200, gone: status === 410 || reason === 'Unregistered' || reason === 'BadDeviceToken' };
+  } catch { return { ok: false, gone: false }; }
+}
+
 /** Sends one Live Activity push. `gone`: Apple says the token is no longer valid, so drop it. */
 export async function sendLiveActivity(env: ApnsEnv, token: string, aps: Record<string, unknown>, priority: 5 | 10 = 10): Promise<{ ok: boolean; gone: boolean }> {
   try {

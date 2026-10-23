@@ -8,6 +8,7 @@ import { householdTz } from '../sync.ts';
 import { readFeatures } from './settings.ts';
 import { evaluateRoutine, schoolDomain } from '../routine-mode.ts';
 import { stored } from '../i18n.ts';
+import { emit } from '../bus.ts';
 export const routineModeRoutes = createRouter();
 const Domains = z.array(z.preprocess(value => typeof value === 'string' ? schoolDomain(value) : value, z.string())).max(40).transform(values => [...new Set(values)]);
 const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -45,5 +46,6 @@ routineModeRoutes.openapi(createRoute({ method: 'put', path: '/api/routine-mode/
     if (results.length !== policy.requiredChoreIds.length) return c.json({ error: stored('error', 'Choose active chores assigned to this child.') }, 400);
   }
   await c.env.DB.prepare('INSERT INTO routine_mode (member_id, enabled, app_mode, cutoff, allowed_websites_only, allowed_web_domains, school_link_domains, start, day_schedules, required_chore_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(member_id) DO UPDATE SET enabled = excluded.enabled, app_mode = excluded.app_mode, cutoff = excluded.cutoff, allowed_websites_only = excluded.allowed_websites_only, allowed_web_domains = excluded.allowed_web_domains, school_link_domains = excluded.school_link_domains, start = excluded.start, day_schedules = excluded.day_schedules, required_chore_ids = excluded.required_chore_ids').bind(memberId, Number(policy.enabled), policy.appMode, policy.cutoff, Number(policy.allowedWebsitesOnly), JSON.stringify(policy.allowedWebDomains), policy.schoolLinkDomains === undefined ? null : JSON.stringify(policy.schoolLinkDomains), policy.start, policy.daySchedules ? JSON.stringify(policy.daySchedules) : null, policy.requiredChoreIds === null ? null : JSON.stringify(policy.requiredChoreIds)).run();
+  emit(c, 'settings.changed', { routineMemberId: memberId });
   return c.json(policy, 200);
 });
