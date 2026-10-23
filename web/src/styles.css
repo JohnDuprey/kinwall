@@ -2872,6 +2872,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-measure { position: absolute; left: 0; right: 0; top: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 .board-polls .board-slot-item { padding: 0; }
 .board-routine-indicators, .board-chore-tile-stack { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.board-card > .board-routine-indicators { flex: none; margin-top: 8px; }
+.board-routine-indicators > .board-slot-row { flex: none; }
 .board-chore-tile-stack > .board-tile { flex: 1; }
 .board-slot-row, .board-slot-full, .board-poll-btn { box-sizing: border-box; width: 100%; border: 0; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; text-decoration: none; }
 .board-slot-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; font-weight: 800; }
