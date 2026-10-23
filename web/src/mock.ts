@@ -1365,6 +1365,7 @@ export const mock = {
   getHiddenEvents: async (calendarId: string): Promise<HiddenEvent[]> => hiddenEvents.filter(h => h.calendarId === calendarId).sort((a, b) => a.start.localeCompare(b.start)).map(({ key: _, ...h }) => h),
   showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
+  getRoutineChores: async (memberId: string) => chores.filter(chore => chore.active && chore.memberId === memberId).map(chore => ({ id: chore.id, title: chore.title })),
   getChoresDay: async (date: string): Promise<ChoreDay[]> => {
     const plugins = await installedPlugins()
     return chores.filter(c => c.active && dueOn(c, date)).map(c => {

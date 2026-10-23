@@ -21,6 +21,7 @@ import { calendarsRoutes } from './routes/calendars.ts';
 import { tasksRoutes } from './routes/tasks.ts';
 import { categoriesRoutes } from './routes/categories.ts';
 import { eventsRoutes } from './routes/events.ts';
+import { routineModeRoutes } from './routes/routine-mode.ts';
 import { choresRoutes } from './routes/chores.ts';
 import { choreSuggestionsRoutes } from './routes/chore-suggestions.ts';
 import { choreLibraryRoutes } from './routes/chore-library.ts';
@@ -187,6 +188,7 @@ export function createApp() {
   app.route('/', categoriesRoutes);
   app.route('/', eventsRoutes);
   app.route('/', choresRoutes);
+  app.route('/', routineModeRoutes);
   app.route('/', choreSuggestionsRoutes);
   app.route('/', choreLibraryRoutes);
   app.route('/', recipeShareRoutes); // before mealsRoutes; /r/* is public (the token is the credential)

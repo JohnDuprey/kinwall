@@ -2,6 +2,7 @@ import { holdAwake } from './wakeLock.ts'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
+import RoutineMode from './RoutineMode.tsx'
 import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
@@ -1346,8 +1347,8 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   }, [hasKey, builtInActivities, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub, pluginsOn, lockView)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = tm(section === 'profile' ? msg('Profile') : section === 'journal' ? msg('Journal') : section === 'insights' ? msg('Insights') : section === 'medications' ? msg('Medicines') : section === 'activities' && sub === 'paint' ? msg('Paint') : section === 'activities' && sub === 'stickers' ? msg('Sticker book') : section === 'activities' && sub === 'photos' ? msg('Photos') : NAV_ITEMS.find(i => i.key === section)?.label ?? msg('Home'))
-  const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
+  const tabLabel = tm(section === 'routine' ? msg('Free time') : section === 'profile' ? msg('Profile') : section === 'journal' ? msg('Journal') : section === 'insights' ? msg('Insights') : section === 'medications' ? msg('Medicines') : section === 'activities' && sub === 'paint' ? msg('Paint') : section === 'activities' && sub === 'stickers' ? msg('Sticker book') : section === 'activities' && sub === 'photos' ? msg('Photos') : NAV_ITEMS.find(i => i.key === section)?.label ?? msg('Home'))
+  const inApp = hasKey && !!settings && !wizardActive && (section === 'routine' || section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
   // "Chores · Our Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
   useEffect(() => { document.title = inApp ? `${tabLabel} · ${familyName || 'Kinwall'}` : 'Kinwall' }, [tabLabel, inApp, familyName])
@@ -1415,7 +1416,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} wall={wall} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
+            {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
           </main>
           {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>

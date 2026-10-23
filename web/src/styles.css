@@ -4228,3 +4228,38 @@ html:root[data-cast] {
 .milestone-card h3 { margin-top: 0; }
 .milestone-progress { display: grid; gap: .5rem; margin-block: .75rem; }
 .milestone-progress progress { width: 100%; height: .75rem; accent-color: var(--accent); }
+
+/* Routine mode uses the same family colors and controls as chores. */
+.routine-page { width: 100%; flex: none; max-width: 740px; margin: 0 auto; padding: 20px 16px 40px; box-sizing: border-box; }
+.routine-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 20px 0; display: grid; gap: 16px; }
+.routine-card h2, .routine-card p { margin: 0; }
+.routine-card .btn { min-height: 44px; }
+.routine-symbol { font-size: 40px; }
+.routine-card progress { width: 100%; height: 12px; accent-color: var(--accent); }
+.routine-list { padding: 0; list-style: none; margin: 0; display: grid; gap: 12px; }
+.routine-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; }
+@media (max-width: 480px) { .routine-card { padding: 18px; } }
+
+.routine-school-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.routine-school-links .btn { flex: none; max-width: 100%; overflow-wrap: anywhere; }
+
+.routine-back { width: fit-content; min-height: 44px; margin-bottom: 12px; }
+
+.routine-settings, .routine-settings-form { display: grid; gap: 16px; width: 100%; }
+.routine-settings .routine-card { margin: 0; }
+
+.routine-school-visibility { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-width: 0; }
+.routine-school-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; overflow-wrap: anywhere; }
+.routine-school-checkbox input { flex: none; width: 20px; height: 20px; }
+
+.routine-time-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.routine-time-pair input { min-width: 0; width: 100%; }
+.routine-day-schedule + .routine-day-schedule { margin-top: 12px; }
+@media (max-width: 480px) { .routine-time-pair { grid-template-columns: 1fr; } }
+
+.routine-settings label.field, .routine-page label.field { display: grid; gap: 8px; margin-bottom: 0; }
+
+.routine-child-settings-title { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.4; }
+
+.routine-app-preview { display: grid; gap: 12px; }
+.routine-app-preview p, .routine-app-preview h4 { margin: 0; }

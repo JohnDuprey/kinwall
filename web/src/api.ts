@@ -325,7 +325,11 @@ const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DE
 const U = (id: string) => encodeURIComponent(id)
 const qs = (q: Record<string, string | undefined>) => { const p = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => !!e[1])).toString(); return p ? '?' + p : '' }
 
+const routinePath = (id: string) => ['api', 'routine-mode', U(id)].join('/')
+
 export const api = {
+  getRoutineMode: (id: string) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id)) : get<import('./routineMode.ts').RoutineState>(routinePath(id)),
+  setRoutineMode: (id: string, policy: import('./routineMode.ts').RoutinePolicy) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id, policy)) : put<import('./routineMode.ts').RoutinePolicy>(routinePath(id), policy),
   getContacts: () => MOCK ? mock.getContacts() : get<Contact[]>('api/contacts'),
   getContactCategories: () => MOCK ? mock.getContactCategories() : get<ContactCategory[]>('api/contact-categories'),
   createContact: (body: ContactInput) => MOCK ? mock.createContact(body) : post<Contact>('api/contacts', body),

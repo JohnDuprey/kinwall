@@ -1,6 +1,7 @@
 // Every migration, bundled as text by wrangler (.sql files are Text modules). Keep in sync with
 // server/migrations/ - test/migrate.test.ts fails if a file is missing here.
 import type { Migration } from './migrate.ts';
+import m0128 from '../migrations/0128_routine_mode.sql';
 import m0001 from '../migrations/0001_init.sql';
 import m0002 from '../migrations/0002_security.sql';
 import m0003 from '../migrations/0003_ics_fingerprint.sql';
@@ -257,4 +258,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0125_push_retries.sql', sql: m0125 },
   { name: '0126_upkeep.sql', sql: m0126 },
   { name: '0127_upkeep_completion.sql', sql: m0127 },
+  { name: '0128_routine_mode.sql', sql: m0128 },
 ];

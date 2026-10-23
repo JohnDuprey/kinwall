@@ -422,7 +422,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
 
 export default function Chores() {
   const isPhone = useIsPhone()
-  const { members, selectedMemberId, focusMemberId, focusShowsShared, settings, toast, reloadCore, refreshTick, parentDevice } = useApp()
+  const { members, selectedMemberId, focusMemberId, focusShowsShared, settings, toast, reloadCore, refreshTick, parentDevice, meMemberId } = useApp()
   const dialog = useDialog()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [chores, setChores] = useState<ChoreDay[]>([])
@@ -590,6 +590,7 @@ export default function Chores() {
       {/* Scrolls the whole view as one, the day strip pinned (styles.css). */}
       <div className="chores-scroll">
       <div className="chores-header">
+        {(parentDevice || meMemberId) && <a className="btn btn-secondary chores-rewards-btn" href="#/routine">{t('Free time')}</a>}
         {/* The date and the buttons share a row (a phone: short date and short words, wrapping
             when they don't fit). Off a phone the leaderboard takes the next row. */}
         <h2 className="period-label" aria-label={formatDate(selectedDate, LONG_DAY)}>{formatDate(selectedDate, isPhone ? DAY : LONG_DAY)}</h2>

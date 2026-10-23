@@ -1,4 +1,5 @@
 import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import RoutineModeSettings from './RoutineModeSettings.tsx'
 import { AppContext, useApp } from './AppContext.tsx'
 import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
@@ -214,6 +215,7 @@ export default function SettingsView() {
               <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
               {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
               {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+              {!isDisplay && settings.features.chores && <Section id="routine-mode" title={t('Routine mode')} keywords={[t('Allowed websites'), t('Free time'), 'Clever', 'Freckle', 'Safari']}><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}><RoutineModeSettings /></div></Section>}
               {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
               {!isDisplay && settings.features.lists && <ShoppingSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
               {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}

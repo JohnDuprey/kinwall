@@ -1,0 +1,136 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { evaluateRoutine } from '../src/routine-mode.ts';
+import { createApp } from '../src/app.ts';
+import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
+import { createApiKey } from '../src/auth.ts';
+import { join } from 'node:path';
+
+const now = new Date('2026-10-22T20:00:00Z');
+const policy = { enabled: true, cutoff: '19:30' };
+const chore = { id: 'c', title: 'Read', completed: false, pending: false };
+test('routine: requires approved completion, allows empty days, and respects household cutoff', () => {
+  assert.equal(evaluateRoutine(policy, [chore], 'America/New_York', now).locked, true);
+  assert.equal(evaluateRoutine(policy, [{ ...chore, pending: true }], 'America/New_York', now).locked, true);
+  const unlocked = evaluateRoutine(policy, [{ ...chore, completed: true }], 'America/New_York', now);
+  assert.equal(unlocked.locked, false);
+  assert.equal(unlocked.validUntil, '2026-10-22T23:30:00.000Z');
+  assert.equal(evaluateRoutine(policy, [], 'America/New_York', now).locked, false);
+  assert.equal(evaluateRoutine(policy, [], 'America/New_York', new Date(unlocked.validUntil)).locked, true);
+  assert.equal(evaluateRoutine({ ...policy, enabled: false }, [chore], 'America/New_York', now).locked, false);
+});
+test('routine: cutoff handles DST and next-day reset', () => {
+  const unlocked = evaluateRoutine(policy, [], 'America/New_York', new Date('2026-11-01T17:00:00Z'));
+  assert.equal(unlocked.validUntil, '2026-11-02T00:30:00.000Z');
+});
+test('routine API: parents configure, children read only their own status, pending approvals do not unlock', async () => {
+  const db = openDb(':memory:');
+  applyMigrations(db, join(import.meta.dirname, '..', 'migrations'));
+  const env = { DB: db, ADMIN_API_KEY: 'k', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const app = createApp();
+  const req = (path: string, key = 'k', method = 'GET', body?: unknown) => app.request(path, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+  const maya = await (await req('/api/members', 'k', 'POST', { name: 'Maya', color: '#557799' })).json() as any;
+  const leo = await (await req('/api/members', 'k', 'POST', { name: 'Leo', color: '#779955' })).json() as any;
+  const child = await createApiKey(db, 'Maya device', 'display', { owner: maya.id, deviceKind: 'kid' });
+  const wall = await createApiKey(db, 'Wall', 'display', { owner: 'shared', deviceKind: 'wall' });
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, child.key, 'PUT', policy)).status, 403);
+  assert.equal((await req(`/api/routine-mode/${leo.id}`, child.key)).status, 403);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, wall.key)).status, 403);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...policy, cutoff: '25:00' })).status, 400);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...policy, cutoff: '23:59' })).status, 200);
+  const schoolPolicy = { ...policy, cutoff: '23:59', allowedWebsitesOnly: true, allowedWebDomains: ['https://Clever.com/login', 'student.freckle.com', 'clever.com'], schoolLinkDomains: ['clever.com'] };
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, child.key, 'PUT', schoolPolicy)).status, 403);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, allowedWebDomains: ['*'] })).status, 400);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, allowedWebDomains: [] })).status, 400);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', schoolPolicy)).status, 200);
+  const leoSchedule = { ...policy, start: '08:00', cutoff: '21:00', daySchedules: [null, null, null, null, null, { start: '09:00', cutoff: '22:00' }, null] };
+  assert.equal((await req(`/api/routine-mode/${leo.id}`, 'k', 'PUT', leoSchedule)).status, 200);
+  const leoState = await (await req(`/api/routine-mode/${leo.id}`, 'k')).json() as any;
+  assert.deepEqual(leoState.daySchedules, leoSchedule.daySchedules);
+  assert.equal(leoState.start, '08:00');
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, appMode: 'all' })).status, 200);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, appMode: 'unknown' })).status, 400);
+  const schoolState = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(schoolState.allowedWebsitesOnly, true);
+  assert.equal(schoolState.appMode, 'all');
+  assert.equal(leoState.appMode, 'selected');
+  assert.equal(schoolState.start, '00:00');
+  assert.equal(schoolState.cutoff, '23:59');
+  assert.deepEqual(schoolState.allowedWebDomains, ['clever.com', 'student.freckle.com']);
+  assert.deepEqual(schoolState.schoolLinkDomains, ['clever.com']);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, schoolLinkDomains: ['unlisted.example'] })).status, 400);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, schoolLinkDomains: [] })).status, 200);
+  const hidden = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.deepEqual(hidden.schoolLinkDomains, []);
+  assert.deepEqual(hidden.allowedWebDomains, ['clever.com', 'student.freckle.com']);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, start: '21:00' })).status, 200);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, start: '23:59' })).status, 400);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, daySchedules: [{ start: '08:00', cutoff: '20:00' }] })).status, 400);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', schoolPolicy)).status, 200);
+  const task = await (await req('/api/chores', 'k', 'POST', { title: 'Read', memberId: maya.id, rrule: 'FREQ=DAILY', needsApproval: true })).json() as any;
+  let state = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(state.remaining.length, 1);
+  assert.equal(state.locked, true);
+  await req(`/api/chores/${task.id}/complete`, child.key, 'POST', { date: state.date });
+  state = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(state.remaining[0].pending, true);
+  assert.equal(state.locked, true);
+  assert.equal((await req(`/api/chores/${task.id}/approve`, 'k', 'POST', { date: state.date })).status, 200);
+  state = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(state.remaining.length, 0);
+  assert.equal(state.reason === 'ready' || state.reason === 'bedtime', true);
+  const extra = await (await req('/api/chores', 'k', 'POST', { title: 'Feed the dog', memberId: maya.id, rrule: 'FREQ=DAILY' })).json() as any;
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, requiredChoreIds: [task.id] })).status, 200);
+  const selected = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(selected.total, 1);
+  assert.equal(selected.remaining.length, 0);
+  assert.ok(selected.availableChores.some((entry: any) => entry.id === extra.id));
+  assert.equal((await req(`/api/routine-mode/${leo.id}`, 'k', 'PUT', { ...policy, requiredChoreIds: [extra.id] })).status, 400);
+  const futureDate = new Date(`${selected.date}T12:00:00Z`); futureDate.setUTCDate(futureDate.getUTCDate() + 2);
+  const future = await (await req('/api/chores', 'k', 'POST', { title: 'Weekend practice', memberId: maya.id, dueDate: futureDate.toISOString().slice(0, 10) })).json() as any;
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, requiredChoreIds: [future.id] })).status, 200);
+  const notDue = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(notDue.total, 0);
+  assert.ok(notDue.availableChores.some((entry: any) => entry.id === future.id));
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, requiredChoreIds: [extra.id] })).status, 200);
+  assert.equal((await req(`/api/chores/${extra.id}`, 'k', 'PATCH', { memberId: leo.id })).status, 200);
+  const reassigned = await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any;
+  assert.equal(reassigned.total, 0);
+  assert.equal(reassigned.availableChores.some((entry: any) => entry.id === extra.id), false);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { ...schoolPolicy, requiredChoreIds: [] })).status, 200);
+  assert.equal((await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any).total, 0);
+  assert.equal((await req(`/api/routine-mode/${maya.id}`, 'k', 'PUT', { enabled: false, cutoff: '19:30' })).status, 200);
+  assert.equal((await (await req(`/api/routine-mode/${maya.id}`, child.key)).json() as any).enabled, false);
+});
+
+test('routine websites: normalizes hosts and rejects wildcard rules, credentials and query strings', async () => {
+  const { schoolDomain } = await import('../src/routine-mode.ts');
+  assert.equal(schoolDomain('https://Student.Freckle.com/login'), 'student.freckle.com');
+  assert.equal(schoolDomain('clever.com'), 'clever.com');
+  for (const input of ['*', '*.com', 'https://clever.com@evil.example', 'https://clever.com:8443', 'javascript:alert(1)', 'localhost', 'https://clever.com/?token=secret']) assert.equal(schoolDomain(input), null, input);
+});
+
+test('routine schedule: daily window and weekday overrides use the family timezone', () => {
+  const schedule = { ...policy, start: '16:30', daySchedules: [null, null, null, null, { start: '15:00', cutoff: '20:00' }, null, null] };
+  const before = evaluateRoutine(schedule, [chore], 'America/New_York', now);
+  assert.equal(before.locked, true); // Thursday override starts at 15:00, now is 16:00.
+  assert.equal(before.effectiveCutoff, '20:00');
+  const morning = evaluateRoutine(schedule, [chore], 'America/New_York', new Date('2026-10-22T17:00:00Z'));
+  assert.equal(morning.locked, false);
+  assert.equal(morning.reason, 'scheduled');
+  assert.equal(morning.validUntil, '2026-10-22T19:00:00.000Z');
+  const friday = evaluateRoutine(schedule, [chore], 'America/New_York', new Date('2026-10-23T20:00:00Z'));
+  assert.equal(friday.locked, false); // Default window starts at 16:30.
+  assert.equal(friday.effectiveStart, '16:30');
+  assert.equal(evaluateRoutine(schedule, [], 'America/New_York', new Date('2026-10-23T23:30:00Z')).locked, true);
+});
+
+test('routine: only selected due chores are prerequisites; an empty selection is schedule-only', () => {
+  const second = { ...chore, id: 'second', title: 'Practice' };
+  const selected = evaluateRoutine({ ...policy, requiredChoreIds: ['second'] }, [chore, { ...second, completed: true }], 'America/New_York', now);
+  assert.equal(selected.locked, false);
+  assert.equal(selected.total, 1);
+  assert.deepEqual(selected.remaining, []);
+  assert.equal(evaluateRoutine({ ...policy, requiredChoreIds: [] }, [chore], 'America/New_York', now).total, 0);
+  assert.equal(evaluateRoutine({ ...policy, requiredChoreIds: ['not-due'] }, [chore], 'America/New_York', now).locked, false);
+});

@@ -291,3 +291,41 @@ permit `liveactivity-start` for a start token or `liveactivity-update` for an up
 registration response is `{push, delivery, gatewayExpiresAt?}` and reports readiness for that token. Gateway authorization failures invalidate
 the matching stored credential without deleting the APNs destination; temporary failures and
 rate limits preserve it.
+
+### Routine mode (development preview)
+
+`GET /api/routine-mode/{memberId}` returns an uncached decision for the current household day:
+`enabled`, `cutoff`, `date`, `timezone`, `locked`, `reason`, `remaining`, `total`, `validUntil`, and
+`checkedAt`. Parents can inspect children; a child's device can read only its own decision. Wall
+screens cannot read these decisions. Approved, assigned chores due today determine access.
+
+`PUT /api/routine-mode/{memberId}` saves `{ enabled: boolean, cutoff: "HH:mm" }`. Parent access is
+required; only existing child members are accepted. The policy is opt-in and follows the chores
+feature switch. These prototype endpoints are not yet exposed through MCP.
+
+Routine policies also accept `allowedWebsitesOnly` (default false) and `allowedWebDomains` (default
+empty). Allowed-only browsing requires at least one valid host; HTTPS URLs normalize to hosts,
+duplicates are removed, and the maximum is 40. These values are returned in the current decision
+for native enforcement. Child devices cannot change either value. The native app adds only its
+trusted connected-server host locally to keep Kinwall available; it does not trust a host supplied
+through the web bridge.
+
+Routine mode policies accept optional `schoolLinkDomains`, a subset of `allowedWebDomains`, to choose
+which allowed hosts appear as school links. An empty list hides all links without changing access;
+omitting the field shows all allowed hosts for compatibility.
+
+Routine policies also accept `start` (HH:mm, default `00:00`) and optional `daySchedules`,
+an array of seven entries indexed Sunday through Saturday. Each entry is null (use daily times)
+or `{start, cutoff}`. Windows must start before their end on the same day. Decisions include
+`effectiveStart` and `effectiveCutoff`; before the start, `reason` is `scheduled`, `locked` is false,
+and `validUntil` is the start boundary. Configuration is separate for each child.
+
+Routine policies accept `appMode`: `selected` (default, pause selected apps/categories) or `all`
+(pause all apps except individually allowed apps). Apple app tokens remain local to the device
+in this preview; this field does not upload app selections.
+
+`requiredChoreIds` is null (default: all active assigned chores due today) or an array of at most
+200 unique chore IDs. Saving selected IDs requires each to be active, unarchived and assigned to
+the selected child. An empty array means no chore prerequisites. Decisions return `availableChores`
+(`id`, `title`) for that child’s active assigned chores; only due selected chores affect `remaining`
+and `total`. Deleted, archived or reassigned selections are ignored when evaluating access.

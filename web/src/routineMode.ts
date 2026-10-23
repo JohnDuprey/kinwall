@@ -1,0 +1,3 @@
+export type RoutineDaySchedule = { start: string; cutoff: string }
+export type RoutinePolicy = { enabled: boolean; appMode?: 'selected' | 'all'; cutoff: string; requiredChoreIds?: string[] | null; start?: string; daySchedules?: (RoutineDaySchedule | null)[]; allowedWebsitesOnly: boolean; allowedWebDomains: string[]; schoolLinkDomains?: string[] }
+export type RoutineState = RoutinePolicy & { availableChores?: { id: string; title: string }[]; effectiveStart?: string; effectiveCutoff?: string; date: string; timezone: string; locked: boolean; reason: string; total: number; remaining: { id: string; title: string; completed: boolean; pending: boolean }[]; validUntil: string; checkedAt: string }

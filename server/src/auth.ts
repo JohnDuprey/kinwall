@@ -244,6 +244,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/events$/ },
   { method: 'PATCH', pattern: /^\/api\/events\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/events\/[^/]+$/ },
+  { method: 'GET', pattern: /^\/api\/routine-mode\/[^/]+$/ }, // route limits children to their own decision
   { method: 'GET', pattern: /^\/api\/chores$/ },
   { method: 'GET', pattern: /^\/api\/chores\/day$/ },
   // Chores: wall screens and kids' devices tick them off (and undo); adding, editing and deleting
