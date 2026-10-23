@@ -740,7 +740,8 @@ function PairPhoneScreen({ code }: { code: string }) {
         <div className="gate-card">
           <Brand />
           <h1>{t('Connected! 🎉')}</h1>
-          <p>{t('{name} is connected — you can close this page.', { name })}</p>
+          <p>{t('{name} is connected.', { name })}</p>
+          <a className="btn btn-primary" href="#/home">{t('Back to Kinwall')}</a>
         </div>
       </div>
     )

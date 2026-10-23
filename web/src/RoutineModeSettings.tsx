@@ -10,12 +10,33 @@ import RoutineAppsSettings from './RoutineAppsSettings.tsx'
 import { saveRoutinePolicy } from './routineSave.ts'
 import { RoutineAutosave, type RoutineSaveStatus } from './routineAutosave.ts'
 import { routineFormPolicy } from './routineForm.ts'
+import { appPlatform, appRoutineSelection } from './native.ts'
+import { routineDeviceError } from './routineDeviceError.ts'
 
 /** Parent configuration lives in Settings, away from the child's daily progress. */
 export default function RoutineModeSettings() {
   const { parentDevice } = useApp()
-  return parentDevice ? <RoutineModeSettingsBody /> : null
+  return parentDevice ? <RoutineModeSettingsBody /> : <RoutineDeviceSettings />
 }
+
+/** Child devices can approve their own Screen Time setup without editing the parent's policy. */
+function RoutineDeviceSettings() {
+  const { memberId, state, native, nativeBusy, post } = useRoutineMode()
+  if (!memberId || appPlatform() !== 'ios') return null
+  return <section className="routine-card">
+    <h3 className="routine-child-settings-title">{t('Screen Time on this device')}</h3>
+    {!appRoutineSelection() ? <p>{t('Update Kinwall to receive app choices from your grown-up.')}</p> : <>
+      {native?.authorized !== true && <>
+        <p>{t('Ask a grown-up to approve Screen Time on this device. Your device must use your child or teen Apple Account in the family’s Apple Family Sharing group.')}</p>
+        <button type="button" className="btn btn-primary" disabled={nativeBusy} onClick={() => post('authorize')}>{nativeBusy ? t('Please wait…') : t('Approve Screen Time with a grown-up')}</button>
+      </>}
+      {native?.authorized && <p>{native.awaitingSelection ? t('Screen Time is approved. Your grown-up can now choose your apps from their phone.') : t('Screen Time is approved on this device.')}</p>}
+      {native?.error && <p role="alert">{routineDeviceError(native.error)}</p>}
+      <button type="button" className="btn btn-secondary" disabled={nativeBusy} onClick={() => post('sync', state)}>{t('Check device status')}</button>
+    </>}
+  </section>
+}
+
 function RoutineModeSettingsBody() {
   const { children, picked, setPicked, memberId, state, states, error, nativeBusy, native, setNative, post, remember } = useRoutineMode()
   const [statuses, setStatuses] = useState<Record<string, RoutineSaveStatus>>({})
@@ -66,7 +87,9 @@ function RoutineSettingsForm({ memberId, childName, state, active, onSaved, onSt
     }, delay)
   }
   const seed = editor.seed
-  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onInput={e => changed(e.currentTarget, 500)} onChange={e => changed(e.currentTarget, ['textarea', 'input'].includes((e.target as HTMLElement).tagName.toLowerCase()) && (e.target as HTMLInputElement).type !== 'checkbox' ? 500 : 0)} onBlur={() => { void autosave.flush() }}>
+  // React onChange covers typing and committed picker changes. An earlier input event can
+  // start a save before a native picker commits its controlled value.
+  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onChange={e => changed(e.currentTarget, ['textarea', 'input'].includes((e.target as HTMLElement).tagName.toLowerCase()) && (e.target as HTMLInputElement).type !== 'checkbox' ? 500 : 0)} onBlur={() => { void autosave.flush() }}>
     <fieldset className="routine-form-fields">
         <h3 className="routine-child-settings-title">{t('Settings for {name}', { name: childName })}</h3>
         <p role="status" className="settings-row-sub">{status.phase === 'pending' || status.phase === 'saving' ? t('Saving…') : status.phase === 'saved' ? t('Saved') : status.phase === 'error' || status.phase === 'invalid' ? t('Changes have not been saved.') : t('Changes save automatically.')}</p>

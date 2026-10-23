@@ -23,7 +23,7 @@ Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+).
 
 1. Pair Kinwall on the child's iPhone or iPad to that child. The device must use the child's
    child or teen Apple Account in your Apple Family Sharing group.
-2. On that device, open **Chores → Free time** and tap **Approve Screen Time with a grown-up**.
+2. On that device, open **Settings → Family → Routine mode** and tap **Approve Screen Time with a grown-up**.
    Complete Apple's parental authorization. Signing into Kinwall as a parent does not change
    the device's Apple Account.
 3. On the parent's iPhone or iPad in the same Apple Family Sharing group, open
@@ -97,7 +97,8 @@ Changes save automatically for each child. Typing pauses briefly before saving, 
 children finishes the previous child's pending save. The status shows **Saving…** and then
 **Saved** only after reading the policy back from the server. Invalid or unfinished times and
 website addresses stay in the editor with a message; failed requests keep the edits and offer
-**Try again**. Changes for one child never submit the other child's form.
+**Try again**. Changes for one child never submit the other child's form. Changing between all assigned chores
+and selected chores saves the committed choice and keeps the required-chore list open.
 Before the start, apps are available. From the start, approved chores unlock free time until
 the end, when apps pause for the night. The family timezone determines the day and times.
 A local monitor closes a grant at the start or end boundary. Open Kinwall to refresh the decision
@@ -113,6 +114,9 @@ permissions come from these settings; the native app picker is for apps and cate
 Kinwall remains available and other apps are paused while the child's routine is locked. A saved
 picker selection is required only for **Pause selected apps and categories**. Turning routine mode
 off clears restrictions even when no app choices have been saved.
+
+Screen Time authorization, connection status and device checks live in **Settings → Family**
+on the child's device. The daily Free time page shows chores and unlock progress.
 
 The child's page is titled **Free time**. The status card below it shows whether the routine is
 off, waiting for chores, available, or finished for the day; the page title is not an unlock status.

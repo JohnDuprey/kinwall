@@ -1,10 +1,8 @@
 import { t, tn } from './i18n.ts'
 import { useRoutineMode } from './useRoutineMode.ts'
-import { appPlatform, appRoutineSelection } from './native.ts'
-import { routineDeviceError } from './routineDeviceError.ts'
 
 export default function RoutineMode() {
-  const { children, parentDevice, picked, setPicked, memberId, state, error, native, nativeBusy, post, setNative, settings } = useRoutineMode()
+  const { children, parentDevice, picked, setPicked, memberId, state, error, native, setNative, settings } = useRoutineMode()
   const schoolLinks = state?.schoolLinkDomains ?? state?.allowedWebDomains ?? []
   if (!settings.features.chores) return <div className="content"><p>{t('Turn on chores to use routine mode.')}</p></div>
   return <div className="content scroll-y"><div className="routine-page">
@@ -15,18 +13,6 @@ export default function RoutineMode() {
     {parentDevice && <label className="field">{t('Child')}<select className="settings-select" value={picked} onChange={e => { setPicked(e.target.value); setNative(null) }}>{children.map(m => <option value={m.id} key={m.id}>{m.name}</option>)}</select></label>}
     {!memberId && <p>{t('A grown-up needs to assign this device to a child first.')}</p>}
     {error && <p role="alert">{error}</p>}
-    {!parentDevice && memberId && appPlatform() === 'ios' && <section className="routine-card">
-      <h2>{t('Screen Time on this device')}</h2>
-      {!appRoutineSelection() ? <p>{t('Update Kinwall to receive app choices from your grown-up.')}</p> : <>
-        {native?.authorized !== true && <>
-          <p>{t('Ask a grown-up to approve Screen Time on this device. Your device must use your child or teen Apple Account in the family’s Apple Family Sharing group.')}</p>
-          <button type="button" className="btn btn-primary" disabled={nativeBusy} onClick={() => post('authorize')}>{nativeBusy ? t('Please wait…') : t('Approve Screen Time with a grown-up')}</button>
-        </>}
-        {native?.authorized && <p>{native.awaitingSelection ? t('Screen Time is approved. Your grown-up can now choose your apps from their phone.') : t('Screen Time is approved on this device.')}</p>}
-        {native?.error && <p role="alert">{routineDeviceError(native.error)}</p>}
-        <button type="button" className="btn btn-secondary" disabled={nativeBusy} onClick={() => post('sync', state)}>{t('Check device status')}</button>
-      </>}
-    </section>}
     {state && <>
       {schoolLinks.length > 0 && <section className="routine-card">
         <h2>{t('Allowed websites')}</h2>
