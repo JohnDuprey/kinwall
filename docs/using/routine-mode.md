@@ -49,7 +49,7 @@ device is currently enforcing them. Older apps need an update for this flow.
 The native shell fetches the child's decision from the server rather than trusting completion or
 unlock claims from the web page. It checks every 15 seconds while active and on return. A local
 Device Activity monitor re-locks at the cutoff while Kinwall is closed. Unlocking after a parent
-approves a chore currently requires opening Kinwall. Remote background delivery is not implemented.
+approves a chore may require opening Kinwall if Apple's background delivery has not arrived.
 Offline devices keep the last decision until its cutoff; changes made elsewhere take effect on
 the next successful check. Revoked authorization and tamper resistance need physical-device QA.
 
@@ -108,6 +108,14 @@ Website access has two options: **Allow all websites** and **Only allowed websit
 permissions come from these settings; the native app picker is for apps and categories.
 
 ## App choices
+
+**Pause all apps except allowed apps** works without saving a picker selection. With no exceptions,
+Kinwall remains available and other apps are paused while the child's routine is locked. A saved
+picker selection is required only for **Pause selected apps and categories**. Turning routine mode
+off clears restrictions even when no app choices have been saved.
+
+The child's page is titled **Free time**. The status card below it shows whether the routine is
+off, waiting for chores, available, or finished for the day; the page title is not an unlock status.
 
 Each child can use **Pause selected apps and categories** or **Pause all apps except allowed apps**.
 The native picker accepts both categories and individual apps in the first mode. Individual apps

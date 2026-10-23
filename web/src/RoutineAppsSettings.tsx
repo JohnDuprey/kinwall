@@ -38,8 +38,8 @@ export default function RoutineAppsSettings({ memberId, childName, state, native
     {failed && <p role="alert">{t('Could not check the child’s devices. Try again.')}</p>}
     {devices && !devices.devices.length && <p>{MOCK ? t('The demo does not connect to a real child device.') : t('No child device has checked in yet. Open Free time in Kinwall on the child’s paired device to finish Screen Time setup.')}</p>}
     {devices && devices.devices.length > 0 && <ul className="routine-list">{devices.devices.map(device => {
-      const delivery = routineDeviceDelivery(device, selection?.revision ?? 0, loaded?.checkedAt ?? 0)
-      return <li key={device.id}><span>{device.name}</span><span>{delivery === 'authorization' ? t('Screen Time approval needed') : delivery === 'choices' ? t('Waiting for app choices') : delivery === 'pending' ? t('Waiting for the latest app choices') : delivery === 'offline' ? t('Open Kinwall to check again') : t('Latest app choices received')}</span></li>
+      const delivery = routineDeviceDelivery(device, selection?.revision ?? 0, loaded?.checkedAt ?? 0, state.enabled && state.appMode !== 'all')
+      return <li key={device.id}><span>{device.name}</span><span>{delivery === 'authorization' ? t('Screen Time approval needed') : delivery === 'authorized' ? t('Screen Time is approved on this device.') : delivery === 'choices' ? t('Waiting for app choices') : delivery === 'pending' ? t('Waiting for the latest app choices') : delivery === 'offline' ? t('Open Kinwall to check again') : t('Latest app choices received')}</span></li>
     })}</ul>}
     <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => { setRefresh(value => value + 1); post('sync', state) }}>{t('Check device status')}</button>
     <p className="settings-row-sub">{t('Device status is its last report. Changes take effect after the child’s device connects. Keep Kinwall and essential apps available; choose Safari under Keep available when using allowed websites.')}</p>

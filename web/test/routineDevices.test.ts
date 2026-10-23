@@ -12,3 +12,10 @@ test('device delivery distinguishes authorization, pending choices and stale rep
   assert.equal(routineDeviceDelivery({ ...device, lastSeenAt: 'invalid' }, 2, now), 'offline')
   assert.equal(routineDeviceDelivery(device, 0, now), 'choices')
 })
+
+test('all-app mode does not ask for choices when no exceptions were saved', () => {
+  assert.equal(routineDeviceDelivery(device, 0, now, false), 'authorized')
+  assert.equal(routineDeviceDelivery({ ...device, authorized: false }, 0, now, false), 'authorization')
+  assert.equal(routineDeviceDelivery({ ...device, lastSeenAt: 'invalid' }, 0, now, false), 'offline')
+  assert.equal(routineDeviceDelivery(device, 3, now, false), 'pending')
+})

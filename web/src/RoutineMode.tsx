@@ -9,7 +9,7 @@ export default function RoutineMode() {
   if (!settings.features.chores) return <div className="content"><p>{t('Turn on chores to use routine mode.')}</p></div>
   return <div className="content scroll-y"><div className="routine-page">
     <button type="button" className="btn btn-secondary routine-back" onClick={() => { location.hash = '#/chores' }}>{t('Back to chores')}</button>
-    <h1>{t('Ready for free time')}</h1>
+    <h1>{t('Free time')}</h1>
     {native?.simulator && <p className="chip-static">{t('Simulator preview — apps are not blocked')}</p>}
     <p>{t('Finish today’s required chores to unlock the apps your family has chosen.')}</p>
     {parentDevice && <label className="field">{t('Child')}<select className="settings-select" value={picked} onChange={e => { setPicked(e.target.value); setNative(null) }}>{children.map(m => <option value={m.id} key={m.id}>{m.name}</option>)}</select></label>}
