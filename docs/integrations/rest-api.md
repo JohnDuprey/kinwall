@@ -321,11 +321,32 @@ or `{start, cutoff}`. Windows must start before their end on the same day. Decis
 and `validUntil` is the start boundary. Configuration is separate for each child.
 
 Routine policies accept `appMode`: `selected` (default, pause selected apps/categories) or `all`
-(pause all apps except individually allowed apps). Apple app tokens remain local to the device
-in this preview; this field does not upload app selections.
+(pause all apps except individually allowed apps). This field saves the policy; the native
+app transfers opaque app selections through the separate endpoints below.
 
 `requiredChoreIds` is null (default: all active assigned chores due today) or an array of at most
 200 unique chore IDs. Saving selected IDs requires each to be active, unarchived and assigned to
 the selected child. An empty array means no chore prerequisites. Decisions return `availableChores`
 (`id`, `title`) for that child’s active assigned chores; only due selected chores affect `remaining`
 and `total`. Deleted, archived or reassigned selections are ignored when evaluating access.
+
+
+Routine app-choice endpoints (matching iOS build required):
+
+- `GET /api/routine-mode/{memberId}/apps`: parent or that child's device only. Returns
+  `{revision, data, selectedApps, selectedCategories, allowedApps, updatedAt}`. No saved choices
+  returns revision 0 and null data. Native clients decode `data`; web UI and MCP must not fetch it.
+- `PUT /api/routine-mode/{memberId}/apps`: parent only. Accepts `{expectedRevision, data,
+  selectedApps, selectedCategories, allowedApps}`. Data is base64, at most 128 KiB decoded, stored
+  encrypted with the family key and member-specific authenticated context. Conflicting revisions
+  return 409. Returns metadata without the data. Saving one child cannot change another child's choices.
+- `GET /api/routine-mode/{memberId}/devices`: parent or own child. Returns `{selection, devices}`;
+  selection is metadata only or null. Devices include `id`, `name`, `authorized`, `appliedRevision`,
+  `locked`, and server-generated `lastSeenAt`. These are client reports, not enforcement attestation.
+  Revoked or reassigned device keys are excluded.
+- `PUT /api/routine-mode/{memberId}/device`: that child's paired display key only. Accepts
+  `{authorized, appliedRevision, locked}`; a future revision is rejected. Parents cannot forge
+  the child's acknowledgment. The response is `{ok: true}`.
+
+Responses containing selections or delivery metadata are uncached. Migration 0129 adds empty,
+opt-in tables; it does not backfill selections, enable routines, or change existing restrictions.

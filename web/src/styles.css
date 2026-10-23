@@ -4249,6 +4249,7 @@ html:root[data-cast] {
 .routine-settings > *, .routine-settings-form > *, .routine-card > * { min-width: 0; }
 .routine-settings .btn { white-space: normal; overflow-wrap: anywhere; }
 .routine-settings .routine-card { margin: 0; }
+.routine-form-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
 
 .routine-school-visibility { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-width: 0; }
 .routine-school-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; overflow-wrap: anywhere; }

@@ -1,0 +1,54 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { createApp } from '../src/app.ts';
+import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
+import { createApiKey } from '../src/auth.ts';
+
+test('routine app choices: parents save encrypted per-child selections; only that child can receive them', async () => {
+  const db = openDb(':memory:');
+  applyMigrations(db, join(import.meta.dirname, '..', 'migrations'));
+  const app = createApp(), env = { DB: db, ADMIN_API_KEY: 'parent', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const req = (path: string, key = 'parent', method = 'GET', body?: unknown) => app.request(path, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+  const maya = await (await req('/api/members', 'parent', 'POST', { name: 'Maya', color: '#557799' })).json() as any;
+  const leo = await (await req('/api/members', 'parent', 'POST', { name: 'Leo', color: '#779955' })).json() as any;
+  const child = await createApiKey(db, 'Maya iPad', 'display', { owner: maya.id, deviceKind: 'kid' });
+  const other = await createApiKey(db, 'Leo iPad', 'display', { owner: leo.id, deviceKind: 'kid' });
+  const wall = await createApiKey(db, 'Wall', 'display', { owner: 'shared', deviceKind: 'wall' });
+  const path = `/api/routine-mode/${maya.id}`;
+  const selection = { expectedRevision: 0, data: btoa('opaque-apple-selection-fixture'), selectedApps: 2, selectedCategories: 1, allowedApps: 3 };
+  assert.equal((await req(`${path}/apps`, child.key, 'PUT', selection)).status, 403);
+  assert.equal((await req(`${path}/apps`, 'parent', 'PUT', selection)).status, 200);
+  const saved = await (await req(`${path}/apps`, child.key)).json() as any;
+  assert.equal(saved.revision, 1);
+  assert.equal(saved.data, selection.data);
+  const row = await db.prepare('SELECT data FROM routine_app_selections WHERE member_id = ?').bind(maya.id).first<{ data: string }>();
+  assert.ok(row);
+  assert.ok(row.data.startsWith('v1:'));
+  assert.ok(!row.data.includes(selection.data));
+  for (const key of [other.key, wall.key]) {
+    assert.equal((await req(`${path}/apps`, key)).status, 403);
+    assert.equal((await req(`${path}/devices`, key)).status, 403);
+    assert.equal((await req(`${path}/device`, key, 'PUT', { authorized: true, appliedRevision: 1, locked: true })).status, 403);
+  }
+  assert.equal((await req(`${path}/apps`, 'parent', 'PUT', selection)).status, 409, 'stale parent edits cannot overwrite newer choices');
+  assert.equal((await req(`${path}/apps`, 'parent', 'PUT', { ...selection, expectedRevision: 1, data: 'not base64!' })).status, 400);
+  assert.equal((await req(`${path}/apps`, 'parent', 'PUT', { ...selection, expectedRevision: 1, data: 'A'.repeat(180004) })).status, 400);
+  assert.equal((await req(`${path}/device`, child.key, 'PUT', { authorized: true, appliedRevision: 2, locked: true })).status, 400, 'cannot acknowledge a future revision');
+  assert.equal((await req(`${path}/device`, child.key, 'PUT', { authorized: true, appliedRevision: 1, locked: true })).status, 200);
+  const devices = await (await req(`${path}/devices`)).json() as any;
+  assert.equal(devices.selection.revision, 1);
+  assert.equal(devices.selection.data, undefined, 'settings metadata does not contain Apple tokens');
+  assert.equal(devices.devices.length, 1);
+  assert.equal(devices.devices[0].authorized, true);
+  assert.equal(devices.devices[0].appliedRevision, 1);
+  assert.equal(devices.devices[0].name, 'Maya iPad');
+  assert.equal((await req(`${path}/device`, 'parent', 'PUT', { authorized: true, appliedRevision: 1, locked: true })).status, 403, 'a parent cannot pretend the child device applied a policy');
+  await req(`${path}/apps`, 'parent', 'PUT', { ...selection, expectedRevision: 1, selectedApps: 4 });
+  const pending = await (await req(`${path}/devices`)).json() as any;
+  assert.equal(pending.selection.revision, 2);
+  assert.equal(pending.devices[0].appliedRevision, 1);
+  assert.equal((await (await req(`/api/routine-mode/${leo.id}/apps`, other.key)).json() as any).revision, 0);
+  await req(`/api/keys/${child.id}`, 'parent', 'DELETE');
+  assert.equal((await (await req(`${path}/devices`)).json() as any).devices.length, 0, 'revoked devices disappear');
+});

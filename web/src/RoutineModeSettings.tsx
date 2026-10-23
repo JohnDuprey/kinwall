@@ -1,13 +1,15 @@
-import type { RoutineDaySchedule } from './routineMode.ts'
-import { useState } from 'react'
+import type { RoutineDaySchedule, RoutineState } from './routineMode.ts'
+import { useEffect, useState } from 'react'
 import { schoolDomain } from './routineWebsites.ts'
 import { useApp } from './AppContext.tsx'
 import RoutineAppPreview from './RoutineAppPreview.tsx'
-import { api, MOCK } from './api.ts'
-import { appPlatform } from './native.ts'
-import { t, tn } from './i18n.ts'
+import { api, getKey, MOCK } from './api.ts'
+import { t } from './i18n.ts'
 import { useRoutineMode } from './useRoutineMode.ts'
-import { routineDeviceError } from './routineDeviceError.ts'
+import RoutineAppsSettings from './RoutineAppsSettings.tsx'
+import { saveRoutinePolicy } from './routineSave.ts'
+import { RoutineAutosave, type RoutineSaveStatus } from './routineAutosave.ts'
+import { routineFormPolicy } from './routineForm.ts'
 
 /** Parent configuration lives in Settings, away from the child's daily progress. */
 export default function RoutineModeSettings() {
@@ -15,43 +17,73 @@ export default function RoutineModeSettings() {
   return parentDevice ? <RoutineModeSettingsBody /> : null
 }
 function RoutineModeSettingsBody() {
-  const { children, parentDevice, picked, setPicked, memberId, state, error, setError, busy, setBusy, native, setNative, post, load, toast } = useRoutineMode()
+  const { children, picked, setPicked, memberId, state, states, error, nativeBusy, native, setNative, post, remember } = useRoutineMode()
+  const [statuses, setStatuses] = useState<Record<string, RoutineSaveStatus>>({})
+  const pending = (id: string) => !!statuses[id] && !['idle', 'saved'].includes(statuses[id]!.phase)
   return <div className="routine-settings">
-    <label className="field">{t('Child')}<select className="settings-select" value={picked} onChange={e => { setPicked(e.target.value); setNative(null) }}>{children.map(m => <option value={m.id} key={m.id}>{m.name}</option>)}</select></label>
-    <p className="settings-row-sub">{t('These settings apply only to the selected child.')}</p>
+    <label className="field">{t('Child')}<select className="settings-select" disabled={nativeBusy} value={picked} onChange={e => { setPicked(e.target.value); setNative(null) }}>{children.map(m => <option value={m.id} key={m.id}>{statuses[m.id]?.phase === 'error' || statuses[m.id]?.phase === 'invalid' ? t('{name} (not saved)', { name: m.name }) : m.name}</option>)}</select></label>
+    <p className="settings-row-sub">{t('Changes save automatically for the selected child.')}</p>
     {!memberId && <p>{t('Add a child to your family before setting up routine mode.')}</p>}
     {error && <p role="alert">{error}</p>}
+    {children.map(child => states[child.id] && <div key={child.id} hidden={child.id !== memberId}>
+      <RoutineSettingsForm memberId={child.id} childName={child.name} state={states[child.id]!} active={child.id === memberId} onSaved={remember} onStatus={(id, status) => setStatuses(previous => ({ ...previous, [id]: status }))} />
+    </div>)}
     {state && <>
-      <form key={`${memberId}:${state.enabled}:${JSON.stringify(state.requiredChoreIds)}:${state.appMode}:${state.cutoff}:${state.allowedWebsitesOnly}:${state.allowedWebDomains.join(',')}:${state.schoolLinkDomains?.join(',')}:${state.start}:${JSON.stringify(state.daySchedules)}`} className="routine-settings-form" onSubmit={async e => { e.preventDefault(); const form = new FormData(e.currentTarget); setBusy(true); try { await api.setRoutineMode(memberId, { enabled: form.get('enabled') === 'true', requiredChoreIds: form.get('choreRequirement') === 'selected' ? form.getAll('requiredChoreIds').map(String) : null, appMode: form.get('appMode') === 'all' ? 'all' : 'selected', cutoff: String(form.get('cutoff')), start: String(form.get('start')), daySchedules: Array.from({ length: 7 }, (_, day) => form.get('scheduleMode') === 'custom' && form.get(`day-${day}`) === 'on' ? { start: String(form.get(`start-${day}`)), cutoff: String(form.get(`cutoff-${day}`)) } : null), allowedWebsitesOnly: form.get('allowedWebsitesOnly') === 'true', allowedWebDomains: String(form.get('allowedWebDomains')).split(/[\s,]+/).filter(Boolean), schoolLinkDomains: form.getAll('schoolLinkDomains').map(String) }); await load(); toast(t('Routine mode saved.')) } catch (e) { setError(String(e instanceof Error ? e.message : e)) } finally { setBusy(false) } }}>
-        <h3 className="routine-child-settings-title">{t('Settings for {name}', { name: children.find(child => child.id === memberId)?.name ?? '' })}</h3>
-        <label className="field">{t('Routine mode')}<select name="enabled" className="settings-select" defaultValue={String(state.enabled)}><option value="false">{t('Off')}</option><option value="true">{t('On')}</option></select></label>
-        <label className="field">{t('Apps during routine mode')}<select name="appMode" className="settings-select" defaultValue={state.appMode ?? 'selected'}><option value="selected">{t('Pause selected apps and categories')}</option><option value="all">{t('Pause all apps except allowed apps')}</option></select></label>
+      {MOCK && <RoutineAppPreview key={memberId} memberId={memberId} appMode={state.appMode ?? 'selected'} websiteList={state.allowedWebsitesOnly} />}
+      <RoutineAppsSettings memberId={memberId} childName={children.find(child => child.id === memberId)?.name ?? ''} state={state} native={native} busy={nativeBusy} pending={pending(memberId)} post={post} />
+    </>}
+  </div>
+}
+
+function RoutineSettingsForm({ memberId, childName, state, active, onSaved, onStatus }: { memberId: string; childName: string; state: RoutineState; active: boolean; onSaved(id: string, state: RoutineState): void; onStatus(id: string, status: RoutineSaveStatus): void }) {
+  const [status, setStatus] = useState<RoutineSaveStatus>({ phase: 'idle' })
+  const [editor, setEditor] = useState({ seed: state, revision: 0 })
+  const [autosave] = useState(() => new RoutineAutosave({
+    initial: state,
+    save: policy => saveRoutinePolicy(api, memberId, policy),
+    confirmed: next => onSaved(memberId, next),
+    status: next => { setStatus(next); onStatus(memberId, next) },
+  }))
+  useEffect(() => {
+    if ((status.phase === 'idle' || status.phase === 'saved') && !autosave.matches(state)) {
+      autosave.accept(state)
+      setEditor(previous => ({ seed: state, revision: previous.revision + 1 }))
+    }
+  }, [state, status.phase, autosave])
+  useEffect(() => { if (!active) void autosave.flush() }, [active, autosave])
+  useEffect(() => {
+    const flush = () => { void autosave.flush() }
+    const hidden = () => { if (document.visibilityState === 'hidden') flush() }
+    document.addEventListener('visibilitychange', hidden)
+    window.addEventListener('pagehide', flush)
+    return () => { document.removeEventListener('visibilitychange', hidden); window.removeEventListener('pagehide', flush); flush() }
+  }, [autosave])
+  const changed = (form: HTMLFormElement, delay: number) => {
+    const key = getKey()
+    autosave.edit(() => {
+      if (key !== getKey()) throw new Error(t('Sign-in changed. Reopen Settings before changing this routine.'))
+      return routineFormPolicy(new FormData(form))
+    }, delay)
+  }
+  const seed = editor.seed
+  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onInput={e => changed(e.currentTarget, 500)} onChange={e => changed(e.currentTarget, ['textarea', 'input'].includes((e.target as HTMLElement).tagName.toLowerCase()) && (e.target as HTMLInputElement).type !== 'checkbox' ? 500 : 0)} onBlur={() => { void autosave.flush() }}>
+    <fieldset className="routine-form-fields">
+        <h3 className="routine-child-settings-title">{t('Settings for {name}', { name: childName })}</h3>
+        <p role="status" className="settings-row-sub">{status.phase === 'pending' || status.phase === 'saving' ? t('Saving…') : status.phase === 'saved' ? t('Saved') : status.phase === 'error' || status.phase === 'invalid' ? t('Changes have not been saved.') : t('Changes save automatically.')}</p>
+        {status.error && <p role="alert">{status.error}</p>}
+        {status.phase === 'error' && <button type="button" className="btn btn-secondary" onClick={() => { void autosave.retry() }}>{t('Try again')}</button>}
+        <label className="field">{t('Routine mode')}<select name="enabled" className="settings-select" defaultValue={String(seed.enabled)}><option value="false">{t('Off')}</option><option value="true">{t('On')}</option></select></label>
+        <label className="field">{t('Apps during routine mode')}<select name="appMode" className="settings-select" defaultValue={seed.appMode ?? 'selected'}><option value="selected">{t('Pause selected apps and categories')}</option><option value="all">{t('Pause all apps except allowed apps')}</option></select></label>
         <p className="settings-row-sub">{t('Allowed apps stay available even inside a paused category. In all-apps mode, Kinwall stays available. With only allowed websites on, select Safari or your school browser under Keep available.')}</p>
-        <RoutineChoreFields selected={state.requiredChoreIds ?? null} chores={state.availableChores ?? []} />
-        <RoutineScheduleFields start={state.start ?? '00:00'} cutoff={state.cutoff} days={state.daySchedules ?? Array(7).fill(null)} />
-        <label className="field">{t('Websites during routine mode')}<select name="allowedWebsitesOnly" className="settings-select" defaultValue={String(state.allowedWebsitesOnly)}><option value="false">{t('Allow all websites')}</option><option value="true">{t('Only allowed websites')}</option></select></label>
-        <SchoolWebsiteFields domains={state.allowedWebDomains} links={state.schoolLinkDomains ?? state.allowedWebDomains} />
+        <RoutineChoreFields selected={seed.requiredChoreIds ?? null} chores={state.availableChores ?? []} />
+        <RoutineScheduleFields start={seed.start ?? '00:00'} cutoff={seed.cutoff} days={seed.daySchedules ?? Array(7).fill(null)} />
+        <label className="field">{t('Websites during routine mode')}<select name="allowedWebsitesOnly" className="settings-select" defaultValue={String(seed.allowedWebsitesOnly)}><option value="false">{t('Allow all websites')}</option><option value="true">{t('Only allowed websites')}</option></select></label>
+        <SchoolWebsiteFields domains={seed.allowedWebDomains} links={seed.schoolLinkDomains ?? seed.allowedWebDomains} />
         <p className="settings-row-sub">{t('With only allowed websites on, these sites stay available while other browsing is paused. Add your school’s sign-in sites too. Website access does not mark schoolwork complete.')}</p>
         <p className="settings-row-sub">{t('On the child’s device, put Safari or their school browser under Keep available. An allowed website cannot open inside a blocked browser.')}</p>
         <p>{t('Required chores count only when due today, and must have approved completions. Shared chores are not required. On days without required chores, free time is available until the end time.')}</p>
-        <button className="btn btn-primary" disabled={busy}>{t('Save routine settings')}</button>
-      </form>
-      {MOCK && <RoutineAppPreview key={memberId} memberId={memberId} appMode={state.appMode ?? 'selected'} websiteList={state.allowedWebsitesOnly} />}
-      {appPlatform() === 'ios' && <section className="routine-card">
-        <h2>{t('Set up the child’s device')}</h2>
-        <p>{t('App choices must be set up on the child’s iPhone or iPad. Chores, schedules, and allowed websites can be managed from your phone.')}</p>
-        {native?.simulator && <p className="chip-static">{t('Simulator preview — apps are not blocked')}</p>}
-        {native?.authorized && <p>{native.appMode === 'all' ? t('All apps paused except allowed apps') : native.selected ? tn(native.selected, 'One app or category selected', '{n} apps or categories selected') : t('A grown-up chooses which entertainment apps to pause on this device.')}</p>}
-        {native?.authorized === false && !native.error && <p>{t('Screen Time access has not been approved on this device.')}</p>}
-        {native?.authorized && typeof native.locked === 'boolean' && <p>{native.locked ? t('Device status: entertainment paused') : t('Device status: entertainment available')}</p>}
-        {native?.allowedApps !== undefined && <p>{tn(native.allowedApps, 'One app kept available', '{n} apps kept available')}</p>}
-        {native?.error && <p role="alert">{routineDeviceError(native.error)}</p>}
-        {parentDevice && <button className="btn btn-secondary" onClick={() => post('setup')}>{t('Choose apps on this device')}</button>}
-        <button className="btn btn-secondary" onClick={() => { post('sync', state); load() }}>{t('Check device status')}</button>
-        <p className="settings-row-sub">{t('Sign into Kinwall as a grown-up on the child’s device, approve Apple’s Screen Time request, then pair the device to the child. Keep essential apps available.')}</p>
-      </section>}
-    </>}
-  </div>
+    </fieldset>
+  </form>
 }
 
 function SchoolWebsiteFields({ domains, links }: { domains: string[]; links: string[] }) {

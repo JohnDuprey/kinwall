@@ -2,13 +2,49 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { evaluateRoutine } from '../src/routine-mode.ts';
 import { createApp } from '../src/app.ts';
-import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
+import { D1Sqlite, openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { createApiKey } from '../src/auth.ts';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 const now = new Date('2026-10-22T20:00:00Z');
 const policy = { enabled: true, cutoff: '19:30' };
 const chore = { id: 'c', title: 'Read', completed: false, pending: false };
+test('saving and re-saving one child preserves the other policy, including after reopening storage', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'kinwall-routine-persistence-'));
+  const file = join(dir, 'demo.sqlite'), raw = new DatabaseSync(file), db = new D1Sqlite(raw);
+  let reopened: DatabaseSync | undefined;
+  t.after(() => { reopened?.close(); try { raw.close(); } catch { /* already closed for reopening */ } rmSync(dir, { recursive: true, force: true }); });
+  applyMigrations(db, join(import.meta.dirname, '..', 'migrations'));
+  const app = createApp(), env = { DB: db, ADMIN_API_KEY: 'parent' } as any;
+  const req = (path: string, method = 'GET', body?: unknown) => app.request(path, { method, headers: { Authorization: 'Bearer parent', 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+  const maya = await (await req('/api/members', 'POST', { name: 'Maya', color: '#557799' })).json() as any;
+  const leo = await (await req('/api/members', 'POST', { name: 'Leo', color: '#779955' })).json() as any;
+  const path = (id: string) => `/api/routine-mode/${id}`;
+  const mayaPolicy = { enabled: true, appMode: 'all', start: '07:30', cutoff: '19:30', requiredChoreIds: [], allowedWebsitesOnly: true, allowedWebDomains: ['clever.com'], schoolLinkDomains: [], daySchedules: [null, { start: '08:00', cutoff: '18:00' }, null, null, null, null, null] };
+  const leoPolicy = { enabled: false, appMode: 'selected', start: '08:30', cutoff: '20:45', requiredChoreIds: null, allowedWebsitesOnly: false, allowedWebDomains: ['student.freckle.com'], schoolLinkDomains: ['student.freckle.com'], daySchedules: Array(7).fill(null) };
+  for (const [id, value] of [[maya.id, mayaPolicy], [leo.id, leoPolicy]]) assert.equal((await req(path(id), 'PUT', value)).status, 200);
+  const savedLeo = await (await req(path(leo.id))).json() as any;
+  assert.equal((await req(path(maya.id), 'PUT', { ...mayaPolicy, cutoff: '18:30', enabled: false })).status, 200);
+  const afterLeo = await (await req(path(leo.id))).json() as any;
+  for (const field of Object.keys(leoPolicy)) assert.deepEqual(afterLeo[field], savedLeo[field], field);
+  const savedMaya = await (await req(path(maya.id))).json() as any;
+  assert.equal((await req(path(leo.id), 'PUT', { ...leoPolicy, enabled: true, start: '09:00' })).status, 200);
+  const afterMaya = await (await req(path(maya.id))).json() as any;
+  for (const field of Object.keys(mayaPolicy)) assert.deepEqual(afterMaya[field], savedMaya[field], field);
+  const savedLeoAfter = await (await req(path(leo.id))).json() as any;
+  raw.close();
+  reopened = new DatabaseSync(file);
+  const freshApp = createApp(), freshEnv = { ...env, DB: new D1Sqlite(reopened) };
+  for (const [id, expected] of [[maya.id, afterMaya], [leo.id, savedLeoAfter]]) {
+    const response = await freshApp.request(path(id), { headers: { Authorization: 'Bearer parent' } }, freshEnv);
+    assert.equal(response.status, 200);
+    const actual = await response.json() as any;
+    for (const field of Object.keys(mayaPolicy)) assert.deepEqual(actual[field], expected[field], `${id}:${field} after reopen`);
+  }
+});
 test('routine: requires approved completion, allows empty days, and respects household cutoff', () => {
   assert.equal(evaluateRoutine(policy, [chore], 'America/New_York', now).locked, true);
   assert.equal(evaluateRoutine(policy, [{ ...chore, pending: true }], 'America/New_York', now).locked, true);

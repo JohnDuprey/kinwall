@@ -24,6 +24,11 @@ export function appPlatform(): 'ios' | 'android' | null {
   return (window as Window & { kinwallNative?: { platform?: unknown } }).kinwallNative?.platform === 'android' ? 'android' : 'ios'
 }
 
+/** Guardian selection and child authorization became separate in bridge version 2. */
+export function appRoutineSelection(): boolean {
+  return appPlatform() === 'ios' && Number((window as Window & { kinwallNative?: { routineModeVersion?: number } }).kinwallNative?.routineModeVersion ?? 0) >= 2
+}
+
 /** Marks the app and its status bar so iOS styles can use the space the app gives them.
  * Older clients keep their original layout (hidden on iOS, visible on Android). */
 export function markNativeApp() {

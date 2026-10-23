@@ -13,16 +13,32 @@ family data.
 
 ## iPhone and iPad setup
 
-Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+). On the child's
-physical device, temporarily sign into Kinwall with parent access, open Settings → Family → Routine mode, pick that child,
-and choose apps. A child or teen Apple Account must be signed in on that device;
-signing into Kinwall as a parent does not change the device's Apple Account. Apple rejects this
-setup on a grown-up's own iCloud account. A parent's phone can manage chores, schedules, and
-allowed websites; choosing apps remotely from that phone is not implemented yet.
-Apple requires parental authorization for a child in Family Sharing. Keep
-Kinwall, school tools, communication and essential apps outside the selected apps/categories.
-Then sign out and pair Kinwall to that child. App choices stay on that device as opaque Apple
-tokens; they are never sent to Kinwall's server. Each device needs its own setup.
+Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+).
+
+1. Pair Kinwall on the child's iPhone or iPad to that child. The device must use the child's
+   child or teen Apple Account in your Apple Family Sharing group.
+2. On that device, open **Chores → Free time** and tap **Approve Screen Time with a grown-up**.
+   Complete Apple's parental authorization. Signing into Kinwall as a parent does not change
+   the device's Apple Account.
+3. On the parent's iPhone or iPad in the same Apple Family Sharing group, open
+   **Settings → Family → Routine mode**, choose the child, wait for the app mode and website settings to show **Saved**,
+   then tap **Choose apps for [child]**. Choose apps/categories to pause and individual apps to
+   keep available. In all-apps mode the picker chooses the exceptions.
+4. Save the picker and open Kinwall on the child's device to receive the choices. Each child
+   has separate choices. Other devices paired to the same child receive the same choices after
+   they authorize and connect. Parent settings show each device's last delivery report.
+
+The parent's picker does not request child authorization on the parent's own phone or apply
+restrictions there. Apple may list apps from multiple authorized children in the Family Sharing
+group; the selected Kinwall child determines who receives the saved choices. Keep Kinwall,
+school tools, communication and essential apps available. With allowed websites on, explicitly
+choose Safari or the school browser under **Keep available**.
+
+Apple app selections stay opaque. Native code sends them directly to the child's per-member
+server record, encrypted with the family's key at rest. App names and tokens are not passed to
+the web page or MCP. Only parents can save choices; a paired child can fetch only its own.
+Device status reports say whether the latest choices were received, not whether an offline
+device is currently enforcing them. Older apps need an update for this flow.
 
 The native shell fetches the child's decision from the server rather than trusting completion or
 unlock claims from the web page. It checks every 15 seconds while active and on return. A local
@@ -71,6 +87,11 @@ All links can be hidden without changing website permissions.
 Each child has a separate schedule. Choose **Same times every day**, or **Customize by day**
 and enable overrides for individual days. Days without overrides use the daily times. The start
 must be earlier than the end on the same day; overnight windows are not supported.
+Changes save automatically for each child. Typing pauses briefly before saving, and switching
+children finishes the previous child's pending save. The status shows **Saving…** and then
+**Saved** only after reading the policy back from the server. Invalid or unfinished times and
+website addresses stay in the editor with a message; failed requests keep the edits and offer
+**Try again**. Changes for one child never submit the other child's form.
 Before the start, apps are available. From the start, approved chores unlock free time until
 the end, when apps pause for the night. The family timezone determines the day and times.
 A local monitor closes a grant at the start or end boundary. Open Kinwall to refresh the decision
