@@ -15,7 +15,11 @@ family data.
 
 Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+). On the child's
 physical device, temporarily sign into Kinwall with parent access, open Settings → Family → Routine mode, pick that child,
-and choose apps. Apple requires parental authorization for a child in Family Sharing. Keep
+and choose apps. A child or teen Apple Account must be signed in on that device;
+signing into Kinwall as a parent does not change the device's Apple Account. Apple rejects this
+setup on a grown-up's own iCloud account. A parent's phone can manage chores, schedules, and
+allowed websites; choosing apps remotely from that phone is not implemented yet.
+Apple requires parental authorization for a child in Family Sharing. Keep
 Kinwall, school tools, communication and essential apps outside the selected apps/categories.
 Then sign out and pair Kinwall to that child. App choices stay on that device as opaque Apple
 tokens; they are never sent to Kinwall's server. Each device needs its own setup.

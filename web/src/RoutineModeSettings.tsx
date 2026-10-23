@@ -7,6 +7,7 @@ import { api, MOCK } from './api.ts'
 import { appPlatform } from './native.ts'
 import { t, tn } from './i18n.ts'
 import { useRoutineMode } from './useRoutineMode.ts'
+import { routineDeviceError } from './routineDeviceError.ts'
 
 /** Parent configuration lives in Settings, away from the child's daily progress. */
 export default function RoutineModeSettings() {
@@ -37,15 +38,17 @@ function RoutineModeSettingsBody() {
       </form>
       {MOCK && <RoutineAppPreview key={memberId} memberId={memberId} appMode={state.appMode ?? 'selected'} websiteList={state.allowedWebsitesOnly} />}
       {appPlatform() === 'ios' && <section className="routine-card">
-        <h2>{t('This device')}</h2>
+        <h2>{t('Set up the child’s device')}</h2>
+        <p>{t('App choices must be set up on the child’s iPhone or iPad. Chores, schedules, and allowed websites can be managed from your phone.')}</p>
         {native?.simulator && <p className="chip-static">{t('Simulator preview — apps are not blocked')}</p>}
-        <p>{native?.appMode === 'all' ? t('All apps paused except allowed apps') : native?.selected ? tn(native.selected, 'One app or category selected', '{n} apps or categories selected') : t('A grown-up chooses which entertainment apps to pause on this device.')}</p>
-        {native && typeof native.locked === 'boolean' && <p>{native.locked ? t('Device status: entertainment paused') : t('Device status: entertainment available')}</p>}
+        {native?.authorized && <p>{native.appMode === 'all' ? t('All apps paused except allowed apps') : native.selected ? tn(native.selected, 'One app or category selected', '{n} apps or categories selected') : t('A grown-up chooses which entertainment apps to pause on this device.')}</p>}
+        {native?.authorized === false && !native.error && <p>{t('Screen Time access has not been approved on this device.')}</p>}
+        {native?.authorized && typeof native.locked === 'boolean' && <p>{native.locked ? t('Device status: entertainment paused') : t('Device status: entertainment available')}</p>}
         {native?.allowedApps !== undefined && <p>{tn(native.allowedApps, 'One app kept available', '{n} apps kept available')}</p>}
-        {native?.error && <p role="alert">{native.error}</p>}
+        {native?.error && <p role="alert">{routineDeviceError(native.error)}</p>}
         {parentDevice && <button className="btn btn-secondary" onClick={() => post('setup')}>{t('Choose apps on this device')}</button>}
         <button className="btn btn-secondary" onClick={() => { post('sync', state); load() }}>{t('Check device status')}</button>
-        <p className="settings-row-sub">{t('Keep Kinwall and essential apps available. Setup requires a grown-up’s Kinwall sign-in on this device and Apple’s parental authorization. After setup, pair this device to the child.')}</p>
+        <p className="settings-row-sub">{t('Sign into Kinwall as a grown-up on the child’s device, approve Apple’s Screen Time request, then pair the device to the child. Keep essential apps available.')}</p>
       </section>}
     </>}
   </div>

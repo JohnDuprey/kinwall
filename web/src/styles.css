@@ -4231,7 +4231,7 @@ html:root[data-cast] {
 
 /* Routine mode uses the same family colors and controls as chores. */
 .routine-page { width: 100%; flex: none; max-width: 740px; margin: 0 auto; padding: 20px 16px 40px; box-sizing: border-box; }
-.routine-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 20px 0; display: grid; gap: 16px; }
+.routine-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 20px 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; overflow-wrap: anywhere; }
 .routine-card h2, .routine-card p { margin: 0; }
 .routine-card .btn { min-height: 44px; }
 .routine-symbol { font-size: 40px; }
@@ -4245,7 +4245,9 @@ html:root[data-cast] {
 
 .routine-back { width: fit-content; min-height: 44px; margin-bottom: 12px; }
 
-.routine-settings, .routine-settings-form { display: grid; gap: 16px; width: 100%; }
+.routine-settings, .routine-settings-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; min-width: 0; }
+.routine-settings > *, .routine-settings-form > *, .routine-card > * { min-width: 0; }
+.routine-settings .btn { white-space: normal; overflow-wrap: anywhere; }
 .routine-settings .routine-card { margin: 0; }
 
 .routine-school-visibility { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-width: 0; }
