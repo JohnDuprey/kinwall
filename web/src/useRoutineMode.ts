@@ -3,12 +3,13 @@ import { useApp } from './AppContext.tsx'
 import { api } from './api.ts'
 import type { RoutineState } from './routineMode.ts'
 import type { RoutineNativeStatus } from './routineDevices.ts'
+import { routineChild } from './routineHome.ts'
 
 /** Shared state for the routine overview and parent settings; the native shell verifies decisions. */
 export function useRoutineMode() {
   const { members, parentDevice, meMemberId, refreshTick, toast, settings } = useApp()
   const children = members.filter(m => !m.grownUp)
-  const [picked, setPicked] = useState(children.find(m => m.id === meMemberId)?.id ?? children[0]?.id ?? '')
+  const [picked, setPicked] = useState(() => routineChild(children, meMemberId, new URLSearchParams(location.hash.split('?')[1] ?? '').get('child')))
   const memberId = parentDevice ? picked : meMemberId ?? ''
   // Keep each visited child's state and mounted editor separate. A save or late response for
   // Maya must neither replace Leo's form nor discard his pending edits.

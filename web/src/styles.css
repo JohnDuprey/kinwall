@@ -2871,12 +2871,15 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-item { padding-top: 8px; }
 .board-slot-measure { position: absolute; left: 0; right: 0; top: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 .board-polls .board-slot-item { padding: 0; }
+.board-routine-indicators, .board-chore-tile-stack { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.board-chore-tile-stack > .board-tile { flex: 1; }
 .board-slot-row, .board-slot-full, .board-poll-btn { box-sizing: border-box; width: 100%; border: 0; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; text-decoration: none; }
 .board-slot-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; font-weight: 800; }
 .board-slot-full, .board-poll-btn { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; }
 .board-slot-row.attn, .board-slot-full.attn { box-shadow: inset 0 0 0 2px var(--accent); }
 .board-polls .board-slot-row { border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
 .board-slot-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-routine-indicators .board-slot-row-text { white-space: normal; overflow-wrap: anywhere; }
 .board-goal-chips { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); } /* the chores tile's saving-for line */
 .board-slot-row-meta { flex: none; margin-left: auto; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
 .board-slot-head { display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text); text-decoration: none; }

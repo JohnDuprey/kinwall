@@ -17,6 +17,12 @@ screen-time allowance. A parent can turn routine mode off. Existing timed chores
 chores can supply the requirements. Policies are opt-in and the migration does not alter existing
 family data.
 
+Home shows a **Free time** indicator below the chores summary for children whose routine is on.
+It uses the required chores and schedule, including approvals and the evening cutoff. A parent's
+view shows each visible child's status; a child's device shows only their own. Tap the indicator
+to open that child's Free time page. If a status cannot be refreshed, it asks you to check Free
+time rather than claiming apps are available from an old decision.
+
 ## iPhone and iPad setup
 
 Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+).

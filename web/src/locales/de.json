@@ -4918,5 +4918,14 @@
   "Titles, done, due dates, notes and steps sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for and the discussion stay in Kinwall.": "Titel, Erledigt, Fälligkeitsdatum, Notizen und Schritte synchronisieren in beide Richtungen, die Priorität mit Todoist und Microsoft To Do. Für wen es ist und die Unterhaltung bleiben in Kinwall.",
   "Connect {app} again in Settings to pick up where it left off.": "Verbinde {app} in den Einstellungen noch einmal, dann geht es dort weiter, wo es aufgehört hat.",
   "{lists} will sync again once you connect {app}.": "{lists} synchronisiert wieder, sobald du {app} verbindest.",
-  "Pick an end time for a visit that spans days.": "Wähle eine Endzeit für einen Besuch, der mehrere Tage dauert."
+  "Pick an end time for a visit that spans days.": "Wähle eine Endzeit für einen Besuch, der mehrere Tage dauert.",
+  "{n} chores left before free time": "Noch {n} Aufgaben bis zur Freizeit",
+  "{name}: {n} chores left before free time": "{name}: noch {n} Aufgaben bis zur Freizeit",
+  "{name}: check free time": "{name}: Freizeit prüfen",
+  "{name}: free time is available": "{name}: Freizeit ist verfügbar",
+  "{name}: free time is finished for today": "{name}: Die Freizeit ist für heute vorbei",
+  "{name}: one chore left before free time": "{name}: noch eine Aufgabe bis zur Freizeit",
+  "Check free time": "Freizeit prüfen",
+  "One chore left before free time": "Noch eine Aufgabe bis zur Freizeit",
+  "{name}: free time": "{name}: Freizeit"
 }

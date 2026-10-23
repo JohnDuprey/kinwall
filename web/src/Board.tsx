@@ -38,6 +38,9 @@ import { Face } from './Face'
 import { ChoreTimerButton } from './ChoreTimer.tsx'
 import { useUpkeepDue } from './Upkeep.tsx'
 import { dueLabel } from './upkeep.ts'
+import RoutineHomeIndicator from './RoutineHomeIndicator.tsx'
+import { useHomeRoutine } from './useHomeRoutine.ts'
+import { routineHomeMembers } from './routineHome.ts'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -282,6 +285,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   }, [refreshTick, tick])
   // For the tiles: grocery lists' open items and reward requests waiting for a parent.
   const f = settings.features
+  const routineRows = useHomeRoutine(f.chores ? routineHomeMembers(members, parentDevice, meMemberId, selectedMemberId, focusMemberId) : [], refreshTick).filter(row => row.state.enabled)
   const rewards = rewardsOn(settings)
   const [lists, setLists] = useState<List[]>([])
   const [earlierOpen, setEarlierOpen] = useState(false) // Today's events that are over, in a sheet
@@ -497,6 +501,12 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       row: <a className="board-slot-row" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">{choresName} · {choresText}</span></a>,
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
     },
+    todayTiles && choresTile && routineRows.length > 0 && {
+      key: 'routine',
+      chip: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} chip />,
+      row: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} />,
+      full: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} />,
+    },
     // Right after the chores: what the kids are saving for, at every size the full Chores card isn't on.
     todayTiles && choresTile && goals.length > 0 && {
       key: 'goals',
@@ -555,7 +565,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           <nav data-board-area="tiles" className="board-tiles" aria-label={t('At a glance')} style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
             {tiles.includes('meds') && <TakeNowTile {...meds} />}
             {tiles.includes('chores') && (
-              <a className="board-tile" href="#/chores">
+              <div className="board-chore-tile-stack"><a className="board-tile" href="#/chores">
                 <span className="board-tile-label">✅ {t('Chores')}</span>
                 <span className="board-tile-value">{choresLeft ? t('{n} left today', { n: choresLeft }) : chores.length ? t('All done ✓') : t('None today')}</span>
                 {goalsLine}{goalsSaid && <span className="sr-only">{goalsSaid}</span>}
@@ -569,7 +579,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
                     ))}
                   </span>
                 )}
-              </a>
+              </a><RoutineHomeIndicator rows={routineRows} parent={parentDevice} /></div>
             )}
             {tiles.includes('due') && (
               <a className="board-tile" href="#/lists">
@@ -688,7 +698,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           )}
         </Card>}
 
-        {has('chores') && <Card title={t('Chores today')} area="chores" density={dense('chores')} link={rewards && <a className="board-card-link" href="#/rewards">🎁 {t('Rewards')}</a>}>
+        {has('chores') && <Card title={t('Chores today')} area="chores" density={dense('chores')} foot={<RoutineHomeIndicator rows={routineRows} parent={parentDevice} />} link={rewards && <a className="board-card-link" href="#/rewards">🎁 {t('Rewards')}</a>}>
           {milestonesLink}
           {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">{t('No chores today.')}</p> : (
             <ul className="snap-list">
