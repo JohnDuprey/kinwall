@@ -30,6 +30,7 @@ import { useKeyboard } from './keyboard.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
 import { useBackClose } from './backStack.ts'
+import { activityBackAction } from './activityNavigation.ts'
 import { intlLocale, lang, playerLang, t, tc, tn } from './i18n.ts'
 
 type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean; text?: unknown; rate?: unknown; lang?: unknown; item?: unknown }
@@ -257,8 +258,9 @@ export function PluginPlayer({ id }: { id: string }) {
     }
     if (history.state?.kinwallActivity !== id) mark() // not again after a reload or a re-render
     const onPop = () => {
-      if (leaving.current) { location.replace('#/activities'); return }
-      if (location.hash !== hash || history.state?.kinwallActivity === id) return // gone elsewhere, or forward
+      const action = activityBackAction(leaving.current, location.hash, hash, history.state?.kinwallActivity === id)
+      if (action === 'leave') { location.replace('#/activities'); return }
+      if (action !== 'ask') return // at the exit destination, gone elsewhere, or forward
       mark() // still here while asking
       askLeaveRef.current()
     }
