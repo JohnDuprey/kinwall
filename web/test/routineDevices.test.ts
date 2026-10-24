@@ -19,3 +19,8 @@ test('all-app mode does not ask for choices when no exceptions were saved', () =
   assert.equal(routineDeviceDelivery({ ...device, lastSeenAt: 'invalid' }, 0, now, false), 'offline')
   assert.equal(routineDeviceDelivery(device, 3, now, false), 'pending')
 })
+
+test('unenrollment remains pending until the device reports Apple authorization removed', () => {
+  assert.equal(routineDeviceDelivery({ ...device, enrolled: false }, 2, now), 'unenrolling')
+  assert.equal(routineDeviceDelivery({ ...device, enrolled: false, authorized: false, locked: false }, 2, now), 'unenrolled')
+})

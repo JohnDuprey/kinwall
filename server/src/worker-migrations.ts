@@ -1,3 +1,4 @@
+import m0130 from '../migrations/0130_routine_enrollment.sql';
 // Every migration, bundled as text by wrangler (.sql files are Text modules). Keep in sync with
 // server/migrations/ - test/migrate.test.ts fails if a file is missing here.
 import type { Migration } from './migrate.ts';
@@ -261,4 +262,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0127_upkeep_completion.sql', sql: m0127 },
   { name: '0128_routine_mode.sql', sql: m0128 },
   { name: '0129_routine_apps.sql', sql: m0129 },
+  { name: '0130_routine_enrollment.sql', sql: m0130 },
 ];

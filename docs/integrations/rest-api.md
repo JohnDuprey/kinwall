@@ -341,11 +341,11 @@ Routine app-choice endpoints (matching iOS build required):
   encrypted with the family key and member-specific authenticated context. Conflicting revisions
   return 409. Returns metadata without the data. Saving one child cannot change another child's choices.
 - `GET /api/routine-mode/{memberId}/devices`: parent or own child. Returns `{selection, devices}`;
-  selection is metadata only or null. Devices include `id`, `name`, `authorized`, `appliedRevision`,
-  `locked`, and server-generated `lastSeenAt`. These are client reports, not enforcement attestation.
+  selection is metadata only or null. Devices include `id`, `name`, `enrolled`, `authorized`, `appliedRevision`,
+  `locked`, `enrollmentPending`, and server-generated `lastSeenAt`. These are client reports, not enforcement attestation.
   Revoked or reassigned device keys are excluded.
 - `PUT /api/routine-mode/{memberId}/device`: that child's paired display key only. Accepts
-  `{authorized, appliedRevision, locked}`; a future revision is rejected. Parents cannot forge
+  `{authorized, appliedRevision, locked, enrollmentRevision?}`; a future app-choice revision is rejected. The optional enrollment revision acknowledges a parent command; a removal is acknowledged only with both authorization and locking off. Parents cannot forge
   the child's acknowledgment. The response is `{ok: true}`.
 
 Responses containing selections or delivery metadata are uncached. Migration 0129 adds empty,
@@ -358,3 +358,16 @@ unexpired child-owned display keys, not notification-following preferences. The 
 only `{aps: {"content-available": 1}, kinwall: {type: "routine-sync", server: "<origin>"}}`.
 It carries no member ID, Apple selection or unlock decision. The receiver fetches fresh authenticated
 state. Direct APNs and the official gateway use the same format; iOS may delay or drop these hints.
+
+### Routine device enrollment
+
+- `GET /api/routine-mode/{memberId}/device`: own paired child device only. Returns
+  `{enrolled: boolean}`. A missing parent command means enrolled.
+- `PATCH /api/routine-mode/{memberId}/devices/{deviceId}`: parent only. Accepts
+  `{enrolled: boolean}` and returns the saved command. The key must still be paired to
+  this child. A report cannot overwrite the parent's command.
+- The routine decision includes `enrolled`, `enrollmentRevision`, and `appChoicesAfterRevision` for the calling device. Re-enrollment requires app choices newer than the revision invalidated by removal, without changing another device’s choices. An unenrolled child
+  device receives `enabled: false`, including older clients. Parent policy reads are
+  unchanged. Apple authorization removal needs a current native client and a check-in.
+
+Migration 0130 creates an empty command table; it does not backfill or unenroll devices.

@@ -26,7 +26,12 @@ export function appPlatform(): 'ios' | 'android' | null {
 
 /** Guardian selection and child authorization became separate in bridge version 2. */
 export function appRoutineSelection(): boolean {
-  return appPlatform() === 'ios' && Number((window as Window & { kinwallNative?: { routineModeVersion?: number } }).kinwallNative?.routineModeVersion ?? 0) >= 2
+  return appRoutineSupported() && Number((window as Window & { kinwallNative?: { routineModeVersion?: number } }).kinwallNative?.routineModeVersion ?? 0) >= 2
+}
+
+/** iPad apps running on a Mac can edit policies, but cannot present Apple's Screen Time picker. */
+export function appRoutineSupported(): boolean {
+  return appPlatform() === 'ios' && (window as Window & { kinwallNative?: { routineModeSupported?: boolean } }).kinwallNative?.routineModeSupported !== false
 }
 
 /** Marks the app and its status bar so iOS styles can use the space the app gives them.

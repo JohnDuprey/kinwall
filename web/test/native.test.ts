@@ -216,3 +216,16 @@ test('scanBarcode: asks the app for its camera and hears back the digits, or nul
   assert.equal(wallCamera({ parentDevice: false, focusLocked: true, meMemberId: 'leo' }), false, "a kid's own device")
   assert.equal(wallCamera({ parentDevice: true, focusLocked: false, meMemberId: 'alex' }), false, "a grown-up's phone")
 })
+
+test('Screen Time pickers are unavailable when the native build reports an unsupported host', async () => {
+  const { appRoutineSelection } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown }
+  try {
+    g.window = { kinwallNative: { platform: 'ios', routineModeVersion: 2, routineModeSupported: false } }
+    assert.equal(appRoutineSelection(), false)
+    g.window = { kinwallNative: { platform: 'ios', routineModeVersion: 2, routineModeSupported: true } }
+    assert.equal(appRoutineSelection(), true)
+    g.window = { kinwallNative: { platform: 'ios', routineModeVersion: 2 } }
+    assert.equal(appRoutineSelection(), true, 'older clients retain compatibility')
+  } finally { delete g.window }
+})

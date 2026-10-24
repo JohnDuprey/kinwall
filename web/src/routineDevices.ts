@@ -1,10 +1,11 @@
 export type RoutineAppSelection = { revision: number; selectedApps: number; selectedCategories: number; allowedApps: number; updatedAt: string | null }
-export type RoutineDevice = { id: string; name: string; authorized: boolean; appliedRevision: number; locked: boolean; lastSeenAt: string }
+export type RoutineDevice = { id: string; name: string; enrolled?: boolean; enrollmentPending?: boolean; authorized: boolean; appliedRevision: number; locked: boolean; lastSeenAt: string }
 export type RoutineDevices = { selection: RoutineAppSelection | null; devices: RoutineDevice[] }
-export type RoutineNativeStatus = { memberId?: string; action?: string; simulator?: boolean; authorized?: boolean; appMode?: 'selected' | 'all'; selected?: number; locked?: boolean; allowedApps?: number; allowedWebsitesOnly?: boolean; error?: string; awaitingSelection?: boolean; role?: 'parent' | 'child'; selectionSaved?: boolean; cancelled?: boolean; revision?: number; selectedApps?: number; selectedCategories?: number }
+export type RoutineNativeStatus = { memberId?: string; enrolled?: boolean; action?: string; simulator?: boolean; authorized?: boolean; appMode?: 'selected' | 'all'; selected?: number; locked?: boolean; allowedApps?: number; allowedWebsitesOnly?: boolean; error?: string; awaitingSelection?: boolean; role?: 'parent' | 'child'; selectionSaved?: boolean; cancelled?: boolean; revision?: number; selectedApps?: number; selectedCategories?: number }
 
 /** Delivery is a child's last report, never a promise that an offline device is enforcing now. */
-export function routineDeviceDelivery(device: RoutineDevice, revision: number, now: number, requiresChoices = true): 'authorization' | 'authorized' | 'choices' | 'pending' | 'offline' | 'received' {
+export function routineDeviceDelivery(device: RoutineDevice, revision: number, now: number, requiresChoices = true): 'authorization' | 'authorized' | 'choices' | 'pending' | 'offline' | 'received' | 'unenrolling' | 'unenrolled' {
+  if (device.enrolled === false) return device.enrollmentPending || device.authorized || device.locked ? 'unenrolling' : 'unenrolled'
   if (!device.authorized) return 'authorization'
   if (!revision && requiresChoices) return 'choices'
   if (device.appliedRevision < revision) return 'pending'

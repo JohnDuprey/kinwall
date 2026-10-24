@@ -31,3 +31,17 @@ export async function mockRoutine(memberId: string, policy?: RoutinePolicy): Pro
   const late = now >= cutoff
   return { ...p, availableChores: await mock.getRoutineChores(memberId), effectiveStart: schedule.start, effectiveCutoff: schedule.cutoff, date, timezone, locked: p.enabled && !before && (late || remaining.length > 0), reason: !p.enabled ? 'off' : before ? 'scheduled' : late ? 'bedtime' : remaining.length ? 'routine' : 'ready', total: required.length, remaining, validUntil: (before ? start : cutoff).toISOString(), checkedAt: now.toISOString() }
 }
+
+// Fictional enrollment controls for the demo; no Apple authorization or real device changes.
+const enrolledDevices = new Map<string, boolean>()
+export async function mockRoutineDevices(memberId: string): Promise<import('./routineDevices.ts').RoutineDevices> {
+  const child = (await mock.getMembers()).find(member => member.id === memberId && !member.grownUp)
+  if (!child) return { selection: null, devices: [] }
+  const enrolled = enrolledDevices.get(memberId) !== false
+  return { selection: null, devices: [{ id: `demo-ipad-${memberId}`, name: `${child.name} iPad`, enrolled, authorized: enrolled, appliedRevision: 0, locked: enrolled, lastSeenAt: new Date().toISOString() }] }
+}
+export async function mockRoutineEnrollment(memberId: string, deviceId: string, enrolled: boolean) {
+  if (deviceId !== `demo-ipad-${memberId}`) throw new Error('Choose a child in your family.')
+  enrolledDevices.set(memberId, enrolled)
+  return { enrolled }
+}

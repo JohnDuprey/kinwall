@@ -1,0 +1,51 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { createApp } from '../src/app.ts';
+import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
+import { createApiKey } from '../src/auth.ts';
+
+test('only a parent can stop or restart routine management for one child device', async () => {
+  const db = openDb(':memory:'); applyMigrations(db, join(import.meta.dirname, '..', 'migrations'));
+  const app = createApp(), env = { DB: db, ADMIN_API_KEY: 'parent', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const req = (path: string, key = 'parent', method = 'GET', body?: unknown) => app.request(path, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+  const maya = await (await req('/api/members', 'parent', 'POST', { name: 'Maya', color: '#557799' })).json() as any;
+  const leo = await (await req('/api/members', 'parent', 'POST', { name: 'Leo', color: '#779955' })).json() as any;
+  const ipad = await createApiKey(db, 'Maya iPad', 'display', { owner: maya.id, deviceKind: 'kid' });
+  const second = await createApiKey(db, 'Maya second iPad', 'display', { owner: maya.id, deviceKind: 'kid' });
+  const sibling = await createApiKey(db, 'Leo iPad', 'display', { owner: leo.id, deviceKind: 'kid' });
+  const wall = await createApiKey(db, 'Wall', 'display', { owner: 'shared', deviceKind: 'wall' });
+  const path = `/api/routine-mode/${maya.id}`, target = `${path}/devices/${ipad.id}`;
+  const report = { authorized: true, appliedRevision: 0, locked: true };
+  await req(path, 'parent', 'PUT', { enabled: true, appMode: 'all', cutoff: '23:59', allowedWebsitesOnly: false, allowedWebDomains: [] });
+  assert.equal((await (await req(`${path}/device`, ipad.key)).json() as any).enrolled, true);
+  await req(`${path}/device`, ipad.key, 'PUT', report);
+  await req(`${path}/device`, second.key, 'PUT', report);
+  for (const key of [ipad.key, second.key, sibling.key, wall.key]) {
+    assert.equal((await req(target, key, 'PATCH', { enrolled: false })).status, 403);
+  }
+  assert.equal((await req(`${path}/devices/${sibling.id}`, 'parent', 'PATCH', { enrolled: false })).status, 404);
+  assert.equal((await req(`${path}/device`, sibling.key)).status, 403);
+  assert.equal((await req(`${path}/device`, wall.key)).status, 403);
+  await req(`${path}/apps`, 'parent', 'PUT', { expectedRevision: 0, data: btoa('opaque-apple-selection-fixture'), selectedApps: 1, selectedCategories: 0, allowedApps: 0 });
+  assert.equal((await req(target, 'parent', 'PATCH', { enrolled: false })).status, 200);
+  assert.equal((await (await req(`${path}/device`, ipad.key)).json() as any).enrolled, false);
+  assert.equal((await (await req(path, ipad.key)).json() as any).enabled, false, 'older clients also receive a disabled decision');
+  assert.equal((await (await req(path)).json() as any).enabled, true, 'the child policy stays enabled on the parent');
+  assert.equal((await (await req(`${path}/device`, second.key)).json() as any).enrolled, true, 'other iPads stay enrolled');
+  assert.equal((await (await req(`/api/routine-mode/${leo.id}/device`, sibling.key)).json() as any).enrolled, true);
+  await req(`${path}/device`, ipad.key, 'PUT', { ...report, authorized: false, locked: false });
+  assert.equal((await (await req(`${path}/device`, ipad.key)).json() as any).enrolled, false, 'a child report cannot re-enroll');
+  const beforeAck = await (await req(`${path}/devices`)).json() as any;
+  assert.equal(beforeAck.devices.find((d: any) => d.id === ipad.id).enrollmentPending, true, 'a pre-command report cannot acknowledge unenrollment');
+  await req(`${path}/device`, ipad.key, 'PUT', { ...report, authorized: false, locked: false, enrollmentRevision: 1 });
+  const devices = await (await req(`${path}/devices`)).json() as any;
+  assert.equal(devices.devices.find((d: any) => d.id === ipad.id).enrolled, false);
+  assert.equal(devices.devices.find((d: any) => d.id === ipad.id).enrollmentPending, false);
+  assert.equal((await req(target, 'parent', 'PATCH', { enrolled: true })).status, 200);
+  assert.equal((await (await req(`${path}/device`, ipad.key)).json() as any).enrolled, true);
+  const reenrolled = await (await req(path, ipad.key)).json() as any;
+  assert.equal(reenrolled.enabled, true);
+  assert.equal(reenrolled.appChoicesAfterRevision, 1, 'revoked selections must be replaced on this device');
+  assert.equal((await (await req(path, second.key)).json() as any).appChoicesAfterRevision, 0, 'the second device keeps its selection');
+});

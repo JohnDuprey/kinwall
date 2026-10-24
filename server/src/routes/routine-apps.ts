@@ -17,8 +17,8 @@ const Metadata = z.object({ revision: Revision, selectedApps: Count, selectedCat
 const Data = z.string().min(4).max(174764).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/).refine(value => { try { return atob(value).length <= 131072; } catch { return false; } });
 const Input = z.object({ expectedRevision: Revision, data: Data, selectedApps: Count, selectedCategories: Count, allowedApps: Count }).strict();
 const Selection = Metadata.extend({ data: z.string().nullable() });
-const Device = z.object({ id: z.string(), name: z.string(), authorized: z.boolean(), appliedRevision: Revision, locked: z.boolean(), lastSeenAt: z.string() });
-const Report = z.object({ authorized: z.boolean(), appliedRevision: Revision, locked: z.boolean() }).strict();
+const Device = z.object({ id: z.string(), name: z.string(), enrolled: z.boolean(), enrollmentPending: z.boolean(), authorized: z.boolean(), appliedRevision: Revision, locked: z.boolean(), lastSeenAt: z.string() });
+const Report = z.object({ authorized: z.boolean(), appliedRevision: Revision, locked: z.boolean(), enrollmentRevision: Revision.optional() }).strict();
 const errorResponse = { description: 'Invalid or unauthorized routine app request', content: { 'application/json': { schema: ErrorSchema } } };
 const errors = { 400: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse };
 type Row = { data: string; revision: number; selected_apps: number; selected_categories: number; allowed_apps: number; updated_at: string };
@@ -61,9 +61,9 @@ routineAppsRoutes.openapi(createRoute({ method: 'get', path: '/api/routine-mode/
   if (!await canRead(c, memberId)) return c.json({ error: stored('error', 'This device can only read its own routine.') }, 403);
   if (!await isChild(c, memberId)) return c.json({ error: stored('error', 'Choose a child in your family.') }, 404);
   const row = await selectionRow(c, memberId);
-  const { results } = await c.env.DB.prepare(`SELECT d.*, k.name FROM routine_devices d JOIN api_keys k ON k.id = d.key_id WHERE d.member_id = ? AND k.owner = ? AND k.scope = 'display' ORDER BY d.last_seen_at DESC`).bind(memberId, memberId).all<{ key_id: string; name: string; authorized: number; applied_revision: number; locked: number; last_seen_at: string }>();
+  const { results } = await c.env.DB.prepare(`SELECT d.*, k.name, COALESCE(e.enrolled, 1) AS enrolled, (COALESCE(e.revision, 0) != COALESCE(e.acknowledged_revision, 0)) AS enrollment_pending FROM routine_devices d JOIN api_keys k ON k.id = d.key_id LEFT JOIN routine_device_enrollments e ON e.key_id = d.key_id AND e.member_id = d.member_id WHERE d.member_id = ? AND k.owner = ? AND k.scope = 'display' ORDER BY d.last_seen_at DESC`).bind(memberId, memberId).all<{ key_id: string; name: string; enrolled: number; enrollment_pending: number; authorized: number; applied_revision: number; locked: number; last_seen_at: string }>();
   c.header('Cache-Control', 'no-store');
-  return c.json({ selection: row ? metadata(row) : null, devices: results.map(d => ({ id: d.key_id, name: d.name, authorized: !!d.authorized, appliedRevision: d.applied_revision, locked: !!d.locked, lastSeenAt: d.last_seen_at })) }, 200);
+  return c.json({ selection: row ? metadata(row) : null, devices: results.map(d => ({ id: d.key_id, name: d.name, enrolled: !!d.enrolled, enrollmentPending: !!d.enrollment_pending, authorized: !!d.authorized, appliedRevision: d.applied_revision, locked: !!d.locked, lastSeenAt: d.last_seen_at })) }, 200);
 });
 
 routineAppsRoutes.openapi(createRoute({ method: 'put', path: '/api/routine-mode/{memberId}/device', tags: ['Chores'], summary: 'Child device: report Screen Time authorization and the app-choice revision applied', security: [{ Bearer: [] }], request: { params: Params, body: { content: { 'application/json': { schema: Report } } } }, responses: { 200: { description: 'Device report saved', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } }, ...errors } }), async c => {
@@ -74,5 +74,28 @@ routineAppsRoutes.openapi(createRoute({ method: 'put', path: '/api/routine-mode/
   if (report.appliedRevision > currentRevision) return c.json({ error: stored('error', 'App choices have not been saved yet.') }, 400);
   await c.env.DB.prepare(`INSERT INTO routine_devices (key_id, member_id, authorized, applied_revision, locked, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(key_id) DO UPDATE SET member_id = excluded.member_id, authorized = excluded.authorized, applied_revision = excluded.applied_revision, locked = excluded.locked, last_seen_at = excluded.last_seen_at`).bind(key.id, memberId, Number(report.authorized), report.appliedRevision, Number(report.locked), new Date().toISOString()).run();
+  if (report.enrollmentRevision !== undefined) {
+    await c.env.DB.prepare('UPDATE routine_device_enrollments SET acknowledged_revision = ? WHERE key_id = ? AND member_id = ? AND revision = ? AND (enrolled = 1 OR (? = 0 AND ? = 0))').bind(report.enrollmentRevision, key.id, memberId, report.enrollmentRevision, Number(report.authorized), Number(report.locked)).run();
+  }
   return c.json({ ok: true }, 200);
+});
+
+const Enrollment = z.object({ enrolled: z.boolean() }).strict();
+routineAppsRoutes.openapi(createRoute({ method: 'get', path: '/api/routine-mode/{memberId}/device', tags: ['Chores'], summary: 'Child device: read its parent-controlled routine enrollment', security: [{ Bearer: [] }], request: { params: Params }, responses: { 200: { description: 'This device enrollment; missing commands retain enrollment', content: { 'application/json': { schema: Enrollment } } }, ...errors } }), async c => {
+  const { memberId } = c.req.valid('param'), key = await requestKey(c);
+  if (!key?.id || key.scope !== 'display' || await deviceOwner(c) !== memberId) return c.json({ error: stored('error', 'This device can only check its own routine.') }, 403);
+  if (!await isChild(c, memberId)) return c.json({ error: stored('error', 'Choose a child in your family.') }, 404);
+  const row = await c.env.DB.prepare('SELECT enrolled FROM routine_device_enrollments WHERE key_id = ? AND member_id = ?').bind(key.id, memberId).first<{ enrolled: number }>();
+  c.header('Cache-Control', 'no-store');
+  return c.json({ enrolled: row?.enrolled !== 0 }, 200);
+});
+routineAppsRoutes.openapi(createRoute({ method: 'patch', path: '/api/routine-mode/{memberId}/devices/{deviceId}', tags: ['Chores'], summary: 'Parent: stop or restart routine management for one paired child device', security: [{ Bearer: [] }], request: { params: Params.extend({ deviceId: z.string() }), body: { content: { 'application/json': { schema: Enrollment } } } }, responses: { 200: { description: 'Parent command saved; device applies it on its next check-in', content: { 'application/json': { schema: Enrollment } } }, ...errors } }), async c => {
+  if ((await requestKey(c))?.scope !== 'admin') return c.json({ error: stored('error', 'A grown-up must change routine mode.') }, 403);
+  const { memberId, deviceId } = c.req.valid('param'), { enrolled } = c.req.valid('json');
+  const device = await c.env.DB.prepare("SELECT id FROM api_keys WHERE id = ? AND owner = ? AND scope = 'display'").bind(deviceId, memberId).first();
+  if (!device || !await isChild(c, memberId)) return c.json({ error: stored('error', 'Choose a child in your family.') }, 404);
+  await c.env.DB.prepare('INSERT INTO routine_device_enrollments (key_id, member_id, enrolled, choices_after_revision) VALUES (?, ?, ?, (SELECT COALESCE(MAX(revision), 0) FROM routine_app_selections WHERE member_id = ?)) ON CONFLICT(key_id) DO UPDATE SET member_id = excluded.member_id, enrolled = excluded.enrolled, revision = routine_device_enrollments.revision + 1, choices_after_revision = CASE WHEN excluded.enrolled = 0 THEN excluded.choices_after_revision ELSE routine_device_enrollments.choices_after_revision END').bind(deviceId, memberId, Number(enrolled), memberId).run();
+  emit(c, 'settings.changed', { routineMemberId: memberId });
+  c.header('Cache-Control', 'no-store');
+  return c.json({ enrolled }, 200);
 });

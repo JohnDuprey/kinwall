@@ -4927,5 +4927,17 @@
   "{name}: one chore left before free time": "{name}: noch eine Aufgabe bis zur Freizeit",
   "Check free time": "Freizeit prüfen",
   "One chore left before free time": "Noch eine Aufgabe bis zur Freizeit",
-  "{name}: free time": "{name}: Freizeit"
+  "{name}: free time": "{name}: Freizeit",
+  "Could not change device management. Try again.": "Die Geräteverwaltung konnte nicht geändert werden. Versuche es erneut.",
+  "Management will stop when the device next connects.": "Die Verwaltung endet, sobald sich das Gerät wieder verbindet.",
+  "Open Kinwall on the device to approve Screen Time again.": "Öffne Kinwall auf dem Gerät, um die Bildschirmzeit erneut zu genehmigen.",
+  "Open Kinwall to finish removing management": "Öffne Kinwall, um das Beenden der Verwaltung abzuschließen",
+  "Routine mode is not managing this device": "Der Routinenmodus verwaltet dieses Gerät nicht",
+  "Routine mode will stop blocking apps on this device when it next connects. Kinwall stays paired to your family. Other devices keep their settings.": "Der Routinenmodus blockiert auf diesem Gerät keine Apps mehr, sobald es sich wieder verbindet. Kinwall bleibt mit deiner Familie gekoppelt. Andere Geräte behalten ihre Einstellungen.",
+  "Set up again": "Erneut einrichten",
+  "Set up routine mode on {device}?": "Routinenmodus auf {device} einrichten?",
+  "Stop managing": "Verwaltung beenden",
+  "Stop managing {device}?": "Verwaltung von {device} beenden?",
+  "Your grown-up stopped routine mode management on this device. They can set it up again from Settings → Family on their device.": "Dein Erwachsener hat die Verwaltung durch den Routinenmodus auf diesem Gerät beendet. Er kann sie auf seinem Gerät unter Einstellungen → Familie erneut einrichten.",
+  "Open Kinwall on this device afterward. A grown-up must approve Screen Time again, then choose its apps from their phone.": "Öffne anschließend Kinwall auf diesem Gerät. Ein Erwachsener muss die Bildschirmzeit erneut genehmigen und danach die Apps auf seinem Handy auswählen."
 }

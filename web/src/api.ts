@@ -330,7 +330,8 @@ const routinePath = (id: string) => ['api', 'routine-mode', U(id)].join('/')
 export const api = {
   getRoutineMode: (id: string) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id)) : get<import('./routineMode.ts').RoutineState>(routinePath(id)),
   setRoutineMode: (id: string, policy: import('./routineMode.ts').RoutinePolicy) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id, policy)) : put<import('./routineMode.ts').RoutinePolicy>(routinePath(id), policy),
-  getRoutineDevices: (id: string): Promise<import('./routineDevices.ts').RoutineDevices> => MOCK ? Promise.resolve({ selection: null, devices: [] }) : get<import('./routineDevices.ts').RoutineDevices>(['api', 'routine-mode', U(id), 'devices'].join('/')),
+  getRoutineDevices: (id: string): Promise<import('./routineDevices.ts').RoutineDevices> => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutineDevices(id)) : get<import('./routineDevices.ts').RoutineDevices>(['api', 'routine-mode', U(id), 'devices'].join('/')),
+  setRoutineDeviceEnrollment: (id: string, deviceId: string, enrolled: boolean) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutineEnrollment(id, deviceId, enrolled)) : patch<{ enrolled: boolean }>(['api', 'routine-mode', U(id), 'devices', U(deviceId)].join('/'), { enrolled }),
   getContacts: () => MOCK ? mock.getContacts() : get<Contact[]>('api/contacts'),
   getContactCategories: () => MOCK ? mock.getContactCategories() : get<ContactCategory[]>('api/contact-categories'),
   createContact: (body: ContactInput) => MOCK ? mock.createContact(body) : post<Contact>('api/contacts', body),

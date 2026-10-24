@@ -40,6 +40,22 @@ Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+).
    has separate choices. Other devices paired to the same child receive the same choices after
    they authorize and connect. Parent settings show each device's last delivery report.
 
+### Stop managing one device
+
+On a parent's device, open **Settings → Family → Routine mode**, choose the child, and
+choose **Stop managing** beside the device. Confirm the request, then open Kinwall on that
+device. It removes Kinwall's app and website restrictions, cancels its routine schedules,
+and revokes Kinwall's Screen Time authorization. The device remains paired to Kinwall.
+Other devices and the child's routine settings are unchanged.
+
+An offline device shows the removal as pending until it connects and acknowledges it.
+Choose **Set up again** to permit enrollment again, then approve Screen Time on the child's
+device, then choose its apps again from the parent's phone. Revoking authorization makes
+the previous app selection unusable on this device. Children cannot stop management or re-enroll themselves from Kinwall.
+
+Migration 0130 adds an empty per-device command table. It does not change any existing
+enrollment or policy; only an explicit parent action saves a command.
+
 The parent's picker does not request child authorization on the parent's own phone or apply
 restrictions there. Apple may list apps from multiple authorized children in the Family Sharing
 group; the selected Kinwall child determines who receives the saved choices. Keep Kinwall,
