@@ -367,6 +367,9 @@ selected-chores mode, these match only one-time chores assigned to that child, a
 whitespace, and case normalization. Selected one-time IDs are converted to name rules; recurring
 IDs retain their identity. `availableChores` includes `oneTime` and excludes one-time chores with
 an approved completion. Saved names remain separately editable after their source chore is done.
+Child-device decisions conservatively return `requiredChoreIds: null` while name rules exist,
+so older shells cannot infer that future days are schedule-only. The server-computed `total`,
+`remaining`, and `locked` remain authoritative; parent reads retain the exact editable selection.
 
 ### Routine device enrollment
 

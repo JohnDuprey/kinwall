@@ -25,6 +25,9 @@ test('routine one-time requirements survive completion and replacement by name, 
   const policy = { enabled: true, cutoff: '23:59', requiredChoreIds: [original.id] };
   assert.equal((await req(path, 'PUT', policy)).status, 200);
   assert.deepEqual((await read()).requiredOneTimeChoreNames, ['Clean your room']);
+  const childRead = await (await app.request(path, { headers: { Authorization: `Bearer ${child.key}` } }, env)).json() as any;
+  assert.equal(childRead.requiredChoreIds, null, 'older child apps must not interpret name-only rules as schedule-only');
+  assert.deepEqual(childRead.requiredOneTimeChoreNames, ['Clean your room']);
   assert.equal((await req(`/api/chores/${original.id}/complete`, 'POST', { date })).status, 200);
   assert.equal((await req(`/api/chores/${repeat.id}/complete`, 'POST', { date })).status, 200);
   const completed = await read();
