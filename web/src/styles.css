@@ -2906,6 +2906,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-words { flex-wrap: wrap; }
 .board-slot-words .board-slot-chip { flex: 1 1 auto; }
 .board-slot-words .board-slot-chip-long { display: inline; }
+.board-slot-words .board-routine-chip .board-slot-chip-long { white-space: normal; overflow-wrap: anywhere; }
 /* Today's events that are over, folded into one quiet row under what's on now and next. */
 .board-earlier { width: 100%; min-height: 44px; justify-content: flex-start; color: var(--text-dim); font-weight: 700; }
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }

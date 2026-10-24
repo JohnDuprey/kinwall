@@ -13,7 +13,7 @@ export default function RoutineHomeIndicator({ rows, parent, chip = false }: { r
       : status === 'unknown' ? parent ? t('{name}: check free time', { name: row.name }) : t('Check free time')
       : parent ? t('{name}: free time is available', { name: row.name }) : t('Free time is available')
     const icon = status === 'locked' ? '🔒' : status === 'bedtime' ? '🌙' : status === 'unknown' ? '◷' : '✓'
-    return [<a key={row.id} className={chip ? 'board-slot-chip' : 'board-slot-row'} href={`#/routine?child=${encodeURIComponent(row.id)}`} aria-label={label}>
+    return [<a key={row.id} className={chip ? 'board-slot-chip board-routine-chip' : 'board-slot-row'} href={`#/routine?child=${encodeURIComponent(row.id)}`} aria-label={label}>
       <span aria-hidden="true">{icon}</span>
       {chip ? <>
         <span className="board-slot-chip-text board-slot-chip-short">{parent ? t('{name}: free time', { name: row.name }) : t('Free time')}</span>
