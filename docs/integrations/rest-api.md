@@ -359,6 +359,15 @@ only `{aps: {"content-available": 1}, kinwall: {type: "routine-sync", server: "<
 It carries no member ID, Apple selection or unlock decision. The receiver fetches fresh authenticated
 state. Direct APNs and the official gateway use the same format; iOS may delay or drop these hints.
 
+### Routine one-time chore requirements
+
+Routine policy reads include `requiredOneTimeChoreNames` (initially `[]`). Writes may include it;
+omitting it preserves saved names in selected-chores mode, and switching to all chores clears it. In
+selected-chores mode, these match only one-time chores assigned to that child, after Unicode,
+whitespace, and case normalization. Selected one-time IDs are converted to name rules; recurring
+IDs retain their identity. `availableChores` includes `oneTime` and excludes one-time chores with
+an approved completion. Saved names remain separately editable after their source chore is done.
+
 ### Routine device enrollment
 
 - `GET /api/routine-mode/{memberId}/device`: own paired child device only. Returns

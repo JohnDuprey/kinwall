@@ -23,7 +23,7 @@ test('saving and re-saving one child preserves the other policy, including after
   const maya = await (await req('/api/members', 'POST', { name: 'Maya', color: '#557799' })).json() as any;
   const leo = await (await req('/api/members', 'POST', { name: 'Leo', color: '#779955' })).json() as any;
   const path = (id: string) => `/api/routine-mode/${id}`;
-  const mayaPolicy = { enabled: true, appMode: 'all', start: '07:30', cutoff: '19:30', requiredChoreIds: [], allowedWebsitesOnly: true, allowedWebDomains: ['clever.com'], schoolLinkDomains: [], daySchedules: [null, { start: '08:00', cutoff: '18:00' }, null, null, null, null, null] };
+  const mayaPolicy = { enabled: true, appMode: 'all', start: '07:30', cutoff: '19:30', requiredChoreIds: [], requiredOneTimeChoreNames: ['Clean your room'], allowedWebsitesOnly: true, allowedWebDomains: ['clever.com'], schoolLinkDomains: [], daySchedules: [null, { start: '08:00', cutoff: '18:00' }, null, null, null, null, null] };
   const leoPolicy = { enabled: false, appMode: 'selected', start: '08:30', cutoff: '20:45', requiredChoreIds: null, allowedWebsitesOnly: false, allowedWebDomains: ['student.freckle.com'], schoolLinkDomains: ['student.freckle.com'], daySchedules: Array(7).fill(null) };
   for (const [id, value] of [[maya.id, mayaPolicy], [leo.id, leoPolicy]]) assert.equal((await req(path(id), 'PUT', value)).status, 200);
   const savedLeo = await (await req(path(leo.id))).json() as any;

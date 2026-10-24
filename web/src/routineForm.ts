@@ -1,6 +1,7 @@
 import type { RoutinePolicy } from './routineMode.ts'
 import { schoolDomain } from './routineWebsites.ts'
 import { t } from './i18n.ts'
+import { routineChoreNames } from './routineChores.ts'
 
 export function routineFormPolicy(form: Pick<FormData, 'get' | 'getAll'>): RoutinePolicy {
   const start = String(form.get('start') ?? ''), cutoff = String(form.get('cutoff') ?? '')
@@ -11,5 +12,5 @@ export function routineFormPolicy(form: Pick<FormData, 'get' | 'getAll'>): Routi
   if (domains.some(domain => domain === null)) throw new Error(t('Enter a valid website address, such as clever.com.'))
   const allowedWebsitesOnly = form.get('allowedWebsitesOnly') === 'true'
   if (allowedWebsitesOnly && !domains.length) throw new Error(t('Add at least one allowed website before limiting browsing.'))
-  return { enabled: form.get('enabled') === 'true', appMode: form.get('appMode') === 'all' ? 'all' : 'selected', requiredChoreIds: form.get('choreRequirement') === 'selected' ? form.getAll('requiredChoreIds').map(String) : null, start, cutoff, daySchedules: days, allowedWebsitesOnly, allowedWebDomains: domains as string[], schoolLinkDomains: form.getAll('schoolLinkDomains').map(String) }
+  return { enabled: form.get('enabled') === 'true', appMode: form.get('appMode') === 'all' ? 'all' : 'selected', requiredChoreIds: form.get('choreRequirement') === 'selected' ? form.getAll('requiredChoreIds').map(String) : null, requiredOneTimeChoreNames: form.get('choreRequirement') === 'selected' ? routineChoreNames(form.getAll('requiredOneTimeChoreNames').map(String)) : [], start, cutoff, daySchedules: days, allowedWebsitesOnly, allowedWebDomains: domains as string[], schoolLinkDomains: form.getAll('schoolLinkDomains').map(String) }
 }

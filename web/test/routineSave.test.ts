@@ -12,6 +12,7 @@ test('a save confirms the same child’s persisted policy before reporting succe
   assert.deepEqual(calls, ['save:maya', 'read:maya'])
 })
 test('failed readback or a different saved policy cannot produce a successful save', async () => {
+  await assert.rejects(saveRoutinePolicy({ setRoutineMode: async () => ({ ...policy, requiredChoreIds: [], requiredOneTimeChoreNames: ['Clean your room'] }), getRoutineMode: async () => ({ ...state, requiredChoreIds: [], requiredOneTimeChoreNames: [] }) }, 'maya', policy), /could not be confirmed/)
   await assert.rejects(saveRoutinePolicy({ setRoutineMode: async () => policy, getRoutineMode: async () => ({ ...state, enabled: false }) }, 'maya', policy), /could not be confirmed/)
   await assert.rejects(saveRoutinePolicy({ setRoutineMode: async () => policy, getRoutineMode: async () => { throw new Error('offline') } }, 'maya', policy), /offline/)
 })

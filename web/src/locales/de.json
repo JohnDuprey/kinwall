@@ -4939,5 +4939,7 @@
   "Stop managing": "Verwaltung beenden",
   "Stop managing {device}?": "Verwaltung von {device} beenden?",
   "Your grown-up stopped routine mode management on this device. They can set it up again from Settings → Family on their device.": "Dein Erwachsener hat die Verwaltung durch den Routinenmodus auf diesem Gerät beendet. Er kann sie auf seinem Gerät unter Einstellungen → Familie erneut einrichten.",
-  "Open Kinwall on this device afterward. A grown-up must approve Screen Time again, then choose its apps from their phone.": "Öffne anschließend Kinwall auf diesem Gerät. Ein Erwachsener muss die Bildschirmzeit erneut genehmigen und danach die Apps auf seinem Handy auswählen."
+  "Open Kinwall on this device afterward. A grown-up must approve Screen Time again, then choose its apps from their phone.": "Öffne anschließend Kinwall auf diesem Gerät. Ein Erwachsener muss die Bildschirmzeit erneut genehmigen und danach die Apps auf seinem Handy auswählen.",
+  "One-time chore names": "Namen einmaliger Aufgaben",
+  "Completed one-time chores are hidden. Checked names also require future one-time chores with the same name for this child, only when due. Capitalization and extra spaces do not matter. Uncheck a name to stop requiring it.": "Erledigte einmalige Aufgaben werden ausgeblendet. Ausgewählte Namen gelten für dieses Kind auch für zukünftige einmalige Aufgaben mit demselben Namen, wenn sie fällig sind. Groß- und Kleinschreibung und zusätzliche Leerzeichen spielen keine Rolle. Entferne das Häkchen, wenn der Name nicht mehr erforderlich sein soll."
 }

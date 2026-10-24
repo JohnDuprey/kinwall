@@ -12,6 +12,7 @@ import { RoutineAutosave, type RoutineSaveStatus } from './routineAutosave.ts'
 import { routineFormPolicy } from './routineForm.ts'
 import { appPlatform, appRoutineSelection, appRoutineSupported } from './native.ts'
 import { routineDeviceError } from './routineDeviceError.ts'
+import { routineChoreName, routineChoreNames } from './routineChores.ts'
 
 /** Parent configuration lives in Settings, away from the child's daily progress. */
 export default function RoutineModeSettings() {
@@ -100,7 +101,7 @@ function RoutineSettingsForm({ memberId, childName, state, active, onSaved, onSt
         <label className="field">{t('Routine mode')}<select name="enabled" className="settings-select" defaultValue={String(seed.enabled)}><option value="false">{t('Off')}</option><option value="true">{t('On')}</option></select></label>
         <label className="field">{t('Apps during routine mode')}<select name="appMode" className="settings-select" defaultValue={seed.appMode ?? 'selected'}><option value="selected">{t('Pause selected apps and categories')}</option><option value="all">{t('Pause all apps except allowed apps')}</option></select></label>
         <p className="settings-row-sub">{t('Allowed apps stay available even inside a paused category. In all-apps mode, Kinwall stays available. With only allowed websites on, select Safari or your school browser under Keep available.')}</p>
-        <RoutineChoreFields selected={seed.requiredChoreIds ?? null} chores={state.availableChores ?? []} />
+        <RoutineChoreFields selected={seed.requiredChoreIds ?? null} names={seed.requiredOneTimeChoreNames ?? []} chores={state.availableChores ?? []} />
         <RoutineScheduleFields start={seed.start ?? '00:00'} cutoff={seed.cutoff} days={seed.daySchedules ?? Array(7).fill(null)} />
         <label className="field">{t('Websites during routine mode')}<select name="allowedWebsitesOnly" className="settings-select" defaultValue={String(seed.allowedWebsitesOnly)}><option value="false">{t('Allow all websites')}</option><option value="true">{t('Only allowed websites')}</option></select></label>
         <SchoolWebsiteFields domains={seed.allowedWebDomains} links={seed.schoolLinkDomains ?? seed.allowedWebDomains} />
@@ -152,17 +153,25 @@ function RoutineScheduleFields({ start, cutoff, days }: { start: string; cutoff:
   </>
 }
 
-function RoutineChoreFields({ selected, chores }: { selected: string[] | null; chores: { id: string; title: string }[] }) {
+function RoutineChoreFields({ selected, names, chores }: { selected: string[] | null; names: string[]; chores: { id: string; title: string; oneTime?: boolean }[] }) {
   const [specific, setSpecific] = useState(selected !== null)
   const [chosen, setChosen] = useState(() => new Set(selected ?? []))
+  const [chosenNames, setChosenNames] = useState(() => new Map(names.map(name => [routineChoreName(name), name])))
+  const repeating = chores.filter(chore => !chore.oneTime)
+  const oneTimeNames = routineChoreNames([...names, ...chores.filter(chore => chore.oneTime).map(chore => chore.title), ...chosenNames.values()])
   return <>
     <label className="field">{t('Chores required for free time')}<select name="choreRequirement" className="settings-select" value={specific ? 'selected' : 'all'} onChange={e => setSpecific(e.target.value === 'selected')}><option value="all">{t('All assigned chores due today')}</option><option value="selected">{t('Selected chores')}</option></select></label>
     {specific && <fieldset className="routine-school-visibility">
       <legend>{t('Required chores')}</legend>
       <p className="settings-row-sub">{t('Choose active chores assigned to this child. Each chore is required only on the days it is due. Inactive, deleted, or reassigned chores do not count.')}</p>
-      {chores.map(chore => <label key={chore.id} className="routine-school-checkbox"><input name="requiredChoreIds" type="checkbox" value={chore.id} checked={chosen.has(chore.id)} onChange={e => { const checked = e.target.checked; setChosen(previous => { const next = new Set(previous); if (checked) next.add(chore.id); else next.delete(chore.id); return next }) }} /><span>{chore.title}</span></label>)}
-      {!chores.length && <p>{t('No active chores are assigned to this child.')}</p>}
-      {!chores.some(chore => chosen.has(chore.id)) && <p>{t('With no chores selected, free time follows the schedule without chore requirements.')}</p>}
+      {repeating.map(chore => <label key={chore.id} className="routine-school-checkbox"><input name="requiredChoreIds" type="checkbox" value={chore.id} checked={chosen.has(chore.id)} onChange={e => { const checked = e.target.checked; setChosen(previous => { const next = new Set(previous); if (checked) next.add(chore.id); else next.delete(chore.id); return next }) }} /><span>{chore.title}</span></label>)}
+      {oneTimeNames.length > 0 && <>
+        <p className="settings-row-sub">{t('One-time chore names')}</p>
+        <p className="settings-row-sub">{t('Completed one-time chores are hidden. Checked names also require future one-time chores with the same name for this child, only when due. Capitalization and extra spaces do not matter. Uncheck a name to stop requiring it.')}</p>
+        {oneTimeNames.map(name => <label key={routineChoreName(name)} className="routine-school-checkbox"><input name="requiredOneTimeChoreNames" type="checkbox" value={name} checked={chosenNames.has(routineChoreName(name))} onChange={e => { const checked = e.target.checked; setChosenNames(previous => { const next = new Map(previous); if (checked) next.set(routineChoreName(name), name); else next.delete(routineChoreName(name)); return next }) }} /><span>{name}</span></label>)}
+      </>}
+      {!repeating.length && !oneTimeNames.length && <p>{t('No active chores are assigned to this child.')}</p>}
+      {!repeating.some(chore => chosen.has(chore.id)) && !chosenNames.size && <p>{t('With no chores selected, free time follows the schedule without chore requirements.')}</p>}
     </fieldset>}
   </>
 }

@@ -40,6 +40,21 @@ Use the matching kinwall-mobile routine-mode development build (iOS/iPadOS 17+).
    has separate choices. Other devices paired to the same child receive the same choices after
    they authorize and connect. Parent settings show each device's last delivery report.
 
+### One-time chore requirements
+
+Completed one-time chores are hidden from the selection list after approval. Selecting a one-time
+chore saves its name for this child: future one-time chores with that name are required when due.
+Capitalization and extra spaces do not matter; similar names do not match. Repeating chores keep
+their own schedule and are selected by identity, even if their names match.
+
+The saved names remain under **One-time chore names**, so parents can uncheck a requirement
+after the original chore has been completed or archived. Undoing completion makes the original
+chore selectable again. A completion awaiting approval is still unfinished.
+
+Migration 0131 adds an empty name-rule column. It does not rewrite chores, completion history,
+or existing policies. Existing selected one-time IDs are interpreted as name rules when read;
+the next settings save stores those names explicitly.
+
 ### Stop managing one device
 
 On a parent's device, open **Settings → Family → Routine mode**, choose the child, and

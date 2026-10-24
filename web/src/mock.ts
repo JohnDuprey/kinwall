@@ -470,7 +470,13 @@ const chores: Chore[] = [
   { id: 'ch9', title: 'Practice piano', emoji: '🎹', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: dateOnly(-7), repeatGoal: { times: 3, every: 1, unit: 'week', weekStart: 0 }, dueTime: '16:00', timerMinutes: 20, active: true, sort: 9, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
+// One-time examples: the completed chore is history; the future one can become a name requirement.
+chores.push(
+  { id: 'ch-once-done', title: 'Return library books', emoji: '📚', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(-1), dueTime: null, active: true, sort: 10, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch-once-next', title: 'Clean your room', emoji: '🧹', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
+)
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
+completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), memberId: 'm3', points: 5 })
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
 // parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
 const SUGGESTIONS_KEY = 'kinwall.demoSuggestions'
@@ -1365,7 +1371,7 @@ export const mock = {
   getHiddenEvents: async (calendarId: string): Promise<HiddenEvent[]> => hiddenEvents.filter(h => h.calendarId === calendarId).sort((a, b) => a.start.localeCompare(b.start)).map(({ key: _, ...h }) => h),
   showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
-  getRoutineChores: async (memberId: string) => chores.filter(chore => chore.active && chore.memberId === memberId).map(chore => ({ id: chore.id, title: chore.title })),
+  getRoutineChores: async (memberId: string) => chores.filter(chore => chore.active && chore.memberId === memberId && (chore.rrule || chore.repeatGoal || ![...completions].some(([key, value]) => key.startsWith(`${chore.id}:`) && !value.pending))).map(chore => ({ id: chore.id, title: chore.title, oneTime: !chore.rrule && !chore.repeatGoal })),
   getChoresDay: async (date: string): Promise<ChoreDay[]> => {
     const plugins = await installedPlugins()
     return chores.filter(c => c.active && dueOn(c, date)).map(c => {

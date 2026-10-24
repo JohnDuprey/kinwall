@@ -1,3 +1,4 @@
+import { routineChoreName } from './routineChores.ts'
 import { schoolDomain } from './routineWebsites.ts'
 import { mock } from './mock.ts'
 import { todayKeyInTz } from './date.ts'
@@ -17,7 +18,7 @@ export async function mockRoutine(memberId: string, policy?: RoutinePolicy): Pro
   const p = policies.get(memberId) ?? { enabled: true, appMode: 'selected' as const, cutoff: '23:59', allowedWebsitesOnly: false, allowedWebDomains: ['clever.com', 'www.clever.com', 'student.freckle.com'], schoolLinkDomains: ['clever.com'] }
   const date = todayKeyInTz(timezone)
   const chores = (await mock.getChoresDay(date)).filter(c => c.memberId === memberId)
-  const required = p.requiredChoreIds == null ? chores : chores.filter(chore => p.requiredChoreIds!.includes(chore.id))
+  const required = p.requiredChoreIds == null ? chores : chores.filter(chore => p.requiredChoreIds!.includes(chore.id) || (!chore.rrule && !chore.repeatGoal && (p.requiredOneTimeChoreNames ?? []).some(name => routineChoreName(name) === routineChoreName(chore.title))))
   const remaining = required.filter(c => !c.completed).map(c => ({ id: c.id, title: c.title, completed: c.completed, pending: c.pending ?? false }))
   // Preview only: the production decision and absolute cutoff are computed on the server.
   const now = new Date()
