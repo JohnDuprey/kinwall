@@ -1,3 +1,4 @@
+import { announcementsRoutes } from './routes/announcements.ts';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
@@ -222,6 +223,7 @@ export function createApp() {
   app.route('/', trackersRoutes);
   app.route('/', newscastRoutes);
   app.route('/', pollsRoutes);
+  app.route('/', announcementsRoutes);
   app.route('/', outingsRoutes);
   app.route('/', outingFeedsRoutes);
   app.route('/', pluginsRoutes);

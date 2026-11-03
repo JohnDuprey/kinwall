@@ -1,3 +1,4 @@
+import { AnnouncementsButton } from './FamilyAnnouncements.tsx'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
@@ -482,6 +483,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
             options={HOME_VIEWS.map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />}
           {viewMode === 'board' && !isPhone && <div className="board-chips" ref={setChipHost} />}
           <div className="toolbar-end">
+            {viewMode === 'board' && !locked && parentDevice && settings.features.announcements !== false && <AnnouncementsButton />}
             {viewMode === 'board' && !locked && settings.features.polls !== false && <PollsButton />}
             {viewMode === 'board' && !locked && settings.features.outings !== false && <OutingsButton />}
             {viewMode === 'board' && (

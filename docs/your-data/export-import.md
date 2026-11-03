@@ -61,3 +61,5 @@ If you're moving between Docker hosts, copying the whole `/data` directory also 
 Reward milestones also export their definitions, participants, the earlier work excluded at enrollment,
 paused progress, and earned/given dates (`rewardMilestones`). Importing restores missing definitions
 and enrollments; existing ones are kept so older files cannot undo earned or given rewards.
+
+Scheduled family announcements are backed up with their titles, details, UTC visibility windows, emphasis, ids, and creation/update times. Import restores them by id without deleting other announcements; expired messages stay expired unless you change their schedule. Older exports without announcements remain valid.

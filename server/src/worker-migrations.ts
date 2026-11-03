@@ -1,3 +1,4 @@
+import m0132 from '../migrations/0132_announcements.sql';
 import m0130 from '../migrations/0130_routine_enrollment.sql';
 import m0131 from '../migrations/0131_routine_chore_names.sql';
 // Every migration, bundled as text by wrangler (.sql files are Text modules). Keep in sync with
@@ -265,4 +266,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0129_routine_apps.sql', sql: m0129 },
   { name: '0130_routine_enrollment.sql', sql: m0130 },
   { name: '0131_routine_chore_names.sql', sql: m0131 },
+  { name: '0132_announcements.sql', sql: m0132 },
 ];

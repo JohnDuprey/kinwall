@@ -120,3 +120,5 @@ API: the night hours are `quietFrom` / `quietTo`, the two effects `nightRest` an
 **This screen**, **Appearance on this device**, **Time cues**, **Night screen on this device**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen on this device show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to Home when idle** are under **This screen**. See [This device](this-display.md).
 
 Chore settings (late completion credit, streak grace, daily check-in points, leaderboard, sticker shop and sticker prices) live on the **Family** tab, on parent devices, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).
+
+**Family announcements** controls the scheduled banners at the top of the Board. Turning it off hides the banners and their management controls and makes the announcement API and MCP tools unavailable. Saved messages are kept. See [Family announcements](../using/announcements.md).

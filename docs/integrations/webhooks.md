@@ -97,3 +97,7 @@ const ok = timingSafeEqual(Buffer.from(expected), Buffer.from(req.headers['x-kin
 These events advance the `chores` revision. They are distinct from purchased reward events such as
 `reward.redeemed`; an existing Home Assistant automation for purchased rewards will not run just
 because someone reaches a milestone. No new Home Assistant entities or native widgets are added.
+
+### Family announcements
+
+`announcement.changed` is emitted when an announcement is created, edited, or deleted, with `{id}`. Import emits `{imported}` with the restored count. The event bumps the global revision. A scheduled start or expiration is a clock boundary, not a data change: it does not emit a webhook. Readers can use `GET /api/announcements`'s `nextChangeAt` to refresh at the boundary. Turning the feature off prevents announcement mutations and their webhooks.

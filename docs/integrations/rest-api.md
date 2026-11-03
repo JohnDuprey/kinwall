@@ -383,3 +383,11 @@ so older shells cannot infer that future days are schedule-only. The server-comp
   unchanged. Apple authorization removal needs a current native client and a check-in.
 
 Migration 0130 creates an empty command table; it does not backfill or unenroll devices.
+
+## Scheduled family announcements
+
+* `GET /api/announcements?status=active|all` returns `{announcements, nextChangeAt}`. Default: `active`. `all` requires parent access. `nextChangeAt` is the next start or expiration, or `null`.
+* `POST /api/announcements` creates a message; `PATCH /api/announcements/{id}` edits supplied fields; `DELETE /api/announcements/{id}` deletes it. All three require parent access.
+* Fields: `title` (1–160 characters), `details` (optional, up to 2,000), `startsAt`, `expiresAt` (ISO timestamps with UTC or an explicit offset), and `priority` (`normal`, default, or `important`). Expiration must follow start. Read results include `id`, `createdAt`, and `updatedAt`.
+* Visibility includes `startsAt` and excludes `expiresAt`. Important messages come first, then latest start, then id. Expiration hides a message without deleting it.
+* `features.announcements=false` makes every route return 404. See [Family announcements](../using/announcements.md).

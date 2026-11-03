@@ -256,3 +256,7 @@ memberIds }` enrolls explicit members (names or ids) starting at zero. `update_r
 milestoneId, active }` archives/restores; `mark_milestone_given { milestoneId, member }` records
 handoff. All writes are parent only. Reads respect own-device visibility, and all actions are refused
 when Rewards or Chores & points is off. Milestones earn rewards without spending points.
+
+## Family announcements
+
+`list_announcements` reads the active messages at the top of the Board; parents can pass `status: "all"` for scheduled and expired messages. `create_announcement`, `update_announcement`, and `delete_announcement` require parent access. Create takes `title`, optional `details`, `startsAt`, `expiresAt`, and optional `priority` (`normal` or `important`). Use ISO timestamps with UTC or an explicit offset. Update and delete identify messages by `id`; update changes only supplied fields. Every tool refuses access while **Family announcements** is off. These messages are separate from Newscast posts and calendar events.

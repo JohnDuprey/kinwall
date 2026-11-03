@@ -1,3 +1,4 @@
+import FamilyAnnouncements from './FamilyAnnouncements.tsx'
 // Board view: the calendar as a family bulletin board - clock + weather, today, the week ahead,
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
@@ -555,6 +556,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   return (
     <div className="board-scroll" ref={scrollRef} data-fixed={fixed || undefined}>
       <ToolbarChips host={chips ? chipHost : null} tiles={countTiles} />
+      <FamilyAnnouncements />
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
       {medsSlot.sheets}{pollSlot.sheets}

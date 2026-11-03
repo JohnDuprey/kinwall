@@ -4281,3 +4281,24 @@ html:root[data-cast] {
 
 .routine-app-preview { display: grid; gap: 12px; }
 .routine-app-preview p, .routine-app-preview h4 { margin: 0; }
+
+/* Scheduled messages stay above every Board layout, with a visible label for emphasis. */
+.board-scroll:has(> .board-announcements) { display: flex; flex-direction: column; }
+.board-announcements { flex: none; padding: 8px var(--pad) 0; }
+.board-announcements ~ .board { height: auto; flex: 1 0 480px; }
+.announcement-banner { display: flex; gap: 12px; padding: 16px; margin-bottom: 8px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); overflow-wrap: anywhere; }
+.announcement-important { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
+.announcement-icon { flex: none; font-size: 1.6rem; }
+.announcement-banner > div { min-width: 0; }
+.announcement-label { color: var(--text-dim); font-size: 0.8rem; font-weight: 800; }
+.announcement-banner h2 { margin: 4px 0; font-size: 1.25rem; line-height: 1.3; }
+.announcement-banner p { margin: 6px 0 0; white-space: pre-wrap; line-height: 1.45; }
+@media (max-width: 600px) {
+  .home-toolbar:has(.announcements-btn) { grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
+  .home-toolbar:has(.announcements-btn) .toolbar-end { display: flex; grid-column: 2; grid-row: 1; gap: 2px; justify-self: end; }
+  .home-toolbar:has(.announcements-btn) .polls-btn.btn { flex-direction: row; padding: 6px 8px; }
+  .home-toolbar:has(.announcements-btn) .polls-btn-label { display: none; }
+}
+@media (max-width: 380px) {
+  .home-toolbar:has(.announcements-btn) .segmented button { padding-inline: 6px; }
+}

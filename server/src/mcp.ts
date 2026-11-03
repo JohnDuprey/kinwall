@@ -1,3 +1,4 @@
+import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema } from './announcements.ts';
 // MCP (Model Context Protocol) endpoint: POST/DELETE /mcp, stateless Streamable HTTP (GET answers 405: no SSE stream).
 //
 // Library: @modelcontextprotocol/sdk's WebStandardStreamableHTTPServerTransport - it's built on
@@ -297,6 +298,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) }, suggest_outings: OutingIdeasSchema.shape, import_outing: ShareResultSchema.shape,
   list_upkeep_jobs: { jobs: z.array(UpkeepJobSchema) }, get_upkeep_job: { job: UpkeepJobSchema }, create_upkeep_job: { job: UpkeepJobSchema }, update_upkeep_job: { job: UpkeepJobSchema }, delete_upkeep_job: { ok: z.boolean(), job: UpkeepJobSchema.optional() },
   log_upkeep_done: UpkeepDoneResultSchema.shape, list_upkeep_history: { entries: z.array(UpkeepEntrySchema) }, list_upkeep_things: { things: z.array(UpkeepThingSchema), areas: z.array(UpkeepAreaSchema) }, create_upkeep_thing: { thing: UpkeepThingSchema }, update_upkeep_thing: { thing: UpkeepThingSchema },
+  list_announcements: AnnouncementsSchema.shape, create_announcement: { announcement: AnnouncementSchema }, update_announcement: { announcement: AnnouncementSchema }, delete_announcement: OK,
   list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
@@ -322,6 +324,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
+  list_announcements: READ, create_announcement: WRITE, update_announcement: SET, delete_announcement: DELETE,
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_upkeep_jobs: READ, get_upkeep_job: READ, create_upkeep_job: WRITE, update_upkeep_job: SET, delete_upkeep_job: DELETE, log_upkeep_done: WRITE, list_upkeep_history: READ, list_upkeep_things: READ, create_upkeep_thing: WRITE, update_upkeep_thing: SET, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
@@ -1798,6 +1801,23 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(`Night screen ${on ? 'on' : 'off'} for ${names}.`, state as unknown as Record<string, unknown>);
     },
   );
+
+  tool('list_announcements', { title: 'List family announcements', description: 'Active scheduled messages shown at the top of the Board. Parents may use status=all to include future and expired messages. Timestamps are UTC; startsAt is inclusive and expiresAt exclusive.', inputSchema: { status: z.enum(['active', 'all']).optional() } }, async ({ status }) => {
+    const res = await call(app, env, auth, 'GET', '/api/announcements' + (status ? `?status=${status}` : ''));
+    return res.status >= 400 ? errorResult(res.json, 'Could not read announcements') : okResult('Family announcements.', res.json as Record<string, unknown>);
+  });
+  tool('create_announcement', { title: 'Schedule a family announcement', description: 'Parents: create a Board announcement with a title, optional details, startsAt and expiresAt (ISO timestamps with UTC or an explicit offset), and normal or important priority.', inputSchema: AnnouncementInputSchema.shape }, async input => {
+    const res = await call(app, env, auth, 'POST', '/api/announcements', input);
+    return res.status >= 400 ? errorResult(res.json, 'Could not save announcement') : okResult('Announcement saved.', { announcement: res.json });
+  });
+  tool('update_announcement', { title: 'Update a family announcement', description: 'Parents: change a scheduled Board announcement by id. Only supplied fields change; the end must remain after the start.', inputSchema: { id: z.string(), ...AnnouncementPatchSchema.shape } }, async ({ id, ...input }) => {
+    const res = await call(app, env, auth, 'PATCH', `/api/announcements/${encodeURIComponent(id)}`, input);
+    return res.status >= 400 ? errorResult(res.json, 'Could not save announcement') : okResult('Announcement saved.', { announcement: res.json });
+  });
+  tool('delete_announcement', { title: 'Delete a family announcement', description: 'Parents: permanently delete a scheduled Board announcement by id.', inputSchema: { id: z.string() } }, async ({ id }) => {
+    const res = await call(app, env, auth, 'DELETE', `/api/announcements/${encodeURIComponent(id)}`);
+    return res.status >= 400 ? errorResult(res.json, 'Could not delete announcement') : okResult('Announcement deleted.', res.json as Record<string, unknown>);
+  });
 
   // Family polls: a poll by id or its exact question; left out, the one open poll.
   const findPoll = async (ref: string | undefined): Promise<{ id: string; question: string; options: { id: string; label: string; votes: string[] }[] }> => {

@@ -1,3 +1,4 @@
+import { AnnouncementSchema, readAnnouncements } from '../announcements.ts';
 // "Your data": GET /api/export (everything the family entered, minus credentials), POST /api/import
 // (merges an export back in) and GET /api/host-events (see host-events.ts). All admin-only -
 // display keys are denied by default in auth.ts.
@@ -204,6 +205,7 @@ const ExportSchema = z
     // The restaurant binder (0100), each with its menu.
     restaurants: z.array(RestaurantSchema),
     // Family polls (0102), each with its choices and who voted for what.
+    announcements: z.array(AnnouncementSchema.refine(a => Date.parse(a.expiresAt) > Date.parse(a.startsAt), 'Expiration must be after start')),
     polls: z.array(PollSchema),
     // Outings (0111): things to do and places to go, with who marked them, and their categories.
     outings: z.array(OutingSchema),
@@ -430,6 +432,7 @@ dataRoutes.openapi(
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         restaurants: await readRestaurants(db, { archived: true }),
+        announcements: (await readAnnouncements(db, true)).announcements,
         polls: await readPolls(db),
         outings: await readOutings(db),
         outingCategories: await readOutingCategories(db),
@@ -498,6 +501,7 @@ const ImportSchema = ExportSchema.extend({
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
   restaurants: ExportSchema.shape.restaurants.default([]),
+  announcements: ExportSchema.shape.announcements.default([]),
   polls: ExportSchema.shape.polls.default([]),
   outings: ExportSchema.shape.outings.default([]),
   outingCategories: ExportSchema.shape.outingCategories.default([]),
@@ -552,6 +556,7 @@ const ImportResultSchema = z
       recipes: z.number(),
       meals: z.number(),
       restaurants: z.number(),
+      announcements: z.number(),
       polls: z.number(),
       outings: z.number(),
       upkeep: z.number(),
@@ -1101,6 +1106,7 @@ dataRoutes.openapi(
         { ...keepCreated, expr: { thing_id: "(SELECT id FROM upkeep_things WHERE id = j.value->>'thing_id')", area_id: "(SELECT id FROM upkeep_areas WHERE id = j.value->>'area_id')", member_id: memberRef('member_id'), contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')", supplies_list_id: "(SELECT id FROM lists WHERE id = j.value->>'supplies_list_id')", calendar_event_id: "(SELECT id FROM events WHERE id = j.value->>'calendar_event_id')", handed_chore_id: "(SELECT id FROM chores WHERE id = j.value->>'handed_chore_id')" } }),
       ...upserts(db, 'upkeep_log', 'id', body.upkeepLog.map((e) => ({ id: e.id, job_id: e.jobId, thing_id: e.thingId, title: e.title, done_on: e.doneOn, member_id: e.memberId, contact_id: e.contactId, cost_cents: e.costCents, reading: e.reading, reading_unit: e.readingUnit, notes: e.notes, chore_id: e.choreId, chore_date: e.choreDate ?? null, created_by: e.createdBy, created_at: e.createdAt })),
         { ...keepCreated, expr: { job_id: "(SELECT id FROM upkeep_jobs WHERE id = j.value->>'job_id')", thing_id: "(SELECT id FROM upkeep_things WHERE id = j.value->>'thing_id')", member_id: memberRef('member_id'), created_by: memberRef('created_by'), contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')" } }),
+      ...upserts(db, 'announcements', 'id', body.announcements.map(a => ({ id: a.id, title: a.title, details: a.details, starts_at: new Date(a.startsAt).toISOString(), expires_at: new Date(a.expiresAt).toISOString(), priority: a.priority, created_at: a.createdAt, updated_at: a.updatedAt })), keepCreated),
       // A poll's choices in the file replace its choices here; votes by members or for choices not here are dropped.
       ...upserts(db, 'polls', 'id', body.polls.map((p) => ({ id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winner_option_id: p.winnerOptionId, meal_id: p.mealId, created_by: p.createdBy, created_at: p.createdAt, closed_at: p.closedAt })), { ...keepCreated, expr: { meal_id: "(SELECT id FROM meals WHERE id = j.value->>'meal_id')", created_by: memberRef('created_by') } }),
       db.prepare('DELETE FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.polls.map((p) => p.id))),
@@ -1145,6 +1151,7 @@ dataRoutes.openapi(
       ['recipe.changed', body.recipes.length],
       ['meal.changed', body.meals.length],
       ['restaurant.changed', body.restaurants.length],
+      ['announcement.changed', body.announcements.length],
       ['poll.changed', body.polls.length],
       ['outing.changed', body.outings.length + body.outingCategories.length],
       ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
@@ -1188,6 +1195,7 @@ dataRoutes.openapi(
           recipes: body.recipes.length,
           meals: body.meals.length,
           restaurants: body.restaurants.length,
+          announcements: body.announcements.length,
           polls: body.polls.length,
           outings: body.outings.length,
           upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,

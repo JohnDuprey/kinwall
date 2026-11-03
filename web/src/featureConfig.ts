@@ -11,6 +11,7 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'lists', section: 'Everyday', label: msg('Lists'), sub: msg('The Lists tab with Groceries and shopping mode, “Due soon” and list counts on the Board, and tasks on events.') },
   { key: 'notes', section: 'Everyday', label: msg('Notes'), sub: msg('Discussions on events and list items. An item’s own notes still show.') },
   { key: 'messages', section: 'Everyday', label: msg('Family messages'), sub: msg('Sending a message from the bell. Messages already sent still show.') },
+  { key: 'announcements', section: 'Everyday', label: msg('Family announcements'), sub: msg('Scheduled messages at the top of the Board. They appear and disappear at the times you choose.') },
   { key: 'polls', section: 'Everyday', label: msg('Family polls'), sub: msg('Polls everyone votes in, like “Which movie tonight?”, on the Board and in the bell. With Meals on, choices can be recipes and a poll can plan the meal.') },
   { key: 'checkIns', section: 'Everyday', label: msg('Check-ins & journal'), sub: msg('Temp check, goal checks, the energy battery, journals and Insights. Who gets them is set per person in Family.') },
   { key: 'meals', section: 'Spaces', label: msg('Meals'), sub: msg('The Meals tab with recipes, cooking mode, the restaurant binder, order nights and the week’s plan, and today’s meals on the Board and in the daily summary.') },
