@@ -819,5 +819,12 @@
   "{n} list stopped syncing": "{n} Liste synchronisiert nicht mehr",
   "{n} lists stopped syncing": "{n} Listen synchronisieren nicht mehr",
   "error|Connect {app} again to sync this list.": "Verbinde {app} noch einmal, damit diese Liste synchronisiert.",
-  "The end has to be after the start.": "Das Ende muss nach dem Beginn liegen."
+  "The end has to be after the start.": "Das Ende muss nach dem Beginn liegen.",
+  "{name}'s medicine": "Medikament für {name}",
+  "{time} medicine": "Medikament um {time}",
+  "Start-of-day medicine": "Medikament zum Tagesstart",
+  "Still time for {name}'s medicine": "Noch Zeit für das Medikament von {name}",
+  "error|preferences belong to a start token": "Diese Einstellungen gehören zu einem Start-Token.",
+  "error|Only parent devices can show kids’ medicine activities": "Nur Elterngeräte können Medikamentenaktivitäten für Kinder anzeigen.",
+  "error|Medicine activities are for the family’s own devices": "Medikamentenaktivitäten sind nur für die eigenen Geräte der Familie verfügbar."
 }

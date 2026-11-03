@@ -121,7 +121,7 @@ const FOLLOW_UP_AFTER_MS = 3 * 60 * MIN
  * medicine names (it's on the Lock Screen). stage 'late': from the follow-up point. */
 export type MedicationActivity = {
   medicationId: string; date: string; time: string; memberName: string; label: string; headline: string
-  dueAt: string; windowEndsAt: string; stage: 'due' | 'late'
+  dueAt: string; windowEndsAt: string; stage: 'due' | 'late'; named: boolean
 }
 
 type Person = { id: string; name: string; grownUp?: boolean }
@@ -155,6 +155,6 @@ export function medicationActivity(doses: DueDose[], me: { id: string; name: str
     medicationId: d.medicationId, date: d.date, time: d.time, memberName: who,
     label: named ? cardLabel(d) : t("{name}'s medicine", { name: who }),
     headline: headline + more,
-    dueAt: d.dueAt, windowEndsAt: d.until, stage: late ? 'late' : 'due',
+    dueAt: d.dueAt, windowEndsAt: d.until, stage: late ? 'late' : 'due', named,
   }
 }

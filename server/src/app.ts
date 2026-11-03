@@ -1,3 +1,4 @@
+import { runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { announcementsRoutes } from './routes/announcements.ts';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
@@ -165,6 +166,14 @@ export function createApp() {
   app.use('/api/*', async (c, next) => {
     await next();
     if (c.res.status < 400 && !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && /^\/api\/(chores(?:\/|$)|chore-suggestions(?:\/|$)|plugins(?:\/|$)|points\/awards|members\/[^/]+\/check-in$|settings$|import$|reward-milestones(?:\/|$))/.test(c.req.path)) await reconcileMilestones(c);
+  });
+  // Reconcile after successful medicine, device or privacy changes, even if the app is closed.
+  // Delivery failures never turn a successful health-data save into an apparent failed save.
+  app.use('/api/*', async (c, next) => {
+    await next();
+    if (c.res.status < 400 && !['GET','HEAD','OPTIONS'].includes(c.req.method) && /^\/api\/(medications(?:\/|$)|settings$|members(?:\/|$)|keys(?:\/|$)|me\/owner$|live-activities\/tokens$)/.test(c.req.path)) {
+      try { await runMedicineLiveActivities(c.env); } catch { /* next reminder tick retries; never log health bodies */ }
+    }
   });
   app.use('/api/*', bodyLimits); // after auth: nobody unauthenticated gets a big upload buffered
   app.use('/mcp', defaultLimit);

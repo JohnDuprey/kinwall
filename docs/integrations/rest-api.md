@@ -81,7 +81,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 |---|---|
 | Household | `GET/PATCH /api/settings`, `PUT/DELETE /api/quiet-pin` (`{ pin }`, 4 to 8 digits; parent devices only, not display keys or connected apps; `settings.quietPin` says only whether one is set), `POST /api/quiet-pin/verify` (`{ pin }` → `{ ok }`, `ok: true` when no PIN is set; display keys may, connected apps can't; `429` after 5 wrong tries from one key or 30 across the family per 15 minutes), `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
 
-Night settings on `PATCH /api/settings`: the family's night hours are still `quietFrom` / `quietTo` (`HH:MM`, household time; both `null` = off), so existing scripts and automations keep working. `nightRest` (walls show the Night screen during them) and `nightHoldReminders` (transition reminders, Live Activities, low battery alerts and the morning check-in reminder wait until they end) are booleans, `true` unless turned off. `darkWithNight: true` makes the dark schedule use the night hours; `darkFrom` / `darkTo` (here and on `GET /api/appearance`) then read as the night hours while they're set. `nightLook` is what wall screens show. See [Night](../using/night.md#api).
+Night settings on `PATCH /api/settings`: the family's night hours are still `quietFrom` / `quietTo` (`HH:MM`, household time; both `null` = off), so existing scripts and automations keep working. `nightRest` (walls show the Night screen during them) and `nightHoldReminders` (transition reminders, leave-by/prep Live Activities, low battery alerts and the morning check-in reminder wait until they end) are booleans, `true` unless turned off. `darkWithNight: true` makes the dark schedule use the night hours; `darkFrom` / `darkTo` (here and on `GET /api/appearance`) then read as the night hours while they're set. `nightLook` is what wall screens show. See [Night](../using/night.md#api).
 
 Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`peacock` is the default; `meadow` is shown as Peach, `field` as Meadow, plus `ocean`, `lavender`, `midnight`, `eucalyptus`, `slate`, `ink`, `sage`, `graphite`, `berry`, `spring`, `summer`, `autumn`, `winter`, `harvest`, `festive`), `seasonal`, or a `customSchemes` id. `customSchemes` is the family's own schemes, up to 10, each `{ id: "custom-…", name, emoji, light, dark }` with `light`/`dark` as `{ bg, card, text, accent }` hex colors. A scheme whose text or derived dim text is under 4.5:1 on its background or cards, in either mode, is refused with 400 and the failing pairs. `accent`, `backgroundLight`, `backgroundDark` and `customColors` are kept for older clients. `POST /api/settings/color-schemes` (one scheme, display keys too) adds to the family's list without selecting it: `201` with the settings, `409` for a repeated id, `400` when the list already holds 10 (this holds under parallel requests), for too little contrast, or when `emoji` isn't empty or a single emoji.
 `themeMode` is `light`, `dark`, `auto` (follow the device's system setting, the default for a family that hasn't picked one) or `scheduled` (dark between `darkFrom` and `darkTo`).
@@ -395,3 +395,20 @@ Migration 0130 creates an empty command table; it does not backfill or unenroll 
 ## Chore date counts
 
 `GET /api/chores/counts?from=YYYY-MM-DD&to=YYYY-MM-DD` returns counts for up to 31 inclusive calendar dates. Each row is `{date, memberId, total, remaining, pending}`; `memberId: null` means Anyone. Rows with no scheduled chores are omitted. Recurrence uses the household timezone. Pending approvals count as remaining; full flexible goals only count on dates with actual ticks, so already-satisfied goals do not invent extra work. Counts are grouped by the chore's assignee, even when someone else completed an Anyone chore. A child's display key sees only that child's and Anyone counts; a shared wall can read all counts. While Chores is off the response is `[]`. Invalid, reversed, or longer ranges return 400.
+
+
+### Medicine Live Activity choices
+
+`PUT /api/live-activities/tokens` accepts optional `preferences` on a `kind: "start"` registration:
+`{ leaveBy: boolean, medications: boolean, medicationNames: boolean, kidDoses: boolean }`.
+Omitting preferences preserves leave-by starts and opts out of medicine starts. Medicine names and
+kids’ doses are off unless explicitly enabled. `kidDoses` requires a parent device belonging to a
+grown-up; kids’ own devices only receive their own medicines. Connected apps cannot enroll medicine
+activities. Permissions, the Health feature and medication switch are rechecked before delivery.
+
+An update token’s opaque `activity` identifies the dose/window and name-privacy choice, without storing
+medicine names, member IDs, dose dates or times in the token table. The native app uses the same
+SHA-256 identifier as the server. Existing registrations remain opted out until an updated app
+registers its medicine choices. Tokens remain encrypted. Failed sends are retried by subsequent
+reminder ticks; successful starts and unchanged updates are deduplicated. Successful medicine,
+settings, ownership and token changes also reconcile activities, independently of the app being open.

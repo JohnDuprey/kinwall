@@ -1,3 +1,4 @@
+import { activityPreferences, runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { MED_GRACE_MS, REFILL_REMIND_AT, medicineReminderTimes } from './medicine-reminder-times.ts';
 import { goalProgressFor } from './chore-goals.ts';
 // Push notification scheduling: event reminders, daily summary, chore nudge, list updates.
@@ -584,12 +585,12 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
 // push-to-start token, never during night hours; ended with the activity's own update token once
 // the event starts (or GRACE after the time, if later). Nothing at all unless APNs is set up.
 const LIVE_GRACE_MS = 5 * 60000; // web/src/liveActivity.ts GRACE_MIN
-type LiveTokenRow = { id: string; device: string; kind: 'start' | 'update'; activity: string; token: string; ends_at: string | null; owner: string | null };
+type LiveTokenRow = { id: string; device: string; kind: 'start' | 'update'; activity: string; token: string; ends_at: string | null; preferences: string; owner: string | null };
 
 async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], hold: boolean): Promise<void> {
   if (!await nativePushConfigured(env)) return;
   const [tokensRes, membersRes] = await db.batch<unknown>([
-    db.prepare('SELECT t.id, t.device, t.kind, t.activity, t.token, t.ends_at, COALESCE(k.owner, g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id'),
+    db.prepare('SELECT t.id, t.device, t.kind, t.activity, t.token, t.ends_at, t.preferences, COALESCE(k.owner, g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id'),
     db.prepare('SELECT id, name, transitions, language FROM members WHERE transitions IS NOT NULL'),
   ]);
   const tokens = tokensRes.results as LiveTokenRow[];
@@ -617,7 +618,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   };
 
   // End the ones that are over (sent or not, the token is done).
-  for (const t of tokens.filter((x) => x.kind === 'update' && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
+  for (const t of tokens.filter((x) => x.kind === 'update' && !x.activity.startsWith('medication:') && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
     await send(t, { timestamp: unixSeconds(now.getTime()), event: 'end', 'dismissal-date': unixSeconds(now.getTime()) });
     await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();
   }
@@ -626,7 +627,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   for (const m of members) {
     const cfg = parseTransitions(m.transitions);
     const first = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat)[0] : undefined;
-    const devices = tokens.filter((t) => t.kind === 'start' && t.owner === m.id);
+    const devices = tokens.filter((t) => t.kind === 'start' && t.owner === m.id && activityPreferences(t.preferences).leaveBy);
     if (!first || !devices.length) continue;
     for (const occ of occurrences) {
       if (occ.allDay || !memberMatch([m.id], occ.prepFor)) continue;
@@ -1017,6 +1018,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
 
 /** Due medicine reminders only, for hosts that wake between maintenance ticks. */
 export async function runMedicineReminders(env: Env, now: Date): Promise<void> {
+  await runMedicineLiveActivities(env, now);
   if (!(await readFeatures(env.DB)).trackersHealth || (await env.DB.prepare("SELECT value FROM settings WHERE key='medications'").first<{ value: string }>())?.value !== 'true') return;
   const { results } = await env.DB.prepare("SELECT key,value FROM settings WHERE key IN ('timezone','timeFormat','location')").all<{ key: string; value: string }>();
   const prefs = new Map(results.map(r => [r.key,r.value]));
@@ -1301,6 +1303,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   } else {
     await part('discard disabled medicine retries', async () => env.DB.prepare('DELETE FROM push_retries').run());
   }
+  await part('medicine live activities', () => runMedicineLiveActivities(env, now));
   if (features.outings && !hold) await part('outing reminders', () => runOutings(env, env.DB, now, tz, h12)); // held at night: sent once it's over
   if (features.upkeep && !hold) await part('home upkeep', () => runUpkeep(env, env.DB, now, tz, _execCtx)); // held at night too
   if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile

@@ -90,3 +90,14 @@ test('reminder plan: sealed retry deadlines can wake before maintenance',async()
  await f.DB.prepare('INSERT INTO sent_notifications(key,sent_at) VALUES (?,?)').bind('med:'+await sha256Hex('due:med:2030-03-04:09:00'),at('09:00:00').toISOString()).run();
  assert.equal(await nextReminderAt(f.env,at('09:00:01'),at('09:04:00')),at('09:01:00').getTime());
 });
+
+test('medicine Live Activity deadlines include personal snoozes and the exact window end, without a busy loop',async()=>{
+ const f=await fixture();
+ await f.DB.prepare("INSERT INTO api_keys(id,name,hash,prefix,scope,created_at) VALUES ('phone','Test phone','fake','kw_fake','admin','2030-01-01')").run();
+ await f.DB.prepare("INSERT INTO live_activity_tokens(id,device,api_key_id,kind,activity,token,created_at,preferences) VALUES ('start','key:phone','phone','start','','fake','2030-01-01',?)").bind(JSON.stringify({medications:true})).run();
+ await f.DB.prepare('INSERT INTO sent_notifications(key,sent_at) VALUES (?,?)').bind('med:'+await sha256Hex('due:med:2030-03-04:09:00'),at('09:00:00').toISOString()).run();
+ await f.log({'09:00':{snoozedFor:{sam:at('09:03:00').toISOString()}}});
+ assert.equal(await nextReminderAt(f.env,at('09:01:00'),at('09:06:00')),at('09:03:00').getTime());
+ assert.equal(await nextReminderAt(f.env,at('11:59:00'),at('12:04:00')),at('12:00:00').getTime());
+ assert.equal(await nextReminderAt(f.env,at('12:00:01'),at('12:04:00')),null);
+});

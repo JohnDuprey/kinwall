@@ -11,7 +11,7 @@ import { askWhenTaken, cardLabel, cheerLine, doseTimeLabel, earlierInput, picked
 import { formatTime } from './timeFormat.ts'
 import { todayKeyInTz } from './date.ts'
 import { activityPeople, medicationActivity } from './liveActivity.ts'
-import { appKidDoses, appMedicineNames, endAppActivity, MED_NAMES_EVENT, tellAppActivity } from './native.ts'
+import { appKidDoses, appMedicineNames, endAppActivity, MED_NAMES_EVENT, tellAppActivity, tellAppMedicinePush } from './native.ts'
 import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
 import { PillIcon } from './icons.tsx'
@@ -74,9 +74,10 @@ type Due = ReturnType<typeof useDueDoses>
  * Snooze ends it until the snooze runs out (a kid's dose: on this phone only, server-side); Taken,
  * Skip, the late window closing, or anyone marking it anywhere (the next refresh) end it. Renders nothing. */
 export function MedicationLiveActivity() {
-  const { members, meMemberId, parentDevice, refreshTick } = useApp()
+  const { members, settings, meMemberId, parentDevice, refreshTick } = useApp()
   const { doses } = useDueDoses()
   const [names, setNames] = useState(false)
+  const [namesLoaded, setNamesLoaded] = useState(false)
   const [namesTick, setNamesTick] = useState(0) // the app's own "Show medicine names" or "Show the kids' doses" changed
   useEffect(() => {
     const on = () => setNamesTick(t => t + 1)
@@ -88,11 +89,12 @@ export function MedicationLiveActivity() {
   useEffect(() => {
     let id: string | null = null
     try { id = localStorage.getItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked: generic */ }
-    if (!id) { setNames(appMedicineNames()); return } // the app: no push subscription, its own device choice
-    api.getPushSubscriptions().then(subs => setNames(!!subs.find(s => s.id === id)?.prefs.medicationNames)).catch(() => setNames(false))
+    if (!id) { setNames(appMedicineNames()); setNamesLoaded(true); return } // the app: no push subscription, its own device choice
+    api.getPushSubscriptions().then(subs => { setNames(!!subs.find(s => s.id === id)?.prefs.medicationNames); setNamesLoaded(true) }).catch(() => { setNames(false); setNamesLoaded(true) })
   }, [refreshTick, namesTick])
   const me = members.find(m => m.id === meMemberId)
   const kids = activityPeople(me, members, parentDevice, appKidDoses()).slice(1) // namesTick re-reads it
+  useEffect(() => { if (!namesLoaded) return; tellAppMedicinePush({ on: settings.medications && !!me, names, kids: !!me?.grownUp && parentDevice && appKidDoses() }) }, [settings.medications, me, names, namesLoaded, parentDevice, namesTick, refreshTick])
   const a = me ? medicationActivity(doses, me, now, names, kids) : null
   const liveDoses = useRef(doses)
   liveDoses.current = doses

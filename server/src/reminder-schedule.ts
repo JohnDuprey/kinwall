@@ -1,3 +1,4 @@
+import { activityPreferences } from './medicine-live-activities.ts';
 import { nextMedicinePushRetryAt } from './medicine-push-retries.ts';
 import type { Env } from './env.ts';
 import { hostTimezone } from './env.ts';
@@ -20,6 +21,9 @@ export async function nextReminderAt(env: Env, now: Date, before: Date): Promise
   const logs = await loadLogs(env,meds.map(m => m.id),yesterday,tomorrow);
   const { results: members } = await env.DB.prepare('SELECT id,grown_up FROM members').all<{ id: string; grown_up: number }>();
   const candidates: { at: number; key: string }[] = [];
+  const { results: liveTokens } = await env.DB.prepare("SELECT preferences FROM live_activity_tokens WHERE kind='start'").all<{ preferences: string }>();
+  const medicineActivities = liveTokens.some(t => activityPreferences(t.preferences).medications);
+  let activityDeadline: number | null = null;
   const horizon = Math.min(before.getTime(), now.getTime() + 86400000);
   for (const med of meds) {
     const member = members.find(m => m.id === med.memberId);
@@ -29,7 +33,13 @@ export async function nextReminderAt(env: Env, now: Date, before: Date): Promise
       for (const time of med.times) {
         const entry = logs.get(`${med.id}:${date}`)?.[timeKey(time)];
         if (entry?.status) continue;
-        const { due,snooze,follow,late } = medicineReminderTimes(med,date,time,tz,entry,!!member.grown_up);
+        const { due,snooze,follow,late,end } = medicineReminderTimes(med,date,time,tz,entry,!!member.grown_up);
+        if (medicineActivities) {
+          // Updates and expiry are needed even after the normal notification was claimed.
+          // Parent-only snoozes have no household reminder, but still need an exact restart.
+          const times = [end,follow?.at,...Object.values(entry?.snoozedFor ?? {}).map(Date.parse)];
+          for (const at of times) if (at !== undefined && at > now.getTime() && at <= horizon) activityDeadline = Math.min(activityDeadline ?? Infinity,at);
+        }
         for (const target of [due,snooze,follow,late]) {
           if (target && Number.isFinite(target.at) && target.at <= horizon && target.at > now.getTime() - MED_GRACE_MS) candidates.push(target);
         }
@@ -39,6 +49,7 @@ export async function nextReminderAt(env: Env, now: Date, before: Date): Promise
   // Batched, indexed dedupe lookups; past but unclaimed deadlines ask the host to wake promptly.
   const hashed = await Promise.all(candidates.map(async c => ({ at: c.at, key: `med:${await sha256Hex(c.key)}` })));
   let next = await nextMedicinePushRetryAt(env,now.getTime(),horizon);
+  if (activityDeadline !== null) next = Math.min(next ?? Infinity,activityDeadline);
   for (let i=0; i<hashed.length; i+=100) {
     const batch = hashed.slice(i,i+100);
     const { results } = await env.DB.prepare('SELECT key FROM sent_notifications WHERE key IN (SELECT value FROM json_each(?))').bind(JSON.stringify(batch.map(c=>c.key))).all<{ key: string }>();

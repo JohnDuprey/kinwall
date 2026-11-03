@@ -161,6 +161,12 @@ export function tellAppActivity(kind: AppActivityKind, payload: object) {
   try { app.postMessage({ type: 'activity', kind, payload }) } catch { /* not in the app */ }
 }
 
+/** Explicit device choices for medicine push-to-start. Older shells ignore this message. */
+export function tellAppMedicinePush(preferences: { on: boolean; names: boolean; kids: boolean }) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'medicineActivityPush', preferences }) } catch { /* outside the app */ }
+}
+
 /** Ends the app's Live Activity of this kind. No-op in a browser, or when it's already ended. */
 export function endAppActivity(kind: AppActivityKind) {
   if (lastActivity[kind] === '') return

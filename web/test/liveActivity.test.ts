@@ -112,7 +112,7 @@ const T0 = Date.UTC(2026, 8, 28, 15) // due; the window runs 12 hours, to 8 PM a
 test('medicationActivity: generic unless this device opted into medicine names, with what the app needs to mark it', () => {
   assert.deepEqual(medicationActivity([dose()], MAYA, T0 + 60_000, false), {
     medicationId: 'med1', date: '2026-09-28', time: '08:00', memberName: 'Maya', label: "Maya's medicine", headline: "Time for Maya's medicine",
-    dueAt: dose().dueAt, windowEndsAt: dose().until, stage: 'due',
+    dueAt: dose().dueAt, windowEndsAt: dose().until, stage: 'due', named: false,
   })
   assert.equal(medicationActivity([dose()], MAYA, T0 + 60_000, true)!.label, 'Allergy medicine · 1 tablet')
   assert.equal(medicationActivity([dose({ name: null, dose: null })], MAYA, T0 + 60_000, true)!.label, "Maya's medicine", 'names the server withheld stay withheld')

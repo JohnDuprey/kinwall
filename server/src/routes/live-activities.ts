@@ -1,3 +1,4 @@
+import { isConnectedApp } from '../auth.ts';
 // The iPhone app registers its Live Activity push tokens here (kinwall-mobile), so the notify tick
 // can start a leave-by / start-prep Live Activity while the app is closed and end it on time
 // (notify.ts runLiveActivities, apns.ts). Tokens are kept per device: the key making the request,
@@ -21,6 +22,7 @@ const TokenSchema = z
     token: z.string().regex(/^[0-9a-f]{16,400}$/i).openapi({ description: 'The APNs token, hex. Never returned or logged' }),
     activity: z.string().min(1).max(300).optional().openapi({ description: "An update token's activity, as the app names it: 'leaveBy:<event id>@<start>'" }),
     endsAt: z.string().datetime({ offset: true }).optional().openapi({ description: "An update token's activity: when the server should end it" }),
+    preferences: z.object({ leaveBy: z.boolean().default(true), medications: z.boolean().default(false), medicationNames: z.boolean().default(false), kidDoses: z.boolean().default(false) }).strict().optional().openapi({ description: 'Start token only: per-device opt-ins. Medicines are off for older registrations; kidDoses requires a parent device.' }),
     gateway: GatewayInput.nullable().optional(),
   })
   .strict()
@@ -53,12 +55,16 @@ liveActivitiesRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: TokenSchema } } } },
     responses: {
       200: { description: 'ok; `push` reports native delivery readiness for this token; not confirmation of device delivery', content: { 'application/json': { schema: NativePushStatusSchema } } },
+      403: { description: 'not a parent device', content: { 'application/json': { schema: ErrorSchema } } },
       400: { description: 'invalid, or not a device key', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     if ((body.kind === 'update') !== !!body.activity) return c.json({ error: 'an update token needs its activity; a start token has none' }, 400);
+    if (body.preferences && body.kind !== 'start') return c.json({ error: 'preferences belong to a start token' }, 400);
+    if (body.preferences?.medications && await isConnectedApp(c)) return c.json({ error: 'Medicine activities are for the family’s own devices' }, 403);
+    if (body.preferences?.kidDoses && (await requestKey(c))?.scope !== 'admin') return c.json({ error: 'Only parent devices can show kids’ medicine activities' }, 403);
     const d = await device(c);
     if (!d) return c.json({ error: 'register from a device key' }, 400);
     const token = body.token.toLowerCase();
@@ -73,10 +79,10 @@ liveActivitiesRoutes.openapi(
     const gatewayCredential = body.gateway ? await encrypt(c.env, body.gateway.credential, gatewayAad(id)) : keepGateway ? existing.gateway_credential : null;
     const gatewayExpiresAt = body.gateway ? gatewayExpiry : keepGateway ? existing.gateway_expires_at : null;
     await c.env.DB.prepare(
-      'INSERT INTO live_activity_tokens (id, device, api_key_id, oauth_grant_id, kind, activity, token, ends_at, created_at,gateway_credential,gateway_expires_at,gateway_token_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ' +
-        'ON CONFLICT(device, kind, activity) DO UPDATE SET id = excluded.id, token = excluded.token, ends_at = excluded.ends_at, created_at = excluded.created_at,gateway_credential=excluded.gateway_credential,gateway_expires_at=excluded.gateway_expires_at,gateway_token_hash=excluded.gateway_token_hash',
+      'INSERT INTO live_activity_tokens (id, device, api_key_id, oauth_grant_id, kind, activity, token, ends_at, created_at,gateway_credential,gateway_expires_at,gateway_token_hash,preferences,state_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ' +
+        "ON CONFLICT(device, kind, activity) DO UPDATE SET id = excluded.id, token = excluded.token, ends_at = excluded.ends_at, created_at = excluded.created_at,gateway_credential=excluded.gateway_credential,gateway_expires_at=excluded.gateway_expires_at,gateway_token_hash=excluded.gateway_token_hash,generation=generation+CASE WHEN COALESCE(json_extract(preferences,'$.medications'),0)<>COALESCE(json_extract(excluded.preferences,'$.medications'),0) OR COALESCE(json_extract(preferences,'$.medicationNames'),0)<>COALESCE(json_extract(excluded.preferences,'$.medicationNames'),0) OR COALESCE(json_extract(preferences,'$.kidDoses'),0)<>COALESCE(json_extract(excluded.preferences,'$.kidDoses'),0) THEN 1 ELSE 0 END,preferences=excluded.preferences,state_hash=''",
     )
-      .bind(id, d.device, d.keyId, d.grantId, body.kind, body.activity ?? '', await seal(c.env, token, aad(id)), body.endsAt ?? null, new Date().toISOString(), gatewayCredential, gatewayExpiresAt, gatewayCredential ? fingerprint : null)
+      .bind(id, d.device, d.keyId, d.grantId, body.kind, body.activity ?? '', await seal(c.env, token, aad(id)), body.endsAt ?? null, new Date().toISOString(), gatewayCredential, gatewayExpiresAt, gatewayCredential ? fingerprint : null, JSON.stringify(body.preferences ?? {}), '')
       .run();
     await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND id NOT IN (SELECT id FROM live_activity_tokens WHERE device = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)')
       .bind(d.device, d.device, MAX_TOKENS_PER_DEVICE)
@@ -102,6 +108,7 @@ liveActivitiesRoutes.openapi(
     const { activity } = c.req.valid('json');
     const d = await device(c);
     if (!d) return c.json({ error: 'register from a device key' }, 400);
+    if (!activity) await c.env.DB.prepare("UPDATE live_activity_tokens SET preferences=json_set(preferences,'$.endRequested',json('true')) WHERE device=? AND kind='update' AND activity LIKE 'medication:%'").bind(d.device).run();
     await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND kind = ? AND activity = ?').bind(d.device, activity ? 'update' : 'start', activity ?? '').run();
     return c.json({ ok: true }, 200);
   },
