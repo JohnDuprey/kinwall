@@ -1,13 +1,14 @@
 import { goalLabel, goalPeriod, maxGoalTimes, validGoal } from './choreGoal.ts'
 import type { ChoreGoal } from './choreGoal.ts'
 import { useState } from 'react'
-import { dateParts, dayName, formToRrule, ordinalDay, rruleToForm, scheduleDates, scheduleText, validDate, validSchedule } from './choreSchedule.ts'
+import PickField from './PickField.tsx'
+import { RR_DAYS, dateParts, dayName, formToRrule, ordinalDay, rruleToForm, scheduleDates, scheduleText, validDate, validSchedule } from './choreSchedule.ts'
 import type { Repeat, ScheduleForm } from './choreSchedule.ts'
 import { formatDate, msg, t, tm } from './i18n.ts'
 
 const REPEATS = { once: msg('Once'), daily: msg('Daily'), weekly: msg('Weekly') }
 const UNITS = { daily: msg('Days'), weekly: msg('Weeks'), monthly: msg('Months'), yearly: msg('Years') }
-const ORDINALS = [msg('First'), msg('Second'), msg('Third'), msg('Fourth'), msg('Fifth')]
+const ORDINALS = [1, 2, 3, 4, 5, -1]
 
 export function ChoreScheduleFields({ value: f, start, today, onChange, onStart, goal, onGoal }: {
   value: ScheduleForm; start: string; today: string; goal: ChoreGoal | null; onGoal: (goal: ChoreGoal | null) => void
@@ -31,7 +32,7 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
       onChange(f.custom || f.repeat === 'once' ? { ...rruleToForm(null), ...dateDefaults(), weekStart: f.weekStart, repeat: 'weekly' } : {})
     } else onChange({ ...(f.custom ? rruleToForm(null) : {}), repeat: choice as Repeat, interval: 1 })
   }
-  const dateDefaults = () => ({ days: [parts.weekday], monthDay: null, monthWeekday: parts.weekday, ordinal: parts.ordinal })
+  const dateDefaults = () => ({ days: [parts.weekday], monthDays: [], monthWeekdays: [`${parts.ordinal}${RR_DAYS[parts.weekday]}`] })
   return <>
     <div className="field">
       <label htmlFor="chore-repeat">{t('Repeat')}</label>
@@ -80,29 +81,26 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
     {!f.custom && f.repeat === 'monthly' && <>
       <div className="field">
         <label htmlFor="chore-monthly">{t('Repeat on')}</label>
-        <select id="chore-monthly" value={f.monthly} onChange={e => onChange({ monthly: e.target.value as ScheduleForm['monthly'], monthWeekday: parts.weekday, ordinal: parts.ordinal })}>
+        <select id="chore-monthly" value={f.monthly} onChange={e => onChange({ monthly: e.target.value as ScheduleForm['monthly'], monthWeekdays: f.monthWeekdays.length ? f.monthWeekdays : [`${parts.ordinal}${RR_DAYS[parts.weekday]}`] })}>
           <option value="date">{t('Day of the month')}</option>
           <option value="weekday">{t('Weekday of the month')}</option>
         </select>
       </div>
       {f.monthly === 'date' ? <div className="field">
-        <label htmlFor="chore-month-day">{t('Day of the month')}</label>
-        <select id="chore-month-day" value={f.monthDay ?? ''} onChange={e => onChange({ monthDay: e.target.value ? Number(e.target.value) : null })}>
-          <option value="">{t('Day of start date')}</option>
-          {Array.from({ length: 31 }, (_, i) => i + 1).map(day => <option key={day} value={day}>{day}</option>)}
-        </select>
-        <p className="field-hint">{t('Months without this day are skipped.')}</p>
+        <label htmlFor="chore-month-days">{t('Days of the month')}</label>
+        <PickField id="chore-month-days" label={t('Days of the month')} multiple search={false}
+          options={Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+          value={f.monthDays.map(String)} onChange={days => onChange({ monthDays: days.map(Number) })}
+          none={t('Day of start date')} />
+        <p className="field-hint">{t('Choose one or more dates. With none picked, repeats on the day of its start date. Months without a picked date skip that date.')}</p>
       </div> : <div className="field">
-        <label htmlFor="chore-month-ordinal">{t('Which week')}</label>
-        <select id="chore-month-ordinal" value={f.ordinal} onChange={e => onChange({ ordinal: Number(e.target.value) })}>
-          {ORDINALS.map((label, i) => <option key={i} value={i + 1}>{tm(label)}</option>)}
-          <option value={-1}>{t('Last')}</option>
-        </select>
-        <label htmlFor="chore-month-weekday">{t('Weekday')}</label>
-        <select id="chore-month-weekday" value={f.monthWeekday} onChange={e => onChange({ monthWeekday: Number(e.target.value) })}>
-          {order.map(d => <option key={d} value={d}>{dayName(d, 'long')}</option>)}
-        </select>
-        <p className="field-hint">{ordinalDay(f.ordinal, f.monthWeekday)}</p>
+        <label htmlFor="chore-month-weekdays">{t('Weekdays of the month')}</label>
+        <PickField id="chore-month-weekdays" label={t('Weekdays of the month')} multiple
+          options={ORDINALS.flatMap(n => order.map(d => ({ value: `${n}${RR_DAYS[d]}`, label: ordinalDay(n, d) })))}
+          value={f.monthWeekdays} onChange={days => onChange({ monthWeekdays: days })}
+          none={t('Choose weekdays')} />
+        <p className="field-hint">{t('Choose one or more combinations, such as First Monday and Last Friday. Months without a picked weekday skip that occurrence.')}</p>
+        {!f.monthWeekdays.length && <p className="field-hint" role="alert">{t('Choose at least one weekday of the month.')}</p>}
       </div>}
     </>}
     {!f.custom && <div className="field">

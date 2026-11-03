@@ -1,6 +1,6 @@
 // The chore editor's supported RRULE subset. Unfamiliar rules stay opaque and are sent back intact.
 import * as RRuleNS from 'rrule'
-import { formatDate, t, tn } from './i18n.ts'
+import { formatDate, intlLocale, t, tn } from './i18n.ts'
 const RRule = (RRuleNS as unknown as { RRule?: typeof import('rrule').RRule }).RRule ??
   (RRuleNS as unknown as { default: { RRule: typeof import('rrule').RRule } }).default.RRule
 
@@ -9,7 +9,7 @@ export type Repeat = 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly'
 export type ScheduleForm = {
   repeat: Repeat; interval: number; days: number[]; weekStart: number
   end: 'never' | 'on' | 'after'; until: string; count: number
-  monthly: 'date' | 'weekday'; monthDay: number | null; ordinal: number; monthWeekday: number
+  monthly: 'date' | 'weekday'; monthDays: number[]; monthWeekdays: string[]
   custom: boolean
 }
 export const dayName = (d: number, weekday: 'short' | 'long' | 'narrow') => formatDate(new Date(2023, 0, 1 + d), { weekday })
@@ -17,10 +17,12 @@ export const dateParts = (key: string) => {
   const date = new Date(`${key}T12:00:00Z`)
   return { day: date.getUTCDate(), weekday: date.getUTCDay(), ordinal: Math.ceil(date.getUTCDate() / 7) }
 }
+const monthlyWeekday = (s: string) => /^(-1|[1-5])(SU|MO|TU|WE|TH|FR|SA)$/.test(s)
+const monthDay = (n: number) => Number.isInteger(n) && n >= 1 && n <= 31
 const positive = (s: string) => /^\d+$/.test(s) && Number(s) >= 1 && Number(s) <= 9999
 
 export function rruleToForm(rule: string | null): ScheduleForm {
-  const f: ScheduleForm = { repeat: 'once', interval: 1, days: [], weekStart: 1, end: 'never', until: '', count: 10, monthly: 'date', monthDay: null, ordinal: 1, monthWeekday: 0, custom: false }
+  const f: ScheduleForm = { repeat: 'once', interval: 1, days: [], weekStart: 1, end: 'never', until: '', count: 10, monthly: 'date', monthDays: [], monthWeekdays: [], custom: false }
   if (!rule) return f
   const seen = new Set<string>()
   const parts = rule.replace(/^RRULE:/i, '').split(';').map(part => part.trim().toUpperCase().split('='))
@@ -39,10 +41,9 @@ export function rruleToForm(rule: string | null): ScheduleForm {
     } else if (key === 'WKST' && f.repeat === 'weekly' && RR_DAYS.includes(value)) f.weekStart = RR_DAYS.indexOf(value)
     else if (key === 'BYDAY' && f.repeat === 'weekly' && value.split(',').every(d => RR_DAYS.includes(d))) {
       f.days = [...new Set(value.split(',').map(d => RR_DAYS.indexOf(d)))].sort()
-    } else if (key === 'BYDAY' && f.repeat === 'monthly' && /^(-1|[1-5])(SU|MO|TU|WE|TH|FR|SA)$/.test(value)) {
-      const match = /^(-1|[1-5])(.+)$/.exec(value)!
-      f.monthly = 'weekday'; f.ordinal = Number(match[1]); f.monthWeekday = RR_DAYS.indexOf(match[2])
-    } else if (key === 'BYMONTHDAY' && f.repeat === 'monthly' && /^\d+$/.test(value) && +value >= 1 && +value <= 31) f.monthDay = +value
+    } else if (key === 'BYDAY' && f.repeat === 'monthly' && value.split(',').every(monthlyWeekday)) {
+      f.monthly = 'weekday'; f.monthWeekdays = [...new Set(value.split(','))]
+    } else if (key === 'BYMONTHDAY' && f.repeat === 'monthly' && value.split(',').every(d => /^\d+$/.test(d) && monthDay(+d))) f.monthDays = [...new Set(value.split(',').map(Number))].sort((a, b) => a - b)
     else f.custom = true
   }
   if (seen.has('COUNT') && seen.has('UNTIL') || seen.has('BYDAY') && seen.has('BYMONTHDAY')) f.custom = true
@@ -58,8 +59,8 @@ export function formToRrule(f: ScheduleForm): string | null {
     rule += `;WKST=${RR_DAYS[f.weekStart]}`
   }
   if (f.repeat === 'monthly') {
-    if (f.monthly === 'weekday') rule += `;BYDAY=${f.ordinal}${RR_DAYS[f.monthWeekday]}`
-    else if (f.monthDay !== null) rule += `;BYMONTHDAY=${f.monthDay}`
+    if (f.monthly === 'weekday') rule += `;BYDAY=${f.monthWeekdays.join(',')}`
+    else if (f.monthDays.length) rule += `;BYMONTHDAY=${[...f.monthDays].sort((a, b) => a - b).join(',')}`
   }
   if (f.end === 'on') rule += `;UNTIL=${f.until.replaceAll('-', '')}`
   if (f.end === 'after') rule += `;COUNT=${f.count}`
@@ -75,6 +76,7 @@ export function validSchedule(f: ScheduleForm, start: string): boolean {
   if (start && !validDate(start)) return false
   if (f.repeat === 'once') return validDate(start)
   return Number.isInteger(f.interval) && f.interval >= 1 && f.interval <= 9999
+    && (f.repeat !== 'monthly' || (f.monthly === 'date' ? f.monthDays.every(monthDay) : f.monthWeekdays.length > 0 && f.monthWeekdays.every(monthlyWeekday)))
     && (f.end !== 'after' || Number.isInteger(f.count) && f.count >= 1 && f.count <= 9999)
     && (f.end !== 'on' || validDate(f.until) && (!start || f.until >= start))
 }
@@ -117,8 +119,12 @@ export function scheduleText(rule: string | null): string {
     : f.repeat === 'monthly' ? (n === 1 ? t('Monthly') : t('Every {n} months', { n }))
     : n === 1 ? t('Yearly') : t('Every {n} years', { n })
   if (f.repeat === 'weekly' && f.days.length) text = t('{repeat} · {days}', { repeat: text, days: f.days.length === 7 ? t('Every day that week') : f.days.map(d => dayName(d, 'short')).join(', ') })
-  if (f.repeat === 'monthly' && f.monthly === 'weekday') text = t('{repeat} · {pattern}', { repeat: text, pattern: ordinalDay(f.ordinal, f.monthWeekday) })
-  else if (f.repeat === 'monthly' && f.monthDay) text = t('{repeat} · day {day}', { repeat: text, day: f.monthDay })
+  if (f.repeat === 'monthly' && f.monthly === 'weekday') {
+    const patterns = f.monthWeekdays.map(d => ordinalDay(Number(d.slice(0, -2)), RR_DAYS.indexOf(d.slice(-2))))
+    text = t('{repeat} · {pattern}', { repeat: text, pattern: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(patterns) })
+  }
+  else if (f.repeat === 'monthly' && f.monthDays.length === 1) text = t('{repeat} · day {day}', { repeat: text, day: f.monthDays[0] })
+  else if (f.repeat === 'monthly' && f.monthDays.length > 1) text = t('{repeat} · days {days}', { repeat: text, days: f.monthDays.join(', ') })
   if (f.end === 'on' && validDate(f.until)) text = t('{repeat} · until {date}', { repeat: text, date: formatDate(new Date(`${f.until}T12:00:00`), { year: 'numeric', month: 'short', day: 'numeric' }) })
   if (f.end === 'after') text = t('{repeat} · {count}', { repeat: text, count: tn(f.count, '{n} occurrence', '{n} occurrences') })
   return text

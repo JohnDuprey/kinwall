@@ -8,11 +8,47 @@ test('custom schedules round trip without dropping interval, week boundary or en
     'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR,SA,SU;WKST=MO',
     'FREQ=MONTHLY;BYDAY=-1SU;UNTIL=20271231',
     'FREQ=MONTHLY;BYMONTHDAY=15',
+    'FREQ=MONTHLY;BYMONTHDAY=1,5,24;INTERVAL=2;COUNT=8',
+    'FREQ=MONTHLY;BYDAY=1MO,-1FR;UNTIL=20271231',
     'FREQ=YEARLY;INTERVAL=2',
   ]) {
     const parsed = rruleToForm(rule)
     assert.equal(parsed.custom, false, rule)
     assert.deepEqual(rruleToForm(formToRrule(parsed)), parsed, rule)
+  }
+})
+
+test('monthly choices support several dates and independent weekday combinations', () => {
+  const dates = rruleToForm('FREQ=MONTHLY;BYMONTHDAY=24,1,5,5')
+  assert.equal(dates.custom, false)
+  assert.deepEqual(dates.monthDays, [1, 5, 24])
+  assert.equal(formToRrule(dates), 'FREQ=MONTHLY;BYMONTHDAY=1,5,24')
+  const weekdays = rruleToForm('FREQ=MONTHLY;BYDAY=1MO,-1FR,1MO')
+  assert.equal(weekdays.custom, false)
+  assert.deepEqual(weekdays.monthWeekdays, ['1MO', '-1FR'])
+  assert.deepEqual(scheduleDates(formToRrule(weekdays), '2026-10-01', '2026-10-01', 4), ['2026-10-05', '2026-10-30', '2026-11-02', '2026-11-27'])
+  assert.match(scheduleText(formToRrule(weekdays)), /First Monday/)
+  assert.match(scheduleText(formToRrule(weekdays)), /Last Friday/)
+  assert.match(scheduleText(formToRrule(dates)), /1, 5, 24/)
+})
+
+test('monthly previews skip missing dates, deduplicate overlapping weekdays, and honor limits', () => {
+  assert.deepEqual(scheduleDates('FREQ=MONTHLY;BYMONTHDAY=1,5,24;INTERVAL=2;COUNT=5', '2026-10-05', '2026-10-01', 8), ['2026-10-05', '2026-10-24', '2026-12-01', '2026-12-05', '2026-12-24'])
+  assert.deepEqual(scheduleDates('FREQ=MONTHLY;BYMONTHDAY=29,30,31;UNTIL=20260331', '2026-01-01', '2026-02-01', 5), ['2026-03-29', '2026-03-30', '2026-03-31'])
+  assert.deepEqual(scheduleDates('FREQ=MONTHLY;BYDAY=4MO,-1MO;COUNT=3', '2026-02-01', '2026-02-01', 5), ['2026-02-23', '2026-03-23', '2026-03-30'])
+  assert.deepEqual(scheduleDates('FREQ=MONTHLY;BYDAY=5MO', '2026-02-01', '2026-02-01', 2), ['2026-03-30', '2026-06-29'])
+})
+
+test('empty monthly weekday choices cannot silently become a different schedule', () => {
+  const monthly = rruleToForm('FREQ=MONTHLY;BYDAY=1MO')
+  assert.equal(validSchedule({ ...monthly, monthWeekdays: [] }, '2026-10-01'), false)
+  assert.equal(validSchedule({ ...monthly, monthWeekdays: ['0MO'] }, '2026-10-01'), false)
+  assert.equal(validSchedule({ ...monthly, monthly: 'date', monthDays: [32] }, '2026-10-01'), false)
+  assert.equal(validSchedule(rruleToForm('FREQ=MONTHLY'), ''), true, 'empty dates use the original start date')
+  for (const rule of ['FREQ=MONTHLY;BYDAY=1MO,FR', 'FREQ=MONTHLY;BYMONTHDAY=1,32', 'FREQ=MONTHLY;BYDAY=1MO;BYMONTHDAY=5']) {
+    const parsed = rruleToForm(rule)
+    assert.equal(parsed.custom, true, rule)
+    assert.equal(scheduleBody({ rrule: rule, dueDate: '2026-10-01' }, parsed, false, '2026-10-01').rrule, rule)
   }
 })
 

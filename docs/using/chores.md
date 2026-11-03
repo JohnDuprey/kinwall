@@ -41,7 +41,7 @@ Tap **+** (Add chore). The sheet has:
 | **Do an activity (optional)** | One of the family's [activities](activities.md) and **Minutes** (1–60, default 5). Playing it completes the chore. See [Activity chores](#activity-chores). Shown once an activity is installed. |
 | **Needs a parent's OK** | **Default**, **Yes** or **No**. See [Parent approval](#parent-approval). With an activity, also **Needs a parent's OK even for timed play**. |
 
-**Custom…** adds a repeat interval and unit. Weekly schedules let you choose weekdays and which day begins each week. Monthly schedules repeat on a numbered date, the same date as the start, or a weekday such as the third Sunday or last Monday. Months without the chosen date or weekday are skipped. Yearly schedules use the month and day of the start date; February 29 only occurs in leap years. The editor shows upcoming dates when a start date is set.
+**Custom…** adds a repeat interval and unit. Weekly schedules let you choose weekdays and which day begins each week. Monthly schedules let you pick several **Days of the month** (such as 1, 5 and 24), or several **Weekdays of the month** (such as First Monday and Last Friday). Open the picker, choose all the dates or combinations you need, and tap **Done**. With no numbered dates picked, the chore repeats on the day of its start date. Weekday schedules need at least one choice. Months without a picked date or weekday skip that occurrence; if two choices land on the same day, the chore is only due once that day. Yearly schedules use the month and day of the start date; February 29 only occurs in leap years. The editor shows upcoming dates when a start date is set.
 
 ### A number of times per interval
 
