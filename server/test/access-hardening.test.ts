@@ -142,7 +142,7 @@ test('/docs loads one pinned Swagger UI release, and only from that CDN', async 
   assert.match(res.text, new RegExp(`<script src="${cdn}\\d+\\.\\d+\\.\\d+/swagger-ui-bundle\\.js"`));
   assert.match(res.text, new RegExp(`<link rel="stylesheet" href="${cdn}\\d+\\.\\d+\\.\\d+/swagger-ui\\.css"`));
   assert.doesNotMatch(res.text, /swagger-ui-dist\//, 'never the unpinned latest');
-  assert.match(res.text, /url: '\/openapi\.json'/);
+  assert.match(res.text, /url:\s*(['"])\/openapi\.json\1/);
 
   const csp = res.headers.get('Content-Security-Policy')!;
   assert.match(csp, /script-src 'self' 'unsafe-inline' https:\/\/cdn\.jsdelivr\.net;/);
