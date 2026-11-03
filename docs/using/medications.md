@@ -8,16 +8,16 @@ Medication reminders are part of the Health tracker. On a parent's device: **Set
 
 ## Add a medicine
 
-On a parent's device, open **Trackers → Health**. The **💊 Medicines** section lists each person (the header's person filter narrows it); someone with none says **No medicines** with an **+ Add** button beside it. Someone who has medicines is folded shut so a glance doesn't show them: tap their row (or its arrow) to open it, then **+ Add medicine** or **History**. The Health tab shows while medication reminders are on, even if the Health tracker itself is off.
+On a parent's device, open **Trackers → Health → Medicines**, then **Open medicines** for the person. Health shows counts without medicine names. On their medicines page, choose **Medicines → + Add medicine** (or use **+ Add medicine** in the empty state). The Health tab shows while medication reminders are on, even if the Health tracker itself is off.
 
 * **Medicine**: a name the family knows it by, like "Allergy medicine". There's no place for what it's for, and no need for one.
 * **Dose** (optional): free text, like "1 tablet" or "5 mg".
 * **Times**: one or more times a day (up to 8), in the household's time zone. **+ Add a time** adds another. Each time is **At a time** (a clock time) or **When I start my day**, with a latest time (12:00 PM unless you change it); see [When I start my day](#when-i-start-my-day). A medicine can have one of those.
 * **Days**: **Every day**, **Weekdays**, **Weekends**, or **Certain days** with a button per weekday.
 * **Can be taken late**: how long after its time a dose can still be taken. **Up to 3 hours** (the default), **Until evening (8 PM)**, **Until the end of the day**, or **Don't take late**. Some medicines shouldn't be taken late, so check with your doctor or pharmacist. A late window never ends sooner than 3 hours after the dose's time (a 7 PM dose set to **Until evening** still has until 10 PM), except **Don't take late**, where the card stays for 1 hour: long enough to notice it, short enough not to invite a late dose.
-* **Ends** (for a course, like an antibiotic): **No end**, **On a date** (the last day of doses), or **After a number of doses** (reminders stop once that many are marked **Taken**; skipped doses don't count). The list shows "Until Mon, Oct 5" or "7 of 20 doses left", then "Done: all 20 doses taken". The history keeps the finished course.
+* **Course length (optional) → Ends** (for a course, like an antibiotic): **No end**, **On a date** (the last day of doses), or **After a number of doses** (reminders stop once that many are marked **Taken**; skipped doses don't count). The list shows "Until Mon, Oct 5" or "7 of 20 doses left", then "Done: all 20 doses taken". The history keeps the finished course.
 
-Tap a medicine to change it. **More… → Delete medicine** removes it and its history. Only parent devices add, change or delete medicines.
+Choose **Edit schedule** on the medicine’s card to change it. Optional **Course length** and **Refill details** expand when needed; a **Schedule summary** lets you review the dose and times before saving. **Delete medicine** at the bottom of the edit sheet removes it and its history after confirmation. Only parent devices add, change or delete medicines.
 
 ## When I start my day
 
@@ -45,7 +45,7 @@ The card stays until the dose is marked, or until its late window closes: 3 hour
 
 In the phone app, a successful **Taken**, **Skip** or **Snooze** immediately updates the dose's Lock Screen activity, even while the card shows its short confirmation. Taken or Skip also clears that dose's scheduled and displayed local alerts in app builds that support this update. A failed save keeps the dose and its reminder. Changes from another device still depend on a refresh or separately configured push support.
 
-On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens** (in **Trackers → Health → Medicines**). Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
+On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens** (in **Trackers → Health → Medicines → Medicine privacy and settings**). Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
 
 ### On the Lock Screen
 
@@ -74,18 +74,19 @@ Each reminder is sent once per dose (and once per snooze and follow-up), even if
 
 ## A person's medicines page
 
-Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Trackers → Health**. The **‹** button at the top goes back to Health (on a person's own device, to their profile). It shows:
+Open it with **Open medicines** on their [profile](profiles.md) or in **Trackers → Health**. The **‹** button at the top goes back to Health (on a person's own device, to their profile). Parents can switch people with **Whose medicines**. A person's own device shows only their own medicines.
 
-* **Take now**, when something is due;
-* **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later. A dose that's due or not marked has **Taken** and **Skip** buttons, so a dose taken without tapping the card can still be logged. A dose already on the **Take now** card above shows only its status here, so each dose has one set of buttons;
-* **Yesterday**: yesterday's doses, with the same buttons on any that weren't marked, for catching up the next morning;
-* **Last 7 days**: a row per medicine and a column per day.
+The page has three views:
+
+* **Today** opens first: **Due now** has Taken, Skip and Snooze actions. **Snoozed** shows paused reminders with their return time. **Not marked yet** holds other unrecorded doses with Taken and Skip for catching up. **Later today** lists upcoming doses, and **Recorded today** lists taken and skipped doses. A dose on the Due now card isn't repeated in the other groups. Open refill to-dos have a link to **Medicines** below the dose groups.
+* **Medicines** keeps each medicine's dose, schedule and refill actions together in a stable card. Parents can **+ Add medicine** or **Edit schedule** here without returning to Health.
+* **History** shows dated records, newest first. Today's and yesterday's doses can still be corrected; older days are read-only. Expand **Seven-day overview** for the grid with one row per medicine and one column per day.
 
 Catching up asks **When did you take it?** too, and logs that time: a dose taken inside its late window shows ✅ **Taken** with its time even when it's marked hours later, and one taken after the window closed shows ✅ **Taken late**. A dose taken late counts toward a course's **doses left**.
 
 ### Fixing a dose
 
-Marked it late, but it was really taken at 8:05? Tap a marked dose under **Today** or **Yesterday** to open **Change this dose**:
+Marked it late, but it was really taken at 8:05? Tap **Change** beside the recorded dose in **Today**, or beside a marked dose from today or yesterday in **History**, to open **Change this dose**:
 
 * **What happened**: **Taken**, **Skipped**, or **Not marked** (takes the mark back, so the dose shows as due or not marked again);
 * **Taken at**: the time it was taken (a date and time for yesterday's dose). It can't be in the future or before the start of the dose's day; a late dose taken just after midnight is fine.
@@ -98,7 +99,7 @@ It opens on the person's own device and on parents' devices, and both can catch 
 
 ## Refills
 
-Each medicine can say where and how to ask for a refill. Set it up from a parent's device: **Trackers → Health → Medicines**, tap the medicine, and fill in **Refills** at the bottom.
+Each medicine can say where and how to ask for a refill. Set it up from a parent's device: **Trackers → Health → Open medicines → Medicines → Edit schedule**, then expand **Refill details (optional)**.
 
 * **Ask for refills at**: who to ask, picked from your [contacts](contacts.md): doctors' offices and pharmacies first (contacts in the **Medical** category, or with a doctor or pharmacy as their relationship), then **Other contacts**. Or **Add a contact…** to make one right there, and **Edit contact** to change the one picked. Several medicines can share a contact, so you set up an office once. On the refill card it shows with:
   * its **phone numbers**, each with its [phone menu](contacts.md#phone-menus) if it has one, so **Call** gets you through "press 2 for prescriptions" for you,
@@ -115,14 +116,14 @@ Refill places set up before refills moved to Contacts became contacts by themsel
 
 ### Request refill
 
-On the person's [medicines page](#a-persons-medicines-page), **Refills** lists each medicine with **Request refill**. Tapping it:
+On the person's [medicines page](#a-persons-medicines-page), the **Medicines** view has **Prepare refill request** on each medicine card. Kinwall does not contact the doctor or pharmacy for you. Tapping it:
 
-1. adds a to-do, "Request refill: Allergy medicine for Leo", at the top of the page, in the bell (for parents and that person) and in **Trackers → Health**. There's only ever one open per medicine; tapping again just opens the card.
+1. adds a to-do, "Request refill: Allergy medicine for Leo", on the medicine card and in the bell (for parents and that person). The Today view shows a link to these refill to-dos. There's only ever one open per medicine; **How to request** reopens its instructions. Cards keep their position when a to-do opens or closes.
 2. opens the refill card: the contact to ask, with **Open** for its websites and apps and **Call** for each phone number, the phone menu in words, the pharmacy with **Call** and **Map**, and **What to say** in large print, one sentence per line, with **Copy**.
 
 **Call** dials the number and then the phone menu for you on most phones. Some phones ignore the waits, so the steps are written out too. Anything the family hasn't filled in shows in [brackets] in the message so you know to say it yourself.
 
-When you've asked, tap **Done, requested** to close the to-do.
+When you've asked, tap **Mark as requested** to close the to-do.
 
 A kid's own device can request a refill for their own medicine too. Their card shows the contact to ask only if they can see that contact (set it to **Grown-ups only** to keep it off kids' devices), and the pharmacy contact likewise; otherwise the pharmacy's typed name.
 
@@ -153,7 +154,7 @@ All medication routes answer 404 while the feature is off.
 * `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, startedAt, until, name, dose }] }`, the Take now cards. `startedAt` is when the person's day started (a `"wake"` dose), `until` when the late window closes. `name` and `dose` are `null` on a shared wall with names off.
 * `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze" | "unmark", at? }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device. `snooze` from a grown-up's own device (a parent device that belongs to them, or its app's widgets key) on someone else's dose snoozes it for that grown-up's devices only (`GET /api/medications/due` there leaves it out; elsewhere it stays), and a mark from such a widgets key is recorded with that grown-up's name in `by`. `at` (ISO, taken or skipped only) is when it really happened, for a dose marked after the fact; the default is now. It must be between the start of the dose's household day (midnight) and now; up to 2 minutes ahead counts as a fast clock and is stored as now, anything else answers 400.
   * On a dose that's already marked, the same action without `at` changes nothing; a different action or an `at` changes it, and `unmark` takes the mark back. The answer has `edited: true`, and the sealed log keeps the first mark and the device that changed it. Changing a marked dose (or `unmark`) is for parent devices and the person's own device: a shared wall gets 409.
-* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by, edited }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed, `edited` whether it was changed after it was first marked. Their own device and parent devices only.
+* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by, edited, snoozedUntil }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed, `edited` whether it was changed after it was first marked. `snoozedUntil` is the active reminder pause for this viewer (the later shared or viewer-only snooze), or null; a parent-only snooze is never exposed to other viewers. Their own device and parent devices only.
 * `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: a device paired as theirs, or for a grown-up a full-access key, passkey or Kinwall app sign-in they own (`PUT /api/me/owner`). 403 for other parent devices, shared walls, connected apps and anyone else.
 * Each medicine also has `refill: { contactId, pharmacyContactId, pharmacy, dateOfBirth, callback, remindOn }` (set with POST or PATCH; PATCH changes only the refill fields sent; `contactId`, who to ask, and `pharmacyContactId` must be contacts, else 400) and `refillRequest: { at, by } | null`, the open to-do.
 * `GET /api/medications/{id}/refill`: the refill card, `{ medicationId, memberId, contact: { id, name, phones: [{ label, number, steps, telUri }], websites: [{ label, url }] }, pharmacy: { name, contactId, phone, telUri, address }, script, request }`. Parent devices and the person's own device. `contact` is the contact as that device may see it (null if it can't); `steps` is a phone's menu in words and `telUri` dials it. Phone menus are set on the contact (`phones[].menu`, see [Contacts](contacts.md#phone-menus)).

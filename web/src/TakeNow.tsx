@@ -191,7 +191,7 @@ export function WhenTakenSheet({ dose, today, onPick, onClose }: { dose: { date:
   )
 }
 
-function DoseList({ doses, drop }: Due) {
+export function DoseList({ doses, drop }: Due) {
   const { members, settings, toast } = useApp()
   const [busy, setBusy] = useState<string | null>(null)
   const [asking, setAsking] = useState<DueDose | null>(null) // Taken, well after its time: when?

@@ -1,53 +1,63 @@
-// A person's medications (#/medications/{memberId}): what's due now, today's doses (taken, skipped,
-// due, not marked, later) with catch-up buttons, yesterday's doses, and a 7-day grid. A marked dose from today or
-// yesterday opens ChangeDoseSheet (fix its time, or Taken / Skipped / Not marked). Opens on their own device and parents' devices; the
-// server refuses everyone else (403). A shared wall still gets the Take now cards, never the history.
+// A person’s medicines: Today for tracking, Medicines for schedules and refills, History for records.
+// Parent devices can switch person and edit here; other personal devices see only their own data.
+// Shared walls keep their existing Take now cards and cannot read this page’s health data.
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { formatTime } from './timeFormat.ts'
 import { dayName } from './Snapshot.tsx'
-import { announce } from './a11y.tsx'
-import { askWhenTaken, catchUpLabel, doseTimeLabel, earlierInput, pickedTime, scheduleLabel, STATUS, statusLabel, weekCells } from './medications.ts'
+import { announce, Segmented } from './a11y.tsx'
+import { groupTodayDoses, askWhenTaken, catchUpLabel, doseTimeLabel, earlierInput, pickedTime, scheduleLabel, STATUS, statusLabel, weekCells } from './medications.ts'
 import Sheet from './Sheet.tsx'
-import { t, tm } from './i18n.ts'
-import TakeNow, { useDueDoses, WhenTakenSheet } from './TakeNow.tsx'
-import type { Medication, MedicationHistory } from './types.ts'
+import { DAY, formatDate, t, tm, tn } from './i18n.ts'
+import { DoseList, useDueDoses, WhenTakenSheet } from './TakeNow.tsx'
+import type { Medication, MedicationHistory, Member } from './types.ts'
 import { Face } from './Face'
-import { RefillsCard } from './Refills.tsx'
+import { MedicineCards } from './Refills.tsx'
 import { ChevronLeft } from './icons.tsx'
+import { MedicationSheet } from './MedicationSettings.tsx'
+import PickField from './PickField.tsx'
+import { doseChanges } from './doseChanges.ts'
 
 type Day = MedicationHistory['days'][number]
 
 export default function Medications({ memberId }: { memberId?: string }) {
-  const { members, meMemberId, parentDevice, refreshTick, toast } = useApp()
-  const member = members.find(m => m.id === memberId) ?? members.find(m => m.id === meMemberId)
+  const { members, meMemberId, parentDevice } = useApp()
+  const member = members.find(m => m.id === (parentDevice ? memberId ?? meMemberId : meMemberId))
+  if (!member) return members.length === 0 ? <div className="state-card">{t('No one in the family yet.')}</div> : (
+    <div className="profile profile-narrow meds-page scroll-y">
+      <h2 className="profile-name">{t('Whose medicines?')}</h2>
+      <p className="snap-dim">{t('Pick someone.')}</p>
+      <div className="meds-person-body">
+        {members.filter(m => parentDevice || m.id === meMemberId).map(m => <a key={m.id} className="meds-set-row meds-pick" href={`#/medications/${m.id}`}><Face m={m} className="board-avatar" aria-hidden="true" /> <span className="settings-row-label">{m.name}</span></a>)}
+      </div>
+    </div>
+  )
+  return <PersonMedicines key={member.id} member={member} />
+}
+
+function PersonMedicines({ member }: { member: Member }) {
+  const { members, parentDevice, refreshTick, toast } = useApp()
+  const [view, setView] = useState<'today' | 'medicines' | 'history'>('today')
+  const [editing, setEditing] = useState<{ med: Medication | null } | null>(null)
   const [data, setData] = useState<MedicationHistory | null>(null)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
   const [refillOpen, setRefillOpen] = useState<string | null>(null) // the refill card's medicine
   const [asking, setAsking] = useState<{ date: string; d: Day['doses'][number] } | null>(null) // Taken, well after its time: when?
-  const takeNow = new Set(useDueDoses().doses.map(d => `${d.date}:${d.medicationId}:${d.time}`)) // these have their buttons on the Take now card
+  const due = useDueDoses()
+  const active = due.doses.filter(d => d.memberId === member.id)
   const [changing, setChanging] = useState<{ date: string; d: Day['doses'][number] } | null>(null) // a marked dose: fix its time or status
   useEffect(() => {
-    if (!member) return
     let canceled = false
     api.getMedicationHistory(member.id)
       .then(h => { if (!canceled) { setData(h); setError('') } })
       .catch(e => { if (!canceled) setError(e instanceof ApiError && e.status === 403 ? t("{name}'s medicines are private. They show on {name}'s own device and parents' devices.", { name: member.name }) : e instanceof ApiError ? e.message : t("Couldn't open this page.")) })
     return () => { canceled = true }
-  }, [member?.id, refreshTick, reload]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [member.id, refreshTick, reload]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => doseChanges.listen(() => setReload(x => x + 1)), [])
 
-  if (!member) return members.length === 0 ? <div className="state-card">{t('No one in the family yet.')}</div> : (
-    <div className="profile profile-narrow meds-page scroll-y">
-      <h2 className="profile-name">{t('Whose medicines?')}</h2>
-      <p className="snap-dim">{t('Pick someone.')}</p>
-      <div className="meds-person-body">
-        {members.map(m => <a key={m.id} className="meds-set-row meds-pick" href={`#/medications/${m.id}`}><Face m={m} className="board-avatar" aria-hidden="true" /> <span className="settings-row-label">{m.name}</span></a>)}
-      </div>
-    </div>
-  )
   const shown = data?.memberId === member.id ? data : null
   const byId = new Map(shown?.medications.map(m => [m.id, m]))
   const today = shown?.days.at(-1)
@@ -62,27 +72,28 @@ export default function Medications({ memberId }: { memberId?: string }) {
     try {
       await api.markDose(d.medicationId, { date, time: d.time, action, ...(at ? { at } : {}) })
       const said = d.status === 'taken' || d.status === 'skipped' ? t('Saved') : action === 'taken' ? t('Marked taken ✓') : t('Marked skipped')
-      toast(said); announce(said); setReload(x => x + 1)
+      toast(said); announce(said)
     } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
     finally { setBusy(null) }
   }
-  const refillsFirst = !!shown?.medications.some(m => m.refillRequest)
-  const refills = shown && <RefillsCard meds={shown.medications} member={member} onChanged={() => setReload(x => x + 1)} openId={refillOpen} setOpenId={setRefillOpen} />
+  const groups = today && groupTodayDoses(today.date, today.doses, active)
+  const refillCount = shown?.medications.filter(m => m.refillRequest).length ?? 0
   const rows = (day: Day, doses: Day['doses']) => (
     <ul className="meds-today">
       {doses.map(d => {
         const m = byId.get(d.medicationId)
         const s = STATUS[d.status]
         const k = `${day.date}:${d.medicationId}:${d.time}`
-        const taken = catchUpLabel(d.status, takeNow.has(k))
+        const taken = editable(day.date) ? catchUpLabel(d.status) : null
         const marked = d.status === 'taken' || d.status === 'skipped'
-        const said = <><span aria-hidden="true">{s.emoji}</span> {statusLabel(d)}{d.at && marked ? ` ${formatTime(d.at)}` : ''}{d.edited && <span className="meds-edited"> · {t('edited')}</span>}</>
+        const label = d.status === 'due' && d.snoozedUntil && Date.parse(d.snoozedUntil) > Date.now() ? t('Snoozed until {time}', { time: formatTime(new Date(d.snoozedUntil)) }) : statusLabel(d)
+        const said = <><span aria-hidden="true">{s.emoji}</span> {label}{d.at && marked ? ` ${formatTime(d.at)}` : ''}{d.edited && <span className="meds-edited"> · {t('edited')}</span>}</>
         return (
           <li key={k} className={`meds-today-row meds-${d.status}`}>
             <span className="meds-today-time">{doseTimeLabel(d)}</span>
             <span className="meds-today-what">{medName(m)}</span>
             {/* Marked today or yesterday: tap to fix its time or status. */}
-            {marked && editable(day.date) ? <button type="button" className="meds-status meds-status-btn" disabled={busy === k} aria-label={t('{dose}: {status}. Change', { dose: `${medName(m)}, ${doseTimeLabel(d)}`, status: [`${statusLabel(d)}${d.at ? ` ${formatTime(d.at)}` : ''}`, d.edited ? t('edited') : ''].filter(Boolean).join(', ') })} onClick={() => setChanging({ date: day.date, d })}>{said} <span className="meds-change" aria-hidden="true">✏️</span></button>
+            {marked && editable(day.date) ? <button type="button" className="meds-status meds-status-btn" disabled={busy === k} aria-label={t('{dose}: {status}. Change', { dose: `${medName(m)}, ${doseTimeLabel(d)}`, status: [`${statusLabel(d)}${d.at ? ` ${formatTime(d.at)}` : ''}`, d.edited ? t('edited') : ''].filter(Boolean).join(', ') })} onClick={() => setChanging({ date: day.date, d })}>{said} <span className="meds-change">· {t('Change')}</span></button>
               : <span className="meds-status">{said}</span>}
             {taken && <div className="meds-now-actions meds-catch-up" role="group" aria-label={`${medName(m)}, ${doseTimeLabel(d)}`}>
               <button className="btn btn-primary" disabled={busy === k} onClick={() => (askWhenTaken(d.dueAt, Date.now()) ? setAsking({ date: day.date, d }) : mark(day.date, d, 'taken'))}>{taken}</button>
@@ -105,49 +116,88 @@ export default function Medications({ memberId }: { memberId?: string }) {
             <p className="profile-meta">🔒 {member.grownUp ? t("Private to {name}'s own devices and parent devices.", { name: member.name }) : t('For {name} and parents.', { name: member.name })}</p>
           </div>
         </div>
-        {parentDevice && <div className="profile-actions"><a className="btn btn-secondary" href="#/trackers/health">{t('Change medicines')}</a></div>}
+        {parentDevice && <PickField label={t('Whose medicines')} title={t('Whose medicines?')} value={[member.id]}
+          options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} aria-hidden="true" /> }))}
+          onChange={([id]) => { setView('today'); window.location.hash = `#/medications/${id}` }} />}
+        <Segmented tabs idBase="meds-tab" label={t('Medicines view')} value={view} onChange={setView} options={[
+          { key: 'today', label: t('Today') }, { key: 'medicines', label: t('Medicines') }, { key: 'history', label: t('History') },
+        ]} />
       </section>
-      <TakeNow memberId={member.id} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">{t('Loading…')}</p>}
-      {shown && shown.medications.length === 0 && <p className="snap-empty">{parentDevice ? t('No medicines for {name}. Add one in Trackers → Health.', { name: member.name }) : t('No medicines for {name}.', { name: member.name })}</p>}
-      {shown && today && shown.medications.length > 0 && <>
-        {/* An open "Request refill" to-do goes first; otherwise the card waits below Today. */}
-        {refillsFirst && refills}
-        <section className="board-card" aria-labelledby="meds-today">
-          <h3 id="meds-today" className="snap-heading">{t('Today')}</h3>
-          {today.doses.length === 0 ? <p className="snap-dim">{t('Nothing today.')}</p> : rows(today, today.doses)}
-        </section>
-        {!refillsFirst && refills}
-        {yesterday && yesterday.doses.length > 0 && <section className="board-card" aria-labelledby="meds-yesterday">
-          <h3 id="meds-yesterday" className="snap-heading">{t('Yesterday')}</h3>
-          {behind.length > 0 && <p className="snap-dim">{t("Some weren't marked. If they were taken or skipped, you can still say so.")}</p>}
-          {rows(yesterday, yesterday.doses)}
-        </section>}
-        <section className="board-card" aria-labelledby="meds-week">
-          <h3 id="meds-week" className="snap-heading">{t('Last 7 days')}</h3>
-          <div className="meds-grid-wrap">
-            <table className="meds-grid">
-              <thead>
-                <tr><th scope="col"><span className="sr-only">{t('Medicine')}</span></th>{shown.days.map(d => <th key={d.date} scope="col" className={d.date === shown.today ? 'meds-grid-today' : undefined}>{dayName(d.date, { weekday: 'short' })}{d.date === shown.today && <span className="sr-only"> {t('(today)')}</span>}</th>)}</tr>
-              </thead>
-              <tbody>
-                {shown.medications.map(m => (
-                  <tr key={m.id}>
-                    <th scope="row"><span className="meds-grid-name">{m.name}</span><span className="meds-grid-sub">{scheduleLabel(m)}</span></th>
-                    {weekCells(shown.days, m.id).map(c => (
-                      <td key={c.date} className={c.status ? `meds-${c.status}` : ''}>
-                        {c.status ? <><span aria-hidden="true">{STATUS[c.status].emoji}</span><span className="sr-only">{tm(STATUS[c.status].label)}</span></> : <span className="snap-dim" aria-label={t('No dose')}>·</span>}
-                      </td>
+      {shown && <div className="meds-panel" role="tabpanel" aria-labelledby={`meds-tab-${view}`}>
+        {shown.medications.length === 0 && <div className="board-card">
+          <p className="snap-empty">{t('No medicines for {name}.', { name: member.name })}</p>
+          {parentDevice && <button className="btn btn-primary" onClick={() => setEditing({ med: null })}>{t('+ Add medicine')}</button>}
+        </div>}
+        {view === 'today' && shown.medications.length > 0 && <>
+          <section className="board-card meds-now" aria-labelledby="meds-due">
+            <h3 id="meds-due" className="snap-heading">💊 {t('Due now')}</h3>
+            {active.length > 0 && <DoseList doses={active} drop={due.drop} />}
+            {today && groups && groups.due.length > 0 && rows(today, groups.due)}
+            {active.length === 0 && !groups?.due.length && <p className="snap-dim">{t('Nothing due right now.')}</p>}
+          </section>
+          {today && groups && <>
+            {groups.snoozed.length > 0 && <section className="board-card" aria-labelledby="meds-snoozed">
+              <h3 id="meds-snoozed" className="snap-heading">{t('Snoozed')}</h3>
+              {rows(today, groups.snoozed)}
+            </section>}
+            {groups.unmarked.length > 0 && <section className="board-card" aria-labelledby="meds-unmarked">
+              <h3 id="meds-unmarked" className="snap-heading">{t('Not marked yet')}</h3>
+              <p className="snap-dim">{t('If a dose was already taken or skipped, record it here.')}</p>
+              {rows(today, groups.unmarked)}
+            </section>}
+            <section className="board-card" aria-labelledby="meds-later">
+              <h3 id="meds-later" className="snap-heading">{t('Later today')}</h3>
+              {groups.later.length ? rows(today, groups.later) : <p className="snap-dim">{t('No more doses scheduled today.')}</p>}
+            </section>
+            <section className="board-card" aria-labelledby="meds-recorded">
+              <h3 id="meds-recorded" className="snap-heading">{t('Recorded today')}</h3>
+              {groups.recorded.length ? rows(today, groups.recorded) : <p className="snap-dim">{t('No doses recorded today.')}</p>}
+            </section>
+          </>}
+          {refillCount > 0 && <button className="btn btn-secondary" onClick={() => setView('medicines')}>{tn(refillCount, '{n} refill to request · Open medicines', '{n} refills to request · Open medicines')}</button>}
+        </>}
+        {view === 'medicines' && shown.medications.length > 0 && <>
+          {parentDevice && <div className="meds-toolbar"><button className="btn btn-primary" onClick={() => setEditing({ med: null })}>{t('+ Add medicine')}</button></div>}
+          <p className="snap-dim">{t('Prepare a refill request to get contact details and a message to use. Kinwall does not contact anyone for you.')}</p>
+          <MedicineCards meds={shown.medications} member={member} onChanged={() => setReload(x => x + 1)} openId={refillOpen} setOpenId={setRefillOpen} onEdit={parentDevice ? med => setEditing({ med }) : undefined} />
+        </>}
+        {view === 'history' && shown.medications.length > 0 && <>
+          <details className="board-card meds-week-details">
+            <summary>{t('Seven-day overview')}</summary>
+            <section aria-labelledby="meds-week">
+              <h3 id="meds-week" className="snap-heading">{t('Last 7 days')}</h3>
+              <div className="meds-grid-wrap">
+                <table className="meds-grid">
+                  <thead>
+                    <tr><th scope="col"><span className="sr-only">{t('Medicine')}</span></th>{shown.days.map(d => <th key={d.date} scope="col" className={d.date === shown.today ? 'meds-grid-today' : undefined}>{dayName(d.date, { weekday: 'short' })}{d.date === shown.today && <span className="sr-only"> {t('(today)')}</span>}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {shown.medications.map(m => (
+                      <tr key={m.id}>
+                        <th scope="row"><span className="meds-grid-name">{m.name}</span><span className="meds-grid-sub">{scheduleLabel(m)}</span></th>
+                        {weekCells(shown.days, m.id).map(c => (
+                          <td key={c.date} className={c.status ? `meds-${c.status}` : ''}>
+                            {c.status ? <><span aria-hidden="true">{STATUS[c.status].emoji}</span><span className="sr-only">{tm(STATUS[c.status].label)}</span></> : <span className="snap-dim" aria-label={t('No dose')}>·</span>}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="meds-legend">{(['taken', 'skipped', 'missed'] as const).map(k => <span key={k}><span aria-hidden="true">{STATUS[k].emoji}</span> {tm(STATUS[k].label)}</span>)}</p>
-        </section>
-      </>}
+                  </tbody>
+                </table>
+              </div>
+              <p className="meds-legend">{(['taken', 'skipped', 'missed'] as const).map(k => <span key={k}><span aria-hidden="true">{STATUS[k].emoji}</span> {tm(STATUS[k].label)}</span>)}</p>
+            </section>
+          </details>
+          {[...shown.days].reverse().map(day => <section key={day.date} className="board-card" aria-label={formatDate(new Date(`${day.date}T12:00:00`), DAY)}>
+            <h3 className="snap-heading">{day.date === today?.date ? t('Today') : day.date === yesterday?.date ? t('Yesterday') : formatDate(new Date(`${day.date}T12:00:00`), DAY)}</h3>
+            {day.date === yesterday?.date && behind.length > 0 && <p className="snap-dim">{t("Some weren't marked. If they were taken or skipped, you can still say so.")}</p>}
+            {day.doses.length ? rows(day, day.doses) : <p className="snap-dim">{t('No doses scheduled.')}</p>}
+          </section>)}
+        </>}
+      </div>}
+      {editing && parentDevice && shown && <MedicationSheet med={editing.med} member={member} siblings={shown.medications.filter(m => m.id !== editing.med?.id)} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(x => x + 1); setView('medicines') }} />}
       {asking && shown && <WhenTakenSheet dose={{ date: asking.date, dueAt: asking.d.dueAt }} today={shown.today} onClose={() => setAsking(null)}
         onPick={at => { setAsking(null); mark(asking.date, asking.d, 'taken', at) }} />}
       {changing && shown && <ChangeDoseSheet dose={changing.d} date={changing.date} today={shown.today} name={medName(byId.get(changing.d.medicationId))} onClose={() => setChanging(null)}

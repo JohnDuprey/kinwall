@@ -877,3 +877,24 @@ test("a grown-up's own phone: Snooze on a kid's dose hides it there only; Taken 
   assert.equal((await s.mark(mayaMed.id, 'snooze', ADMIN)).status, 200);
   assert.deepEqual(await due(wall), [], 'a snooze from a device that is nobody\'s is for everyone, as before');
 });
+
+test('history exposes the effective snooze for this viewer without sharing a parent-only snooze', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('08:10') });
+  const med = (await s.add(s.leo.id)).json;
+  const phone = await createApiKey(s.db as never, "Sam's phone", 'admin', { owner: s.sam.id });
+  const leos = await s.key(s.leo.id);
+  const historyDose = async (key: string) => (await s.req(`/api/members/${s.leo.id}/medications`, 'GET', undefined, key)).json.days.at(-1).doses[0];
+  assert.equal((await historyDose(phone.key)).snoozedUntil, null);
+  await s.mark(med.id, 'snooze', phone.key);
+  assert.equal((await historyDose(phone.key)).snoozedUntil, at('08:20').toISOString());
+  assert.equal((await historyDose(leos)).snoozedUntil, null, 'Leo does not inherit a parent’s personal snooze');
+  assert.equal((await historyDose(ADMIN)).snoozedUntil, null, 'another parent does not inherit it either');
+  mock.timers.setTime(at('08:12').getTime());
+  await s.mark(med.id, 'snooze', leos);
+  assert.equal((await historyDose(leos)).snoozedUntil, at('08:22').toISOString());
+  assert.equal((await historyDose(phone.key)).snoozedUntil, at('08:22').toISOString(), 'the later shared snooze wins');
+  assert.equal((await historyDose(ADMIN)).snoozedUntil, at('08:22').toISOString());
+  await s.mark(med.id, 'taken', leos);
+  assert.equal((await historyDose(phone.key)).snoozedUntil, null, 'a recorded dose no longer has a reminder paused');
+});

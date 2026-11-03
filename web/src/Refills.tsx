@@ -1,6 +1,5 @@
 // Medicine refills (routes/medication-refills.ts on the server):
-// - RefillsCard: the medicines page's "Refills" card: Request refill per medicine, and the open
-//   "Request refill" to-dos with How to ask and Done, requested;
+// - MedicineCards: stable cards combining each medicine’s schedule, editing and refill actions;
 // - RefillSheet: the refill card: where to ask (the contact's phones, each with its phone menu and a Call
 //   link that dials it, and its websites and apps), and what to say on the message, read-aloud size, with Copy;
 // - RefillFields: the medicine sheet's Refills part (parent devices): which contact to ask (the contact
@@ -15,8 +14,8 @@ import { ContactForm } from './Contacts.tsx'
 import { contactLabel, labelText, type Contact, type ContactCategory } from './contact-types.ts'
 import type { Medication, MedicationRefill, Member, RefillCard } from './types.ts'
 import { askChoices, pharmacyChoices } from './refillChoices.ts'
+import { scheduleLabel } from './medications.ts'
 
-const medLabel = (m: Medication) => (m.dose ? `${m.name} · ${m.dose}` : m.name)
 const since = (at: string) => formatDate(new Date(at), DAY)
 
 /** Ask for a refill: opens the to-do (one per medicine). The refill card that opens next says so in its
@@ -29,9 +28,8 @@ async function startRefill(m: Medication, memberName: string, toast: (s: string,
   } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true); return false }
 }
 
-/** `openId`/`setOpenId`: the medicine whose refill card is open, kept by the page (this card moves to
- *  the top once a to-do opens, which mounts it anew). */
-export function RefillsCard({ meds, member, onChanged, openId, setOpenId }: { meds: Medication[]; member: Member; onChanged: () => void; openId: string | null; setOpenId: (id: string | null) => void }) {
+/** Each medicine keeps its position when a refill to-do opens or closes. */
+export function MedicineCards({ meds, member, onChanged, openId, setOpenId, onEdit }: { meds: Medication[]; member: Member; onChanged: () => void; openId: string | null; setOpenId: (id: string | null) => void; onEdit?: (m: Medication) => void }) {
   const { toast } = useApp()
   const open = meds.find(m => m.id === openId) ?? null
   const setOpen = (m: Medication | null) => setOpenId(m?.id ?? null)
@@ -46,30 +44,27 @@ export function RefillsCard({ meds, member, onChanged, openId, setOpenId }: { me
     try { await api.refillRequest(m.id, 'done'); toast(t('Marked requested ✓')); announce(t('Marked requested')); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't save that"), true) }
     setBusy(null)
   }
-  const sorted = [...meds].sort((a, b) => Number(!!b.refillRequest) - Number(!!a.refillRequest))
-  return (
-    <section className="board-card" aria-labelledby="meds-refills">
-      <h3 id="meds-refills" className="snap-heading">{t('Refills')}</h3>
-      <ul className="meds-today">
-        {sorted.map(m => (
-          <li key={m.id} className="meds-today-row refill-row">
-            <span className="meds-today-what">
-              {m.refillRequest ? <>📝 {t('Request refill: {medicine} for {name}', { medicine: m.name, name: member.name })}<span className="refill-since">{t('To do since {day}', { day: since(m.refillRequest.at) })}</span></> : medLabel(m)}
-            </span>
-            <div className="meds-now-actions meds-catch-up" role="group" aria-label={m.name}>
-              {m.refillRequest
-                ? <>
-                    <button className="btn btn-secondary" disabled={busy === m.id} onClick={() => setOpen(m)}>{t('How to ask')}</button>
-                    <button className="btn btn-primary" disabled={busy === m.id} onClick={() => done(m)}>{t('Done, requested')}</button>
-                  </>
-                : <button className="btn btn-secondary" disabled={busy === m.id} onClick={() => request(m)}>{t('Request refill')}</button>}
-            </div>
-          </li>
-        ))}
-      </ul>
-      {open && <RefillSheet med={open} member={member} onClose={() => setOpen(null)} onDone={() => { setOpen(null); onChanged() }} />}
-    </section>
-  )
+  return <>
+    {meds.map(m => (
+      <section key={m.id} className="board-card meds-medicine-card" aria-label={m.name}>
+        <div className="meds-card-head">
+          <div><h3 className="meds-medicine-name">{m.name}</h3>{m.dose && <p className="snap-dim">{m.dose}</p>}</div>
+          {onEdit && <button className="btn btn-secondary" onClick={() => onEdit(m)} aria-label={t('Edit {medicine} for {name}', { medicine: m.name, name: member.name })}>{t('Edit schedule')}</button>}
+        </div>
+        <p className="meds-schedule">{scheduleLabel(m)}</p>
+        <div className="meds-refill-actions">
+          {m.refillRequest && <p className="snap-dim">📝 {t('Refill to request')}<span className="refill-since">{t('To do since {day}', { day: since(m.refillRequest.at) })}</span></p>}
+          <div className="meds-now-actions" role="group" aria-label={t('Refill: {name}', { name: m.name })}>
+            {m.refillRequest ? <>
+              <button className="btn btn-secondary" disabled={busy === m.id} onClick={() => setOpen(m)}>{t('How to request')}</button>
+              <button className="btn btn-primary" disabled={busy === m.id} onClick={() => done(m)}>{t('Mark as requested')}</button>
+            </> : <button className="btn btn-secondary" disabled={busy === m.id} onClick={() => request(m)}>{t('Prepare refill request')}</button>}
+          </div>
+        </div>
+      </section>
+    ))}
+    {open && <RefillSheet med={open} member={member} onClose={() => setOpen(null)} onDone={() => { setOpen(null); onChanged() }} />}
+  </>
 }
 
 export function RefillSheet({ med, member, onClose, onDone }: { med: Medication; member: Member; onClose: () => void; onDone: () => void }) {
@@ -88,12 +83,12 @@ export function RefillSheet({ med, member, onClose, onDone }: { med: Medication;
   const c = card?.contact
   return (
     <Sheet title={t('Refill: {name}', { name: med.name })} onClose={onClose}
-      actions={card?.request ? <button className="btn btn-primary" onClick={done}>{t('Done, requested')}</button> : undefined}>
+      actions={card?.request ? <button className="btn btn-primary" onClick={done}>{t('Mark as requested')}</button> : undefined}>
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!card && !error && <p className="snap-empty">{t('Loading…')}</p>}
       {card && <>
-        {card.request && <p className="refill-todo">📝 {t("To do: Request refill: {medicine} for {name}. Tap “Done, requested” once you've asked.", { medicine: med.name, name: member.name })}</p>}
-        {!c && <p className="snap-dim">{parentDevice ? t('No contact to ask for refills yet. Pick one under Refills when you edit this medicine (Trackers → Health).') : t('No contact to ask for refills yet. A grown-up can add one.')}</p>}
+        {card.request && <p className="refill-todo">📝 {t("To do: Request refill: {medicine} for {name}. Tap “Mark as requested” once you've asked.", { medicine: med.name, name: member.name })}</p>}
+        {!c && <p className="snap-dim">{parentDevice ? t('No contact to ask for refills yet. Pick one under Refill details when you edit this medicine.') : t('No contact to ask for refills yet. A grown-up can add one.')}</p>}
         {c && <>
           <h4 className="refill-place">{c.name}</h4>
           {c.websites.map((w, i) => <div className="refill-way" key={`w${i}`}>

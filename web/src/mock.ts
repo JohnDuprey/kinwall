@@ -1225,7 +1225,7 @@ export const mock = {
         const e = medLog.get(`${m.id}:${date}`)?.[time]
         const dueAt = e?.startedAt ?? new Date(`${date}T${typeof t === 'string' ? t : t.latest}:00`).toISOString()
         const late = e?.status === 'taken' && !!e.at && Date.parse(e.at) > Date.parse(dueAt) + 3 * 3_600_000 // ponytail: the demo's late window is always 3 hours
-        return { medicationId: m.id, time, dueAt, status: doseStatus(date, e), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late, by: e?.by ?? null, edited: !!e?.edited }
+        return { snoozedUntil: e?.snoozedUntil ?? null, medicationId: m.id, time, dueAt, status: doseStatus(date, e), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late, by: e?.by ?? null, edited: !!e?.edited }
       }) : []).sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
     }))
     return { memberId, today: dateKey(new Date()), medications: mine.map(m => ({ ...m })), days }

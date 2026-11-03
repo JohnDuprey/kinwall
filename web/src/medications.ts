@@ -69,6 +69,23 @@ export const STATUS: Record<DoseStatus, { emoji: string; label: string }> = {
   missed: { emoji: '⭕', label: msg('Not marked') },
   upcoming: { emoji: '🕒', label: msg('Later') },
 }
+/** Keep the active Due now card separate from the rest of today's history, by dose rather than
+ * medicine (one medicine can have several times). Preserve the server's order and status. */
+export function groupTodayDoses<T extends { medicationId: string; time: string; status: DoseStatus; snoozedUntil?: string | null }>(date: string, doses: T[], active: { medicationId: string; time: string; date: string }[], now = Date.now()): { later: T[]; recorded: T[]; unmarked: T[]; snoozed: T[]; due: T[] } {
+  const keys = new Set(active.filter(d => d.date === date).map(d => `${d.medicationId}:${d.time}`))
+  const groups: { later: T[]; recorded: T[]; unmarked: T[]; snoozed: T[]; due: T[] } = { later: [], recorded: [], unmarked: [], snoozed: [], due: [] }
+  for (const d of doses) {
+    if (d.status === 'taken' || d.status === 'skipped') groups.recorded.push(d)
+    else if (d.status === 'upcoming') groups.later.push(d)
+    else if (!keys.has(`${d.medicationId}:${d.time}`)) {
+      if (d.status === 'due' && d.snoozedUntil && Date.parse(d.snoozedUntil) > now) groups.snoozed.push(d)
+      else if (d.status === 'due') groups.due.push(d)
+      else groups.unmarked.push(d)
+    }
+  }
+  return groups
+}
+
 /** The person page's catch-up button for a dose: "Taken" while it's due or not marked (catching up
  *  asks when, and the log then says "Taken late" if it was), null when it's marked, still to come, or
  *  already on the Take now card above (one set of buttons per dose). */

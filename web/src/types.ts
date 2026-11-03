@@ -316,7 +316,7 @@ export interface MedicationHistory {
   memberId: string
   today: string
   medications: Medication[]
-  days: { date: string; doses: { medicationId: string; time: string; dueAt: string; status: DoseStatus; startedAt: string | null; at: string | null; late: boolean; by: string | null; edited: boolean }[] }[]
+  days: { date: string; doses: { medicationId: string; time: string; dueAt: string; status: DoseStatus; startedAt: string | null; at: string | null; late: boolean; by: string | null; edited: boolean; snoozedUntil?: string | null }[] }[]
 }
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'

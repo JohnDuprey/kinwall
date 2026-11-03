@@ -123,7 +123,7 @@ const DueSchema = z
 const HistorySchema = z
   .object({
     memberId: z.string(), today: z.string(), medications: z.array(MedicationSchema),
-    days: z.array(z.object({ date: z.string(), doses: z.array(DoseSchema.omit({ date: true, snoozedUntil: true }).extend({ dueAt: z.string() })) })).openapi({ description: 'Oldest first, today last.' }),
+    days: z.array(z.object({ date: z.string(), doses: z.array(DoseSchema.omit({ date: true }).extend({ dueAt: z.string() })) })).openapi({ description: 'Oldest first, today last.' }),
   })
   .openapi('MedicationHistory');
 
@@ -584,6 +584,7 @@ medicationsRoutes.openapi(
     const from = addDays(g.today, 1 - c.req.valid('query').days);
     const logs = await loadLogs(c.env, meds.map((m) => m.id), from, g.today);
     const now = Date.now();
+    const viewer = (await actorOf(c)).memberId;
     const days = [];
     for (let date = from; date <= g.today; date = addDays(date, 1)) {
       const doses = meds.flatMap((m) => {
@@ -595,7 +596,10 @@ medicationsRoutes.openapi(
           const e = log[time];
           const due = dueAt(timeFor(m, time), date, g.tz, e);
           const end = windowEnd(m.lateWindow, date, due, g.tz);
-          return { medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, end, e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late: takenLate(e, end), by: e?.by ?? null, edited: !!e?.editedAt };
+          // A personal snooze applies only on that viewer’s devices. A shared snooze can last longer.
+          const snoozedUntil = !e?.status ? [e?.snoozedUntil, viewer ? e?.snoozedFor?.[viewer] : undefined]
+            .filter((at): at is string => !!at && Date.parse(at) > now).sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1) ?? null : null;
+          return { snoozedUntil, medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, end, e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late: takenLate(e, end), by: e?.by ?? null, edited: !!e?.editedAt };
         });
       }).sort((a, b) => a.dueAt.localeCompare(b.dueAt) || a.time.localeCompare(b.time));
       days.push({ date, doses });

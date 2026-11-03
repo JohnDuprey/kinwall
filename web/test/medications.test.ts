@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Medication reminders: schedule labels, card labels, the week grid.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ASK_AFTER_MS, askWhenTaken, cardLabel, catchUpLabel, earlierInput, pickedTime, statusLabel, cheerLine, dayStartDue, doseTimeLabel, timeLabel, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
+import { groupTodayDoses, ASK_AFTER_MS, askWhenTaken, cardLabel, catchUpLabel, earlierInput, pickedTime, statusLabel, cheerLine, dayStartDue, doseTimeLabel, timeLabel, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
 import { setHour12 } from '../src/timeFormat.ts'
 
 test('daysLabel: every day, weekdays, weekends, or the days in order', () => {
@@ -113,4 +113,35 @@ test('statusLabel: a dose taken after its window says "Taken late"; a backdated 
   assert.equal(statusLabel({ status: 'taken', late: true }), 'Taken late')
   assert.equal(statusLabel({ status: 'taken', late: false }), 'Taken')
   assert.equal(statusLabel({ status: 'missed', late: false }), 'Not marked')
+})
+
+
+test('Today groups each dose once and leaves active doses to the Due now card', () => {
+  const dose = (time: string, status: 'due' | 'missed' | 'upcoming' | 'taken' | 'skipped') => ({ medicationId: 'a', time, status })
+  const doses = [dose('08:00', 'due'), dose('12:00', 'due'), dose('20:00', 'upcoming'), dose('07:00', 'missed'), dose('06:00', 'taken'), dose('05:00', 'skipped')]
+  const due = [{ medicationId: 'a', date: '2026-11-03', time: '08:00' }, { medicationId: 'a', date: '2026-11-02', time: '12:00' }]
+  const grouped = groupTodayDoses('2026-11-03', doses, due)
+  assert.deepEqual(grouped.later.map(d => d.time), ['20:00'])
+  assert.deepEqual(grouped.due.map(d => d.time), ['12:00'])
+  assert.deepEqual(grouped.unmarked.map(d => d.time), ['07:00'])
+  assert.deepEqual(grouped.recorded.map(d => d.time), ['06:00', '05:00'])
+  assert.equal(Object.values(grouped).flat().length + 1, doses.length)
+  assert.equal(doses.length, 6, 'does not mutate the history')
+})
+
+test('Today keeps due doses visible if the Due now response is empty', () => {
+  const doses = [{ medicationId: 'a', time: 'wake', status: 'due' as const }]
+  assert.deepEqual(groupTodayDoses('2026-11-03', doses, []).due, doses)
+  assert.deepEqual(groupTodayDoses('2026-11-03', [], []), { later: [], recorded: [], unmarked: [], snoozed: [], due: [] })
+})
+
+
+test('Today distinguishes a snoozed reminder from an unmarked dose and lets an expired snooze return', () => {
+  const now = Date.parse('2026-11-03T13:00:00Z')
+  const dose = { medicationId: 'a', time: '08:00', status: 'due' as const, snoozedUntil: '2026-11-03T13:10:00Z' }
+  assert.deepEqual(groupTodayDoses('2026-11-03', [dose], [], now).snoozed, [dose])
+  assert.deepEqual(groupTodayDoses('2026-11-03', [dose], [], now).unmarked, [])
+  const expired = groupTodayDoses('2026-11-03', [dose], [], now + 10 * 60_000)
+  assert.deepEqual(expired.snoozed, [])
+  assert.deepEqual(expired.due, [dose])
 })

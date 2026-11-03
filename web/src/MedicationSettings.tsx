@@ -13,7 +13,6 @@ import { msg, t, tm, tn } from './i18n.ts'
 import type { LateWindow, Medication, MedicationRefill, Member, MedTime } from './types.ts'
 import { Face } from './Face'
 import { RefillFields } from './Refills.tsx'
-import { ChevronDown } from './icons.tsx'
 
 const NOTICE = msg('Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.')
 
@@ -44,13 +43,12 @@ export function MedicationsToggle() {
   )
 }
 
-/** Each person's medicines with Add, edit and History (Trackers → Health, parent devices). */
+/** Private entry points into each person’s medicines, plus shared-screen settings (parents only). */
 export function MedicineList({ memberId }: { memberId?: string | null }) {
   const { members, settings, toast } = useApp()
   const dialog = useDialog()
   const save = useSaveSettings()
   const [meds, setMeds] = useState<Medication[]>([])
-  const [editing, setEditing] = useState<{ med: Medication | null; member: Member } | null>(null)
   const load = () => { api.getMedications().then(setMeds).catch(() => setMeds([])) }
   useEffect(load, [])
   const more = async (action: string) => {
@@ -61,58 +59,34 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
   return (
     <section className="meds-list" aria-labelledby="meds-list-title">
       <h3 className="trk-heading" id="meds-list-title">💊 {t('Medicines')}</h3>
+      <p className="snap-dim">{t('Open a person’s medicines to see today’s doses, change a schedule or prepare a refill request.')}</p>
       {members.filter(m => !memberId || m.id === memberId).map(m => {
-          const mine = meds.filter(x => x.memberId === m.id)
-          // Nobody's medicines to hide: say so and offer Add right in the row.
-          if (mine.length === 0) return (
-            <div key={m.id} className="meds-person meds-person-head">
-              <Face m={m} className="board-avatar" aria-hidden="true" />
-              <span className="settings-row-label">{m.name}</span>
-              <span className="settings-row-sub">{t('No medicines')}</span>
-              <button className="btn btn-secondary meds-add-inline" onClick={() => setEditing({ med: null, member: m })} aria-label={t('Add a medicine for {name}', { name: m.name })}>{t('+ Add')}</button>
-            </div>
-          )
-          return (
-            // Collapsed by default so a glance at Health doesn't show anyone's medicines.
-            <details key={m.id} className="meds-person">
-              <summary className="meds-person-head">
-                <Face m={m} className="board-avatar" aria-hidden="true" />
-                <span className="settings-row-label">{m.name}</span>
-                <span className="settings-row-sub">{tn(mine.length, '{n} medicine', '{n} medicines')}</span>
-                <ChevronDown className="meds-chevron" aria-hidden="true" />
-              </summary>
-              <div className="meds-person-body">
-                {mine.map(x => (
-                  <button key={x.id} className="meds-set-row" onClick={() => setEditing({ med: x, member: m })} aria-label={t('Edit {medicine} for {name}', { medicine: x.name, name: m.name })}>
-                    <span className="settings-row-label">{x.dose ? `${x.name} · ${x.dose}` : x.name}</span>
-                    <span className="settings-row-sub">{scheduleLabel(x)}</span>
-                    {x.refillRequest && <span className="settings-row-sub">📝 {t('Refill to request')}</span>}
-                  </button>
-                ))}
-                <div className="settings-inline-btns">
-                  <button className="btn btn-secondary" onClick={() => setEditing({ med: null, member: m })}>{t('+ Add medicine')}</button>
-                  <a className="btn btn-secondary meds-link" href={`#/medications/${m.id}`}>{t('History')}</a>
-                </div>
-              </div>
-            </details>
-          )
-        })}
-      <div className="toggle-row">
-        <div>
-          <label id="meds-names-label">{t('Show medicine names on shared screens')}</label>
-          <div className="settings-row-sub" id="meds-names-sub">{t('Off: wall screens say “Meds”. Parent devices and each person’s own device always show names.')}</div>
+        const mine = meds.filter(x => x.memberId === m.id)
+        return <a key={m.id} className="meds-set-row meds-pick" href={`#/medications/${m.id}`}>
+          <Face m={m} className="board-avatar" aria-hidden="true" />
+          <span className="settings-row-label">{m.name}</span>
+          <span className="settings-row-sub">{mine.length ? tn(mine.length, '{n} medicine', '{n} medicines') : t('No medicines')}</span>
+          <span className="meds-open-label">{t('Open medicines')} →</span>
+        </a>
+      })}
+      <details className="meds-options">
+        <summary>{t('Medicine privacy and settings')}</summary>
+        <div className="toggle-row">
+          <div>
+            <label id="meds-names-label">{t('Show medicine names on shared screens')}</label>
+            <div className="settings-row-sub" id="meds-names-sub">{t('Off: wall screens say “Meds”. Parent devices and each person’s own device always show names.')}</div>
+          </div>
+          <button className={`switch ${settings.medicationNamesOnWalls ? 'on' : ''}`} role="switch" aria-checked={settings.medicationNamesOnWalls} aria-labelledby="meds-names-label" aria-describedby="meds-names-sub"
+            onClick={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })}><span className="knob" /></button>
         </div>
-        <button className={`switch ${settings.medicationNamesOnWalls ? 'on' : ''}`} role="switch" aria-checked={settings.medicationNamesOnWalls} aria-labelledby="meds-names-label" aria-describedby="meds-names-sub"
-          onClick={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })}><span className="knob" /></button>
-      </div>
-      <div className="settings-row">
-        <div className="settings-row-sub">{t('Reminders come through at night too.')}</div>
-        <select className="settings-select" aria-label={t('More medication actions')} value="" onChange={e => more(e.target.value)}>
-          <option value="">{t('More…')}</option>
-          <option value="delete-all">{t('Delete all medication data')}</option>
-        </select>
-      </div>
-      {editing && <MedicationSheet med={editing.med} member={editing.member} siblings={meds.filter(x => x.memberId === editing.member.id && x.id !== editing.med?.id)} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+        <div className="settings-row">
+          <div className="settings-row-sub">{t('Reminders come through at night too.')}</div>
+          <select className="settings-select" aria-label={t('More medication actions')} value="" onChange={e => more(e.target.value)}>
+            <option value="">{t('More…')}</option>
+            <option value="delete-all">{t('Delete all medication data')}</option>
+          </select>
+        </div>
+      </details>
     </section>
   )
 }
@@ -121,7 +95,7 @@ type DaysMode = 'every' | 'weekdays' | 'weekends' | 'some'
 const modeOf = (days: number[]): DaysMode => daysMode(days)
 const MODE_DAYS: Record<Exclude<DaysMode, 'some'>, number[]> = { every: EVERY_DAY, weekdays: [1, 2, 3, 4, 5], weekends: [0, 6] }
 
-function MedicationSheet({ med, member, siblings, onClose, onSaved }: { med: Medication | null; member: Member; siblings: Medication[]; onClose: () => void; onSaved: () => void }) {
+export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { med: Medication | null; member: Member; siblings: Medication[]; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
   const dialog = useDialog()
   const [name, setName] = useState(med?.name ?? '')
@@ -160,7 +134,6 @@ function MedicationSheet({ med, member, siblings, onClose, onSaved }: { med: Med
   return (
     <Sheet title={med ? t('Edit {name}', { name: med.name }) : t('New medicine for {name}', { name: member.name })} onClose={onClose}
       actions={<>
-        {med && <select className="settings-select" aria-label={t('More')} value="" onChange={e => more(e.target.value)}><option value="">{t('More…')}</option><option value="delete">{t('Delete medicine')}</option></select>}
         <button className="btn btn-primary" onClick={save} disabled={!valid}>{t('Save')}</button>
       </>}>
       <div className="field">
@@ -217,23 +190,36 @@ function MedicationSheet({ med, member, siblings, onClose, onSaved }: { med: Med
         </select>
         <p className="field-hint" id="med-late-hint">{t("Some medicines shouldn't be taken late. Check with your doctor or pharmacist.")}</p>
       </div>
-      <div className="field">
-        <label htmlFor="med-ends">{t('Ends')}</label>
-        <select id="med-ends" className="settings-select" value={ends} onChange={e => setEnds(e.target.value as typeof ends)}>
-          <option value="never">{t('No end')}</option>
-          <option value="date">{t('On a date')}</option>
-          <option value="doses">{t('After a number of doses')}</option>
-        </select>
-        {ends === 'date' && <div className="meds-ends-detail"><input type="date" aria-label={t('Last day')} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>}
-        {ends === 'doses' && (
-          <div className="meds-ends-detail">
-            <input type="number" inputMode="numeric" min={1} max={1000} aria-label={t('Total doses')} placeholder="20" value={totalDoses} onChange={e => setTotalDoses(e.target.value)} />
-            <span aria-hidden="true">{t('doses in all')}</span>
-          </div>
-        )}
-        {ends !== 'never' && <p className="field-hint">{ends === 'date' ? t('Reminders stop after this day.') : med?.dosesLeft != null ? t("Reminders stop once they're all taken. {n} left now.", { n: med.dosesLeft }) : t("For a course like an antibiotic: reminders stop once they're all taken. Skipped doses don't count.")}</p>}
+      <details className="meds-options" open={ends !== 'never' || undefined}>
+        <summary>{t('Course length (optional)')}</summary>
+        <div className="field">
+          <label htmlFor="med-ends">{t('Ends')}</label>
+          <select id="med-ends" className="settings-select" value={ends} onChange={e => setEnds(e.target.value as typeof ends)}>
+            <option value="never">{t('No end')}</option>
+            <option value="date">{t('On a date')}</option>
+            <option value="doses">{t('After a number of doses')}</option>
+          </select>
+          {ends === 'date' && <div className="meds-ends-detail"><input type="date" aria-label={t('Last day')} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>}
+          {ends === 'doses' && (
+            <div className="meds-ends-detail">
+              <input type="number" inputMode="numeric" min={1} max={1000} aria-label={t('Total doses')} placeholder="20" value={totalDoses} onChange={e => setTotalDoses(e.target.value)} />
+              <span aria-hidden="true">{t('doses in all')}</span>
+            </div>
+          )}
+          {ends !== 'never' && <p className="field-hint">{ends === 'date' ? t('Reminders stop after this day.') : med?.dosesLeft != null ? t("Reminders stop once they're all taken. {n} left now.", { n: med.dosesLeft }) : t("For a course like an antibiotic: reminders stop once they're all taken. Skipped doses don't count.")}</p>}
+        </div>
+      </details>
+      <details className="meds-options">
+        <summary>{t('Refill details (optional)')}</summary>
+        <RefillFields refill={refill} onChange={setRefill} siblings={siblings} />
+      </details>
+      <div className="meds-summary">
+        <h3 className="snap-heading">{t('Schedule summary')}</h3>
+        <p>{dose.trim() || t('Dose not set')}</p>
+        <p>{scheduleLabel({ times, days, endDate: ends === 'date' ? endDate || null : null })}</p>
+        {ends === 'doses' && endsValid && <p>{tn(total, 'Ends after {n} dose is recorded as taken.', 'Ends after {n} doses are recorded as taken.')}</p>}
       </div>
-      <RefillFields refill={refill} onChange={setRefill} siblings={siblings} />
+      {med && <div className="sheet-danger-zone"><button type="button" className="link-btn link-danger" onClick={() => more('delete')}>{t('Delete medicine')}</button></div>}
     </Sheet>
   )
 }
