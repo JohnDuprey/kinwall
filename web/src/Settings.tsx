@@ -3375,6 +3375,8 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
   const [newKey, setNewKey] = useState<{ name: string; key: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
+  const [renamingKey, setRenamingKey] = useState<ApiKey | null>(null)
+  const [renameKeyValue, setRenameKeyValue] = useState('')
   const load = () => { api.getKeys().then(setAll).catch(() => {}) }
   useEffect(load, [])
 
@@ -3386,6 +3388,18 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
       setCreating(false); setName('')
       load()
     } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not create key'), true) }
+  }
+  const renameKey = async () => {
+    if (!renamingKey || !renameKeyValue.trim()) return
+    try {
+      await api.renameKey(renamingKey.id, renameKeyValue.trim())
+      setRenamingKey(null)
+      load()
+      reloadCore()
+      toast(t('Key renamed'))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('Could not rename key'), true)
+    }
   }
   const del = async (id: string) => { if (!await dialog.confirm({ title: t('Delete this API key?'), body: widgetsUnder(all, { keyId: id }).length ? t('Anything using it stops working immediately. So do the widgets and Watch it made.') : t('Anything using it stops working immediately.'), confirmLabel: t('Delete'), danger: true })) return; try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete key'), true) } }
   const copy = async (key: string) => { try { await navigator.clipboard.writeText(key); toast(t('Key copied')) } catch { toast(t('Could not copy — select and copy manually'), true) } }
@@ -3402,15 +3416,25 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
       )}
       {keys.map(k => (
         <Fragment key={k.id}>
-          <div className="key-item key-item-owned">
-            <div className="key-item-info">
-              <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
-              <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) }) : t('never used')].filter(Boolean).join(' · ')}</div>
+          {renamingKey?.id === k.id ? (
+            <div className="key-item">
+              <div className="inline-form" style={{ flex: 1 }}>
+                <input type="text" value={renameKeyValue} onChange={e => setRenameKeyValue(e.target.value)} autoFocus aria-label={t('Key name')} onKeyDown={e => { if (e.key === 'Enter') renameKey(); else if (e.key === 'Escape') setRenamingKey(null) }} />
+                <button className="btn btn-primary" onClick={renameKey} disabled={!renameKeyValue.trim()}>{t('Save')}</button>
+                <button className="link-btn" onClick={() => setRenamingKey(null)}>{t('Cancel')}</button>
+              </div>
             </div>
-            {/* A full-access key can belong to a grown-up: then it reads their private journal. */}
-            <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : t('Could not change who it belongs to'), true))} label={t('Who {name} belongs to', { name: k.name })} />
-            <button className="icon-btn" onClick={() => del(k.id)} aria-label={t('Delete {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
-          </div>
+          ) : (
+            <div className="key-item key-item-owned">
+              <button type="button" className="plain-btn key-item-info" onClick={() => { setRenamingKey(k); setRenameKeyValue(k.name) }} aria-label={t('Rename key {name}', { name: k.name })}>
+                <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
+                <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) }) : t('never used')].filter(Boolean).join(' · ')}</div>
+              </button>
+              {/* A full-access key can belong to a grown-up: then it reads their private journal. */}
+              <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : t('Could not change who it belongs to'), true))} label={t('Who {name} belongs to', { name: k.name })} />
+              <button className="icon-btn" onClick={() => del(k.id)} aria-label={t('Delete {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
+            </div>
+          )}
           <WidgetKeys keys={widgetsUnder(all, { keyId: k.id })} onChanged={load} toast={toast} />
         </Fragment>
       ))}
@@ -3478,6 +3502,8 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   const [code, setCode] = useState('')
   const [name, setName] = useState(() => t('Wall screen'))
   const [busy, setBusy] = useState(false)
+  const [renaming, setRenaming] = useState<ApiKey | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   // The Board's "Put Kinwall on the wall" links to section=paired-devices, which opens the sheet.
   const [adding, setAdding] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('section') === 'paired-devices')
   const load = () => { api.getKeys().then(setAll).catch(() => {}) }
@@ -3499,6 +3525,18 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
       setBusy(false)
     }
   }
+  const rename = async () => {
+    if (!renaming || !renameValue.trim()) return
+    try {
+      await api.renameKey(renaming.id, renameValue.trim())
+      setRenaming(null)
+      load()
+      reloadCore()
+      toast(t('Device renamed'))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('Could not rename device'), true)
+    }
+  }
   const changeKind = async (k: ApiKey, next: string) => {
     try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore(); toast(deviceKindSaid(k.name, next, members)) } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not change what it is'), true) }
   }
@@ -3517,17 +3555,27 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
           {g.sub && <p className="settings-row-sub">{tm(g.sub)}</p>}
           {g.keys.map(k => (
             <Fragment key={k.id}>
-              <div className="key-item key-item-owned">
-                <div className="key-item-info">
-                  <div className="settings-row-label">{k.name}</div>
-                  <div className="settings-row-sub">
-                    {t('created {date}', { date: new Date(k.createdAt).toLocaleDateString(intlLocale()) })}
-                    {k.lastUsedAt ? ` · ${t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) })}` : ` · ${t('never used')}`}
+              {renaming?.id === k.id ? (
+                <div className="key-item">
+                  <div className="inline-form" style={{ flex: 1 }}>
+                    <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus aria-label={t('Device name')} onKeyDown={e => { if (e.key === 'Enter') rename(); else if (e.key === 'Escape') setRenaming(null) }} />
+                    <button className="btn btn-primary" onClick={rename} disabled={!renameValue.trim()}>{t('Save')}</button>
+                    <button className="link-btn" onClick={() => setRenaming(null)}>{t('Cancel')}</button>
                   </div>
                 </div>
-                <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={t('What {name} is', { name: k.name })} legacy={!deviceKindValue(k, members)} />
-                <button className="icon-btn" onClick={() => revoke(k)} aria-label={t('Remove {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
-              </div>
+              ) : (
+                <div className="key-item key-item-owned">
+                  <button type="button" className="plain-btn key-item-info" onClick={() => { setRenaming(k); setRenameValue(k.name) }} aria-label={t('Rename device {name}', { name: k.name })}>
+                    <div className="settings-row-label">{k.name}</div>
+                    <div className="settings-row-sub">
+                      {t('created {date}', { date: new Date(k.createdAt).toLocaleDateString(intlLocale()) })}
+                      {k.lastUsedAt ? ` · ${t('used {date}', { date: new Date(k.lastUsedAt).toLocaleDateString(intlLocale()) })}` : ` · ${t('never used')}`}
+                    </div>
+                  </button>
+                  <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={t('What {name} is', { name: k.name })} legacy={!deviceKindValue(k, members)} />
+                  <button className="icon-btn" onClick={() => revoke(k)} aria-label={t('Remove {name}', { name: k.name })}><TrashIcon width={16} height={16} /></button>
+                </div>
+              )}
               <WidgetKeys keys={widgetsUnder(all, { keyId: k.id })} onChanged={load} toast={toast} />
             </Fragment>
           ))}

@@ -60,26 +60,26 @@ keysRoutes.openapi(
   },
 );
 
-// What a device is and who it belongs to. Admin only (not in auth.ts DISPLAY_ALLOWED), so a device
-// can never re-assign itself; the device reads both from GET /api/me. The kind and owner must fit
-// (auth.ts deviceKindOwner); older clients send only an owner and the kind follows it. A
-// full-access key (a parent's phone or browser) belongs only to a grown-up: it then reads their
-// private journal. A device that now belongs to someone leaves a line in Security activity and a
-// privacy note for them, which that device can't remove (owner_since, routes/push.ts).
+// What a device is, who it belongs to, or its name. Admin only (not in auth.ts DISPLAY_ALLOWED),
+// so a device can never re-assign or rename itself; the device reads both from GET /api/me. The
+// kind and owner must fit (auth.ts deviceKindOwner); older clients send only an owner and the kind
+// follows it. A full-access key (a parent's phone or browser) belongs only to a grown-up: it then
+// reads their private journal. A device that now belongs to someone leaves a line in Security activity
+// and a privacy note for them, which that device can't remove (owner_since, routes/push.ts).
 keysRoutes.openapi(
   createRoute({
     method: 'patch',
     path: '/api/keys/{id}',
     tags: ['API Keys'],
-    summary: "Set what a device is (kind: 'wall', 'kid', 'grownup') and who it belongs to (owner: 'shared' or a member id). They must fit; a full-access key only belongs to a grown-up (it opens their private journal).",
+    summary: "Set what a device is (kind: 'wall', 'kid', 'grownup'), who it belongs to (owner: 'shared' or a member id), or rename it. They must fit; a full-access key only belongs to a grown-up (it opens their private journal).",
     security: [{ Bearer: [] }],
     request: {
       params: z.object({ id: z.string() }),
-      body: { content: { 'application/json': { schema: z.object({ kind: z.enum(DEVICE_KINDS).optional(), owner: z.string().min(1).optional() }) } } },
+      body: { content: { 'application/json': { schema: z.object({ name: z.string().trim().min(1).max(60).optional(), kind: z.enum(DEVICE_KINDS).optional(), owner: z.string().min(1).optional() }) } } },
     },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ApiKeySchema } } },
-      400: { description: "unknown owner, or an owner that doesn't fit the kind", content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: "unknown owner, an owner that doesn't fit the kind, or invalid name", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -88,19 +88,30 @@ keysRoutes.openapi(
     const before = await c.env.DB.prepare(`SELECT ${KEY_COLUMNS} FROM api_keys WHERE id = ? AND kind = 'api'`).bind(id).first<KeyRow>();
     if (!before) return c.json({ error: 'not found' }, 404);
     const body = c.req.valid('json');
-    if (!body.kind && !body.owner) return c.json({ error: 'Say what the device is or who it belongs to' }, 400);
+    if (!body.kind && !body.owner && body.name === undefined) return c.json({ error: 'Say what the device is or who it belongs to' }, 400);
     if (before.device_kind === 'widgets') return c.json({ error: 'Widgets and a Watch follow the phone that made them. Remove them here, or change the phone.' }, 400);
-    const checked = await deviceKindOwner(c.env.DB, before.scope === 'display' ? 'display' : 'admin', body.kind, body.owner);
-    if ('error' in checked) return c.json({ error: checked.error }, 400);
-    const { owner, kind } = checked;
+    const nextName = body.name !== undefined ? body.name.trim() : before.name;
+    let owner = before.owner;
+    let kind = before.device_kind;
+    if (body.kind !== undefined || body.owner !== undefined) {
+      const checked = await deviceKindOwner(c.env.DB, before.scope === 'display' ? 'display' : 'admin', body.kind, body.owner);
+      if ('error' in checked) return c.json({ error: checked.error }, 400);
+      owner = checked.owner;
+      kind = checked.kind;
+    }
     const db = c.env.DB;
-    const changed = owner !== before.owner || kind !== before.device_kind;
+    const ownerChanged = owner !== before.owner || kind !== before.device_kind;
+    const nameChanged = nextName !== before.name;
+    const renameKind = before.scope === 'display' ? 'device.renamed' : 'key.renamed';
+    const renameSummary = stored('security', before.scope === 'display' ? 'Device "{old}" renamed to "{name}"' : 'API key "{old}" renamed to "{name}"', { old: before.name, name: nextName });
+
     await db.batch([
-      db.prepare('UPDATE api_keys SET owner = ?, device_kind = ?, owner_since = coalesce(?, owner_since) WHERE id = ?').bind(owner, kind, owner !== before.owner ? new Date().toISOString() : null, id),
-      ...(changed ? securityEventStmts(db, await deviceOwnerEvent(db, before.name, owner, kind, await actorOf(c))) : []),
+      db.prepare('UPDATE api_keys SET name = ?, owner = ?, device_kind = ?, owner_since = coalesce(?, owner_since) WHERE id = ?').bind(nextName, owner, kind, owner !== before.owner ? new Date().toISOString() : null, id),
+      ...(ownerChanged ? securityEventStmts(db, await deviceOwnerEvent(db, nextName, owner, kind, await actorOf(c))) : []),
+      ...(nameChanged ? securityEventStmts(db, { kind: renameKind, summary: renameSummary, by: await actorOf(c), device: nextName }) : []),
     ]);
-    const row = { ...before, owner, device_kind: kind };
-    if (owner !== before.owner) await recordDeviceOwner(db, before.name, owner, kind);
+    const row = { ...before, name: nextName, owner, device_kind: kind };
+    if (owner !== before.owner) await recordDeviceOwner(db, nextName, owner, kind);
     emit(c, 'settings.changed', { keyId: id });
     return c.json(toApi(row!), 200);
   },

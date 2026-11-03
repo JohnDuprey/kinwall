@@ -798,6 +798,8 @@
   "security|\"{device}\" now belongs to {name} (a grown-up's device)": "\"{device}\" now belongs to {name} (a grown-up's device)",
   "security|\"{device}\" now belongs to {name} (a kid's device)": "\"{device}\" now belongs to {name} (a kid's device)",
   "security|\"{device}\" now belongs to {name} (a wall screen)": "\"{device}\" now belongs to {name} (a wall screen)",
+  "security|API key \"{old}\" renamed to \"{name}\"": "API key \"{old}\" renamed to \"{name}\"",
+  "security|Device \"{old}\" renamed to \"{name}\"": "Device \"{old}\" renamed to \"{name}\"",
   "Service the AC": "Service the AC",
   "Service the furnace": "Service the furnace",
   "Shin guards?": "Shin guards?",

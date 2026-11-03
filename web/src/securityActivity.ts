@@ -31,8 +31,8 @@ export const SECURITY_FILTERS = [
   { key: 'all', label: msg('All'), kinds: [] },
   { key: 'signins', label: msg('Sign-ins'), kinds: ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'support.link_issued', 'support.link_revoked', 'support.signin'] },
   { key: 'passkeys', label: msg('Passkeys'), kinds: ['passkey.added', 'passkey.renamed', 'passkey.removed'] },
-  { key: 'devices', label: msg('Devices'), kinds: ['device.paired', 'device.owner', 'widgets.added', 'widgets.removed'] },
-  { key: 'keys', label: msg('Keys & apps'), kinds: ['key.created', 'key.removed', 'app.connected', 'app.disconnected'] },
+  { key: 'devices', label: msg('Devices'), kinds: ['device.paired', 'device.renamed', 'device.owner', 'widgets.added', 'widgets.removed'] },
+  { key: 'keys', label: msg('Keys & apps'), kinds: ['key.created', 'key.renamed', 'key.removed', 'app.connected', 'app.disconnected'] },
   { key: 'pin', label: msg('PIN'), kinds: ['pin.set', 'pin.removed'] },
   { key: 'journal', label: msg('Journal'), kinds: ['journal.privacy', 'member.grown_up'] },
 ] as const satisfies readonly { key: string; label: string; kinds: readonly string[] }[]

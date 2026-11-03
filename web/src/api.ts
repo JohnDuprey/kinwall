@@ -892,6 +892,7 @@ export const api = {
   pairPoll: (pairingId: string, pollToken: string) =>
     post<{ status: 'pending' | 'approved'; key?: string; kind?: DeviceKind | null }>('api/pair/poll', { pairingId, pollToken }),
   pairApprove: (code: string, name: string, device: { kind: DeviceKind; owner?: string }) => post<{ keyId: string; name: string; kind: DeviceKind }>('api/pair/approve', { code, name, ...device }, true),
+  renameKey: (id: string, name: string) => MOCK ? mock.renameKey(id, name) : patch<ApiKey>(`api/keys/${id}`, { name }, true),
   setKeyOwner: (id: string, owner: string) => patch<ApiKey>(`api/keys/${id}`, { owner }, true),
   setKeyKind: (id: string, device: { kind: DeviceKind; owner?: string }) => patch<ApiKey>(`api/keys/${id}`, device, true),
   // OAuth consent (#/authorize) and Settings → Access → Connected apps.

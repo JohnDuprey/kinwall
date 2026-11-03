@@ -982,6 +982,12 @@ function reconcileMockMilestones() {
   }
 }
 
+let mockKeys: ApiKey[] = [
+  { id: 'k1', name: 'Kitchen wall', prefix: 'kw_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'shared', kind: 'wall' },
+  { id: 'k2', name: "Leo's tablet", prefix: 'kw_cd34', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'm4', kind: 'kid' },
+  { id: 'k3', name: 'Widgets on Android', prefix: 'kw_ef56', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'm4', kind: 'widgets', parentKeyId: 'k2' },
+]
+
 export const mock = {
   getContacts: async () => contacts.map(c => ({ ...c, phones: [...c.phones], emails: [...c.emails] })),
   getContactCategories: async () => [...contactCategories],
@@ -1709,13 +1715,21 @@ export const mock = {
     bump(); return { ok: true }
   },
 
-  getKeys: async (): Promise<ApiKey[]> => [
-    { id: 'k1', name: 'Kitchen wall', prefix: 'kw_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'shared', kind: 'wall' },
-    { id: 'k2', name: "Leo's tablet", prefix: 'kw_cd34', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'm4', kind: 'kid' },
-    { id: 'k3', name: 'Widgets on Android', prefix: 'kw_ef56', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'm4', kind: 'widgets', parentKeyId: 'k2' },
-  ],
-  createKey: async (name: string) => ({ id: uid(), name, key: 'kw_' + uid().replace(/-/g, '').slice(0, 24) }),
-  deleteKey: async (_id: string) => {},
+  getKeys: async (): Promise<ApiKey[]> => mockKeys.map(k => ({ ...k })),
+  createKey: async (name: string) => {
+    const id = uid()
+    const k: ApiKey = { id, name, prefix: 'kw_' + uid().slice(0, 4), scope: 'admin', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'shared', kind: null }
+    mockKeys.push(k)
+    return { id, name, key: 'kw_' + uid().replace(/-/g, '').slice(0, 24) }
+  },
+  renameKey: async (id: string, name: string): Promise<ApiKey> => {
+    const k = mockKeys.find(x => x.id === id)
+    if (k) k.name = name
+    return k ? { ...k } : { id, name, prefix: 'kw_' + id.slice(0, 4), scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'shared' }
+  },
+  deleteKey: async (id: string) => {
+    mockKeys = mockKeys.filter(k => k.id !== id && k.parentKeyId !== id)
+  },
 
   getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort(byListOrder),
   reorderLists: async (ids: string[]) => {

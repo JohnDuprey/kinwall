@@ -214,3 +214,39 @@ test('device owner: set at approval, visible to the device, locked for the devic
   const shared = await pairDisplay(env);
   assert.equal(((await (await makeApp(env, shared.key)('/api/me')).json()) as any).owner, 'shared');
 });
+
+test('device name: admin can rename a paired device; display key cannot rename; empty name refused', async () => {
+  const env = makeEnv();
+  const admin = makeApp(env);
+  const { keyId, key } = await pairDisplay(env);
+  const device = makeApp(env, key);
+
+  // device cannot rename itself
+  const selfPatch = await device(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ name: 'Hacked Wall' }) });
+  assert.equal(selfPatch.status, 403);
+
+  // empty or whitespace name is refused
+  assert.equal((await admin(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ name: '' }) })).status, 400);
+  assert.equal((await admin(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ name: '   ' }) })).status, 400);
+
+  // admin can rename the device
+  const res = await admin(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ name: 'Kitchen Wall Screen' }) });
+  assert.equal(res.status, 200);
+  const updated = await res.json() as any;
+  assert.equal(updated.name, 'Kitchen Wall Screen');
+
+  // visible in GET /api/keys
+  const listed = ((await (await admin('/api/keys')).json()) as any[]).find((k) => k.id === keyId);
+  assert.equal(listed.name, 'Kitchen Wall Screen');
+
+  // visible to the device itself on GET /api/me
+  const me = await (await device('/api/me')).json() as any;
+  assert.equal(me.keyName, 'Kitchen Wall Screen');
+
+  // recorded in security events
+  const events = ((await (await admin('/api/security-events')).json()) as any[]);
+  const renameEv = events.find((e) => e.kind === 'device.renamed');
+  assert.ok(renameEv, 'device.renamed event logged');
+  assert.equal(renameEv.device, 'Kitchen Wall Screen');
+  assert.equal(renameEv.summary, 'Device "Maya room" renamed to "Kitchen Wall Screen"');
+});
