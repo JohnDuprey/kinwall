@@ -38,7 +38,8 @@ test('chores: API rejects a malformed rrule with 400', async () => {
   const req = (p: string, method: string, body: unknown) =>
     createApp().request(p, { method, body: JSON.stringify(body), headers: { Authorization: 'Bearer k', 'Content-Type': 'application/json' } }, env);
   assert.equal((await req('/api/chores', 'POST', { title: 'x', rrule: 'BYDAY=MO' })).status, 400);
-  const ok = await req('/api/chores', 'POST', { title: 'x', rrule: 'FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261030' });
+  // Keep the valid rule anchored before UNTIL, even when the test runs after it.
+  const ok = await req('/api/chores', 'POST', { title: 'x', dueDate: '2026-06-01', rrule: 'FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261030' });
   assert.equal(ok.status, 201);
   const { id } = await ok.json() as any;
   assert.equal((await req(`/api/chores/${id}`, 'PATCH', { rrule: 'garbage' })).status, 400);

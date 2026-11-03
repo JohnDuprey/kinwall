@@ -124,7 +124,8 @@ test("outings: grown-ups-only ones stay off kids' devices unless they name the k
 
 test('outings: "for" and interest filters on the list', async () => {
   const t = await setup();
-  const add = async (b: object) => (await t.send('POST', '/api/outings', { startsOn: '2026-10-24', ...b })).body;
+  // These exercise upcoming filters; only the explicit past-date case below should expire.
+  const add = async (b: object) => (await t.send('POST', '/api/outings', { startsOn: `${year + 1}-10-24`, ...b })).body;
   const sewing = await add({ title: "Kids' sewing class", audience: ['kids'], ageMin: 7, ageMax: 10, priceCents: 2000 });
   const story = await add({ title: 'Library story time', audience: ['kids'], ageMin: 3, ageMax: 7, priceCents: 0 });
   const fest = await add({ title: 'Fall Fest', audience: ['family'], priceCents: 0 });
