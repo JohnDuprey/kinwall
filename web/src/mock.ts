@@ -3,7 +3,7 @@ import { goalPeriod } from './choreGoal.ts'
 import { scheduleDates } from './choreSchedule.ts'
 import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
 import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
-  Milestone, MilestoneInput, Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Milestone, MilestoneInput, Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, ChoreDateCount, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, RewardShare, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationRefill, RefillCard, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
@@ -1372,6 +1372,23 @@ export const mock = {
   showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
   getRoutineChores: async (memberId: string) => chores.filter(chore => chore.active && chore.memberId === memberId && (chore.rrule || chore.repeatGoal || ![...completions].some(([key, value]) => key.startsWith(`${chore.id}:`) && !value.pending))).map(chore => ({ id: chore.id, title: chore.title, oneTime: !chore.rrule && !chore.repeatGoal })),
+  getChoreCounts: async (from: string, to: string): Promise<ChoreDateCount[]> => {
+    const counts: ChoreDateCount[] = []
+    for (let date = from; date <= to; date = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
+      const grouped = new Map<string | null, ChoreDateCount>()
+      for (const c of chores.filter(c => c.active && dueOn(c, date))) {
+        const comp = completions.get(`${c.id}:${date}`)
+        if (!comp && mockGoalProgress(c, date)?.full) continue
+        const count = grouped.get(c.memberId) ?? { date, memberId: c.memberId, total: 0, remaining: 0, pending: 0 }
+        count.total++
+        if (!comp || comp.pending) count.remaining++
+        if (comp?.pending) count.pending++
+        grouped.set(c.memberId, count)
+      }
+      counts.push(...grouped.values())
+    }
+    return counts
+  },
   getChoresDay: async (date: string): Promise<ChoreDay[]> => {
     const plugins = await installedPlugins()
     return chores.filter(c => c.active && dueOn(c, date)).map(c => {

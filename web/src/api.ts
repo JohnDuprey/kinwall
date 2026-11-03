@@ -19,7 +19,7 @@ import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, 
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   Milestone, MilestoneInput, StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
-  Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
+  Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, ChoreDateCount, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, RefillCard, RefillRequest, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
@@ -589,6 +589,7 @@ export const api = {
   showHiddenEvent: (calendarId: string, hiddenId: string) =>
     MOCK ? mock.showHiddenEvent(calendarId, hiddenId) : del(`api/calendars/${encodeURIComponent(calendarId)}/hidden/${encodeURIComponent(hiddenId)}`),
 
+  getChoreCounts: (from: string, to: string) => MOCK ? mock.getChoreCounts(from, to) : get<ChoreDateCount[]>('api/chores/counts?' + new URLSearchParams({ from, to })),
   getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date)
     : Promise.all([get<ChoreDay[]>(`api/chores/day?date=${date}`), outboxReady()]).then(([c]) => applyChoreOps(c, date, pendingOps(outboxTag()))),
   // useAdmin: the setup wizard's starter chores on a device that just claimed a display-scope key.

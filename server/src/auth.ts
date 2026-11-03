@@ -250,6 +250,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PUT', pattern: /^\/api\/routine-mode\/[^/]+\/device$/ }, // a child device reports only its own state
   { method: 'GET', pattern: /^\/api\/chores$/ },
   { method: 'GET', pattern: /^\/api\/chores\/day$/ },
+  { method: 'GET', pattern: /^\/api\/chores\/counts$/ },
   // Chores: wall screens and kids' devices tick them off (and undo); adding, editing and deleting
   // chores is for parent devices.
   { method: 'POST', pattern: /^\/api\/chores\/[^/]+\/complete$/ },

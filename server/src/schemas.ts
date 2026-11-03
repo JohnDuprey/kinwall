@@ -648,6 +648,8 @@ export const ActivityProgressSchema = z.object({
   doneSeconds: z.number(),
 });
 
+export const ChoreDateCountSchema = z.object({ date: z.string(), memberId: z.string().nullable(), total: z.number().int(), remaining: z.number().int(), pending: z.number().int() }).openapi('ChoreDateCount');
+
 export const ChoreDaySchema = ChoreSchema.extend({
   goalProgress: ChoreGoalProgressSchema.nullable().optional(),
   completed: z.boolean().openapi({ description: "Done and counted (a completion waiting for a parent's OK is pending instead)." }),

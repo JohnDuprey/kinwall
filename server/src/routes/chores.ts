@@ -1,3 +1,4 @@
+import { parseFeatures } from './settings.ts';
 import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
@@ -11,7 +12,7 @@ import { expand, isValidRrule, rruleOccurs } from '../recurrence.ts';
 import { goalPeriod, maxGoalTimes, readChoreGoal } from '../chore-goal.ts';
 import { goalProgressFor } from '../chore-goals.ts';
 import type { ChoreGoal } from '../chore-goal.ts';
-import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
+import { ChoreDateCountSchema, ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
 import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
@@ -310,6 +311,56 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
     return new Set(); // a bad stored rrule (pre-validation rows) hides that chore, not the whole day
   }
 }
+
+// One bounded read for the date strip. Goal progress includes the entire overlapping intervals,
+// so a completion just outside the requested range can still fill a flexible goal inside it.
+export const ChoreCountQuerySchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine(q => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 30 * 86400000, 'choose an ordered range of at most 31 days');
+choresRoutes.openapi(createRoute({
+  method: 'get', path: '/api/chores/counts', tags: ['Chores'], security: [{ Bearer: [] }],
+  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Chores off returns an empty list.',
+  request: { query: ChoreCountQuerySchema },
+  responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
+}), async c => {
+  const { from, to } = c.req.valid('query'), db = c.env.DB;
+  const [settingsRes, choresRes] = await db.batch<unknown>([
+    db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features')"),
+    db.prepare('SELECT * FROM chores WHERE active = 1 AND archived = 0 ORDER BY sort, created_at'),
+  ]);
+  const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
+  if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);
+  const owner = await deviceOwner(c), tz = settings.get('timezone') ?? hostTimezone();
+  const rows = (choresRes.results as ChoreRow[]).filter(r => !owner || !r.member_id || r.member_id === owner);
+  let completionFrom = from, completionTo = to;
+  for (const row of rows) {
+    const goal = readChoreGoal(row.repeat_goal);
+    if (!goal || !row.due_date) continue;
+    const first = goalPeriod(goal, row.due_date, from), last = goalPeriod(goal, row.due_date, to);
+    if (first.from < completionFrom) completionFrom = first.from;
+    if (last.to > completionTo) completionTo = last.to;
+  }
+  const completed = (await db.prepare('SELECT chore_id, date, status FROM chore_completions WHERE date BETWEEN ? AND ?').bind(completionFrom, completionTo).all<{ chore_id: string; date: string; status: string }>()).results;
+  const completions = new Map<string, typeof completed>();
+  for (const item of completed) { const list = completions.get(item.chore_id) ?? []; list.push(item); completions.set(item.chore_id, list); }
+  const counts = new Map<string, z.infer<typeof ChoreDateCountSchema>>();
+  for (const row of rows) {
+    const done = completions.get(row.id) ?? [], goal = readChoreGoal(row.repeat_goal);
+    for (const date of dueDates(row, from, to, tz)) {
+      const completion = done.find(d => d.date === date);
+      if (goal && row.due_date && !completion) {
+        const period = goalPeriod(goal, row.due_date, date);
+        const countFrom = row.due_date > period.from ? row.due_date : period.from;
+        if (done.filter(d => d.date >= countFrom && d.date <= period.to).length >= goal.times) continue;
+      }
+      const id = `${date}:${row.member_id ?? ''}`;
+      const count = counts.get(id) ?? { date, memberId: row.member_id, total: 0, remaining: 0, pending: 0 };
+      count.total++;
+      if (completion?.status !== 'approved') count.remaining++;
+      if (completion?.status === 'pending') count.pending++;
+      counts.set(id, count);
+    }
+  }
+  return c.json([...counts.values()].sort((a, b) => a.date.localeCompare(b.date) || (a.memberId ?? '').localeCompare(b.memberId ?? '')), 200);
+});
 
 choresRoutes.openapi(
   createRoute({

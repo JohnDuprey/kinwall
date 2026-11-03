@@ -130,6 +130,7 @@ test('mcp: tools/list returns the tools', async () => {
     'favorite_recipe',
     'get_activity_data',
     'get_board',
+    'get_chore_counts',
     'get_contact',
     'get_event',
     'get_event_items',

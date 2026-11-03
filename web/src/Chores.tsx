@@ -1,3 +1,4 @@
+import { choreCountLabel, countChoreDay, sumChoreCounts } from './choreCounts.ts'
 import { goalLabel, goalProgressLabel, validGoal } from './choreGoal.ts'
 import type { ChoreGoal, GoalProgress } from './choreGoal.ts'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -8,7 +9,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, ChoreSuggestion, LeaderboardEntry, LeaderboardPeriod, List, PendingApproval, Plugin, Redemption } from './types.ts'
+import type { Chore, ChoreDay, ChoreDateCount, ChoreSuggestion, LeaderboardEntry, LeaderboardPeriod, List, PendingApproval, Plugin, Redemption } from './types.ts'
 import { MEMBER_EMOJI, rewardsOn } from './types.ts'
 import { dateKey, todayKeyInTz } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -442,6 +443,17 @@ export default function Chores() {
   const suggester = actingMember(selectedMemberId ?? focusMemberId, members, m => !m.grownUp || !members.some(x => !x.grownUp))?.id ?? null
   const [sentTick, setSentTick] = useState(0) // a new idea shows on its card straight away
 
+  const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
+  const from = dateKey(strip[0]), to = dateKey(strip[strip.length - 1])
+  const [dateCounts, setDateCounts] = useState<ChoreDateCount[]>([])
+  const [countsLoaded, setCountsLoaded] = useState(false)
+  const newestCounts = useMemo(latestOnly, [])
+  const loadCounts = () => {
+    if (!settings.features.chores) return
+    newestCounts(api.getChoreCounts(from, to)).then(c => { setDateCounts(c); setCountsLoaded(true) }).catch(() => { /* keep known counts; never invent empty days after a failed load */ })
+  }
+  useEffect(loadCounts, [from, to, refreshTick, settings.features.chores])
+
   const key = dateKey(selectedDate)
   // Loading only while a new day's chores are on their way. A refresh of the same day (a sheet
   // saved, the rev moved) keeps what's on screen, so the columns don't collapse and jump back.
@@ -451,20 +463,19 @@ export default function Chores() {
 
   const keyRef = useRef(key)
   keyRef.current = key
-  const load = () => {
+  const load = (refreshCounts = true) => {
+    if (refreshCounts) loadCounts()
     const k = key
     api.getChoresDay(k).then(c => { if (keyRef.current === k) { setChores(c); setError(false); setLoadedKey(k) } })
       .catch(() => { if (keyRef.current === k) { setError(true); setLoadedKey(k) } })
   }
-  useEffect(load, [key, refreshTick])
+  useEffect(() => load(false), [key, refreshTick])
 
   useEffect(() => {
     const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setEditing(false); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null); setSuggestFor(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
-
-  const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
 
   // Parent devices: clear a person's counted play for an activity chore's day (someone opened it as
   // a kid to check something). A chore the play already completed stays done; unticking is separate.
@@ -602,12 +613,20 @@ export default function Chores() {
         {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">{t('Rewards')}</span><span className="chores-short-label">{t('Rewards')}</span></a>}
       </div>
       <div className="date-strip" role="group" aria-label={t('Day')}>
-        {strip.map(d => (
-          <button key={d.toISOString()} className={`date-chip ${isSameDay(d, selectedDate) ? 'active' : ''}`} aria-pressed={isSameDay(d, selectedDate)} aria-label={formatDate(d, LONG_DAY)} onClick={() => setSelectedDate(d)}>
+        {strip.map(d => {
+          const day = dateKey(d)
+          const live = day === key && loadedKey === key && !error
+          const count = live ? countChoreDay(chores, selectedMemberId, !focusMemberId || focusShowsShared)
+            : countsLoaded ? sumChoreCounts(dateCounts.filter(c => c.date === day), selectedMemberId, !focusMemberId || focusShowsShared) : null
+          const summary = settings.features.chores && count ? choreCountLabel(count) : ''
+          return <button key={day} className={`date-chip ${isSameDay(d, selectedDate) ? 'active' : ''}`} aria-pressed={isSameDay(d, selectedDate)} aria-label={summary ? t('{date}: {summary}', { date: formatDate(d, LONG_DAY), summary }) : formatDate(d, LONG_DAY)} onClick={() => setSelectedDate(d)}>
             <div className="wd">{formatDate(d, { weekday: 'short' })}</div>
             <div className="dn">{d.getDate()}</div>
+            <div className={`date-chore-count${count?.total && !count.remaining ? ' date-chores-done' : ''}`} aria-hidden="true">
+              {settings.features.chores && count && count.total > 0 && (count.remaining > 0 ? <>{count.pending > 0 && <span>⏳ </span>}{t('{n} left', { n: count.remaining })}</> : <>✓ {t('Done')}</>)}
+            </div>
           </button>
-        ))}
+        })}
       </div>
 
       {parentDevice && <ApprovalQueue onChanged={load} />}

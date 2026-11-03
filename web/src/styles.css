@@ -4302,3 +4302,7 @@ html:root[data-cast] {
 @media (max-width: 380px) {
   .home-toolbar:has(.announcements-btn) .segmented button { padding-inline: 6px; }
 }
+
+/* Existing Chores date chips: blank dates keep the same height; words/checks distinguish states. */
+.date-chore-count { min-height: 16px; margin-top: 3px; font-size: 0.6875rem; line-height: 1.25; font-weight: 800; color: var(--accent-text); white-space: nowrap; }
+.date-chores-done { color: var(--text-dim); }

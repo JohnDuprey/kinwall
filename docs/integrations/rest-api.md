@@ -391,3 +391,7 @@ Migration 0130 creates an empty command table; it does not backfill or unenroll 
 * Fields: `title` (1–160 characters), `details` (optional, up to 2,000), `startsAt`, `expiresAt` (ISO timestamps with UTC or an explicit offset), and `priority` (`normal`, default, or `important`). Expiration must follow start. Read results include `id`, `createdAt`, and `updatedAt`.
 * Visibility includes `startsAt` and excludes `expiresAt`. Important messages come first, then latest start, then id. Expiration hides a message without deleting it.
 * `features.announcements=false` makes every route return 404. See [Family announcements](../using/announcements.md).
+
+## Chore date counts
+
+`GET /api/chores/counts?from=YYYY-MM-DD&to=YYYY-MM-DD` returns counts for up to 31 inclusive calendar dates. Each row is `{date, memberId, total, remaining, pending}`; `memberId: null` means Anyone. Rows with no scheduled chores are omitted. Recurrence uses the household timezone. Pending approvals count as remaining; full flexible goals only count on dates with actual ticks, so already-satisfied goals do not invent extra work. Counts are grouped by the chore's assignee, even when someone else completed an Anyone chore. A child's display key sees only that child's and Anyone counts; a shared wall can read all counts. While Chores is off the response is `[]`. Invalid, reversed, or longer ranges return 400.

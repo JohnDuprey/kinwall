@@ -459,6 +459,8 @@ export interface LibraryChore {
 }
 export type LibraryChoreInput = Partial<Pick<LibraryChore, 'title' | 'emoji' | 'points' | 'listId' | 'memberId' | 'everyN' | 'everyUnit' | 'needsApproval' | 'notes'>> & { fromChoreId?: string }
 
+export interface ChoreDateCount { date: string; memberId: string | null; total: number; remaining: number; pending: number }
+
 export interface ChoreDay extends Chore {
   goalProgress?: import('./choreGoal.ts').GoalProgress | null
   completed: boolean // done and counted
