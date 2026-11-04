@@ -1462,7 +1462,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         transitionReminders: TransitionRemindersSchema.optional().describe(
           'Admin: pushes to this person\'s own devices before their events. { on, minutes: [10, 5] (1-120, up to 8), repeat: { every: 5, within: 30 } or null, leaveBy: true (count to the leave-by time when there is travel time) }. Replaces the whole setting.',
         ),
-        language: LanguageSchema.nullable().optional().describe("The app's language on their own devices and in activities they play ('en' or 'de'); null follows the device and the family's language."),
+        language: LanguageSchema.nullable().optional().describe("The app's language on their own devices and in activities they play ('en', 'de', 'fr', or 'es'); null follows the device and the family's language."),
       },
     },
     async ({ member, ...input }) => {

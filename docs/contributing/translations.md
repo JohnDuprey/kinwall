@@ -1,6 +1,12 @@
 # Translations
 
-Kinwall is available in English and German (Deutsch). German covers every screen of the web app and
+Kinwall offers English, German (Deutsch), French (Français), and Spanish (Español).
+French and Spanish are initial, partial translations: navigation and common daily-use labels,
+calendar/list/meal controls, settings labels, and common server notifications. Untranslated
+messages fall back to English. They do not yet cover every screen or server error.
+Run the translation checks below for the current coverage of each language.
+
+German covers every screen of the web app and
 the text the server writes for people: push notifications, the newscast, insights, the battery,
 error messages and more (see [What's translated](#whats-translated)). The phone apps' own screens
 follow the phone's language and are still English.
