@@ -27,6 +27,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, Pl
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
 const milestonePath = (id?: string) => ['api', 'reward-milestones', ...(id ? [encodeURIComponent(id)] : [])].join('/')
+const demoFollows = new Map<string,{enabled:boolean;minutes:number;scope:'occurrence'|'series'}>()
 export const MOCK = import.meta.env.VITE_MOCK === '1'
 doseChanges.listen(tellAppDoseChanged)
 /** This device's push subscription id (Settings → This display → Notifications), for its own prefs. */
@@ -568,6 +569,12 @@ export const api = {
   oauthStart: (kind: 'google' | 'microsoft') => MOCK ? Promise.reject(new Error(t("The demo doesn't connect to Google or Microsoft."))) : post<{ url: string }>(`api/oauth/${kind}/start`, undefined, true),
 
   // includeHidden (parents' devices): also the events the family doesn't see, each with `hidden` saying why.
+  getEventFollow: (id:string,occurrenceStart?:string|null) => MOCK ? Promise.resolve(demoFollows.get(`${id}:${occurrenceStart??''}`) ?? {enabled:false,minutes:15,scope:'occurrence' as const}) : get<{enabled:boolean;minutes:number;scope:'occurrence'|'series'}>(['api','events',encodeURIComponent(id),'follow'].join('/')+'?'+new URLSearchParams(occurrenceStart?{occurrenceStart}:{})),
+  setEventFollow: (id:string,choice:{enabled:boolean;minutes:number;scope:'occurrence'|'series';occurrenceStart?:string|null;showNow?:boolean}) => {
+    if(MOCK){const saved={enabled:choice.enabled,minutes:choice.minutes,scope:choice.scope};demoFollows.set(`${id}:${choice.occurrenceStart??''}`,saved);return Promise.resolve(saved)}
+    return put<{enabled:boolean;minutes:number;scope:'occurrence'|'series'}>(['api','events',encodeURIComponent(id),'follow'].join('/'),choice)
+  },
+  getEventActivities: () => MOCK ? Promise.resolve({enabled:false,plans:[] as import('../../server/src/event-activity-plan.ts').EventActivity[]}) : get<{enabled:boolean;plans:import('../../server/src/event-activity-plan.ts').EventActivity[]}>('api/event-activities'),
   getEvents: (from: string, to: string, memberId?: string, calendarId?: string, includeHidden?: boolean) => {
     if (MOCK) return mock.getEvents(from, to, calendarId, includeHidden)
     const q = new URLSearchParams({ from, to })

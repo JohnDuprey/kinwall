@@ -1,3 +1,5 @@
+import { runEventLiveActivities } from './event-live-activities.ts';
+import { eventFollowsRoutes } from './routes/event-follows.ts';
 import { runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { announcementsRoutes } from './routes/announcements.ts';
 import { swaggerUI } from '@hono/swagger-ui';
@@ -175,6 +177,12 @@ export function createApp() {
       try { await runMedicineLiveActivities(c.env); } catch { /* next reminder tick retries; never log health bodies */ }
     }
   });
+  app.use('/api/*', async (c,next) => {
+    await next();
+    if(c.res.status<400 && !['GET','HEAD','OPTIONS'].includes(c.req.method) && /^\/api\/(events(?:\/|$)|settings$|members(?:\/|$)|keys(?:\/|$)|me\/owner$|live-activities\/tokens$)/.test(c.req.path)) {
+      try { await runEventLiveActivities(c.env); } catch { /* reminder tick retries */ }
+    }
+  });
   app.use('/api/*', bodyLimits); // after auth: nobody unauthenticated gets a big upload buffered
   app.use('/mcp', defaultLimit);
   app.use('/oauth/*', defaultLimit);
@@ -242,6 +250,7 @@ export function createApp() {
   app.route('/', recoveryRoutes);
   app.route('/', pairRoutes);
   app.route('/', webhooksRoutes);
+  app.route('/', eventFollowsRoutes);
   app.route('/', liveActivitiesRoutes);
   app.route('/', pushRoutes);
   app.route('/', dataRoutes);

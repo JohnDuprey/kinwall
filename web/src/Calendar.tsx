@@ -1,3 +1,4 @@
+import { EventFollow } from './EventFollow.tsx'
 import { AnnouncementsButton } from './FamilyAnnouncements.tsx'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
@@ -1079,6 +1080,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             🔔 {(() => { const reminder = event.remindBeforeLeave && event.leaveAt ? t('{reminder} leaving', { reminder: reminderLabel(event.reminders)! }) : reminderLabel(event.reminders)!; return event.reminderSource === 'default' ? t('{reminder} · default', { reminder }) : reminder })()}
           </div>
         )}
+        <EventFollow key={`${event.id}:${event.start}`} event={event} />
         {leadOf(event) && <div className="leave-by">{leadText(event, t => formatTime(t, tz))}</div>}
         {/* Read-only events have no edit sheet, so their travel time is set right here. */}
         {canEdit && event.readOnly && !event.allDay && (

@@ -1,3 +1,5 @@
+import { runEventLiveActivities } from './event-live-activities.ts';
+import { eventPlans } from './routes/event-follows.ts';
 import { activityPreferences, runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { MED_GRACE_MS, REFILL_REMIND_AT, medicineReminderTimes } from './medicine-reminder-times.ts';
 import { goalProgressFor } from './chore-goals.ts';
@@ -618,7 +620,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   };
 
   // End the ones that are over (sent or not, the token is done).
-  for (const t of tokens.filter((x) => x.kind === 'update' && !x.activity.startsWith('medication:') && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
+  for (const t of tokens.filter((x) => x.kind === 'update' && !x.activity.startsWith('medication:') && !x.activity.startsWith('event:') && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
     await send(t, { timestamp: unixSeconds(now.getTime()), event: 'end', 'dismissal-date': unixSeconds(now.getTime()) });
     await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();
   }
@@ -629,6 +631,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
     const first = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat)[0] : undefined;
     const devices = tokens.filter((t) => t.kind === 'start' && t.owner === m.id && activityPreferences(t.preferences).leaveBy);
     if (!first || !devices.length) continue;
+    const following = devices.some(t=>activityPreferences(t.preferences).events) ? await eventPlans(db,m.id,new Date(now.getTime()-8*3600000),new Date(now.getTime()+48*3600000)) : [];
     for (const occ of occurrences) {
       if (occ.allDay || !memberMatch([m.id], occ.prepFor)) continue;
       const lead = cfg.leaveBy ? occ.travelMinutes : 0;
@@ -639,6 +642,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
       const activity = key(occ);
       const { content, alert } = shown(occ, m, target);
       for (const t of devices) {
+        if(activityPreferences(t.preferences).events && following.some(p=>p.eventId===occ.eventId && Date.parse(p.startsAt)===Date.parse(occ.start))) continue;
         // Already showing (the app started it, or an earlier push did and registered its token).
         if (tokens.some((u) => u.kind === 'update' && u.device === t.device && u.activity === activity)) continue;
         const sentKey = `la:${t.device}:${activity}`;
@@ -1288,6 +1292,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
   const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
+  await part('event live activities', () => runEventLiveActivities(env,now));
   await part('event reminders', () => runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold));
   const features = await readFeatures(env.DB);
   await part('daily summary', () => runDailySummary(env, env.DB, now, tz, subs, windowStart, features), true);

@@ -412,3 +412,17 @@ SHA-256 identifier as the server. Existing registrations remain opted out until 
 registers its medicine choices. Tokens remain encrypted. Failed sends are retried by subsequent
 reminder ticks; successful starts and unchanged updates are deduplicated. Successful medicine,
 settings, ownership and token changes also reconcile activities, independently of the app being open.
+
+### Personal event countdowns
+
+`GET /api/events/{id}/follow?occurrenceStart=<ISO>` returns the caller's effective
+`{ enabled, minutes, scope }` choice. `PUT /api/events/{id}/follow` accepts `enabled`,
+`minutes` (0, 5, 15, 30, 60; default 15), `scope` (`occurrence` or `series`), optional
+`occurrenceStart`, and `showNow` (one occurrence within an hour of its start).
+Local recurring events require `occurrenceStart`. Occurrence choices override series choices.
+These routes require a personally owned device and never accept a member ID; connected apps and
+shared screens cannot opt someone into Lock Screen content. Calendar edit permission is not needed.
+`GET /api/event-activities` returns `{ enabled, plans }` (`enabled` confirms personal-device scheduling is available; an empty schedule follows nothing) for ongoing and next-48-hour followed
+events. Muted plans suppress a stopped occurrence’s separate leave-by activity and are not displayed. This is the shared mobile scheduling feed, including hidden-event filtering and an
+eight-hour lifetime bound. Old Live Activity token registrations default `preferences.events`
+to false; upgraded apps register it explicitly. No existing event is automatically followed.

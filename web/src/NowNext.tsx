@@ -1,3 +1,4 @@
+import { pickEventActivity, type EventActivity } from '../../server/src/event-activity-plan.ts'
 // Time-awareness helpers for the calendar: the Now / Next card and full-screen-ish transition
 // warnings ("Soccer Practice in 10 minutes"). Both work from today's already-loaded instances.
 import { useEffect, useRef, useState } from 'react'
@@ -10,7 +11,7 @@ import { useApp } from './AppContext.tsx'
 import { api, MOCK } from './api.ts'
 import { leaveByActivity } from './liveActivity.ts'
 import { rememberNudge, type NudgeSeen } from './nudges.ts'
-import { endAppActivity, tellAppActivity, tellAppLeaveByPush } from './native.ts'
+import { endAppActivity, tellAppActivity, tellAppLeaveByPush, tellAppEventActivities, appEventActivitiesSupported } from './native.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { t, tc, tn } from './i18n.ts'
 
@@ -171,6 +172,20 @@ export function LeaveByLiveActivity() {
   const calm = !!useDeviceAppearance().lowStim
   const now = useNow(30000)
   const [events, setEvents] = useState<EventInstance[]>([])
+  const [followed, setFollowed] = useState<EventActivity[] | null>(null)
+  useEffect(() => { setFollowed(null) }, [meMemberId])
+  useEffect(() => {
+    let active = true
+    const load = () => {
+      if (!appEventActivitiesSupported() || (!meMemberId && !MOCK)) return
+      api.getEventActivities().then(schedule => {
+        if (active) { setFollowed(schedule.plans); tellAppEventActivities(schedule) }
+      }).catch(() => {}) // Offline: keep the last schedule; never end an activity just because a fetch failed.
+    }
+    load()
+    window.addEventListener('kinwalleventfollow', load)
+    return () => { active = false; window.removeEventListener('kinwalleventfollow', load) }
+  }, [meMemberId, refreshTick, Math.floor(now / 60000)])
   useEffect(() => {
     const t = Date.now()
     api.getEvents(new Date(t - 3 * 3600e3).toISOString(), new Date(t + 3 * 3600e3).toISOString()).then(setEvents).catch(() => {})
@@ -179,7 +194,10 @@ export function LeaveByLiveActivity() {
   const me = members.find(m => m.id === meMemberId) ?? (MOCK ? DEMO_ME(members) : undefined)
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const category = (id: string | null) => { const c = categories.find(x => x.id === id); return c ? `${c.name} ${c.emoji ?? ''}`.trim() : null }
-  const a = me ? leaveByActivity(events, me, now, iso => formatTime(iso, tz), calm, { category, seen: seenNudges(me.id), remember: e => rememberNudgeHere(me.id, e) }) : null
+  const a = me ? leaveByActivity(events.filter(e=>!(followed??[]).some(p=>p.eventId===e.id&&Date.parse(p.startsAt)===Date.parse(e.start))), me, now, iso => formatTime(iso, tz), calm, { category, seen: seenNudges(me.id), remember: e => rememberNudgeHere(me.id, e) }) : null
+  const event=pickEventActivity(followed??[],now)
+  const eventJson=JSON.stringify(event)
+  useEffect(()=>{if(followed===null)return;if(event)tellAppActivity('event',event);else endAppActivity('event')},[eventJson, followed === null]) // eslint-disable-line react-hooks/exhaustive-deps
   const json = JSON.stringify(a)
   // Push-to-start only for a person who gets transition reminders (never the demo's stand-in).
   const push = !!members.find(m => m.id === meMemberId)?.transitionReminders?.on

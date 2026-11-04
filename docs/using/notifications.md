@@ -94,11 +94,12 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 
 ## Live Activities (Kinwall app for iPhone)
 
-In the Kinwall app for iPhone, some things also show on the Lock Screen and in the Dynamic Island while they're happening: a [cooking timer](meals.md#start-cooking), a [shopping trip](lists.md#shopping-mode), and the next leave-by or start-prep time for the person the phone belongs to. There's no Kinwall setting for them:
+In the Kinwall app for iPhone, some things also show on the Lock Screen and in the Dynamic Island while they're happening: a [cooking timer](meals.md#start-cooking), a [shopping trip](lists.md#shopping-mode), and the next leave-by or start-prep time for the person the phone belongs to. Timers and trips appear when started; event following is an explicit personal choice:
 
 * A cooking timer or a shopping trip shows when you start one.
 * A leave-by or start-prep countdown follows the reminders: it shows only on a phone that belongs to someone who has [transition reminders](../settings/family.md#transition-reminders) on, and with the app's notifications allowed. It starts at their first transition reminder and ends when the event starts.
 * A medicine that's due shows on the person's own phone. A grown-up can also see the kids' due doses on their own phone with **Show the kids' doses on this phone** (off by default): see [Medications → On the Lock Screen](medications.md#on-the-lock-screen).
+* A selected timed event can stay on your phone before and during it: open the event and choose **Follow this event**. See [Follow an event](calendar.md#follow-an-event-on-your-phone). This works without transition reminders and during night hours.
 * To turn them all off, go to iPhone **Settings → Kinwall → Live Activities**. The Notifications section in the app's Settings says whether they're on.
 * In the Kinwall app for Android they show as ongoing notifications instead. Turn them off in Android **Settings → Apps → Kinwall → Notifications**; the Notifications section says whether they're on.
 * On Android, medicine reminders can come through Do Not Disturb: see [Medications → Reminders](medications.md#reminders).

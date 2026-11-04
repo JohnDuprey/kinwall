@@ -1,3 +1,4 @@
+import { eventPlans } from './routes/event-follows.ts';
 import { activityPreferences } from './medicine-live-activities.ts';
 import { nextMedicinePushRetryAt } from './medicine-push-retries.ts';
 import type { Env } from './env.ts';
@@ -10,7 +11,7 @@ import { MED_GRACE_MS, REFILL_REMIND_AT, medicineReminderTimes } from './medicin
 
 /** Next medicine deadline before the host's routine tick (at most 24 hours ahead).
  * Only a timestamp leaves this function; health schedules stay encrypted in storage. */
-export async function nextReminderAt(env: Env, now: Date, before: Date): Promise<number | null> {
+async function nextMedicineReminderAt(env: Env, now: Date, before: Date): Promise<number | null> {
   if (!(await readFeatures(env.DB)).trackersHealth) return null;
   const { results: settings } = await env.DB.prepare("SELECT key,value FROM settings WHERE key IN ('medications','timezone')").all<{ key: string; value: string }>();
   if (settings.find(s => s.key === 'medications')?.value !== 'true') return null;
@@ -62,4 +63,19 @@ export async function nextReminderAt(env: Env, now: Date, before: Date): Promise
     if (at <= horizon) next = Math.min(next ?? Infinity,at);
   }
   return next;
+}
+
+/** Followed event boundaries also wake hosts that support exact reminder deadlines. */
+export async function nextReminderAt(env:Env,now:Date,before:Date):Promise<number|null> {
+ const medicine=await nextMedicineReminderAt(env,now,before);
+ const {results:tokens}=await env.DB.prepare("SELECT t.preferences,COALESCE(k.owner,g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id=t.api_key_id LEFT JOIN oauth_grants g ON g.id=t.oauth_grant_id WHERE t.kind='start'").all<{preferences:string;owner:string|null}>();
+ let next=medicine;
+ for(const owner of new Set(tokens.filter(t=>t.owner&&t.owner!=='shared'&&activityPreferences(t.preferences).events).map(t=>t.owner!))) {
+  const plans=await eventPlans(env.DB,owner,new Date(now.getTime()-8*3600000),before);
+  for(const p of plans)for(const iso of [p.showAt,p.leadAt,p.startsAt,p.endsAt]) {
+   const at=iso?Date.parse(iso):NaN;
+   if(at>now.getTime()&&at<=before.getTime())next=Math.min(next??Infinity,at);
+  }
+ }
+ return next;
 }

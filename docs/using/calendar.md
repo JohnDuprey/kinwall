@@ -253,3 +253,35 @@ Who an event is for never depends on telling colors apart: the avatars always sh
 Tapping a reminder notification (or **View** in the bell) opens `#/calendar?event=<id>&at=<start>`: Calendar, on that day in its last view (Month switches to Schedule), with the event open. Close it and you're looking at the event's day.
 
 `#/home?checkin=<member id>` opens that person's day at their check-in, and `#/home?poll=<id>` (a new poll in the bell) opens that poll. See [Daily check-in](snapshot.md#daily-check-in).
+
+## Follow an event on your phone
+
+Open a timed event and choose **Follow this event** to show a personal countdown on your own
+phones. Following is off by default and does not change anyone else's choices or the source
+calendar. It also works with read-only imported calendars. Choose whose device this is in Settings
+first; shared wall screens cannot follow events for someone.
+
+Choose **Show countdown**: at the start, or 5, 15 (the default), 30, or 60 minutes before.
+If the event has travel or prep time, that lead time is the countdown's first target. After it,
+the countdown shows time until the event starts, then time until it ends. It closes at the end.
+A followed event replaces its own separate leave-by countdown. Other reminders stay as configured.
+Following works independently of transition reminders and, like ordinary event reminders, continues
+during night hours.
+
+For repeating events, choose **Just this event** or **Every occurrence** before saving. An individual
+occurrence's choice wins over the series choice. **Stop showing** on the activity stops following
+that occurrence without canceling the event or the series. If Android cannot reach Kinwall, it
+still hides the occurrence on that phone; other phones keep their choice until you change it in
+the app. **Show now** is available within an hour of the start, including while the event is underway.
+
+The activity can show the event's title and location on the Lock Screen. Tap it to open that exact
+event. If several followed events overlap, one in progress takes priority, then the next starting
+event. All-day events are excluded, and each countdown lasts at most eight hours. Edits update the
+activity; canceled, hidden, filtered, or disabled-calendar events stop showing.
+
+Use an updated Kinwall app. iPhone background starts require working Apple push and permission
+for notifications and Live Activities. Android uses scheduled ongoing notifications, with the Live
+Update presentation during the event on supported Android 16+ phones. Android schedules refresh
+when the app opens and during background refresh: changes made elsewhere may wait until the next
+refresh, and force-stopping the app prevents alarms until it is reopened. Offline phones can keep
+old details until they reconnect. Notification visibility and delivery remain controlled by the OS.

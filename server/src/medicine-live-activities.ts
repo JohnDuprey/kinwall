@@ -12,11 +12,11 @@ import { formatTime, hour12For } from './timeFormat.ts';
 import { hostTimezone } from './env.ts';
 import { swiftDate, unixSeconds } from './apns.ts';
 
-export type ActivityPreferences = { leaveBy: boolean; medications: boolean; medicationNames: boolean; kidDoses: boolean };
+export type ActivityPreferences = { events:boolean; leaveBy: boolean; medications: boolean; medicationNames: boolean; kidDoses: boolean };
 export function activityPreferences(raw: string): ActivityPreferences {
   let p: Partial<ActivityPreferences> = {};
   try { p = JSON.parse(raw); } catch { /* old or damaged: no medicine opt-in */ }
-  return { leaveBy: p?.leaveBy !== false, medications: p?.medications === true, medicationNames: p?.medicationNames === true, kidDoses: p?.kidDoses === true };
+  return { events:p?.events === true, leaveBy: p?.leaveBy !== false, medications: p?.medications === true, medicationNames: p?.medicationNames === true, kidDoses: p?.kidDoses === true };
 }
 export const medicineActivityId = async (id: string, date: string, time: string, names: boolean, until: number) =>
   `medication:${await sha256Hex(`medication:${id}:${date}:${time}:${new Date(until).toISOString()}`)}:${names ? 'names' : 'private'}`;
