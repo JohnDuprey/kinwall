@@ -1,20 +1,18 @@
 # Translations
 
 Kinwall offers English, German (Deutsch), French (Français), and Spanish (Español).
-French and Spanish are partial translations covering at least 90% of the extracted messages
-in both the web app and the server. This includes everyday calendar/list/chore/meal flows,
-setup, contacts, outings, polls, timers, calendar provider and task-app setup, many settings,
-reading and the library, home upkeep, rewards, drawing, restaurant orders, medicines, journals
-and photos, activity management, chore schedules, daily summaries, meal shopping, medication
-refills, sign-in screens and accessibility helpers, plus most server errors. Untranslated
-messages fall back to English; some advanced settings, routine-device setup and server errors
-are still incomplete.
+French and Spanish have entries for every extracted message in both the web app and server.
+This includes advanced settings, routine-device setup, account recovery, Google Photos,
+webhooks, errors and security activity, alongside the everyday family screens.
 
 `web/test/translationCoverage.test.ts` checks extracted messages on the covered screens and
-requires at least 90% dictionary coverage for each language in both the web app and server.
+requires at least 99.9% dictionary coverage for each language in both the web app and server.
 Coverage counts source keys with dictionary entries; it is not a percentage of screens or
 features and does not include hard-coded text outside the translation system. Proper names
 such as color-scheme names remain unchanged so they are recognizable across languages.
+Dictionary coverage does not guarantee that every screen is fully localized: saved or
+user-entered content, plugin content, hard-coded copy and some runtime-composed message
+parameters can still be English. New source messages fall back to English until translated.
 
 Use this terminology consistently:
 
