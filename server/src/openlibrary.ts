@@ -47,7 +47,7 @@ export class OpenLibraryClient {
       try {
         const response = await (this.options.fetch ?? fetch)(`https://openlibrary.org${path}`, {
           headers: { 'User-Agent': `Kinwall/1.0 (https://kinwall.family${identified ? `; ${contact}` : ''})`, Accept: 'application/json' },
-          signal: AbortSignal.timeout(8000), redirect: 'error',
+          signal: AbortSignal.timeout(8000), redirect: 'manual',
         });
         if (!response.ok) {
           transient = response.status === 429 || response.status >= 500;

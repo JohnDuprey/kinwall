@@ -114,3 +114,11 @@ test('Kinwall defaults to the approved support contact and identified pacing', a
   await client.json('/search.json?q=b');
   assert.deepEqual(starts, [0, 334]);
 });
+
+test('uses Workers-compatible manual redirects and never follows a redirect', async () => {
+  const client = new OpenLibraryClient({ fetch: async (_url, init) => {
+    assert.equal(init?.redirect, 'manual', 'Workers accepts manual or follow, not error');
+    return new Response(null, { status: 302, headers: { Location: 'https://other.example/book' } });
+  } });
+  await assert.rejects(client.json('/works/OL1W.json'), /Open Library answered 302/);
+});
