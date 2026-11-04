@@ -1,14 +1,15 @@
 # Translations
 
 Kinwall offers English, German (Deutsch), French (Français), and Spanish (Español).
-French and Spanish are partial translations covering at least half of the extracted messages
+French and Spanish are partial translations covering at least 70% of the extracted messages
 in both the web app and the server. This includes everyday calendar/list/chore/meal flows,
 setup, contacts, outings, polls, timers, calendar provider and task-app setup, many settings,
-and server reminders, notifications and insights. Untranslated messages fall back to English;
-advanced modules and many server errors are still incomplete.
+reading and the library, home upkeep, rewards, drawing, restaurant orders, medicines, journals
+and photos, plus server reminders, notifications, insights and common errors. Untranslated
+messages fall back to English; advanced modules and many server errors are still incomplete.
 
 `web/test/translationCoverage.test.ts` checks extracted messages on the covered screens and
-requires at least 50% dictionary coverage for each language in both the web app and server.
+requires at least 70% dictionary coverage for each language in both the web app and server.
 Coverage counts source keys with dictionary entries; it is not a percentage of screens or
 features and does not include hard-coded text outside the translation system. Proper names
 such as color-scheme names remain unchanged so they are recognizable across languages.
@@ -21,6 +22,7 @@ Use this terminology consistently:
 | Free time | Temps libre | Tiempo libre |
 | Basic / Basics (reusable recipe components) | Préparation de base / Préparations de base | Preparación base / Preparaciones base |
 | Temp check (sleep and feelings) | Point bien-être | Cómo te sientes |
+| sore (feeling) | Douleurs | Dolor corporal |
 
 Recipe-text import examples retain the parser headings `Ingredients` and `Directions`
 until the recipe parser supports French and Spanish headings.
