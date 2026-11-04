@@ -1,14 +1,27 @@
 # Translations
 
 Kinwall offers English, German (Deutsch), French (Français), and Spanish (Español).
-French and Spanish are partial translations covering navigation, everyday calendar/list/chore/meal
-flows (including forms, explanations, empty states and errors), dashboard layouts, calendar
-provider setup, many settings, and common server notifications. Untranslated messages fall
-back to English. They do not yet cover every screen or server error.
+French and Spanish are partial translations covering at least half of the extracted messages
+in both the web app and the server. This includes everyday calendar/list/chore/meal flows,
+setup, contacts, outings, polls, timers, calendar provider and task-app setup, many settings,
+and server reminders, notifications and insights. Untranslated messages fall back to English;
+advanced modules and many server errors are still incomplete.
 
-`web/test/translationCoverage.test.ts` checks extracted messages on the everyday screens.
-Its explicit temporary exceptions are product terms awaiting terminology review (Nooks,
-Free time, Temp check, and the culinary Basic/Basics family); they are not counted as translated.
+`web/test/translationCoverage.test.ts` checks extracted messages on the covered screens and
+requires at least 50% dictionary coverage for each language in both the web app and server.
+Coverage counts source keys with dictionary entries; it is not a percentage of screens or
+features and does not include hard-coded text outside the translation system. Proper names
+such as color-scheme names remain unchanged so they are recognizable across languages.
+
+Use this terminology consistently:
+
+| English | French | Spanish |
+|---|---|---|
+| Nooks | Espaces | Espacios |
+| Free time | Temps libre | Tiempo libre |
+| Basic / Basics (reusable recipe components) | Préparation de base / Préparations de base | Preparación base / Preparaciones base |
+| Temp check (sleep and feelings) | Point bien-être | Cómo te sientes |
+
 Recipe-text import examples retain the parser headings `Ingredients` and `Directions`
 until the recipe parser supports French and Spanish headings.
 Run the translation checks below for the current coverage of each language.
