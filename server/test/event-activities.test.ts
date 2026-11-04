@@ -267,3 +267,39 @@ test('event follow: unusually long imported titles and locations fit the push di
  assert.equal(Array.from(p.title).length,120);assert.equal(Array.from(p.location!).length,160);
  assert.ok(new TextEncoder().encode(JSON.stringify({event:p,title:p.title,alert:{title:p.title}})).length<3500);
 });
+
+test('event activities: medicine preference changes cannot start the same event twice while its update token is pending', async () => {
+ const f=await setup();
+ await f.json(`/api/events/${f.event.id}/follow`,'PUT',{enabled:true},f.phone.key);
+ const registration={kind:'start',token:'ab'.repeat(32),preferences:{events:true,leaveBy:false,medications:false,medicationNames:false}};
+ await f.json('/api/live-activities/tokens','PUT',registration,f.phone.key);
+ await runEventLiveActivities(f.env,new Date('2030-03-04T16:10:00Z'));
+ assert.equal(f.sent.filter(p=>p.event==='start').length,1);
+ await f.json('/api/live-activities/tokens','PUT',{...registration,preferences:{...registration.preferences,medications:true,medicationNames:true}},f.phone.key);
+ await runEventLiveActivities(f.env,new Date('2030-03-04T16:11:00Z'));
+ assert.equal(f.sent.filter(p=>p.event==='start').length,1,'an unrelated preference update must not create another Lock Screen card');
+});
+
+test('event activities: accepted starts from the previous release stay claimed across preference changes', async () => {
+ const {sha256Hex}=await import('../src/auth.ts');
+ const {eventPlans}=await import('../src/routes/event-follows.ts');
+ const f=await setup();
+ await f.json(`/api/events/${f.event.id}/follow`,'PUT',{enabled:true},f.phone.key);
+ const registration={kind:'start',token:'ab'.repeat(32),preferences:{events:true,leaveBy:false,medications:false}};
+ await f.json('/api/live-activities/tokens','PUT',registration,f.phone.key);
+ const plans=await eventPlans(f.db,f.sam.id,new Date('2030-03-04T15:00:00Z'),new Date('2030-03-04T18:00:00Z'));
+ const key=`ela:${await sha256Hex(`key:${f.phone.id}:0:${plans[0].activity}`)}`;
+ await f.db.prepare('INSERT INTO sent_notifications(key,sent_at) VALUES(?,?)').bind(key,'2030-03-04T16:00:00Z').run();
+ await runEventLiveActivities(f.env,new Date('2030-03-04T16:10:00Z'));
+ await f.json('/api/live-activities/tokens','PUT',{...registration,preferences:{...registration.preferences,medications:true}},f.phone.key);
+ await runEventLiveActivities(f.env,new Date('2030-03-04T16:11:00Z'));
+ assert.equal(f.sent.filter(p=>p.event==='start').length,0,'the old accepted start must not replay during upgrade');
+});
+
+test('event activities: overlapping reconciliation ticks claim only one start', async () => {
+ const f=await setup();
+ await f.json(`/api/events/${f.event.id}/follow`,'PUT',{enabled:true},f.phone.key);
+ await f.json('/api/live-activities/tokens','PUT',{kind:'start',token:'ab'.repeat(32),preferences:{events:true,leaveBy:false}},f.phone.key);
+ await Promise.all(Array.from({length:4},()=>runEventLiveActivities(f.env,new Date('2030-03-04T16:10:00Z'))));
+ assert.equal(f.sent.filter(p=>p.event==='start').length,1);
+});

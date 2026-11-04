@@ -49,6 +49,9 @@ export async function runEventLiveActivities(env: Env, now = new Date()) {
           )
         : [];
     const next = pickEventActivity(plans, now.getTime());
+    // Medicine settings and start-token renewals must not create a new event start claim.
+    // An explicit follow choice has its own revision in the activity identity.
+    const claimKey = async (activity: string) => `ela:${await sha256Hex(`${device}:${owner ?? ''}:${activity}`)}`;
     const send = async (row: (typeof rows)[number], aps: Record<string, unknown>) => {
       const r = await sendNativeLiveActivity(
         env,
@@ -76,8 +79,9 @@ export async function runEventLiveActivities(env: Env, now = new Date()) {
       });
       if (r.ok || r.gone) {
         if (start && old.activity.startsWith('event:') && next) {
-          const key = `ela:${await sha256Hex(`${device}:${start.generation}:${old.activity}`)}`;
-          await db.prepare('DELETE FROM sent_notifications WHERE key=?').bind(key).run();
+          const key = await claimKey(old.activity);
+          await db.prepare('DELETE FROM sent_notifications WHERE key=? OR key=?')
+            .bind(key, `ela:${await sha256Hex(`${device}:${start.generation}:${old.activity}`)}`).run();
         }
         await db
           .prepare('DELETE FROM live_activity_tokens WHERE id=? AND token=?')
@@ -117,12 +121,17 @@ export async function runEventLiveActivities(env: Env, now = new Date()) {
           .bind(hash, next.endsAt, current.id, current.token)
           .run();
     } else {
-      const key = `ela:${await sha256Hex(`${device}:${start.generation}:${next.activity}`)}`;
-      const claimed = await db
-        .prepare('INSERT INTO sent_notifications(key,sent_at) VALUES(?,?) ON CONFLICT(key) DO NOTHING')
-        .bind(key, now.toISOString())
-        .run();
-      if (!claimed.meta.changes) continue;
+      const key = await claimKey(next.activity);
+      // Honor an accepted start from the previous server version while its update token is pending.
+      const legacyKey = `ela:${await sha256Hex(`${device}:${start.generation}:${next.activity}`)}`;
+      const [claimed, legacy] = await db.batch([
+        db.prepare('INSERT INTO sent_notifications(key,sent_at) VALUES(?,?) ON CONFLICT(key) DO NOTHING RETURNING key')
+          .bind(key, now.toISOString()),
+        db.prepare('SELECT 1 FROM sent_notifications WHERE key=?').bind(legacyKey),
+      ]);
+      // Promote a legacy accepted start to the stable claim as well, so a later medicine
+      // preference change cannot make that already-visible event eligible for another start.
+      if (!claimed.results.length || legacy.results.length) continue;
       const r = await send(start, {
         event: 'start',
         'attributes-type': 'KinwallActivityAttributes',

@@ -285,3 +285,7 @@ Update presentation during the event on supported Android 16+ phones. Android sc
 when the app opens and during background refresh: changes made elsewhere may wait until the next
 refresh, and force-stopping the app prevents alarms until it is reopened. Offline phones can keep
 old details until they reconnect. Notification visibility and delivery remain controlled by the OS.
+
+A followed event has one Live Activity on each phone. Refreshing notification preferences does not
+start another copy. The updated iPhone app also removes older duplicate event cards when it opens
+or receives an activity update, retaining one running card and its working update token.
