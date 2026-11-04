@@ -26,6 +26,8 @@ They say **Needs setup**: no OAuth client is configured yet. Set one up under **
 
 The redirect URI registered with Google must match the one on the provider card exactly. Check **Public URL**: scheme, host, port, no trailing path. Google also rejects bare LAN IPs, so use HTTPS or `localhost`.
 
+Copy the complete **Redirect URI** from Kinwall's Google card into the client's **Authorized redirect URIs**, including `/api/oauth/google/callback`. For a full walkthrough and other Google error codes, see [Google Calendar setup and sign-in troubleshooting](../calendars/google.md#if-google-sign-in-fails).
+
 ## "Google connection failed" or "Microsoft connection failed"
 
 When a sign-in goes wrong, Kinwall sends you back to **Settings → Calendars** with the reason in a message. "Sign-in canceled" means consent was declined, and nothing was connected. A reason starting with `server:` points to the server side: check the client secret and **Public URL** on the provider card, then try again.
