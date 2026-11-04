@@ -1,9 +1,16 @@
 # Translations
 
 Kinwall offers English, German (Deutsch), French (Français), and Spanish (Español).
-French and Spanish are initial, partial translations: navigation and common daily-use labels,
-calendar/list/meal controls, settings labels, and common server notifications. Untranslated
-messages fall back to English. They do not yet cover every screen or server error.
+French and Spanish are partial translations covering navigation, everyday calendar/list/chore/meal
+flows (including forms, explanations, empty states and errors), dashboard layouts, calendar
+provider setup, many settings, and common server notifications. Untranslated messages fall
+back to English. They do not yet cover every screen or server error.
+
+`web/test/translationCoverage.test.ts` checks extracted messages on the everyday screens.
+Its explicit temporary exceptions are product terms awaiting terminology review (Nooks,
+Free time, Temp check, and the culinary Basic/Basics family); they are not counted as translated.
+Recipe-text import examples retain the parser headings `Ingredients` and `Directions`
+until the recipe parser supports French and Spanish headings.
 Run the translation checks below for the current coverage of each language.
 
 German covers every screen of the web app and
