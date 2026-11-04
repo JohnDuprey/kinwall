@@ -36,6 +36,15 @@ directory = "web/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/docs", "/openapi.json", "/mcp", "/oauth/*", "/.well-known/*", "/plugins/*", "/r/*"]
 
+[[durable_objects.bindings]]
+name = "OPEN_LIBRARY"
+class_name = "OpenLibrary"
+
+[[migrations]]
+tag = "v1-openlibrary"
+new_sqlite_classes = ["OpenLibrary"]
+
 [vars]
+OPEN_LIBRARY_CONTACT = "support@kinwall.family"
 SYNC_INTERVAL_MINUTES = "10"
 MS_TENANT = "common"

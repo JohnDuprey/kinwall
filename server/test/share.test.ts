@@ -1,3 +1,4 @@
+import { testLibraryJson } from './openlibrary-fixture.ts';
 // POST /api/share: the one "Add to Kinwall" Shortcut. A link is read once and sent where its
 // JSON-LD says (Recipe or Restaurant), a Maps place is a restaurant, text is a book or an event
 // (which is never saved: it comes back as a link to check it first). Parent devices only.
@@ -34,7 +35,7 @@ function fixture() {
     if (REDIRECTS[url]) return new Response(null, { status: 302, headers: { location: REDIRECTS[url] } });
     return PAGES[url] ? new Response(PAGES[url], { headers: { 'content-type': 'text/html; charset=utf-8' } }) : new Response('nope', { status: 404 });
   };
-  const env: Env = { DB: db, ADMIN_API_KEY: 'test-admin', PUBLIC_URL: 'https://kinwall.example', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', OUTBOUND_FETCH };
+  const env: Env = { DB: db, OPEN_LIBRARY_JSON: testLibraryJson(), ADMIN_API_KEY: 'test-admin', PUBLIC_URL: 'https://kinwall.example', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', OUTBOUND_FETCH };
   const app = createApp();
   const call = async (method: string, path: string, body?: unknown, key = 'test-admin'): Promise<{ status: number; json: any }> => {
     const res = await app.request(path, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }, env);

@@ -14,7 +14,6 @@ import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
 import { syncDueTaskLinks, taskSyncCutoff } from './tasks/sync.ts';
 import { runNotifications } from './notify.ts';
-import { lookUpSome } from './book-details.ts';
 import { refreshDueFeeds } from './routes/outing-feeds.ts';
 import { http2Send } from './apns-node.ts';
 import { guardedLookup, nodeFetch } from './outbound-node.ts';
@@ -122,6 +121,7 @@ const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const env: Env = {
   DB: db,
   PUBLIC_URL: process.env.PUBLIC_URL,
+  OPEN_LIBRARY_CONTACT: process.env.OPEN_LIBRARY_CONTACT,
   ADMIN_API_KEY: process.env.ADMIN_API_KEY,
   SYNC_INTERVAL_MINUTES: process.env.SYNC_INTERVAL_MINUTES,
   CORS_ORIGINS: process.env.CORS_ORIGINS,
@@ -214,8 +214,3 @@ const NOTIFY_INTERVAL_MS = 2 * 60 * 1000;
 setInterval(() => {
   runNotifications(env, new Date()).catch((err) => console.error('notification loop failed', err));
 }, NOTIFY_INTERVAL_MS);
-
-// Library books' missing details from Open Library, a few at a time (book-details.ts).
-setInterval(() => {
-  lookUpSome(env).catch((err) => console.error('book details loop failed', err instanceof Error ? err.name : 'error'));
-}, 5 * 60 * 1000);

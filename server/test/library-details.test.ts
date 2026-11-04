@@ -1,3 +1,4 @@
+import { testLibraryJson } from './openlibrary-fixture.ts';
 // Library books' details from Open Library (book-details.ts, migration 0098): matched by ISBN or by
 // title and author, only empty fields filled, each book looked up once (no match: again after a
 // month), a few per tick for books from before. Open Library is always mocked here.
@@ -17,7 +18,7 @@ afterEach(() => { globalThis.fetch = realFetch; });
 function setup() {
   const db = openDb(':memory:');
   applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
-  const env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
+  const env = { DB: db as unknown as D1Database, OPEN_LIBRARY_JSON: testLibraryJson(), ADMIN_API_KEY: ADMIN, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
   const app = createApp();
   const send = async (method: string, p: string, body?: unknown, key = ADMIN) => {
     const res = await app.request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }, env);
@@ -149,4 +150,18 @@ test("library details: an audiobook made from a reading entry is looked up, with
   assert.equal(book.year, 1998);
   assert.deepEqual([book.isbn, book.pages], [null, null], "the paper copy's");
   assert.equal(book.readers[0].narrator, 'Kerry Beyer');
+});
+
+test('library details: a failed description fetch does not mark the book as enriched', async () => {
+  const { env, send } = setup();
+  const now = new Date().toISOString();
+  await env.DB.prepare('INSERT INTO library_books (id, title, author, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').bind('description-outage', 'Holes', 'Louis Sachar', now, now).run();
+  globalThis.fetch = (async (input) => String(input).includes('/search.json')
+    ? Response.json({ docs: [holesDoc] }) : new Response('down', { status: 521 })) as typeof fetch;
+  const result = await send('POST', '/api/library/description-outage/details');
+  assert.equal(result.status, 502);
+  assert.match(result.body.error, /521/);
+  const book = (await send('GET', '/api/library/description-outage')).body;
+  assert.equal(book.lookedUpAt, null);
+  assert.equal(book.workKey, null);
 });

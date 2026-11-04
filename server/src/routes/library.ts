@@ -171,14 +171,14 @@ libraryRoutes.openapi(
     let ratings: { average: number | null; count: number | null } = { average: null, count: null };
     if (!input.title) {
       let found;
-      try { found = (await searchOpenLibrary(input.isbn!, 1))[0]; }
+      try { found = (await searchOpenLibrary(input.isbn!, 1, c.env))[0]; }
       catch (err) { console.error('library lookup failed', err instanceof Error ? err.message : err); return c.json({ error: `Book lookup is unavailable right now${why(err)}` }, 502); }
       if (!found) return c.json({ error: "Couldn't find that book" }, 404);
       lookedUp = true;
       ratings = { average: found.ratingsAverage ?? null, count: found.ratingsCount ?? null };
       input = { title: found.title, author: found.author, pages: found.pages, coverUrl: found.coverUrl, year: found.year, series: found.series, seriesNumber: found.seriesNumber, lexile: found.lexile, genres: found.genres, workKey: found.workKey, ...input };
     }
-    const description = input.description ?? (input.workKey ? await workDescription(input.workKey) : null);
+    const description = input.description ?? (input.workKey ? await workDescription(input.workKey, c.env) : null);
     const by = await actorOf(c);
     const now = new Date().toISOString();
     const row: LibraryRow = {
@@ -259,7 +259,7 @@ libraryRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     let result;
-    try { result = await lookUpBook(c.env.DB, id); }
+    try { result = await lookUpBook(c.env.DB, id, c.env); }
     catch (err) { console.error('library details lookup failed', err instanceof Error ? err.message : err); return c.json({ error: `Book lookup is unavailable right now${why(err)}` }, 502); }
     if (result === 'busy') return c.json({ error: 'Too many lookups - try again in a minute' }, 429);
     if (result === 'gone') return c.json({ error: 'not found' }, 404);

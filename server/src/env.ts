@@ -7,6 +7,8 @@ import type { PhotoFolder } from './routes/photo-folder.ts';
 export type Env = NativePushEnv & {
   DB: KinwallDb;
   PUBLIC_URL?: string;
+  OPEN_LIBRARY_CONTACT?: string; // operator email in Open Library's User-Agent; default: support@kinwall.family
+  OPEN_LIBRARY_JSON?: (path: string) => Promise<unknown>; // host-coordinated public metadata client
   ADMIN_API_KEY?: string;
   SYNC_INTERVAL_MINUTES?: string;
   CORS_ORIGINS?: string;

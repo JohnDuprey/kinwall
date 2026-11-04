@@ -5,11 +5,11 @@ import { createRouter } from '../router.ts';
 import { checkRate } from '../ratelimit.ts';
 import { fetchRecipeImage } from '../outbound.ts';
 import { BookResultSchema, ErrorSchema } from '../schemas.ts';
+import { libraryJson } from '../openlibrary.ts';
+import type { Env } from '../env.ts';
 
 export const booksRoutes = createRouter();
 
-const TIMEOUT_MS = 8000;
-const USER_AGENT = 'Kinwall/1.0 (https://kinwall.family; self-hosted family calendar)'; // Open Library asks apps to name themselves
 const coverUrl = (id: number) => `https://covers.openlibrary.org/b/id/${id}-M.jpg`;
 const json = <T extends z.ZodType>(schema: T) => ({ 'application/json': { schema } });
 
@@ -56,11 +56,9 @@ export function why(err: unknown): string {
   return ''
 }
 
-export async function searchOpenLibrary(q: string, limit = 8): Promise<BookResult[]> {
+export async function searchOpenLibrary(q: string, limit = 8, env?: Env): Promise<BookResult[]> {
   const params = new URLSearchParams({ q, limit: String(limit), fields: FIELDS });
-  const res = await fetch(`https://openlibrary.org/search.json?${params}`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`Open Library answered ${res.status}`);
-  const { docs = [] } = (await res.json()) as { docs?: Doc[] };
+  const { docs = [] } = (await libraryJson(env, `/search.json?${params}`)) as { docs?: Doc[] };
   return docs.filter((d) => d.title).map((d) => {
     const isbn = d.isbn?.find((i) => i.length === 13) ?? d.isbn?.[0];
     return {
@@ -97,15 +95,14 @@ export function cleanDescription(raw: string): string | null {
   return t || null;
 }
 
-/** A work's description (its blurb), or null; never throws. */
-export async function workDescription(workKey: string): Promise<string | null> {
+/** A work's description, or null. Strict enrichment propagates failures so it can be retried. */
+export async function workDescription(workKey: string, env?: Env, strict = false): Promise<string | null> {
   try {
-    const res = await fetch(`https://openlibrary.org${workKey}.json`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!res.ok) return null;
-    const { description } = (await res.json()) as { description?: string | { value?: string } };
+    const { description } = (await libraryJson(env, `${workKey}.json`)) as { description?: string | { value?: string } };
     const text = cleanDescription((typeof description === 'string' ? description : description?.value) ?? '');
     return text ? text.slice(0, 4000) : null;
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return null;
   }
 }
@@ -128,7 +125,7 @@ booksRoutes.openapi(
     const { q } = c.req.valid('query');
     if (!(await checkRate(c.env.DB, 'books', 30, 60_000))) return c.json({ error: 'Too many searches - try again in a minute' }, 429);
     try {
-      return c.json(await searchOpenLibrary(q), 200);
+      return c.json(await searchOpenLibrary(q, 8, c.env), 200);
     } catch (err) {
       console.error('book search failed', err instanceof Error ? err.message : err);
       return c.json({ error: `Book search is unavailable right now${why(err)}` }, 502);

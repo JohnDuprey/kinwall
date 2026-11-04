@@ -8,6 +8,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `OPEN_LIBRARY_CONTACT` | `support@kinwall.family` | The contact email sent in the Open Library User-Agent. You can override it with your operator email. Metadata requests are spaced at least 334 ms apart with a contact email; an empty value uses at least one second. Use a real address Open Library can contact. |
 | `PUBLIC_URL` | — | The base URL, e.g. `https://cal.home.example`. Used for OAuth redirect URIs and as the passkey domain (without it, passkeys use the address the request came in on; in the Home Assistant app, the Home Assistant address the browser is on). It can also be set in **Settings → Calendars → Calendar providers**; the variable always wins. |
 | `WEBAUTHN_RP_ID` | host of `PUBLIC_URL` | Passkey rpID override, for multi-tenant hosts that serve families on subdomains (e.g. `example.com` for `smiths.example.com`). The instance's origin must be that host or one of its subdomains. |
 | `ADMIN_API_KEY` | — | A permanent admin key that also works as the first-run setup code. Without it, the setup code is printed to the log. |
@@ -150,3 +151,22 @@ duplicate alert if Apple accepted the first request; registration does not guara
 The gateway and Apple can read notification text. Medicine names remain off unless explicitly
 enabled for that device. The gateway does not make the home server reachable when tapping a
 notification, and remote delivery still depends on the server and gateway being available.
+
+## Book lookup requests
+
+Open Library searches are cached for one hour and work descriptions for one day in memory,
+with at most 50 responses and 5 MB of JSON. Concurrent identical requests share one upstream
+request. A restart clears the cache. Requests queued for more than three seconds are rejected
+before making an upstream call; each upstream fetch has an eight-second timeout.
+
+After a failure, lookups pause for 30 seconds, doubling on repeated failures up to 15 minutes.
+A longer upstream `Retry-After` is respected. Temporary failures are never cached as “no match.”
+The Node server shares its client across requests. The Cloudflare configuration uses one SQLite
+Durable Object to coordinate all isolates and retain pacing/cooldown through eviction; this
+requires a Cloudflare plan that supports SQLite Durable Objects. Separate server deployments
+need a shared host client via `Env.OPEN_LIBRARY_JSON` if they share an outbound request budget.
+
+New books can be looked up just after they are added. Older books are no longer swept on a
+schedule; use **Look up details** for a book when needed. An automatic lookup skipped during an
+outage is not retried on a timer. See [Open Library's guidelines](https://openlibrary.org/developers/api)
+to register your application/use case.

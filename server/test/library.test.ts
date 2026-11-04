@@ -1,3 +1,4 @@
+import { testLibraryJson } from './openlibrary-fixture.ts';
 // The family's library (routes/library.ts, migration 0089): books the family owns, apart from who's
 // reading what. A reading entry started from a book carries its id (ReadingData.bookId), so each book
 // lists its readers.
@@ -17,7 +18,7 @@ afterEach(() => { globalThis.fetch = realFetch; });
 function setup() {
   const db = openDb(':memory:');
   applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
-  const env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
+  const env = { DB: db as unknown as D1Database, OPEN_LIBRARY_JSON: testLibraryJson(), ADMIN_API_KEY: ADMIN, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
   const app = createApp();
   const send = async (method: string, p: string, body?: unknown, key = ADMIN) => {
     const res = await app.request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }, env);

@@ -1,3 +1,4 @@
+import { testLibraryJson } from './openlibrary-fixture.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -16,7 +17,7 @@ const TEST_ENCRYPTION_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 function makeEnv(): Env {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
-  return { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, PUBLIC_URL: 'http://localhost:8080', ENCRYPTION_KEY: TEST_ENCRYPTION_KEY };
+  return { DB: db as unknown as D1Database, OPEN_LIBRARY_JSON: testLibraryJson(), ADMIN_API_KEY: ADMIN_KEY, PUBLIC_URL: 'http://localhost:8080', ENCRYPTION_KEY: TEST_ENCRYPTION_KEY };
 }
 
 function makeApp(env: Env) {

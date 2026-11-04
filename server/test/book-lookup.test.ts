@@ -1,3 +1,4 @@
+import { testLibraryJson } from './openlibrary-fixture.ts';
 // Book lookup (routes/books.ts) and reading covers: Open Library search through the server, and a
 // reading entry's coverUrl served through the server so the browser never talks to a third party.
 import { test, afterEach } from 'node:test';
@@ -17,7 +18,7 @@ afterEach(() => { globalThis.fetch = realFetch; });
 function setup() {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
-  const env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
+  const env = { DB: db as unknown as D1Database, OPEN_LIBRARY_JSON: testLibraryJson(), ADMIN_API_KEY: ADMIN_KEY, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
   const app = createApp();
   const req = (p: string, init: RequestInit = {}) =>
     app.request(p, { ...init, headers: { Authorization: `Bearer ${ADMIN_KEY}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}) } }, env);

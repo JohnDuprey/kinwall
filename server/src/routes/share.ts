@@ -365,7 +365,7 @@ export function shareRoutes(app: App) {
         if (have) return look({ title: '', isbn });
         if (!(await checkRate(c.env.DB, 'books', 30, 60_000))) return fail('Too many lookups - try again in a minute', 429);
         let found;
-        try { found = (await searchOpenLibrary(isbn, 1))[0]; }
+        try { found = (await searchOpenLibrary(isbn, 1, c.env))[0]; }
         catch (e) { return fail(`Book lookup is unavailable right now${why(e)}`, 502); }
         if (!found) return fail("Couldn't find that book", 404);
         return look({ ...found, isbn });
@@ -375,7 +375,7 @@ export function shareRoutes(app: App) {
       if (!q.title) return fail("Send the book's barcode, ISBN or title.", 400);
       if (!(await checkRate(c.env.DB, 'books', 30, 60_000))) return fail('Too many lookups - try again in a minute', 429);
       let results;
-      try { results = await searchOpenLibrary(`${q.title} ${q.author ?? ''}`.trim(), 5); }
+      try { results = await searchOpenLibrary(`${q.title} ${q.author ?? ''}`.trim(), 5, c.env); }
       catch (e) { return fail(`Book lookup is unavailable right now${why(e)}`, 502); }
       // One clear match: the same title, one author among those results, and an author if one was given.
       const hits = results.filter((r) => sameBook({ title: q.title!, author: q.author }, { title: r.title, author: r.author ?? null }));

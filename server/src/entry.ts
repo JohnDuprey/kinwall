@@ -8,7 +8,6 @@ import { runNotifications, runMedicineReminders, sealMedicationNotes } from './n
 import { runMigrations, type Migration } from './migrate.ts';
 import { sealHealthEntries } from './routes/trackers.ts';
 import { shelveReadingEntries } from './shelve.ts';
-import { lookUpSome } from './book-details.ts';
 import { refreshDueFeeds } from './routes/outing-feeds.ts';
 import { convertRefillPlaces } from './routes/medication-refills.ts';
 
@@ -85,15 +84,14 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
       await ready();
       return nextReminderAt(env, now, before);
     },
-    /** One cron tick: sync calendars that are due (self-throttled) + send due notifications + look up a few library books' details + read Outings' community calendars once a day. Each
+    /** One cron tick: sync calendars that are due (self-throttled) + send due notifications + read Outings' community calendars once a day. Each
      * runs to the end whatever the other does, and a failure is logged rather than thrown: the next
      * tick retries, and a host's alarm (a Durable Object per family) isn't failed and re-run for it. */
     async scheduled(now?: Date, ctx?: WaitCtx): Promise<void> {
       await ready();
-      // And a few library books' details from Open Library (book-details.ts), gently.
-      const results = await Promise.allSettled([syncDue(env, ctx), runNotifications(env, now ?? new Date(), ctx), lookUpSome(env), refreshDueFeeds(env, now ?? new Date(), ctx)]);
+      const results = await Promise.allSettled([syncDue(env, ctx), runNotifications(env, now ?? new Date(), ctx), refreshDueFeeds(env, now ?? new Date(), ctx)]);
       results.forEach((r, i) => {
-        if (r.status === 'rejected') console.error(`${['calendar sync', 'notifications', 'book details', 'community calendars'][i]} tick failed:`, errorName(r.reason));
+        if (r.status === 'rejected') console.error(`${['calendar sync', 'notifications', 'community calendars'][i]} tick failed:`, errorName(r.reason));
       });
     },
   };
