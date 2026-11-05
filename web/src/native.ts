@@ -333,3 +333,13 @@ export function tellAppEventActivities(schedule:{enabled:boolean;plans:import('.
 export function appEventActivitiesSupported():boolean {
  return typeof window !== 'undefined' && (window as Window & {kinwallNative?:{eventActivitiesSupported?:boolean}}).kinwallNative?.eventActivitiesSupported === true
 }
+
+/** Local reminder preference advertised by current shells; older shells cannot change it. */
+export function appChoreNudgeAnyone(): boolean | null {
+  const value = (window as Window & { kinwallNative?: { choreNudgeAnyone?: unknown } }).kinwallNative?.choreNudgeAnyone
+  return typeof value === 'boolean' ? value : null
+}
+export function setAppChoreNudgeAnyone(on: boolean) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'choreNudgeAnyone', on })
+}

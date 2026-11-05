@@ -264,6 +264,8 @@ Push subscription `prefs` accepts `morningCheckIn` (boolean, default `false`) an
 
 ### Native Apple push
 
+Push subscription `prefs.choreNudgeAnyone` opts this device into Anyone chores in its daily chore nudge (`choreNudge`); it defaults to false, including for existing subscriptions. Set it through `POST /api/push/subscriptions` or `PATCH /api/push/subscriptions/{id}`. Omitting it from a patch preserves the saved choice. Personal chores still follow `memberIds`; the household notification feed is unchanged.
+
 `PUT /api/push/native` accepts `{token, deviceName?, gateway?: {credential} | null}` from an authenticated device. The token is
 hexadecimal APNs data (16–400 characters); it is encrypted at rest and never returned. The response
 is `{push, delivery, gatewayExpiresAt?, subscription}`, where `push` reports whether direct APNs, a host provider or a verified

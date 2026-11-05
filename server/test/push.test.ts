@@ -486,6 +486,77 @@ test('notify: remindBeforeLeave counts reminders back from the leave-by time and
 
 const feed = async (request: ReturnType<typeof makeApp>, qs = '', key = ADMIN_KEY) => (await (await request(`/api/notifications${qs}`, {}, key)).json()) as any[];
 
+test('chore nudges: Anyone is opt-in per device; personal reminders and the household feed are preserved', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) });
+  const maya = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#e57' }) })).json() as any;
+  for (const [title, memberId] of [['Trash', null], ['Bed', maya.id]]) {
+    await request('/api/chores', { method: 'POST', body: JSON.stringify({ title, memberId, dueDate: '2030-03-04' }) });
+  }
+  const { row, keys } = await subscribe(request, ADMIN_KEY, 'phone', { eventReminders: false, choreNudge: true });
+  assert.equal(row.prefs.choreNudgeAnyone, false);
+  // Legacy subscriptions missing the field also default off.
+  await env.DB.prepare('UPDATE push_subscriptions SET prefs = ? WHERE id = ?').bind(JSON.stringify({ eventReminders: false, choreNudge: true }), row.id).run();
+  const push = stubPush();
+  try {
+    await runNotifications(env, new Date('2030-03-04T08:00:00Z'));
+    assert.equal(push.sent.length, 1);
+    const payload = JSON.parse(await referenceDecrypt(push.sent[0].body!, keys.privateKey, keys.p256dh, keys.auth));
+    assert.equal(payload.body, 'Bed');
+    assert.equal((await feed(request)).find(n => n.kind === 'chore').body, 'Trash, Bed');
+    const updated = await request(`/api/push/subscriptions/${row.id}`, { method: 'PATCH', body: JSON.stringify({ prefs: { choreNudgeAnyone: true } }) });
+    assert.equal(updated.status, 200);
+    assert.equal(((await updated.json()) as any).prefs.choreNudgeAnyone, true);
+    const timeOnly = await request(`/api/push/subscriptions/${row.id}`, { method: 'PATCH', body: JSON.stringify({ prefs: { choreNudgeTime: '08:00' } }) });
+    assert.equal(((await timeOnly.json()) as any).prefs.choreNudgeAnyone, true, 'editing another preference preserves opt-in');
+    // Only a shared chore remains tomorrow; opting in must still send a reminder.
+    await request('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Dishes', dueDate: '2030-03-05' }) });
+    await subscribe(request, ADMIN_KEY, 'quiet', { eventReminders: false, choreNudge: true });
+    await runNotifications(env, new Date('2030-03-05T08:00:00Z'));
+    assert.equal(push.sent.length, 2);
+    assert.ok(push.sent[1].url.endsWith('/phone'), 'a device without opt-in stays quiet for shared-only chores');
+    const next = JSON.parse(await referenceDecrypt(push.sent[1].body!, keys.privateKey, keys.p256dh, keys.auth));
+    assert.equal(next.body, 'Dishes');
+    await runNotifications(env, new Date('2030-03-05T08:00:00Z'));
+    assert.equal(push.sent.length, 2);
+  } finally { push.restore(); }
+});
+
+test('chore nudges: Anyone opt-in is independent per device and keeps member filters and the master switch', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) });
+  const maya = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#e57' }) })).json() as any;
+  const leo = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Leo', color: '#5ae' }) })).json() as any;
+  for (const [title, memberId] of [['Trash', null], ['Bed', maya.id], ['Books', leo.id]]) {
+    await request('/api/chores', { method: 'POST', body: JSON.stringify({ title, memberId, dueDate: '2030-03-04' }) });
+  }
+  const devices = [];
+  for (const [name, anyone, memberIds, enabled, expected] of [
+    ['personal', false, [maya.id], true, 'Bed'],
+    ['shared', true, [maya.id], true, 'Trash, Bed'],
+    ['all', false, [], true, 'Bed, Books'],
+    ['disabled', true, [maya.id], false, null],
+  ] as const) {
+    const device = await subscribe(request, ADMIN_KEY, name, { eventReminders: false, choreNudge: enabled, choreNudgeAnyone: anyone });
+    await request(`/api/push/subscriptions/${device.row.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds }) });
+    devices.push({ name, ...device, expected });
+  }
+  const push = stubPush();
+  try {
+    await runNotifications(env, new Date('2030-03-04T08:00:00Z'));
+    assert.equal(push.sent.length, 3);
+    for (const d of devices) {
+      const sent = push.sent.find(s => s.url.endsWith('/' + d.name));
+      if (d.expected === null) { assert.equal(sent, undefined); continue; }
+      assert.ok(sent);
+      const payload = JSON.parse(await referenceDecrypt(sent.body!, d.keys.privateKey, d.keys.p256dh, d.keys.auth));
+      assert.equal(payload.body, d.expected);
+    }
+  } finally { push.restore(); }
+});
+
 test('feed: a reminder is recorded once with no push subscriptions at all, deep-linked, for the event\'s members, and bumps rev', async () => {
   const env = makeEnv();
   const request = makeApp(env);

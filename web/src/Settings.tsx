@@ -41,7 +41,7 @@ import { countDrawings } from './drawings-db.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
+import { appChoreNudgeAnyone, setAppChoreNudgeAnyone, appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -882,7 +882,15 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeAnyone: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
+
+function AnyoneChoreReminder({ on, change }: { on: boolean; change: (on: boolean) => void }) {
+  return <div className="toggle-row">
+    <div><label id="push-anyone-label">{t('Include Anyone chores')}</label>
+      <div className="settings-row-sub" id="push-anyone-sub">{t('Remind me about shared chores anyone can do.')}</div></div>
+    <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="push-anyone-label" aria-describedby="push-anyone-sub" onClick={() => change(!on)}><span className="knob" /></button>
+  </div>
+}
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
@@ -900,6 +908,12 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   const kid = !parentDevice && meMemberId ? members.find(m => m.id === meMemberId && !m.grownUp) : undefined
   const [appNames, setAppNames] = useState(appMedicineNames) // in the app: this device's own choice (no push subscription)
   const [kidDoses, setKidDoses] = useState(appKidDoses)
+  const [anyoneChores, setAnyoneChores] = useState(appChoreNudgeAnyone)
+  useEffect(() => {
+    const update = () => setAnyoneChores(appChoreNudgeAnyone())
+    window.addEventListener('kinwallnative', update)
+    return () => window.removeEventListener('kinwallnative', update)
+  }, [])
   const grownUpPhone = parentDevice && !!members.find(m => m.id === meMemberId && m.grownUp) // a grown-up's own full-access phone
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
@@ -1008,7 +1022,12 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   if (inNativeApp() && !appNativePush()) {
     return <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
       {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
-      <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.")}</p>
+      <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries and list updates still arrive in the bell at the top. Chore reminders are scheduled on this device when enabled.")}</p>
+      {settings.features.chores && anyoneChores !== null && <>
+        <p>{t('Chore reminder')}</p>
+        <AnyoneChoreReminder on={anyoneChores} change={setAppChoreNudgeAnyone} />
+        <p className="settings-row-sub">{appPlatform() === 'android' ? t('Turn on the Chores notification channel in Android Settings to receive the daily reminder at 8:00 AM.') : t('Turn on Chore reminder in iPhone Settings → Kinwall and choose a time.')}</p>
+      </>}
       {nativeDetails}
     </Section>
   }
@@ -1072,6 +1091,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             </div>
             {prefs.choreNudge && <input type="time" aria-label={t('Chore reminder time')} value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
           </div>}
+          {settings.features.chores && prefs.choreNudge && <AnyoneChoreReminder on={prefs.choreNudgeAnyone === true} change={on => savePrefs({ choreNudgeAnyone: on })} />}
           {settings.features.lists && <div className="toggle-row">
             <label>{t('List updates')}</label>
             <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label={t('List updates')} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>

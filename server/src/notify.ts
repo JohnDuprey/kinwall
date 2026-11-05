@@ -49,6 +49,7 @@ export const DEFAULT_PUSH_PREFS = {
   morningCheckInTime: '07:30',
   choreNudge: false,
   choreNudgeTime: '08:00',
+  choreNudgeAnyone: false,
   listUpdates: false,
   outingReminders: true, // Outings: heads-ups for ⭐ outings, ticket dates, last chance (notify.ts runOutings)
   upkeepReminders: true, // Home upkeep: jobs coming up, due and late, warranties ending (notify.ts runUpkeep)
@@ -763,7 +764,9 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
     const key = sub ? `nudge:${sub.id}:${today}` : `feed:nudge:${today}`;
     if (await alreadySent(db, key)) continue;
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
-    const mine = dueToday.filter((c) => memberMatch(deviceMemberIds, c.member_id ? [c.member_id] : []));
+    const mine = dueToday.filter((c) => c.member_id
+      ? memberMatch(deviceMemberIds, [c.member_id])
+      : !sub || subPrefs(sub).choreNudgeAnyone === true);
     if (mine.length === 0) continue;
     const titles = mine.slice(0, 3).map((c) => c.title).join(', ');
     const { tn } = words(sub ? sub.lang : fam);

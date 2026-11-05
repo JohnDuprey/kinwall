@@ -1076,6 +1076,7 @@ export const PushSubscriptionPrefsSchema = z
     morningCheckInTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).refine(value => value < '12:00', 'Choose a time before noon').openapi({ description: 'Household time, before noon; held during night hours until noon.' }),
     choreNudge: z.boolean(),
     choreNudgeTime: z.string().regex(HHMM_RE),
+    choreNudgeAnyone: z.boolean().optional().openapi({ description: 'Include Anyone chores in this device’s daily chore reminder; off by default. Does not filter the household feed.' }),
     listUpdates: z.boolean(),
     outingReminders: z.boolean().default(true).openapi({ description: 'Outings: heads-ups for ⭐ outings, ticket dates and last chances.' }),
     upkeepReminders: z.boolean().default(true).openapi({ description: 'Home upkeep: jobs coming up, due and late, and warranties ending.' }),

@@ -11,10 +11,13 @@ On the device that should get notifications, go to **Settings → General → No
 | **Event reminders** | on | A notification at each event's reminder time. On a device that belongs to someone, also their [transition reminders](#transition-reminders), if they have them. |
 | **Daily summary** + time | off, 07:30 | "Today": event and chore counts, the first event titles, and open linked tasks. |
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
+| **Include Anyone chores** | off | Include shared chores anyone can do in this device’s daily chore reminder. Shown when Chore reminder is on. |
 | **Outing reminders** | on | Heads-ups for [outings](outings.md#reminders) someone ⭐ (a week before and the day before), ticket dates ("🎟 Get tickets for the sewing class by Tuesday"), and last chances. Shown while Outings is on. |
 | **Home upkeep** | on | [Upkeep](upkeep.md#reminders) jobs coming up, due today and late, and warranties about to end. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |
 | **Which family members?** | Everyone | Only events and chores for these people. A device following nobody gets everything. A kid's own device doesn't have this: it follows only that kid (and everything for the whole family), and says so. |
+
+Anyone chores stay visible in the app and the household bell regardless of this choice. Existing devices also start with **Include Anyone chores** off. In native apps using local reminders, the same choice is under **Notifications** after updating the mobile app; enable the daily chore reminder in iPhone Settings → Kinwall, or the Chores notification channel in Android Settings (8:00 AM). Supported iOS builds using server push use the subscription preference above.
 
 **Send test** sends "Notifications are on 🎉" to this device. **Turn off** unsubscribes it. Times use the household timezone.
 
