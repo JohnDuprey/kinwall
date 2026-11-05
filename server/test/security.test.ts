@@ -416,7 +416,9 @@ test('validation errors: a 400 always has a plain string `error`, not zod-openap
   assert.ok(body.error.length > 0);
 });
 
-test('ICS stable externalId + content fingerprint: a feed that regenerates UID/DTSTAMP every fetch (real Thrillshare export) keeps stable ids and skips the DB replace on the second sync', async () => {
+test('ICS stable externalId + content fingerprint: a feed that regenerates UID/DTSTAMP every fetch (real Thrillshare export) keeps stable ids and skips the DB replace on the second sync', async (t) => {
+  // Keep the fixed school-year fixture inside the sync window as the real date advances.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-24T12:00:00Z') });
   const env = makeEnv();
   const request = makeApp(env);
 
