@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { POINT_TOTALS_SQL } from '../src/stickers.ts';
+import { PERIOD_POINTS_SQL } from '../src/routes/members.ts';
 import { loadMedications, sealMedication, sealLog } from '../src/routes/medications.ts';
 
 const dir = new URL('../migrations/', import.meta.url);
@@ -78,4 +79,38 @@ test('stored list counts follow adds, ticks, moves and deletes', () => {
   assert.deepEqual(counts(), reference());
   run("DELETE FROM lists WHERE id = 'b'");
   assert.deepEqual(counts(), reference().filter((r: any) => r.list_id !== 'b'));
+});
+
+test("daily point totals match this week's completions and bonuses through edits and deletes", () => {
+  const db = openDb(':memory:'); applyMigrations(db, fileURLToPath(dir)); seed(db);
+  // What GET /api/members computed before the daily totals.
+  const reference = `SELECT member_id, COALESCE(SUM(CASE WHEN date = ?1 THEN points ELSE 0 END), 0) AS today, COALESCE(SUM(points), 0) AS week
+    FROM (SELECT cc.member_id AS member_id, cc.date AS date, cc.points_awarded AS points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id
+            WHERE cc.member_id IS NOT NULL AND cc.date >= ?2 AND cc.date <= ?1
+          UNION ALL SELECT member_id, ref, amount FROM point_entries WHERE reason = 'bonus' AND ref >= ?2 AND ref <= ?1)
+    GROUP BY member_id ORDER BY member_id`;
+  const check = () => {
+    for (const [today, from] of [['2026-11-06', '2026-11-02'], ['2026-11-04', '2026-11-02'], ['2026-11-06', '2026-10-01']]) {
+      const got = db.prepare(`SELECT * FROM (${PERIOD_POINTS_SQL}) WHERE week != 0 OR today != 0 ORDER BY member_id`).bind(today, from).all().results;
+      const want = db.prepare(reference).bind(today, from).all().results.filter((r: any) => r.week !== 0 || r.today !== 0);
+      assert.deepEqual(got, want, `${today} from ${from}`);
+    }
+  };
+  const run = (sql: string) => db.prepare(sql).run();
+  run("INSERT INTO chores(id,title,created_at) VALUES('c2','Fixture chore','2026-01-01'),('c3','Fixture chore','2026-01-01')");
+  run("INSERT INTO chore_completions(id,chore_id,date,member_id,completed_at,points_awarded) VALUES('a','c','2026-11-06','m1','x',5),('b','c','2026-11-04','m1','x',3),('d','c2','2026-11-05','m2','x',2),('e','c2','2026-10-20','m2','x',9),('f','c3','2026-11-06',NULL,'x',4)");
+  run("INSERT INTO point_entries(id,member_id,amount,reason,ref,at) VALUES('p1','m1',10,'bonus','2026-11-06','x'),('p2','m2',4,'bonus','2026-11-03','x'),('p3','m1',-6,'reward','r1','x')");
+  check();
+  run("UPDATE chore_completions SET points_awarded = 7 WHERE id = 'a'");
+  run("UPDATE chore_completions SET member_id = 'm2' WHERE id = 'b'");
+  run("UPDATE chore_completions SET date = '2026-11-06' WHERE id = 'd'");
+  run("UPDATE chore_completions SET member_id = 'm1' WHERE id = 'f'");
+  run("UPDATE point_entries SET ref = '2026-11-05' WHERE id = 'p2'");
+  run("UPDATE point_entries SET reason = 'adjust' WHERE id = 'p1'");
+  check();
+  run("DELETE FROM chore_completions WHERE id = 'a'");
+  run("DELETE FROM point_entries WHERE id = 'p2'");
+  check();
+  run("DELETE FROM chores WHERE id = 'c'"); // cascades to its completions
+  check();
 });

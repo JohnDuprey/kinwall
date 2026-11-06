@@ -98,17 +98,13 @@ async function pointsFor(db: KinwallDb, memberId: string, tz: string, weekStart:
 
 // All members' today/week points in one query (grouped + conditional SUM) instead of two
 // queries per member - what GET /api/members uses instead of pointsFor() in a loop. Balances ride
-// the same batch, so it stays one round trip. Binds ?1 today, ?2 week start: only this week's rows
-// are read (through the date indexes). Chore points plus bonus points (routes/bonus-points.ts) by
-// the day they count on; check-ins and spending aren't period points.
+// the same batch, so it stays one round trip. Binds ?1 today, ?2 week start: only this week's daily
+// totals are read. Chore points plus bonus points (routes/bonus-points.ts) by the day they count on,
+// kept per member and day by migration 0139's triggers; check-ins and spending aren't period points.
 export const PERIOD_POINTS_SQL = `SELECT member_id,
                 COALESCE(SUM(CASE WHEN date = ?1 THEN points ELSE 0 END), 0) AS today,
                 COALESCE(SUM(points), 0) AS week
-         FROM (SELECT cc.member_id AS member_id, cc.date AS date, cc.points_awarded AS points
-                 FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id
-                 WHERE cc.member_id IS NOT NULL AND cc.date >= ?2 AND cc.date <= ?1
-               UNION ALL
-               SELECT member_id, ref, amount FROM point_entries WHERE reason = 'bonus' AND ref >= ?2 AND ref <= ?1)
+         FROM member_daily_points WHERE date >= ?2 AND date <= ?1
          GROUP BY member_id`;
 
 async function pointsByMember(db: KinwallDb, tz: string, weekStart: 0 | 1): Promise<Map<string, Points>> {

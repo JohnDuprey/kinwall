@@ -31,10 +31,10 @@ test('pending approvals (the parent badge) read only pending completions', () =>
   assert.match(p, /chore_completions USING INDEX idx_chore_completions_pending|cc USING INDEX idx_chore_completions_pending/, p);
 });
 
-test("today's and this week's points read only this week's completions", () => {
+test("today's and this week's points read only this week's daily totals", () => {
   const p = plan(PERIOD_POINTS_SQL.replace(/\?\d/g, "'2026-09-30'"));
-  assert.match(p, /SEARCH cc USING INDEX idx_chore_completions_date/, p);
-  assert.match(p, /SEARCH point_entries USING INDEX idx_point_entries_reason_ref/, p);
+  assert.match(p, /SEARCH member_daily_points USING INDEX idx_member_daily_points_date/, p);
+  assert.doesNotMatch(p, /chore_completions|point_entries/, p);
 });
 
 test('Newscast reads each source through an index, only over its window', () => {
