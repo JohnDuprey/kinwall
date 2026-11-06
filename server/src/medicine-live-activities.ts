@@ -37,6 +37,15 @@ export async function runMedicineLiveActivities(env: Env, now = new Date()): Pro
   const h12 = hour12For(prefs.get('timeFormat'),country), fam = await familyLang(db);
   const meds = on ? await loadMedications(env) : [];
   const logs = meds.length ? await loadLogs(env,meds.map(m => m.id),addDays(today,-1),today) : new Map();
+  // Foreground-only devices have no start preferences to build candidates from. Match completed
+  // doses independently so their update tokens still end when any device marks the dose.
+  const completed = new Set<string>();
+  for (const m of meds) for (const date of [addDays(today,-1),today]) for (const time of m.times) {
+    const key = timeKey(time), entry = logs.get(`${m.id}:${date}`)?.[key];
+    if (!entry?.status) continue;
+    const until = windowEnd(m.lateWindow,date,dueAt(time,date,tz,entry),tz);
+    for (const names of [false,true]) completed.add(await medicineActivityId(m.id,date,key,names,until));
+  }
   const { results: members } = await db.prepare('SELECT id,name,grown_up,language FROM members').all<Person>();
   const member = new Map(members.map(m => [m.id,m]));
   const send = async (token: Token, aps: Record<string,unknown>, priority: 5 | 10 = 10) => {
@@ -71,10 +80,11 @@ export async function runMedicineLiveActivities(env: Env, now = new Date()): Pro
     let blocked = false;
     for (const old of updates.filter(u => u.activity !== next?.activity)) {
       // iOS 17.0/17.1 and the first foreground token can have no push-to-start registration.
-      // Preserve their local activity unless it expired, the feature is off, or start was revoked.
+      // Preserve their local activity unless its dose is marked, it expired, the feature is off,
+      // or start was revoked.
       let revoked = false;
       try { revoked = JSON.parse(old.preferences)?.endRequested === true; } catch { /* no request */ }
-      if (!start && on && !revoked && (!old.ends_at || Date.parse(old.ends_at) > now.getTime())) continue;
+      if (!start && on && !revoked && !completed.has(old.activity) && (!old.ends_at || Date.parse(old.ends_at) > now.getTime())) continue;
       const result = await send(old,{event:'end','dismissal-date':unixSeconds(now.getTime()),'content-state':{title:'',detail:null,date:null,count:0,done:true}});
       if (result.ok || result.gone) await db.prepare('DELETE FROM live_activity_tokens WHERE id=? AND token=?').bind(old.id,old.token).run();
       else blocked = true; // keep the token for retry; don't create a second activity in the meantime

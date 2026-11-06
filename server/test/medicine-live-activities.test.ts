@@ -113,3 +113,38 @@ test('foreground-only iOS activities survive before start registration, but expl
  await f.json('/api/live-activities/tokens','DELETE',{},f.phone.key);
  assert.equal(f.sent.at(-1)?.aps.event,'end');
 });
+
+for (const action of ['taken', 'skipped']) test(`${action} clears the dose on every subscribed device, including foreground-only activities`, async t => {
+ const f=await fixture(t);
+ const tablet=await createApiKey(f.db,"Sam's tablet",'admin',{owner:f.sam.id});
+ const {medicineActivityId}=await import('../src/medicine-live-activities.ts');
+ const activity=await medicineActivityId(f.med.id,'2030-03-04','08:00',false,at('20:00').getTime());
+ const named=await medicineActivityId(f.med.id,'2030-03-04','08:00',true,at('20:00').getTime());
+ await f.register();f.enable();await f.tick('08:00');
+ await f.json('/api/live-activities/tokens','PUT',{kind:'update',token:UPDATE,activity,endsAt:at('20:00').toISOString()},f.phone.key);
+ const tabletToken='34'.repeat(32);
+ await f.json('/api/live-activities/tokens','PUT',{kind:'update',token:tabletToken,activity:named,endsAt:at('20:00').toISOString()},tablet.key);
+ // A different person's unmarked dose must keep its foreground countdown.
+ const other=await f.json('/api/medications','POST',{memberId:f.leo.id,name:'Other medicine',times:['08:00'],lateWindow:'evening'});
+ const otherActivity=await medicineActivityId(other.id,'2030-03-04','08:00',false,at('20:00').getTime());
+ await f.json('/api/live-activities/tokens','PUT',{kind:'update',token:'56'.repeat(32),activity:otherActivity,endsAt:at('20:00').toISOString()},f.kid.key);
+ f.sent.length=0;
+ await f.json(`/api/medications/${f.med.id}/doses`,'POST',{date:'2030-03-04',time:'08:00',action});
+ assert.deepEqual(f.sent.filter(s=>s.aps.event==='end').map(s=>s.token).sort(),[UPDATE,tabletToken].sort());
+ const {results:remaining}=await f.db.prepare("SELECT activity FROM live_activity_tokens WHERE kind='update'").all<{activity:string}>();
+ assert.deepEqual(remaining.map(r=>r.activity),[otherActivity]);
+});
+
+test('completed foreground activities retry failed ends and end even if their token arrives after the mark',async t=>{
+ const f=await fixture(t);f.enable();await f.tick('08:00');
+ const {medicineActivityId}=await import('../src/medicine-live-activities.ts');
+ const activity=await medicineActivityId(f.med.id,'2030-03-04','08:00',false,at('20:00').getTime());
+ await f.json(`/api/medications/${f.med.id}/doses`,'POST',{date:'2030-03-04',time:'08:00',action:'taken'});
+ f.fail(true);
+ await f.json('/api/live-activities/tokens','PUT',{kind:'update',token:UPDATE,activity,endsAt:at('20:00').toISOString()},f.phone.key);
+ assert.equal(f.sent.at(-1)?.aps.event,'end');
+ assert.equal((await f.db.prepare("SELECT count(*) AS n FROM live_activity_tokens WHERE kind='update'").first<{n:number}>())?.n,1);
+ f.fail(false);await f.tick('08:01');
+ assert.equal(f.sent.at(-1)?.aps.event,'end');
+ assert.equal((await f.db.prepare("SELECT count(*) AS n FROM live_activity_tokens WHERE kind='update'").first<{n:number}>())?.n,0);
+});

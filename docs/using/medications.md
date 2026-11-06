@@ -43,7 +43,7 @@ Within 15 minutes of the dose's time, **Taken** is one tap. Later than that, it 
 
 The card stays until the dose is marked, or until its late window closes: 3 hours after its time by default, 8 PM, midnight, or 1 hour for **Don't take late**. After that the dose counts as **Not marked**.
 
-In the phone app, a successful **Taken**, **Skip** or **Snooze** immediately updates the dose's Lock Screen activity, even while the card shows its short confirmation. Taken or Skip also clears that dose's scheduled and displayed local alerts in app builds that support this update. A failed save keeps the dose and its reminder. Changes from another device still depend on a refresh or separately configured push support.
+In the phone app, a successful **Taken**, **Skip** or **Snooze** immediately updates the dose's Lock Screen activity, even while the card shows its short confirmation. Taken or Skip also clears that dose's scheduled and displayed local alerts in app builds that support this update. A failed save keeps the dose and its reminder. With working Apple push, marking a dose Taken or Skip on any device also clears that dose’s Live Activities on every device subscribed to it, including foreground-started iPhone activities. Without push, changes from another device depend on a refresh.
 
 On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens** (in **Trackers → Health → Medicines → Medicine privacy and settings**). Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
 
