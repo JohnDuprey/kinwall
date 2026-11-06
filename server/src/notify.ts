@@ -248,14 +248,13 @@ export async function openNote<T extends { id: string; kind: string } & NoteText
 /** Seals medicine notes still in plaintext (written before sealing, or by an older server mid-deploy),
  * like sealHealthEntries: a compare-and-swap UPDATE per row, a batch per 50, safe to run twice at
  * once; without a key it waits. createKinwall runs it once per server instance. */
+export const UNSEALED_NOTES_SQL = "SELECT id, kind, title, body, at FROM notifications WHERE kind = 'medication' AND id > ? AND substr(title, 1, 7) != 'enc:v1:' ORDER BY id LIMIT 50";
 export async function sealMedicationNotes(env: EncryptionEnv & { DB: KinwallDb }): Promise<number> {
   if (!env.ENCRYPTION_KEY) return 0;
   let after = '';
   let sealed = 0;
   for (;;) {
-    const { results } = await env.DB.prepare(
-      "SELECT id, kind, title, body, at FROM notifications WHERE kind = 'medication' AND id > ? AND substr(title, 1, 7) != 'enc:v1:' ORDER BY id LIMIT 50",
-    ).bind(after).all<{ id: string; kind: string } & NoteText>();
+    const { results } = await env.DB.prepare(UNSEALED_NOTES_SQL).bind(after).all<{ id: string; kind: string } & NoteText>();
     if (!results.length) return sealed;
     const updates = await Promise.all(results.map(async (r) => {
       const s = await sealNote(env, r.id, r);

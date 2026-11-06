@@ -9,7 +9,10 @@ import { POINT_TOTALS_SQL } from '../src/stickers.ts';
 import { PENDING_SQL } from '../src/routes/chores.ts';
 import { PERIOD_POINTS_SQL } from '../src/routes/members.ts';
 import { NEWSCAST_SQL } from '../src/routes/newscast.ts';
-import { ROUTINE_CHORES_SQL } from '../src/routes/routine-mode.ts';
+import { ROUTINE_CHORES_SQL, ROUTINE_SELECTED_SQL } from '../src/routes/routine-mode.ts';
+import { UNSEALED_NOTES_SQL } from '../src/notify.ts';
+import { UNSHELVED_READING_SQL } from '../src/shelve.ts';
+import { CURRENT_ANNOUNCEMENTS_SQL } from '../src/announcements.ts';
 
 const db = openDb(':memory:');
 applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
@@ -46,8 +49,20 @@ test('Newscast reads each source through an index, only over its window', () => 
   assert.match(range(NEWSCAST_SQL.memories), /idx_tracker_entries_kind_date \(kind=\? AND date>\? AND date<\?\)/);
 });
 
-test("routine mode (polled by a child's iPhone) reads only that child's chores", () => {
+test("routine mode (polled by a child's iPhone) reads only that child's live chores", () => {
   const p = plan(ROUTINE_CHORES_SQL);
-  assert.match(p, /SEARCH c USING INDEX idx_chores_member/, p);
+  assert.match(p, /SEARCH c USING INDEX idx_chores_member_live/, p);
   assert.doesNotMatch(p, /SCAN (c|cc|done|chores|chore_completions)\b/, p);
+  // Archived chores still in the saved selection: looked up by id, never by scanning the child's history.
+  assert.match(plan(ROUTINE_SELECTED_SQL), /SEARCH c USING INDEX sqlite_autoindex_chores_1 \(id=\?\)/);
+});
+
+// These run once per server instance (each hosted wake-up): only rows still to fix are read.
+test('startup sealing and shelving read only the rows they still have to change', () => {
+  assert.match(plan(UNSEALED_NOTES_SQL), /SEARCH notifications USING INDEX idx_notifications_unsealed_medication/);
+  assert.match(plan(UNSHELVED_READING_SQL), /SEARCH tracker_entries USING INDEX idx_tracker_entries_unshelved/);
+});
+
+test('the Board reads only announcements that have not expired', () => {
+  assert.match(plan(CURRENT_ANNOUNCEMENTS_SQL), /SEARCH announcements USING INDEX idx_announcements_expires \(expires_at>\?\)/);
 });

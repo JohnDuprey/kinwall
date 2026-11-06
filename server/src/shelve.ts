@@ -76,14 +76,13 @@ export async function shelveReading<D extends ReadingLike>(db: Db, title: string
 
 /** Puts every reading entry without a bookId in the library, oldest first (so two people's entries
  * for one book share it). Only adds books and sets bookId; never removes or edits anything else. */
+export const UNSHELVED_READING_SQL = `SELECT id, member_id, title, data, created_at FROM tracker_entries WHERE kind = 'reading' AND json_extract(data, '$.bookId') IS NULL
+         AND title IS NOT NULL AND (created_at || id) > ? ORDER BY created_at, id LIMIT 50`;
 export async function shelveReadingEntries(env: { DB: Db }): Promise<number> {
   let after = '';
   let done = 0;
   for (;;) {
-    const { results } = await env.DB.prepare(
-      `SELECT id, member_id, title, data, created_at FROM tracker_entries WHERE kind = 'reading' AND json_extract(data, '$.bookId') IS NULL
-         AND title IS NOT NULL AND (created_at || id) > ? ORDER BY created_at, id LIMIT 50`,
-    ).bind(after).all<{ id: string; member_id: string | null; title: string; data: string; created_at: string }>();
+    const { results } = await env.DB.prepare(UNSHELVED_READING_SQL).bind(after).all<{ id: string; member_id: string | null; title: string; data: string; created_at: string }>();
     if (!results.length) return done;
     for (const r of results) {
       after = r.created_at + r.id;
