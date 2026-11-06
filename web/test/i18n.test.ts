@@ -65,7 +65,7 @@ test("pickLang: the member's own, then the device's, then the family's, then Eng
   assert.equal(pickLang({ member: null, device: 'de', family: 'en' }), 'de')
   assert.equal(pickLang({ member: null, device: undefined, family: 'de' }), 'de')
   assert.equal(pickLang({}), 'en')
-  assert.equal(pickLang({ member: 'xx', device: 'fr', family: 'de' }), 'de', 'unknown languages are skipped')
+  assert.equal(pickLang({ member: 'xx', device: 'xx', family: 'de' }), 'de', 'unknown languages are skipped')
 })
 
 test("playerLang: an activity follows the player's own language, else the screen's", () => {
@@ -115,3 +115,24 @@ test('the Nooks heading keeps its German translation', async () => {
   assert.equal(t('Nooks'), 'Ecken')
   await setLang('en')
 })
+
+for (const [code, home, next, day, days] of [
+  ['fr', 'Accueil', 'Ensuite', 'jour', 'jours'],
+  ['es', 'Inicio', 'Después', 'día', 'días'],
+] as const) {
+  test(`${code}: actual dictionary, placeholders, plurals and regional formats`, async () => {
+    const dictionary = JSON.parse(readFileSync(new URL(`../src/locales/${code}.json`, import.meta.url), 'utf8'))
+    assert.equal(pickLang({ member: code, family: 'en' }), code)
+    assert.equal(playerLang(code, 'en'), code)
+    await setLang(code, async () => dictionary)
+    assert.equal(t('Home'), home)
+    assert.equal(tc('now-next', 'Next'), next)
+    assert.equal(t('Remove: {title}', { title: 'Test' }).includes('Test'), true)
+    assert.equal(tn(1, '{n} day', '{n} days'), `1 ${day}`)
+    assert.equal(tn(2, '{n} day', '{n} days'), `2 ${days}`)
+    assert.equal(tn(0, '{n} day', '{n} days'), code === 'fr' ? '0 jour' : '0 días')
+    assert.equal(intlLocale(code === 'fr' ? 'fr-CA' : 'es-PE'), code === 'fr' ? 'fr-CA' : 'es-PE')
+    assert.equal(t('Untranslated {name}', { name: 'Maya' }), 'Untranslated Maya')
+    await setLang('en')
+  })
+}
