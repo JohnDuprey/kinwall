@@ -1,5 +1,4 @@
--- Indexes only, no data changes. Hosted pays per SQLite row read, and on 2026-11-06 a family hit
--- the free tier's daily cap. Each index covers just the rows a frequent query needs:
+-- Indexes only, no data changes. Each covers just the rows a frequent query needs:
 -- a child's live chores (routine mode, polled by the child's iPhone),
 CREATE INDEX IF NOT EXISTS idx_chores_member_live ON chores(member_id) WHERE active = 1 AND archived = 0;
 -- medicine notes still to seal and reading entries still to shelve (both at every server start),

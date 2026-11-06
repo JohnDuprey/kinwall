@@ -57,7 +57,7 @@ test("routine mode (polled by a child's iPhone) reads only that child's live cho
   assert.match(plan(ROUTINE_SELECTED_SQL), /SEARCH c USING INDEX sqlite_autoindex_chores_1 \(id=\?\)/);
 });
 
-// These run once per server instance (each hosted wake-up): only rows still to fix are read.
+// These run once per server instance (each start): only rows still to fix are read.
 test('startup sealing and shelving read only the rows they still have to change', () => {
   assert.match(plan(UNSEALED_NOTES_SQL), /SEARCH notifications USING INDEX idx_notifications_unsealed_medication/);
   assert.match(plan(UNSHELVED_READING_SQL), /SEARCH tracker_entries USING INDEX idx_tracker_entries_unshelved/);
