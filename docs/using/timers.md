@@ -17,7 +17,7 @@ A red banner flashes across the top of the screen, over whatever is showing (the
 * If you've switched to another tab or app and the browser already has permission to show Kinwall's notifications, you also get a "Time's up" notification.
 * Browsers only play sound after a tap. After Kinwall reloads (an update, say), the first tap anywhere turns the sound back on. Until then, a timer that's up shows its banner without the beep.
 * Kinwall holds the device's audio only while it beeps, so having timers doesn't pause music on your other devices or pull your AirPods over.
-* In the Kinwall app for iPhone, the soonest timer is also a Live Activity on the Lock Screen and in the Dynamic Island, and it rings with the phone locked.
+* In the Kinwall app for iPhone, the soonest timer is also a Live Activity on the Lock Screen and in the Dynamic Island, and it rings with the phone locked. With a current iPhone app, tap **Pause** on the Lock Screen or expanded Dynamic Island to freeze it, then **Start** to continue from the time left. A paused timer stays visible so you can start it again; other running timers still ring. The timer in Kinwall catches up when you return to the app. The compact Dynamic Island and Apple Watch view show the time without buttons.
 
 ## Good to know
 
