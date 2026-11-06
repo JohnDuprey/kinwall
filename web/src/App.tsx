@@ -1178,7 +1178,10 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean; action?: ToastAction } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
   const [bannerMsg, setBannerMsg] = useState<string | null>(null)
-  const [loadError, setLoadError] = useState(false)
+  const [coreLoadError, setCoreLoadError] = useState(false)
+  const [membersLoadError, setMembersLoadError] = useState(false)
+  const [membersLoaded, setMembersLoaded] = useState(false)
+  const loadError = coreLoadError || membersLoadError
   // The key stopped working (revoked, or the app's sign-in lapsed while it slept). Inside the app,
   // the app takes it from here: it refreshes and reloads, or shows its own sign-in screen.
   const [rejected, setRejected] = useState(false)
@@ -1208,22 +1211,34 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const loadCore = useCallback(async () => {
     if (!hasKey) return
     try {
-      const [s, m, cats, me] = await freshCore(Promise.all([api.getSettings(), api.getMembers(), api.getCategories(), api.meStrict().catch(() => null)]))
+      const [s, cats, me] = await freshCore(Promise.all([api.getSettings(), api.getCategories(), api.meStrict().catch(() => null)]))
       // First-run default for a fresh household: no timezone set yet, so adopt this display's.
       const settings = s.timezone ? s : await api.adoptTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone).catch(() => s)
       setSettings(settings)
-      setMembers(m)
       setCategories(cats)
       if (me) { setOwner(me.owner ?? null); setOwnerLocks(!!me.locked); setParentDevice(me.scope === 'admin') }
-      setLoadError(false)
+      setCoreLoadError(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setRejected(true); setHasKey(false); return }
-      setLoadError(true)
+      setCoreLoadError(true)
     }
   }, [hasKey, freshCore])
 
-  // Settings, members (their points too) and categories: not after a change to a list alone.
-  useEffect(() => { loadCore() }, [loadCore, areaTicks.events, areaTicks.chores, manualTick])
+  // Chores change points, but not settings, categories or this device's identity.
+  const freshMembers = useRef(latestOnly()).current
+  const loadMembers = useCallback(async () => {
+    if (!hasKey) return
+    try {
+      setMembers(await freshMembers(api.getMembers()))
+      setMembersLoaded(true)
+      setMembersLoadError(false)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setRejected(true); setHasKey(false); return }
+      setMembersLoadError(true)
+    }
+  }, [hasKey, freshMembers])
+  useEffect(() => { loadCore() }, [loadCore, areaTicks.events, manualTick])
+  useEffect(() => { loadMembers() }, [loadMembers, areaTicks.events, areaTicks.chores, manualTick])
 
   // Queued (offline) changes reached the server: refresh every view so pending marks clear, and
   // say which ones the server refused (e.g. an item deleted on another device meanwhile).
@@ -1411,7 +1426,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // the pairing screen, so a signed-in phone never flashes "Pair this app".
   if (!hasKey && rejected && inNativeApp()) return <WaitForApp />
   if (!hasKey) return <PairingGate onKey={banner => { if (banner) setBannerMsg(banner); setHasKey(true) }} />
-  if (!settings) {
+  if (!settings || !membersLoaded) {
     return (
       <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} style={bootMarkStyle()} role="main">
         <Brand />

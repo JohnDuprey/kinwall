@@ -1211,7 +1211,8 @@ export const mock = {
       return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: e?.startedAt ?? new Date().toISOString(), startedAt: e?.startedAt ?? null, until: new Date(now + 3 * 3_600_000).toISOString(), name: m.name, dose: m.dose }]
     }) : [])
     const order = (id: string) => members.findIndex(x => x.id === id)
-    return { names: true, doses: doses.sort((a, b) => order(a.memberId) - order(b.memberId) || a.time.localeCompare(b.time)) }
+    const recheckAt = new Date(Math.min(new Date().setHours(24, 0, 0, 0), ...doses.map(d => Date.parse(d.until)), ...[...medLog.values()].flatMap(log => Object.values(log).map(e => e.snoozedUntil ? Date.parse(e.snoozedUntil) : Infinity).filter(at => at > now))))
+    return { checkedAt: new Date(now).toISOString(), recheckAt: recheckAt.toISOString(), names: true, doses: doses.sort((a, b) => order(a.memberId) - order(b.memberId) || a.time.localeCompare(b.time)) }
   },
   markDose: async (medicationId: string, b: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' | 'unmark'; at?: string }): Promise<MedicationDose> => {
     const log = medLog.get(`${medicationId}:${b.date}`) ?? {}

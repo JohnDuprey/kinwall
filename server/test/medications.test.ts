@@ -898,3 +898,43 @@ test('history exposes the effective snooze for this viewer without sharing a par
   await s.mark(med.id, 'taken', leos);
   assert.equal((await historyDose(phone.key)).snoozedUntil, null, 'a recorded dose no longer has a reminder paused');
 });
+
+test('due response schedules the next start, snooze expiry, window end and household midnight', async () => {
+ const s=await setup();
+ const med=(await s.add(s.leo.id)).json;
+ const read=async()=>{const r=await s.req('/api/medications/due');assert.equal(r.status,200);return r.json;};
+ assert.equal((await read()).recheckAt,at('08:00').toISOString());
+ mock.timers.tick(60*60*1000);
+ assert.equal((await read()).recheckAt,at('11:00').toISOString());
+ await s.mark(med.id,'snooze');
+ assert.equal((await read()).recheckAt,at('08:10').toISOString());
+ mock.timers.tick(10*60*1000);
+ assert.equal((await read()).doses.length,1);
+ await s.mark(med.id,'taken');
+ assert.equal((await read()).recheckAt,at('00:00','2026-09-29').toISOString());
+});
+
+test('due response uses only this viewer’s snooze and handles the DST midnight boundary', async () => {
+ const s=await setup({now:at('08:00')});
+ const med=(await s.add(s.leo.id)).json;
+ const samKey=await s.key(s.sam.id,'admin');
+ await s.mark(med.id,'snooze',samKey);
+ const mine=(await s.req('/api/medications/due','GET',undefined,samKey)).json;
+ const wall=(await s.req('/api/medications/due','GET',undefined,await s.key())).json;
+ assert.equal(mine.recheckAt,at('08:10').toISOString());
+ assert.equal(wall.recheckAt,at('11:00').toISOString());
+ mock.timers.reset();mock.timers.enable({apis:['Date'],now:new Date('2026-11-01T00:30:00-07:00')});
+ await s.req('/api/medications/'+med.id,'DELETE');
+ assert.equal((await s.req('/api/medications/due')).json.recheckAt,'2026-11-02T08:00:00.000Z');
+});
+
+
+test('an invalid imported snooze does not show a future dose early or hide its next deadline', async () => {
+ const s=await setup();
+ const med=(await s.add(s.leo.id)).json;
+ const sealed=await seal(s.env,JSON.stringify({'08:00':{snoozedUntil:'invalid'}}),`${med.id}:${TODAY}:log`);
+ s.db.prepare('INSERT INTO medication_log(medication_id,date,log,updated_at) VALUES(?,?,?,?)').bind(med.id,TODAY,sealed,TODAY).run();
+ const result=(await s.req('/api/medications/due')).json;
+ assert.equal(result.doses.length,0);
+ assert.equal(result.recheckAt,at('08:00').toISOString());
+});

@@ -56,3 +56,16 @@ Releases are for self-hosters and for [What's new](../whats-new.md); the hosted 
 * Merging the release PR (squash) tags `vX.Y.Z` and creates the GitHub Release. A tag pushed by the workflow's token starts no other workflows, so `release-please.yml` calls `docker.yml` (the image, tagged `X.Y.Z`, `X.Y` and `latest`), `cloudflare.yml` and `demo.yml` itself, on the release commit.
 * A `v*` tag you push yourself runs those three workflows directly, as before.
 * The repository needs **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests** turned on. Pull requests opened by the workflow don't run CI; the checks run once it's merged to `main`.
+
+### Derived point totals and medicine counts
+
+`member_point_totals` is derived from chore completions and point entries. Migration
+0137 builds the initial totals without changing source history; SQLite triggers maintain
+inserts, edits, transfers, deletes and imports in the same transaction. Do not import or
+export this derived table. Recent daily goals use a partial date index.
+
+Medicine taken counts are cached only in process memory, per database and encrypted
+medicine row. `medications.log_revision` changes through triggers whenever its logs
+change, including imports, so a subsequent read opens the updated history. A restart
+or cache eviction rebuilds the count from encrypted logs; no health totals are stored
+in plaintext. Each process retains at most 128 cached counts per database.

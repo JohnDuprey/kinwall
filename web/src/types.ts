@@ -309,7 +309,7 @@ export type DoseStatus = 'taken' | 'skipped' | 'due' | 'missed' | 'upcoming'
 /** GET /api/medications/due: the Take now cards. name/dose null on a shared wall with names off ("Meds"). */
 /** time: 'HH:MM', or 'wake' for "When I start my day" (startedAt: when their day started, null if the latest time came first). until: when its late window closes. */
 export interface DueDose { medicationId: string; memberId: string; date: string; time: string; dueAt: string; startedAt: string | null; until: string; name: string | null; dose: string | null }
-export interface MedicationsDue { names: boolean; doses: DueDose[] }
+export interface MedicationsDue { names: boolean; doses: DueDose[]; checkedAt?: string; recheckAt?: string }
 export interface MedicationDose { medicationId: string; date: string; time: string; status: DoseStatus; startedAt: string | null; at: string | null; late: boolean; by: string | null; edited: boolean; snoozedUntil: string | null }
 /** GET /api/members/{id}/medications: their own device and parents' devices only. days oldest first. */
 export interface MedicationHistory {

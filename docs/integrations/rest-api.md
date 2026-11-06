@@ -132,6 +132,12 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 | Security activity | `GET /api/security-events?limit=&before=&q=&kinds=` (admin only). See [Security activity](#security-activity). |
 
+`GET /api/medications/due` also returns `checkedAt` (the server time for its answer)
+and `recheckAt` (the next dose start, applicable snooze expiry, due-window expiry, or
+household midnight). Clients can schedule a single refetch using the difference between
+these timestamps, and still refresh after medication changes and when returning to the app.
+The timestamps follow the same device visibility rules as the returned doses.
+
 ## Security activity
 
 `GET /api/security-events` lists the family's security log, newest first: `[{ id, at, kind, summary, by, device, detail }]`. Admin keys only: display keys (wall screens, kids' devices) and connected apps get 403.

@@ -18,11 +18,11 @@ const db = openDb(':memory:');
 applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
 const plan = (sql: string) => db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all<{ detail: string }>().results.map((r) => r.detail).join('\n');
 
-test('points totals (GET /api/members) sum each member through an index', () => {
+test('points totals (GET /api/members) read maintained totals through an index', () => {
   for (const sql of [POINT_TOTALS_SQL, `${POINT_TOTALS_SQL} WHERE m.id = 'm1'`]) {
     const p = plan(sql);
-    assert.match(p, /SEARCH chore_completions USING (COVERING )?INDEX idx_chore_completions_member/, p);
-    assert.doesNotMatch(p, /SCAN chore_completions/, p);
+    assert.match(p, /SEARCH t USING INDEX sqlite_autoindex_member_point_totals_1/, p);
+    assert.doesNotMatch(p, /chore_completions|point_entries/, p);
   }
 });
 
