@@ -784,6 +784,15 @@ function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Setti
           </div>
         )
       })}
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label">{t('Clear ticked items after')}</div>
+          <div className="settings-row-sub">{t('Ticked items leave grocery and shopping lists after this long. Kinwall still remembers their stores and aisles.')}</div>
+        </div>
+        <select className="settings-select" aria-label={t('Clear ticked items after')} value={settings.clearCheckedAfterDays} onChange={e => save({ clearCheckedAfterDays: Number(e.target.value) })}>
+          {[...new Set([1, 2, 3, 7, 14, 30, settings.clearCheckedAfterDays])].sort((a, b) => a - b).map(n => <option key={n} value={n}>{tn(n, '{n} day', '{n} days')}</option>)}
+        </select>
+      </div>
     </Section>
   )
 }

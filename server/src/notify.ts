@@ -38,6 +38,7 @@ import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from '
 import { readOutings } from './routes/outings.ts';
 import { dueReminders, type OutingReminder } from './outing-reminders.ts';
 import { publish } from './bus.ts';
+import { clearOldChecked } from './checked-cleanup.ts';
 import { addSupplies, handOutChore, readJobs, readThings, suppliesList, type UpkeepJob } from './upkeep.ts';
 import { daysBetween, dueNotes, suppliesDue, type UpkeepNote } from './upkeep-rules.ts';
 
@@ -1316,6 +1317,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile
   if (!hold) await part('to-do list reconnect', () => runTaskLinkReconnect(env, env.DB, now)); // held at night too: the list shows its warning meanwhile
   await part('prune', () => pruneSentNotifications(env.DB, now));
+  if (features.lists) await part('clear old ticked items', async () => { for (const id of await clearOldChecked(env.DB, now)) publish(env, _execCtx, 'list.changed', { id }); });
   if (!retry) await setTickWindowEnd(env.DB, now);
 }
 

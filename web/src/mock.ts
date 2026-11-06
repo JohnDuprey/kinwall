@@ -139,6 +139,7 @@ const settings: Settings = {
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
   lateCompletionCredit: 50,
   streakGraceDays: 1,
+  clearCheckedAfterDays: 7,
   checkInPoints: 3, // on in the demo so the daily check-in can be tried
   leaderboardEnabled: true,
   stickersEnabled: true,

@@ -357,6 +357,7 @@ export const SettingsSchema = z
     defaultReminderMinutes: z.array(z.number()),
     lateCompletionCredit: z.number(), // percent of a chore's points earned when it's completed for a past day
     streakGraceDays: z.number(), // missed days per rolling 7 a streak survives (see computeStreak)
+    clearCheckedAfterDays: z.number().openapi({ description: 'Days a ticked item stays on a grocery or shopping list before Kinwall clears it (1-30, 7 unless changed). Other list types keep ticked items.' }),
     checkInPoints: z.number(), // points for the daily check-in (reading your day to the end); 0 = off
     leaderboardEnabled: z.boolean(), // false: clients hide the leaderboard and rank badges (the API still answers)
     stickersEnabled: z.boolean(), // false: clients hide the sticker book and the shop refuses purchases
@@ -417,6 +418,7 @@ export const SettingsPatchSchema = z
     defaultReminderMinutes: z.array(z.number()).optional(),
     lateCompletionCredit: z.number().int().min(0).max(100).optional(),
     streakGraceDays: z.number().int().min(0).max(3).optional(),
+    clearCheckedAfterDays: z.number().int().min(1).max(30).optional(),
     checkInPoints: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(5), z.literal(10)]).optional(),
     leaderboardEnabled: z.boolean().optional(),
     stickersEnabled: z.boolean().optional(),

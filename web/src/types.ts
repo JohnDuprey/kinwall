@@ -58,6 +58,7 @@ export interface Settings {
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives
+  clearCheckedAfterDays: number // 1-30: ticked items leave grocery and shopping lists after this many days
   checkInPoints: number // daily check-in points (0 = off; 1, 2, 3, 5 or 10)
   leaderboardEnabled: boolean // false: hide the leaderboard, crowns and rank badges
   stickersEnabled: boolean // false: hide the sticker book (and the shop refuses purchases)

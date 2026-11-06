@@ -8,6 +8,7 @@ import { schemeContrastFailures } from '../colors.ts';
 import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
 import { isSingleEmoji } from '../emoji.ts';
 import { BoardPresetSchema, LANGUAGES, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, NightLookSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { checkedDays } from '../checked-cleanup.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -27,6 +28,7 @@ const DEFAULTS: Record<string, string> = {
   defaultReminderMinutes: '[30]',
   lateCompletionCredit: '50',
   streakGraceDays: '1',
+  clearCheckedAfterDays: '7',
   checkInPoints: '0',
   leaderboardEnabled: 'true',
   stickersEnabled: 'true',
@@ -82,6 +84,7 @@ export async function readSettings(db: KinwallDb) {
     defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),
     lateCompletionCredit: Number(map.get('lateCompletionCredit') ?? DEFAULTS.lateCompletionCredit),
     streakGraceDays: Number(map.get('streakGraceDays') ?? DEFAULTS.streakGraceDays),
+    clearCheckedAfterDays: checkedDays(map.get('clearCheckedAfterDays')),
     checkInPoints: Number(map.get('checkInPoints') ?? DEFAULTS.checkInPoints),
     leaderboardEnabled: (map.get('leaderboardEnabled') ?? DEFAULTS.leaderboardEnabled) === 'true',
     stickersEnabled: (map.get('stickersEnabled') ?? DEFAULTS.stickersEnabled) === 'true',
