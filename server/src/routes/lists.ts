@@ -334,6 +334,16 @@ async function sweepFor(c: Context<{ Bindings: Env }>, listId: string): Promise<
 // Notes on list items (routes/notes.ts): no FK, so every path that deletes items deletes their notes.
 const ITEM_NOTES = "target_type = 'list_item' AND target_id";
 
+/** Every list with its counts (migration 0138 keeps list_item_counts), not by counting items. */
+export const LISTS_SQL = `SELECT l.*, COALESCE(n.items, 0) AS item_count, COALESCE(n.open, 0) AS open_count
+         FROM lists l LEFT JOIN list_item_counts n ON n.list_id = l.id
+         WHERE (? = 1 OR l.archived = 0)
+         ORDER BY l.sort, l.created_at`;
+/** One list's steps and note counts, starting from the steps and notes (few) rather than the
+ * list's items (done ones pile up); CROSS JOIN keeps that order. */
+export const LIST_STEPS_SQL = 'SELECT s.* FROM list_item_steps s CROSS JOIN list_items li ON li.id = s.item_id WHERE li.list_id = ? ORDER BY s.sort, s.created_at';
+export const LIST_NOTE_COUNTS_SQL = "SELECT n.target_id, COUNT(*) AS n FROM notes n CROSS JOIN list_items li ON li.id = n.target_id WHERE n.target_type = 'list_item' AND li.list_id = ? GROUP BY n.target_id";
+
 /** FROM for a trip's items from the other type's shopping lists (?1 the list, ?2 the store): planned
  * for the store, or for anywhere with a place remembered there in their own catalog (m, the place
  * at the store, if any). Archived lists stay out. */
@@ -365,11 +375,7 @@ listsRoutes.openapi(
     // with the timezone and the open items' due dates (overdue = before today, in the household's zone).
     const [listsRes, tzRes, dueRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare(
-        `SELECT l.*, COUNT(li.id) AS item_count, COALESCE(SUM(CASE WHEN li.done = 0 THEN 1 ELSE 0 END), 0) AS open_count
-         FROM lists l LEFT JOIN list_items li ON li.list_id = l.id
-         WHERE (? = 1 OR l.archived = 0)
-         GROUP BY l.id
-         ORDER BY l.sort, l.created_at`,
+        LISTS_SQL,
       ).bind(archived === 'true' ? 1 : 0),
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       // FLAGGED_OPEN (implied by the due date) lets the partial index answer this without reading every
@@ -613,14 +619,14 @@ listsRoutes.openapi(
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
       c.env.DB.prepare('SELECT * FROM list_items WHERE list_id = ?').bind(id), // ordered below, by the list's sortBy
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
-      stepsQuery(c.env.DB, 'list_id = ?', id),
+      c.env.DB.prepare(LIST_STEPS_SQL).bind(id),
       // Every store/category/aisle used on any item, in one pass (with memoryRes: stores, categories and aisles below).
       c.env.DB.prepare(
         `SELECT DISTINCT li.store, li.category, li.aisle FROM lists l CROSS JOIN lists o JOIN list_items li ON li.list_id = o.id
          WHERE ${shop} AND o.kind = 'shopping' AND coalesce(o.catalog, 'groceries') = coalesce(l.catalog, 'groceries')`,
       ).bind(id, want),
       c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'defaultGroceryStore', 'defaultShoppingStore')"),
-      c.env.DB.prepare(`SELECT target_id, COUNT(*) AS n FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE list_id = ?) GROUP BY target_id`).bind(id),
+      c.env.DB.prepare(LIST_NOTE_COUNTS_SQL).bind(id),
       // Aisle orders of the list's own catalog (a store in both catalogs has one in each).
       c.env.DB.prepare("SELECT a.store, a.aisle FROM lists l JOIN store_aisles a ON a.catalog = coalesce(l.catalog, 'groceries') WHERE l.id = ? ORDER BY a.store, a.sort").bind(id),
       // Which planned meals an item came from: meal_shopping_sources refs are "meal-plan:<mealId>:ingredient:<id>".

@@ -62,3 +62,20 @@ test('limited-course counts reuse history until a log changes, including direct 
  db.prepare("DELETE FROM medication_log WHERE medication_id='med'").run();
  assert.equal((await loadMedications(env))[0].dosesLeft,5);assert.equal(reads,4);
 });
+
+test('stored list counts follow adds, ticks, moves and deletes', () => {
+  const db = openDb(':memory:'); applyMigrations(db, fileURLToPath(dir));
+  const run = (sql: string) => db.prepare(sql).run();
+  run("INSERT INTO lists(id,name,kind,created_at) VALUES('a','A','todo','2026-01-01'),('b','B','todo','2026-01-01')");
+  for (const [id, list, done] of [['1','a',0],['2','a',1],['3','a',0],['4','b',0]] as const) run(`INSERT INTO list_items(id,list_id,title,done,created_at,updated_at) VALUES('${id}','${list}','x',${done},'2026-01-01','2026-01-01')`);
+  const counts = () => db.prepare('SELECT list_id, items, open FROM list_item_counts ORDER BY list_id').all().results;
+  const reference = () => db.prepare('SELECT l.id AS list_id, COUNT(li.id) AS items, COALESCE(SUM(li.done = 0), 0) AS open FROM lists l LEFT JOIN list_items li ON li.list_id = l.id GROUP BY l.id ORDER BY l.id').all().results;
+  assert.deepEqual(counts(), reference());
+  run("UPDATE list_items SET done = 1 WHERE id = '1'");
+  run("UPDATE list_items SET list_id = 'b' WHERE id = '3'");
+  run("UPDATE list_items SET title = 'renamed' WHERE id = '4'");
+  run("DELETE FROM list_items WHERE id = '2'");
+  assert.deepEqual(counts(), reference());
+  run("DELETE FROM lists WHERE id = 'b'");
+  assert.deepEqual(counts(), reference().filter((r: any) => r.list_id !== 'b'));
+});

@@ -66,3 +66,16 @@ test('startup sealing and shelving read only the rows they still have to change'
 test('the Board reads only announcements that have not expired', () => {
   assert.match(plan(CURRENT_ANNOUNCEMENTS_SQL), /SEARCH announcements USING INDEX idx_announcements_expires \(expires_at>\?\)/);
 });
+
+test('lists read their stored counts, and one list starts from its steps and notes', async () => {
+  const { LISTS_SQL, LIST_STEPS_SQL, LIST_NOTE_COUNTS_SQL } = await import('../src/routes/lists.ts');
+  assert.doesNotMatch(plan(LISTS_SQL), /list_items/);
+  assert.match(plan(LIST_STEPS_SQL), /SCAN s\n.*SEARCH li USING INDEX sqlite_autoindex_list_items_1 \(id=\?\)/);
+  assert.match(plan(LIST_NOTE_COUNTS_SQL), /SEARCH n USING COVERING INDEX idx_notes_target \(target_type=\?\)\n.*SEARCH li USING INDEX sqlite_autoindex_list_items_1/);
+});
+
+test('the notifications feed, reward requests and active chores read in index order', () => {
+  assert.match(plan("SELECT * FROM notifications WHERE at < '9999' AND kind != 'medication' ORDER BY substr(at, 1, 10) DESC, rowid DESC LIMIT 50 OFFSET 0"), /SCAN notifications USING INDEX idx_notifications_day/);
+  assert.match(plan('SELECT * FROM reward_redemptions ORDER BY requested_at DESC LIMIT 50'), /USING INDEX idx_reward_redemptions_requested/);
+  assert.match(plan('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'), /SCAN chores USING INDEX idx_chores_active/);
+});
