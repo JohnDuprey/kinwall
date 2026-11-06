@@ -13,12 +13,12 @@
     "deploy": "wrangler deploy --config ../wrangler.toml"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.5",
+    "@hono/node-server": "^2.1.6",
     "@hono/swagger-ui": "^0.6.2",
     "@hono/zod-openapi": "^1.6.3",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@simplewebauthn/server": "^14.0.3",
-    "hono": "^4.13.14",
+    "hono": "^4.13.16",
     "ical.js": "^2.2.1",
     "rrule": "^2.8.1",
     "tsdav": "^2.5.0",
@@ -28,7 +28,7 @@
     "@cloudflare/workers-types": "^5.20261004.1",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
-    "wrangler": "^4.156.0"
+    "wrangler": "^4.156.2"
   },
   "overrides": {
     "sharp": "^0.35.5"
