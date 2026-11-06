@@ -1519,7 +1519,7 @@ function LeftoversSheet({ items, trip, stores, onDone, onCancel }: {
 function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList, inputRef, above, buyAgain, label, placeholder, autoFocus, onEscape }: {
   id: string; value: string; onChange: (v: string) => void; onAdd: (title: string) => void; onPick?: (title: string) => void
   suggestions?: ItemSuggestion[]; onList: Set<string> // keys of the open items, not suggested
-  inputRef: React.RefObject<HTMLInputElement>; above?: boolean; buyAgain?: boolean
+  inputRef: React.RefObject<HTMLInputElement | null>; above?: boolean; buyAgain?: boolean
   label: string; placeholder: string; autoFocus?: boolean; onEscape?: (e: React.KeyboardEvent) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1736,7 +1736,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // it after a few seconds unless Undo is tapped. Leaving the list sends it straight away.
   const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean; trip: string | null; shop: boolean; left: number } | null>(null)
   const pendingCheckout = useRef<(() => void) | null>(null)
-  const checkoutTimer = useRef<ReturnType<typeof setTimeout>>()
+  const checkoutTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const commitCheckout = () => { clearTimeout(checkoutTimer.current); const run = pendingCheckout.current; pendingCheckout.current = null; run?.() }
   useEffect(() => commitCheckout, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
   const startCheckout = (checked: ListItem[], kind: ListKind, trip: string | null = null, left = 0) => {
@@ -1759,7 +1759,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // seconds unless Undo is tapped, so Undo brings it back whole (steps, notes, added-by, places, place in the list).
   const [deleting, setDeleting] = useState<ListItem | null>(null)
   const pendingDelete = useRef<(() => void) | null>(null)
-  const deleteTimer = useRef<ReturnType<typeof setTimeout>>()
+  const deleteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const commitDelete = () => { clearTimeout(deleteTimer.current); const run = pendingDelete.current; pendingDelete.current = null; run?.() }
   useEffect(() => commitDelete, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
   const swipeDelete = (item: ListItem) => {

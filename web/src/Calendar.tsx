@@ -82,7 +82,7 @@ function useNowMinutes(tz: string) {
 
 /** Scrolls a time-grid to where it opens (dayLayout.ts gridTop): 7 AM, or near now on today.
  * `space`: the grid's height under its sticky head. */
-function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number, space: number) {
+function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number, space: number) {
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return

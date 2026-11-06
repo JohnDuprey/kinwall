@@ -207,7 +207,7 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
     <div ref={ref} className="board-slot">
       {whole === 'chips' || whole === 'words' ? <div className={`board-slot-item board-slot-chips ${whole === 'words' ? 'board-slot-words' : ''}`}>{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
         : items.map((it, i) => <div key={it.key} className="board-slot-item">{whole[i] === '1' ? it.full : it.row}</div>)}
-      <div className="board-slot-measure" aria-hidden="true" {...{ inert: '' }}>
+      <div className="board-slot-measure" aria-hidden="true" inert>
         {items.map(it => [<div key={`${it.key}:full`} className="board-slot-item">{it.full}</div>, <div key={`${it.key}:row`} className="board-slot-item">{it.row}</div>])}
         <div className="board-slot-item board-slot-chips">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
         <div className="board-slot-item board-slot-chips board-slot-words">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
