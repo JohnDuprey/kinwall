@@ -9,6 +9,7 @@ import { POINT_TOTALS_SQL } from '../src/stickers.ts';
 import { PENDING_SQL } from '../src/routes/chores.ts';
 import { PERIOD_POINTS_SQL } from '../src/routes/members.ts';
 import { NEWSCAST_SQL } from '../src/routes/newscast.ts';
+import { ROUTINE_CHORES_SQL } from '../src/routes/routine-mode.ts';
 
 const db = openDb(':memory:');
 applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
@@ -43,4 +44,10 @@ test('Newscast reads each source through an index, only over its window', () => 
   assert.match(range(NEWSCAST_SQL.rewards), /idx_reward_redemptions_given \(status=\? AND given_at>\? AND given_at<\?\)/);
   assert.match(range(NEWSCAST_SQL.photos), /idx_photos_created \(created_at>\? AND created_at<\?\)/);
   assert.match(range(NEWSCAST_SQL.memories), /idx_tracker_entries_kind_date \(kind=\? AND date>\? AND date<\?\)/);
+});
+
+test("routine mode (polled by a child's iPhone) reads only that child's chores", () => {
+  const p = plan(ROUTINE_CHORES_SQL);
+  assert.match(p, /SEARCH c USING INDEX idx_chores_member/, p);
+  assert.doesNotMatch(p, /SCAN (c|cc|done|chores|chore_completions)\b/, p);
 });

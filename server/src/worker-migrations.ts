@@ -1,3 +1,4 @@
+import m0135 from '../migrations/0135_chores_member_index.sql';
 import m0134 from '../migrations/0134_event_follows.sql';
 import m0132 from '../migrations/0132_announcements.sql';
 import m0133 from '../migrations/0133_medicine_live_activities.sql';
@@ -271,4 +272,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0132_announcements.sql', sql: m0132 },
   { name: '0133_medicine_live_activities.sql', sql: m0133 },
   { name: '0134_event_follows.sql', sql: m0134 },
+  { name: '0135_chores_member_index.sql', sql: m0135 },
 ];

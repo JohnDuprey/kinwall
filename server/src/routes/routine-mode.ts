@@ -10,6 +10,10 @@ import { evaluateRoutine, schoolDomain } from '../routine-mode.ts';
 import { stored } from '../i18n.ts';
 import { emit } from '../bus.ts';
 import { oneTimeRoutineChore, routineChoreNames, routineChoreSelection } from '../routine-chores.ts';
+
+/** A child's chores and today's completions: polled by the child's iPhone, so it reads through
+ * indexes (test/query-plans.test.ts). Binds: today's date, the child. */
+export const ROUTINE_CHORES_SQL = "SELECT c.*, cc.status AS completion_status, EXISTS (SELECT 1 FROM chore_completions done WHERE done.chore_id = c.id AND done.status = 'approved') AS approved_once FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE c.member_id = ? ORDER BY c.sort, c.created_at";
 export const routineModeRoutes = createRouter();
 const Domains = z.array(z.preprocess(value => typeof value === 'string' ? schoolDomain(value) : value, z.string())).max(40).transform(values => [...new Set(values)]);
 const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -34,7 +38,7 @@ routineModeRoutes.openapi(createRoute({ method: 'get', path: '/api/routine-mode/
   const enrollment = key?.id && key.scope !== 'admin' ? await c.env.DB.prepare('SELECT enrolled, revision, choices_after_revision FROM routine_device_enrollments WHERE key_id = ? AND member_id = ?').bind(key.id, memberId).first<{ enrolled: number; revision: number; choices_after_revision: number }>() : null;
   const timezone = await householdTz(c.env.DB), date = todayInTz(timezone);
   const policy = await c.env.DB.prepare('SELECT enabled, app_mode, cutoff, allowed_websites_only, allowed_web_domains, school_link_domains, start, day_schedules, required_chore_ids, required_one_time_names FROM routine_mode WHERE member_id = ?').bind(memberId).first<{ enabled: number; app_mode: 'selected' | 'all'; cutoff: string; allowed_websites_only: number; allowed_web_domains: string; school_link_domains: string | null; start: string; day_schedules: string | null; required_chore_ids: string | null; required_one_time_names: string }>();
-  const { results } = await c.env.DB.prepare("SELECT c.*, cc.status AS completion_status, EXISTS (SELECT 1 FROM chore_completions done WHERE done.chore_id = c.id AND done.status = 'approved') AS approved_once FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE c.member_id = ? ORDER BY c.sort, c.created_at").bind(date, memberId).all<ChoreRow & { completion_status: string | null; approved_once: number }>();
+  const { results } = await c.env.DB.prepare(ROUTINE_CHORES_SQL).bind(date, memberId).all<ChoreRow & { completion_status: string | null; approved_once: number }>();
   const selection = routineChoreSelection(policy?.required_chore_ids == null ? null : JSON.parse(policy.required_chore_ids), JSON.parse(policy?.required_one_time_names ?? '[]'), results);
   const active = results.filter(row => row.active && !row.archived);
   const chores = active.filter(row => dueOnDate(row, date, timezone)).map(row => ({ id: row.id, title: row.title, oneTime: oneTimeRoutineChore(row), completed: row.completion_status === 'approved', pending: row.completion_status === 'pending' }));
