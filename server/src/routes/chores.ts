@@ -14,8 +14,8 @@ import { goalProgressFor } from '../chore-goals.ts';
 import type { ChoreGoal } from '../chore-goal.ts';
 import { ChoreDateCountSchema, ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
-import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
-import { notifyChoreApproval } from '../notify.ts';
+import { actorOf, changedBy, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
+import { notifyChoreApproval, notifyChoreCreated } from '../notify.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
 import { logFromChore, savePendingChore, unlogFromChore, type DoneInput } from '../upkeep.ts';
 
@@ -99,6 +99,11 @@ export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
     .run();
 }
 
+/** Used by direct creation and library assignments; imports and edits stay silent. */
+export async function announceNewChore(c: Context<{ Bindings: Env }>, row: ChoreRow): Promise<void> {
+  if (row.active) notifyChoreCreated(c.env, execCtx(c), row, await changedBy(c));
+}
+
 choresRoutes.openapi(
   createRoute({
     method: 'get',
@@ -161,6 +166,7 @@ choresRoutes.openapi(
       timer_minutes: body.timerMinutes ?? null,
     };
     await insertChore(c.env.DB, row);
+    await announceNewChore(c, row);
     emit(c, 'chore.changed', { id: row.id });
     return c.json(toApi(row), 201);
   },

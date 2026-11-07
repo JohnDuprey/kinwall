@@ -4959,5 +4959,7 @@
   "Snoozed": "Erinnerung verschoben",
   "Snoozed until {time}": "Erinnerung auf {time} verschoben",
   "Ends after {n} dose is recorded as taken.": "Endet, sobald {n} Dosis als eingenommen eingetragen wurde.",
-  "Ends after {n} doses are recorded as taken.": "Endet, sobald {n} Dosen als eingenommen eingetragen wurden."
+  "Ends after {n} doses are recorded as taken.": "Endet, sobald {n} Dosen als eingenommen eingetragen wurden.",
+  "New chores": "Neue Aufgaben",
+  "When a chore is added for the people you follow or Anyone. Skips chores you add yourself.": "Wenn eine Aufgabe für die Personen, denen du folgst, oder für Alle hinzugefügt wird. Aufgaben, die du selbst hinzufügst, werden übersprungen."
 }

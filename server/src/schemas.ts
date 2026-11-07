@@ -1079,6 +1079,7 @@ export const PushSubscriptionPrefsSchema = z
     choreNudge: z.boolean(),
     choreNudgeTime: z.string().regex(HHMM_RE),
     choreNudgeAnyone: z.boolean().optional().openapi({ description: 'Include Anyone chores in this device’s daily chore reminder; off by default. Does not filter the household feed.' }),
+    newChores: z.boolean().optional().openapi({ description: 'Push when a new active chore is assigned to a followed member or Anyone, including library assignments. Off by default. Excludes the person and device that created it.' }),
     listUpdates: z.boolean(),
     outingReminders: z.boolean().default(true).openapi({ description: 'Outings: heads-ups for ⭐ outings, ticket dates and last chances.' }),
     upkeepReminders: z.boolean().default(true).openapi({ description: 'Home upkeep: jobs coming up, due and late, and warranties ending.' }),

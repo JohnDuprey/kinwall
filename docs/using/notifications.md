@@ -12,6 +12,7 @@ On the device that should get notifications, go to **Settings → General → No
 | **Daily summary** + time | off, 07:30 | "Today": event and chore counts, the first event titles, and open linked tasks. |
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
 | **Include Anyone chores** | off | Include shared chores anyone can do in this device’s daily chore reminder. Shown when Chore reminder is on. |
+| **New chores** | off | A push when a new chore is added for someone this device follows or Anyone. Skips chores you add yourself. Independent of the daily chore reminder. |
 | **Outing reminders** | on | Heads-ups for [outings](outings.md#reminders) someone ⭐ (a week before and the day before), ticket dates ("🎟 Get tickets for the sewing class by Tuesday"), and last chances. Shown while Outings is on. |
 | **Home upkeep** | on | [Upkeep](upkeep.md#reminders) jobs coming up, due today and late, and warranties about to end. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |
@@ -20,6 +21,14 @@ On the device that should get notifications, go to **Settings → General → No
 Anyone chores stay visible in the app and the household bell regardless of this choice. Existing devices also start with **Include Anyone chores** off. In native apps using local reminders, the same choice is under **Notifications** after updating the mobile app; enable the daily chore reminder in iPhone Settings → Kinwall, or the Chores notification channel in Android Settings (8:00 AM). Supported iOS builds using server push use the subscription preference above.
 
 **Send test** sends "Notifications are on 🎉" to this device. **Turn off** unsubscribes it. Times use the household timezone.
+
+## New chores
+
+Turn on **New chores** on each device that should receive these pushes. Adding an active chore, including handing one out from the chore library, sends **New chore** with its title. Tapping it opens Chores. A repeating chore sends one notification when added, rather than one for every repeat. Future chores notify when added too. Editing a chore, importing chores, or saving an unscheduled library chore does not send one.
+
+The bell keeps a copy for the assigned person, or the whole family for Anyone chores, even when push is off. The device that added the chore and that person's other devices skip both the push and the bell entry. **Which family members?** filters assigned chores; Anyone chores are included regardless of **Include Anyone chores**, which applies only to daily reminders. Turning off **Chores & points** stops new chore notifications too.
+
+This setting uses server push: it is available in browsers and native apps with server push support. Native apps using only local reminders need an app update to support it.
 
 ## Event reminders
 

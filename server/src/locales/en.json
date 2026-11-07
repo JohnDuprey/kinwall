@@ -750,6 +750,7 @@
   "Nearly chef time! {t} at {at}": "Nearly chef time! {t} at {at}",
   "Nearly there! {t} at {at}": "Nearly there! {t} at {at}",
   "Nearly there! Leave for {t} in {m}": "Nearly there! Leave for {t} in {m}",
+  "New chore": "New chore",
   "New entries can be read on parent devices. Entries already private stay private.": "New entries can be read on parent devices. Entries already private stay private.",
   "New entries can be read on parent devices. Entries written while it was private stay private.": "New entries can be read on parent devices. Entries written while it was private stay private.",
   "Next up at {at} is {t}": "Next up at {at} is {t}",

@@ -272,6 +272,8 @@ Push subscription `prefs` accepts `morningCheckIn` (boolean, default `false`) an
 
 Push subscription `prefs.choreNudgeAnyone` opts this device into Anyone chores in its daily chore nudge (`choreNudge`); it defaults to false, including for existing subscriptions. Set it through `POST /api/push/subscriptions` or `PATCH /api/push/subscriptions/{id}`. Omitting it from a patch preserves the saved choice. Personal chores still follow `memberIds`; the household notification feed is unchanged.
 
+Push subscription `prefs.newChores` (default false) sends a push when an active chore is created with `POST /api/chores` or handed out with `POST /api/chore-library/{id}/assign`. Set it through the same subscription endpoints; omitting it from a patch preserves the choice. Assigned chores follow `memberIds`; Anyone chores reach all opted-in devices, independently of `choreNudgeAnyone` and `choreNudge`. The creator's device and other devices belonging to that person are excluded. The notification feed records one `chore` entry with the same recipient and creator filtering, even without push subscribers. Edits, imports, inactive chores and library templates do not notify. Turning off the chores feature suppresses these notifications.
+
 `PUT /api/push/native` accepts `{token, deviceName?, gateway?: {credential} | null}` from an authenticated device. The token is
 hexadecimal APNs data (16–400 characters); it is encrypted at rest and never returned. The response
 is `{push, delivery, gatewayExpiresAt?, subscription}`, where `push` reports whether direct APNs, a host provider or a verified

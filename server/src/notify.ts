@@ -51,6 +51,7 @@ export const DEFAULT_PUSH_PREFS = {
   choreNudge: false,
   choreNudgeTime: '08:00',
   choreNudgeAnyone: false,
+  newChores: false,
   listUpdates: false,
   outingReminders: true, // Outings: heads-ups for ⭐ outings, ticket dates, last chance (notify.ts runOutings)
   upkeepReminders: true, // Home upkeep: jobs coming up, due and late, warranties ending (notify.ts runUpkeep)
@@ -808,6 +809,24 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
       for (const sub of (await loadSubs(env.DB, ...notBy(by))).filter((s) => subPrefs(s).listUpdates)) await sendToSub(env, env.DB, sub, payload);
     })(),
   );
+}
+
+/** One notification when a chore is created, including handing one out from the library. */
+export function notifyChoreCreated(env: Env, execCtx: WaitCtx | undefined, chore: ChoreRow, by: ChangedBy): void {
+  if (!chore.active) return;
+  waitUntil(execCtx, (async () => {
+    if (!(await readFeatures(env.DB)).chores) return;
+    const memberIds = chore.member_id ? [chore.member_id] : [];
+    const payload = perLang((lang) => {
+      const { t } = words(lang);
+      return { title: t('New chore'), body: chore.title, url: '/#/chores', tag: `chore:new:${chore.id}` };
+    });
+    const { title, body, url } = payload(await familyLang(env.DB));
+    await recordNotification(env.DB, { kind: 'chore', title, body, url, memberIds, source: 'system', by });
+    for (const sub of await loadSubs(env.DB, ...notBy(by))) {
+      if (subPrefs(sub).newChores && memberMatch(parseMemberIds(sub.member_ids), memberIds)) await sendToSub(env, env.DB, sub, payload);
+    }
+  })());
 }
 
 // Evening check (Temp check), at a person's eveningTime (household time), one push a day to devices

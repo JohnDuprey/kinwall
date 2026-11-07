@@ -996,6 +996,7 @@ export interface PushSubscriptionPrefs {
   morningCheckInTime?: string
   choreNudge: boolean
   choreNudgeAnyone?: boolean
+  newChores?: boolean
   choreNudgeTime: string
   listUpdates: boolean
   outingReminders?: boolean // Outings: heads-ups for ⭐ outings, ticket dates and last chances (on unless turned off)

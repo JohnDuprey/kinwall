@@ -826,5 +826,6 @@
   "Still time for {name}'s medicine": "Noch Zeit für das Medikament von {name}",
   "error|preferences belong to a start token": "Diese Einstellungen gehören zu einem Start-Token.",
   "error|Only parent devices can show kids’ medicine activities": "Nur Elterngeräte können Medikamentenaktivitäten für Kinder anzeigen.",
-  "error|Medicine activities are for the family’s own devices": "Medikamentenaktivitäten sind nur für die eigenen Geräte der Familie verfügbar."
+  "error|Medicine activities are for the family’s own devices": "Medikamentenaktivitäten sind nur für die eigenen Geräte der Familie verfügbar.",
+  "New chore": "Neue Aufgabe"
 }

@@ -22,13 +22,13 @@ function makeEnv(): Env {
   return { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, PUBLIC_URL: 'http://localhost:8080', ENCRYPTION_KEY: TEST_ENCRYPTION_KEY };
 }
 
-function makeApp(env: Env) {
+function makeApp(env: Env, background?: Promise<unknown>[]) {
   const app = createApp();
   return (p: string, init: RequestInit = {}, key = ADMIN_KEY) => {
     const headers = new Headers(init.headers);
     if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${key}`);
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-    return Promise.resolve(app.request(p, { ...init, headers }, env));
+    return Promise.resolve(app.request(p, { ...init, headers }, env, background ? { waitUntil: p => background.push(p), passThroughOnException() {}, props: {} } : undefined));
   };
 }
 
@@ -1163,6 +1163,93 @@ test('notify: a list update skips the device and the person who made it, in the 
   assert.equal(await sees(alexKey.key), true);
   assert.equal(await sees(ADMIN_KEY), true);
   assert.deepEqual(push.sent.map((s) => s.url.split('/').pop()).sort(), ['alex-phone', 'kitchen']);
+});
+
+test('new chores: opt-in, member filters, Anyone, language and author exclusions work independently of daily reminders', async () => {
+  const env = makeEnv(), background: Promise<unknown>[] = [];
+  const request = makeApp(env, background);
+  const drain = async () => { while (background.length) await Promise.all(background.splice(0)); };
+  const json = async (url: string, method = 'GET', body?: unknown, key = ADMIN_KEY) => {
+    const res = await request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, key);
+    assert.ok(res.ok, `${url}: ${res.status} ${await res.clone().text()}`);
+    await drain();
+    return await res.json() as any;
+  };
+  const alex = await json('/api/members', 'POST', { name: 'Alex', color: '#5ae', grownUp: true });
+  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#ea5', language: 'de' });
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#5ea' });
+  const device = async (name: string, owner: string, scope: string) => {
+    const k = await json('/api/keys', 'POST', { name, scope });
+    await json(`/api/keys/${k.id}`, 'PATCH', { owner, kind: scope === 'admin' ? 'grownup' : 'kid' });
+    return k.key as string;
+  };
+  const author = await device('Alex phone', alex.id, 'admin');
+  const authorOther = await device('Alex tablet', alex.id, 'admin');
+  const mayaKey = await device('Maya phone', maya.id, 'display');
+  const leoKey = await device('Leo phone', leo.id, 'display');
+  const subs = [];
+  for (const [name, key, enabled] of [['author', author, true], ['author-other', authorOther, true], ['maya', mayaKey, true], ['leo', leoKey, true], ['all', ADMIN_KEY, true], ['off', ADMIN_KEY, false]] as const) {
+    const s = await subscribe(request, key, name, { newChores: enabled, choreNudge: false });
+    assert.equal(s.row.prefs.newChores, enabled, 'the API saves the new preference');
+    subs.push({ name, ...s });
+  }
+  // Older child subscription rows must still follow only their owner.
+  await env.DB.prepare("UPDATE push_subscriptions SET member_ids = '[]' WHERE id = ?").bind(subs.find(s => s.name === 'leo')!.row.id).run();
+  const legacy = await subscribe(request, ADMIN_KEY, 'legacy');
+  await env.DB.prepare("UPDATE push_subscriptions SET prefs = '{}' WHERE id = ?").bind(legacy.row.id).run();
+  await json(`/api/push/subscriptions/${subs.find(s => s.name === 'all')!.row.id}`, 'PATCH', { prefs: { summaryTime: '09:00' } });
+  const push = stubPush();
+  try {
+    const chore = await json('/api/chores', 'POST', { title: 'Make bed', memberId: maya.id, dueDate: '2030-03-04', rrule: 'FREQ=DAILY' }, author);
+    assert.deepEqual(push.sent.map(s => s.url.split('/').pop()).sort(), ['all', 'maya']);
+    const sub = subs.find(s => s.name === 'maya')!;
+    const payload = JSON.parse(await referenceDecrypt(push.sent.find(s => s.url.endsWith('/maya'))!.body!, sub.keys.privateKey, sub.keys.p256dh, sub.keys.auth));
+    assert.equal(payload.title, 'Neue Aufgabe');
+    assert.equal(payload.body, 'Make bed');
+    assert.equal(payload.url, '/#/chores');
+    assert.equal((await feed(request, '', mayaKey)).filter(n => n.title === 'New chore').length, 1);
+    assert.equal((await feed(request, '', leoKey)).some(n => n.title === 'New chore'), false);
+    assert.equal((await feed(request, '', authorOther)).some(n => n.title === 'New chore'), false);
+    await json(`/api/chores/${chore.id}`, 'PATCH', { title: 'Make your bed' }, author);
+    assert.equal(push.sent.length, 2, 'editing a chore does not notify again');
+    await json('/api/chores', 'POST', { title: 'Take out trash', dueDate: '2030-03-04' }, author);
+    assert.deepEqual(push.sent.slice(2).map(s => s.url.split('/').pop()).sort(), ['all', 'leo', 'maya']);
+    assert.ok((await feed(request, '', leoKey)).some(n => n.body === 'Take out trash'));
+    assert.equal((await feed(request, '', author)).some(n => n.body === 'Take out trash'), false);
+  } finally { await drain(); push.restore(); }
+});
+
+test('new chores: library assignments notify; inactive chores, invalid creates and disabled chores do not', async () => {
+  const env = makeEnv(), background: Promise<unknown>[] = [];
+  const request = makeApp(env, background);
+  const drain = async () => { while (background.length) await Promise.all(background.splice(0)); };
+  const json = async (url: string, method: string, body: unknown) => {
+    const res = await request(url, { method, body: JSON.stringify(body) });
+    await drain();
+    assert.ok(res.ok, `${url}: ${res.status}`);
+    return await res.json() as any;
+  };
+  const key = await json('/api/keys', 'POST', { name: 'Kitchen wall', scope: 'display' });
+  const { row } = await subscribe(request, key.key, 'wall');
+  assert.equal(row.prefs.newChores, false, 'new and legacy devices default off');
+  await json(`/api/push/subscriptions/${row.id}`, 'PATCH', { prefs: { newChores: true } });
+  const push = stubPush();
+  try {
+    const item = await json('/api/chore-library', 'POST', { title: 'Clean out the car' });
+    assert.equal(push.sent.length, 0, 'saving a library template does not assign it');
+    await json(`/api/chore-library/${item.id}/assign`, 'POST', { date: '2030-03-04' });
+    assert.equal(push.sent.length, 1);
+    assert.equal((await feed(request)).filter(n => n.kind === 'chore').length, 1);
+    await json('/api/chores', 'POST', { title: 'Paused', active: false });
+    assert.equal((await request('/api/chores', { method: 'POST', body: JSON.stringify({ title: '' }) })).status, 400);
+    await drain();
+    assert.equal(push.sent.length, 1);
+    const settings = await (await request('/api/settings')).json() as any;
+    await json('/api/settings', 'PATCH', { features: { ...settings.features, chores: false } });
+    await json('/api/chores', 'POST', { title: 'Disabled' });
+    assert.equal(push.sent.length, 1);
+    assert.equal((await feed(request)).filter(n => n.kind === 'chore').length, 1);
+  } finally { await drain(); push.restore(); }
 });
 
 test('daily summaries share reads across recipients while keeping filters, language and later ticks fresh', async () => {
