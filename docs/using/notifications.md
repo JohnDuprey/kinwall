@@ -121,7 +121,16 @@ In the Kinwall app for iPhone, some things also show on the Lock Screen and in t
 * **iPhone / iPad**: needs **iOS 16.4 or later** and Kinwall **added to the Home Screen** (Share → Add to Home Screen), opened from there. Safari tabs can't receive push at all. Settings says so when it detects Safari, and the **Add Kinwall to your Home Screen** card shows how (see [Put it on the wall](../getting-started/put-it-on-the-wall.md)).
 * **Android**: works in Chrome, Firefox or Samsung Internet, installed or not. The status-bar icon is a single-color badge.
 * **Desktop**: any browser with Push API support.
-* A device whose push subscription has expired (the push service answers 404/410) is removed automatically. Turn notifications on again on that device.
+* An expired browser push subscription (404/410) or retired native token (APNs retirement or FCM `UNREGISTERED`) is removed automatically. Temporary delivery failures keep the subscription. Turn notifications on again if it was removed.
+
+### Android push
+
+Firebase-enabled Android app builds can receive new-chore pushes when the server has
+[FCM configured](../self-hosting/configuration.md#android-push-fcm). Turn on **New chores** here;
+its Android channel controls sound and presentation separately from the daily **Chores** channel.
+Tapping opens Chores for the matching family, with no Done action. Ordinary Android builds retain
+local reminders and do not poll for new chores. Delivery depends on phone permissions, channel
+settings, network and Android battery/force-stop restrictions.
 
 ## How often it checks
 

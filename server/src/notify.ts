@@ -1,3 +1,4 @@
+import { revokeAndroidGateways } from './android-push-gateway.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventPlans } from './routes/event-follows.ts';
 import { activityPreferences, runMedicineLiveActivities } from './medicine-live-activities.ts';
@@ -148,7 +149,7 @@ export async function loadSubs(db: KinwallDb, where = '', ...binds: unknown[]): 
         (SELECT id FROM api_keys WHERE oauth_grant_id = s.oauth_grant_id ORDER BY created_at DESC, rowid DESC LIMIT 1))
       LEFT JOIN members o ON o.id = k.owner
       ${where ? `WHERE (${where}) AND` : 'WHERE'}
-        (s.endpoint NOT LIKE 'apns:%' OR (k.id IS NOT NULL AND
+        ((s.endpoint NOT LIKE 'apns:%' AND s.endpoint NOT LIKE 'fcm:%') OR (k.id IS NOT NULL AND
           (k.expires_at IS NULL OR k.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') OR EXISTS
             (SELECT 1 FROM oauth_refresh_tokens r WHERE r.grant_id = s.oauth_grant_id
               AND r.used_at IS NULL AND r.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')))))`);
@@ -779,7 +780,7 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
     if (mine.length === 0) continue;
     const titles = mine.slice(0, 3).map((c) => c.title).join(', ');
     const { tn } = words(sub ? sub.lang : fam);
-    const payload = { title: tn(mine.length, '{n} chore left today', '{n} chores left today'), body: titles, url: '/chores' };
+    const payload = { title: tn(mine.length, '{n} chore left today', '{n} chores left today'), body: titles, url: '/chores', tag: `chore:daily:${today}` };
     if (sub) await sendToSub(env, db, sub, payload);
     else await recordNotification(db, { kind: 'chore', ...payload, memberIds: [...new Set(mine.flatMap((c) => (c.member_id ? [c.member_id] : [])))], source: 'system', at: now });
     await markSent(db, key, now);
@@ -1322,6 +1323,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
   const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
+  await part('android gateway cleanup', () => revokeAndroidGateways(env, now.getTime()));
   await part('event live activities', () => runEventLiveActivities(env,now));
   await part('event reminders', () => runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold));
   const features = await readFeatures(env.DB);

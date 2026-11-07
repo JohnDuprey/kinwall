@@ -268,11 +268,51 @@ or feature switches; GET requests never create awards. See [Rewards](../using/re
 
 Push subscription `prefs` accepts `morningCheckIn` (boolean, default `false`) and `morningCheckInTime` (`HH:MM` before noon, default `07:30`, household time). These are per-device choices. Morning reminders go only to the device owner's enabled, unanswered Temp check, wait out night hours when configured, and expire at noon. They contain generic text, open `/#/home?checkin=<memberId>&checkinPart=morning`, and create no family-feed entry.
 
-### Native Apple push
+### Native app push
 
 Push subscription `prefs.choreNudgeAnyone` opts this device into Anyone chores in its daily chore nudge (`choreNudge`); it defaults to false, including for existing subscriptions. Set it through `POST /api/push/subscriptions` or `PATCH /api/push/subscriptions/{id}`. Omitting it from a patch preserves the saved choice. Personal chores still follow `memberIds`; the household notification feed is unchanged.
 
 Push subscription `prefs.newChores` (default false) sends a push when an active chore is created with `POST /api/chores` or handed out with `POST /api/chore-library/{id}/assign`. Set it through the same subscription endpoints; omitting it from a patch preserves the choice. Assigned chores follow `memberIds`; Anyone chores reach all opted-in devices, independently of `choreNudgeAnyone` and `choreNudge`. The creator's device and other devices belonging to that person are excluded. The notification feed records one `chore` entry with the same recipient and creator filtering, even without push subscribers. Edits, imports, inactive chores and library templates do not notify. Turning off the chores feature suppresses these notifications.
+
+`PUT /api/push/android` accepts `{token, deviceName?, gateway?: {credential} | null}` from an
+authenticated Kinwall app sign-in or paired device key. `token` is an opaque, case-sensitive FCM registration token
+(1–4096 printable non-space ASCII characters), never an APNs token or an Expo Push Service token.
+The response is `{push, delivery: 'direct' | 'gateway' | 'unavailable', gatewayAvailable,
+gatewayExpiresAt?, subscription}` using the existing
+subscription shape (`id`, `deviceName`, `memberIds`, `prefs`, `createdAt`, `lastSuccessAt`). Tokens
+are encrypted with the family key and identified by transport-specific SHA-256 fingerprints;
+they are never returned. Re-registration keeps the stable OAuth grant or paired-key subscription,
+preferences and followed members, and transfers a reused token away from its previous sign-in.
+Child-owned devices always follow only their owner. Revoking the key or grant removes its
+subscription; PATCH and DELETE use the same ownership rules as other push subscriptions.
+
+Android readiness requires valid server-side FCM credentials and a canonical family origin
+(`PUBLIC_URL`, falling back to the saved public URL). `push: true` means the full native alert
+sender is configured, including medicine and daily chore reminders, not confirmed delivery.
+Event reminders stay local (`eventReminders: false` on register and PATCH). Medicine names and
+`newChores` default off. Unavailable delivery keeps local reminders enabled in compatible apps.
+FCM tokens never use APNs, the Apple host adapter or the Apple App Attest gateway.
+
+Without direct FCM credentials, an Android device can register a gateway credential
+(`android-v1.<uuid>.<64 hex>`) issued by `https://push.kinwall.family` for its token and this
+server's origin. The server verifies it with the gateway (origin, `android-alert` kind,
+SHA-256 of the exact token, expiry at most 30 days out) before storing it encrypted; a failed
+verification returns 400 and leaves the existing subscription unchanged. `gatewayAvailable` is
+true when the server has a canonical origin and so can verify credentials; apps should enroll
+only then. Omitting `gateway` keeps the stored credential for the same token, `null` detaches it,
+and a rotated token drops it. Direct FCM takes precedence. A rejected (401/403) or expired
+credential stops gateway delivery until the app registers again; temporary failures keep it, and
+only a gateway 410 retires the token. Replaced, detached and deleted credentials (including
+key or grant revocation) are revoked upstream in the background, at most three tries within a day.
+
+Android uses FCM HTTP v1 visible notification + data messages. New chores have the localized
+“New chore” title, chore title as body, HIGH priority, zero TTL and `new_chores` channel, with no
+Done action. `data.tag` and the Android tag are `chore:new:<id>`; `data.body` is JSON containing
+`{url: '/#/chores', server: '<canonical family origin>'}` for the Expo receiver and family-safe taps.
+Other native alerts use the same visible sender; medicines use the `medicine` channel and daily
+chores use `chores`. FCM `UNREGISTERED` retires the matching token; temporary or configuration
+failures retain it. Failed medicine alerts use encrypted, bounded retries, canceled by dose,
+recipient, privacy or token changes. No second bell entry is created by Android delivery.
 
 `PUT /api/push/native` accepts `{token, deviceName?, gateway?: {credential} | null}` from an authenticated device. The token is
 hexadecimal APNs data (16–400 characters); it is encrypted at rest and never returned. The response

@@ -312,7 +312,7 @@ export function tellAppStopSpeaking() {
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'stopSpeaking' }) } catch { /* not in the app */ }
 }
 
-/** Native APNs is available only in an entitled iOS build. Tokens never cross this bridge. */
+/** Native push needs an entitled iOS or Firebase-enabled Android build. Tokens never cross this bridge. */
 export function appNativePush(): boolean {
   return (window as Window & { kinwallNative?: { nativePush?: boolean } }).kinwallNative?.nativePush === true
 }

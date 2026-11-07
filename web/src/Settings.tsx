@@ -1060,8 +1060,8 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   return (
     <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
       {appNativePush() && <>
-        <p className="settings-row-sub">{t('Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through Apple push notifications.')}</p>
-        {sub && !appPushReady() && <p className="settings-row-sub">{t('This server has not enabled Apple push delivery yet. Local reminders remain on.')}</p>}
+        <p className="settings-row-sub">{t('Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through push notifications.')}</p>
+        {sub && !appPushReady() && <p className="settings-row-sub">{t('This server has not enabled push delivery for this app yet. Local reminders remain on.')}</p>}
         {nativeDetails}
       </>}
       {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}

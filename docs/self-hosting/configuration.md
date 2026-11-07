@@ -30,6 +30,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `HOST_PORTAL_URL` | — | For hosts running Kinwall for other families: a page where a family can manage or delete their instance. It's linked from **Settings → Access → Your data**. |
 | `PLUGIN_CATALOG_URL` | `https://app.kinwall.family/plugins/catalog.json` | Where the list of reviewed activity plugins comes from (fetched hourly). See [Building activity plugins](../contributing/plugins.md#getting-reviewed). |
 | `PLUGINS_CATALOG_ONLY` | — | `1` allows only reviewed plugins: no other repositories and no uploads. |
+| `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | — | Direct Android FCM alerts; all three plus the canonical public URL are required. See [below](#android-push-fcm). |
 | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | — | Apple push for native alerts and the iPhone app's Live Activities. See [below](#live-activities-apple-push). |
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
@@ -77,6 +78,48 @@ Point `PHOTO_FOLDER` at a folder of pictures you already keep on the server or a
 * The name of the folder a picture is in shows as its caption, so a folder called `2024 Beach day` captions its pictures "2024 Beach day". Pictures at the top of the folder have no caption.
 * Kinwall only reads the folder, about once an hour, so new pictures show up within the hour. Each picture is sent to the screen as it is, at full size.
 * Every signed-in device of the family can see these pictures, wall screens included, so only point it at pictures you're happy to have on the wall.
+
+### Android push (FCM)
+
+Android push requires a Firebase-enabled Kinwall Android build with Google Play services and
+client configuration for the same Firebase project as the server. Ordinary builds keep local
+reminders. This uses direct FCM HTTP v1, not Expo Push Service, legacy server keys or the Apple
+gateway. It works on Node and Workers using Web Crypto and fetch; it needs no Firebase Admin SDK.
+
+Enable the Firebase Cloud Messaging API in the project's Google Cloud console. Give a dedicated
+service account the **Firebase Cloud Messaging API Admin** role on that project (or a custom role
+with `cloudmessaging.messages.create`). Set `FCM_PROJECT_ID` to its project ID,
+`FCM_CLIENT_EMAIL` to its service-account email and `FCM_PRIVATE_KEY` to its RSA PKCS8 PEM key.
+Newlines or literal `\n` escapes are accepted. Set `PUBLIC_URL` to the canonical family URL;
+self-hosted installations can instead save their public URL in Settings. Delivery includes only
+its normalized origin so the app can reject a former family's notification.
+
+Keep credentials in server secrets, never in the app, repository, browser settings or logs.
+On Node, inject the three environment variables into the container/service; on Workers use
+secret bindings (`wrangler secret put FCM_PRIVATE_KEY`, and the corresponding project/email
+bindings). Hosts embedding Kinwall must forward the three fields plus their trusted per-family
+`PUBLIC_URL` into `createKinwall`. Token exchange and sends go only to Google's fixed HTTPS
+endpoints; short-lived OAuth tokens are cached in memory and renewed after expiry or rejection.
+See Google's [FCM authorization guide](https://firebase.google.com/docs/cloud-messaging/send/v1-api),
+[service-account protocol](https://developers.google.com/identity/protocols/oauth2/service-account)
+and [message schema](https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages).
+
+Successful registration enables all server native alerts, including medicines and daily chores;
+event reminders remain local. Missing or malformed credentials or public URL report unavailable,
+so compatible apps retain local reminders. Readiness is configuration capability, not proof of
+IAM permissions, provider acceptance or phone display: verify the matching build and credentials
+before distribution. Android permission, channel settings (daily **Chores** is opt-in), network,
+battery limits and force-stop behavior still apply. New chores have their own **New chores**
+channel and Kinwall preference, off by default. Offline alerts expire immediately; there is no
+backlog of old chores. Temporary failures retain subscriptions; failed medicine alerts get at
+most two encrypted retries within ten minutes, with stale text canceled after relevant changes.
+Google can read notification text; medicine names remain off unless explicitly enabled.
+Physical-device background delivery, cold-start taps, token rotation and sign-out need separate
+verification with a configured build; automated checks use fake credentials and mocked delivery.
+
+Without FCM credentials, the official Android app can use the [push gateway](#push-gateway)
+instead. It proves its installation with Play Integrity and a hardware-backed key before the
+gateway issues a device credential; the server only verifies and stores that credential.
 
 ### Live Activities (Apple push)
 
