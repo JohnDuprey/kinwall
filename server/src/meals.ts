@@ -104,11 +104,14 @@ export function mealApi(r: MealRow): Meal {
   return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? snapshotApi(JSON.parse(r.recipe_snapshot)) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, eaterIds: r.eater_ids ? JSON.parse(r.eater_ids) : [], notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, calendarEventStart: r.calendar_event_start ?? null, status: r.status, sourceUrl: r.source_url, restaurantId: r.restaurant_id ?? null, orderType: r.order_type ?? null, orders: r.orders_json ? JSON.parse(r.orders_json) : [], createdAt: r.created_at, updatedAt: r.updated_at };
 }
 export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string; kind?: Recipe['kind']; favoriteOf?: string } = {}): Promise<Recipe[]> {
+  // Direct equality lets SQLite seek one recipe and its related rows, rather than scanning
+  // the whole library for an optional (? IS NULL OR id = ?) filter.
+  const related = opts.id === undefined ? [] : [opts.id];
   const [recipes, ingredients, ratings, favorites] = await db.batch<unknown>([
-    db.prepare('SELECT * FROM recipes WHERE (? IS NULL OR id = ?) AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, \'\')), lower(?)) > 0) ORDER BY name, id').bind(opts.id ?? null, opts.id ?? null, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
-    db.prepare('SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id WHERE (? IS NULL OR i.recipe_id = ?) ORDER BY i.sort, i.id').bind(opts.id ?? null, opts.id ?? null),
-    db.prepare('SELECT recipe_id, member_id, stars FROM recipe_ratings WHERE (? IS NULL OR recipe_id = ?)').bind(opts.id ?? null, opts.id ?? null),
-    db.prepare('SELECT recipe_id, member_id FROM recipe_favorites WHERE (? IS NULL OR recipe_id = ?) ORDER BY member_id').bind(opts.id ?? null, opts.id ?? null),
+    db.prepare(`SELECT * FROM recipes WHERE ${related.length ? 'id=?' : '1'} AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, '')), lower(?)) > 0) ORDER BY name, id`).bind(...related, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
+    db.prepare(`SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id${related.length ? ' WHERE i.recipe_id = ?' : ''} ORDER BY i.sort, i.id`).bind(...related),
+    db.prepare(`SELECT recipe_id, member_id, stars FROM recipe_ratings${related.length ? ' WHERE recipe_id = ?' : ''}`).bind(...related),
+    db.prepare(`SELECT recipe_id, member_id FROM recipe_favorites${related.length ? ' WHERE recipe_id = ?' : ''} ORDER BY member_id`).bind(...related),
   ]);
   const starsBy = new Map<string, Record<string, number>>();
   for (const r of ratings.results as { recipe_id: string; member_id: string; stars: number }[]) starsBy.set(r.recipe_id, { ...starsBy.get(r.recipe_id), [r.member_id]: r.stars });

@@ -69,3 +69,9 @@ medicine row. `medications.log_revision` changes through triggers whenever its l
 change, including imports, so a subsequent read opens the updated history. A restart
 or cache eviction rebuilds the count from encrypted logs; no health totals are stored
 in plaintext. Each process retains at most 128 cached counts per database.
+
+### Recipe reads
+
+Single-recipe reads use direct equality filters for the recipe, ingredients, ratings and
+favorites, so opening one recipe does not scan the library. Query-plan regression tests
+cover these reads.

@@ -114,3 +114,36 @@ test("daily point totals match this week's completions and bonuses through edits
   run("DELETE FROM chores WHERE id = 'c'"); // cascades to its completions
   check();
 });
+
+test('single recipe reads use indexes for recipes and their related rows', async () => {
+  const { readRecipes } = await import('../src/meals.ts');
+  const db = openDb(':memory:'); applyMigrations(db, fileURLToPath(dir));
+  db.prepare("INSERT INTO recipes(id,name,default_servings,created_at,updated_at) VALUES('tacos','Tacos',4,'2026-11-06','2026-11-06')").run();
+  db.prepare("INSERT INTO recipes(id,name,default_servings,created_at,updated_at) VALUES('soup','Soup',4,'2026-11-06','2026-11-06')").run();
+  db.prepare("INSERT INTO members(id,name,color,created_at) VALUES('maya','Maya','#123456','2026-11-06')").run();
+  for (const id of ['tacos', 'soup']) {
+    db.prepare("INSERT INTO recipe_ingredients(id,recipe_id,name,normalized_name) VALUES(?,?,?,?)").bind(id, id, id, id).run();
+    db.prepare('INSERT INTO recipe_ratings(recipe_id,member_id,stars) VALUES(?,?,?)').bind(id, 'maya', id === 'tacos' ? 5 : 2).run();
+    db.prepare('INSERT INTO recipe_favorites(recipe_id,member_id) VALUES(?,?)').bind(id, 'maya').run();
+  }
+  const prepare = db.prepare.bind(db);
+  const plans: string[] = [];
+  db.prepare = (sql: string) => {
+    const statement = prepare(sql);
+    const bind = statement.bind.bind(statement);
+    statement.bind = (...values: unknown[]) => {
+      if (sql.startsWith('SELECT')) plans.push(prepare('EXPLAIN QUERY PLAN ' + sql).bind(...values).all<{ detail: string }>().results.map(r => r.detail).join('\n'));
+      return bind(...values);
+    };
+    return statement;
+  };
+  const recipes = await readRecipes(db, { id: 'tacos', archived: true });
+  assert.equal(recipes.length, 1);
+  assert.equal(recipes[0].name, 'Tacos');
+  assert.deepEqual(recipes[0].ingredients.map(i => i.id), ['tacos']);
+  assert.deepEqual(recipes[0].rating, { average: 5, count: 1, byMember: { maya: 5 } });
+  assert.deepEqual(recipes[0].favoritedBy, ['maya']);
+  assert.equal(plans.length, 4);
+  for (const plan of plans) assert.doesNotMatch(plan, /SCAN (recipes|i|recipe_ratings|recipe_favorites)\b/, plan);
+  assert.deepEqual(await readRecipes(db, { id: 'missing' }), []);
+});
