@@ -5,6 +5,7 @@ import FamilyAnnouncements from './FamilyAnnouncements.tsx'
 import { boardListTiles } from './listSections.ts'
 import { Children, isValidElement, Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useHashParam } from './hashQuery.ts'
+import { useBoardMeasure } from './useBoardMeasure.ts'
 import { createPortal } from 'react-dom'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -128,16 +129,7 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, what, chi
     setMore(shown < els.length ? moreLabel(info, shown, what) : null)
     setNone(shown === 0 && els.length > 0)
   }, [rows, what])
-  useLayoutEffect(fit) // every render: the rows may have changed
-  // The body never stretches, so after a cut its own size can't tell it the space grew: watch the card
-  // and what shares it too (the slot under it), again each render since the slot may have just come.
-  useEffect(() => {
-    const w = wrap.current, card = w?.parentElement
-    if (!w || !card) return
-    const ro = new ResizeObserver(() => fit())
-    for (const e of [w, card, ...card.children]) ro.observe(e)
-    return () => ro.disconnect()
-  })
+  useBoardMeasure(wrap, fit, children)
   return (
     <div ref={wrap} className="board-fit">
       <div ref={body} className={bodyClass}>{children}</div>
@@ -194,14 +186,7 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
     // Never too short for that: the card's rows grow (a grid row grows to a minimum only as a length).
     c.style.minHeight = `${Math.ceil((top - box.top + how.need + (words ? wordsH - chips : 0)) / scale + padBottom)}px`
   }, [fixed])
-  useLayoutEffect(measure) // every render: the items or the card's rows may have changed
-  useEffect(() => {
-    const card = ref.current?.parentElement
-    if (!card) return
-    const ro = new ResizeObserver(() => measure())
-    ro.observe(card)
-    return () => ro.disconnect()
-  }, [measure])
+  useBoardMeasure(ref, measure, items, fixed && items.length > 0)
   if (!items.length) return null
   return (
     <div ref={ref} className="board-slot">
