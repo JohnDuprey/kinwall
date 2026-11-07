@@ -9,7 +9,7 @@ step() { printf '\n== %s\n' "$*"; }
 # node:test prints "ℹ fail N"; a run that prints no summary means the tests didn't load (not a pass).
 tests() { local out; out=$(npm test 2>&1) || { echo "$out" | tail -40; return 1; }
   echo "$out" | grep -E '^ℹ (tests|pass|fail) ' || { echo "$out" | tail -40; echo "no test summary: the tests didn't run"; return 1; }
-  echo "$out" | grep -qE '^ℹ fail 0$' || { echo "$out" | grep -B2 -A12 'not ok' | head -60; return 1; }; }
+  grep -qE '^ℹ fail 0$' <<< "$out" || { echo "$out" | grep -B2 -A12 'not ok' | head -60; return 1; }; }
 
 step "server: typecheck"; (cd server && npm run typecheck >/dev/null)
 step "server: tests";     (cd server && tests)
