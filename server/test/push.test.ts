@@ -1164,3 +1164,119 @@ test('notify: a list update skips the device and the person who made it, in the 
   assert.equal(await sees(ADMIN_KEY), true);
   assert.deepEqual(push.sent.map((s) => s.url.split('/').pop()).sort(), ['alex-phone', 'kitchen']);
 });
+
+test('daily summaries share reads across recipients while keeping filters, language and later ticks fresh', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const json = async (url: string, method = 'GET', body?: unknown) => {
+    const res = await request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    assert.ok(res.ok, `${method} ${url}: ${res.status} ${await res.clone().text()}`);
+    return await res.json() as any;
+  };
+  await json('/api/settings', 'PATCH', { timezone: 'UTC', language: 'en' });
+  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#5ae', language: 'de' });
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#ea5', language: 'en' });
+  const sam = await json('/api/members', 'POST', { name: 'Sam', color: '#5ea', grownUp: true });
+  const device = async (name: string, owner: string) => {
+    const grownUp = owner === sam.id;
+    const key = await json('/api/keys', 'POST', { name, scope: grownUp ? 'admin' : 'display' });
+    await json(`/api/keys/${key.id}`, 'PATCH', { owner, kind: grownUp ? 'grownup' : 'kid' });
+    return key.key as string;
+  };
+  const mayaKey = await device('Maya phone', maya.id), leoKey = await device('Leo phone', leo.id), samKey = await device('Sam phone', sam.id);
+  const prefs = { dailySummary: true, summaryTime: '07:30', eventReminders: false, outingReminders: false, upkeepReminders: false };
+  const subscribers = [
+    { name: 'family-summary', ...(await subscribe(request, ADMIN_KEY, 'family-summary', prefs)) },
+    { name: 'maya-summary', ...(await subscribe(request, mayaKey, 'maya-summary', prefs)) },
+    { name: 'leo-summary', ...(await subscribe(request, leoKey, 'leo-summary', prefs)) },
+    { name: 'sam-summary', ...(await subscribe(request, samKey, 'sam-summary', prefs)) },
+  ];
+  // Delivery language comes from the owner; each device follows its chosen people.
+  await json(`/api/push/subscriptions/${subscribers[1].row.id}`, 'PATCH', { memberIds: [maya.id] });
+  await json(`/api/push/subscriptions/${subscribers[2].row.id}`, 'PATCH', { memberIds: [leo.id] });
+  await json(`/api/push/subscriptions/${subscribers[3].row.id}`, 'PATCH', { memberIds: [sam.id] });
+  const calendar = async (name: string, memberIds: string[]) => json('/api/calendars', 'POST', { kind: 'local', name, memberIds });
+  const mayaCal = await calendar('Maya', [maya.id]), leoCal = await calendar('Leo', [leo.id]), sharedCal = await calendar('Our Family', []);
+  const event = (calendarId: string, title: string, rrule?: string) => json('/api/events', 'POST', { calendarId, title, start: '2030-03-04T16:00:00Z', end: '2030-03-04T17:00:00Z', allDay: false, rrule });
+  const soccer = await event(mayaCal.id, 'Soccer'), piano = await event(leoCal.id, 'Piano');
+  await event(sharedCal.id, 'Walk', 'FREQ=DAILY;COUNT=2');
+  const hidden = await event(sharedCal.id, 'Hidden surprise');
+  await json(`/api/events/${hidden.id}/hidden`, 'PUT', { scope: 'occurrence' });
+  await json('/api/chores', 'POST', { title: 'Set the table', dueDate: '2030-03-04' });
+  const goal = await json('/api/chores', 'POST', { title: 'Practice piano', dueDate: '2030-03-04', repeatGoal: { times: 1, every: 1, unit: 'week', weekStart: 1 } });
+  await json(`/api/chores/${goal.id}/complete`, 'POST', { date: '2030-03-04' });
+  const list = await json('/api/lists', 'POST', { name: 'Checklist', kind: 'todo' });
+  await json(`/api/lists/${list.id}/items`, 'POST', [
+    { title: 'Cleats', eventId: soccer.id, priority: 'urgent' },
+    { title: 'Sheet music', eventId: piano.id },
+    { title: 'Library books', memberId: maya.id, dueDate: '2030-03-04' },
+    { title: 'Backpack', memberId: leo.id, dueDate: '2030-03-04' },
+  ]);
+  const meal = await json('/api/meals', 'POST', { date: '2030-03-04', slot: 'dinner', title: 'Tacos', mealKind: 'freeform' });
+  const db = env.DB as ReturnType<typeof openDb>;
+  const prepare = db.prepare.bind(db);
+  const reads = { meals: 0, goals: 0, calendarLookups: 0 };
+  db.prepare = (sql: string) => {
+    // Observe executions (including batch rawAll), not just statement preparation.
+    const count = () => {
+      if (sql.startsWith('SELECT slot, title FROM meals WHERE date = ?')) reads.meals++;
+      if (sql.startsWith("SELECT COALESCE(SUM(status = 'approved')")) reads.goals++;
+      if (sql === 'SELECT member_ids FROM calendars WHERE id = ?') reads.calendarLookups++;
+    };
+    const wrap = (statement: ReturnType<typeof prepare>): ReturnType<typeof prepare> => {
+      const bind = statement.bind.bind(statement), all = statement.rawAll.bind(statement), first = statement.first.bind(statement);
+      statement.bind = (...values: unknown[]) => wrap(bind(...values));
+      statement.rawAll = <T>() => { count(); return all<T>(); };
+      statement.first = <T>(col?: string) => { count(); return first<T>(col); };
+      return statement;
+    };
+    return wrap(prepare(sql));
+  };
+  const push = stubPush();
+  try {
+    const now = new Date('2030-03-04T07:30:00Z');
+    await runNotifications(env, now);
+    assert.equal(push.sent.length, 4);
+    const bodies = new Map<string, { title: string; body: string }>();
+    for (const sub of subscribers) {
+      const sent = push.sent.find(p => p.url.endsWith('/' + sub.name))!;
+      bodies.set(sub.name, JSON.parse(await referenceDecrypt(sent.body!, sub.keys.privateKey, sub.keys.p256dh, sub.keys.auth)));
+    }
+    const mayaText = bodies.get('maya-summary')!, leoText = bodies.get('leo-summary')!, samText = bodies.get('sam-summary')!, familyText = bodies.get('family-summary')!;
+    assert.equal(mayaText.title, 'Heute');
+    assert.match(mayaText.body, /^2 Termine · 1 Aufgabe/);
+    assert.match(mayaText.body, /Essen: Abendessen · Tacos/);
+    assert.match(mayaText.body, /• Soccer — ‼️ Cleats/);
+    assert.match(mayaText.body, /Heute fällig: Library books/);
+    assert.doesNotMatch(mayaText.body, /Piano|Sheet music|Backpack|Hidden surprise/);
+    assert.match(leoText.body, /^2 events · 1 chore/);
+    assert.match(leoText.body, /Piano|Walk/);
+    assert.match(leoText.body, /Due today: Backpack/);
+    assert.doesNotMatch(leoText.body, /Soccer|Cleats|Library books|Hidden surprise/);
+    assert.match(samText.body, /^1 event · 1 chore — Walk/);
+    assert.doesNotMatch(samText.body, /Soccer|Piano|Cleats|Sheet music|Library books|Backpack|Hidden surprise/);
+    assert.match(familyText.body, /^3 events · 1 chore/);
+    const summaries = (await feed(request)).filter(n => n.kind === 'summary');
+    assert.equal(summaries.length, 1);
+    assert.equal(summaries[0].body, familyText.body);
+    assert.deepEqual(reads, { meals: 1, goals: 1, calendarLookups: 0 });
+
+    // A retry whose window includes the same time skips the already-sent recipients and feed.
+    await db.prepare("DELETE FROM settings WHERE key = 'notifyLastTick'").run();
+    reads.meals = reads.goals = reads.calendarLookups = 0;
+    await runNotifications(env, now);
+    assert.equal(push.sent.length, 4);
+    assert.deepEqual(reads, { meals: 0, goals: 0, calendarLookups: 0 });
+
+    // A later recipient must read a new snapshot, rather than yesterday's or the earlier tick's.
+    const late = await subscribe(request, leoKey, 'late-summary', { ...prefs, summaryTime: '07:35' });
+    await json(`/api/meals/${meal.id}`, 'PATCH', { title: 'Soup' });
+    reads.meals = reads.goals = reads.calendarLookups = 0;
+    await runNotifications(env, new Date('2030-03-04T07:35:00Z'));
+    assert.equal(push.sent.length, 5);
+    const payload = JSON.parse(await referenceDecrypt(push.sent.at(-1)!.body!, late.keys.privateKey, late.keys.p256dh, late.keys.auth));
+    assert.match(payload.body, /Meals: Dinner · Soup/);
+    assert.doesNotMatch(payload.body, /Tacos/);
+    assert.deepEqual(reads, { meals: 1, goals: 1, calendarLookups: 0 });
+  } finally { push.restore(); }
+});

@@ -114,3 +114,16 @@ worker; opening one sooner still loads it immediately.
 Measured with the production build and gzip across the entry, App and their static
 JavaScript dependencies, startup fell from 533 KB to 378 KB (29%). Background offline
 caching still downloads the deferred screens after startup; it does not evaluate them.
+
+### Daily summary reads
+
+Daily summaries load one data snapshot per notification tick, after finding the first
+recipient whose copy has not already been sent. Events, calendar membership, chore goal
+progress, linked tasks, due items and meals are reused across devices and the household
+feed. Recurring event counts are computed once; member filtering and translated text
+are still built separately for each recipient.
+
+The snapshot stays inside that tick. A later recipient gets a fresh read on the next
+tick, while retries skip already-sent copies before loading summary data. The regression
+test covers four devices plus the feed: five meal reads and five goal reads become one
+each, and twenty per-event calendar lookups become one shared calendar read.

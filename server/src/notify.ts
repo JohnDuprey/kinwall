@@ -675,72 +675,75 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
   const targets: (PushSubRow | null)[] = subs.filter((s) => subPrefs(s).dailySummary && timeInWindow(subPrefs(s).summaryTime, tz, windowStart, now));
   if (feedTime(subs, 'dailySummary', 'summaryTime', tz, windowStart, now)) targets.push(null);
 
-  let hidden: Set<string> | undefined; // read once, for the first target that needs it
-  const fam = await familyLang(db);
-  for (const sub of targets) {
-    const key = sub ? `sum:${sub.id}:${today}` : `feed:sum:${today}`;
-    if (await alreadySent(db, key)) continue;
-    const { t, tn } = words(sub ? sub.lang : fam);
-
-    const dayStart = new Date(`${today}T00:00:00Z`);
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const [eventsRes, openRes, choresRes, linkedRes, dueRes, mealsRes] = await db.batch<unknown>([
+  if (!targets.length) return;
+  const dayStart = new Date(`${today}T00:00:00Z`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const mark = (r: { title: string; priority: string }) => `${r.priority === 'urgent' ? '‼️ ' : r.priority === 'high' ? '⭐ ' : ''}${r.title}`;
+  // One snapshot per tick, loaded only when an unsent target needs it. Calendar membership,
+  // goal progress and recurrence expansion do not depend on the recipient or their language.
+  const load = async () => {
+    const [eventsRes, openRes, choresRes, linkedRes, dueRes, mealsRes, calendarsRes] = await db.batch<unknown>([
       ...eventRowsStmts(db, ENABLED, [], dayStart, dayEnd),
       db.prepare('SELECT * FROM chores WHERE active = 1'),
       // Urgent/important items first (so they make the top 3) and marked.
       db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
       db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
       db.prepare("SELECT slot, title FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
+      db.prepare('SELECT id, member_ids FROM calendars WHERE enabled = 1'),
     ]);
-    const mark = (r: { title: string; priority: string }) => `${r.priority === 'urgent' ? '‼️ ' : r.priority === 'high' ? '⭐ ' : ''}${r.title}`;
-    const top3 = (titles: string[]) => titles.slice(0, 3).join(', ') + (titles.length > 3 ? ` ${t('+{n} more', { n: titles.length - 3 })}` : '');
+    const events = eventRowsFrom([eventsRes, openRes]);
+    const calendarMembers = new Map((calendarsRes.results as { id: string; member_ids: string }[]).map(cal => [cal.id, parseMemberIds(cal.member_ids)]));
+    const [hidden, goalStates] = await Promise.all([
+      hiddenInstanceKeys(db, dayStart, dayEnd, events),
+      goalProgressFor(db, choresRes.results as ChoreRow[], today),
+    ]);
+    const visibleEvents = events.flatMap(row => {
+      const own = parseMemberIds(row.member_ids);
+      const memberIds = own.length ? own : calendarMembers.get(row.calendar_id) ?? [];
+      let count = 0;
+      if (row.rrule) {
+        count = expand(row.rrule, row.start, row.end, !!row.all_day, tz, dayStart, dayEnd).filter(i => !hidden.has(instanceKey(row.id, i.start))).length;
+      } else {
+        const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
+        const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
+        if (endMs > dayStart.getTime() && startMs < dayEnd.getTime() && !hidden.has(instanceKey(row.id, row.start))) count = 1;
+      }
+      return count ? [{ row, memberIds, count }] : [];
+    });
     const linked = new Map<string, string[]>();
-    for (const r of features.lists ? linkedRes.results as unknown as { event_id: string; title: string; priority: string }[] : []) {
+    for (const r of features.lists ? linkedRes.results as { event_id: string; title: string; priority: string }[] : []) {
       linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
     }
-    const events = eventRowsFrom([eventsRes, openRes]);
-    hidden ??= await hiddenInstanceKeys(db, dayStart, dayEnd, events);
+    const chores = (choresRes.results as ChoreRow[]).filter(row => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full);
+    return { events: visibleEvents, linked, chores, meals: mealsRes.results as { slot: string; title: string }[], due: dueRes.results as { title: string; priority: string; member_id: string | null }[] };
+  };
+  let data: Awaited<ReturnType<typeof load>> | undefined;
+  const fam = await familyLang(db);
+  for (const sub of targets) {
+    const key = sub ? `sum:${sub.id}:${today}` : `feed:sum:${today}`;
+    if (await alreadySent(db, key)) continue;
+    data ??= await load();
+    const { t, tn } = words(sub ? sub.lang : fam);
+    const top3 = (titles: string[]) => titles.slice(0, 3).join(', ') + (titles.length > 3 ? ` ${t('+{n} more', { n: titles.length - 3 })}` : '');
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
     const todaysTitles: string[] = [];
     const todo: string[] = []; // "• Soccer — cleats, water" for today's events with open linked items
-    const addTodo = (row: EventRow) => {
-      const items = linked.get(row.id);
-      if (items) todo.push(`• ${row.title} — ${top3(items)}`);
-    };
     let eventCount = 0;
-    for (const row of events) {
-      let memberIds = parseMemberIds(row.member_ids);
-      const cal = await db.prepare('SELECT member_ids FROM calendars WHERE id = ?').bind(row.calendar_id).first<{ member_ids: string }>();
-      if (memberIds.length === 0 && cal) memberIds = parseMemberIds(cal.member_ids);
+    for (const { row, memberIds, count } of data.events) {
       if (!memberMatch(deviceMemberIds, memberIds)) continue;
-      if (row.rrule) {
-        const insts = expand(row.rrule, row.start, row.end, !!row.all_day, tz, dayStart, dayEnd).filter((i) => !hidden!.has(instanceKey(row.id, i.start)));
-        if (insts.length > 0) {
-          eventCount += insts.length;
-          todaysTitles.push(row.title);
-          addTodo(row);
-        }
-        continue;
-      }
-      const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
-      const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
-      if (endMs > dayStart.getTime() && startMs < dayEnd.getTime() && !hidden.has(instanceKey(row.id, row.start))) {
-        eventCount++;
-        todaysTitles.push(row.title);
-        addTodo(row);
-      }
+      eventCount += count;
+      todaysTitles.push(row.title);
+      const items = data.linked.get(row.id);
+      if (items) todo.push(`• ${row.title} — ${top3(items)}`);
     }
-    const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
-    const chores = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full);
     const first = todaysTitles.slice(0, 2).join(', ') + (todaysTitles.length > 2 ? '…' : '');
-    const counts = [tn(eventCount, '{n} event', '{n} events'), ...(features.chores ? [tn(chores.length, '{n} chore', '{n} chores')] : [])];
+    const counts = [tn(eventCount, '{n} event', '{n} events'), ...(features.chores ? [tn(data.chores.length, '{n} chore', '{n} chores')] : [])];
     let body = `${counts.join(' · ')}${first ? ` — ${first}` : ''}`;
-    const meals = mealsRes.results as { slot: string; title: string }[];
     const slots: Record<string, string> = { breakfast: t('Breakfast'), lunch: t('Lunch'), dinner: t('Dinner'), snack: t('Snack') };
-    if (features.meals && meals.length) body += `\n${t('Meals: {list}', { list: top3(meals.map((m) => `${slots[m.slot] ?? m.slot} · ${m.title}`)) })}`;
+    if (features.meals && data.meals.length) body += `\n${t('Meals: {list}', { list: top3(data.meals.map(m => `${slots[m.slot] ?? m.slot} · ${m.title}`)) })}`;
     if (todo.length) body += `\n${t("To do for today's events:")}\n${todo.join('\n')}`;
     // List items due today (any list), for this device's members like the chore nudge.
-    const due = features.lists ? (dueRes.results as unknown as { title: string; priority: string; member_id: string | null }[]).filter((r) => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];
+    const due = features.lists ? data.due.filter(r => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];
     if (due.length) body += `\n${t('Due today: {list}', { list: top3(due.map(mark)) })}`;
     if (sub) await sendToSub(env, db, sub, { title: t('Today'), body, url: '/' });
     else await recordNotification(db, { kind: 'summary', title: t('Today'), body, url: '/', source: 'system', at: now });
