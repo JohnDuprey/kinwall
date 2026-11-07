@@ -31,6 +31,8 @@ test('FCM signs Google scoped RS256 assertions, caches short-lived access tokens
     assert.equal(String(input), 'https://fcm.googleapis.com/v1/projects/fake-project/messages:send');
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer obvious-fake-access-token');
     assert.deepEqual(JSON.parse(JSON.parse(String(init?.body)).message.data.body), { url: '/', server: 'https://our-family.example' });
+    // A sleeping (Doze) device is often unreachable at send time; TTL 0 made FCM drop the alert.
+    assert.equal(JSON.parse(String(init?.body)).message.android.ttl, '3600s');
     return Response.json({ name: 'fake-message' });
   };
   const configured = { ...env, FCM_FETCH: transport };
