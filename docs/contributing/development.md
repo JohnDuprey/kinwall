@@ -81,3 +81,16 @@ cover these reads.
 Home checks each visible child's routine initially and after app changes. Its 15-second
 poll checks enabled routines only and pauses while the page is hidden. Returning to the
 page checks all visible children again; overlapping requests for a child are skipped.
+
+### Calendar window details
+
+Calendar reads fetch event rows with the household metadata in the first database batch,
+then expand repeats and check overlap before reading related details in a second batch.
+Notes, linked tasks, meals, overrides and hidden status use the matching event keys,
+passed as JSON so each related query uses one parameter even for large calendars.
+Composite indexes seek individual override and hidden keys; `idx_meals_event` finds
+linked meals without reading meal history. Empty windows skip the details batch.
+
+Reminder reads reuse their candidate event rows for hidden/filter resolution and limit
+their own travel settings and meal links to those candidates. Query-plan and read-cost
+tests cover historical rows, recurring events and windows with over 100 events.

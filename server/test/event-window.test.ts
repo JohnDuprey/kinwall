@@ -108,12 +108,20 @@ function withOldRows() {
 // Counts the event rows statements return (an index read returns what it reads) and how many
 // statements read events.
 function counting(db: ReturnType<typeof seed>) {
-  const n = { rows: 0, reads: 0 };
+  const n = { rows: 0, reads: 0, relatedRows: 0, plans: [] as string[], maxParams: 0 };
   type St = ReturnType<typeof db.prepare>;
-  type Wrapped = { sql: string; st: St; bind(...v: unknown[]): Wrapped; all(): unknown; first(): unknown; run(): unknown };
-  const note = <R extends { results: unknown[] }>(sql: string, r: R) => { if (/FROM events\b/.test(sql)) { n.rows += r.results.length; n.reads++; } return r; };
-  const wrap = (sql: string, st: St): Wrapped => ({ sql, st, bind: (...v) => wrap(sql, st.bind(...v)), all: () => note(sql, st.all()), first: () => st.first(), run: () => st.run() });
-  return { n, db: { prepare: (sql: string) => wrap(sql, db.prepare(sql)), batch: (sts: Wrapped[]) => db.batch(sts.map((s) => s.st)).map((r, i) => note(sts[i].sql, r)) } as unknown as KinwallDb };
+  type Wrapped = { sql: string; st: St; values: unknown[]; bind(...v: unknown[]): Wrapped; all(): unknown; first(): unknown; run(): unknown };
+  const note = <R extends { results: unknown[] }>(sql: string, r: R, values: unknown[]) => {
+    if (/FROM events\b/.test(sql)) { n.rows += r.results.length; n.reads++; }
+    if (/FROM (event_\w+overrides|event_hidden|list_items|notes|meals)\b/.test(sql)) {
+      n.relatedRows += r.results.length;
+      n.plans.push(db.prepare('EXPLAIN QUERY PLAN ' + sql).bind(...values).all<{ detail: string }>().results.map(r => r.detail).join('\n'));
+      n.maxParams = Math.max(n.maxParams, values.length);
+    }
+    return r;
+  };
+  const wrap = (sql: string, st: St, values: unknown[] = []): Wrapped => ({ sql, st, values, bind: (...v) => wrap(sql, st.bind(...v), v), all: () => note(sql, st.all(), values), first: () => st.first(), run: () => st.run() });
+  return { n, db: { prepare: (sql: string) => wrap(sql, db.prepare(sql)), batch: (sts: Wrapped[]) => db.batch(sts.map((s) => s.st)).map((r, i) => note(sts[i].sql, r, sts[i].values)) } as unknown as KinwallDb };
 }
 
 test('a week reads the rows near it, not the whole events table', async () => {
@@ -131,3 +139,84 @@ test('a notification tick reads the events once, near now', async () => {
 });
 
 const GOLDEN = '6579:1acc465ef3e398c4'; // captured from the whole-table read (re-captured when instances gained busy, then meal; same rows otherwise)
+
+function withOldDetails() {
+  const raw = seed();
+  const run = (sql: string, ...values: unknown[]) => raw.prepare(sql).bind(...values).run();
+  run("INSERT INTO lists(id,name,kind,created_at) VALUES('list','Checklist','todo','x')");
+  // History in the same calendar, plus unrelated details without an event row (a resync may
+  // remove the row while its per-event settings survive).
+  for (let i = 0; i < 150; i++) {
+    const id = `old${i}`;
+    run("INSERT INTO events(id,calendar_id,external_id,title,start,end,updated_at) VALUES(?,'g',?,'Old','2024-01-01','2024-01-02','x')", id, id);
+    run("INSERT INTO notes(id,target_type,target_id,body,created_at,updated_at) VALUES(?,'event',?,'Note','x','x')", id, id);
+    run("INSERT INTO list_items(id,list_id,title,event_id,created_at,updated_at) VALUES(?,'list','Task',?,'x','x')", id, id);
+    run("INSERT INTO meals(id,date,slot,title,meal_kind,servings,calendar_event_id,created_at,updated_at) VALUES(?,'2024-01-01','dinner','Meal','freeform',4,?,'x','x')", id, id);
+    run("INSERT INTO event_member_overrides(calendar_id,external_id,member_ids,updated_at) VALUES('g',?,'[\"m2\"]','x')", id);
+    run("INSERT INTO event_travel_overrides(calendar_id,external_id,travel_minutes,remind_before_leave,updated_at) VALUES('g',?,25,1,'x')", id);
+    run("INSERT INTO event_series_member_overrides(calendar_id,series_id,member_ids,updated_at) VALUES('g',?,'[\"m2\"]','x')", id);
+    run("INSERT INTO event_hidden(id,calendar_id,scope,key,title,start,created_at) VALUES(?,'g','occurrence',?,'Old','2024-01-01','x')", id, id);
+  }
+  run("INSERT INTO notes(id,target_type,target_id,body,created_at,updated_at) VALUES('current','event','trip','Note','x','x')");
+  run("INSERT INTO list_items(id,list_id,title,event_id,created_at,updated_at) VALUES('current','list','Task','trip','x','x')");
+  run("INSERT INTO meals(id,date,slot,title,meal_kind,servings,calendar_event_id,assignee_member_id,created_at,updated_at) VALUES('current','2026-11-01','dinner','Tacos','freeform',4,'trip','m1','x','x')");
+  run("INSERT INTO event_travel_overrides(calendar_id,external_id,travel_minutes,remind_before_leave,updated_at) VALUES('g','x-trip',25,1,'x')");
+  return raw;
+}
+
+test('calendar details read only matching events, including supplied notification rows', async () => {
+  const raw = withOldDetails();
+  const from = new Date('2026-11-01T00:00:00Z'), to = new Date('2026-11-02T00:00:00Z');
+  for (const supplied of [false, true]) {
+    const { db, n } = counting(raw);
+    const rows = supplied ? raw.prepare('SELECT * FROM events').all().results as NonNullable<Parameters<typeof eventInstances>[4]>['rows'] : undefined;
+    const result = await eventInstances(db, from, to, undefined, { rows });
+    const trip = result.find(e => e.id === 'trip')!;
+    assert.equal(trip.noteCount, 1);
+    assert.equal(trip.linkedItemCount, 1);
+    assert.equal(trip.meal?.id, 'current');
+    assert.equal(trip.cookId, 'm1');
+    assert.deepEqual(trip.memberIds, ['m1']);
+    assert.equal(trip.travelMinutes, 25);
+    assert.ok(n.relatedRows < 30, `read ${n.relatedRows} related rows for a day`);
+    for (const plan of n.plans) {
+      assert.doesNotMatch(plan, /SCAN (event_\w+|list_items|notes|m)\b/, plan);
+      if (/SEARCH notes/.test(plan)) assert.match(plan, /target_type=\? AND target_id=\?/, plan);
+      if (/SEARCH event_.*overrides/.test(plan)) assert.match(plan, /calendar_id=\? AND (external_id|series_id)=\?/, plan);
+      if (/SEARCH event_hidden/.test(plan)) assert.match(plan, /calendar_id=\? AND scope=\? AND key=\?/, plan);
+    }
+    assert.ok(n.maxParams <= 1, 'related reads use one JSON parameter');
+    if (supplied) assert.equal(n.reads, 0, 'notification rows are reused');
+  }
+});
+
+test('notification event details do not read unrelated historical meal links or travel settings', async () => {
+  const { db, n } = counting(withOldDetails());
+  await runNotifications({ DB: db }, new Date('2026-11-01T15:00:00Z'));
+  assert.equal(n.reads, 2, 'notification event rows are still read once');
+  assert.ok(n.relatedRows < 60, `read ${n.relatedRows} related rows for a notification tick`);
+});
+
+test('large calendar windows keep counts per event and use bounded JSON parameters', async () => {
+  const raw = seed();
+  for (let i = 0; i < 140; i++) {
+    raw.prepare("INSERT INTO events(id,calendar_id,external_id,title,start,end,updated_at) VALUES(?,'g',?,'Event','2026-11-02T15:00:00Z','2026-11-02T16:00:00Z','x')").bind(`many${i}`, `many${i}`).run();
+    raw.prepare("INSERT INTO notes(id,target_type,target_id,body,created_at,updated_at) VALUES(?,'event',?,'Note','x','x')").bind(`many${i}`, `many${i}`).run();
+  }
+  raw.prepare("INSERT INTO notes(id,target_type,target_id,body,created_at,updated_at) VALUES('weekly-note','event','weekly','Note','x','x')").run();
+  raw.prepare("INSERT INTO event_hidden(id,calendar_id,scope,key,title,start,created_at) VALUES('weekly-hidden','local','occurrence','weekly@2026-11-04T14:00:00.000Z','Event','x','x')").run();
+  const { db, n } = counting(raw);
+  const result = await eventInstances(db, new Date('2026-11-02T00:00:00Z'), new Date('2026-11-09T00:00:00Z'), undefined, { includeHidden: true });
+  const many = result.filter(e => e.id.startsWith('many'));
+  assert.equal(many.length, 140);
+  assert.ok(many.every(e => e.noteCount === 1));
+  const weekly = result.filter(e => e.id === 'weekly');
+  assert.equal(weekly.length, 2);
+  assert.ok(weekly.every(e => e.noteCount === 1), 'a recurring event shares one note thread');
+  assert.deepEqual(weekly.map(e => e.hidden), [null, 'event']);
+  assert.ok(n.maxParams <= 1, `used ${n.maxParams} parameters`);
+  const empty = counting(raw);
+  assert.deepEqual(await eventInstances(empty.db, new Date('2030-01-01'), new Date('2030-01-02'), 'g'), []);
+  assert.equal(empty.n.relatedRows, 0);
+  assert.equal(empty.n.plans.length, 0, 'an empty window skips related queries');
+});

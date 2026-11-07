@@ -1,3 +1,4 @@
+import m0140 from '../migrations/0140_meal_event_index.sql';
 import m0139 from '../migrations/0139_daily_points.sql';
 import m0138 from '../migrations/0138_list_reads.sql';
 import m0137 from '../migrations/0137_refresh_reads.sql';
@@ -281,4 +282,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0137_refresh_reads.sql', sql: m0137 },
   { name: '0138_list_reads.sql', sql: m0138 },
   { name: '0139_daily_points.sql', sql: m0139 },
+  { name: '0140_meal_event_index.sql', sql: m0140 },
 ];

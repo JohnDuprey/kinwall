@@ -363,14 +363,22 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const [calsRes, eventsRes, openRes, categoriesRes, membersRes, travelRes, mealsRes] = await db.batch<unknown>([
+  const [calsRes, eventsRes, openRes, categoriesRes, membersRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     ...eventRowsStmts(db, ENABLED, [], from, to),
     db.prepare('SELECT id, name, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
-    // Synced events keep travel time here, not on the row (see migration 0019).
-    db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides'),
-    mealLinksQuery(db),
+  ]);
+  const events = eventRowsFrom([eventsRes, openRes]);
+  const refs = JSON.stringify(events.map(row => ({ calendarId: row.calendar_id, externalId: row.external_id })));
+  // Read links for the same candidates as the reminder loop. Hidden/filter resolution can run
+  // alongside this batch and reuses the event rows, without reading calendar history again.
+  const [[travelRes, mealsRes], hidden] = await Promise.all([
+    db.batch<unknown>([
+      db.prepare("SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides WHERE (calendar_id, external_id) IN (SELECT value->>'calendarId', value->>'externalId' FROM json_each(?))").bind(refs),
+      mealLinksQuery(db, events.map(row => row.id)),
+    ]),
+    hiddenInstanceKeys(db, from, to, events),
   ]);
   const travelOverrides = new Map(
     (travelRes.results as unknown as { calendar_id: string; external_id: string; travel_minutes: number | null; remind_before_leave: number }[]).map((r) => [`${r.calendar_id}\u0000${r.external_id}`, r]),
@@ -380,10 +388,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const categoryRows = categoriesRes.results as unknown as { id: string; name: string; emoji: string | null }[];
   const categoryEmojis = new Map(categoryRows.map((c) => [c.id, c.emoji]));
   const categoryText = new Map(categoryRows.map((c) => [c.id, `${c.name} ${c.emoji ?? ''}`.trim()]));
-  const events = eventRowsFrom([eventsRes, openRes]);
   const meals = parseMealLinks(mealsRes.results);
-  // Hidden and filtered-out events get no reminders, transition warnings or Live Activities.
-  const hidden = await hiddenInstanceKeys(db, from, to, events);
 
   // leadMinutes: travel time when the event reminds before leaving - reminders then count back from
   // the leave-by time (start - travel) instead of the start.

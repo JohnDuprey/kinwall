@@ -491,11 +491,13 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   const calendarsStmt = calendarId
     ? db.prepare('SELECT * FROM calendars WHERE id = ?').bind(calendarId)
     : db.prepare('SELECT * FROM calendars');
-  const [calendarsRes, settingsRes, membersRes, categoriesRes] = await db.batch<unknown>([
+  const eventStmts = opts.rows ? [] : eventRowsStmts(db, calendarId ? '= ?' : 'IN (SELECT id FROM calendars)', calendarId ? [calendarId] : [], fromDate, toDate);
+  const [calendarsRes, settingsRes, membersRes, categoriesRes, ...eventRes] = await db.batch<unknown>([
     calendarsStmt,
     db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'defaultReminderMinutes')"),
     db.prepare('SELECT id, color FROM members'),
     db.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
+    ...eventStmts,
   ]);
   const calendars = calendarsRes.results as unknown as CalendarRow[];
   const calById = new Map(calendars.map((cal) => [cal.id, cal]));
@@ -507,35 +509,52 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   const categories = categoriesRes.results as unknown as CategoryRow[];
   const filters = new Map(calendars.map((cal) => [cal.id, parseFilter(cal.filter)]));
 
-  // events + all four override tables, all filtered by the same calendar id set - another batch.
-  const calIds = calendars.map((cal) => cal.id);
-  const placeholders = calIds.map(() => '?').join(',');
-  const eventStmts = opts.rows ? [] : eventRowsStmts(db, `IN (${placeholders})`, calIds, fromDate, toDate);
-  const res = await db.batch<unknown>([
-    ...eventStmts,
-    db.prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
-    db
-      .prepare(`SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides WHERE calendar_id IN (${placeholders})`)
-      .bind(...calIds),
-    db.prepare(`SELECT calendar_id, external_id, category_id FROM event_category_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
-    db
-      .prepare(`SELECT calendar_id, series_id, category_id FROM event_series_category_overrides WHERE calendar_id IN (${placeholders})`)
-      .bind(...calIds),
-    db
-      .prepare(`SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides WHERE calendar_id IN (${placeholders})`)
-      .bind(...calIds),
-    // Every event's open linked-item count (small, indexed) - no per-id IN list, which could pass D1's 100-param cap.
-    db.prepare('SELECT event_id, COUNT(*) AS n FROM list_items WHERE done = 0 AND event_id IS NOT NULL GROUP BY event_id'),
-    db.prepare("SELECT target_id, COUNT(*) AS n FROM notes WHERE target_type = 'event' GROUP BY target_id"),
-    mealLinksQuery(db),
-    db.prepare(`SELECT calendar_id, scope, key FROM event_hidden WHERE calendar_id IN (${placeholders})`).bind(...calIds),
+  // Expand and check overlap before fetching details, so ended repeats and long events do not
+  // bring their history along. Reuse these instances below (including exact local hidden keys).
+  const instances: { row: EventRow; cal: CalendarRow; start: string; end: string; occurrenceStart: string | null }[] = [];
+  for (const row of opts.rows ?? eventRowsFrom(eventRes)) {
+    const cal = calById.get(row.calendar_id);
+    if (!cal) continue;
+    if (cal.kind === 'local' && row.rrule) {
+      for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
+        instances.push({ row, cal, ...inst, occurrenceStart: inst.start });
+      }
+    } else {
+      const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
+      const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
+      if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs > fromDate.getTime() && startMs < toDate.getTime()) {
+        instances.push({ row, cal, start: row.start, end: row.end, occurrenceStart: null });
+      }
+    }
+  }
+  if (!instances.length) return [];
+  const rows = [...new Map(instances.map(({ row }) => [row.id, row])).values()];
+  const ids = rows.map(row => row.id);
+  const refs = JSON.stringify(rows.map(row => ({ calendarId: row.calendar_id, externalId: row.external_id, seriesId: row.series_id })));
+  const hiddenRefs = JSON.stringify(instances.flatMap(({ row, cal, start }) => {
+    const keys = hideKeys(row, cal, start);
+    return [{ calendarId: cal.id, scope: 'occurrence', key: keys.occurrence },
+      ...(keys.series ? [{ calendarId: cal.id, scope: 'series', key: keys.series }] : [])];
+  }));
+  // Tuple IN looks up each distinct key through its composite index. JSON keeps each statement
+  // at one parameter even for large calendars; no per-event round trips or reads of old details.
+  const occurrenceRefs = "SELECT value->>'calendarId', value->>'externalId' FROM json_each(?)";
+  const seriesRefs = "SELECT value->>'calendarId', value->>'seriesId' FROM json_each(?)";
+  const [overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes, hiddenRes] = await db.batch<unknown>([
+    db.prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE (calendar_id, external_id) IN (${occurrenceRefs})`).bind(refs),
+    db.prepare(`SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides WHERE (calendar_id, series_id) IN (${seriesRefs})`).bind(refs),
+    db.prepare(`SELECT calendar_id, external_id, category_id FROM event_category_overrides WHERE (calendar_id, external_id) IN (${occurrenceRefs})`).bind(refs),
+    db.prepare(`SELECT calendar_id, series_id, category_id FROM event_series_category_overrides WHERE (calendar_id, series_id) IN (${seriesRefs})`).bind(refs),
+    db.prepare(`SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides WHERE (calendar_id, external_id) IN (${occurrenceRefs})`).bind(refs),
+    db.prepare('SELECT event_id, COUNT(*) AS n FROM list_items WHERE done = 0 AND event_id IN (SELECT value FROM json_each(?)) GROUP BY event_id').bind(JSON.stringify(ids)),
+    db.prepare("SELECT target_id, COUNT(*) AS n FROM notes WHERE target_type = 'event' AND target_id IN (SELECT value FROM json_each(?)) GROUP BY target_id").bind(JSON.stringify(ids)),
+    mealLinksQuery(db, ids),
+    db.prepare("SELECT calendar_id, scope, key FROM event_hidden WHERE (calendar_id, scope, key) IN (SELECT value->>'calendarId', value->>'scope', value->>'key' FROM json_each(?))").bind(hiddenRefs),
   ]);
-  const [overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes, hiddenRes] = res.slice(eventStmts.length);
   const hiddenSet = new Set((hiddenRes.results as { calendar_id: string; scope: 'occurrence' | 'series'; key: string }[]).map((r) => hiddenKey(r.calendar_id, r.scope, r.key)));
   const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
   const linkedCounts = new Map((linkedRes.results as { event_id: string; n: number }[]).map((r) => [r.event_id, r.n]));
   const travelOverrides = buildTravelOverrideMap(travelOverridesRes.results as TravelOverrideRow[]);
-  const rows = opts.rows ?? eventRowsFrom(res.slice(0, eventStmts.length));
   const overrides = buildOverrideMap(overridesRes.results as OverrideRow[]);
   const seriesOverrides = buildSeriesOverrideMap(seriesOverridesRes.results as SeriesOverrideRow[]);
   const categoryOverrides = buildCategoryOverrideMap(categoryOverridesRes.results as CategoryOverrideRow[]);
@@ -551,28 +570,14 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     out.push({ ...inst, hidden });
   };
 
-  for (const storedRow of rows) {
-    const cal = calById.get(storedRow.calendar_id);
-    if (!cal) continue;
+  for (const { row: storedRow, cal, start, end, occurrenceStart } of instances) {
     const row = withTravel(storedRow, cal, storedRow.external_id ? travelOverrides.get(overrideKey(cal.id, storedRow.external_id)) : undefined);
     const override = row.external_id ? overrides.get(overrideKey(cal.id, row.external_id)) : undefined;
     const seriesOverride = row.series_id ? seriesOverrides.get(seriesOverrideKey(cal.id, row.series_id)) : undefined;
     const categoryOverride = row.external_id ? categoryOverrides.get(categoryOverrideKey(cal.id, row.external_id)) : undefined;
     const categorySeriesOverride = row.series_id ? categorySeriesOverrides.get(categorySeriesOverrideKey(cal.id, row.series_id)) : undefined;
 
-    if (cal.kind === 'local' && row.rrule) {
-      for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
-        push(row, cal, instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
-      }
-      continue;
-    }
-
-    // Non-recurring local event, or an already-expanded remote instance: filter by overlap.
-    const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
-    const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
-    if (Number.isNaN(startMs) || Number.isNaN(endMs)) continue; // a stored row whose times aren't dates is left out, not a failed read
-    if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
-    push(row, cal, instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
+    push(row, cal, instanceFrom(row, cal, memberColors, occurrenceStart, start, end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
   }
 
   // A meal's event counts down to starting prep instead (prepBy.ts), for its cook.
