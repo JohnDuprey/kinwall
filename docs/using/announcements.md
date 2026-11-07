@@ -8,7 +8,7 @@ On a parent's device, open **Home → Board → Announcements**, then **Add anno
 * **Visible from** and **Expires**. The editor names the device's timezone; the saved instants are the same on every family device. Expiration must be after the start.
 * **Emphasis**: **Normal** or **Important**. Important messages appear first, with a visible label as well as stronger styling.
 
-The message appears automatically at its start and disappears at expiration. Open screens refresh at those boundaries and check for edits every 30 seconds. Expired messages stay in the parent's announcement list so they can be edited and scheduled again. Tap a message in that list to edit it. **Delete announcement…** at the bottom asks before permanently removing it.
+The message appears automatically at its start and disappears at expiration. Open screens refresh at those boundaries and show edits within about 30 seconds. Expired messages stay in the parent's announcement list so they can be edited and scheduled again. Tap a message in that list to edit it. **Delete announcement…** at the bottom asks before permanently removing it.
 
 Everyone sees active announcements, including kids' devices and shared wall screens. Only parents can read scheduled or expired announcements, add, edit, or delete them. Filtering the Board to one person does not hide family announcements.
 

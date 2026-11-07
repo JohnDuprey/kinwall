@@ -68,6 +68,19 @@ test('announcements: validate combined edits and order important messages first'
   assert.equal(edited.details, announcement.details);
 });
 
+test('announcements: every change bumps rev, which is how wall screens learn of it', async () => {
+  const { send } = await setup();
+  const rev = async () => { await new Promise((r) => setTimeout(r, 10)); return (await send('/api/rev')).body.rev as number }; // rev bumps in the background
+  let last = await rev();
+  const changed = async () => { const now = await rev(); assert.ok(now > last); last = now };
+  const { id } = (await send('/api/announcements', 'POST', { ...announcement, expiresAt: '2099-01-01T00:00:00Z' })).body;
+  await changed();
+  await send(`/api/announcements/${id}`, 'PATCH', { title: 'Updated' });
+  await changed();
+  await send(`/api/announcements/${id}`, 'DELETE');
+  await changed();
+});
+
 test('announcements: the feature switch hides every surface and backups restore saved schedules', async () => {
   const { send } = await setup();
   const created = (await send('/api/announcements', 'POST', announcement)).body;

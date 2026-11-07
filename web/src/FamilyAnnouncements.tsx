@@ -36,13 +36,14 @@ export default function FamilyAnnouncements() {
         setData(answer)
         clearTimeout(timer)
         if (answer.nextChangeAt) timer = setTimeout(load, Math.min(2147483647, Math.max(50, Date.parse(answer.nextChangeAt) - Date.now() + 20)))
-      } catch { /* retain messages only while their visibility window remains active */ }
+      } catch { // retain messages only while their visibility window remains active, and try again soon
+        if (!canceled && request === serial) { clearTimeout(timer); timer = setTimeout(load, 30000) }
+      }
     }
-    void load()
-    const poll = setInterval(load, 30000)
+    void load() // again when anything changes (refreshTick: announcement changes bump rev)
     window.addEventListener('focus', load)
     window.addEventListener(CHANGED, load)
-    return () => { canceled = true; clearInterval(poll); clearTimeout(timer); window.removeEventListener('focus', load); window.removeEventListener(CHANGED, load) }
+    return () => { canceled = true; clearTimeout(timer); window.removeEventListener('focus', load); window.removeEventListener(CHANGED, load) }
   }, [enabled, refreshTick])
   if (!enabled) return null
   const active = activeAnnouncements(data.announcements, now)
