@@ -5,7 +5,7 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { createApiKey, sha256Hex } from '../src/auth.ts';
 import { decrypt } from '../src/crypto.ts';
-import { pushToMembers } from '../src/notify.ts';
+import { pushToMembers, runNotifications } from '../src/notify.ts';
 import { revokeAndroidGateways } from '../src/android-push-gateway.ts';
 import type { Env } from '../src/env.ts';
 
@@ -147,9 +147,182 @@ test('Android gateway revokes retired capabilities upstream after key deletion, 
   assert.equal(new Headers(revoke?.init?.headers).get('Authorization'), `Bearer ${CREDENTIAL}`);
   assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM android_push_revocations').first<any>()).n, 0);
 
-  // Outages retry a bounded number of times, then give up.
-  await DB.prepare("INSERT INTO android_push_revocations(fingerprint,subscription_id,credential,created_at) VALUES ('f','s','v1:x',?)").bind(Date.now()).run();
-  env.PUSH_GATEWAY_FETCH = async () => new Response(null, { status: 503 });
-  for (let i = 0; i < 3; i++) await revokeAndroidGateways(env, Date.now() + i * 600000);
+  // Keep a real encrypted capability from a detached subscription, so failures reach HTTP.
+  const second = await createApiKey(DB, 'Retry Android', 'display');
+  const restored = await register({ credential: CREDENTIAL }, TOKEN, second.key);
+  assert.equal(restored.status, 200);
+  const id = (await restored.json() as any).subscription.id;
+  await request(`/api/push/subscriptions/${id}`, 'DELETE', undefined, second.key);
+  let attempts = 0;
+  env.PUSH_GATEWAY_FETCH = async (_url, init) => { assert.equal(init?.method, 'DELETE'); attempts++; return new Response(null, { status: 503 }); };
+  const now = Date.now();
+  await revokeAndroidGateways(env, now);
+  assert.equal(attempts, 1);
+  await revokeAndroidGateways(env, now + 299999); assert.equal(attempts, 1, 'five-minute backoff');
+  await revokeAndroidGateways(env, now + 300000); assert.equal(attempts, 2);
+  await revokeAndroidGateways(env, now + 600000); assert.equal(attempts, 3);
+  await revokeAndroidGateways(env, now + 900000); assert.equal(attempts, 3, 'no fourth attempt');
   assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM android_push_revocations').first<any>()).n, 0);
+});
+
+test('Android gateway detach, subscription deletion and OAuth grant revocation queue encrypted cleanup; active renewals and transfers cancel stale cleanup', async () => {
+  const { DB, env, phone, other, register, request, calls } = await fixture();
+  const result = await (await register()).json() as any;
+  await register(); // same capability, re-encrypted on ordinary renewal
+  await revokeAndroidGateways(env);
+  assert.equal(calls.filter(c => c.init?.method === 'DELETE').length, 0, 'still-active capability is never revoked');
+  await register({ credential: CREDENTIAL }, TOKEN, other.key); // same physical phone signs in again
+  await revokeAndroidGateways(env);
+  assert.equal(calls.filter(c => c.init?.method === 'DELETE').length, 0, 'transferred active capability is retained');
+  assert.equal((await request(`/api/push/subscriptions/${result.subscription.id}`, 'DELETE')).status, 404, 'old sign-in retired');
+  const current = await (await request('/api/push/subscriptions', 'GET', undefined, other.key)).json() as any[];
+  assert.equal((await request(`/api/push/subscriptions/${current[0].id}`, 'DELETE', undefined, phone.key)).status, 403);
+  const cleared = await (await register(null, TOKEN, other.key)).json() as any;
+  assert.equal(cleared.push, false);
+  assert.equal(calls.filter(c => c.init?.method === 'DELETE').length, 0, 'detaching does not wait for network');
+  await revokeAndroidGateways(env);
+  assert.equal(calls.filter(c => c.init?.method === 'DELETE').length, 1);
+  await register({ credential: RENEWED }, TOKEN, other.key);
+  assert.equal((await request(`/api/push/subscriptions/${current[0].id}`, 'DELETE', undefined, other.key)).status, 200);
+  await revokeAndroidGateways(env);
+  assert.equal(calls.filter(c => c.init?.method === 'DELETE').length, 2);
+
+  await DB.prepare("INSERT INTO oauth_clients(id,name,redirect_uris,created_at) VALUES('app','Test app','[]',?)").bind(new Date().toISOString()).run();
+  await DB.prepare("INSERT INTO oauth_grants(id,client_id,scope,created_at,device_app) VALUES('grant','app','display',?,1)").bind(new Date().toISOString()).run();
+  await DB.prepare("UPDATE api_keys SET kind='oauth',oauth_grant_id='grant' WHERE id=?").bind(phone.id).run();
+  const oauth = await register(); assert.equal(oauth.status, 200);
+  await DB.prepare("DELETE FROM oauth_grants WHERE id='grant'").run();
+  assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM push_subscriptions').first<any>()).n, 0);
+  assert.ok((await DB.prepare('SELECT credential FROM android_push_revocations').first<any>()).credential.startsWith('v1:'));
+  await revokeAndroidGateways(env);
+  assert.equal(calls.filter(c => c.init?.method === 'DELETE').length, 3);
+});
+
+test('Android gateway retires only old capability on token rotation, and late auth/gone responses preserve replacements', async () => {
+  for (const status of [401, 410]) {
+    const { DB, env, register, metadata, calls, request } = await fixture();
+    const first = await (await register()).json() as any;
+    let finish!: (response: Response) => void, started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const original = env.PUSH_GATEWAY_FETCH!;
+    env.PUSH_GATEWAY_FETCH = async (url, init) => {
+      if (String(url).endsWith('/send')) { started(); return new Promise<Response>(resolve => { finish = resolve; }); }
+      return original(url, init);
+    };
+    const pending = pushToMembers(env, [], { title: 'Test', body: 'Private content' });
+    await began;
+    const token = status === 410 ? 'obvious-fake-rotated-token' : TOKEN;
+    metadata.tokenHash = await sha256Hex(token);
+    assert.equal((await register({ credential: RENEWED }, token)).status, 200);
+    finish(Response.json({ ok: false, gone: status === 410 }, { status }));
+    await pending;
+    const ready = await (await request('/api/push/android', 'PUT', { token })).json() as any;
+    assert.equal(ready.delivery, 'gateway'); assert.equal(ready.subscription.id, first.subscription.id);
+    env.PUSH_GATEWAY_FETCH = original;
+    await revokeAndroidGateways(env);
+    const deletes = calls.filter(c => c.init?.method === 'DELETE');
+    assert.equal(deletes.length, 1); assert.equal(new Headers(deletes[0].init?.headers).get('Authorization'), `Bearer ${CREDENTIAL}`);
+    assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM push_subscriptions').first<any>()).n, 1);
+  }
+});
+
+test('Android direct FCM takes precedence over verified gateway and never fails over on ambiguous transport errors', async () => {
+  const { env, register, calls, request } = await fixture();
+  await register();
+  const pair = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+  const pem = btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))));
+  Object.assign(env, { FCM_PROJECT_ID: 'fake-project', FCM_CLIENT_EMAIL: 'fake@fake-project.iam.gserviceaccount.com', FCM_PRIVATE_KEY: `-----BEGIN PRIVATE KEY-----\n${pem}\n-----END PRIVATE KEY-----` });
+  let direct = 0, fail = false;
+  env.FCM_FETCH = async input => {
+    if (String(input) === 'https://oauth2.googleapis.com/token') return Response.json({ access_token: 'fake-oauth-token', expires_in: 3600 });
+    direct++; if (fail) throw new Error('fake-token private body must not be logged');
+    return Response.json({ name: 'fake-message' });
+  };
+  const ready = await (await request('/api/push/android', 'PUT', { token: TOKEN })).json() as any;
+  assert.equal(ready.delivery, 'direct'); assert.equal(ready.gatewayExpiresAt, undefined);
+  assert.equal(await pushToMembers(env, [], { title: 'Test', body: 'Private content' }), 1);
+  fail = true;
+  assert.equal(await pushToMembers(env, [], { title: 'Test', body: 'Private content' }), 0);
+  assert.equal(direct, 2); assert.equal(calls.filter(c => c.url.endsWith('/send')).length, 0, 'ambiguous direct send cannot create a second gateway copy');
+});
+
+test('Android gateway delivers full medicine and daily chore alerts before cleanup; failed medicine alerts retry encrypted and taken doses cancel them', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2030-03-04T08:01:00Z') }); t.after(() => t.mock.timers.reset());
+  const { DB, env, phone, other, register, request, metadata, calls, setStatus } = await fixture();
+  const admin = async (path: string, method: string, body: unknown) => {
+    const res = await request(path, method, body, 'fake-admin'); assert.ok(res.ok, await res.clone().text()); return await res.json() as any;
+  };
+  await admin('/api/settings', 'PATCH', { timezone: 'UTC', medications: true });
+  const maya = await admin('/api/members', 'POST', { name: 'Maya', color: '#7ED9A6' });
+  await DB.prepare('UPDATE api_keys SET owner=? WHERE id=?').bind(maya.id, phone.id).run();
+  const sub = await (await register()).json() as any;
+  await request(`/api/push/subscriptions/${sub.subscription.id}`, 'PATCH', { prefs: { choreNudge: true, eventReminders: true } });
+  await admin('/api/chores', 'POST', { title: 'Feed the cat', memberId: maya.id, dueDate: '2030-03-04' });
+  const med = await admin('/api/medications', 'POST', { memberId: maya.id, name: 'Sample medicine', dose: '1 tablet', times: ['08:00'] });
+  metadata.tokenHash = await sha256Hex('fake-other-token');
+  const otherSub = await (await register({ credential: RENEWED }, 'fake-other-token', other.key)).json() as any;
+  await request(`/api/push/subscriptions/${otherSub.subscription.id}`, 'DELETE', undefined, other.key);
+  await DB.prepare('UPDATE android_push_revocations SET created_at=?').bind(Date.now()).run();
+  const order: string[] = [], original = env.PUSH_GATEWAY_FETCH!;
+  env.PUSH_GATEWAY_FETCH = async (url, init) => { order.push(init?.method === 'DELETE' ? 'revoke' : 'alert'); return original(url, init); };
+  setStatus(503);
+  await runNotifications(env, new Date('2030-03-04T08:01:00Z'));
+  assert.equal(order.at(-1), 'revoke', 'cleanup cannot hold time-sensitive reminders behind gateway timeouts');
+  const alerts = calls.filter(c => c.url.endsWith('/send')).map(c => JSON.parse(String(c.init?.body)));
+  assert.ok(alerts.some(a => a.payload.tag.startsWith('med:') && a.payload.body === 'Tap to mark it taken.'));
+  assert.ok(alerts.some(a => a.payload.tag.startsWith('chore:daily:') && a.payload.body === 'Feed the cat'));
+  assert.ok(alerts.every(a => a.type === 'android-alert' && !JSON.stringify(a).includes('Sample medicine') && !JSON.stringify(a).includes('1 tablet')));
+  assert.ok((await DB.prepare('SELECT payload FROM push_retries').first<any>()).payload.startsWith('enc:v1:'));
+  setStatus(200);
+  await runNotifications(env, new Date('2030-03-04T08:06:00Z'));
+  assert.equal(await DB.prepare('SELECT * FROM push_retries').first(), null);
+  const sentCount = calls.filter(c => c.url.endsWith('/send')).length;
+  await runNotifications(env, new Date('2030-03-04T08:11:00Z'));
+  assert.equal(calls.filter(c => c.url.endsWith('/send')).length, sentCount);
+  t.mock.timers.setTime(new Date('2030-03-05T08:01:00Z').getTime());
+  await DB.prepare('UPDATE push_subscriptions SET gateway_expires_at=?').bind(Date.now() + 3600000).run();
+  setStatus(503);
+  await runNotifications(env, new Date('2030-03-05T08:01:00Z'));
+  await admin(`/api/medications/${med.id}/doses`, 'POST', { date: '2030-03-05', time: '08:00', action: 'taken' });
+  const before = calls.filter(c => c.url.endsWith('/send')).length;
+  setStatus(200); await runNotifications(env, new Date('2030-03-05T08:06:00Z'));
+  assert.equal(calls.filter(c => c.url.endsWith('/send')).length, before, 'taken dose cancels pending text');
+  assert.equal(await DB.prepare('SELECT * FROM push_retries').first(), null);
+});
+
+test('Android revocation batch runs concurrently, claims once, and does not hold the host alarm after reminder delivery', async () => {
+  const { DB, env, register, request, metadata } = await fixture();
+  for (let i = 0; i < 5; i++) {
+    const key = await createApiKey(DB, `Android ${i}`, 'display');
+    const token = `fake-fcm-token-${i}`;
+    metadata.tokenHash = await sha256Hex(token);
+    const credential = CREDENTIAL.replace(/b/g, String(i));
+    const res = await register({ credential }, token, key.key);
+    assert.equal(res.status, 200);
+    const sub = await res.json() as any;
+    await request(`/api/push/subscriptions/${sub.subscription.id}`, 'DELETE', undefined, key.key);
+  }
+  let calls = 0, began!: () => void, release!: () => void;
+  const started = new Promise<void>(resolve => { began = resolve; });
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  env.PUSH_GATEWAY_FETCH = async (_input, init) => { assert.equal(init?.method, 'DELETE'); calls++; if (calls === 5) began(); await waiting; return Response.json({ revoked: true }); };
+  const background: Promise<unknown>[] = [];
+  let alarmReturned = false;
+  const pending = runNotifications(env, new Date(), { waitUntil: p => background.push(p) }).then(() => { alarmReturned = true; });
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([started, new Promise<void>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error('revocation batch did not start concurrently')), 5000); })]);
+    assert.equal(alarmReturned, true, 'host alarm finishes while cleanup is in flight');
+    assert.equal(calls, 5, 'all five revokes share one network timeout window');
+    await revokeAndroidGateways(env);
+    assert.equal(calls, 5, 'another tick cannot reclaim in-flight revokes');
+  } finally { clearTimeout(timeout); release(); await pending; await Promise.all(background); }
+});
+
+test('Android gateway capability cannot enable Apple Live Activity delivery', async () => {
+  const { env, register } = await fixture();
+  env.NATIVE_PUSH_SEND = undefined;
+  await register();
+  const { nativePushConfigured } = await import('../src/native-push.ts');
+  assert.equal(await nativePushConfigured(env), false, 'Apple readiness ignores Android capabilities');
 });

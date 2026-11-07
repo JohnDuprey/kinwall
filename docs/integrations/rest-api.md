@@ -296,14 +296,15 @@ FCM tokens never use APNs, the Apple host adapter or the Apple App Attest gatewa
 Without direct FCM credentials, an Android device can register a gateway credential
 (`android-v1.<uuid>.<64 hex>`) issued by `https://push.kinwall.family` for its token and this
 server's origin. The server verifies it with the gateway (origin, `android-alert` kind,
-SHA-256 of the exact token, expiry at most 30 days out) before storing it encrypted; a failed
+SHA-256 of the exact token, expiry at most 30 days out plus five minutes of clock skew) before storing it encrypted; a failed
 verification returns 400 and leaves the existing subscription unchanged. `gatewayAvailable` is
 true when the server has a canonical origin and so can verify credentials; apps should enroll
 only then. Omitting `gateway` keeps the stored credential for the same token, `null` detaches it,
 and a rotated token drops it. Direct FCM takes precedence. A rejected (401/403) or expired
 credential stops gateway delivery until the app registers again; temporary failures keep it, and
 only a gateway 410 retires the token. Replaced, detached and deleted credentials (including
-key or grant revocation) are revoked upstream in the background, at most three tries within a day.
+key or grant revocation) are queued for best-effort upstream revocation in the background, at most three tries within a day.
+Cleanup never delays time-sensitive reminders or local sign-out.
 
 Android uses FCM HTTP v1 visible notification + data messages. New chores have the localized
 “New chore” title, chore title as body, HIGH priority, zero TTL and `new_chores` channel, with no
