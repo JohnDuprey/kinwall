@@ -4,11 +4,61 @@ The full list of changes in every version is in the [changelog](https://github.c
 
 ## Coming in the next version
 
+## 1.3.0
+
+Kinwall now looks after the house too, keeps kids' screen time tied to their chores, and its
+phone apps get real push notifications, even from a server you run yourself.
+
+### Highlights
+
 * **Home upkeep**: a new **Upkeep** tab for the jobs that come round every few months or years:
   the furnace filter, smoke alarms, the gutters, the oil change. Each job repeats from the last time
   it was done or on set dates, reminds you before it's due, and keeps a history of who did it and
   what it cost. Keep each thing's model, part sizes, warranty and receipts, give a job to a kid as a
-  chore with points, and have its supplies go on the shopping list. See [Home upkeep](using/upkeep.md).
+  chore with points (Done then waits for a grown-up's OK like any chore), and have its supplies go
+  on the shopping list. See [Home upkeep](using/upkeep.md).
+* **Routine mode** (preview, iPad and iPhone): a parent sets when a kid's day starts and when free
+  time ends, and the chores that come first. Until they're done and approved, only the apps and
+  websites you allow open, like school links, and the kid sees what's left on a free-time page.
+  See [Routine mode](using/routine-mode.md).
+* **Real push on iPhone and Android**: notifications from the Kinwall apps arrive even when the
+  app is closed. A self-hosted server sends them through the Kinwall push gateway, with no Apple or
+  Google keys to set up. See [Push gateway](self-hosting/configuration.md#push-gateway).
+* **Live Activities on iPhone**: follow an event, a medicine dose or a timer on the Lock Screen.
+  See [Notifications](using/notifications.md#live-activities-kinwall-app-for-iphone).
+* **Medications** are organized around today and history, with alarms for reminders and a second
+  try when an alert doesn't get through. See [Medications](using/medications.md).
+* **Reward milestones**: earn a reward without spending points, like "Earn 100 points → pick the
+  family movie". See
+  [Rewards](using/rewards.md#reward-milestones).
+* **Chores repeat your way**: custom schedules, more than one day a month, and flexible goals. The
+  date strip shows what's unfinished, and devices hear about a new chore right away. See
+  [Chores](using/chores.md).
+* **Scheduled announcements**: write one now, and it shows up on the board when it starts and
+  goes away when it ends. See
+  [Family announcements](using/announcements.md).
+
+### Everything else
+
+* Overnight events show on every day they cover, and outings can add visits that last several days.
+* Ticked items on grocery and shopping lists can clear themselves after a time you pick.
+* An optional morning check-in reminder, names for paired devices and API keys, and a switch to
+  hide the status bar in the phone apps.
+* Reminders for "Anyone" chores are now opt-in.
+* Faster: Kinwall starts quicker and reads much less from the database.
+* Fixes for the Nest Hub layout, routine labels at large text sizes, duplicate Live Activities and
+  an outing's sheet that wouldn't stay closed. See the
+  [changelog](https://github.com/JohnDuprey/kinwall/blob/main/CHANGELOG.md).
+
+### Upgrading
+
+Updates install like any other: see [Updating](self-hosting/updating.md). The database updates
+itself on first start. If you use the REST API: push registration and Live Activity routes now
+answer with `{push, delivery, gatewayExpiresAt?}` instead of `nativePushReady`, and undoing an
+upkeep job works only from the device that did it (or a parent's).
+
+## 1.2.0
+
 * **Calendar has its own place** in the navigation, right after Home, with **Day | Week | Month |
   Schedule** in one switch (3 Day on a phone). Home is now **Board | Newscast**, and the Board's
   layouts moved into **Layout and filter** (the sliders on its toolbar), together with the category
