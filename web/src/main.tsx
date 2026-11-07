@@ -1,4 +1,5 @@
 import './compat.ts' // first: shims for old Safari
+import { shellAssetUrls } from './offlineAssets.ts'
 import { Component, StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './fonts/fonts.css'
@@ -122,7 +123,8 @@ if (shopHash) history.replaceState(null, '', shopHash)
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register(new URL('sw.js', document.baseURI), { scope: new URL('.', document.baseURI).pathname }).catch(() => {})
   window.addEventListener('load', () => setTimeout(() => {
-    const cacheUrls = performance.getEntriesByType('resource').map(e => e.name)
+    const deferred = shellAssetUrls(document.querySelector('meta[name="kinwall-offline-assets"]')?.getAttribute('content') ?? null, document.baseURI, import.meta.env.LEGACY)
+    const cacheUrls = [...new Set([...performance.getEntriesByType('resource').map(e => e.name), ...deferred])]
     navigator.serviceWorker.ready.then(reg => reg.active?.postMessage({ cacheUrls })).catch(() => {})
   }, 3000))
 }

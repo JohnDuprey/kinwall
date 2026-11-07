@@ -1,9 +1,8 @@
 import { holdAwake } from './wakeLock.ts'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, lazy, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { navRailFit } from './navRailFit.ts'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
-import RoutineMode from './RoutineMode.tsx'
 import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
@@ -12,19 +11,15 @@ import { rewardsOn, trackerKinds } from './types.ts'
 import { BookIcon, CalendarIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon, TicketIcon, WrenchIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
-import Lists from './Lists.tsx'
 import Contacts from './Contacts.tsx'
-import Meals from './Meals.tsx'
 import Outings from './Outings.tsx'
 import Upkeep from './Upkeep.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { pinnedNow } from './getStuffDone.ts'
 import Trackers from './Trackers.tsx'
-import Activities, { shownActivities } from './Activities.tsx'
-import Rewards from './Rewards.tsx'
-import SettingsView, { DeviceKindSelect } from './Settings.tsx'
-import AuthorizeScreen from './Authorize.tsx'
-import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
+import { shownActivities } from './activityConfig.ts'
+import { DeviceKindSelect } from './settingsControls.tsx'
+import { readSetupResume, resumeAtPasskey } from './setupResume.ts'
 import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme, type LockedView } from './useTheme.ts'
@@ -46,10 +41,6 @@ import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver
 import { TimerButton, TimerHost } from './Timers.tsx'
 import { CLOCK_SPOTS, nextSpot, spotStyle, type Spot } from './nightClock.ts'
 import SnapshotSheet from './Snapshot.tsx'
-import Profile from './Profile.tsx'
-import Journal from './Journal.tsx'
-import Insights from './Insights.tsx'
-import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
 import { MedicationLiveActivity } from './TakeNow.tsx'
@@ -65,6 +56,35 @@ import { applyScreenScale, appliedScale } from './screenScale.ts'
 import { Face, FacePic } from './Face'
 import { useBackClose } from './backStack.ts'
 import { rich } from './rich.tsx'
+
+// Shared import functions let native web views prepare their screens after startup too;
+// they cannot rely on a service worker for offline navigation.
+const screenLoaders = {
+  RoutineMode: () => import('./RoutineMode.tsx'),
+  Lists: () => import('./Lists.tsx'),
+  Meals: () => import('./Meals.tsx'),
+  Activities: () => import('./Activities.tsx'),
+  Rewards: () => import('./Rewards.tsx'),
+  SettingsView: () => import('./Settings.tsx'),
+  AuthorizeScreen: () => import('./Authorize.tsx'),
+  Setup: () => import('./Setup.tsx'),
+  Profile: () => import('./Profile.tsx'),
+  Journal: () => import('./Journal.tsx'),
+  Insights: () => import('./Insights.tsx'),
+  Medications: () => import('./Medications.tsx'),
+}
+const RoutineMode = lazy(screenLoaders.RoutineMode)
+const Lists = lazy(screenLoaders.Lists)
+const Meals = lazy(screenLoaders.Meals)
+const Activities = lazy(screenLoaders.Activities)
+const Rewards = lazy(screenLoaders.Rewards)
+const SettingsView = lazy(screenLoaders.SettingsView)
+const AuthorizeScreen = lazy(screenLoaders.AuthorizeScreen)
+const Setup = lazy(screenLoaders.Setup)
+const Profile = lazy(screenLoaders.Profile)
+const Journal = lazy(screenLoaders.Journal)
+const Insights = lazy(screenLoaders.Insights)
+const Medications = lazy(screenLoaders.Medications)
 
 /** A translated sentence with React nodes (bold names) for its {placeholders}. */
 
@@ -1134,8 +1154,17 @@ if (MOCK) document.documentElement.style.setProperty('--safe-t', appPlatform() =
 
 // Dialogs (confirm/prompt/alert) are available everywhere, the setup wizard and gates included.
 // Timers ring wherever the app is (Timers.tsx).
+function ScreenLoading() {
+  return <div className="state-card" role="status"><span className="spinner" aria-hidden="true" /> {t('Loading…')}</div>
+}
+
 export default function App() {
-  return <DialogProvider><KeyLinkGate>{urlKey => <AppRoutes urlKey={urlKey} />}</KeyLinkGate><TimerHost /></DialogProvider>
+  useEffect(() => {
+    if (!inNativeApp()) return
+    const timer = setTimeout(() => { void Promise.all(Object.values(screenLoaders).map(load => load().catch(() => {}))) }, 3000)
+    return () => clearTimeout(timer)
+  }, [])
+  return <DialogProvider><Suspense fallback={<div className="gate-screen"><ScreenLoading /></div>}><KeyLinkGate>{urlKey => <AppRoutes urlKey={urlKey} />}</KeyLinkGate></Suspense><TimerHost /></DialogProvider>
 }
 
 function AppRoutes({ urlKey }: { urlKey: string | null }) {
@@ -1455,7 +1484,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} wall={wall} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
+            <Suspense key={section} fallback={<ScreenLoading />}>
+              {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
+            </Suspense>
           </main>
           {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>

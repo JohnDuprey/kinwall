@@ -40,6 +40,8 @@ There are also native Kinwall apps for iPhone, iPad, Apple Watch and Android, in
 
 Once a device has opened Kinwall with a connection, it opens without one too, showing the calendar, chores, lists and meals as they last were. Shopping-list changes and chore ticks made offline wait on the device and sync when the connection returns; other changes need a connection. See [Offline shopping](../using/lists.md#offline-shopping).
 
+Keep the first visit connected for a few seconds so the browser can save the screens for offline use. Settings and other less-used screens load when you open them and are also saved in the background.
+
 * **Browsers and Home Screen apps**: Safari and Chrome on iPhone, iPad and Android, and desktop browsers. Private browsing windows may not keep the offline copy.
 * **Older devices** (iOS / iPadOS 12 to 16.3, in a Safari tab): the same, as long as the browser keeps the offline copy.
 * **The Kinwall app**: while the app is open, changes made without a connection wait and sync, as in a browser. Opening the app from scratch with no connection needs a version of the app that allows offline start-up.

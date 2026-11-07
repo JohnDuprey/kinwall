@@ -94,3 +94,23 @@ linked meals without reading meal history. Empty windows skip the details batch.
 Reminder reads reuse their candidate event rows for hidden/filter resolution and limit
 their own travel settings and meal links to those candidates. Query-plan and read-cost
 tests cover historical rows, recurring events and windows with over 100 events.
+
+### Deferred screens and offline files
+
+Secondary screens load through React lazy imports. Keep small shared controls and setup
+resume state outside the screen modules: importing a named export can otherwise bring
+the whole screen into startup again. `screen-loading.test.ts` checks the eager dependency
+graph. Navigation keeps the header and navigation visible while a screen loads.
+
+The build embeds its modern and legacy screen-file lists in its HTML. After startup,
+the service worker caches the appropriate files without executing them, preserving
+unopened screens for offline use. The lists belong to that exact HTML build, so an old
+open page does not fetch a newer build's files. PDF and additional language downloads
+remain on demand. Shell-cache matching ignores `Vary` because these app files are the
+same for every Origin; API requests never enter this cache. Native web views prepare
+the deferred modules after startup with imports, since they cannot rely on a service
+worker; opening one sooner still loads it immediately.
+
+Measured with the production build and gzip across the entry, App and their static
+JavaScript dependencies, startup fell from 533 KB to 378 KB (29%). Background offline
+caching still downloads the deferred screens after startup; it does not evaluate them.

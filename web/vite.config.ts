@@ -1,3 +1,4 @@
+import { offlineAssetManifest } from './scripts/offline-assets.mjs'
 import legacy from '@vitejs/plugin-legacy'
 import react from '@vitejs/plugin-react'
 import { createHash } from 'node:crypto'
@@ -35,6 +36,28 @@ function selfHostedLegacyGuard(): Plugin {
   }
 }
 
+// The legacy bundle is generated before the modern HTML. Remember its files so old Safari
+// gets its own complete offline list, rather than the modern bundle's screen files.
+function offlineScreens(): Plugin {
+  const legacyAssets = new Set<string>()
+  return {
+    name: 'kinwall-offline-screens',
+    generateBundle(_, bundle) {
+      for (const file of offlineAssetManifest(bundle).legacy) legacyAssets.add(file)
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler(_, ctx) {
+        if (!ctx.bundle) return []
+        const manifest = offlineAssetManifest(ctx.bundle)
+        manifest.modern = [...new Set([...manifest.modern, 'assets/legacy-guard.js?detect', 'assets/legacy-guard.js?index'])].sort()
+        manifest.legacy = [...new Set([...manifest.legacy, ...legacyAssets])].sort()
+        return [{ tag: 'meta', attrs: { name: 'kinwall-offline-assets', content: JSON.stringify(manifest) }, injectTo: 'head' }]
+      },
+    },
+  }
+}
+
 export default defineConfig({
   base: './', // app may be served under a sub-path (e.g. Home Assistant ingress)
   plugins: [
@@ -44,6 +67,7 @@ export default defineConfig({
     // Its inline loader scripts need the cspHashes in public/_headers and server/src/app.ts.
     legacy({ targets: ['defaults', 'iOS >= 12', 'Safari >= 12'], additionalLegacyPolyfills: ['core-js/proposals/global-this'] }),
     selfHostedLegacyGuard(),
+    offlineScreens(),
     // The demo build is a throwaway copy of the app: keep it out of search results.
     { name: 'demo-noindex', transformIndexHtml: (html) => (process.env.VITE_MOCK ? html.replace('<head>', '<head>\n    <meta name="robots" content="noindex" />') : html) },
   ],
