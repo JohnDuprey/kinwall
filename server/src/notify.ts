@@ -1,3 +1,4 @@
+import { revokeAndroidGateways } from './android-push-gateway.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventPlans } from './routes/event-follows.ts';
 import { activityPreferences, runMedicineLiveActivities } from './medicine-live-activities.ts';
@@ -1322,6 +1323,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
   const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
+  await part('android gateway cleanup', () => revokeAndroidGateways(env, now.getTime()));
   await part('event live activities', () => runEventLiveActivities(env,now));
   await part('event reminders', () => runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold));
   const features = await readFeatures(env.DB);

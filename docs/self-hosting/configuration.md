@@ -117,6 +117,10 @@ Google can read notification text; medicine names remain off unless explicitly e
 Physical-device background delivery, cold-start taps, token rotation and sign-out need separate
 verification with a configured build; automated checks use fake credentials and mocked delivery.
 
+Without FCM credentials, the official Android app can use the [push gateway](#push-gateway)
+instead. It proves its installation with Play Integrity and a hardware-backed key before the
+gateway issues a device credential; the server only verifies and stores that credential.
+
 ### Live Activities (Apple push)
 
 The Kinwall app for iPhone shows a person's next leave-by or start-prep time as a Live Activity. While the app is open it starts one itself. For the phone to get one while the app is closed, and to have it end right when the event starts, the server pushes it through Apple. That's off, and does nothing, until all four of these are set:
