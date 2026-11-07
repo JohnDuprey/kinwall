@@ -1,10 +1,11 @@
 // Workers-compatible. Env shape shared by worker.ts and node.ts (Node passes process.env + adapted DB).
 import type { KinwallDb } from './db.ts';
+import type { FcmEnv } from './fcm.ts';
 import type { NativePushEnv } from './native-push.ts';
 import type { Fetch } from './outbound.ts';
 import type { PhotoFolder } from './routes/photo-folder.ts';
-// Native push: direct APNS_* credentials, a trusted host adapter, or verified gateway registrations.
-export type Env = NativePushEnv & {
+// Native push: direct FCM_* for Android; APNS_*, a trusted host adapter or verified gateway registrations for iOS.
+export type Env = NativePushEnv & FcmEnv & {
   DB: KinwallDb;
   PUBLIC_URL?: string;
   OPEN_LIBRARY_CONTACT?: string; // operator email in Open Library's User-Agent; default: support@kinwall.family
