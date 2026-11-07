@@ -1317,8 +1317,13 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // by name, never its data, and the others still run. The window doesn't move past a failed
   // time-of-day part (`windowed`), so the next tick retries it; each send is claimed once, so nothing repeats.
   let retry = false;
+  // On a host that counts rows read, a part reading 100+ is logged by name (approximate: the tick's
+  // calendar sync runs alongside and its reads can land in a part's count).
   const part = async (name: string, run: () => Promise<unknown>, windowed = false) => {
+    const before = env.DB.rowsRead;
     try { await run(); } catch (e) { retry ||= windowed; console.error(`${name} skipped:`, e instanceof Error ? e.name : 'error'); }
+    const rows = before === undefined ? 0 : env.DB.rowsRead! - before;
+    if (rows >= 100) console.log(JSON.stringify({ message: 'rows read', what: `notifications: ${name}`, rows }));
   };
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
