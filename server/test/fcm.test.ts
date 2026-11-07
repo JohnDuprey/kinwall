@@ -61,7 +61,7 @@ test('FCM retains destinations on OAuth failures, invalid payloads, quotas, outa
   const { env } = await credentials();
   let status = 401, authCalls = 0;
   const configured: FcmEnv = { ...env, FCM_FETCH: async (input) => {
-    if (String(input).includes('oauth2.googleapis.com')) { authCalls++; return Response.json({ access_token: 'fake-access-token', expires_in: 3600 }); }
+    if (new URL(String(input)).host === 'oauth2.googleapis.com') { authCalls++; return Response.json({ access_token: 'fake-access-token', expires_in: 3600 }); }
     return new Response('untrusted provider text with fake-token and private content', { status });
   } };
   for (status of [401, 400, 403, 404, 429, 500, 503]) assert.deepEqual(await sendFcmAlert(configured, 'fake-token', payload), { ok: false, gone: false });
