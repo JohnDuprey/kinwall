@@ -75,3 +75,9 @@ in plaintext. Each process retains at most 128 cached counts per database.
 Single-recipe reads use direct equality filters for the recipe, ingredients, ratings and
 favorites, so opening one recipe does not scan the library. Query-plan regression tests
 cover these reads.
+
+### Home routine polling
+
+Home checks each visible child's routine initially and after app changes. Its 15-second
+poll checks enabled routines only and pauses while the page is hidden. Returning to the
+page checks all visible children again; overlapping requests for a child are skipped.

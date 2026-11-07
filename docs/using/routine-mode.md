@@ -21,7 +21,8 @@ Home shows a **Free time** indicator below the chores summary for children whose
 It uses the required chores and schedule, including approvals and the evening cutoff. A parent's
 view shows each visible child's status; a child's device shows only their own. Tap the indicator
 to open that child's Free time page. If a status cannot be refreshed, it asks you to check Free
-time rather than claiming apps are available from an old decision.
+time rather than claiming apps are available from an old decision. Home pauses status checks
+while the page is hidden and refreshes them when you return.
 
 ## iPhone and iPad setup
 

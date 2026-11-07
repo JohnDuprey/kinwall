@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, getKey } from './api.ts'
+import { routinePoller } from './routinePolling.ts'
 import type { RoutineState } from './routineMode.ts'
 export type HomeRoutine = { id: string; name: string; state: RoutineState; unavailable: boolean }
 
@@ -10,21 +11,20 @@ export function useHomeRoutine(members: { id: string; name: string }[], refreshT
   useEffect(() => {
     let active = true
     const key = getKey()
-    const load = async () => {
-      await Promise.all(ids.split(',').filter(Boolean).map(async id => {
-        try {
-          const state = await api.getRoutineMode(id)
-          if (active && key === getKey()) setStates(previous => ({ ...previous, [id]: { state, unavailable: false } }))
-        } catch {
-          if (active && key === getKey()) setStates(previous => previous[id] ? ({ ...previous, [id]: { ...previous[id], unavailable: true } }) : previous)
-        }
-      }))
-    }
-    void load()
-    const timer = setInterval(load, 15000)
-    const visible = () => { if (document.visibilityState === 'visible') void load() }
+    const poller = routinePoller(ids.split(',').filter(Boolean), async id => {
+      try {
+        const state = await api.getRoutineMode(id)
+        if (active && key === getKey()) setStates(previous => ({ ...previous, [id]: { state, unavailable: false } }))
+        return state
+      } catch {
+        if (active && key === getKey()) setStates(previous => previous[id] ? ({ ...previous, [id]: { ...previous[id], unavailable: true } }) : previous)
+      }
+    }, () => document.visibilityState === 'visible')
+    void poller.refresh()
+    const timer = setInterval(() => { void poller.poll() }, 15000)
+    const visible = () => { if (document.visibilityState === 'visible') void poller.refresh() }
     document.addEventListener('visibilitychange', visible)
-    return () => { active = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible) }
+    return () => { active = false; poller.stop(); clearInterval(timer); document.removeEventListener('visibilitychange', visible) }
   }, [ids, refreshTick])
   return members.flatMap(member => states[member.id] ? [{ ...member, ...states[member.id]! }] : [])
 }
