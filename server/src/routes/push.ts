@@ -5,6 +5,7 @@ import { deviceOwner, ownDevice, requestKey, resolveKey, sha256Hex } from '../au
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey } from '../webpush.ts';
 import { nativeEndpoint, sendPush } from '../push-delivery.ts';
+import { fcmPushStatus, validFcmToken } from '../fcm.ts';
 import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import type { Context } from 'hono';
@@ -98,6 +99,37 @@ pushRoutes.openapi(createRoute({
       JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
   const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
   return c.json({ ...await nativePushStatus(c.env, token, 'alert'), subscription: toApi(row!) }, 200);
+});
+
+pushRoutes.openapi(createRoute({
+  method: 'put', path: '/api/push/android', tags: ['Push'], security: [{ Bearer: [] }],
+  summary: 'Register this Android device for FCM; preserve preferences and replace rotated tokens',
+  request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().max(4096).refine(validFcmToken, 'Expected an opaque FCM token'), deviceName: z.string().min(1).max(100).default('Android') }).strict() } } } },
+  responses: {
+    200: { description: 'Full native alert capability, not confirmation of device delivery; event reminders remain local', content: { 'application/json': { schema: z.object({ push: z.boolean(), delivery: z.enum(['direct', 'unavailable']), subscription: PushSubscriptionSchema }) } } },
+    400: { description: 'not a device key', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+}), async c => {
+  const key = await requestKey(c);
+  if (!key?.id) return c.json({ error: 'register from a device key' }, 400);
+  const grant = await grantFor(c);
+  const keyId = grant ? null : key.id;
+  const { token, deviceName } = c.req.valid('json');
+  const endpoint = `fcm:${await sha256Hex(token)}`;
+  const existing = await c.env.DB.prepare("SELECT * FROM push_subscriptions WHERE endpoint LIKE 'fcm:%' AND (api_key_id = ? OR oauth_grant_id = ?) ORDER BY created_at DESC LIMIT 1").bind(keyId, grant).first<PushSubRow>();
+  const id = existing?.id ?? `android:${await sha256Hex(grant ? `grant:${grant}` : `key:${keyId}`)}`;
+  const kid = await deviceOwner(c);
+  const prefs = { ...DEFAULT_PUSH_PREFS, ...(existing ? JSON.parse(existing.prefs) : {}), eventReminders: false };
+  const auth = await encrypt(c.env, token, id);
+  // Token renewal is an upsert of the same device, not a reset of its choices. Signing in
+  // again transfers the destination away from the previous person without copying their prefs.
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND id != ?').bind(endpoint, id),
+    c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs')
+      .bind(id, keyId, grant, endpoint, '', auth, deviceName, JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []), JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString()),
+  ]);
+  const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
+  return c.json({ ...await fcmPushStatus(c.env), subscription: toApi(row!) }, 200);
 });
 
 pushRoutes.openapi(
