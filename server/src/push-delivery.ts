@@ -1,6 +1,7 @@
 import type { Env } from './env.ts';
 import { decrypt } from './crypto.ts';
-import { sendFcmAlert, validFcmToken } from './fcm.ts';
+import { validFcmToken } from './fcm.ts';
+import { sendAndroidAlert } from './android-push-gateway.ts';
 import { sendNativeAlert } from './native-push.ts';
 import { sendWebPush, type StoredPushSubscription, type PushSendResult } from './webpush.ts';
 
@@ -13,7 +14,7 @@ export async function sendPush(env: Env, db: Env['DB'], sub: StoredPushSubscript
     const token = await decrypt(env, sub.auth, sub.id);
     if (sub.endpoint.startsWith('fcm:')) {
       if (!validFcmToken(token)) return { ok: false, status: 0, gone: true };
-      const result = await sendFcmAlert(env, token, payload);
+      const result = await sendAndroidAlert(env, token, payload);
       return result.ok ? { ok: true } : { ok: false, status: 0, gone: result.gone };
     }
     if (!/^[a-f0-9]{16,400}$/i.test(token)) return { ok: false, status: 0, gone: true };
