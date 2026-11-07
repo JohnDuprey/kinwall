@@ -307,7 +307,7 @@ key or grant revocation) are queued for best-effort upstream revocation in the b
 Cleanup never delays time-sensitive reminders or local sign-out.
 
 Android uses FCM HTTP v1 visible notification + data messages. New chores have the localized
-“New chore” title, chore title as body, HIGH priority, zero TTL and `new_chores` channel, with no
+“New chore” title, chore title as body, HIGH priority, a one-hour TTL and `new_chores` channel, with no
 Done action. `data.tag` and the Android tag are `chore:new:<id>`; `data.body` is JSON containing
 `{url: '/#/chores', server: '<canonical family origin>'}` for the Expo receiver and family-safe taps.
 Other native alerts use the same visible sender; medicines use the `medicine` channel and daily
