@@ -110,8 +110,8 @@ so compatible apps retain local reminders. Readiness is configuration capability
 IAM permissions, provider acceptance or phone display: verify the matching build and credentials
 before distribution. Android permission, channel settings (daily **Chores** is opt-in), network,
 battery limits and force-stop behavior still apply. New chores have their own **New chores**
-channel and Kinwall preference, off by default. Offline alerts expire immediately; there is no
-backlog of old chores. Temporary failures retain subscriptions; failed medicine alerts get at
+channel and Kinwall preference, off by default. Android alerts can wait in FCM for up to one hour while a device is asleep or offline;
+FCM drops them after that window. Temporary failures retain subscriptions; failed medicine alerts get at
 most two encrypted retries within ten minutes, with stale text canceled after relevant changes.
 Google can read notification text; medicine names remain off unless explicitly enabled.
 Physical-device background delivery, cold-start taps, token rotation and sign-out need separate
