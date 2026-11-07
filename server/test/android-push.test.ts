@@ -106,7 +106,7 @@ test('Android new chores use shared recipient rules and exact Expo FCM payload, 
   const chore = await admin('/api/chores', 'POST', { title: 'Feed the cat', memberId: maya.id });
   await drain();
   assert.equal(sent.length, 1);
-  assert.deepEqual(sent[0], { message: { token: TOKEN, notification: { title: 'Neue Aufgabe', body: 'Feed the cat' }, data: { body: JSON.stringify({ url: '/#/chores', server: 'https://our-family.example' }), tag: `chore:new:${chore.id}` }, android: { priority: 'HIGH', ttl: '0s', notification: { channel_id: 'new_chores', tag: `chore:new:${chore.id}`, sound: 'default' } } } });
+  assert.deepEqual(sent[0], { message: { token: TOKEN, notification: { title: 'Neue Aufgabe', body: 'Feed the cat' }, data: { body: JSON.stringify({ url: '/#/chores', server: 'https://our-family.example' }), tag: `chore:new:${chore.id}` }, android: { priority: 'HIGH', ttl: '3600s', notification: { channel_id: 'new_chores', tag: `chore:new:${chore.id}`, sound: 'default' } } } });
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE kind='chore'").first<any>()).n, 1);
   await admin('/api/chores', 'POST', { title: 'Anyone chore' });
   await drain(); assert.equal(sent.length, 2);

@@ -77,7 +77,7 @@ export async function sendFcmAlert(env: FcmEnv, token: string, payload: NativeAl
     const channel = tag?.startsWith('chore:new:') ? 'new_chores' : tag?.startsWith('med:') ? 'medicine' : tag?.startsWith('chore:') ? 'chores' : 'reminders';
     const response = await (env.FCM_FETCH ?? fetch)(`https://fcm.googleapis.com/v1/projects/${env.FCM_PROJECT_ID}/messages:send`, {
       method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10_000), headers: { Authorization: 'Bearer ' + await accessToken(env), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: { token, notification: { title: payload.title, body: payload.body }, data: { body: JSON.stringify({ url, server }), ...(tag ? { tag } : {}) }, android: { priority: 'HIGH', ttl: '0s', notification: { channel_id: channel, ...(tag ? { tag } : {}), sound: 'default' } } } }),
+      body: JSON.stringify({ message: { token, notification: { title: payload.title, body: payload.body }, data: { body: JSON.stringify({ url, server }), ...(tag ? { tag } : {}) }, android: { priority: 'HIGH', ttl: '3600s', notification: { channel_id: channel, ...(tag ? { tag } : {}), sound: 'default' } } } }),
     });
     if (response.ok) return { ok: true, gone: false };
     if (response.status === 401 && cached) { cached.accessToken = undefined; cached.expires = 0; }
