@@ -69,24 +69,25 @@ export async function sendAndroidAlert(env: Env, token: string, payload: NativeA
 
 type Revocation = { fingerprint: string; subscription_id: string; credential: string; created_at: number; attempts: number; next_at: number };
 /** Trigger-backed cleanup includes subscription, paired-key and grant deletion. At most five
- * requests per tick and three attempts per retired capability, within one day; local sign-out
+ * concurrent requests per tick and three attempts per retired capability, within one day; local sign-out
  * never waits on the network. Active fingerprints cancel stale renewal/transfer cleanup. */
 export async function revokeAndroidGateways(env: Env, now = Date.now()): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare('DELETE FROM android_push_revocations WHERE attempts>=3 OR created_at<=?').bind(now - 86400000).run();
-  const { results } = await env.DB.prepare('SELECT * FROM android_push_revocations WHERE next_at<=? ORDER BY created_at LIMIT 5').bind(now).all<Revocation>();
-  for (const row of results) {
-    const discard = () => env.DB!.prepare('DELETE FROM android_push_revocations WHERE fingerprint=?').bind(row.fingerprint).run();
-    if (await env.DB.prepare('SELECT 1 FROM push_subscriptions WHERE gateway_fingerprint=? AND gateway_credential IS NOT NULL').bind(row.fingerprint).first()) { await discard(); continue; }
-    const claimed = await env.DB.prepare('UPDATE android_push_revocations SET attempts=attempts+1,next_at=? WHERE fingerprint=? AND attempts=? RETURNING fingerprint').bind(now + 300000, row.fingerprint, row.attempts).first();
-    if (!claimed) continue;
+  const db = env.DB;
+  if (!db) return;
+  await db.prepare('DELETE FROM android_push_revocations WHERE attempts>=3 OR created_at<=?').bind(now - 86400000).run();
+  const { results } = await db.prepare('SELECT * FROM android_push_revocations WHERE next_at<=? ORDER BY created_at LIMIT 5').bind(now).all<Revocation>();
+  await Promise.all(results.map(async row => {
+    const discard = () => db.prepare('DELETE FROM android_push_revocations WHERE fingerprint=?').bind(row.fingerprint).run();
+    if (await db.prepare('SELECT 1 FROM push_subscriptions WHERE gateway_fingerprint=? AND gateway_credential IS NOT NULL').bind(row.fingerprint).first()) { await discard(); return; }
+    const claimed = await db.prepare('UPDATE android_push_revocations SET attempts=attempts+1,next_at=? WHERE fingerprint=? AND attempts=? RETURNING fingerprint').bind(now + 300000, row.fingerprint, row.attempts).first();
+    if (!claimed) return;
     try {
-      if (!row.credential.startsWith('v1:')) { await discard(); continue; }
+      if (!row.credential.startsWith('v1:')) { await discard(); return; }
       const credential = await decrypt(env, row.credential, gatewayAad(row.subscription_id));
-      if (!AndroidGatewayInput.safeParse({ credential }).success) { await discard(); continue; }
+      if (!AndroidGatewayInput.safeParse({ credential }).success) { await discard(); return; }
       const response = await call(env, '/registration', credential, undefined, 'DELETE');
       if (response.status === 401 || response.status === 403 || (response.status === 200 && z.object({ revoked: z.literal(true) }).safeParse(await smallJson(response)).success)) await discard();
     } catch { /* Credentials, provider text and transport exceptions must never reach logs. */ }
     if (row.attempts + 1 >= 3) await discard();
-  }
+  }));
 }

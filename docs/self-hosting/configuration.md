@@ -118,8 +118,9 @@ Physical-device background delivery, cold-start taps, token rotation and sign-ou
 verification with a configured build; automated checks use fake credentials and mocked delivery.
 
 Without FCM credentials, the official Android app can use the [push gateway](#push-gateway)
-instead. It proves its installation with Play Integrity and a hardware-backed key before the
+instead. It proves its installation with Play Integrity and an Android Keystore key before the
 gateway issues a device credential; the server only verifies and stores that credential.
+The key proves possession; it is not hardware key attestation.
 
 ### Live Activities (Apple push)
 
@@ -174,7 +175,7 @@ a credential issued for a specific phone token, server origin and push type. Con
 or save your server's public address in **Settings → Calendars → Calendar providers** to identify
 your Kinwall server. The environment variable takes precedence over the saved address.
 Gateway delivery activates when the app registers its device
-credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key. It makes outbound
+credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key or Firebase service-account credentials. It makes outbound
 HTTPS requests only; the home server does not need a public inbound endpoint.
 Credentials are sent only to this fixed gateway; the server refuses gateway redirects.
 
@@ -183,15 +184,38 @@ a device credential. It keeps the credential in secure device storage, renews it
 when the app refreshes, and revokes it on sign-out or a server change. Builds without App Attest
 keep local reminders. A phone keeps its local medicine reminders until registration succeeds;
 expired gateway registrations allow local scheduling again on the next reminder refresh. Direct APNs
-takes precedence when its credentials are configured.
+takes precedence when its credentials are configured. Android likewise prefers valid direct FCM
+configuration and does not fail over after a failed direct send, avoiding an extra copy.
+
+The official Android app uses its Android Keystore key and a Play Integrity verdict for an
+eligible, recognized and licensed installation, including device integrity and the allowed app
+signing certificate/version. Key possession alone is not hardware key attestation. Unsupported
+builds or failed enrollment keep local reminders. Android capabilities use separate fixed
+`/v1/android/` endpoints and an `android-v1` credential; they never use Apple App Attest or the
+Apple gateway endpoints. A self-hosted server needs a configured canonical HTTP or HTTPS origin;
+local hosts and ports work because the gateway never fetches that address. The phone still needs
+to reach it when opening a notification.
+
+The app enrolls only when the server explicitly reports `gatewayAvailable: true`; older servers
+keep their existing fallback behavior. Before `push: true`, the server independently verifies the
+capability's exact case-sensitive token fingerprint, `android-alert` kind, origin and expiry.
+All native alerts, including medicines and daily chores, then use the scoped capability while
+event reminders remain local. Expiry or rejection returns the app to local scheduling on its next
+refresh. Renewals keep saved choices; token changes require a new capability.
+
+Android detach, token rotation, subscription deletion and key/grant revocation queue encrypted
+best-effort upstream cleanup. It runs after reminder delivery, with at most five concurrent
+requests per tick, five minutes between attempts and three attempts within one day. Local
+sign-out never waits on this network work. If the server remains offline, cleanup may not reach
+the gateway; the app also queues revocation and capabilities expire automatically.
 
 Device credentials are verified and stored encrypted. Expired or rejected credentials require
 registration again; temporary delivery failures leave the registration intact. Failed medicine
 alerts get at most two further attempts over ten minutes. Pending text is encrypted and discarded
 when its dose log, schedule, recipient or privacy settings change. A timeout can still cause a
-duplicate alert if Apple accepted the first request; registration does not guarantee delivery.
+duplicate alert if the delivery provider accepted the first request; registration does not guarantee delivery.
 
-The gateway and Apple can read notification text. Medicine names remain off unless explicitly
+The gateway and the delivery provider (Apple for iOS, Google for Android) can read notification text. Medicine names remain off unless explicitly
 enabled for that device. The gateway does not make the home server reachable when tapping a
 notification, and remote delivery still depends on the server and gateway being available.
 

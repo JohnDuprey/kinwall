@@ -1323,7 +1323,6 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
   const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
-  await part('android gateway cleanup', () => revokeAndroidGateways(env, now.getTime()));
   await part('event live activities', () => runEventLiveActivities(env,now));
   await part('event reminders', () => runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold));
   const features = await readFeatures(env.DB);
@@ -1348,6 +1347,11 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await part('prune', () => pruneSentNotifications(env.DB, now));
   if (features.lists) await part('clear old ticked items', async () => { for (const id of await clearOldChecked(env.DB, now)) publish(env, _execCtx, 'list.changed', { id }); });
   if (!retry) await setTickWindowEnd(env.DB, now);
+  // Retired capabilities are housekeeping, never a prerequisite for time-sensitive alerts.
+  // Hosts with waitUntil can finish the alarm while the bounded cleanup batch is in flight.
+  const cleanup = part('android gateway cleanup', () => revokeAndroidGateways(env, now.getTime()));
+  if (_execCtx) _execCtx.waitUntil(cleanup);
+  else await cleanup;
 }
 
 // Chore approval (routes/chores.ts), sent right away rather than on the tick: "Leo finished Make
