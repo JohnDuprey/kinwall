@@ -1482,6 +1482,7 @@ export const mock = {
     if (prev && !prev.pending) credit(prev.memberId, -(prev.points ?? 0), date)
     credit(who, points, date)
     completions.set(key, { completedAt: new Date().toISOString(), memberId: who, pending, points }); bump()
+    return { ok: true, pending } // like the server's answer
   },
   uncompleteChore: async (id: string, date: string) => {
     const key = `${id}:${date}`, prev = completions.get(key)
