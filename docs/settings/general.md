@@ -11,14 +11,14 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 
 ## Language
 
-The **Language** card at the top picks the language this screen shows: **English** or **Deutsch** (German), each written in its own language so you can find yours. Nothing picked means **🏠 Use the family's**, the family's language from [Household](#household).
+The **Language** card at the top picks the language this screen shows: **English**, **Deutsch** (German), **Français** (French), or **Español** (Spanish), each written in its own language so you can find yours. Nothing picked means **🏠 Use the family's**, the family's language from [Household](#household).
 
 * On someone's own device (their phone, or a kid's tablet), the pick is saved in their profile, so it follows them to all their devices. A kid can change their own here.
 * On a wall screen or a shared device, it's saved on that device only.
 
 A wall stays in its language when someone taps their face on it: only the [activities](../using/activities.md) they play use their own language. The phone apps' own screens (widgets, Siri, the share sheet) follow the phone's language for now.
 
-German covers every screen. Some text the server writes (newscast lines, insights, error messages) is still English, and what your family typed (chore and event names) stays as typed. Want to help translate? See [Translations](../contributing/translations.md).
+French and Spanish are partial translations; untranslated text falls back to English. German covers every screen. Some text the server writes (newscast lines, insights, error messages) is still English, and what your family typed (chore and event names) stays as typed. Want to help translate? See [Translations](../contributing/translations.md).
 
 ## For the whole family
 
@@ -27,7 +27,7 @@ German covers every screen. Some text the server writes (newscast lines, insight
 | Setting | Notes |
 |---|---|
 | **Family name** | Shown in the header. Default "Our Family". Saves when you leave the field. |
-| **Language** | The family's language: **English** (the default) or **Deutsch**. Wall screens and shared screens use it, and so does anyone who hasn't picked their own under [Language](#language). Dates and times follow it too (German: "Do., 8. Okt."). API: `language` `en` / `de`. |
+| **Language** | The family's language: **English** (the default), **Deutsch**, **Français**, or **Español**. Wall screens and shared screens use it, and so does anyone who hasn't picked their own under [Language](#language). Dates and times follow it too (German: "Do., 8. Okt."). API: `language` `en` / `de` / `fr` / `es`. |
 | **Currency** | The currency prices on [restaurant menus](../using/meals.md) show in, in the family's language's format ("$12.99", "12,99 €"). US dollars until you pick one; the list has every currency the browser knows. API: `currency`, an ISO 4217 code like `USD` or `EUR`. |
 | **Timezone** | The household timezone. Chores, reminders, summaries and "today" use it. If it's not set, the first device to load the app sets it from its own timezone. Every screen shows its clock in this timezone; a device can show its own instead under [Appearance on this device](this-display.md#appearance-on-this-device). Clocks change right on the minute. Tap it to choose from a list: this device's timezone and the current one come first, each row shows the time there and its UTC offset ("8:04 PM · UTC−4"), and the search finds a city or region ("New York", "America/New_York"). |
 | **Week starts on** | Sunday or Monday. Applies to the Week and Month views and the weekly leaderboard. |

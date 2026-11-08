@@ -9,8 +9,8 @@ import { loadSubs } from '../src/notify.ts';
 test('headerLang: the first language Kinwall comes in, by q; else null', () => {
   assert.equal(headerLang('de'), 'de');
   assert.equal(headerLang('de-AT,en;q=0.5'), 'de');
-  assert.equal(headerLang('fr-FR, en-US;q=0.8, de;q=0.9'), 'de');
-  assert.equal(headerLang('fr, es'), null);
+  assert.equal(headerLang('fr-FR, en-US;q=0.8, de;q=0.9'), 'fr');
+  assert.equal(headerLang('it, pt'), null);
   assert.equal(headerLang('de;q=0, en'), 'en');
   assert.equal(headerLang(undefined), null);
 });
@@ -42,3 +42,25 @@ test("familyLang and a push device's language: the owner's, else the family's", 
   const langs = Object.fromEntries((await loadSubs(db)).map((s) => [s.id, s.lang]));
   assert.deepEqual(langs, { s1: 'en', s2: 'de', s3: 'de' }, "Leo picked English; Maya and the wall follow the family's German");
 });
+
+for (const [code, locale, chore, chores, today] of [
+  ['fr', 'fr-FR', 'tâche', 'tâches', 'aujourd’hui'],
+  ['es', 'es-ES', 'tarea', 'tareas', 'hoy'],
+] as const) {
+  test(`${code}: language negotiation, schema, messages and stored errors`, async () => {
+    const { LanguageSchema } = await import('../src/schemas.ts');
+    assert.equal(LanguageSchema.parse(code), code);
+    assert.equal(headerLang(`${code === 'fr' ? 'fr-CA' : 'es-PE'},en;q=0.8`), code);
+    const w = words(code);
+    assert.equal(w.locale, locale);
+    assert.equal(w.tn(1, '{n} chore', '{n} chores'), `1 ${chore}`);
+    assert.equal(w.tn(2, '{n} chore', '{n} chores'), `2 ${chores}`);
+    assert.equal(w.t('{job} is due today', { job: 'Test' }).includes(today), true);
+    assert.notEqual(translateStored(code, 'error', 'Not found'), 'Not found');
+    assert.equal(w.t('Unknown {name}', { name: 'Maya' }), 'Unknown Maya');
+    const db = openDb(':memory:');
+    applyMigrations(db, path.join(import.meta.dirname, '..', 'migrations'));
+    await db.prepare("INSERT INTO settings (key, value) VALUES ('language', ?)").bind(code).run();
+    assert.equal(await familyLang(db), code);
+  });
+}

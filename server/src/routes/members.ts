@@ -312,7 +312,7 @@ membersRoutes.openapi(
     method: 'put',
     path: '/api/members/{id}/language',
     tags: ['Members'],
-    summary: "Set a member's language ('en', 'de', or null to follow the device and family). Parents for anyone; a member's own device (not its widgets) only for them.",
+    summary: "Set a member's language ('en', 'de', 'fr', 'es', or null to follow the device and family). Parents for anyone; a member's own device (not its widgets) only for them.",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: z.object({ language: LanguageSchema.nullable() }) } } } },
     responses: {
