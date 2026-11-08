@@ -507,7 +507,7 @@ choresRoutes.openapi(
 );
 
 /** How far back a wall screen or a kid's device can tick a chore (it may also be a day ahead of the household's today). */
-const DISPLAY_DAYS_BACK = 7;
+export const DISPLAY_DAYS_BACK = 7;
 const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 
 // Points a completion earns: full on the day (or ahead of it), `creditPercent` of them when it's

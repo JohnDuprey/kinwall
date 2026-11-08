@@ -4963,5 +4963,10 @@
   "New chores": "Neue Aufgaben",
   "When a chore is added for the people you follow or Anyone. Skips chores you add yourself.": "Wenn eine Aufgabe für die Personen, denen du folgst, oder für Alle hinzugefügt wird. Aufgaben, die du selbst hinzufügst, werden übersprungen.",
   "Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through push notifications.": "Terminerinnerungen werden auf diesem Gerät geplant. Familiennachrichten und die unten gewählten Erinnerungen kommen per Push-Benachrichtigung.",
-  "This server has not enabled push delivery for this app yet. Local reminders remain on.": "Dieser Server hat Push-Benachrichtigungen für diese App noch nicht aktiviert. Lokale Erinnerungen bleiben eingeschaltet."
+  "This server has not enabled push delivery for this app yet. Local reminders remain on.": "Dieser Server hat Push-Benachrichtigungen für diese App noch nicht aktiviert. Lokale Erinnerungen bleiben eingeschaltet.",
+  "{n} late chore": "{n} verspätete Aufgabe",
+  "{n} late chores": "{n} verspätete Aufgaben",
+  "Late chores": "Verspätete Aufgaben",
+  "Mark {title} done": "{title} als erledigt markieren",
+  "Was due {day}": "Fällig am {day}"
 }

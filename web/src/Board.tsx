@@ -30,6 +30,7 @@ import Sheet from './Sheet.tsx'
 import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
+import { useLateChoresSlot } from './LateChores.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardFixed, boardShort, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
 import { columnRows, type BoardCardSpec, cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
@@ -297,6 +298,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const meds = useDueDoses()
   const medsSlot = useTakeNowSlot(meds)
   const pollSlot = usePollSlot()
+  const lateSlot = useLateChoresSlot(data && f.chores ? boardChores(data.overdueChores ?? [], selectedMemberId, focusMemberId, focusShowsShared) : [])
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -487,6 +489,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       row: <a className="board-slot-row" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">{choresName} · {choresText}</span></a>,
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
     },
+    todayTiles && choresTile && lateSlot.item,
     todayTiles && choresTile && routineRows.length > 0 && {
       key: 'routine',
       chip: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} chip />,
@@ -544,7 +547,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       <FamilyAnnouncements />
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
-      {medsSlot.sheets}{pollSlot.sheets}
+      {medsSlot.sheets}{pollSlot.sheets}{lateSlot.sheets}
       <BoardGrid columns={cast && fixed && custom?.columns.length === 2 ? custom.columns : undefined}
         compact={new Set(cast && short ? tidbitAreas.filter((_, i) => tidbits[i] && tidbits[i]?.kind !== 'trivia') : [])}
         style={custom ? custom.style : boardAreas(shown, short)}>
@@ -566,7 +569,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
                     ))}
                   </span>
                 )}
-              </a><RoutineHomeIndicator rows={routineRows} parent={parentDevice} /></div>
+              </a>{lateSlot.item?.row}<RoutineHomeIndicator rows={routineRows} parent={parentDevice} /></div>
             )}
             {tiles.includes('due') && (
               <a className="board-tile" href="#/lists">
@@ -686,7 +689,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         </Card>}
 
         {has('chores') && <Card title={t('Chores today')} area="chores" density={dense('chores')} foot={<RoutineHomeIndicator rows={routineRows} parent={parentDevice} />} link={rewards && <a className="board-card-link" href="#/rewards">🎁 {t('Rewards')}</a>}>
-          {milestonesLink}
+          {lateSlot.item?.row}{milestonesLink}
           {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">{t('No chores today.')}</p> : (
             <ul className="snap-list">
               {chores.map(c => {

@@ -10,7 +10,7 @@ import { BoardSchema, ErrorSchema, SnapshotSchema } from '../schemas.ts';
 import { readMeals } from '../meals.ts';
 import { checkInPointsFor, readSettings } from './settings.ts';
 import { eventInstances } from './events.ts';
-import { dueOnDate, type ChoreRow } from './chores.ts';
+import { DISPLAY_DAYS_BACK, dueOnDate, type ChoreRow } from './chores.ts';
 import { FLAGGED_OPEN, groupSteps, priorityRankSql, stepsQuery, toItemApi, type ListItemRow, type ListItemStepRow } from './lists.ts';
 import { todayInTz } from './members.ts';
 import { getWeather, weatherIn } from './weather.ts';
@@ -261,6 +261,14 @@ snapshotRoutes.openapi(
     const timedChores = !settings.features.chores ? [] : dueToday
       .filter((r) => (r.due_time && HHMM.test(r.due_time)) || r.timer_minutes)
       .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, dueTime: r.due_time && HHMM.test(r.due_time) ? r.due_time : null, timerMinutes: r.timer_minutes ?? null, done: completedToday.has(r.id), pending: pendingToday.has(r.id) }));
+    // One-off chores whose day has passed with no tick (a pending one is waiting for an OK, not late),
+    // as far back as a wall screen can tick them. Repeating chores don't carry over: a missed daily one
+    // would pile up a copy a day.
+    const overdueChores = !settings.features.chores ? [] : (await db.prepare(
+      `SELECT id, title, emoji, member_id, points, due_date FROM chores c WHERE active = 1 AND rrule IS NULL AND due_date >= ? AND due_date < ?
+       AND NOT EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = c.id AND date = c.due_date) ORDER BY due_date, sort`,
+    ).bind(addDays(today, -DISPLAY_DAYS_BACK), today).all<{ id: string; title: string; emoji: string | null; member_id: string | null; points: number; due_date: string }>()).results
+      .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, points: r.points, date: r.due_date }));
 
     const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);
     const itemRows = settings.features.lists ? itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[] : [];
@@ -286,6 +294,7 @@ snapshotRoutes.openapi(
       items,
       chores,
       timedChores,
+      overdueChores,
       birthdays: birthdays.filter((b) => b.date <= to),
       meals: meals.filter((m) => m.date <= to),
       booksDue,

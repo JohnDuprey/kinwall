@@ -132,3 +132,37 @@ test('chores: a timer and a start time are saved, changed, cleared, checked, and
   assert.equal(cleared.dueTime, null);
   assert.deepEqual((await json(await req('/api/board', 'GET'))).timedChores, []);
 });
+
+test('board: late one-off chores from the last 7 days are listed until done; repeating ones are not', async () => {
+  const { createApp } = await import('../src/app.ts');
+  const { openDb, applyMigrations } = await import('../src/d1-sqlite.ts');
+  const path = await import('node:path');
+  const db = openDb(':memory:');
+  applyMigrations(db, path.join(import.meta.dirname, '..', 'migrations'));
+  const env = { DB: db, ADMIN_API_KEY: 'k', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const req = (p: string, method: string, body?: unknown) =>
+    createApp().request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: 'Bearer k', 'Content-Type': 'application/json' } }, env);
+  const json = async (r: Response) => (await r.json()) as any;
+  const day = (today: string, n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+
+  const { today } = await json(await req('/api/board', 'GET'));
+  const late = await json(await req('/api/chores', 'POST', { title: 'Clean garage', emoji: '🧹', points: 5, dueDate: day(today, -3) }));
+  const done = await json(await req('/api/chores', 'POST', { title: 'Return library card', dueDate: day(today, -2) }));
+  await req('/api/chores', 'POST', { title: 'Feed fish', rrule: 'FREQ=DAILY', dueDate: day(today, -5) });
+  await req('/api/chores', 'POST', { title: 'Today', dueDate: today });
+  const week = await json(await req('/api/chores', 'POST', { title: 'Sweep porch', dueDate: day(today, -7) }));
+  await req('/api/chores', 'POST', { title: 'Too old', dueDate: day(today, -8) }); // past what a wall screen can tick
+  const paused = await json(await req('/api/chores', 'POST', { title: 'Paused', dueDate: day(today, -1) }));
+  await req(`/api/chores/${paused.id}`, 'PATCH', { active: false });
+  assert.equal((await req(`/api/chores/${done.id}/complete`, 'POST', { date: day(today, -2) })).status, 200);
+
+  const board = await json(await req('/api/board', 'GET'));
+  assert.deepEqual(board.overdueChores, [
+    { id: week.id, title: 'Sweep porch', emoji: null, memberId: null, points: 0, date: day(today, -7) },
+    { id: late.id, title: 'Clean garage', emoji: '🧹', memberId: null, points: 5, date: day(today, -3) },
+  ]);
+
+  // Ticked off for its own day, it's gone.
+  assert.equal((await req(`/api/chores/${late.id}/complete`, 'POST', { date: day(today, -3) })).status, 200);
+  assert.deepEqual((await json(await req('/api/board', 'GET'))).overdueChores.map((c: any) => c.title), ['Sweep porch']);
+});

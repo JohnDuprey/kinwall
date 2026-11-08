@@ -473,6 +473,7 @@ const chores: Chore[] = [
 ]
 // One-time examples: the completed chore is history; the future one can become a name requirement.
 chores.push(
+  { id: 'ch-late', title: 'Wash the car', emoji: '🚗', memberId: 'm2', points: 10, rrule: null, dueDate: dateOnly(-2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null }, // not done: a late chore on the Board
   { id: 'ch-once-done', title: 'Return library books', emoji: '📚', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(-1), dueTime: null, active: true, sort: 10, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch-once-next', title: 'Clean your room', emoji: '🧹', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
 )
@@ -2180,6 +2181,9 @@ function mockBoard(days: number): Board {
       const comp = completions.get(`${c.id}:${today}`)
       return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending }
     }),
+    overdueChores: !settings.features.chores ? [] : chores.filter(c => c.active && !c.rrule && c.dueDate && c.dueDate >= inDays(-7) && c.dueDate < today && !completions.has(`${c.id}:${c.dueDate}`))
+      .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))
+      .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date: c.dueDate! })),
     birthdays,
     meals: [], // api.ts adds the demo menu (mock-meals.ts)
     booksDue: bookLibrary.filter(b => b.borrowedFrom && b.dueOn && !b.returnedOn && b.dueOn <= to)
