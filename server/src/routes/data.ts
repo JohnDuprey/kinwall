@@ -293,7 +293,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal, group_id FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -937,6 +937,7 @@ dataRoutes.openapi(
           timer_minutes: ch.timerMinutes,
           archived: ch.archived ? 1 : 0,
           library_id: ch.libraryId,
+          group_id: ch.groupId,
         })),
         { ...keepCreated, expr: { member_id: memberRef('member_id'), library_id: "(SELECT id FROM chore_library WHERE id = j.value->>'library_id')" } },
       ),

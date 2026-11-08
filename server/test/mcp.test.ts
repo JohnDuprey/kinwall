@@ -564,6 +564,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('update_category', { category: 'school', color: '#3366ff' });
   const chore = (await call('create_chore', { title: 'Feed cat', emoji: '🐱', member: 'ava', rrule: 'FREQ=DAILY', points: 2 })).chore;
   await call('update_chore', { choreId: chore.id, points: 3 });
+  await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ben', color: '#0000ff' }) });
+  const shared = (await call('create_chore', { title: 'Tidy up', members: ['ava', 'ben'], dueDate: today })).chore;
+  assert.ok(shared.groupId);
+  assert.equal((await call('update_chore', { choreId: shared.id, members: ['ben'] })).chore.groupId, null);
   await call('complete_chore', { choreId: chore.id, date: today });
   await call('list_chores', { date: today });
   const avaId = ((await (await rest('/api/members')).json()) as any[]).find((m) => m.name.toLowerCase() === 'ava').id;

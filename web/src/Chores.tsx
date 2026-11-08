@@ -753,7 +753,17 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   const [title, setTitle] = useState(chore?.title ?? from?.title ?? '')
   const [emoji, setEmoji] = useState(chore?.emoji ?? from?.emoji ?? MEMBER_EMOJI[0])
   const [points, setPoints] = useState(chore?.points ?? from?.points ?? 5)
-  const [memberId, setMemberId] = useState<string | null>(chore?.memberId ?? (draft ? draft.memberId : null))
+  // Who it's for: [] is Anyone; several people each get their own linked copy (chore.groupId).
+  const startMember = chore ? chore.memberId : draft?.memberId ?? null
+  const [memberIds, setMemberIds] = useState<string[]>(startMember ? [startMember] : [])
+  const [groupLoaded, setGroupLoaded] = useState(!chore?.groupId) // saving sets the whole group, so wait for it
+  useEffect(() => {
+    const groupId = chore?.groupId
+    if (!groupId) return
+    api.getChores().then(all => { setMemberIds(all.filter(c => c.groupId === groupId && c.memberId).map(c => c.memberId as string)); setGroupLoaded(true) })
+      .catch(() => toast(t('Could not load who this chore is for'), true))
+  }, [chore?.groupId]) // eslint-disable-line react-hooks/exhaustive-deps -- toast is a new function each render
+  const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
   const [listId, setListId] = useState<string | null>(chore?.listId ?? from?.listId ?? null)
   const [lists, setLists] = useState<List[]>([])
   useEffect(() => { api.getLists().then(setLists).catch(() => { /* picker just stays empty */ }) }, [])
@@ -776,13 +786,13 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   const [schedTouched, setSchedTouched] = useState(false) // untouched = send the stored rrule back as-is (keeps custom rules)
   const editSched = (patch: Partial<ScheduleForm>) => { setSched(s => ({ ...s, ...patch, custom: false })); setSchedTouched(true) }
   const scheduleValid = validSchedule(sched, dueDate) && (!repeatGoal || !!dueDate && validGoal(repeatGoal))
-  const assignee = members.find(m => m.id === memberId)
+  const assignee = memberIds.length === 1 ? members.find(m => m.id === memberIds[0]) : undefined
   const defaultApproval = !!assignee?.needsApproval
 
   const submit = async () => {
-    if (!title.trim() || !isSingleEmoji(emoji) || !scheduleValid) return
+    if (!title.trim() || !isSingleEmoji(emoji) || !scheduleValid || !groupLoaded) return
     const schedule = scheduleBody({ rrule: storedRrule, dueDate: chore?.dueDate ?? draft?.date ?? today }, sched, schedTouched || (!chore && !draft), dueDate)
-    const body = { title: title.trim(), emoji, points, memberId, ...schedule, repeatGoal, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
+    const body = { title: title.trim(), emoji, points, memberIds, ...schedule, repeatGoal, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -798,7 +808,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   }
   const del = async () => {
     if (!chore) return
-    if (!await dialog.confirm({ title: t('Delete "{title}"?', { title: chore.title }), body: t('It leaves the list. Points already earned from it stay.'), confirmLabel: t('Delete'), danger: true })) return
+    if (!await dialog.confirm({ title: t('Delete "{title}"?', { title: chore.title }), body: chore.groupId ? t('It leaves the list for everyone it is for. Points already earned from it stay.') : t('It leaves the list. Points already earned from it stay.'), confirmLabel: t('Delete'), danger: true })) return
     try { await api.deleteChore(chore.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not delete chore'), true) }
   }
 
@@ -812,7 +822,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
             {resetTime && <option value="reset">{resetTime.label}</option>}
             <option value="delete">{t('Delete chore…')}</option>
           </select>}
-          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji) || !scheduleValid}>{chore ? t('Save') : t('Add chore')}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji) || !scheduleValid || !groupLoaded}>{chore ? t('Save') : t('Add chore')}</button>
         </>
       }>
       <div className="field">
@@ -833,13 +843,16 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         <PointsStepper value={points} max={1000} onChange={setPoints} label={t('Points')} />
       </div>
       <div className="field">
-        <label>{t('Assign to')}</label>
-        <div className="chip-row">
-          <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>🌟 {t('Anyone')}</button>
+        <label id="chore-assign">{t('Assign to')}</label>
+        <div className="chip-row" role="group" aria-labelledby="chore-assign" aria-describedby="chore-assign-hint">
+          <button className={`chip ${memberIds.length === 0 ? 'active' : ''}`} aria-pressed={memberIds.length === 0} onClick={() => setMemberIds([])}>🌟 {t('Anyone')}</button>
           {members.map(m => (
-            <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
+            <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
+        <p className="field-hint" id="chore-assign-hint">{memberIds.length > 1
+          ? t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
+          : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
       </div>
       {settings.features.lists && <div className="field">
         <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>

@@ -42,6 +42,7 @@ export type ChoreRow = {
   archived?: number; // deleted after it was done: kept for its history (migration 0050)
   library_id?: string | null; // made from a chore library item (migration 0082)
   timer_minutes?: number | null; // Start on the chore runs the app's timer this long (migration 0110)
+  group_id?: string | null; // one linked copy per person of a chore for several people (migration 0142)
 };
 
 export function toApi(row: ChoreRow) {
@@ -64,6 +65,7 @@ export function toApi(row: ChoreRow) {
     approveTimedPlay: !!row.approve_timed_play,
     libraryId: row.library_id ?? null,
     timerMinutes: row.timer_minutes ?? null,
+    groupId: row.group_id ?? null,
   };
 }
 
@@ -83,6 +85,12 @@ async function checkList(c: { env: Env }, listId: string | null | undefined): Pr
   return row ? null : 'unknown list';
 }
 
+async function checkMembers(c: { env: Env }, memberIds: string[] | undefined): Promise<string | null> {
+  if (!memberIds?.length) return null;
+  const row = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM members WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(memberIds)).first<{ n: number }>();
+  return row?.n === memberIds.length ? null : 'unknown member';
+}
+
 async function checkLibrary(c: { env: Env }, libraryId: string | null | undefined): Promise<string | null> {
   if (!libraryId) return null;
   const row = await c.env.DB.prepare('SELECT id FROM chore_library WHERE id = ?').bind(libraryId).first();
@@ -93,15 +101,65 @@ async function checkLibrary(c: { env: Env }, libraryId: string | null | undefine
 export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
   await db
     .prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal, group_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null)
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null, row.group_id ?? null)
     .run();
 }
 
-/** Used by direct creation and library assignments; imports and edits stay silent. */
-export async function announceNewChore(c: Context<{ Bindings: Env }>, row: ChoreRow): Promise<void> {
-  if (row.active) notifyChoreCreated(c.env, execCtx(c), row, await changedBy(c));
+/** Used by direct creation, library assignments and people added to a chore; imports and other edits
+ * stay silent. A chore for several people is one notification for all of them. */
+export async function announceNewChore(c: Context<{ Bindings: Env }>, row: ChoreRow, memberIds?: (string | null)[]): Promise<void> {
+  if (row.active) notifyChoreCreated(c.env, execCtx(c), row, await changedBy(c), memberIds);
+}
+
+/** Deletes a chore, or archives one that was ever done: it leaves every list, but its completions and
+ * the points earned from them stay. False when there's no such chore. */
+async function removeChore(db: KinwallDb, id: string): Promise<boolean> {
+  // A tick still waiting for a parent's OK goes (nothing was earned); approved ones are history,
+  // so a chore that has any is archived rather than deleted, and all-time counts don't drop.
+  await db.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND status = 'pending' AND EXISTS (SELECT 1 FROM chores WHERE id = ? AND archived = 0)").bind(id, id).run();
+  const archived = await db.prepare('UPDATE chores SET archived = 1, active = 0 WHERE id = ? AND archived = 0 AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = chores.id)').bind(id).run();
+  const result = archived.meta.changes ? archived : await db.prepare('DELETE FROM chores WHERE id = ? AND archived = 0').bind(id).run();
+  return result.meta.changes > 0;
+}
+
+/** The copies of `row`'s group (just `row` when it has none), `row` first. */
+async function groupOf(db: KinwallDb, row: ChoreRow): Promise<ChoreRow[]> {
+  if (!row.group_id) return [row];
+  const { results } = await db.prepare('SELECT * FROM chores WHERE group_id = ? AND archived = 0 AND id <> ? ORDER BY sort, created_at').bind(row.group_id, row.id).all<ChoreRow>();
+  return [row, ...results];
+}
+
+/** Makes `row`'s group exactly `memberIds` ([] = Anyone): copies of people who stay are kept, copies of
+ * people who leave go to people who join (so `row` itself always stays), then the rest are added or
+ * removed. One person is a plain chore again. Returns the copies and the people added. */
+async function regroup(db: KinwallDb, row: ChoreRow, memberIds: string[]): Promise<{ rows: ChoreRow[]; added: ChoreRow[] }> {
+  const owners: (string | null)[] = memberIds.length ? memberIds : [null];
+  const kept = new Map<string | null, ChoreRow>();
+  const spare: ChoreRow[] = [];
+  for (const r of await groupOf(db, row)) {
+    if (owners.includes(r.member_id) && !kept.has(r.member_id)) kept.set(r.member_id, r);
+    else spare.push(r);
+  }
+  // A spare copy is reused only for someone without one; `row` comes first, so it's the one reused.
+  const groupId = owners.length > 1 ? row.group_id ?? crypto.randomUUID() : null;
+  const rows: ChoreRow[] = [];
+  const added: ChoreRow[] = [];
+  for (const m of owners) {
+    const r = kept.get(m) ?? spare.shift();
+    if (r) {
+      await db.prepare('UPDATE chores SET member_id = ?, group_id = ? WHERE id = ?').bind(m, groupId, r.id).run();
+      rows.push({ ...r, member_id: m, group_id: groupId });
+    } else {
+      const n: ChoreRow = { ...row, id: crypto.randomUUID(), member_id: m, group_id: groupId, archived: 0 };
+      await insertChore(db, n);
+      rows.push(n);
+      added.push(n);
+    }
+  }
+  for (const r of spare) await removeChore(db, r.id);
+  return { rows, added };
 }
 
 choresRoutes.openapi(
@@ -142,8 +200,11 @@ choresRoutes.openapi(
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
     const neverError = await choreRepeatError(c.env.DB, body.rrule, body.dueDate);
     if (neverError) return c.json({ error: neverError }, 400);
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId));
+    const memberIds = body.memberIds && [...new Set(body.memberIds)];
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId)) ?? (await checkMembers(c, memberIds));
     if (listError) return c.json({ error: listError }, 400);
+    const owners: (string | null)[] = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null];
+    const groupId = owners.length > 1 ? crypto.randomUUID() : null;
     const row: ChoreRow = {
       id: crypto.randomUUID(),
       title: body.title,
@@ -164,11 +225,13 @@ choresRoutes.openapi(
       approve_timed_play: body.approveTimedPlay ? 1 : 0,
       library_id: body.libraryId ?? null,
       timer_minutes: body.timerMinutes ?? null,
+      group_id: groupId,
     };
-    await insertChore(c.env.DB, row);
-    await announceNewChore(c, row);
+    const rows = owners.map((m, i) => ({ ...row, id: i ? crypto.randomUUID() : row.id, member_id: m }));
+    for (const r of rows) await insertChore(c.env.DB, r);
+    await announceNewChore(c, row, owners);
     emit(c, 'chore.changed', { id: row.id });
-    return c.json(toApi(row), 201);
+    return c.json(toApi(rows[0]), 201);
   },
 );
 
@@ -190,7 +253,8 @@ choresRoutes.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId));
+    const memberIds = body.memberIds && [...new Set(body.memberIds)];
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkMembers(c, memberIds));
     if (listError) return c.json({ error: listError }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
@@ -210,7 +274,7 @@ choresRoutes.openapi(
       repeat_goal: goal ? JSON.stringify(goal) : null,
       title: body.title ?? existing.title,
       emoji: body.emoji !== undefined ? body.emoji : existing.emoji,
-      member_id: body.memberId !== undefined ? body.memberId : existing.member_id,
+      member_id: body.memberId !== undefined && !memberIds ? body.memberId : existing.member_id,
       points: body.points ?? existing.points,
       rrule: body.rrule !== undefined ? body.rrule : existing.rrule,
       due_date: body.dueDate !== undefined ? body.dueDate : existing.due_date,
@@ -229,8 +293,22 @@ choresRoutes.openapi(
     )
       .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, id)
       .run();
+    // The other copies of a chore for several people follow, keeping their own person and order.
+    if (existing.group_id) {
+      await c.env.DB.prepare(
+        'UPDATE chores SET title=?, emoji=?, points=?, rrule=?, due_date=?, due_time=?, active=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=? WHERE group_id=? AND id<>? AND archived=0',
+      )
+        .bind(updated.title, updated.emoji, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, existing.group_id, id)
+        .run();
+    }
+    let result = updated;
+    if (memberIds) {
+      const { rows, added } = await regroup(c.env.DB, updated, memberIds);
+      if (added.length) await announceNewChore(c, added[0], added.map((r) => r.member_id));
+      result = rows.find((r) => r.id === id) ?? rows[0];
+    }
     emit(c, 'chore.changed', { id });
-    return c.json(toApi(updated), 200);
+    return c.json(toApi(result), 200);
   },
 );
 
@@ -239,7 +317,7 @@ choresRoutes.openapi(
     method: 'delete',
     path: '/api/chores/{id}',
     tags: ['Chores'],
-    summary: 'Delete a chore. One that was ever done is archived instead: it leaves every list, but its completions and the points earned from them stay.',
+    summary: 'Delete a chore, and every copy of a chore for several people (groupId). One that was ever done is archived instead: it leaves every list, but its completions and the points earned from them stay.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: {
@@ -249,12 +327,9 @@ choresRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    // A tick still waiting for a parent's OK goes (nothing was earned); approved ones are history,
-    // so a chore that has any is archived rather than deleted, and all-time counts don't drop.
-    await c.env.DB.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND status = 'pending' AND EXISTS (SELECT 1 FROM chores WHERE id = ? AND archived = 0)").bind(id, id).run();
-    const archived = await c.env.DB.prepare('UPDATE chores SET archived = 1, active = 0 WHERE id = ? AND archived = 0 AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = chores.id)').bind(id).run();
-    const result = archived.meta.changes ? archived : await c.env.DB.prepare('DELETE FROM chores WHERE id = ? AND archived = 0').bind(id).run();
-    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    const row = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0').bind(id).first<ChoreRow>();
+    if (!row) return c.json({ error: 'not found' }, 404);
+    for (const r of await groupOf(c.env.DB, row)) await removeChore(c.env.DB, r.id);
     emit(c, 'chore.changed', { id });
     return c.json({ ok: true }, 200);
   },

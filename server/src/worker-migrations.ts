@@ -1,4 +1,5 @@
 import m0141 from '../migrations/0141_android_push_gateway.sql';
+import m0142 from '../migrations/0142_chore_groups.sql';
 import m0140 from '../migrations/0140_meal_event_index.sql';
 import m0139 from '../migrations/0139_daily_points.sql';
 import m0138 from '../migrations/0138_list_reads.sql';
@@ -285,4 +286,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0139_daily_points.sql', sql: m0139 },
   { name: '0140_meal_event_index.sql', sql: m0140 },
   { name: '0141_android_push_gateway.sql', sql: m0141 },
+  { name: '0142_chore_groups.sql', sql: m0142 },
 ];

@@ -836,6 +836,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         title: z.string(),
         emoji: z.string().optional(),
         member: z.string().optional().describe('Assign to a member by name or id; omit for "anyone".'),
+        members: z.array(z.string()).optional().describe('Assign to several members by name or id instead: each gets their own linked copy to tick off.'),
         points: z.number().optional(),
         repeatGoal: ChoreGoalSchema.nullable().optional().describe('Flexible target: times on distinct days every N days/weeks/months; dueDate required. Omit rrule or use FREQ=DAILY with optional UNTIL. null removes the goal.'),
         rrule: z.string().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR. Omit for a one-off chore.'),
@@ -849,18 +850,20 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         approveTimedPlay: z.boolean().optional().describe("Activity chores: also wait for a parent's OK when timed play completes it (default: auto-approve)."),
       },
     },
-    async ({ member, list, activity, minutes, ...input }) => {
+    async ({ member, members, list, activity, minutes, ...input }) => {
       let memberId: string | undefined;
+      let memberIds: string[] | undefined;
       let listId: string | undefined;
       let pluginId: string | undefined;
       try {
         if (member) memberId = await resolveMember(app, env, auth, member);
+        if (members) memberIds = await Promise.all(members.map((m) => resolveMember(app, env, auth, m)));
         if (list) listId = (await resolveList(app, env, auth, list)).id;
         if (activity) pluginId = await resolvePlugin(app, env, auth, activity);
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, listId, pluginId, pluginMinutes: minutes });
+      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, memberIds, listId, pluginId, pluginMinutes: minutes });
       if (res.status >= 400) return errorResult(res.json, 'failed to create chore');
       const chore = res.json as { title: string };
       return okResult(`Created chore "${chore.title}".`, { chore: res.json as Record<string, unknown> });
@@ -873,12 +876,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'Update chore',
       description:
         "Change a chore: title, emoji, assignee, points, recurrence, due date, start time, timer, checklist, linked activity, whether it needs a parent's OK, or active state. Only provided fields change; pass member: null to unassign (anyone). " +
+        'A chore with a groupId is one linked copy per person: changes apply to every copy, and members sets who has one. ' +
         'rrule uses standard RRULE syntax, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally ending with ;UNTIL=YYYYMMDD to stop the recurrence on a date; pass rrule: null to make it one-off (requires dueDate).',
       inputSchema: {
         choreId: z.string(),
         title: z.string().optional(),
         emoji: z.string().optional(),
         member: z.string().nullable().optional().describe('Assign to a member by name or id; null for "anyone".'),
+        members: z.array(z.string()).optional().describe('Assign to exactly these members by name or id, each with their own linked copy (copies are added or removed); [] for "anyone".'),
         points: z.number().optional(),
         repeatGoal: ChoreGoalSchema.nullable().optional().describe('Flexible target: times on distinct days every N days/weeks/months; dueDate required. Omit rrule or use FREQ=DAILY with optional UNTIL. null removes the goal.'),
         rrule: z.string().nullable().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally with ;UNTIL=YYYYMMDD. null to clear (one-off).'),
@@ -893,18 +898,20 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         approveTimedPlay: z.boolean().optional().describe("Activity chores: also wait for a parent's OK when timed play completes it (default: auto-approve)."),
       },
     },
-    async ({ choreId, member, list, activity, minutes, ...input }) => {
+    async ({ choreId, member, members, list, activity, minutes, ...input }) => {
       let memberId: string | null | undefined;
+      let memberIds: string[] | undefined;
       let listId: string | null | undefined;
       let pluginId: string | null | undefined;
       try {
         if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
+        if (members) memberIds = await Promise.all(members.map((m) => resolveMember(app, env, auth, m)));
         if (list !== undefined) listId = list === null ? null : (await resolveList(app, env, auth, list)).id;
         if (activity !== undefined) pluginId = activity === null ? null : await resolvePlugin(app, env, auth, activity);
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}), ...(listId !== undefined ? { listId } : {}), ...(pluginId !== undefined ? { pluginId } : {}), ...(minutes !== undefined ? { pluginMinutes: minutes } : {}) };
+      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}), ...(memberIds ? { memberIds } : {}), ...(listId !== undefined ? { listId } : {}), ...(pluginId !== undefined ? { pluginId } : {}), ...(minutes !== undefined ? { pluginMinutes: minutes } : {}) };
       const res = await call(app, env, auth, 'PATCH', `/api/chores/${encodeURIComponent(choreId)}`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to update chore');
       const chore = res.json as { title: string };
@@ -2816,7 +2823,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'delete_chore',
     {
       title: 'Delete chore',
-      description: `Full access: delete a chore. One that was ever done is archived: it leaves every list for good, but its completion history and the points members earned from it stay. ${NO_UNDO} To pause a chore and bring it back later, use update_chore active: false instead.`,
+      description: `Full access: delete a chore, with every copy of a chore for several people (same groupId). One that was ever done is archived: it leaves every list for good, but its completion history and the points members earned from it stay. ${NO_UNDO} To pause a chore and bring it back later, use update_chore active: false instead.`,
       inputSchema: { choreId: z.string() },
     },
     async ({ choreId }) => remove(`/api/chores/${encodeURIComponent(choreId)}`, 'failed to delete chore', 'Deleted the chore.'),

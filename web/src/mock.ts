@@ -476,6 +476,8 @@ chores.push(
   { id: 'ch-once-done', title: 'Return library books', emoji: '📚', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(-1), dueTime: null, active: true, sort: 10, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch-once-next', title: 'Clean your room', emoji: '🧹', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
 )
+// A chore for two people: each has their own linked copy to tick off.
+for (const [id, memberId] of [['ch-table-maya', 'm3'], ['ch-table-leo', 'm4']]) chores.push({ id, title: 'Set the table', emoji: '🍽️', memberId, points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 12, listId: null, pluginId: null, pluginMinutes: null, groupId: 'g-table' })
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
 completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), memberId: 'm3', points: 5 })
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
@@ -1408,15 +1410,38 @@ export const mock = {
       return { ...c, goalProgress: mockGoalProgress(c, date), completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
     })
   },
-  createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null }
-    chores.push(nc); bump(); return nc
+  getChores: async () => chores.map(c => ({ ...c })),
+  createChore: async ({ memberIds, ...body }: Partial<Chore>) => {
+    const owners = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null]
+    const groupId = owners.length > 1 ? uid() : null
+    const made = owners.map(memberId => ({ id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null, groupId }))
+    chores.push(...made); bump(); return made[0]
   },
-  updateChore: async (id: string, patch: Partial<Chore>) => {
+  // Like the server: the copies of a chore for several people follow, and memberIds sets who has one.
+  updateChore: async (id: string, { memberIds, ...patch }: Partial<Chore>) => {
     const c = chores.find(x => x.id === id); if (!c) throw new Error('not found')
-    Object.assign(c, patch); bump(); return c
+    const { memberId: _m, sort: _s, ...shared } = patch
+    for (const x of chores) if (x === c || (c.groupId && x.groupId === c.groupId)) Object.assign(x, x === c ? patch : shared)
+    if (memberIds) {
+      const owners = memberIds.length ? memberIds : [null]
+      const group = chores.filter(x => x === c || (c.groupId && x.groupId === c.groupId)).sort((a, b) => Number(b === c) - Number(a === c))
+      const groupId = owners.length > 1 ? c.groupId ?? uid() : null
+      const kept = owners.map(m => group.find(x => x.memberId === m))
+      const spare = group.filter(x => !kept.includes(x))
+      owners.forEach((m, i) => {
+        const x = kept[i] ?? spare.shift()
+        if (x) Object.assign(x, { memberId: m, groupId })
+        else chores.push({ ...c, id: uid(), memberId: m, groupId })
+      })
+      for (const x of spare) chores.splice(chores.indexOf(x), 1)
+    }
+    bump(); return c
   },
-  deleteChore: async (id: string) => { const i = chores.findIndex(x => x.id === id); if (i >= 0) chores.splice(i, 1); bump() },
+  deleteChore: async (id: string) => {
+    const c = chores.find(x => x.id === id)
+    for (const x of chores.filter(x => x === c || (c?.groupId && x.groupId === c.groupId))) chores.splice(chores.indexOf(x), 1)
+    bump()
+  },
   getChoreLibrary: async () => library.map(libraryView).sort((a, b) => a.title.localeCompare(b.title)),
   createLibraryChore: async (body: LibraryChoreInput) => {
     const from = body.fromChoreId ? chores.find(c => c.id === body.fromChoreId) : undefined

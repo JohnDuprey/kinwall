@@ -600,6 +600,7 @@ export const api = {
   getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date)
     : Promise.all([get<ChoreDay[]>(`api/chores/day?date=${date}`), outboxReady()]).then(([c]) => applyChoreOps(c, date, pendingOps(outboxTag()))),
   // useAdmin: the setup wizard's starter chores on a device that just claimed a display-scope key.
+  getChores: () => MOCK ? mock.getChores() : get<Chore[]>('api/chores'),
   createChore: (body: Partial<Chore>, useAdmin?: boolean) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body, useAdmin),
   updateChore: (id: string, body: Partial<Chore>) => MOCK ? mock.updateChore(id, body) : patch<Chore>(`api/chores/${id}`, body),
   deleteChore: (id: string) => MOCK ? mock.deleteChore(id) : del(`api/chores/${id}`),

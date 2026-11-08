@@ -437,6 +437,8 @@ export interface Chore {
   approveTimedPlay?: boolean // activity chores: timed play waits for an OK too (auto-approves otherwise)
   libraryId?: string | null // made from this chore library item
   timerMinutes?: number | null // Start runs the app's timer this long (ChoreTimer.tsx)
+  groupId?: string | null // a chore for several people: one linked copy each, edited and deleted together
+  memberIds?: string[] // create/update only: the people who each get a copy; [] = Anyone
 }
 
 /** A saved chore in the chore library (server: routes/chore-library.ts). Parent devices only. */

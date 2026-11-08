@@ -813,11 +813,12 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
 }
 
 /** One notification when a chore is created, including handing one out from the library. */
-export function notifyChoreCreated(env: Env, execCtx: WaitCtx | undefined, chore: ChoreRow, by: ChangedBy): void {
+export function notifyChoreCreated(env: Env, execCtx: WaitCtx | undefined, chore: ChoreRow, by: ChangedBy, owners: (string | null)[] = [chore.member_id]): void {
   if (!chore.active) return;
   waitUntil(execCtx, (async () => {
     if (!(await readFeatures(env.DB)).chores) return;
-    const memberIds = chore.member_id ? [chore.member_id] : [];
+    // Anyone (null) is no one in particular: it matches every device that follows Anyone chores.
+    const memberIds = owners.includes(null) ? [] : owners as string[];
     const payload = perLang((lang) => {
       const { t } = words(lang);
       return { title: t('New chore'), body: chore.title, url: '/#/chores', tag: `chore:new:${chore.id}` };
