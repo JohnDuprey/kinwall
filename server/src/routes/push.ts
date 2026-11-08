@@ -10,7 +10,7 @@ import { fcmOrigin, validFcmToken } from '../fcm.ts';
 import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import type { Context } from 'hono';
-import { encrypt } from '../crypto.ts';
+import { decrypt, encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
 import { DEFAULT_PUSH_PREFS, MED_LATE, openNote, pushToMembers, recordNotification } from '../notify.ts';
 import { medicationFeedFilter } from './medications.ts';
@@ -93,16 +93,31 @@ pushRoutes.openapi(createRoute({
   const gatewayExpiresAt = body.gateway ? gatewayExpiry : keepGateway ? existing.gateway_expires_at : null;
   const kid = await deviceOwner(c);
   const prefs = { ...DEFAULT_PUSH_PREFS, ...(existing ? JSON.parse(existing.prefs) : {}), eventReminders: false };
+  const memberIds = JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []);
+  // The app re-registers on every resume: when nothing changed, answer without writing (hosted
+  // pays per row written and re-plans reminders after any write).
+  if (existing && existing.endpoint === endpoint && existing.device_name === body.deviceName && existing.prefs === JSON.stringify(prefs)
+    && JSON.stringify(parseMemberIds(existing.member_ids)) === memberIds && await sameGateway(c.env, existing, body.gateway, gatewayExpiresAt)) {
+    return c.json({ ...await nativePushStatus(c.env, token, 'alert'), subscription: toApi(existing) }, 200);
+  }
   // The same physical phone may sign in again. Move its token out of the previous sign-in so
   // it cannot receive two copies, or continue receiving the previous person's notifications.
   await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND id != ?').bind(endpoint, id).run();
   await c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at,gateway_credential,gateway_expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs,gateway_credential=excluded.gateway_credential,gateway_expires_at=excluded.gateway_expires_at')
     .bind(id, keyId, grant, endpoint, '', await encrypt(c.env, token, id), body.deviceName,
-      JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []),
-      JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
+      memberIds, JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
   const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
   return c.json({ ...await nativePushStatus(c.env, token, 'alert'), subscription: toApi(row!) }, 200);
 });
+
+/** Whether a re-registration leaves the stored gateway as it is: none sent (kept), none sent to
+ * clear an absent one, or the same credential and expiry (stored encrypted, so compared opened). */
+async function sameGateway(env: Env, row: PushSubRow, sent: { credential: string } | null | undefined, expiresAt: number | null | undefined): Promise<boolean> {
+  if (sent === undefined) return true;
+  if (sent === null) return row.gateway_credential === null;
+  if (!row.gateway_credential || row.gateway_expires_at !== expiresAt) return false;
+  return (await decrypt(env, row.gateway_credential, gatewayAad(row.id)).catch(() => null)) === sent.credential;
+}
 
 pushRoutes.openapi(createRoute({
   method: 'put', path: '/api/push/android', tags: ['Push'], security: [{ Bearer: [] }],

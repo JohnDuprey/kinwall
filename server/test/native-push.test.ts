@@ -167,3 +167,21 @@ test('native push: child targeting, generic medicine text, Time Sensitive alerts
   await db.prepare("UPDATE api_keys SET expires_at = '2000-01-01T00:00:00Z' WHERE id = ?").bind(phone.id).run();
   assert.equal(await pushToMembers(env, [], { title: 'Test', body: 'Expired sign-in' }), 0);
 });
+
+// The app re-registers on every resume; an unchanged registration must not write (hosted pays per
+// row and re-plans reminders after any write).
+test('native push: re-registering an unchanged token writes nothing', async () => {
+  const { env, request, register } = await fixture();
+  const first = await register();
+  const writes: string[] = [];
+  const real = env.DB;
+  env.DB = { prepare: (sql: string) => { if (/^\s*(INSERT|UPDATE|DELETE)/i.test(sql)) writes.push(sql); return real.prepare(sql); }, batch: (s: any) => real.batch(s) } as Env['DB'];
+  const again = await register();
+  assert.equal(writes.length, 0, writes.join('; '));
+  assert.deepEqual(again.subscription, first.subscription);
+  assert.equal(again.push, true);
+  const renamed = await request('/api/push/native', 'PUT', { token: TOKEN, deviceName: 'Kitchen iPad' });
+  assert.equal(renamed.status, 200);
+  assert.ok(writes.some((sql) => sql.includes('push_subscriptions')), 'a change still saves');
+  assert.equal(((await renamed.json()) as any).subscription.deviceName, 'Kitchen iPad');
+});
