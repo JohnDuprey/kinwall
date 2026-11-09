@@ -4968,5 +4968,8 @@
   "{n} late chores": "{n} verspätete Aufgaben",
   "Late chores": "Verspätete Aufgaben",
   "Mark {title} done": "{title} als erledigt markieren",
-  "Was due {day}": "Fällig am {day}"
+  "Was due {day}": "Fällig am {day}",
+  "Push notifications need this server's Public URL. A grown-up can set it in Settings → Calendars → Calendar providers. Until then, this phone's own reminders stay on.": "Push-Benachrichtigungen brauchen die öffentliche URL dieses Servers. Ein Erwachsener kann sie unter Einstellungen → Kalender → Kalenderanbieter festlegen. Bis dahin bleiben die eigenen Erinnerungen dieses Handys eingeschaltet.",
+  "This phone couldn't be verified for push notifications, so its own reminders stay on. Kinwall needs to come from the app store, on a phone that isn't rooted or jailbroken.": "Dieses Handy konnte für Push-Benachrichtigungen nicht überprüft werden, daher bleiben seine eigenen Erinnerungen eingeschaltet. Kinwall muss aus dem App Store stammen, auf einem Handy ohne Root oder Jailbreak.",
+  "The server didn't accept this phone for push notifications, so its own reminders stay on. Whoever runs your Kinwall server can check its log for the reason.": "Der Server hat dieses Handy nicht für Push-Benachrichtigungen angenommen, daher bleiben seine eigenen Erinnerungen eingeschaltet. Wer euren Kinwall-Server betreibt, findet den Grund im Protokoll."
 }

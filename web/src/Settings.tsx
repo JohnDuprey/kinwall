@@ -42,7 +42,7 @@ import { countDrawings } from './drawings-db.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { appChoreNudgeAnyone, setAppChoreNudgeAnyone, appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
+import { appChoreNudgeAnyone, setAppChoreNudgeAnyone, appNativePush, appPushReady, appPushProblem, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -905,6 +905,14 @@ function AnyoneChoreReminder({ on, change }: { on: boolean; change: (on: boolean
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
  * per-device, not a household setting. */
+
+/** Why this app's push notifications are off, in words a family can act on. */
+function pushOffReason(problem: ReturnType<typeof appPushProblem>): string {
+  if (problem === 'address') return t("Push notifications need this server's Public URL. A grown-up can set it in Settings → Calendars → Calendar providers. Until then, this phone's own reminders stay on.")
+  if (problem === 'device') return t("This phone couldn't be verified for push notifications, so its own reminders stay on. Kinwall needs to come from the app store, on a phone that isn't rooted or jailbroken.")
+  if (problem === 'server') return t("The server didn't accept this phone for push notifications, so its own reminders stay on. Whoever runs your Kinwall server can check its log for the reason.")
+  return t('This server has not enabled push delivery for this app yet. Local reminders remain on.')
+}
 function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   // iPhone app: whether Live Activities are on (the app updates window.kinwallNative when it comes back).
   const [liveActivities, setLiveActivities] = useState(appLiveActivities)
@@ -1061,7 +1069,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
       {appNativePush() && <>
         <p className="settings-row-sub">{t('Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through push notifications.')}</p>
-        {sub && !appPushReady() && <p className="settings-row-sub">{t('This server has not enabled push delivery for this app yet. Local reminders remain on.')}</p>}
+        {sub && !appPushReady() && <p className="settings-row-sub">{pushOffReason(appPushProblem())}</p>}
         {nativeDetails}
       </>}
       {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}

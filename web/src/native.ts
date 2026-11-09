@@ -319,6 +319,11 @@ export function appNativePush(): boolean {
 export function appPushReady(): boolean {
   return (window as Window & { kinwallNative?: { pushReady?: boolean } }).kinwallNative?.pushReady === true
 }
+/** Why the app's push stayed off (kinwall-mobile's PushProblem), or null: older apps don't say. */
+export function appPushProblem(): 'address' | 'device' | 'server' | null {
+  const p = (window as Window & { kinwallNative?: { pushProblem?: unknown } }).kinwallNative?.pushProblem
+  return p === 'address' || p === 'device' || p === 'server' ? p : null
+}
 export function setAppPushEnabled(on: boolean) {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'nativePush', on })
