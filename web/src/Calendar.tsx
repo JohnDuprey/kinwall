@@ -1046,7 +1046,8 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
     else onToggleMember(memberId)
   }
   const { background: detailBar } = eventVisual(event, members, categories, 10)
-  const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? t('another calendar')
+  const calendarEntry = calendars.find(c => c.id === event.calendarId)
+  const calendarName = calendarEntry?.name ?? t('another calendar')
   const scopeLabel = memberScopeLabel(event.memberScope)
   const catLabel = categoryLabel(event, categories)
   return (
@@ -1071,6 +1072,11 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
         {event.rrule && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
             <RepeatIcon width={18} height={18} />{t('Repeats')}
+          </div>
+        )}
+        {calendarEntry && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
+            <CalendarIcon width={18} height={18} style={{ flexShrink: 0 }} />{calendarEntry.name}
           </div>
         )}
         {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>{catLabel}</div>}
@@ -1141,7 +1147,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             {t('Only the family members and travel time are saved in Kinwall — the event itself comes from {calendar}.', { calendar: calendarName })}
           </div>
         )}
-        {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} choosing={hiding} setChoosing={setHiding} />}
+        {parent && <HideSection event={event} calendar={calendarEntry} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} choosing={hiding} setChoosing={setHiding} />}
         {canEdit && !event.readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={() => { setHiding(false); onDelete() }}>{t('Delete event')}</button></div>}
       </div>
     </Sheet>

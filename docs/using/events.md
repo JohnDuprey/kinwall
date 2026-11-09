@@ -9,6 +9,7 @@ Tap an event to open its sheet. It shows:
 * **When**: the date and time range, or "All day". Multi-day all-day events show their date range.
 * **Location**: a link. If the location contains a URL (a video-call link), that URL opens. A street address opens Apple Maps on Apple devices and Google Maps elsewhere. Obviously virtual places ("Zoom", "Teams", "online", "TBD") stay plain text.
 * **Repeats**, if the event recurs.
+* **Calendar**: the name of the calendar the event is on.
 * **Category**: "🎂 Birthdays". See [Categories](categories.md).
 * **Reminder**: "🔔 30 min before". "· default" is added when it comes from the household default.
 * **Family member chips**: tap to tag or untag people. See [Members on events](#members-on-events).
