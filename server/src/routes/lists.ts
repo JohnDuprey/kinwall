@@ -1194,6 +1194,7 @@ listsRoutes.openapi(
     // that store or for anywhere (and stays "anywhere"); either way it's remembered for that store.
     const trip = body.aisleStore !== undefined && body.aisle !== undefined ? { store: body.aisleStore, aisle: body.aisle } : null;
     if (trip) updated.aisle = !updated.store || updated.store === trip.store ? trip.aisle : existing.aisle;
+    // Like meal projection, automatic grocery restocking emits changes without push notifications.
     const restock = await restockWrites(c, existing, updated, by, now);
     await c.env.DB.batch([
       ...restock.writes,
