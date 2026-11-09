@@ -183,8 +183,8 @@ mcpOAuthRoutes.post('/oauth/register', async (c) => {
     return oauthError(c, 'invalid_client_metadata', 'body must be JSON');
   }
   const uris = Array.isArray(body.redirect_uris) ? body.redirect_uris.filter((u): u is string => typeof u === 'string') : [];
-  if (uris.length === 0 || uris.length > 5 || uris.some((u) => u.length > 500 || !redirectUriAllowed(u))) {
-    return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-5 https URLs, loopback http URLs, or reverse-domain app links (like com.example.app:/oauth), without fragments');
+  if (uris.length === 0 || uris.length > 10 || uris.some((u) => u.length > 500 || !redirectUriAllowed(u))) {
+    return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-10 https URLs, loopback http URLs, or reverse-domain app links (like com.example.app:/oauth), without fragments');
   }
   // The Kinwall app's link is its own: a client that uses it uses nothing else.
   if (uris.some(isDeviceAppLink) && !uris.every(isDeviceAppLink)) {

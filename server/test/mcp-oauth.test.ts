@@ -155,6 +155,11 @@ test('oauth: registration and authorize only send the browser to registered, saf
     assert.equal(res.status, 400, bad);
   }
   assert.equal((await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ redirect_uris: ['http://127.0.0.1:3334/cb'] }) })).status, 201);
+  // The Gemini app registers six at once (sandbox, test and production relays, /r/ and /a/ paths).
+  const gemini = ['sandbox.', 'test.', ''].flatMap((env) => ['r', 'a'].map((p) => `https://${env}oauth-redirect.googleusercontent.com/${p}/gemini`));
+  assert.equal((await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'Gemini', redirect_uris: gemini }) })).status, 201, 'six redirects');
+  const many = Array.from({ length: 11 }, (_, i) => `https://ok.example/cb${i}`);
+  assert.equal((await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ redirect_uris: many }) })).status, 400, 'eleven is too many');
 
   const reg = await (await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ redirect_uris: [REDIRECT] }) })).json() as any;
   const { challenge } = pkce();
