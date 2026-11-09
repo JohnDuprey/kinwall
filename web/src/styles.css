@@ -784,6 +784,14 @@ button.month-cell .month-daynum { flex: none; }
    The app's own header, tabs, rail and add button give way, so the field and its Add/Save get the
    ~170-380px a phone or tablet on its side has left. They come back when the keyboard goes down. */
 :root[data-keyboard] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint) { display: none; }
+/* WebKit pans the visual viewport to a focused field while keeping the full page height.
+   Fit the main page to the visible area, as sheets do, and replace the hidden header's safe-area
+   space. A sticky list add bar then stays below the status strip and above the keyboard.
+   Android resizes the page instead, so both keyboard offsets are zero there. */
+:root[data-keyboard] .app-shell {
+  position: fixed; left: 0; right: 0; top: var(--kbd-top, 0px); bottom: var(--kbd, 0px);
+  height: auto; padding-top: var(--safe-t);
+}
 /* The keyboard covers the home indicator: a sheet's buttons sit right on it (or on the iPhone's ↑ ↓ ✓
    bar), with no strip of page between them. */
 :root[data-keyboard] .sheet .sheet-actions { padding-bottom: 6px; }
@@ -1467,7 +1475,7 @@ button.month-cell .month-daynum { flex: none; }
 }
 .list-add-bar input {
   flex: 1; min-width: 0; min-height: var(--ctl-h); padding: 0 14px; border-radius: var(--radius-sm);
-  border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: 0.9375rem;
+  border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: max(1rem, 16px); /* prevent iPhone focus zoom */
 }
 .list-add-bar .icon-btn { width: var(--ctl-h); height: var(--ctl-h); background: var(--accent-strong); color: var(--accent-ink); flex-shrink: 0; }
 /* In a sheet, stick to the very top of the scroll area (over .sheet-body's 4px top padding) so rows
