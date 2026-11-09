@@ -482,6 +482,13 @@ chores.push(
 for (const [id, memberId] of [['ch-table-maya', 'm3'], ['ch-table-leo', 'm4']]) chores.push({ id, title: 'Set the table', emoji: '🍽️', memberId, points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 12, listId: null, pluginId: null, pluginMinutes: null, groupId: 'g-table' })
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
 completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), memberId: 'm3', points: 5 })
+// Most repeating chores were done their last time, so the Board's late chores show a few, not all: Sam's
+// Make bed and Leo's Tidy toys (a checklist, so Done opens it in Chores) were missed.
+for (const id of ['ch2', 'ch3', 'ch5', 'ch7', 'ch8']) {
+  const c = chores.find(x => x.id === id)!
+  const n = [1, 2, 3, 4, 5, 6, 7].find(n => dueOn(c, dateOnly(-n)))
+  if (n) completions.set(`${id}:${dateOnly(-n)}`, { completedAt: at(-n, 18), memberId: c.memberId, points: c.points })
+}
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
 // parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
 const SUGGESTIONS_KEY = 'kinwall.demoSuggestions'
