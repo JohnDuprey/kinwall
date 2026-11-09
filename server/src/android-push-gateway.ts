@@ -16,16 +16,20 @@ const call = (env: Env, path: string, credential: string, body?: unknown, method
 
 export async function verifyAndroidGateway(env: Env, credential: string, token: string): Promise<number | null> {
   if (!AndroidGatewayInput.safeParse({ credential }).success) return null;
+  // Why a phone's credential was refused, for whoever runs the server: addresses and statuses only.
+  const refuse = (why: string) => { console.warn(`Android push: a phone's gateway registration wasn't accepted: ${why}`); return null; };
   try {
     const server = await fcmOrigin(env);
-    if (!server) return null;
+    if (!server) return refuse('this server has no public url: set PUBLIC_URL or the public url under calendar providers');
     const response = await call(env, '/registration/verify', credential);
-    if (response.status !== 200) return null;
+    if (response.status !== 200) return refuse(`the push gateway answered ${response.status}`);
     const metadata = z.object({ server: z.string(), kind: z.literal('android-alert'), tokenHash: z.string(), expiresAt: z.number().int() }).safeParse(await smallJson(response));
-    if (!metadata.success) return null;
+    if (!metadata.success) return refuse('the push gateway sent an unexpected answer');
     const m = metadata.data, now = Date.now();
-    return m.server === server && m.tokenHash === await sha256Hex(token) && m.expiresAt > now && m.expiresAt <= now + 30 * 86400000 + 300000 ? m.expiresAt : null;
-  } catch { return null; }
+    if (m.server !== server) return refuse(`it was issued for ${m.server} but this server is ${server}`);
+    if (m.tokenHash !== await sha256Hex(token)) return refuse('it was issued for another notification token');
+    return m.expiresAt > now && m.expiresAt <= now + 30 * 86400000 + 300000 ? m.expiresAt : refuse('it has expired or lasts too long');
+  } catch { return refuse('the push gateway could not be reached'); }
 }
 
 type Stored = { id: string; gateway_credential: string | null; gateway_expires_at: number | null; gateway_server: string | null };
@@ -42,13 +46,15 @@ async function registrationFor(env: Env, token: string) {
 }
 
 /** Protocol support is explicit so older direct-only servers never trigger mobile enrollment.
- * Readiness covers all native alerts, including medicine/daily chores; events stay local. */
-export async function androidPushStatus(env: Env, token: string): Promise<{ push: boolean; delivery: 'direct' | 'gateway' | 'unavailable'; gatewayAvailable: boolean; gatewayExpiresAt?: number }> {
-  const gatewayAvailable = !!await fcmOrigin(env);
-  if ((await fcmPushStatus(env)).push) return { push: true, delivery: 'direct', gatewayAvailable };
+ * Readiness covers all native alerts, including medicine/daily chores; events stay local.
+ * gatewayServer is the canonical origin the app enrolls with: the gateway binds a credential to it,
+ * and a family often reaches its server on another address (a LAN IP, a different port). */
+export async function androidPushStatus(env: Env, token: string): Promise<{ push: boolean; delivery: 'direct' | 'gateway' | 'unavailable'; gatewayAvailable: boolean; gatewayServer: string | null; gatewayExpiresAt?: number }> {
+  const gatewayServer = await fcmOrigin(env), gatewayAvailable = !!gatewayServer;
+  if ((await fcmPushStatus(env)).push) return { push: true, delivery: 'direct', gatewayAvailable, gatewayServer };
   const registration = await registrationFor(env, token);
-  return registration ? { push: true, delivery: 'gateway', gatewayAvailable, gatewayExpiresAt: registration.expiresAt }
-    : { push: false, delivery: 'unavailable', gatewayAvailable };
+  return registration ? { push: true, delivery: 'gateway', gatewayAvailable, gatewayServer, gatewayExpiresAt: registration.expiresAt }
+    : { push: false, delivery: 'unavailable', gatewayAvailable, gatewayServer };
 }
 
 export async function sendAndroidAlert(env: Env, token: string, payload: NativeAlert): Promise<NativePushResult> {

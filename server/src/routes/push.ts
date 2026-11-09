@@ -124,7 +124,7 @@ pushRoutes.openapi(createRoute({
   summary: 'Register this Android device for FCM; preserve preferences and replace rotated tokens',
   request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().max(4096).refine(validFcmToken, 'Expected an opaque FCM token'), deviceName: z.string().min(1).max(100).default('Android'), gateway: AndroidGatewayInput.nullable().optional() }).strict() } } } },
   responses: {
-    200: { description: 'Full native alert capability, not confirmation of device delivery; event reminders remain local', content: { 'application/json': { schema: NativePushStatusSchema.extend({ gatewayAvailable: z.boolean(), subscription: PushSubscriptionSchema }) } } },
+    200: { description: 'Full native alert capability, not confirmation of device delivery; event reminders remain local', content: { 'application/json': { schema: NativePushStatusSchema.extend({ gatewayAvailable: z.boolean(), gatewayServer: z.string().nullable().openapi({ description: "This server's canonical origin (PUBLIC_URL, else the saved public address), which the app enrolls with at the push gateway; null when neither is set." }), subscription: PushSubscriptionSchema }) } } },
     400: { description: 'not a device key', content: { 'application/json': { schema: ErrorSchema } } },
   },
 }), async c => {

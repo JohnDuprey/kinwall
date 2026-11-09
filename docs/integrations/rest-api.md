@@ -278,8 +278,11 @@ Push subscription `prefs.newChores` (default false) sends a push when an active 
 authenticated Kinwall app sign-in or paired device key. `token` is an opaque, case-sensitive FCM registration token
 (1–4096 printable non-space ASCII characters), never an APNs token or an Expo Push Service token.
 The response is `{push, delivery: 'direct' | 'gateway' | 'unavailable', gatewayAvailable,
-gatewayExpiresAt?, subscription}` using the existing
-subscription shape (`id`, `deviceName`, `memberIds`, `prefs`, `createdAt`, `lastSuccessAt`). Tokens
+gatewayServer, gatewayExpiresAt?, subscription}` using the existing
+subscription shape (`id`, `deviceName`, `memberIds`, `prefs`, `createdAt`, `lastSuccessAt`).
+`gatewayServer` is the canonical family origin (null without one). The app enrolls at the push
+gateway with it rather than the address it connects through, because the server only accepts a
+gateway credential bound to its canonical origin. Tokens
 are encrypted with the family key and identified by transport-specific SHA-256 fingerprints;
 they are never returned. Re-registration keeps the stable OAuth grant or paired-key subscription,
 preferences and followed members, and transfers a reused token away from its previous sign-in.

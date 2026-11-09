@@ -326,3 +326,31 @@ test('Android gateway capability cannot enable Apple Live Activity delivery', as
   const { nativePushConfigured } = await import('../src/native-push.ts');
   assert.equal(await nativePushConfigured(env), false, 'Apple readiness ignores Android capabilities');
 });
+
+test('Android push status names the canonical origin the app enrolls with, so an app on another address still verifies', async () => {
+  const { DB, env, metadata, request, register } = await fixture();
+  const status = await (await request('/api/push/android', 'PUT', { token: TOKEN })).json() as any;
+  assert.equal(status.gatewayServer, ORIGIN, 'the origin of PUBLIC_URL, not the address the request came in on');
+  // A saved address works the same; without any, there's nothing to enroll with.
+  env.PUBLIC_URL = undefined;
+  assert.equal((await (await request('/api/push/android', 'PUT', { token: TOKEN })).json() as any).gatewayServer, null);
+  await DB.prepare("INSERT INTO settings(key,value) VALUES ('publicUrl','http://kinwall.local:8080/path')").run();
+  assert.equal((await (await request('/api/push/android', 'PUT', { token: TOKEN })).json() as any).gatewayServer, 'http://kinwall.local:8080');
+  // The app enrolled with that origin (the gateway's metadata), whatever address it connects through.
+  metadata.server = 'http://kinwall.local:8080';
+  const result = await (await register()).json() as any;
+  assert.equal(result.push, true); assert.equal(result.gatewayServer, 'http://kinwall.local:8080');
+});
+
+test('Android gateway: a refused credential logs why, naming addresses but never the credential or token', async () => {
+  const { metadata, register } = await fixture();
+  const logged: string[] = [], warn = console.warn;
+  console.warn = (...a: unknown[]) => { logged.push(a.join(' ')); };
+  try {
+    metadata.server = 'http://192.168.1.20:8080';
+    assert.equal((await register()).status, 400);
+  } finally { console.warn = warn; }
+  assert.equal(logged.length, 1);
+  assert.match(logged[0]!, /http:\/\/192\.168\.1\.20:8080/); assert.match(logged[0]!, /https:\/\/our-family\.example/);
+  assert.ok(!logged[0]!.includes(CREDENTIAL) && !logged[0]!.includes(TOKEN));
+});
