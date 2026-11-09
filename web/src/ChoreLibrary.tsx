@@ -240,7 +240,7 @@ export function LibraryEditSheet({ item, onClose, onSaved }: { item: LibraryChor
         <label htmlFor="lib-checklist">{t('Checklist (optional)')}</label>
         <select id="lib-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
           <option value="">{t('None')}</option>
-          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
+          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
         </select>
       </div>
       <div className="field">

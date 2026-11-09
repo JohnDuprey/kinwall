@@ -1220,7 +1220,7 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
     load()
     api.getLists().then(ls => {
       setLists(ls)
-      setListId(id => ls.some(l => l.id === id) ? id : (ls.find(l => l.kind === 'todo') ?? ls[0])?.id ?? '')
+      setListId(id => ls.some(l => l.id === id) ? id : (ls.find(l => l.kind === 'todo' && l.purpose !== 'pantry') ?? ls[0])?.id ?? '')
     }).catch(() => setLists([]))
   }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = async (item: ListItem) => {

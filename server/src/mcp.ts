@@ -18,7 +18,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { ChoreGoalSchema, BoardSchema, ChoreDateCountSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, MilestoneSchema, MilestoneInputSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
+import { ChoreGoalSchema, BoardSchema, ChoreDateCountSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, PantryExpiringSchema, PantrySuggestionsSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, MilestoneSchema, MilestoneInputSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -208,14 +208,17 @@ const BIRTHDAY_DOC = 'YYYY-MM-DD, or --MM-DD when the year is unknown (age is th
 const NOTE_TARGET_DOC = 'event:<eventId> (from list_events) or list_item:<itemId> (from get_list).';
 const SORT_BY_DOC = 'Item order: manual (priority first, overdue first, then hand-set order), added (newest first), due (soonest first, undated last), priority (priority, then soonest due), alpha (A-Z), aisle (shopping lists: by store, then the store\'s aisle order - custom when set, else natural - no aisle last, then A-Z; the default for new shopping lists).';
 const AISLE_DOC = 'Where in the store, e.g. "Aisle 4", "Produce" or "Back wall" (per store).';
-const CATEGORY_DOC = 'On a shopping list this is the department (e.g. "Produce"): with no aisle known at a store, the item shows in that store\'s aisle of the same name.';
+const CATEGORY_DOC = 'On a shopping list this is the department (e.g. "Produce"): with no aisle known at a store, the item shows in that store\'s aisle of the same name. On a pantry list, where it\'s kept (e.g. "Fridge", "Freezer", "Pantry").';
 const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name on lists of the same type (Groceries or Shopping).';
-const KIND_DOC = 'groceries (food and household groceries; meals add ingredients here), shopping (other shopping, e.g. a hardware store; both are grouped by aisle or store, an item\'s category is its department, and each type has its own catalog), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset). groceries and shopping both come back as kind shopping, with catalog groceries or shopping.';
+const KIND_DOC = 'groceries (food and household groceries; meals add ingredients here), shopping (other shopping, e.g. a hardware store; both are grouped by aisle or store, an item\'s category is its department, and each type has its own catalog), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset), pantry (food the family has at home: an item\'s dueDate is its use-by date and its category is where it\'s kept, e.g. Fridge, Freezer or Pantry; checking it off means it\'s used up; sorted soonest use-by first). groceries and shopping both come back as kind shopping, with catalog groceries or shopping; pantry comes back as kind todo with purpose pantry.';
 const CATALOG_ARG = z.enum(['groceries', 'shopping']).optional().describe('Which catalog: groceries (Groceries lists; the default) or shopping (other shopping lists).');
 /** An MCP list kind as the REST fields: groceries/shopping are shopping lists of that type. On create,
  * plain shopping lets a grocery-named list be Groceries (older callers made "Groceries" as shopping). */
-function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable', explicit: boolean) {
+function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable' | 'pantry', explicit: boolean) {
   if (kind === 'groceries') return { kind: 'shopping', catalog: 'groceries' };
+  // A pantry list is a to-do list with purpose pantry (REST); naming todo on a change makes it a plain one.
+  if (kind === 'pantry') return { kind: 'todo', purpose: 'pantry' };
+  if (kind === 'todo' && explicit) return { kind, purpose: null };
   if (kind === 'shopping') return explicit ? { kind, catalog: 'shopping' } : { kind };
   return { kind };
 }
@@ -223,6 +226,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, favorite_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
+  get_expiring_food: PantryExpiringSchema.shape, suggest_meals_from_pantry: PantrySuggestionsSchema.shape,
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
   list_events: { events: z.array(EventInstanceSchema) },
@@ -339,6 +343,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_reward_milestones: READ, create_reward_milestone: WRITE, update_reward_milestone: SET, mark_milestone_given: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
+  get_expiring_food: READ, suggest_meals_from_pantry: READ,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, move_list_items: SET, update_category: SET, add_note: WRITE, update_note: SET,
   create_contact: WRITE, update_contact: SET, create_contact_category: WRITE, update_contact_category: SET,
   send_notification: { ...WRITE, openWorldHint: true },
@@ -1509,7 +1514,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_lists',
     {
       title: 'List lists',
-      description: 'List all lists with item and open counts. kind is todo, shopping or reusable; a shopping list\'s catalog is its type: groceries (Groceries) or shopping (other shopping, e.g. a hardware store). isDefault marks the family\'s default list for its type.',
+      description: 'List all lists with item and open counts. kind is todo, shopping or reusable; a to-do list with purpose pantry is food at home, with use-by dates (overdueCount is how many have expired); a shopping list\'s catalog is its type: groceries (Groceries) or shopping (other shopping, e.g. a hardware store). isDefault marks the family\'s default list for its type.',
       inputSchema: { archived: z.boolean().optional().describe('Include archived lists. Default: false.') },
     },
     async ({ archived }) => {
@@ -1528,22 +1533,23 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       description: `Create a list. Kinds: ${KIND_DOC}`,
       inputSchema: {
         name: z.string().describe('List name, e.g. "Groceries".'),
-        kind: z.enum(['groceries', 'shopping', 'todo', 'reusable']).optional().describe('Default: todo. shopping: a new list named like groceries (Groceries, Food, Market...) is made a Groceries list.'),
+        kind: z.enum(['groceries', 'shopping', 'todo', 'reusable', 'pantry']).optional().describe('Default: todo. shopping: a new list named like groceries (Groceries, Food, Market...) is made a Groceries list.'),
         emoji: z.string().optional().describe('A single emoji shown with the list.'),
         members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids. Default: the whole family.'),
+        restock: z.boolean().optional().describe('Pantry lists: add food to the grocery list when it\'s checked off (used up). Default false.'),
       },
     },
-    async ({ name, kind, emoji, members }) => {
+    async ({ name, kind, emoji, members, restock }) => {
       let memberIds: string[];
       try {
         memberIds = await resolveMemberIds(app, env, auth, members);
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', '/api/lists', { name, ...listKind(kind ?? 'todo', false), emoji, memberIds });
+      const res = await call(app, env, auth, 'POST', '/api/lists', { name, ...listKind(kind ?? 'todo', false), emoji, memberIds, ...(restock !== undefined ? { restock } : {}) });
       if (res.status >= 400) return errorResult(res.json, 'failed to create list');
-      const list = res.json as { name: string; kind: string; catalog: string | null };
-      return okResult(`Created ${list.catalog ?? list.kind} list "${list.name}".`, { list: res.json as Record<string, unknown> });
+      const list = res.json as { name: string; kind: string; catalog: string | null; purpose?: string | null };
+      return okResult(`Created ${list.purpose ?? list.catalog ?? list.kind} list "${list.name}".`, { list: res.json as Record<string, unknown> });
     },
   );
 
@@ -1590,7 +1596,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
               onSale: z.boolean().optional().describe('Shopping lists: true when it is on sale. Cleared when it is checked off.'),
               member: z.string().optional().describe('Member name or id to assign this item to.'),
               forMembers: jsonList(z.array(z.string())).optional().describe('Who it is for: member names or ids, e.g. ["Maya"] for a watch band for Maya. Left out = for everyone. Use this instead of writing the name in the title.'),
-              dueDate: z.string().optional().describe('YYYY-MM-DD.'),
+              dueDate: z.string().optional().describe('YYYY-MM-DD. On a pantry list, the use-by (or best-by) date.'),
               eventId: z.string().optional().describe(EVENT_ID_DOC),
               priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().describe(PRIORITY_DOC),
               steps: jsonList(z.array(z.string())).optional().describe('Ordered sub-steps, e.g. ["Pick up toys", "Fluff cushions"]. The item completes when every step is done.'),
@@ -2166,7 +2172,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'set_list_item_done',
     {
       title: 'Set list item done',
-      description: 'Mark a list item done or not done. Marking it done ticks all its steps; not done unticks them.',
+      description: 'Mark a list item done or not done. Marking it done ticks all its steps; not done unticks them. On a pantry list, done means used up; with the list\'s restock on, that also adds it to the grocery list (and not done takes it back off).',
       inputSchema: { listId: z.string(), itemId: z.string(), done: z.boolean() },
     },
     async ({ listId, itemId, done }) => {
@@ -2233,6 +2239,76 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     },
   );
 
+  // The pantry: food at home on pantry lists, with use-by dates (routes/pantry.ts).
+  const pantryQuery = async (days: number | undefined, list: string | undefined, extra: Record<string, string> = {}) => {
+    const query = new URLSearchParams(extra);
+    if (days !== undefined) query.set('days', String(days));
+    if (list) query.set('listId', (await resolveList(app, env, auth, list)).id);
+    return query;
+  };
+  const useByText = (i: { title: string; useBy: string | null; daysLeft: number | null; kept: string | null; quantity: string | null }) => {
+    const when = i.daysLeft === null ? 'no date' : i.daysLeft < 0 ? `expired ${i.useBy}` : i.daysLeft === 0 ? 'use today' : i.daysLeft === 1 ? 'use by tomorrow' : `use by ${i.useBy}`;
+    return `${i.title}${i.quantity ? ` (${i.quantity})` : ''}: ${when}${i.kept ? `, ${i.kept}` : ''}`;
+  };
+  const pantryDays = z.number().int().min(0).max(365).optional().describe('Expiring means a use-by date within this many days (0: today and anything past it). Default 7.');
+  const pantryList = z.string().optional().describe('Only this pantry list (id or name). Default: every pantry list.');
+
+  tool(
+    'get_expiring_food',
+    {
+      title: 'Get expiring food',
+      description: 'Food to use soon: open items on the family\'s pantry lists whose use-by date is within `days`, soonest first, expired ones included (status expired, today, soon = within 3 days, later). Each has where it\'s kept and its item id; mark one used up with set_list_item_done, or change its date with update_list_item (dueDate).',
+      inputSchema: { days: pantryDays, list: pantryList },
+    },
+    async ({ days, list }) => {
+      let query: URLSearchParams;
+      try { query = await pantryQuery(days, list); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'list lookup failed'); }
+      const res = await call(app, env, auth, 'GET', `/api/pantry/expiring?${query}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to read the pantry');
+      const data = res.json as { days: number; items: Parameters<typeof useByText>[0][] };
+      return okResult(data.items.length ? `${data.items.length} to use within ${data.days} day(s): ${data.items.map(useByText).join('; ')}.` : `Nothing in the pantry expires within ${data.days} day(s).`, data as unknown as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'suggest_meals_from_pantry',
+    {
+      title: 'Suggest meals from the pantry',
+      description: 'What to eat to use up food before it expires. Ranks the family\'s own meal recipes by the expiring pantry items they use (sooner counts more), with which items each uses, what else it uses from the pantry, and what\'s missing (salt, pepper, oil and water are assumed). `unmatched` lists expiring items no suggested recipe uses: suggest new ideas for those yourself (simple, family-friendly, using what the pantry has), and if the family likes one, save it with create_recipe. To put a meal on the plan use create_meal (recipeId, date, slot); to buy what\'s missing use add_list_items on the Groceries list. Expired items are listed too: say so plainly and let the family decide whether they are still good.',
+      inputSchema: { days: pantryDays, limit: z.number().int().min(1).max(50).optional().describe('How many recipes. Default 10.'), list: pantryList },
+    },
+    async ({ days, limit, list }) => {
+      let query: URLSearchParams;
+      try { query = await pantryQuery(days, list, limit !== undefined ? { limit: String(limit) } : {}); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'list lookup failed'); }
+      const res = await call(app, env, auth, 'GET', `/api/pantry/suggestions?${query}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to suggest meals');
+      const data = res.json as { days: number; expiring: unknown[]; suggestions: { recipe: { name: string }; uses: { title: string; daysLeft: number | null }[]; missing: string[] }[]; unmatched: Parameters<typeof useByText>[0][] };
+      if (!data.expiring.length) return okResult(`Nothing in the pantry expires within ${data.days} day(s).`, data as unknown as Record<string, unknown>);
+      const lines = data.suggestions.map((s, n) => `${n + 1}. ${s.recipe.name}: uses ${s.uses.map((u) => u.title).join(', ')}${s.missing.length ? `; needs ${s.missing.join(', ')}` : '; nothing to buy'}`);
+      const rest = data.unmatched.length ? `No saved recipe uses: ${data.unmatched.map(useByText).join('; ')}.` : '';
+      return okResult([lines.length ? `Recipes that use up what's expiring:\n${lines.join('\n')}` : 'None of the saved recipes use what\'s expiring.', rest].filter(Boolean).join('\n'), data as unknown as Record<string, unknown>);
+    },
+  );
+
+  // A ready-made request for assistants that show prompts (a slash command in some clients).
+  server.registerPrompt(
+    'use_it_up',
+    {
+      title: 'Use it up',
+      description: 'Plan meals around the food that expires soonest.',
+      argsSchema: { days: z.string().regex(/^\d{1,3}$/).optional().describe('Look this many days ahead (default 7).') },
+    },
+    ({ days }) => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Help our family use up food before it goes bad. Call suggest_meals_from_pantry${days ? ` with days ${days}` : ''}. Then suggest what to eat over the next few days: start with whatever expires first, prefer our own recipes, and for expiring food none of them use, suggest a few simple, kid-friendly ideas. Say plainly if something has already expired so we can check it. Keep it short. Ask before planning a meal (create_meal), saving a new recipe (create_recipe) or adding missing ingredients to the grocery list (add_list_items).`,
+        },
+      }],
+    }),
+  );
+
   tool(
     'update_list',
     {
@@ -2241,13 +2317,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       inputSchema: {
         list: z.string().describe('List id or name.'),
         name: z.string().optional(),
-        kind: z.enum(['groceries', 'shopping', 'todo', 'reusable']).optional(),
+        kind: z.enum(['groceries', 'shopping', 'todo', 'reusable', 'pantry']).optional(),
         emoji: z.string().optional(),
         members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids; [] = the whole family.'),
         sortBy: z.enum(['manual', 'added', 'due', 'priority', 'alpha', 'aisle']).optional().describe(SORT_BY_DOC),
-        groupBy: z.enum(['store', 'category', 'aisle', 'none']).optional().describe('Group items under store, category or aisle headings, or none. Shopping lists group by aisle, store or none (category reads as aisle there); category is for to-do and reusable lists.'),
-        keepChecked: z.boolean().optional().describe('Checked items stay in place, crossed off, until Checkout (or Reset). Default on for shopping and reusable lists, off for to-do lists.'),
+        groupBy: z.enum(['store', 'category', 'aisle', 'none']).optional().describe('Group items under store, category or aisle headings, or none. Shopping lists group by aisle, store or none (category reads as aisle there); category is for to-do, reusable and pantry lists (on a pantry list, where it\'s kept).'),
+        keepChecked: z.boolean().optional().describe('Checked items stay in place, crossed off, until Checkout (or Reset). Default on for shopping and reusable lists, off for to-do (and pantry) lists.'),
         archived: z.boolean().optional(),
+        restock: z.boolean().optional().describe("Pantry lists: true adds food to the family's default Groceries list when it's checked off (used up), unless it's already there; unticking takes it back off. Turned off when the list stops being a pantry list."),
         isDefault: z.boolean().optional().describe("Shopping lists: true makes it the family's default list for its type (Groceries or Shopping), which add_list_items, barcode scans, meal ingredients and the app's widgets and Siri use; the type's previous default stops being it. false clears it. Admin only."),
       },
     },
@@ -2262,8 +2339,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       }
       const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}`, { ...input, ...(kind ? listKind(kind, true) : {}), ...(memberIds ? { memberIds } : {}) });
       if (res.status >= 400) return errorResult(res.json, 'failed to update list');
-      const updated = res.json as { name: string; kind: string; catalog: string | null };
-      return okResult(`Updated ${updated.catalog ?? updated.kind} list "${updated.name}".`, { list: res.json as Record<string, unknown> });
+      const updated = res.json as { name: string; kind: string; catalog: string | null; purpose?: string | null };
+      return okResult(`Updated ${updated.purpose ?? updated.catalog ?? updated.kind} list "${updated.name}".`, { list: res.json as Record<string, unknown> });
     },
   );
 
@@ -2284,7 +2361,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         onSale: z.boolean().optional().describe('Shopping lists: on sale or not. Checking the item off clears it.'),
         member: z.string().nullable().optional().describe('Member name or id to assign; null to unassign.'),
         forMembers: jsonList(z.array(z.string())).optional().describe('Who it is for: member names or ids; replaces the whole set. [] = for everyone.'),
-        dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear.'),
+        dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear. On a pantry list, the use-by (or best-by) date.'),
         eventId: z.string().nullable().optional().describe(`${EVENT_ID_DOC} null to unlink.`),
         priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().describe(PRIORITY_DOC),
       },

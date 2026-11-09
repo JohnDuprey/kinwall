@@ -316,6 +316,26 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 * containers and handfuls: cans, jars, packages, bunches, pinches, handfuls;
 * anything with a quantity note ("15 oz cans"), or no quantity at all ("to taste").
 
+## Use it up
+
+When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** above the week:
+
+* What to use this week, soonest first: "Spinach (expired)", "Chicken breast (tomorrow)", "Greek yogurt (Tue)". Past its date is marked **⚠** and counted ("1 past its date"), so you can check it before cooking.
+* Up to three of your recipes that use those things up, best first, each with what it uses ("Uses Spinach (today), Chicken breast (tomorrow)") and what you'd still need ("Needs Garlic", or "You have everything"). **Show more recipes** lists the rest.
+* Tap a recipe to open it. **Plan it** (grown-ups) opens a new dinner for today with that recipe, ready to change the day or slot.
+* Food none of your recipes use is listed at the bottom ("No recipe uses Strawberries yet."). Ask an AI assistant connected over [MCP](../integrations/mcp.md) for ideas: its **Use it up** prompt, or just "what should we make with what's expiring?"
+
+How recipes are picked:
+
+* Only meals count, not [basics](#basics) or archived recipes.
+* A recipe ranks higher the more expiring food it uses and the sooner that food expires: something to use today counts most, tomorrow half as much, and so on. Using other things you have helps a little, and each missing ingredient costs a little.
+* Names match when they're the same food, in any case or plural: "Chicken" matches "chicken thighs", "Tomatoes" matches "cherry tomatoes", "Spinach" matches "fresh baby spinach". A different food doesn't match: "Milk" isn't "coconut milk", "Garlic" isn't "garlic powder", "Potatoes" aren't "sweet potatoes", "Beans" aren't "green beans".
+* Each ingredient uses up one thing: with chicken breasts and chicken thighs in the fridge, "Chicken" counts the one that expires first.
+* Salt, pepper, oil and water are assumed: they're never listed as missing and never use anything up ("salt and pepper" doesn't use your peppers).
+* Meal-kit ingredients that ship in the box (**in the kit**) are never listed as missing.
+
+The card hides when nothing expires this week, and while **Lists** is turned off.
+
 ## Adding to the grocery list
 
 **Groceries** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
@@ -368,6 +388,8 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | Method | Path | Does |
 |---|---|---|
 | `GET` | `/api/recipes?search=&category=&archived=&kind=` | Recipes with their ingredients; `kind=basic` or `kind=meal` lists only those. |
+| `GET` | `/api/pantry/expiring?days=&listId=` | Open items on pantry lists with a use-by date within `days` (default 7, 0 to 365; 0 is today and anything past), soonest first: `{ today, days, items: [{ id, listId, listName, title, quantity, kept, useBy, daysLeft, status }] }`. `status` is `expired`, `today`, `soon` (within 3 days) or `later`; `kept` is where it's kept. `listId` limits it to one pantry list (`404` for any other list, or an archived one). |
+| `GET` | `/api/pantry/suggestions?days=&limit=&listId=` | [Use it up](#use-it-up): `{ today, days, expiring, suggestions, unmatched }`. Each suggestion is `{ recipe: { id, name, imageUrl, totalMinutes, rating }, score, uses, alsoHave, missing }`: `uses` are the expiring items it uses (with the `ingredient` each matched), `alsoHave` other pantry items it uses, `missing` its other ingredient names. `unmatched` are expiring items no suggested recipe uses. `limit` 1 to 50 (default 10). |
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
 | `POST` | `/api/recipes/{id}/link-uses` | For a basic: link the other recipes' unlinked ingredient lines that name it `{ linked }` (admin). 400 for a meal. |

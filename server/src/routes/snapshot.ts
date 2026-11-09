@@ -104,7 +104,7 @@ snapshotRoutes.openapi(
       db
         .prepare(
           `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
-           WHERE l.archived = 0 AND ${FLAGGED_OPEN} AND li.member_id = ?
+           WHERE l.archived = 0 AND l.purpose IS NOT 'pantry' AND ${FLAGGED_OPEN} AND li.member_id = ?
            ORDER BY li.due_date IS NULL, li.due_date, ${priorityRankSql('li.priority')}, li.sort`,
         )
         .bind(memberId),
@@ -223,7 +223,7 @@ snapshotRoutes.openapi(
       db.prepare('SELECT chore_id, status FROM chore_completions WHERE date = ?').bind(today),
       db.prepare(
         `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
-         WHERE l.archived = 0 AND ${FLAGGED_OPEN}
+         WHERE l.archived = 0 AND l.purpose IS NOT 'pantry' AND ${FLAGGED_OPEN}
          ORDER BY li.due_date IS NULL, li.due_date, ${priorityRankSql('li.priority')}, li.sort`,
       ),
       stepsQuery(db, FLAGGED_OPEN),

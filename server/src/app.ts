@@ -35,6 +35,7 @@ import { restaurantRoutes } from './routes/restaurants.ts';
 import { recipeShareRoutes } from './routes/recipe-share.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
 import { listsRoutes } from './routes/lists.ts';
+import { pantryRoutes } from './routes/pantry.ts';
 import { keysRoutes } from './routes/keys.ts';
 import { passkeysRoutes } from './routes/passkeys.ts';
 import { recoveryRoutes } from './routes/recovery.ts';
@@ -216,6 +217,7 @@ export function createApp() {
   app.route('/', restaurantRoutes);
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
+  app.route('/', pantryRoutes);
   app.route('/', notesRoutes);
   app.route('/', contactsRoutes);
   app.route('/', stickersRoutes);

@@ -689,7 +689,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
       db.prepare('SELECT * FROM chores WHERE active = 1'),
       // Urgent/important items first (so they make the top 3) and marked.
       db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
-      db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
+      // Food on a pantry list isn't a to-do: its use-by date stays out of the summary.
+      db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? AND list_id NOT IN (SELECT id FROM lists WHERE purpose = 'pantry') ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
       db.prepare("SELECT slot, title FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
       db.prepare('SELECT id, member_ids FROM calendars WHERE enabled = 1'),
     ]);

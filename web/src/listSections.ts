@@ -1,22 +1,27 @@
 import { msg } from './i18n.ts'
-import type { ListCatalog, ListKind } from './types.ts'
+import type { ListCatalog, ListKind, ListPurpose } from './types.ts'
 
 /** What the Lists page and the edit sheet call a list's kind: a shopping list is Groceries or
- * Shopping by its catalog (an older server sends none: groceries). */
-export type ListType = 'groceries' | 'shopping' | 'todo' | 'reusable'
-type Typed = { kind: ListKind; catalog?: ListCatalog | null }
+ * Shopping by its catalog (an older server sends none: groceries), and a to-do list with purpose
+ * pantry is a Pantry list. */
+export type ListType = 'groceries' | 'shopping' | 'pantry' | 'todo' | 'reusable'
+type Typed = { kind: ListKind; catalog?: ListCatalog | null; purpose?: ListPurpose | null }
 type Ordered = { id: string; sort: number; createdAt: string }
 type Sortable = Typed & Ordered
 
-export const listType = (l: Typed): ListType => (l.kind === 'shopping' ? l.catalog ?? 'groceries' : l.kind)
-/** A type as the list's API fields. */
-export const typeFields = (t: ListType): { kind: ListKind; catalog?: ListCatalog } =>
-  t === 'groceries' || t === 'shopping' ? { kind: 'shopping', catalog: t } : { kind: t }
+export const listType = (l: Typed): ListType => (l.kind === 'shopping' ? l.catalog ?? 'groceries' : l.kind === 'todo' && l.purpose === 'pantry' ? 'pantry' : l.kind)
+/** A type as the list's API fields. A plain to-do list says purpose null, so a pantry list changed to To-do stops being one. */
+export const typeFields = (t: ListType): { kind: ListKind; catalog?: ListCatalog; purpose?: ListPurpose | null } =>
+  t === 'groceries' || t === 'shopping' ? { kind: 'shopping', catalog: t } : t === 'pantry' ? { kind: 'todo', purpose: 'pantry' } : t === 'todo' ? { kind: 'todo', purpose: null } : { kind: t }
+/** How a list's items behave: by kind, with a pantry list's own (use-by dates, where it's kept). */
+export type ItemKind = ListKind | 'pantry'
+export const itemKind = (l: Typed): ItemKind => (l.kind === 'todo' && l.purpose === 'pantry' ? 'pantry' : l.kind)
 
-export const TYPE_LABEL: Record<ListType, string> = { groceries: msg('Groceries'), shopping: msg('Shopping'), todo: msg('To-do'), reusable: msg('Reusable') }
+export const TYPE_LABEL: Record<ListType, string> = { groceries: msg('Groceries'), shopping: msg('Shopping'), pantry: msg('Pantry'), todo: msg('To-do'), reusable: msg('Reusable') }
 const SECTIONS: { type: ListType; label: string }[] = [
   { type: 'groceries', label: 'Groceries' },
   { type: 'shopping', label: 'Shopping' },
+  { type: 'pantry', label: 'Pantry' },
   { type: 'todo', label: 'To-dos' },
   { type: 'reusable', label: 'Reusable' },
 ]

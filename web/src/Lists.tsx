@@ -14,7 +14,8 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, InfoIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
+import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, InfoIcon, JarIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
+import { KEPT_STARTERS, expiryLabel, soonestGroupFirst } from './pantry.ts'
 import { announce, filterSortLabel, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -29,7 +30,7 @@ import { shoppingActivity } from './liveActivity.ts'
 import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, tellAppHere, wallCamera } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
-import { aisleGroup, canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
+import { aisleGroup, canChangeItem, itemKind, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ItemKind, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 import { Face, ChipFace, InlineFaces } from './Face'
 import { useBackClose } from './backStack.ts'
@@ -37,8 +38,8 @@ import { intlLocale, t, tn, msg, tm } from './i18n.ts'
 import { TaskSyncAlert, TaskSyncField, TaskSyncLine, useTaskLink } from './TaskApps.tsx'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
-const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
-const TYPE_ORDER: ListType[] = ['todo', 'groceries', 'shopping', 'reusable']
+const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, pantry: JarIcon, reusable: RepeatIcon }
+const TYPE_ORDER: ListType[] = ['todo', 'groceries', 'shopping', 'pantry', 'reusable']
 /** A shopping list's catalog, by type: "Grocery catalog" / "Shopping catalog". */
 const catalogName = (catalog: ListCatalog) => (catalog === 'groceries' ? t('Grocery catalog') : t('Shopping catalog'))
 
@@ -46,12 +47,14 @@ const catalogName = (catalog: ListCatalog) => (catalog === 'groceries' ? t('Groc
 function countLabel(list: List) {
   if (list.itemCount === 0) return t('Empty')
   if (list.openCount === 0) return t('All done')
-  return list.overdueCount ? t('{left} left, {overdue} overdue', { left: list.openCount, overdue: list.overdueCount }) : t('{n} left', { n: list.openCount })
+  if (!list.overdueCount) return t('{n} left', { n: list.openCount })
+  // Food past its use-by date is expired, not overdue.
+  return itemKind(list) === 'pantry' ? t('{left} left, {expired} expired', { left: list.openCount, expired: list.overdueCount }) : t('{left} left, {overdue} overdue', { left: list.openCount, overdue: list.overdueCount })
 }
 /** "3 left · ⚠ 2 overdue": the overdue part in the danger color with an icon, so it's not color alone. */
 function CountLine({ list }: { list: List }) {
   if (!list.overdueCount || list.openCount === 0) return <>{countLabel(list)}</>
-  return <>{t('{n} left', { n: list.openCount })} · <span className="list-overdue">⚠ {t('{n} overdue', { n: list.overdueCount })}</span></>
+  return <>{t('{n} left', { n: list.openCount })} · <span className="list-overdue">⚠ {itemKind(list) === 'pantry' ? t('{n} expired', { n: list.overdueCount }) : t('{n} overdue', { n: list.overdueCount })}</span></>
 }
 
 const SORT_LABEL: Record<ListSortBy, string> = { manual: msg('Manual'), added: msg('Date added'), due: msg('Due date'), priority: msg('Priority'), alpha: msg('A–Z'), aisle: msg('Aisle') }
@@ -68,11 +71,13 @@ const GROUPED_BY: Record<ListGroupBy, string> = { store: msg('Grouped by store')
 const SORTED_BY: Record<ListSortBy, string> = { manual: msg('Your order'), added: msg('Sorted by date added'), due: msg('Sorted by due date'), priority: msg('Sorted by priority'), alpha: msg('Sorted by A–Z'), aisle: msg('Sorted by aisle') }
 const GROUP_LABEL: Record<ListGroupBy, string> = { store: msg('Store'), category: msg('Category'), aisle: msg('Aisle'), none: msg('None') }
 /** What a new list of this kind starts with (the server's defaults); anything else counts on the View button. */
-const listViewDefaults = (kind: ListKind): { groupBy: ListGroupBy; sortBy: ListSortBy } =>
-  kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : { groupBy: 'none', sortBy: 'manual' }
+const listViewDefaults = (kind: ItemKind): { groupBy: ListGroupBy; sortBy: ListSortBy } =>
+  kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : kind === 'pantry' ? { groupBy: 'category', sortBy: 'due' } : { groupBy: 'none', sortBy: 'manual' }
+/** Where a pantry list's food can be kept: the family's own places on this list, after Fridge, Freezer and Pantry. */
+const keptOptions = (items: ListItem[]) => [...new Set([...KEPT_STARTERS.map(k => tm(k)), ...items.map(i => i.category?.trim()).filter((c): c is string => !!c)])]
 /** Reset on a reusable list (unchecks for next time), else Clear checked. A shopping trip's own
  * checkout says "Done shopping" instead (TRIP_DONE_LABEL). */
-const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: msg('Clear checked'), reusable: msg('Reset'), todo: msg('Clear checked') }
+const CHECKOUT_LABEL: Record<ItemKind, string> = { shopping: msg('Clear checked'), reusable: msg('Reset'), todo: msg('Clear checked'), pantry: msg('Clear used up') }
 const TRIP_DONE_LABEL = msg('Done shopping')
 const todayKey = () => dateKey(new Date())
 
@@ -132,7 +137,7 @@ function readCollapsed(): ListType[] {
 }
 
 // A new list's emoji follows its type until one is picked.
-const TYPE_EMOJI: Record<ListType, string> = { todo: '📝', groceries: '🛒', shopping: '🧺', reusable: '📋' }
+const TYPE_EMOJI: Record<ListType, string> = { todo: '📝', groceries: '🛒', shopping: '🧺', pantry: '🥫', reusable: '📋' }
 
 function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
   list: List | 'new'; onClose: () => void; onSaved: (created?: List) => void; onDeleted: () => void
@@ -153,11 +158,12 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
   const [keepTouched, setKeep] = useState<boolean | null>(null)
   const keepChecked = keepTouched ?? (existing && kind === existing.kind ? existing.keepChecked : kind !== 'todo')
   const [isDefault, setDefault] = useState(!!existing?.isDefault)
+  const [restock, setRestock] = useState(!!existing?.restock) // pantry lists: used-up food goes on the grocery list
   const defaultable = !!existing && (type === 'groceries' || type === 'shopping') && type === listType(existing) // a type change clears it on the server
 
   const submit = async () => {
     if (!name.trim() || !isSingleEmoji(emoji)) return
-    const body = { name: name.trim(), ...typeFields(type), emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}), ...(defaultable && isDefault !== !!existing?.isDefault ? { isDefault } : {}) }
+    const body = { name: name.trim(), ...typeFields(type), ...(type === 'pantry' ? { restock } : {}), emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}), ...(defaultable && isDefault !== !!existing?.isDefault ? { isDefault } : {}) }
     try {
       if (existing) { await api.updateList(existing.id, body); onSaved() }
       else onSaved(await api.createList(body)) // opened next
@@ -194,6 +200,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
         {(type === 'groceries' || type === 'shopping') && (
           <p className="field-hint">{type === 'groceries' ? t('Food and household groceries. Meals add ingredients here. It has its own catalog of things you buy.') : t('Hardware, clothes, gifts and other shopping. It has its own catalog of things you buy.')}</p>
         )}
+        {type === 'pantry' && <p className="field-hint">{t('Food you have at home. Give things a use-by date to see what to use first, and Meals suggests recipes that use it up.')}</p>}
       </div>
       <div className="field">
         <div className="steps-head">
@@ -202,9 +209,19 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
             onClick={() => setKeep(!keepChecked)}><span className="knob" /></button>
         </div>
         <p className="field-hint" id="list-keep-checked-hint">{keepChecked
-          ? t('Checked items stay where they are, crossed off, until you tap {button}.', { button: tm(CHECKOUT_LABEL[kind]) })
+          ? t('Checked items stay where they are, crossed off, until you tap {button}.', { button: tm(CHECKOUT_LABEL[type === 'pantry' ? 'pantry' : kind]) })
           : t('Checked items move to a Done section at the bottom.')}</p>
       </div>
+      {type === 'pantry' && (
+        <div className="field">
+          <div className="steps-head">
+            <label id="list-restock">{t('Add used-up food to the grocery list')}</label>
+            <button className={`switch ${restock ? 'on' : ''}`} role="switch" aria-checked={restock} aria-labelledby="list-restock" aria-describedby="list-restock-hint"
+              onClick={() => setRestock(!restock)}><span className="knob" /></button>
+          </div>
+          <p className="field-hint" id="list-restock-hint">{t('Checking something off adds it to your default Groceries list, unless it’s already there. Untick it by mistake and it comes back off.')}</p>
+        </div>
+      )}
       {defaultable && (
         <div className="field">
           <div className="steps-head">
@@ -232,7 +249,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
         </div>
       </div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label={t('Owners')} noneLabel={t('Everyone')} />
-      {existing && existing.kind === 'todo' && kind === 'todo' && <TaskSyncField list={existing} />}
+      {existing && listType(existing) === 'todo' && type === 'todo' && <TaskSyncField list={existing} /> /* not a pantry: food doesn't go to a to-do app */}
       {existing && (
         <div className="sheet-danger-zone">
           <button className="link-btn" onClick={archive}>{t('Archive list')}</button>
@@ -316,8 +333,9 @@ function SaleField({ id, on, onChange }: { id: string; on: boolean; onChange: (o
   )
 }
 
-function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, moveTargets, readOnly, onClose, onSaved }: {
-  listId: string; item: ListItem; kind: ListKind; manual: boolean; members: Member[]
+function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, moveTargets, kept = [], readOnly, onClose, onSaved }: {
+  listId: string; item: ListItem; kind: ItemKind; manual: boolean; members: Member[]
+  kept?: string[] // pantry lists: where food can be kept (Fridge, Freezer, the family's own)
   readOnly?: boolean // a kid's device, someone else's item: shown, not changed (the server refuses it too)
   moveTargets: List[] // the other lists of this type: "Move to…" (hidden when there are none)
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
@@ -352,7 +370,8 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const [live, setLive] = useState(item) // steps save as they change; this holds the latest item from the server
   const [pickingEvent, setPickingEvent] = useState(false)
   const linked = eventId ? byId.get(eventId) : undefined
-  const showDue = kind === 'todo' || !!item.dueDate // due dates are a to-do thing, but one set elsewhere (API, MCP) stays editable
+  const pantry = kind === 'pantry' // food at home: a use-by date and where it's kept, no assignee or priority
+  const showDue = kind === 'todo' || pantry || !!item.dueDate // due dates are a to-do (and use-by a pantry) thing, but one set elsewhere (API, MCP) stays editable
   // Unsaved changes (Sheet asks before discarding). Steps and the discussion save as they go.
   const edited = !readOnly && (title !== item.title || quantity !== (item.quantity ?? '') || notes !== (item.notes ?? '') || store !== (item.store ?? '')
     || category !== (item.category ?? '') || aisle !== initialAisle || onSale !== !!item.onSale || memberId !== item.memberId
@@ -363,11 +382,12 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
     const body = {
       title: title.replace(/\s+/g, ' ').trim(), quantity: quantity.trim() || null, notes: notes.trim() || null, priority,
       ...(kind === 'shopping' ? { store: store.trim() || null, category: category.trim() || null, onSale } : {}),
+      ...(pantry ? { category: category.trim() || null } : {}),
       // On a trip the aisle is the trip store's (sent only when changed, so an untouched one isn't remembered).
       ...(kind === 'shopping' && !trip ? { aisle: aisle.trim() || null } : {}),
       ...(kind === 'shopping' && trip && aisle.trim() !== initialAisle ? { aisle: aisle.trim() || null, aisleStore: trip } : {}),
       // Assignees on to-do and reusable lists (a routine has each person's jobs); due dates are to-do only.
-      ...(kind !== 'shopping' ? { memberId } : {}),
+      ...(kind !== 'shopping' && !pantry ? { memberId } : {}),
       ...(showFor ? { forMemberIds: forIds } : {}),
       ...(showDue ? { dueDate: dueDate || null } : {}),
       ...(eventId !== item.eventId ? { eventId } : {}), // only when changed: a link to a since-deleted event still saves
@@ -423,11 +443,12 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   )
   const dueField = showDue && (
     <div className="field">
-      <label htmlFor="item-due">{t('Due date')}</label>
+      <label htmlFor="item-due">{pantry ? t('Use by') : t('Due date')}</label>
       <div className="due-field">
         <input id="item-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-        {dueDate && <button type="button" className="btn btn-secondary" onClick={() => { setDueDate(''); announce(t('Due date cleared')) }} aria-label={t('Clear due date')}>{t('Clear')}</button>}
+        {dueDate && <button type="button" className="btn btn-secondary" onClick={() => { setDueDate(''); announce(pantry ? t('Use-by date cleared') : t('Due date cleared')) }} aria-label={pantry ? t('Clear use-by date') : t('Clear due date')}>{t('Clear')}</button>}
       </div>
+      {pantry && <p className="field-hint">{t('The use-by or best-by date on the package, or your best guess.')}</p>}
     </div>
   )
   const eventAndNotes = (
@@ -467,15 +488,21 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
         {/* A textarea so a long title shows in full; Enter doesn't add a line break. */}
         <textarea id="item-title" className="item-title-input" rows={2} value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} />
-        <ItemByLines item={live} members={members} />
+        <ItemByLines item={live} members={members} pantry={pantry} />
       </div>
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
-      {kind !== 'shopping' && assignField /* a to-do's: who and when come first */}
-      {kind !== 'shopping' && dueField}
+      {pantry && <>
+        {/* Food at home: how much, until when, and where it is. */}
+        {quantityAndPlace}
+        {dueField}
+        <ValuePicker id="item-kept" label={t('Where it’s kept')} value={category} options={kept} newLabel={t('Somewhere else…')} placeholder={t('e.g. Garage freezer')} onChange={setCategory} noneLabel={t('Not set')} />
+      </>}
+      {kind !== 'shopping' && !pantry && assignField /* a to-do's: who and when come first */}
+      {kind !== 'shopping' && !pantry && dueField}
       {showFor && <MemberPicker members={members} selected={forIds} onChange={setForIds} label={t('For')} noneLabel={t('Everyone')} />}
       {kind === 'shopping' && <SaleField id="item-sale" on={onSale} onChange={setOnSale} />}
-      {kind !== 'shopping' && priorityField}
-      <StepsEditor listId={listId} item={live} onChange={setLive} />
+      {kind !== 'shopping' && !pantry && priorityField}
+      {(!pantry || live.stepsTotal > 0) && <StepsEditor listId={listId} item={live} onChange={setLive} />}
       {kind === 'shopping' && dueField}
       {kind === 'shopping' ? (
         // Groceries: where it goes stays up front; the rest folds away, with what's set in the summary.
@@ -485,6 +512,14 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           {priorityField}
           {eventAndNotes}
         </details>
+      ) : pantry ? (
+        // An event link set before it was food (a to-do list turned pantry) stays visible and changeable.
+        item.eventId ? eventAndNotes : (
+          <div className="field">
+            <label htmlFor="item-notes">{t('Notes')}</label>
+            <textarea id="item-notes" className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+        )
       ) : <>
         {eventAndNotes}
         {/* Quantity is rarely a to-do thing: folded away, its value in the summary. */}
@@ -523,8 +558,9 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
 }
 
 /** "Added by Maya · Tue 4:12 PM" and, once ticked, "Checked off by Leo · 5:02 PM"; nothing when nobody is known. */
-function ItemByLines({ item, members }: { item: ListItem; members: Member[] }) {
-  const lines = [byLine(t('Added by'), item.addedBy, item.createdAt, members), item.done ? byLine(t('Checked off by'), item.checkedBy, item.doneAt, members) : null].filter(l => l !== null)
+function ItemByLines({ item, members, pantry }: { item: ListItem; members: Member[]; pantry?: boolean }) {
+  // On a pantry list, checked off means eaten or thrown out.
+  const lines = [byLine(t('Added by'), item.addedBy, item.createdAt, members), item.done ? byLine(pantry ? t('Used up by') : t('Checked off by'), item.checkedBy, item.doneAt, members) : null].filter(l => l !== null)
   if (lines.length === 0) return null
   return <div className="item-by-lines">{lines.map(l => <div key={l}>{l}</div>)}</div>
 }
@@ -761,11 +797,13 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
   onGroupBy: (g: ListGroupBy) => void; onSortBy: (s: ListSortBy) => void; onReorder?: () => void; onClose: () => void
 }) {
   const shopping = list.kind === 'shopping'
-  const def = listViewDefaults(list.kind)
+  const pantry = itemKind(list) === 'pantry'
+  const def = listViewDefaults(itemKind(list))
   const changed = list.groupBy !== def.groupBy || list.sortBy !== def.sortBy || store !== null
+  const sortLabel = (k: ListSortBy) => (pantry && k === 'due' ? t('Use-by date') : tm(SORT_LABEL[k]))
   return (
     <Sheet title={t('Filter and sort')} onClose={onClose} actions={<>
-      <button className="btn btn-secondary" disabled={!changed} onClick={() => { if (shopping && list.groupBy !== def.groupBy) onGroupBy(def.groupBy); if (list.sortBy !== def.sortBy) onSortBy(def.sortBy); onStore(null) }}>{t('Reset')}</button>
+      <button className="btn btn-secondary" disabled={!changed} onClick={() => { if ((shopping || pantry) && list.groupBy !== def.groupBy) onGroupBy(def.groupBy); if (list.sortBy !== def.sortBy) onSortBy(def.sortBy); onStore(null) }}>{t('Reset')}</button>
       <button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>
     </>}>
       {shopping && (
@@ -777,12 +815,21 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
           {onReorder && <button className="link-btn" onClick={onReorder}>{list.groupBy === 'store' ? t('Reorder stores') : t('Reorder categories')}</button>}
         </div>
       )}
+      {pantry && (
+        <div className="field">
+          <label htmlFor={`list-group-${list.id}`}>{t('Group by')}</label>
+          <select id={`list-group-${list.id}`} value={list.groupBy === 'category' ? 'category' : 'none'} onChange={e => onGroupBy(e.target.value as ListGroupBy)}>
+            <option value="category">{t('Where it’s kept')}</option>
+            <option value="none">{tm(GROUP_LABEL.none)}</option>
+          </select>
+        </div>
+      )}
       <div className="field">
         <label htmlFor={`list-sort-${list.id}`}>{t('Sort')}</label>
         <select id={`list-sort-${list.id}`} value={list.sortBy} onChange={e => onSortBy(e.target.value as ListSortBy)}>
-          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due')) /* shopping items have no due dates */.map(k => <option key={k} value={k}>{tm(SORT_LABEL[k])}</option>)}
+          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due') && (k !== 'priority' || !pantry || list.sortBy === 'priority')) /* shopping items have no due dates, pantry items no priority */.map(k => <option key={k} value={k}>{sortLabel(k)}</option>)}
         </select>
-        <p className="field-hint">{tm(SORT_HINT[list.sortBy])}{list.sortBy !== 'manual' && t('. Switch to Manual to drag items into your own order.')}</p>
+        <p className="field-hint">{pantry && list.sortBy === 'due' ? t('What to use first at the top, no date last') : tm(SORT_HINT[list.sortBy])}{list.sortBy !== 'manual' && t('. Switch to Manual to drag items into your own order.')}</p>
       </div>
       {shopping && stores.length > 0 && (
         <div className="field">
@@ -798,21 +845,24 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
 }
 
 function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle, from, readOnly, onDelete }: {
-  item: ListItem; kind: ListKind; groupBy: ListGroupBy; members: Member[]; event?: EventInstance; onToggle: () => void; onOpen: () => void
+  item: ListItem; kind: ItemKind; groupBy: ListGroupBy; members: Member[]; event?: EventInstance; onToggle: () => void; onOpen: () => void
   onDelete?: () => void // parent devices: swipe the row left to delete (SwipeRow)
   readOnly?: boolean // a kid's device, someone else's item: the tick shows but doesn't change
   handle?: React.ReactNode
   from?: React.ReactNode // a combined trip: the other list it's on (FromTag)
 }) {
-  const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
+  const pantry = kind === 'pantry'
+  const assignee = kind !== 'shopping' && !pantry && item.memberId ? members.find(m => m.id === item.memberId) : null
   const forWho = members.filter(m => item.forMemberIds?.includes(m.id))
   const forLabel = forWho.length ? t('For {names}', { names: new Intl.ListFormat(intlLocale()).format(forWho.map(m => m.name)) }) : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && groupBy !== 'aisle' && item.store
   const showAisle = kind === 'shopping' && groupBy !== 'aisle' && item.aisle
   // A department that just repeats the aisle ("Produce · Produce") isn't shown twice.
-  const showCategory = kind === 'shopping' && groupBy !== 'category' && item.category && item.category.toLowerCase() !== item.aisle?.toLowerCase()
-  const due = dueLabel(item)
-  const prio = item.priority !== 'normal' ? item.priority : null
+  const showCategory = ((kind === 'shopping' && item.category?.toLowerCase() !== item.aisle?.toLowerCase()) || pantry) && groupBy !== 'category' && item.category
+  // A pantry item's use-by line ("⏳ Use by Tue"); everyone else's due date.
+  const useBy = pantry ? expiryLabel(item, todayKey()) : null
+  const due = pantry ? (useBy && { text: useBy.text, overdue: useBy.status === 'expired' }) : dueLabel(item)
+  const prio = !pantry && item.priority !== 'normal' ? item.priority : null // food has no priority (one kept from before it was a pantry list can't be changed there)
   const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
   const row = (
     <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''} ${item.pending ? 'pending' : ''}`} title={item.pending ? t('Not synced yet') : undefined}>
@@ -829,7 +879,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
           {from}
           {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label={t('Has notes')} />}
         </div>
-        {due && <div className={`list-item-meta list-item-due ${due.overdue ? 'overdue' : ''}`} aria-hidden="true">{due.text}</div>}
+        {due && <div className={`list-item-meta list-item-due ${due.overdue ? 'overdue' : ''} ${useBy?.status === 'today' || useBy?.status === 'soon' ? 'use-soon' : ''}`} aria-hidden="true">{due.text}</div>}
         {item.stepsTotal > 0 && (
           <div className="list-item-steps" aria-hidden="true">
             <span>{t('{done} of {total}', { done: item.stepsDone, total: item.stepsTotal })}</span>
@@ -1075,7 +1125,7 @@ const OTHER_GROUP = msg('Other')
  * null-valued items last under "Other"; each group in `cmp` order. Store groups in manual order keep
  * a store's categories together, per SPEC. Aisle groups are per store ("Market · Produce"), in store
  * order then the store's aisle order. Returns [] (flat) when groupBy is 'none'. */
-function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[], sortBy: ListSortBy, cmp: (a: ListItem, b: ListItem) => number, aisleOrder: AisleOrder): { name: string; items: ListItem[] }[] {
+function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[], sortBy: ListSortBy, cmp: (a: ListItem, b: ListItem) => number, aisleOrder: AisleOrder, soonest = false): { name: string; items: ListItem[] }[] {
   if (groupBy === 'none') return []
   const keyOf = (i: ListItem) => groupBy === 'aisle' ? aisleGroup(i) : i[groupBy]
   const byKey = new Map<string, ListItem[]>()
@@ -1095,6 +1145,8 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
   keys.sort((a, b) => {
     if (a === OTHER_GROUP) return 1
     if (b === OTHER_GROUP) return -1
+    // A pantry: the place with the food to use first leads (Fridge with expired spinach before Freezer).
+    if (soonest) return soonestGroupFirst({ name: a, items: byKey.get(a)! }, { name: b, items: byKey.get(b)! })
     if (groupBy !== 'aisle') return saved(a, b)
     const [sa, aa] = a.split('\u0000'), [sb, ab] = b.split('\u0000')
     return (sa && sb ? saved(sa, sb) : sa ? -1 : sb ? 1 : 0) || compareAisles(sa || null, aa, ab, aisleOrder)
@@ -1986,11 +2038,11 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const checked = filtered.filter(i => i.done && mine(i)) // a kid's device checks out only what it may change
   const groupKind = list.groupBy === 'aisle' ? 'store' : list.groupBy // aisle groups follow the store order
   const groupNamesForOrder = groups.filter(g => g.kind === groupKind).sort((a, b) => a.sort - b.sort).map(g => g.name)
-  const groupedOpen = groupItems(openItems, list.groupBy, groupNamesForOrder, list.sortBy, cmp, aisleOrder)
+  const groupedOpen = groupItems(openItems, list.groupBy, groupNamesForOrder, list.sortBy, cmp, aisleOrder, itemKind(list) === 'pantry')
   const manual = list.sortBy === 'manual'
   const reorderable = list.groupBy === 'store' || list.groupBy === 'category'
   const reorderableNames = reorderable ? [...new Set(items.map(i => (list.groupBy === 'store' ? i.store : i.category)).filter((v): v is string => !!v))] : []
-  const checkoutLabel = tm(CHECKOUT_LABEL[list.kind])
+  const checkoutLabel = tm(CHECKOUT_LABEL[itemKind(list)])
   // On a trip: everything, walked in that store's aisle order; checked items always stay in place.
   const activeTrip = list.kind === 'shopping' ? trip : null
   const storeLabel = activeTrip === ANY_STORE ? t('Any store') : activeTrip
@@ -2010,7 +2062,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const tripLeft = view ? [...view.aisles.flatMap(g => g.items), ...view.unknown].filter(i => !i.done).length : 0
   const tripChecked = [...items, ...also].filter(i => i.done && mine(i))
   const tripRow = (item: ListItem, other = false) => (
-    <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
+    <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={itemKind(list)} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
       event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)} onDelete={delFor(item)}
       onOpen={() => (item.listId !== listId ? (location.hash = `#/lists/${encodeURIComponent(item.listId)}`) : openItem(item))} />
   )
@@ -2069,7 +2121,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
   const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
   const editSheet = editItem && (
-    <ItemEditSheet listId={listId} item={editItem} kind={list.kind} readOnly={!mine(editItem)} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
+    <ItemEditSheet listId={listId} item={editItem} kind={itemKind(list)} kept={itemKind(list) === 'pantry' ? keptOptions(items) : undefined} readOnly={!mine(editItem)} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
       moveTargets={lists.filter(l => !l.archived && l.id !== listId && listType(l) === listType(list))}
       onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
   )
@@ -2128,8 +2180,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
   // View: group, sort and the store filter behind one button, counted when they differ from a new
   // list's, and summed up in one line under it (the Contacts pattern).
-  const viewDef = listViewDefaults(list.kind)
-  const groupChanged = list.kind === 'shopping' && list.groupBy !== viewDef.groupBy
+  const viewDef = listViewDefaults(itemKind(list))
+  const groupChanged = (list.kind === 'shopping' || itemKind(list) === 'pantry') && list.groupBy !== viewDef.groupBy
   const sortChanged = list.sortBy !== viewDef.sortBy
   const viewCount = [groupChanged, sortChanged, !!selectedStore].filter(Boolean).length
   const viewSummary = [
@@ -2188,8 +2240,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
-      {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop). */}
-      {list.kind !== 'shopping' && items.length > 0 && (
+      {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop; a pantry's food isn't jobs to do). */}
+      {list.kind !== 'shopping' && itemKind(list) !== 'pantry' && items.length > 0 && (
         <div className="list-actions">
           <button className="btn btn-secondary list-do-btn" onClick={() => setGsd(listId)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />{t('Get stuff done')}</button>
         </div>
@@ -2201,7 +2253,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
       <div className="list-items scroll-y">
         {items.length === 0 ? (
-          <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : '📝'}</span>{t('Nothing here yet — add your first item above.')}</div>
+          <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : itemKind(list) === 'pantry' ? '🥫' : '📝'}</span>{t('Nothing here yet — add your first item above.')}</div>
         ) : view ? (
           <>
             {view.aisles.map(g => (
@@ -2228,7 +2280,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <div className="empty-card"><span className="emoji">✨</span>{t('All done!')}</div>
           ) : (
             <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} fixed={!manual}
-              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
+              renderRow={(item, handle) => <ItemRow item={item} kind={itemKind(list)} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
           )
         ) : groupedOpen.length === 0 ? (
           <div className="empty-card"><span className="emoji">✨</span>{t('All done!')}</div>
@@ -2237,7 +2289,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <div key={g.name} className="list-group">
               <h3 className="list-group-title" style={{ margin: 0 }}>{g.name}</h3>
               <DragList items={g.items} onReorder={reorderWithin} fixed={!manual}
-                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
+                renderRow={(item, handle) => <ItemRow item={item} kind={itemKind(list)} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
             </div>
           ))
         )}
@@ -2248,10 +2300,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
                 in a permanent footer that cost a phone a row of items. */}
             <div className="list-done-head">
               <button className="list-done-toggle" onClick={() => setShowDone(s => !s)} aria-expanded={showDone}><span aria-hidden="true">{showDone ? '▾' : '▸'}</span> {t('Done ({n})', { n: doneItems.length })}</button>
-              <button className="link-btn" onClick={() => startCheckout(doneItems.filter(mine), list.kind)}>{list.kind === 'reusable' ? t('Reset list') : t('Clear checked')}</button>
+              <button className="link-btn" onClick={() => startCheckout(doneItems.filter(mine), list.kind)}>{list.kind === 'reusable' ? t('Reset list') : itemKind(list) === 'pantry' ? t('Clear used up') : t('Clear checked')}</button>
             </div>
             {showDone && doneItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
-              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} readOnly={!mine(item)} onDelete={delFor(item)} />
+              <ItemRow key={item.id} item={item} kind={itemKind(list)} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} readOnly={!mine(item)} onDelete={delFor(item)} />
             ))}
           </div>
         )}

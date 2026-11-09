@@ -679,6 +679,13 @@ export const ListCatalogSchema = z.enum(['groceries', 'shopping']).openapi({
   description: "A shopping list's type: groceries (food and household groceries; meals add ingredients here) or shopping (hardware store, department store...). Each has its own catalog of remembered items, places and categories. Given on shopping lists only (null on others); a new shopping list without one is groceries when its name looks like groceries (Groceries, Grocery, Food, Supermarket, Market, Produce, Pantry), else shopping.",
 });
 
+export const ListKindSchema = z.enum(['todo', 'shopping', 'reusable']);
+// What a to-do list is for (0143). pantry: food at home. kind stays 'todo' (as groceries and shopping
+// both stay kind 'shopping') so apps that only know three kinds keep working and show it as a to-do list.
+export const ListPurposeSchema = z.enum(['pantry']).openapi({
+  description: "What a to-do list is for. pantry: food the family has at home. An item's dueDate is its use-by date and its category is where it's kept (e.g. Fridge, Freezer, Pantry); checking it off means it's used up. kind stays todo, so a client that doesn't know purpose shows it as a to-do list. null on every other list.",
+});
+
 /** Who did something on a list: a family member (memberId), or a device or app that is nobody's
  * (label: a wall screen's name such as "Kitchen wall", an automation key's name, or "Assistant" for a
  * connected app). Exactly one of the two is set; the field is null when nobody is known. */
@@ -692,7 +699,9 @@ export const ListSchema = z
     name: z.string(),
     emoji: z.string().nullable(),
     color: z.string().nullable(),
-    kind: z.enum(['todo', 'shopping', 'reusable']),
+    kind: ListKindSchema,
+    purpose: ListPurposeSchema.nullable(),
+    restock: z.boolean().openapi({ description: "Pantry lists: checking an item off (used up) adds it to the family's default Groceries list (else the first one), unless an item of that name is already open there; unticking it takes that grocery item back off while it isn't ticked. false on every other list." }),
     memberIds: z.array(z.string()),
     groupBy: ListGroupBySchema,
     sortBy: ListSortBySchema, // item order within each group
@@ -714,7 +723,9 @@ export const ListSchema = z
 export const ListInputSchema = z
   .object({
     name: z.string().min(1).max(200),
-    kind: z.enum(['todo', 'shopping', 'reusable']),
+    kind: ListKindSchema,
+    purpose: ListPurposeSchema.nullable().optional().openapi({ description: 'pantry (with kind todo) makes a pantry list. Left out or null: none.' }),
+    restock: z.boolean().optional().openapi({ description: 'Pantry lists: add used-up food to the grocery list (see List.restock). Default false; ignored on other lists.' }),
     emoji: EmojiSchema.nullable().optional(),
     color: z.string().max(50).nullable().optional(),
     memberIds: z.array(z.string()).max(100).optional(),
@@ -730,7 +741,9 @@ export const ListPatchSchema = z
     name: z.string().min(1).max(200).optional(),
     emoji: EmojiSchema.nullable().optional(),
     color: z.string().max(50).nullable().optional(),
-    kind: z.enum(['todo', 'shopping', 'reusable']).optional(),
+    kind: ListKindSchema.optional(),
+    purpose: ListPurposeSchema.nullable().optional().openapi({ description: 'pantry makes a to-do list a pantry list; null makes it a plain to-do list. Left out: kept while the list stays a to-do list.' }),
+    restock: z.boolean().optional().openapi({ description: 'Pantry lists: add used-up food to the grocery list (see List.restock). A list that stops being a pantry list turns it off.' }),
     memberIds: z.array(z.string()).max(100).optional(),
     groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
@@ -769,12 +782,12 @@ export const ListItemSchema = z
     notes: z.string().nullable(),
     quantity: z.string().nullable(),
     store: z.string().nullable(),
-    category: z.string().nullable(),
+    category: z.string().nullable().openapi({ description: 'Shopping lists: the department (e.g. "Dairy"). Pantry lists (purpose pantry): where it is kept (e.g. "Fridge", "Freezer", "Pantry").' }),
     aisle: z.string().nullable().openapi({ description: 'Where in the store, e.g. "Aisle 4" or "Back wall".' }),
     memberId: z.string().nullable(),
     forMemberIds: z.array(z.string()).openapi({ description: 'Who the item is for (member ids), e.g. a gift or a watch band for Maya; [] = for everyone. Separate from memberId, who it is assigned to.' }),
     onSale: z.boolean().openapi({ description: 'On sale this trip (shopping lists). Cleared when the item is checked off.' }),
-    dueDate: z.string().nullable(),
+    dueDate: z.string().nullable().openapi({ description: 'YYYY-MM-DD. On a pantry list (purpose pantry), the use-by (or best-by) date: before today (household timezone) it counts as overdue, i.e. expired.' }),
     eventId: z.string().nullable(), // linked calendar event (series id for a recurring local event)
     priority: ListItemPrioritySchema, // open urgent/high items sort first, low last (see ListSortBySchema)
     done: z.boolean(),
@@ -856,6 +869,56 @@ export const ListGroupSchema = z
     sort: z.number(),
   })
   .openapi('ListGroup');
+
+// Pantry (routes/pantry.ts, pantry.ts): open items on pantry lists and recipes that use up what's expiring.
+export const UseByStatusSchema = z.enum(['expired', 'today', 'soon', 'later']).openapi({
+  description: 'expired: its use-by date has passed; today; soon: within 3 days; later. Days are in the household timezone.',
+});
+export const PantryItemSchema = z
+  .object({
+    id: z.string().openapi({ description: 'The list item id (PATCH /api/lists/{listId}/items/{id} with done: true marks it used up).' }),
+    listId: z.string(),
+    listName: z.string(),
+    title: z.string(),
+    quantity: z.string().nullable(),
+    kept: z.string().nullable().openapi({ description: "Where it's kept (the item's category), e.g. Fridge." }),
+    useBy: z.string().nullable().openapi({ description: 'YYYY-MM-DD (the item\'s dueDate), or null when none is set.' }),
+    daysLeft: z.number().int().nullable().openapi({ description: 'Days until the use-by date: 0 today, negative once past it; null without a date.' }),
+    status: UseByStatusSchema.nullable(),
+  })
+  .openapi('PantryItem');
+export const PantryQuerySchema = z.object({
+  days: z.string().regex(/^\d{1,3}$/, 'a whole number of days').transform(Number).refine((n) => n <= 365, 'at most 365').optional()
+    .openapi({ type: 'integer', description: 'Expiring means a use-by date within this many days of today (0: today and anything past it). Default 7, at most 365.' }),
+  listId: z.string().optional().openapi({ description: 'Only this pantry list (default: every unarchived pantry list). 404 when it is not a pantry list, or is archived.' }),
+});
+export const PantryExpiringSchema = z
+  .object({
+    today: z.string().openapi({ description: "The household's today, YYYY-MM-DD." }),
+    days: z.number().int(),
+    items: z.array(PantryItemSchema).openapi({ description: 'Open pantry items with a use-by date within `days`, soonest (and expired) first.' }),
+  })
+  .openapi('PantryExpiring');
+const PantryUseSchema = PantryItemSchema.extend({ ingredient: z.string().openapi({ description: "The recipe's ingredient it matched." }) }).openapi('PantryUse');
+export const PantrySuggestionsQuerySchema = PantryQuerySchema.extend({
+  limit: z.string().regex(/^\d{1,2}$/, 'a whole number').transform(Number).refine((n) => n >= 1 && n <= 50, 'between 1 and 50').optional()
+    .openapi({ type: 'integer', description: 'How many recipes, 1-50. Default 10.' }),
+});
+export const PantrySuggestionsSchema = z
+  .object({
+    today: z.string(),
+    days: z.number().int(),
+    expiring: z.array(PantryItemSchema).openapi({ description: 'What to use within `days`, soonest first.' }),
+    suggestions: z.array(z.object({
+      recipe: z.object({ id: z.string(), name: z.string(), imageUrl: z.string().nullable(), totalMinutes: z.number().nullable(), rating: z.number().nullable().openapi({ description: 'Family average stars, 1-5.' }) }),
+      score: z.number().openapi({ description: 'Higher is better: each expiring item it uses counts 1 / (1 + days left) (today or past: 1), plus 0.1 per other pantry item, minus 0.02 per missing ingredient.' }),
+      uses: z.array(PantryUseSchema).openapi({ description: 'The expiring items it uses, soonest first.' }),
+      alsoHave: z.array(PantryUseSchema).openapi({ description: 'Other pantry items it uses (not expiring within `days`).' }),
+      missing: z.array(z.string()).openapi({ description: "Its ingredients the pantry doesn't have (salt, pepper, oil and water are assumed)." }),
+    })).openapi({ description: "The family's meal recipes (not basics or archived ones) that use at least one expiring item, best first." }),
+    unmatched: z.array(PantryItemSchema).openapi({ description: 'Expiring items none of the suggested recipes use: ideas wanted.' }),
+  })
+  .openapi('PantrySuggestions');
 
 // GET /api/lists/{id}?store=X: the list as shopped at that store.
 export const ListTripSchema = z

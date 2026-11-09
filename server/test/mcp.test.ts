@@ -136,6 +136,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_event',
     'get_event_follow',
     'get_event_items',
+    'get_expiring_food',
     'get_household',
     'get_leaderboard',
     'get_list',
@@ -211,6 +212,7 @@ test('mcp: tools/list returns the tools', async () => {
     'set_night_screen',
     'set_step_done',
     'set_store_aisle_order',
+    'suggest_meals_from_pantry',
     'suggest_outings',
     'uncomplete_chore',
     'update_announcement',
@@ -321,6 +323,43 @@ test('mcp: create_list makes a list that add_list_items can then use by name', a
 
   const bad = await (await mcp('tools/call', { name: 'create_list', arguments: { name: 'X', members: ['nobody'] } })).json() as any;
   assert.equal(bad.result.isError, true);
+});
+
+test('mcp: a pantry list, what expires soonest, and recipes that use it up', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  const day = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return new Intl.DateTimeFormat('en-CA').format(d); };
+
+  const created = await call('create_list', { name: 'Kitchen', kind: 'pantry', emoji: '🥫', restock: true });
+  assert.equal(created.structuredContent.list.restock, true);
+  assert.equal(created.isError, undefined);
+  assert.deepEqual([created.structuredContent.list.kind, created.structuredContent.list.purpose], ['todo', 'pantry']);
+  assert.match(created.content[0].text, /Created pantry list/);
+  // Naming todo on a change makes it a plain to-do list.
+  assert.equal((await call('update_list', { list: 'Kitchen', kind: 'todo' })).structuredContent.list.purpose, null);
+  await call('update_list', { list: 'Kitchen', kind: 'pantry' });
+  await call('add_list_items', { listName: 'kitchen', items: [{ title: 'Spinach', dueDate: day(-1), category: 'Fridge' }, { title: 'Chicken', dueDate: day(2), quantity: '1 lb' }, { title: 'Yogurt', dueDate: day(20) }] });
+  await rest('/api/recipes', { method: 'POST', body: JSON.stringify({ name: 'Chicken and spinach', ingredients: [{ name: 'Chicken breast' }, { name: 'Spinach' }, { name: 'Garlic' }] }) });
+
+  const expiring = await call('get_expiring_food', {});
+  assert.equal(expiring.isError, undefined);
+  assert.deepEqual(expiring.structuredContent.items.map((i: any) => i.title), ['Spinach', 'Chicken']);
+  assert.match(expiring.content[0].text, /Spinach: expired .*, Fridge; Chicken \(1 lb\): use by/);
+  assert.deepEqual((await call('get_expiring_food', { days: 30, list: 'Kitchen' })).structuredContent.items.map((i: any) => i.title), ['Spinach', 'Chicken', 'Yogurt']);
+  assert.equal((await call('get_expiring_food', { list: 'Nowhere' })).isError, true);
+
+  const ideas = await call('suggest_meals_from_pantry', { days: 3 });
+  assert.equal(ideas.isError, undefined);
+  assert.deepEqual(ideas.structuredContent.suggestions.map((s: any) => s.recipe.name), ['Chicken and spinach']);
+  assert.match(ideas.content[0].text, /1\. Chicken and spinach: uses Spinach, Chicken; needs Garlic/);
+  assert.match((await call('suggest_meals_from_pantry', { days: 0, limit: 1 })).content[0].text, /Chicken and spinach/);
+
+  // The prompt asks the assistant to start from the suggestions and to ask before changing anything.
+  const prompts = await (await mcp('prompts/list', {})).json() as any;
+  assert.ok(prompts.result.prompts.some((p: any) => p.name === 'use_it_up'));
+  const prompt = await (await mcp('prompts/get', { name: 'use_it_up', arguments: { days: '3' } })).json() as any;
+  assert.match(prompt.result.messages[0].content.text, /suggest_meals_from_pantry with days 3/);
 });
 
 test('mcp: a display key calling an admin-only action gets isError, not a thrown error', async () => {
@@ -634,6 +673,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal(urgent.priority, 'urgent');
   await call('update_list_item', { list: list.id, itemId: urgent.id, priority: 'low' });
   await call('get_list', { list: 'groceries' });
+  await call('create_list', { name: 'Pantry', kind: 'pantry' });
+  await call('add_list_items', { listName: 'pantry', items: [{ title: 'Milk', dueDate: today }] });
+  await call('get_expiring_food');
+  await call('suggest_meals_from_pantry');
   await call('list_lists');
   await call('send_notification', { title: 'Hi', body: 'Dinner' });
   await call('set_night_screen', { on: true });

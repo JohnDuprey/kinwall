@@ -2,7 +2,7 @@ import { stored } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import type { KinwallDb } from '../db.ts';
+import type { KinwallDb, KinwallStatement } from '../db.ts';
 import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { notifyListUpdate } from '../notify.ts';
@@ -48,6 +48,8 @@ export type ListRow = {
   emoji: string | null;
   color: string | null;
   kind: 'todo' | 'shopping' | 'reusable';
+  purpose?: 'pantry' | null; // to-do lists: what it's for (0143); pantry = food at home
+  restock?: number; // pantry lists: checking food off adds it to the grocery list (0143)
   member_ids: string;
   group_by: 'store' | 'category' | 'aisle' | 'none';
   sort_by: 'manual' | 'added' | 'due' | 'priority' | 'alpha' | 'aisle';
@@ -104,6 +106,8 @@ export function toApi(row: ListRow, itemCount: number, openCount: number, overdu
     emoji: row.emoji,
     color: row.color,
     kind: row.kind,
+    purpose: row.kind === 'todo' && row.purpose === 'pantry' ? ('pantry' as const) : null,
+    restock: row.kind === 'todo' && row.purpose === 'pantry' && !!row.restock,
     memberIds: parseMemberIds(row.member_ids),
     groupBy: row.kind === 'shopping' && row.group_by === 'category' ? 'aisle' : row.group_by, // groceries group by aisle; a department fills it in
     sortBy: row.sort_by ?? 'manual',
@@ -232,7 +236,7 @@ export function todayIn(tz: string | null | undefined) {
 }
 
 /** Today (YYYY-MM-DD) in the household's timezone: before it, an open item's due date is overdue. */
-async function householdToday(db: KinwallDb) {
+export async function householdToday(db: KinwallDb) {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
   return todayIn(row?.value);
 }
@@ -240,6 +244,54 @@ async function householdToday(db: KinwallDb) {
 /** Steps of the items matching `where` (a condition on list_items), grouped by item id, in order. */
 // Open items that are due or high priority (the board and snapshots show these). Matches the WHERE of
 // migration 0074's idx_list_items_flagged_open exactly, so SQLite reads only those rows.
+/** The family's default Groceries list, else the first one in the family order (what Meals, the app's
+ * widgets and add_list_items use when nobody picks a list); null when there's none. */
+async function groceriesList(db: KinwallDb): Promise<{ id: string; name: string } | null> {
+  return db.prepare("SELECT id, name FROM lists WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = 'groceries' AND archived = 0 ORDER BY is_default DESC, sort, created_at LIMIT 1")
+    .first<{ id: string; name: string }>();
+}
+
+/** A pantry list with restock on: checking food off (used up) adds it to the grocery list, unless an
+ * item of that name is open there already, with its remembered store, aisle and department; unticking
+ * it takes that grocery item back off while it isn't ticked (a mis-tap). */
+async function restockWrites(
+  c: Context<{ Bindings: Env }>,
+  existing: ListItemRow & { restock: number; restock_item_id: string | null },
+  updated: ListItemRow,
+  by: Actor | null,
+  now: string,
+): Promise<{ writes: KinwallStatement[]; listId: string | null; added: string | null }> {
+  const db = c.env.DB;
+  const none = { writes: [], listId: null, added: null };
+  if (!existing.restock) return none;
+  const link = (to: string | null) => db.prepare('UPDATE list_items SET restock_item_id = ? WHERE id = ?').bind(to, existing.id);
+  if (!existing.done && updated.done) {
+    const target = await groceriesList(db);
+    if (!target) return none;
+    const key = itemKey(updated.title);
+    if (await db.prepare('SELECT 1 FROM list_items WHERE list_id = ? AND name_key = ? AND done = 0 LIMIT 1').bind(target.id, key).first()) return none;
+    const place = fillPlace(await recall(db, 'groceries', [updated.title]), updated.title, {});
+    const who = by ?? (await actorOf(c));
+    const added = crypto.randomUUID();
+    return {
+      listId: target.id,
+      added,
+      writes: [
+        db.prepare(
+          `INSERT INTO list_items (id, list_id, title, name_key, store, category, aisle, for_member_ids, priority, done, added_by, added_by_label, sort, created_at, updated_at)
+           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, '[]', 'normal', 0, ?8, ?9, COALESCE(MAX(sort), -1) + 1, ?10, ?10 FROM list_items WHERE list_id = ?2`,
+        ).bind(added, target.id, updated.title, key, place.store, place.category, place.aisle, who.memberId, who.label, now),
+        link(added),
+      ],
+    };
+  }
+  if (existing.done && !updated.done && existing.restock_item_id) {
+    const back = await db.prepare('SELECT list_id FROM list_items WHERE id = ? AND done = 0').bind(existing.restock_item_id).first<{ list_id: string }>();
+    return { listId: back?.list_id ?? null, added: null, writes: [...(back ? [db.prepare('DELETE FROM list_items WHERE id = ? AND done = 0').bind(existing.restock_item_id)] : []), link(null)] };
+  }
+  return none;
+}
+
 export const FLAGGED_OPEN = "done = 0 AND (due_date IS NOT NULL OR priority IN ('high', 'urgent'))";
 
 export function stepsQuery(db: KinwallDb, where: string, ...binds: unknown[]) {
@@ -354,10 +406,16 @@ const ALSO_AT_STORE = `lists l CROSS JOIN lists o JOIN list_items li ON li.list_
     AND (li.store = ?2 OR (li.store IS NULL AND m.store IS NOT NULL))`;
 
 // shopping defaults to grouping and sorting by aisle; todo/reusable to no grouping, manual.
-function defaultGroupBy(kind: ListRow['kind']): ListRow['group_by'] {
-  return kind === 'shopping' ? 'aisle' : 'none';
+// A pantry list (a to-do list with purpose pantry, 0143) groups by where things are kept (the item's
+// category: Fridge, Freezer...) and sorts soonest use-by first (its due date is the use-by date).
+type Purpose = ListRow['purpose'];
+function defaultGroupBy(kind: ListRow['kind'], purpose?: Purpose): ListRow['group_by'] {
+  return kind === 'shopping' ? 'aisle' : purpose === 'pantry' ? 'category' : 'none';
 }
+const defaultSortBy = (kind: ListRow['kind'], purpose?: Purpose): ListRow['sort_by'] => (kind === 'shopping' ? 'aisle' : purpose === 'pantry' ? 'due' : 'manual');
+// To-dos (pantry lists too) move checked items (done, used up) to a Done section.
 const defaultKeepChecked = (kind: ListRow['kind']) => (kind === 'todo' ? 0 : 1);
+const PANTRY_NEEDS_TODO = 'A pantry list is a to-do list: send kind todo with purpose pantry.';
 
 listsRoutes.openapi(
   createRoute({
@@ -398,10 +456,15 @@ listsRoutes.openapi(
     summary: 'Create a list',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: ListInputSchema } } } },
-    responses: { 201: { description: 'created', content: { 'application/json': { schema: ListSchema } } } },
+    responses: {
+      201: { description: 'created', content: { 'application/json': { schema: ListSchema } } },
+      400: { description: 'purpose pantry on a list that is not a to-do list', content: { 'application/json': { schema: ErrorSchema } } },
+    },
   }),
   async (c) => {
     const body = c.req.valid('json');
+    if (body.purpose === 'pantry' && body.kind !== 'todo') return c.json({ error: PANTRY_NEEDS_TODO }, 400);
+    const purpose = body.purpose ?? null;
     const memberIds = await resolveMemberIds(c.env.DB, body.memberIds ?? []);
     const row: ListRow = {
       id: crypto.randomUUID(),
@@ -409,9 +472,11 @@ listsRoutes.openapi(
       emoji: body.emoji ?? null,
       color: body.color ?? null,
       kind: body.kind,
+      purpose,
+      restock: purpose === 'pantry' && body.restock ? 1 : 0,
       member_ids: JSON.stringify(memberIds),
-      group_by: body.groupBy ?? defaultGroupBy(body.kind),
-      sort_by: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      group_by: body.groupBy ?? defaultGroupBy(body.kind, purpose),
+      sort_by: body.sortBy ?? defaultSortBy(body.kind, purpose),
       keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : defaultKeepChecked(body.kind),
       catalog: await listCatalog(c.env.DB, body.kind, body.name, body.catalog),
       sort: (await c.env.DB.prepare('SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM lists').first<{ n: number }>())?.n ?? 0, // new lists go last
@@ -419,9 +484,9 @@ listsRoutes.openapi(
       created_at: new Date().toISOString(),
     };
     await c.env.DB.prepare(
-      'INSERT INTO lists (id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO lists (id, name, emoji, color, kind, purpose, restock, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.name, row.emoji, row.color, row.kind, row.member_ids, row.group_by, row.sort_by, row.keep_checked, row.catalog, row.sort, row.archived, row.created_at)
+      .bind(row.id, row.name, row.emoji, row.color, row.kind, row.purpose, row.restock, row.member_ids, row.group_by, row.sort_by, row.keep_checked, row.catalog, row.sort, row.archived, row.created_at)
       .run();
     emit(c, 'list.changed', { id: row.id });
     return c.json(toApi(row, 0, 0), 201);
@@ -743,15 +808,22 @@ listsRoutes.openapi(
     const memberIds = body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(existing.member_ids);
     const kind = body.kind ?? existing.kind;
     if (body.isDefault && kind !== 'shopping') return c.json({ error: 'Only a shopping list can be the default' }, 400);
+    // A pantry list stays one while it's a to-do list, unless told otherwise; any other kind has none.
+    const purpose = kind !== 'todo' ? null : body.purpose !== undefined ? body.purpose : existing.purpose ?? null;
+    if (body.purpose === 'pantry' && kind !== 'todo') return c.json({ error: PANTRY_NEEDS_TODO }, 400);
+    const pantrySwitch = (purpose === 'pantry') !== (existing.purpose === 'pantry');
     const updated: ListRow = {
       ...existing,
       name: body.name ?? existing.name,
       emoji: body.emoji !== undefined ? body.emoji : existing.emoji,
       color: body.color !== undefined ? body.color : existing.color,
       kind: body.kind ?? existing.kind,
+      purpose,
+      restock: purpose !== 'pantry' ? 0 : body.restock !== undefined ? (body.restock ? 1 : 0) : existing.restock ?? 0,
       member_ids: JSON.stringify(memberIds),
-      group_by: body.groupBy ?? existing.group_by,
-      sort_by: body.sortBy ?? existing.sort_by,
+      // Becoming (or no longer being) a pantry list takes that view: by where it's kept, soonest use-by first.
+      group_by: body.groupBy ?? (pantrySwitch ? defaultGroupBy(kind, purpose) : existing.group_by),
+      sort_by: body.sortBy ?? (pantrySwitch ? defaultSortBy(kind, purpose) : existing.sort_by),
       // A kind change takes that kind's default unless the caller says otherwise.
       keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : body.kind && body.kind !== existing.kind ? defaultKeepChecked(body.kind) : existing.keep_checked,
       // A shopping list keeps its type unless told otherwise; one that becomes a shopping list takes the name rule.
@@ -761,14 +833,16 @@ listsRoutes.openapi(
     };
     // The default for its type: one per catalog, so picking this one clears the other; a list that
     // changes type (or stops being a shopping list) stops being the default.
-    const typeChanged = updated.kind !== existing.kind || updated.catalog !== existing.catalog;
+    const typeChanged = updated.kind !== existing.kind || updated.catalog !== existing.catalog || pantrySwitch;
     updated.is_default = body.isDefault !== undefined ? (body.isDefault ? 1 : 0) : typeChanged ? 0 : existing.is_default ?? 0;
     await c.env.DB.batch([
       ...(updated.is_default && !existing.is_default
         ? [c.env.DB.prepare("UPDATE lists SET is_default = 0 WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = ? AND id != ?").bind(updated.catalog ?? 'groceries', id)]
         : []),
-      c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, catalog=?, sort=?, archived=?, is_default=? WHERE id=?')
-        .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.catalog, updated.sort, updated.archived, updated.is_default, id),
+      // A pantry list doesn't sync with a to-do app (food isn't a to-do): becoming one ends its link.
+      ...(purpose === 'pantry' && existing.purpose !== 'pantry' ? [c.env.DB.prepare('DELETE FROM task_links WHERE list_id = ?').bind(id)] : []),
+      c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, purpose=?, restock=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, catalog=?, sort=?, archived=?, is_default=? WHERE id=?')
+        .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.purpose ?? null, updated.restock ?? 0, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.catalog, updated.sort, updated.archived, updated.is_default, id),
     ]);
     emit(c, 'list.changed', { id });
     const counts = await c.env.DB.prepare(
@@ -1072,9 +1146,9 @@ listsRoutes.openapi(
     // A member's own device may take an item or tick it for itself, never hand it to or tick it as someone else.
     const blocked = (await itemOwnerBlock(c, id, oneItem(itemId))) ?? (await ownerBlock(c, body.memberId, body.doneBy));
     if (blocked) return c.json({ error: blocked }, 403);
-    const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping, coalesce(l.catalog, 'groceries') AS catalog FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
+    const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping, coalesce(l.catalog, 'groceries') AS catalog, l.kind = 'todo' AND l.purpose = 'pantry' AND l.restock = 1 AS restock FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
       .bind(itemId, id)
-      .first<ListItemRow & { shopping: number; catalog: Catalog }>();
+      .first<ListItemRow & { shopping: number; catalog: Catalog; restock: number; restock_item_id: string | null }>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, [body.eventId])) return c.json({ error: 'event not found' }, 400);
     if (body.eventId !== undefined && body.eventId !== existing.event_id) {
@@ -1120,7 +1194,9 @@ listsRoutes.openapi(
     // that store or for anywhere (and stays "anywhere"); either way it's remembered for that store.
     const trip = body.aisleStore !== undefined && body.aisle !== undefined ? { store: body.aisleStore, aisle: body.aisle } : null;
     if (trip) updated.aisle = !updated.store || updated.store === trip.store ? trip.aisle : existing.aisle;
+    const restock = await restockWrites(c, existing, updated, by, now);
     await c.env.DB.batch([
+      ...restock.writes,
       c.env.DB.prepare(
         'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, for_member_ids=?, on_sale=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, done_by_label=?, updated_at=? WHERE id=?',
       ).bind(
@@ -1161,6 +1237,7 @@ listsRoutes.openapi(
       ...(existing.shopping && body.title !== undefined && updated.title !== existing.title && (await teaches(c)) ? [rememberName(c.env.DB, existing.catalog, updated.title, now, 0)] : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
+    if (restock.listId) emit(c, 'list.item.changed', { listId: restock.listId, ids: restock.added ? [restock.added] : [] });
     return c.json((await loadItem(c.env.DB, id, itemId))!, 200);
   },
 );
@@ -1193,7 +1270,7 @@ listsRoutes.openapi(
     const lists = listsRes.results as ListRow[];
     const from = lists.find((l) => l.id === id), to = lists.find((l) => l.id === toListId);
     if (!from || !to) return c.json({ error: 'list not found' }, 404);
-    const typeOf = (l: ListRow) => (l.kind === 'shopping' ? `shopping:${l.catalog ?? 'groceries'}` : l.kind);
+    const typeOf = (l: ListRow) => (l.kind === 'shopping' ? `shopping:${l.catalog ?? 'groceries'}` : l.kind === 'todo' && l.purpose === 'pantry' ? 'pantry' : l.kind);
     if (from.id === to.id || typeOf(from) !== typeOf(to)) return c.json({ error: 'items move only to another list of the same type' }, 400);
     const rows = itemsRes.results as ListItemRow[];
     if (rows.length !== new Set(itemIds).size) return c.json({ error: 'item not found' }, 404);
