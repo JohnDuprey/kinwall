@@ -2181,9 +2181,11 @@ function mockBoard(days: number): Board {
       const comp = completions.get(`${c.id}:${today}`)
       return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending }
     }),
-    overdueChores: !settings.features.chores ? [] : chores.filter(c => c.active && !c.rrule && c.dueDate && c.dueDate >= inDays(-7) && c.dueDate < today && !completions.has(`${c.id}:${c.dueDate}`))
-      .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))
-      .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date: c.dueDate! })),
+    // Like the server: a one-off past its day, or a repeating chore's last time before today (not a goal), in the last 7 days.
+    overdueChores: !settings.features.chores ? [] : chores.filter(c => c.active).flatMap(c => {
+      const date = !c.rrule ? c.dueDate : c.repeatGoal ? null : [1, 2, 3, 4, 5, 6, 7].map(n => inDays(-n)).find(d => dueOn(c, d))
+      return date && date >= inDays(-7) && date < today && !completions.has(`${c.id}:${date}`) ? [{ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date }] : []
+    }).sort((a, b) => a.date.localeCompare(b.date)),
     birthdays,
     meals: [], // api.ts adds the demo menu (mock-meals.ts)
     booksDue: bookLibrary.filter(b => b.borrowedFrom && b.dueOn && !b.returnedOn && b.dueOn <= to)

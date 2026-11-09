@@ -1549,7 +1549,7 @@ export const BoardSchema = z
     timedChores: z.array(
       z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean() }),
     ),
-    // One-off chores from the last 7 days past their day and not ticked, oldest first; repeating chores don't carry over. Tick one off for its `date`.
+    // Late chores from the last 7 days, not ticked, oldest first: a one-off's day, or a repeating chore's last time before today (not a goal chore). Tick one off for its `date`.
     overdueChores: z.array(
       z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), points: z.number(), date: z.string() }),
     ),

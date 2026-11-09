@@ -1057,7 +1057,7 @@ export interface Snapshot {
   checkedIn: boolean // checked in today
   checkInPoints: number // what checking in earns; 0 = off
 }
-/** A one-off chore whose day passed without a tick; ticking it off uses its `date`. */
+/** A chore whose day passed without a tick (for a repeating one, its last time); ticking it off uses its `date`. */
 export interface OverdueChore { id: string; title: string; emoji: string | null; memberId: string | null; points: number; date: string }
 /** GET /api/board?days=N - the whole family's bulletin board, today through `to`. */
 export interface TimedChore { id: string; title: string; emoji: string | null; memberId: string | null; dueTime: string | null; timerMinutes: number | null; done: boolean; pending: boolean }
@@ -1071,7 +1071,7 @@ export interface Board {
   items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
   chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number; pending?: number }[]
   timedChores?: TimedChore[] // today's chores with a start time or a timer: rows of their own on Today
-  overdueChores?: OverdueChore[] // one-off chores from the last 7 days past their day, not ticked, oldest first (an older server sends none)
+  overdueChores?: OverdueChore[] // late chores from the last 7 days, not ticked, oldest first: a one-off's day or a repeating chore's last time (an older server sends none)
   birthdays: SnapshotBirthday[]
   meals: Meal[] // today through `to`; [] while Meals is off
   booksDue: { id: string; title: string; borrowedFrom: string; dueOn: string; date: string; overdue: boolean }[] // borrowed library books due back; date: the board day (overdue ones show today)

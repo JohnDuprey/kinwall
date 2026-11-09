@@ -133,7 +133,7 @@ test('chores: a timer and a start time are saved, changed, cleared, checked, and
   assert.deepEqual((await json(await req('/api/board', 'GET'))).timedChores, []);
 });
 
-test('board: late one-off chores from the last 7 days are listed until done; repeating ones are not', async () => {
+test('board: late one-off chores from the last 7 days are listed until done', async () => {
   const { createApp } = await import('../src/app.ts');
   const { openDb, applyMigrations } = await import('../src/d1-sqlite.ts');
   const path = await import('node:path');
@@ -148,7 +148,6 @@ test('board: late one-off chores from the last 7 days are listed until done; rep
   const { today } = await json(await req('/api/board', 'GET'));
   const late = await json(await req('/api/chores', 'POST', { title: 'Clean garage', emoji: '🧹', points: 5, dueDate: day(today, -3) }));
   const done = await json(await req('/api/chores', 'POST', { title: 'Return library card', dueDate: day(today, -2) }));
-  await req('/api/chores', 'POST', { title: 'Feed fish', rrule: 'FREQ=DAILY', dueDate: day(today, -5) });
   await req('/api/chores', 'POST', { title: 'Today', dueDate: today });
   const week = await json(await req('/api/chores', 'POST', { title: 'Sweep porch', dueDate: day(today, -7) }));
   await req('/api/chores', 'POST', { title: 'Too old', dueDate: day(today, -8) }); // past what a wall screen can tick
@@ -165,4 +164,35 @@ test('board: late one-off chores from the last 7 days are listed until done; rep
   // Ticked off for its own day, it's gone.
   assert.equal((await req(`/api/chores/${late.id}/complete`, 'POST', { date: day(today, -3) })).status, 200);
   assert.deepEqual((await json(await req('/api/board', 'GET'))).overdueChores.map((c: any) => c.title), ['Sweep porch']);
+});
+
+test('board: a repeating chore shows its last time before today when that one was missed', async () => {
+  const { createApp } = await import('../src/app.ts');
+  const { openDb, applyMigrations } = await import('../src/d1-sqlite.ts');
+  const path = await import('node:path');
+  const db = openDb(':memory:');
+  applyMigrations(db, path.join(import.meta.dirname, '..', 'migrations'));
+  const env = { DB: db, ADMIN_API_KEY: 'k', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const req = (p: string, method: string, body?: unknown) =>
+    createApp().request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: 'Bearer k', 'Content-Type': 'application/json' } }, env);
+  const json = async (r: Response) => (await r.json()) as any;
+  const day = (today: string, n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+  const late = async () => ((await json(await req('/api/board', 'GET'))).overdueChores as any[]).map((c) => [c.title, c.date]);
+
+  const { today } = await json(await req('/api/board', 'GET'));
+  const fish = await json(await req('/api/chores', 'POST', { title: 'Feed fish', rrule: 'FREQ=DAILY', dueDate: day(today, -5) }));
+  const bed = await json(await req('/api/chores', 'POST', { title: 'Make bed', rrule: 'FREQ=DAILY', dueDate: day(today, -5) }));
+  await req('/api/chores', 'POST', { title: 'Water lawn', rrule: 'FREQ=WEEKLY', dueDate: day(today, -10) }); // last time: 3 days ago
+  await req('/api/chores', 'POST', { title: 'Wash sheets', rrule: 'FREQ=MONTHLY', dueDate: day(today, -20) }); // last time: past the 7 days
+  await req('/api/chores', 'POST', { title: 'Read', rrule: 'FREQ=DAILY', dueDate: day(today, -5), repeatGoal: { times: 3, every: 1, unit: 'week', weekStart: 0 } }); // a goal: a day off isn't late
+  const paused = await json(await req('/api/chores', 'POST', { title: 'Paused', rrule: 'FREQ=DAILY', dueDate: day(today, -5) }));
+  await req(`/api/chores/${paused.id}`, 'PATCH', { active: false });
+  // Make bed was done yesterday: its earlier misses don't count.
+  assert.equal((await req(`/api/chores/${bed.id}/complete`, 'POST', { date: day(today, -1) })).status, 200);
+
+  assert.deepEqual(await late(), [['Water lawn', day(today, -3)], ['Feed fish', day(today, -1)]]);
+
+  // Only the last time shows: ticking it off doesn't bring up the day before.
+  assert.equal((await req(`/api/chores/${fish.id}/complete`, 'POST', { date: day(today, -1) })).status, 200);
+  assert.deepEqual(await late(), [['Water lawn', day(today, -3)]]);
 });

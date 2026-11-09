@@ -25,9 +25,10 @@ On a phone, open someone's day from the family button at the top left, then tap 
 
 ## Late chores
 
-A one-time chore that isn't ticked off on its day doesn't disappear right away: for 7 days it stays on the Board as late. The Board's chores spot (the **Chores today** card, the Chores tile, or the row on **Today**) shows **⏰ 2 late chores**. Tap it for a list of them, each with who it's for and the day it was due ("Was due Thu, Nov 5"). Tap **Done** to tick one off for that day. It earns the [late completion credit](#points-late-completion-credit), or waits for a parent's OK like any other tick. After 7 days it drops off the Board, since a wall screen or kid's device can't tick it any more; a parent's device can still tick it on its day on the Chores tab. To drop a late chore instead, go to its day on the Chores tab and delete it.
+A chore that isn't ticked off on its day doesn't disappear right away: for 7 days it stays on the Board as late. For a repeating chore, that's its last time before today: **Feed the fish** missed yesterday is late, but not the days before, so a missed week doesn't stack up seven copies. The Board's chores spot (the **Chores today** card, the Chores tile, or the row on **Today**) shows **⏰ 2 late chores**. Tap it for a list of them, each with who it's for and the day it was due ("Was due Thu, Nov 5"). Tap **Done** to tick one off for that day. It earns the [late completion credit](#points-late-completion-credit), or waits for a parent's OK like any other tick. After 7 days it drops off the Board, since a wall screen or kid's device can't tick it any more; a parent's device can still tick it on its day on the Chores tab. To drop a late one-time chore instead, go to its day on the Chores tab and delete it.
 
-* Repeating chores don't carry over, so a missed day doesn't stack up. Each day's open count is on the Chores tab's calendar.
+* A repeating chore only ever shows its last time, and the next time takes its place once that day passes. Once it's ticked off, earlier misses stay on the Chores tab's calendar, which shows each day's open count.
+* A chore with a goal ("3 times a week") isn't late for a day off.
 * A late chore ticked and waiting for a parent's OK isn't late any more; it's in the approvals list.
 * The count follows who the Board shows, like the rest of its chores: on a kid's device, only theirs and **Anyone**.
 

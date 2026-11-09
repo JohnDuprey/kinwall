@@ -1438,7 +1438,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'Get the household board',
       description:
         "The household bulletin board: everyone's events plus untagged ones, open list items due soon (or overdue) or high/urgent, " +
-        "today's chores per member, one-off chores from the last 7 days not done on their day (overdueChores), and birthdays, for today through the next `days` days. A feature the family turned off (chores, lists, meals) " +
+        "today's chores per member, late chores from the last 7 days (overdueChores: a one-off's day, or a repeating chore's last time before today), and birthdays, for today through the next `days` days. A feature the family turned off (chores, lists, meals) " +
         'comes back empty. Good for "what\'s coming up for the family?".',
       inputSchema: { days: z.number().int().min(1).max(14).optional().describe('How many days ahead, starting today (default 7).') },
     },
