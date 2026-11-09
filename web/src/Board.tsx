@@ -689,9 +689,11 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
         </Card>}
 
         {has('chores') && <Card title={t('Chores today')} area="chores" density={dense('chores')} foot={<RoutineHomeIndicator rows={routineRows} parent={parentDevice} />} link={rewards && <a className="board-card-link" href="#/rewards">🎁 {t('Rewards')}</a>}>
-          {lateSlot.item?.row}{milestonesLink}
-          {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">{t('No chores today.')}</p> : (
+          {(chores.length > 0 || goalsOnly.length > 0 || lateSlot.item || milestonesLink) && (
             <ul className="snap-list">
+              {/* Rows FitBody counts, first in the list, so a tight card shows them whole or folds them into "+3 more", never cuts them. */}
+              {lateSlot.item && <li>{lateSlot.item.row}</li>}
+              {milestonesLink && <li>{milestonesLink}</li>}
               {chores.map(c => {
                 const done = c.total - c.remaining
                 const name = c.name ?? t('Anyone')
@@ -727,6 +729,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
               })}
             </ul>
           )}
+          {chores.length === 0 && !goalsOnly.length && <p className="snap-empty">{t('No chores today.')}</p>}
         </Card>}
 
         {has('checklist') && checklist && (() => {
