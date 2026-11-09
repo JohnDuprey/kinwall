@@ -165,7 +165,8 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
   }
   const archive = async () => {
     if (!existing) return
-    try { await api.updateList(existing.id, { archived: true }); announce(t('{name} archived', { name: existing.name })); onSaved() }
+    // Archived, it leaves the open view like a deleted list does (onDeleted), unlike a plain save.
+    try { await api.updateList(existing.id, { archived: true }); announce(t('{name} archived', { name: existing.name })); onDeleted() }
     catch (e) { toast(e instanceof ApiError ? e.message : t('Could not archive list'), true) }
   }
   const del = async () => {
@@ -2291,7 +2292,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       {editSheet}
       {editList && (
         <ListEditSheet list={list} onClose={() => setEditList(false)}
-          onSaved={() => { setEditList(false); load(); onArchivedOrDeleted() }}
+          // A save keeps the list open (load() refreshes it, and onLoaded its card); archiving or deleting leaves it.
+          onSaved={() => { setEditList(false); load() }}
           onDeleted={() => { setEditList(false); onArchivedOrDeleted() }} />
       )}
       {scanSheet}
