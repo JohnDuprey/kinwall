@@ -60,3 +60,7 @@ export const canChangeItem = (item: { memberId: string | null }, list: { memberI
  * rather than one Other heap; null (Other) when neither is known. */
 export const aisleGroup = (i: { store: string | null; aisle: string | null; category: string | null }): string | null =>
   i.aisle ? `${i.store ?? ''}\u0000${i.aisle}` : i.category ? `\u0000${i.category}` : null
+
+/** Changing a default clears another list's marker on the server, so its card needs a fresh read. */
+export const listDefaultChanged = (before: { isDefault?: boolean } | undefined, after: { isDefault?: boolean }): boolean =>
+  before !== undefined && !!before.isDefault !== !!after.isDefault

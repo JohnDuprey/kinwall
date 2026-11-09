@@ -74,3 +74,13 @@ test('listSections: Pantry lists (to-do lists with purpose pantry) get their own
   assert.equal(listType({ kind: 'todo', purpose: 'pantry' }), 'pantry')
   assert.equal(listType({ kind: 'shopping', catalog: 'groceries', purpose: 'pantry' }), 'groceries') // only a to-do list is one
 })
+
+test('listDefaultChanged: refresh other cards only when the saved default changes', async () => {
+  const { listDefaultChanged } = await import('../src/listSections.ts')
+  assert.equal(listDefaultChanged({ isDefault: false }, { isDefault: true }), true)
+  assert.equal(listDefaultChanged({ isDefault: true }, { isDefault: false }), true)
+  assert.equal(listDefaultChanged({ isDefault: true }, { isDefault: true }), false)
+  assert.equal(listDefaultChanged({ isDefault: false }, { isDefault: false }), false)
+  assert.equal(listDefaultChanged({}, { isDefault: false }), false)
+  assert.equal(listDefaultChanged(undefined, { isDefault: true }), false, 'first load has no previous card')
+})

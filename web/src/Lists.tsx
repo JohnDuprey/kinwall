@@ -30,7 +30,7 @@ import { shoppingActivity } from './liveActivity.ts'
 import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, tellAppHere, wallCamera } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
-import { aisleGroup, canChangeItem, itemKind, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ItemKind, type ListType } from './listSections.ts'
+import { aisleGroup, canChangeItem, itemKind, listSections, listDefaultChanged, listType, reorderWithin, TYPE_LABEL, typeFields, type ItemKind, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 import { Face, ChipFace, InlineFaces } from './Face'
 import { useBackClose } from './backStack.ts'
@@ -2464,8 +2464,11 @@ export default function Lists() {
     api.getLists(true).then(l => { setLists(l); setError(false) }).catch(() => setError(true)).finally(() => setLoading(false))
   }
   useEffect(load, [refreshTick])
-  // The open list's fresh counts ("3 left") replace its card's, without refetching every list.
-  const syncCard = (list: List) => setLists(ls => ls.map(l => (l.id === list.id ? list : l)))
+  // Counts refresh just this card; a changed default also clears another card's marker.
+  const syncCard = (list: List) => {
+    if (listDefaultChanged(lists.find(l => l.id === list.id), list)) load()
+    else setLists(ls => ls.map(l => (l.id === list.id ? list : l)))
+  }
 
   // Selected list disappeared (archived / deleted elsewhere): drop back to the list-of-lists on a
   // phone; on the wall display there's room for both, so always have one open.

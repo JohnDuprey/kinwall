@@ -47,7 +47,7 @@ A to-do list's **Edit** sheet also has **Sync with…**, to keep it in step with
 
 ### Default list for each type
 
-A Groceries list and a Shopping list can each be the family's **default**: turn on **Default Groceries list** (or **Default Shopping list**) in its **Edit** sheet. Its card shows **⭐ Default**. Turning it on for one list turns it off on the other list of that type, and a list that changes type stops being the default.
+A Groceries list and a Shopping list can each be the family's **default**: turn on **Default Groceries list** (or **Default Shopping list**) in its **Edit** sheet. Its card shows **⭐ Default**. Turning it on for one list turns it off on the other list of that type, and a list that changes type stops being the default. Saving keeps your list open and updates the default markers on the list cards right away.
 
 The default is where things go when Kinwall picks a list for you:
 
