@@ -15,7 +15,7 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
-import { rankRecipes, expiryStatus } from './pantry.ts'
+import { expiryStatus } from './pantry.ts'
 import type { PantryItem, PantrySuggestions } from './types.ts'
 import type { Recipe } from './meal-types.ts'
 import { mealWeek, moveMealDate } from './meal-date.ts'
@@ -1785,7 +1785,7 @@ export const mock = {
   },
 
   getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort(byListOrder),
-  // GET /api/pantry/suggestions, ranked the way the server ranks (pantry.ts mirrors it).
+  // Simple demo ingredient matches; the server handles food matching and recipe ranking.
   getPantrySuggestions: async (days = 7): Promise<PantrySuggestions> => {
     const today = dateKey(new Date())
     const pantryIds = new Set(lists.filter(l => l.kind === 'todo' && l.purpose === 'pantry' && !l.archived).map(l => l.id))
@@ -1796,7 +1796,13 @@ export const mock = {
     const expiring = pantry.filter(i => i.daysLeft !== null && i.daysLeft <= days)
     const { mockMealRequest } = await import('./mock-meals.ts')
     const recipes = await mockMealRequest('api/recipes', {}) as Recipe[]
-    const suggestions = expiring.length ? rankRecipes(recipes, pantry, expiring).slice(0, 10) : []
+    const suggestions = recipes.filter(r => !r.archived && r.kind !== 'basic').flatMap(recipe => {
+      const uses = expiring.flatMap(item => {
+        const ingredient = recipe.ingredients.find(i => i.name.toLowerCase().includes(item.title.toLowerCase()))
+        return ingredient ? [{ ...item, ingredient: ingredient.name }] : []
+      })
+      return uses.length ? [{ recipe: { id: recipe.id, name: recipe.name, imageUrl: recipe.imageUrl ?? null, totalMinutes: recipe.totalMinutes ?? null, rating: recipe.rating?.average ?? null }, score: 1, uses, alsoHave: [], missing: [] }] : []
+    }).slice(0, 10)
     const used = new Set(suggestions.flatMap(s => s.uses.map(u => u.id)))
     return { today, days, expiring, suggestions, unmatched: expiring.filter(i => !used.has(i.id)) }
   },

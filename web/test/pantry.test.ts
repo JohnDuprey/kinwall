@@ -1,10 +1,7 @@
-// node --test test/ (npm test). Pantry lists: use-by lines, matching food to recipes, and ranking
-// (the same rules as server/src/pantry.ts, which server/test/pantry.test.ts covers in full).
+// node --test test/ (npm test). Pantry use-by lines, groups and simple demo suggestions.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { foodMatches, rankRecipes, expiryLabel, expiryShort, expiryStatus } from '../src/pantry.ts'
-import type { PantryItem } from '../src/types.ts'
-import type { Recipe } from '../src/meal-types.ts'
+import { expiryLabel, expiryShort, expiryStatus } from '../src/pantry.ts'
 
 const today = '2026-11-08'
 
@@ -30,51 +27,28 @@ test('expiryLabel: a word and a mark for each state, never color alone; nothing 
   assert.equal(expiryShort({ useBy: '2026-11-09', daysLeft: 1, status: 'soon' }), 'tomorrow')
 })
 
-test('foodMatches: the same food, a cut or a variety; not a different food', () => {
-  assert.ok(foodMatches('Chicken', 'Chicken breast'))
-  assert.ok(foodMatches('Tomatoes', 'Cherry tomatoes'))
-  assert.ok(foodMatches('Greek yogurt', 'yogurt'))
-  assert.ok(!foodMatches('Milk', 'Coconut milk'))
-  assert.ok(!foodMatches('Garlic', 'Garlic powder'))
-})
-
-test('rankRecipes: sooner and more expiring items first, staples never missing, basics and archived left out', () => {
-  const item = (id: string, title: string, daysLeft: number | null): PantryItem => ({ id, listId: 'p', listName: 'Kitchen', title, quantity: null, kept: null, useBy: null, daysLeft, status: daysLeft === null ? null : daysLeft < 0 ? 'expired' : daysLeft === 0 ? 'today' : daysLeft <= 3 ? 'soon' : 'later' })
-  const recipe = (id: string, names: string[], extra: Partial<Recipe> = {}) => ({ id, name: id, archived: false, kind: 'meal', ingredients: names.map(name => ({ name })), ...extra }) as unknown as Recipe
-  const pantry = [item('a', 'Spinach', 0), item('b', 'Chicken', 2), item('c', 'Rice', null)]
-  const expiring = pantry.slice(0, 2)
-  const ranked = rankRecipes([
-    recipe('Salad', ['Spinach', 'Walnuts', 'Salt']),
-    recipe('Curry', ['Chicken thighs', 'Spinach', 'Rice']),
-    recipe('Toast', ['Bread']),
-    recipe('Stock', ['Chicken'], { kind: 'basic' }),
-    recipe('Old', ['Spinach'], { archived: true }),
-  ], pantry, expiring)
-  assert.deepEqual(ranked.map(r => r.recipe.name), ['Curry', 'Salad'])
-  assert.deepEqual(ranked[0].uses.map(u => u.title), ['Spinach', 'Chicken'])
-  assert.deepEqual(ranked[0].alsoHave.map(u => u.title), ['Rice'])
-  assert.deepEqual(ranked[1].missing, ['Walnuts'])
-})
-
-test('rankRecipes: staples never match ("pepper" isn\'t peppers), one item per ingredient, meal-kit ingredients never missing', () => {
-  const item = (id: string, title: string, daysLeft: number): PantryItem => ({ id, listId: 'p', listName: 'Kitchen', title, quantity: null, kept: null, useBy: null, daysLeft, status: daysLeft <= 3 ? 'soon' : 'later' })
-  const pantry = [item('p', 'Peppers', 1), item('b', 'Chicken breast', 2), item('t', 'Chicken thighs', 1)]
-  const recipe = (id: string, ings: { name: string; qualifier?: string }[]) => ({ id, name: id, archived: false, kind: 'meal', ingredients: ings }) as unknown as Recipe
-  const ranked = rankRecipes([
-    recipe('Roast', [{ name: 'Chicken' }, { name: 'Salt and pepper' }, { name: 'Black pepper' }]),
-    recipe('Fajitas', [{ name: 'Peppers' }, { name: 'Fajita spice', qualifier: 'in the kit' }, { name: 'Tortillas' }]),
-  ], pantry, pantry)
-  const by = Object.fromEntries(ranked.map(r => [r.recipe.name, r]))
-  assert.deepEqual(by.Roast.uses.map(u => u.title), ['Chicken thighs'])
-  assert.deepEqual(by.Roast.missing, [])
-  assert.deepEqual(by.Fajitas.uses.map(u => u.title), ['Peppers'])
-  assert.deepEqual(by.Fajitas.missing, ['Tortillas'])
-  assert.ok(!foodMatches('Beans', 'green beans'))
-})
-
 test('soonestGroupFirst: the place with the food to use first leads; undated places last, then A-Z', async () => {
   const { soonestGroupFirst } = await import('../src/pantry.ts')
   const g = (name: string, ...dates: (string | null)[]) => ({ name, items: dates.map(dueDate => ({ dueDate })) })
   const groups = [g('Freezer', '2027-01-07'), g('Pantry', null), g('Fridge', '2026-11-07', '2026-11-20'), g('Cellar', null), g('Garage fridge', '2026-11-07')]
   assert.deepEqual(groups.sort(soonestGroupFirst).map(x => x.name), ['Fridge', 'Garage fridge', 'Freezer', 'Cellar', 'Pantry'])
+})
+
+test('demo pantry suggestions show simple ingredient matches without ranking or a shopping forecast', async () => {
+  const store = new Map<string, string>()
+  ;(globalThis as { sessionStorage?: unknown }).sessionStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) }
+  const { mock } = await import('../src/mock.ts')
+  const { dateKey } = await import('../src/date.ts')
+  const list = await mock.createList({ name: 'Kitchen', kind: 'todo', purpose: 'pantry' })
+  await mock.addListItems(list.id, [{ title: 'Chicken', dueDate: dateKey(new Date()) }])
+  const result = await mock.getPantrySuggestions()
+  assert.ok(result.suggestions.length > 0)
+  for (const suggestion of result.suggestions) {
+    assert.equal(suggestion.score, 1)
+    assert.deepEqual(suggestion.alsoHave, [])
+    assert.deepEqual(suggestion.missing, [])
+    assert.ok(suggestion.uses.length > 0)
+  }
+  const used = new Set(result.suggestions.flatMap(s => s.uses.map(i => i.id)))
+  assert.deepEqual(result.unmatched, result.expiring.filter(i => !used.has(i.id)))
 })

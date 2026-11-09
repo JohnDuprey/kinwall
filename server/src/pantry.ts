@@ -2,7 +2,7 @@
 // is its use-by date and its category is where it's kept (Fridge, Freezer, Pantry...). This module
 // reads what's expiring and ranks the family's recipes by how much of it they use up. Pure matching
 // and scoring here; routes/pantry.ts serves it, and mcp.ts hands it to AI assistants.
-// web/src/pantry.ts mirrors foodMatches and expiryStatus for the demo build: keep the two in step.
+// web/src/pantry.ts also calculates use-by status for display; the demo uses simple ingredient matches.
 import type { KinwallDb } from './db.ts';
 import { itemKey } from './item-memory.ts';
 import { KIT_QUALIFIER, type Recipe } from './meal-schemas.ts';
