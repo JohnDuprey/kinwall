@@ -15,6 +15,9 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { rankRecipes, expiryStatus } from './pantry.ts'
+import type { PantryItem, PantrySuggestions } from './types.ts'
+import type { Recipe } from './meal-types.ts'
 import { mealWeek, moveMealDate } from './meal-date.ts'
 import { setLogDay } from './reading.ts'
 import { DEMO_DRAWINGS, drawingPhoto } from './mock-drawings.ts'
@@ -551,6 +554,8 @@ const libraryRow = (body: LibraryChoreInput, from?: Chore): DemoLibrary => ({
   notes: body.notes?.trim() || null, createdAt: new Date().toISOString(), seenDone: null, seenMember: null, seenTimes: 0,
 })
 
+/** Pantry item id → the grocery item restock added for it (the server's restock_item_id). */
+const restocked = new Map<string, string>()
 const lists: List[] = [
   { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
@@ -558,6 +563,7 @@ const lists: List[] = [
   { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4,
     lastDoneAt: new Date(Date.now() - 4 * 86_400_000 - 2 * 3_600_000).toISOString(), lastDoneBy: { memberId: 'm3' } },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
+  { id: 'l7', name: 'Kitchen', emoji: '🥫', color: '#7ED9A6', kind: 'todo', purpose: 'pantry', restock: true, catalog: null, memberIds: [], groupBy: 'category', sortBy: 'due', keepChecked: false, sort: 6, archived: false, createdAt: new Date().toISOString(), itemCount: 9, openCount: 8 },
   { id: 'l6', name: 'Bedtime', emoji: '🌙', color: '#7AB8FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 5, archived: false, createdAt: new Date().toISOString(), itemCount: 6, openCount: 4 },
 ]
 type SeedItem = Omit<ListItem, 'priority' | 'steps' | 'stepsDone' | 'stepsTotal' | 'aisle'> & { priority?: ListItem['priority']; steps?: string[] | ListItemStep[]; aisle?: string | null }
@@ -603,6 +609,16 @@ let listItems: ListItem[] = ([
   { id: 'li-bed3', listId: 'l6', title: 'Pack backpack for tomorrow', notes: null, quantity: null, store: null, category: null, memberId: 'm3', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
   { id: 'li-bed4', listId: 'l6', title: 'Pick a bedtime story', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
   { id: 'li-bed5', listId: 'l6', title: 'Lights out', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso() },
+  // The pantry: what's in the fridge, freezer and cupboard, and when to use it by.
+  { id: 'lp1', listId: 'l7', title: 'Spinach', notes: null, quantity: '1 bag', store: null, category: 'Fridge', memberId: null, dueDate: inDays(-1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp2', listId: 'l7', title: 'Broccoli', notes: null, quantity: '1 head', store: null, category: 'Fridge', memberId: null, dueDate: inDays(0), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp3', listId: 'l7', title: 'Chicken breast', notes: null, quantity: '1.5 lb', store: null, category: 'Fridge', memberId: null, dueDate: inDays(1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp4', listId: 'l7', title: 'Greek yogurt', notes: null, quantity: '32 oz', store: null, category: 'Fridge', memberId: null, dueDate: inDays(2), eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp5', listId: 'l7', title: 'Strawberries', notes: null, quantity: null, store: null, category: 'Fridge', memberId: null, dueDate: inDays(3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp6', listId: 'l7', title: 'Milk', notes: null, quantity: '½ gal', store: null, category: 'Fridge', memberId: null, dueDate: inDays(6), eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp7', listId: 'l7', title: 'Rice', notes: null, quantity: '2 lb', store: null, category: 'Pantry', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 6, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp8', listId: 'l7', title: 'Frozen peas', notes: null, quantity: '1 bag', store: null, category: 'Freezer', memberId: null, dueDate: inDays(60), eventId: null, done: false, doneAt: null, doneBy: null, sort: 7, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp9', listId: 'l7', title: 'Bananas', notes: null, quantity: null, store: null, category: 'Pantry', memberId: null, dueDate: inDays(-2), eventId: null, done: true, doneAt: iso(), doneBy: 'm2', sort: 8, createdAt: iso(), updatedAt: iso() },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
 // Who added and checked off what (the item sheet's "Added by" line): kids add snacks, the wall adds
@@ -1769,6 +1785,21 @@ export const mock = {
   },
 
   getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort(byListOrder),
+  // GET /api/pantry/suggestions, ranked the way the server ranks (pantry.ts mirrors it).
+  getPantrySuggestions: async (days = 7): Promise<PantrySuggestions> => {
+    const today = dateKey(new Date())
+    const pantryIds = new Set(lists.filter(l => l.kind === 'todo' && l.purpose === 'pantry' && !l.archived).map(l => l.id))
+    const pantry: PantryItem[] = listItems.filter(i => pantryIds.has(i.listId) && !i.done).map(i => {
+      const when = expiryStatus(i.dueDate, today)
+      return { id: i.id, listId: i.listId, listName: lists.find(l => l.id === i.listId)!.name, title: i.title, quantity: i.quantity, kept: i.category, useBy: i.dueDate, daysLeft: when?.daysLeft ?? null, status: when?.status ?? null }
+    }).sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity) || a.title.localeCompare(b.title))
+    const expiring = pantry.filter(i => i.daysLeft !== null && i.daysLeft <= days)
+    const { mockMealRequest } = await import('./mock-meals.ts')
+    const recipes = await mockMealRequest('api/recipes', {}) as Recipe[]
+    const suggestions = expiring.length ? rankRecipes(recipes, pantry, expiring).slice(0, 10) : []
+    const used = new Set(suggestions.flatMap(s => s.uses.map(u => u.id)))
+    return { today, days, expiring, suggestions, unmatched: expiring.filter(i => !used.has(i.id)) }
+  },
   reorderLists: async (ids: string[]) => {
     reorderWithin(lists, ids).forEach((id, i) => { lists.find(l => l.id === id)!.sort = i })
     bump(); return { ok: true }
@@ -1776,7 +1807,7 @@ export const mock = {
   createList: async (body: Partial<List>): Promise<List> => {
     const nl: List = {
       id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
-      kind: body.kind ?? 'todo', catalog: body.kind === 'shopping' ? body.catalog ?? 'groceries' : null, memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      kind: body.kind ?? 'todo', purpose: body.kind === 'todo' || !body.kind ? body.purpose ?? null : null, restock: (body.kind === 'todo' || !body.kind) && body.purpose === 'pantry' && !!body.restock, catalog: body.kind === 'shopping' ? body.catalog ?? 'groceries' : null, memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : body.purpose === 'pantry' ? 'category' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : body.purpose === 'pantry' ? 'due' : 'manual'),
       keepChecked: body.keepChecked ?? body.kind !== 'todo',
       sort: Math.max(-1, ...lists.map(l => l.sort)) + 1, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
     }
@@ -1809,7 +1840,16 @@ export const mock = {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
     // One default per shopping type, like the server.
     if (patch.isDefault) for (const o of lists) if (o.id !== id && o.kind === 'shopping' && (o.catalog ?? 'groceries') === (l.catalog ?? 'groceries')) o.isDefault = false
-    Object.assign(l, patch, patch.kind && patch.kind !== 'shopping' ? { catalog: null } : patch.kind === 'shopping' && !l.catalog ? { catalog: patch.catalog ?? 'groceries' } : {}); bump(); return l
+    // Like the server: becoming or leaving a pantry list takes that view; only a to-do list is one.
+    const wasPantry = l.purpose === 'pantry'
+    Object.assign(l, patch, patch.kind && patch.kind !== 'shopping' ? { catalog: null } : patch.kind === 'shopping' && !l.catalog ? { catalog: patch.catalog ?? 'groceries' } : {})
+    if (l.kind !== 'todo') l.purpose = null
+    if (l.purpose !== 'pantry') l.restock = false
+    if ((l.purpose === 'pantry') !== wasPantry) {
+      const view: Pick<List, 'groupBy' | 'sortBy'> = l.purpose === 'pantry' ? { groupBy: 'category', sortBy: 'due' } : l.kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : { groupBy: 'none', sortBy: 'manual' }
+      Object.assign(l, { groupBy: patch.groupBy ?? view.groupBy, sortBy: patch.sortBy ?? view.sortBy }) // unless the request sets them
+    }
+    bump(); return l
   },
   deleteList: async (id: string) => {
     const i = lists.findIndex(x => x.id === id); if (i >= 0) lists.splice(i, 1)
@@ -1851,6 +1891,22 @@ export const mock = {
       if (patch.aisle) { seenAt(i.title, aisleStore, patch.aisle, listId); remembered.at(-1)!.updatedAt = iso() }
       const planned = patch.store !== undefined ? patch.store : i.store
       if (planned && planned !== aisleStore) delete patch.aisle
+    }
+    // Like the server: a pantry list with restock on puts used-up food on the grocery list (default,
+    // else first), unless it's open there already; unticking takes back the one it added, if not bought.
+    const from = lists.find(l => l.id === listId)
+    if (patch.done !== undefined && !!patch.done !== i.done && from?.purpose === 'pantry' && from.restock) {
+      if (patch.done) {
+        const target = lists.filter(l => l.kind === 'shopping' && (l.catalog ?? 'groceries') === 'groceries' && !l.archived).sort((a, b) => Number(!!b.isDefault) - Number(!!a.isDefault) || byListOrder(a, b))[0]
+        if (target && !listItems.some(x => x.listId === target.id && !x.done && itemKey(x.title) === itemKey(i.title))) {
+          const [added] = await mock.addListItems(target.id, { title: i.title })
+          restocked.set(i.id, added.id)
+        }
+      } else if (restocked.has(i.id)) {
+        const back = listItems.find(x => x.id === restocked.get(i.id) && !x.done)
+        if (back) { listItems = listItems.filter(x => x !== back); recomputeListCounts(back.listId) }
+        restocked.delete(i.id)
+      }
     }
     if (patch.done !== undefined) {
       i.doneAt = patch.done ? new Date().toISOString() : null
@@ -2148,7 +2204,8 @@ function dueOn(c: Chore, d: string) {
 /** Open, unarchived list items, soonest due first (so overdue leads), undated last. */
 function openItems(today: string, keep: (i: ListItem) => boolean) {
   const rank = { urgent: 0, high: 1, normal: 2, low: 3 }
-  return listItems.filter(i => keep(i) && !i.done && !lists.find(l => l.id === i.listId)?.archived)
+  // Like the server: food on a pantry list isn't a to-do, so its use-by date stays off the Board and snapshots.
+  return listItems.filter(i => { const l = lists.find(x => x.id === i.listId); return keep(i) && !i.done && !l?.archived && l?.purpose !== 'pantry' })
     .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || rank[a.priority] - rank[b.priority])
     .map(i => { const l = lists.find(x => x.id === i.listId)!; return { ...i, listName: l.name, listEmoji: l.emoji ?? null, overdue: !!i.dueDate && i.dueDate < today } })
 }

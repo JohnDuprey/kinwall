@@ -356,3 +356,18 @@ span.menu-star { width: 44px; text-align: center; }
 /* Keyboard up on a phone on its side (the whole sheet scrolls): the search scrolls with the menu, so
    the few rows of room show results instead of a pinned box. */
 @container sheet (max-height: 300px) { .order-search { position: static; } }
+/* Use it up (UseItUp.tsx): pantry food that expires soon, and recipes that use it. */
+.use-it-up { margin: 0 0 20px; padding: 16px; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
+.use-it-up-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.use-it-up-head h2 { margin: 0; font-size: 1.125rem; }
+.use-it-up-head .field-hint { margin: 0; }
+.use-it-up-items, .use-it-up-recipes { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.use-it-up-item.expired { color: var(--danger); }
+.use-it-up-recipes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.use-it-up-recipe { display: flex; align-items: stretch; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-soft); }
+.use-it-up-open { flex: 1; min-width: 0; min-height: 44px; display: flex; flex-direction: column; gap: 4px; padding: 4px; text-align: left; color: var(--text); background: none; border: 1px solid transparent; border-radius: 8px; overflow-wrap: anywhere; font: inherit; }
+.use-it-up-open strong { font-size: 0.9375rem; }
+.use-it-up-open span { font-size: 0.8125rem; color: var(--text-dim); }
+.use-it-up-recipe .btn { flex: none; width: auto; align-self: center; }
+.use-it-up > .link-btn { margin-top: 8px; min-height: 44px; }
+.use-it-up > .field-hint:last-child { margin: 10px 0 0; }

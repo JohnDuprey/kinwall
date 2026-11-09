@@ -117,6 +117,10 @@ export const BasketIcon = (p: P) => (
   // shopping basket from Lucide (ISC license, lucide.dev)
   <svg {...base(p)}><path d="m15 11-1 9" /><path d="m19 11-4-7" /><path d="M2 11h20" /><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4" /><path d="M4.5 15.5h15" /><path d="m5 11 4-7" /><path d="m9 11 1 9" /></svg>
 )
+// A jar with a lid: the Pantry list type.
+export const JarIcon = (p: P) => (
+  <svg {...base(p)}><rect x="7" y="2.5" width="10" height="3.5" rx="1" /><path d="M8 6v1.5a3 3 0 0 1-2 2.8V19a2.5 2.5 0 0 0 2.5 2.5h7A2.5 2.5 0 0 0 18 19v-8.7a3 3 0 0 1-2-2.8V6" /><path d="M6 13h12" /></svg>
+)
 export const PillIcon = (p: P) => (
   // pill from Lucide (ISC license, lucide.dev)
   <svg {...base(p)}><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></svg>

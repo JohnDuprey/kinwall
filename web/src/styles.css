@@ -1541,7 +1541,7 @@ button.month-cell .month-daynum { flex: none; }
 .shop-row-body .list-from-tag { align-self: flex-start; margin-top: 2px; }
 /* A list's type: icon over the name, four across even on a phone. */
 .segmented.list-type-seg { width: 100%; border-radius: var(--radius-sm); }
-.segmented.list-type-seg button { flex: 1 1 0; min-width: 0; min-height: 56px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding-inline: 4px; border-radius: calc(var(--radius-sm) - 4px); font-size: 0.8125rem; }
+.segmented.list-type-seg button { flex: 1 1 0; min-width: 0; min-height: 56px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding-inline: 4px; border-radius: calc(var(--radius-sm) - 4px); font-size: 0.8125rem; line-height: 1.15; text-align: center; hyphens: auto; } /* five types on a phone: a long word (Wiederverwendbar) breaks rather than spilling into the next */
 .due-field { display: flex; gap: 8px; align-items: center; }
 .due-field input { flex: 1; min-width: 0; }
 .due-field .btn { flex: none; width: auto; min-height: 44px; }
@@ -1581,6 +1581,9 @@ button.month-cell .month-daynum { flex: none; }
 .list-item-sale { color: var(--accent-text); background: var(--accent-tint); }
 .list-item-due { color: var(--accent-text); }
 .list-item-due.overdue { color: var(--danger); font-weight: 800; }
+.list-item-due.use-soon { font-weight: 700; } /* a pantry item to use within 3 days: ⏳ and the words say it too */
+/* A due or use-by line keeps one height: the ⏳ and ⚠ marks come from a taller emoji font, which grew the row by 4px. */
+.list-item-due { line-height: 16px; }
 .list-overdue { color: var(--danger); font-weight: 800; white-space: nowrap; }
 
 .list-done-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 4px; }
@@ -4192,7 +4195,7 @@ html:root[data-cast] {
 @media (hover: hover) and (pointer: fine) {
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
-    .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
+    .list-item-check, .meal-card, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item, .setup-check-row
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }

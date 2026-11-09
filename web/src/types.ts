@@ -767,6 +767,8 @@ export interface Webhook {
 export type WebhookWithSecret = Webhook & { secret: string }
 
 export type ListKind = 'todo' | 'shopping' | 'reusable'
+/** What a to-do list is for (older servers leave it out). pantry: food at home, where an item's dueDate is its use-by date and its category where it's kept. */
+export type ListPurpose = 'pantry'
 /** A shopping list's type (and its catalog): Groceries or other Shopping. */
 export type ListCatalog = 'groceries' | 'shopping'
 export type ListGroupBy = 'store' | 'category' | 'aisle' | 'none' // aisle: shopping lists only
@@ -778,6 +780,8 @@ export interface List {
   emoji: string | null
   color: string | null
   kind: ListKind
+  purpose?: ListPurpose | null // to-do lists: pantry (kind stays todo, so older apps show a to-do list)
+  restock?: boolean // pantry lists: checking food off adds it to the grocery list (older servers leave it out)
   memberIds: string[] // owners; [] = whole family
   groupBy: ListGroupBy
   sortBy: ListSortBy // item order within each group
@@ -792,6 +796,22 @@ export interface List {
   overdueCount?: number // computed: open items due before today (older servers leave it out)
   lastDoneAt?: string | null // reusable lists: last reset with something ticked, or its chore done (older servers leave it out)
   lastDoneBy?: Actor | null
+}
+
+/** GET /api/pantry/*: an open pantry item with how long it keeps (days in the household's calendar). */
+export type UseByStatus = 'expired' | 'today' | 'soon' | 'later'
+export interface PantryItem {
+  id: string; listId: string; listName: string; title: string; quantity: string | null
+  kept: string | null // where it's kept (the item's category)
+  useBy: string | null; daysLeft: number | null; status: UseByStatus | null
+}
+export type PantryUse = PantryItem & { ingredient: string }
+/** GET /api/pantry/suggestions: recipes that use up what's expiring, best first. */
+export interface PantrySuggestions {
+  today: string; days: number
+  expiring: PantryItem[]
+  suggestions: { recipe: { id: string; name: string; imageUrl: string | null; totalMinutes: number | null; rating: number | null }; score: number; uses: PantryUse[]; alsoHave: PantryUse[]; missing: string[] }[]
+  unmatched: PantryItem[] // expiring items no suggested recipe uses
 }
 
 /** Who did something on a list: a family member, or a device or app that is nobody's ("Kitchen wall", "Assistant"). */

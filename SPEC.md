@@ -206,7 +206,7 @@ chore_completions(id, chore_id, date 'YYYY-MM-DD', member_id NULL, completed_at,
 chore_library(id, title, emoji NULL, points INT, list_id NULL, member_id NULL, every_n NULL, every_unit NULL,
        needs_approval NULL, notes NULL, created_at)
        -- saved, unscheduled chores; "last done" is derived from completions of chores with that library_id.
-lists(id, name, emoji NULL, color NULL, kind 'todo'|'shopping'|'reusable', member_ids JSON '[]',
+lists(id, name, emoji NULL, color NULL, kind 'todo'|'shopping'|'reusable', purpose NULL|'pantry' (to-do lists, 0143), member_ids JSON '[]',
       group_by 'store'|'category'|'none', sort, archived INT, created_at)
 list_items(id, list_id, title, notes NULL, quantity NULL, store NULL, category NULL, member_id NULL,
            due_date NULL, done INT, done_at NULL, done_by NULL, sort, created_at, updated_at)

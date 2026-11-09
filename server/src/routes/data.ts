@@ -152,6 +152,8 @@ const ExportSchema = z
         keepChecked: z.boolean().optional(), // older exports: the kind's default (0040)
         catalog: z.enum(CATALOGS).nullable().optional(), // older exports predate list types (0076): see catalogsFor
         isDefault: z.boolean().default(false), // older exports predate default lists (0088)
+        purpose: ListSchema.shape.purpose.default(null), // older exports predate pantry lists (0143)
+        restock: z.boolean().default(false),
         overdueCount: z.number().optional(), // computed, and older exports predate it
         itemsRev: z.number().optional(), // computed, and older exports predate it
         lastDoneAt: z.string().nullable().default(null), // older exports predate who-did-what (0078)
@@ -295,7 +297,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal, group_id FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
-      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, emoji, color, kind, purpose, restock, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
         'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, for_member_ids, on_sale, due_date, event_id, priority, done, done_at, done_by, done_by_label, added_by, added_by_label, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
@@ -965,6 +967,8 @@ dataRoutes.openapi(
           emoji: l.emoji,
           color: l.color,
           kind: l.kind,
+          purpose: l.kind === 'todo' ? l.purpose : null,
+          restock: l.kind === 'todo' && l.purpose === 'pantry' && l.restock ? 1 : 0,
           member_ids: JSON.stringify(l.memberIds),
           group_by: l.groupBy,
           sort_by: l.sortBy,

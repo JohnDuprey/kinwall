@@ -21,6 +21,7 @@ import type { Meal, Recipe, RecipeKind, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
+import UseItUp from './UseItUp.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
 
@@ -158,6 +159,7 @@ export default function Meals() {
         <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? t('Previous day') : t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{dayView ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={dayView ? t('Next day') : t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
         <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : t('{from} – {to}', { from: mealDayLabel(from, { month: 'short', day: 'numeric' }), to: mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' }) })}</h2>
       </div>
+      {settings.features.lists && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={recipe => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } })} />}
       {recipeError && <p className="field-error" role="alert">{t('The recipe library could not refresh.')} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
       {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(n => n + 1)} /> : !meals ? <p role="status">{t('Loading meals…')}</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label={t('Weekly meal plan')}>
         <table className={`meal-grid${compactWeek ? ' meal-grid-compact' : ''}`}><caption className="sr-only">{t('Meals from {from} through {to}', { from, to })}</caption><thead><tr><th scope="col">{t('Date')}</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{tm(SLOT_LABEL[slot])}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
