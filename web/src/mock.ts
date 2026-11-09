@@ -1,4 +1,5 @@
 import { goalPeriod } from './choreGoal.ts'
+import { ApiError } from './apiError.ts'
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import { scheduleDates } from './choreSchedule.ts'
 import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
@@ -1470,7 +1471,7 @@ export const mock = {
     if (c?.listId) {
       const mine = (i: ListItem) => i.listId === c.listId && (!c.memberId || !i.memberId || i.memberId === c.memberId)
       const open = listItems.filter(i => mine(i) && !i.done)
-      if (open.length) throw new Error(`Checklist not finished (${open.length} left)`)
+      if (open.length) throw new ApiError(409, `Checklist not finished (${open.length} left)`) // like the server
       if (lists.find(l => l.id === c.listId)?.kind === 'reusable') listItems = listItems.map(i => mine(i) ? { ...i, done: false, doneAt: null, doneBy: null } : i)
     }
     // Like the server: off a parent's device, an activity chore whose activity is gone waits for an OK.

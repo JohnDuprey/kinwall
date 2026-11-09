@@ -137,13 +137,8 @@ function mediaUrl(path: string, more = ''): string {
   return saved?.token ? apiUrl(`${path}?key=${encodeURIComponent(saved.token)}${more}`) : ''
 }
 
-export class ApiError extends Error {
-  status: number
-  constructor(status: number, message: string) {
-    super(message)
-    this.status = status
-  }
-}
+export { ApiError } from './apiError.ts'
+import { ApiError } from './apiError.ts'
 
 // Server may be mounted under a sub-path (e.g. Home Assistant ingress); resolve API paths
 // (no leading slash) against the page's own base rather than assuming the origin root.

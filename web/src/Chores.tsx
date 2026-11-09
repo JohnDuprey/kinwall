@@ -557,7 +557,8 @@ export default function Chores() {
 
   // #/chores?done=<id> (from the app's Chores widget): tap that chore once it's loaded, so it asks
   // "Who did it?" or opens its checklist, just like a tap here. A link can come from anywhere, so a
-  // chore that would be ticked off straight away asks first.
+  // chore that would be ticked off straight away asks first. &date=YYYY-MM-DD (the Board's late
+  // chores) goes to that day; without it, today.
   const [hashTick, setHashTick] = useState(0) // the app may set the link while this tab is already open
   useEffect(() => {
     const onHash = () => setHashTick(n => n + 1)
@@ -568,7 +569,8 @@ export default function Chores() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '')
     const id = params.get('done')
     if (!id || loading) return
-    if (key !== dateKey(new Date())) { setSelectedDate(new Date()); return } // the widget shows today
+    const day = params.get('date') ?? dateKey(new Date()) // the widget shows today
+    if (key !== day) { setSelectedDate(new Date(`${day}T00:00`)); return }
     history.replaceState(history.state, '', '#/chores')
     const c = chores.find(x => x.id === id)
     if (!c || c.completed || c.pending) return

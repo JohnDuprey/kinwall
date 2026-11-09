@@ -29,7 +29,11 @@ export function useLateChoresSlot(late: OverdueChore[]) {
       const said = r.pending ? t("{title} done, waiting for a parent's OK", { title: c.title }) : tn(pts, '{title} done, {n} point', '{title} done, {n} points', { title: c.title })
       toast(said); announce(said)
       reloadCore()
-    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not update chore'), true) }
+    } catch (e) {
+      // Its checklist has open items: open it on its day in Chores, to tick them off there.
+      if (e instanceof ApiError && e.status === 409) { setOpen(false); location.hash = `#/chores?done=${encodeURIComponent(c.id)}&date=${c.date}`; return }
+      toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
+    }
     finally { setBusy(null) }
   }
 
