@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { foodMatches, expiryStatus } from '../src/pantry.ts';
+import { foodMatches, expiryStatus, rankRecipes } from '../src/pantry.ts';
 import { todayIn } from '../src/routes/lists.ts';
 import { runNotifications } from '../src/notify.ts';
+import type { PantryItem } from '../src/pantry.ts';
 import type { Env } from '../src/env.ts';
 
 function fixture() {
@@ -329,4 +330,16 @@ test('pantry: with restock on and no Groceries list, checking food off just chec
   const kitchen = await json('/api/lists', 'POST', { name: 'Kitchen', kind: 'todo', purpose: 'pantry', restock: true });
   const [milk] = await json(`/api/lists/${kitchen.id}/items`, 'POST', [{ title: 'Milk' }]);
   assert.equal((await json(`/api/lists/${kitchen.id}/items/${milk.id}`, 'PATCH', { done: true })).done, true);
+});
+
+test('pantry: ranking accepts unsorted pantry items without changing their order', async () => {
+  const { json } = fixture();
+  const first = await json('/api/recipes', 'POST', { name: 'Roast chicken', ingredients: [{ name: 'Chicken' }] });
+  const second = await json('/api/recipes', 'POST', { name: 'Chicken soup', ingredients: [{ name: 'Chicken' }] });
+  const item = (id: string, daysLeft: number | null): PantryItem => ({ id, title: 'Chicken', listId: 'kitchen', listName: 'Kitchen', quantity: null, kept: null, useBy: null, daysLeft, status: null });
+  const pantry = [item('undated', null), item('later', 3), item('soonest', 0)];
+  const suggestions = rankRecipes([first, second], pantry, pantry.slice(1));
+  assert.equal(suggestions.length, 2);
+  for (const suggestion of suggestions) assert.deepEqual(suggestion.uses.map(i => i.id), ['soonest']);
+  assert.deepEqual(pantry.map(i => i.id), ['undated', 'later', 'soonest']);
 });

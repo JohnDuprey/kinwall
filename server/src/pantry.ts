@@ -96,12 +96,12 @@ const urgency = (i: PantryItem) => 1 / (1 + Math.max(0, i.daysLeft ?? Infinity))
 export function rankRecipes(recipes: Recipe[], pantry: PantryItem[], expiring: PantryItem[]): PantrySuggestion[] {
   const soon = new Set(expiring.map((i) => i.id));
   const out: PantrySuggestion[] = [];
+  // Soonest to expire first, so each ingredient uses up the item that needs it most.
+  const ordered = [...pantry].sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
   for (const recipe of recipes) {
     if (recipe.archived || recipe.kind === 'basic') continue;
     const uses: PantryUse[] = [], alsoHave: PantryUse[] = [], missing: string[] = [];
     const seen = new Set<string>();
-    // Soonest to expire first, so each ingredient uses up the item that needs it most.
-    const ordered = [...pantry].sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
     for (const ing of recipe.ingredients) {
       // Assumed on hand, and never matched: "Peppers" aren't the pepper in "salt and pepper".
       if (isStaple(ing.name)) continue;
