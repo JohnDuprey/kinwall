@@ -900,7 +900,7 @@ listsRoutes.openapi(
     const body = c.req.valid('json');
     const inputs = Array.isArray(body) ? body : [body];
 
-    const list = await c.env.DB.prepare("SELECT id, name, kind, coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id).first<{ id: string; name: string; kind: ListRow['kind']; catalog: Catalog }>();
+    const list = await c.env.DB.prepare("SELECT id, name, kind, purpose, coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id).first<{ id: string; name: string; kind: ListRow['kind']; purpose: Purpose; catalog: Catalog }>();
     if (!list) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, inputs.map((i) => i.eventId))) return c.json({ error: 'event not found' }, 400);
     const block = await taskLinkBlock(c, inputs.map((i) => i.eventId));
@@ -953,7 +953,9 @@ listsRoutes.openapi(
     // "Remembers where things go" (shopping lists): only OMITTED fields fill from memory -
     // explicit null means "none" and must not be overwritten.
     const shopping = list.kind === 'shopping';
-    const teach = shopping && (await teaches(c));
+    const pantry = list.kind === 'todo' && list.purpose === 'pantry';
+    const canTeach = (shopping || pantry) && (await teaches(c));
+    const teach = shopping && canTeach;
     const memory = shopping ? await recall(c.env.DB, list.catalog, adding.map((i) => i.title)) : new Map();
     for (const input of adding) {
       const { store, category, aisle } = shopping
@@ -1029,7 +1031,9 @@ listsRoutes.openapi(
         ),
         ...(teach ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
         ...(teach ? rows.map((r) => rememberName(c.env.DB, list.catalog, r.title, now)) : []),
-        ...(teach ? rows.flatMap((r, i) => (adding[i].barcode ? [rememberBarcode(c.env.DB, list.catalog, adding[i].barcode!, r.title, now)] : [])) : []),
+        // A saved pantry scan joins the grocery catalog without teaching where food is kept.
+        ...(pantry && canTeach ? rows.flatMap((r, i) => adding[i].barcode ? [rememberName(c.env.DB, 'groceries', r.title, now)] : []) : []),
+        ...(canTeach ? rows.flatMap((r, i) => (adding[i].barcode ? [rememberBarcode(c.env.DB, pantry ? 'groceries' : list.catalog, adding[i].barcode!, r.title, now)] : [])) : []),
       ]);
       emit(c, 'list.item.changed', { listId: id, ids: [...rows.map((r) => r.id), ...reopened] });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
@@ -1089,12 +1093,12 @@ listsRoutes.openapi(
     method: 'get',
     path: '/api/lists/{id}/barcodes/{code}',
     tags: ['Lists'],
-    summary: "A scanned product's item name for this shopping list: what the family saved for it (source family), else the Open Facts databases in the list's order. A Groceries list asks Open Food Facts (openfoodfacts) first, then Open Pet Food Facts, Open Products Facts and Open Beauty Facts (openpetfoodfacts, openproductsfacts, openbeautyfacts); another shopping list asks the household and beauty ones first, then food and pet food. The first match in that order wins. Add it with `barcode` to save the name.",
+    summary: "A scanned product's item name for this shopping or pantry list (pantry shares the groceries catalog): what the family saved for it (source family), else the Open Facts databases in the list's order. A Groceries list asks Open Food Facts (openfoodfacts) first, then Open Pet Food Facts, Open Products Facts and Open Beauty Facts (openpetfoodfacts, openproductsfacts, openbeautyfacts); another shopping list asks the household and beauty ones first, then food and pet food. The first match in that order wins. Add it with `barcode` to save the name.",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string(), code: BarcodeSchema }) },
     responses: {
       200: { description: 'found', content: { 'application/json': { schema: z.object({ title: z.string(), source: z.enum(['family', 'openfoodfacts', 'openproductsfacts', 'openbeautyfacts', 'openpetfoodfacts']) }).openapi('BarcodeLookup') } } },
-      400: { description: 'not a shopping list, or not a barcode', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'not a shopping or pantry list, or not a barcode', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'no such list, or nobody knows this product', content: { 'application/json': { schema: ErrorSchema } } },
       429: { description: 'too many lookups', content: { 'application/json': { schema: ErrorSchema } } },
       502: { description: 'none of the product databases answered', content: { 'application/json': { schema: ErrorSchema } } },
@@ -1102,15 +1106,17 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, code } = c.req.valid('param');
-    const list = await c.env.DB.prepare("SELECT kind, coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id).first<{ kind: ListRow['kind']; catalog: Catalog }>();
+    const list = await c.env.DB.prepare("SELECT kind, purpose, coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id).first<{ kind: ListRow['kind']; purpose: Purpose; catalog: Catalog }>();
     if (!list) return c.json({ error: 'not found' }, 404);
-    if (list.kind !== 'shopping') return c.json({ error: 'Only shopping lists scan products' }, 400);
-    const known = await recallBarcode(c.env.DB, list.catalog, code);
+    const pantry = list.kind === 'todo' && list.purpose === 'pantry';
+    if (list.kind !== 'shopping' && !pantry) return c.json({ error: 'Only shopping and pantry lists scan products' }, 400);
+    const cat = pantry ? 'groceries' : list.catalog;
+    const known = await recallBarcode(c.env.DB, cat, code);
     if (known) return c.json({ title: known, source: 'family' as const }, 200);
     if (!(await checkRate(c.env.DB, 'barcodes', 30, 60_000))) return c.json({ error: 'Too many scans - try again in a minute' }, 429);
     // One that's down is just no match; unavailable only when none of them answered.
     let answered = false;
-    for (const round of OPEN_FACTS_ORDER[list.catalog]) {
+    for (const round of OPEN_FACTS_ORDER[cat]) {
       const titles = await Promise.all(round.map((db) => openFactsTitle(db, code).then((t) => { answered = true; return t; }, (err) => {
         console.error('barcode lookup failed', err instanceof Error ? err.message : err);
         return null;

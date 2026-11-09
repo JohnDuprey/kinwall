@@ -982,7 +982,7 @@ export interface ListItemInput {
   eventId?: string | null
   priority?: ListItemPriority
   steps?: string[] // step titles, in order
-  barcode?: string // scanned: remembered as this item's name for the barcode (shopping lists)
+  barcode?: string // scanned: remembered as this item's name for the barcode (shopping and pantry lists)
 }
 /** GET /api/lists/{id}/barcodes/{code}: what the family called it last time, else Open Food Facts. */
 export interface BarcodeLookup { title: string; source: 'family' | 'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts' | 'openpetfoodfacts' }

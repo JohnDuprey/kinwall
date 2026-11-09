@@ -442,7 +442,7 @@
   "error|only local calendars take synced events": "only local calendars take synced events",
   "error|Only parent devices can show kids’ medicine activities": "Only parent devices can show kids’ medicine activities",
   "error|Only parents' devices can see hidden events.": "Only parents' devices can see hidden events.",
-  "error|Only shopping lists scan products": "Only shopping lists scan products",
+  "error|Only shopping and pantry lists scan products": "Only shopping and pantry lists scan products",
   "error|Only that person's own device can start their day.": "Only that person's own device can start their day.",
   "error|Only the person this note is about can remove it, from a device that was already theirs.": "Only the person this note is about can remove it, from a device that was already theirs.",
   "error|Only the person who posted this, or a parent, can remove it.": "Only the person who posted this, or a parent, can remove it.",

@@ -217,3 +217,46 @@ test("barcodes: a UPC-A (Android's 12 digits) and its EAN-13 (the iPhone's leadi
   assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS}`)).status, 404);
   assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS.slice(1)}`)).status, 404);
 });
+
+
+test('barcodes: pantry uses grocery names without copying or teaching storage locations', async () => {
+  const { send } = setup();
+  const groceries = (await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping' })).body;
+  const pantry = (await send('POST', '/api/lists', { name: 'Food at home', kind: 'shopping', catalog: 'shopping' })).body;
+  await send('PATCH', `/api/lists/${pantry.id}`, { kind: 'todo', purpose: 'pantry' });
+  await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Cheerios', barcode: CHEERIOS, category: 'Breakfast', aisle: '4', store: 'Market' });
+  const calls = mockFetch(offProduct({ product_name: 'Oat milk' }));
+  assert.deepEqual((await send('GET', `/api/lists/${pantry.id}/barcodes/${CHEERIOS}`)).body, { title: 'Cheerios', source: 'family' });
+  assert.equal(calls.length, 0);
+  const lookup = await send('GET', `/api/lists/${pantry.id}/barcodes/041250000000`);
+  assert.equal(lookup.status, 200);
+  assert.deepEqual(lookup.body, { title: 'Oat milk', source: 'openfoodfacts' });
+  assert.equal(new URL(calls[0]).host, 'world.openfoodfacts.org');
+  const added = await send('POST', `/api/lists/${pantry.id}/items`, { title: 'Cheerios', barcode: CHEERIOS, category: 'Pantry', dueDate: '2026-12-01' });
+  assert.equal(added.status, 201);
+  assert.equal(added.body[0].done, false);
+  assert.equal(added.body[0].category, 'Pantry');
+  assert.equal(added.body[0].dueDate, '2026-12-01');
+  assert.equal(added.body[0].store, null);
+  assert.equal(added.body[0].aisle, null);
+  await send('POST', `/api/lists/${pantry.id}/items`, { title: 'Our oat milk', barcode: '041250000000', category: 'Fridge' });
+  assert.deepEqual((await send('GET', `/api/lists/${groceries.id}/barcodes/041250000000`)).body, { title: 'Our oat milk', source: 'family' });
+  const remembered = (await send('GET', '/api/lists/remembered')).body;
+  assert.ok(remembered.some((i: any) => i.title === 'Our oat milk'), 'saved pantry names appear in the grocery catalog');
+  const groceryItem = (await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Cheerios' })).body[0];
+  assert.equal(groceryItem.category, 'Breakfast', 'pantry storage never replaces the grocery department');
+});
+
+test("barcodes: kids can scan pantry food but cannot save product names", async () => {
+  const { send } = setup();
+  const pantry = (await send('POST', '/api/lists', { name: 'Food at home', kind: 'todo', purpose: 'pantry' })).body;
+  await send('POST', '/api/members', { name: 'Alex', color: '#336699', grownUp: true });
+  const maya = (await send('POST', '/api/members', { name: 'Maya', color: '#7ED9A6' })).body;
+  const key = (await send('POST', '/api/keys', { name: "Maya's tablet", scope: 'display' })).body;
+  await send('PATCH', `/api/keys/${key.id}`, { kind: 'kid', owner: maya.id });
+  mockFetch(offMissing);
+  assert.equal((await send('POST', `/api/lists/${pantry.id}/items`, { title: 'Oats', barcode: CHEERIOS }, key.key)).status, 201);
+  assert.equal((await send('GET', `/api/lists/${pantry.id}/barcodes/${CHEERIOS}`, undefined, key.key)).status, 404);
+  await send('POST', `/api/lists/${pantry.id}/items`, { title: 'Oats', barcode: CHEERIOS });
+  assert.deepEqual((await send('GET', `/api/lists/${pantry.id}/barcodes/${CHEERIOS}`, undefined, key.key)).body, { title: 'Oats', source: 'family' });
+});

@@ -1891,7 +1891,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       onSave={savePlace} onClose={() => setPlacing(null)} onStop={() => { setPlacing(null); setQuiet(true); announce(t("Won't ask again on this trip")) }} />
   )
 
-  // The app's camera (shopping lists): a product saved in the catalog goes straight on the list
+  // The app's camera (shopping and pantry lists): a product saved in the catalog goes straight on the list
   // under the family's name; anything else opens the scan sheet to check the name, and saving its
   // barcode to the catalog is a choice made there. While shopping, a scan checks the product off
   // (scanMatch finds it on the trip, both lists on a combined one), or adds it already checked off.
@@ -1922,7 +1922,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     }
     setScanned({ code, found })
   }
-  const shoppingLists = lists.filter(l => l.kind === 'shopping' && !l.archived)
+  // Pantry scans add food at home; shopping scans can choose another shopping list.
+  const scanLists = detail && itemKind(detail.list) === 'pantry' ? [detail.list] : lists.filter(l => l.kind === 'shopping' && !l.archived)
   // A product found in another list type's database goes there by default (scanTarget): paper towels
   // scanned on Groceries start out headed for the Shopping list.
   const addScanned = async (title: string, save: boolean, target: string, place?: { aisle: string; category: string }) => {
@@ -1934,7 +1935,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       try { showQueued(await api.queueUpdateListItem(target, id, { ...(place.aisle ? { aisle: place.aisle, aisleStore: tripAt } : {}), ...(place.category ? { category: place.category } : {}) })) }
       catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save where it goes'), true) }
     } else if (id && !place && shopMode && target === listId) askPlace({ id, title })
-    const other = shoppingLists.find(l => l.id === target)?.name ?? t('the other list')
+    const other = scanLists.find(l => l.id === target)?.name ?? t('the other list')
     const said = target === listId ? (shopMode ? t('Added and checked off: {item}', { item: title }) : t('Added: {item}', { item: title }))
       : shopMode ? t('Added and checked off to {list}: {item}', { list: other, item: title }) : t('Added to {list}: {item}', { list: other, item: title })
     toast(said); announce(said)
@@ -1942,13 +1943,13 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const tripAt = detail?.list.kind === 'shopping' && trip !== ANY_STORE ? trip : null // one store: its aisles, in its order
   const scanSheet = scanned && detail && (
     <ScanSheet code={scanned.code} found={scanned.found} canSave={!kid} onClose={() => setScanned(null)}
-      lists={shoppingLists} target={scanTarget(shoppingLists, listId, scanned.found?.source ?? null)} checkOff={shopMode} onAdd={addScanned}
+      lists={scanLists} target={scanTarget(scanLists, listId, scanned.found?.source ?? null)} checkOff={shopMode} onAdd={addScanned}
       suggestions={detail.suggestions.items} onListKeys={new Set(detail.items.filter(i => !i.done).map(i => itemKey(i.title)))}
       onList={[...detail.items.map(i => ({ ...i, listName: detail.list.name })), ...(detail.alsoAtStore ?? [])]}
       place={shopMode && tripAt ? { store: tripAt, aisles: storeAisles(detail.suggestions, tripAt, aisleOrderMap(detail)), departments: detail.suggestions.categories } : undefined}
       onCheckOff={async it => { setScanned(null); await toggle(it); toast(t('Checked off: {item}', { item: it.title })); announce(t('Checked off {item}', { item: it.title })) }} />
   )
-  const scanBtn = detail?.list.kind === 'shopping' && appBarcodeScanner() && (
+  const scanBtn = detail && (detail.list.kind === 'shopping' || itemKind(detail.list) === 'pantry') && appBarcodeScanner() && (
     <button className="icon-btn list-scan-btn" onClick={scan} aria-label={t('Scan a barcode')}><span aria-hidden="true">📷</span></button>
   )
 
@@ -2217,6 +2218,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
             label={t('Add to {list}', { list: list.name })} placeholder={t('Add something…')} />
           <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label={t('Add item')}><PlusIcon width={20} height={20} /></button>
+          {scanBtn}
           {items.length > 0 && viewButton /* no Shop button to share a row with */}
         </div>
       )}

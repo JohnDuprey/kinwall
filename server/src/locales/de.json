@@ -391,7 +391,7 @@
   "error|Only an approved reward can be marked given": "Nur eine freigegebene Belohnung kann als gegeben markiert werden",
   "error|Only grown-ups can post to grown-ups only.": "Nur Erwachsene können an „Nur Erwachsene“ posten.",
   "error|Only parents' devices can see hidden events.": "Ausgeblendete Termine sehen nur Geräte der Eltern.",
-  "error|Only shopping lists scan products": "Nur Einkaufslisten können Produkte scannen",
+  "error|Only shopping and pantry lists scan products": "Nur Einkaufs- und Vorratslisten können Produkte scannen",
   "error|Only that person's own device can start their day.": "Nur das eigene Gerät der Person kann ihren Tag starten.",
   "error|Only the person this note is about can remove it, from a device that was already theirs.": "Nur die Person, um die es in dieser Notiz geht, kann sie entfernen, auf einem Gerät, das ihr schon gehörte.",
   "error|Only the person who posted this, or a parent, can remove it.": "Nur wer das gepostet hat oder ein Elternteil kann es entfernen.",

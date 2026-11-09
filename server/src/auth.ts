@@ -317,7 +317,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
   { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only); routes/lists.ts keeps displays to view fields; deleting lists and their order are for parent devices
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items$/ },
-  { method: 'GET', pattern: /^\/api\/lists\/[^/]+\/barcodes\/\d+$/ }, // scanning a product into a shopping list (saving it to the catalog: routes/lists.ts teaches)
+  { method: 'GET', pattern: /^\/api\/lists\/[^/]+\/barcodes\/\d+$/ }, // scanning a product into a shopping or pantry list (saving it to the catalog: routes/lists.ts teaches)
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items\/move$/ }, // moving between lists, like editing items on both
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },

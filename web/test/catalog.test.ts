@@ -141,3 +141,12 @@ test("scanMatch warns the scan sheet: a scanned brand name is the plain item alr
   assert.equal(scanMatch(onList, 'Glad Tall Kitchen Trash Bags')?.title, 'Trash bags', "the other list's items on a combined trip too")
   assert.equal(scanMatch(onList, 'Bounty'), undefined, 'a brand alone is not a match')
 })
+
+
+test('scanTarget: pantry scans stay on the pantry list for every product source', () => {
+  const pantry = { id: 'p', kind: 'todo', purpose: 'pantry', catalog: 'shopping' } as List
+  const lists = [pantry, { id: 'g', kind: 'shopping', catalog: 'groceries' } as List, { id: 's', kind: 'shopping', catalog: 'shopping' } as List]
+  for (const source of [null, 'family', 'openfoodfacts', 'openpetfoodfacts', 'openproductsfacts', 'openbeautyfacts'] as const) {
+    assert.equal(scanTarget(lists, 'p', source), 'p')
+  }
+})

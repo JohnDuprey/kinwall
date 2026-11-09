@@ -828,7 +828,7 @@ const ListItemInputSchema = z.object({
   eventId: z.string().nullable().optional(),
   priority: ListItemPrioritySchema.optional(),
   steps: z.array(StepTitleSchema).max(100).optional(), // step titles, in order
-  // Scanned (shopping lists): remembered as this item's name for the barcode, not stored on the item.
+  // Scanned (shopping and pantry lists): remembered as this item's name for the barcode, not stored on the item.
   barcode: BarcodeSchema.optional(),
 });
 
