@@ -26,7 +26,7 @@ import { emptyContact } from './contact-types.ts'
 import { duplicateScore, parseVCards } from './vcard.ts'
 
 const uid = () => crypto.randomUUID()
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = () => dateKey(new Date()) // the local day, like the app's (not UTC's, a day ahead in a US evening)
 
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
@@ -365,7 +365,7 @@ function fromNow(min: number) {
 function dateOnly(daysFromToday: number) {
   const d = new Date()
   d.setDate(d.getDate() + daysFromToday)
-  return d.toISOString().slice(0, 10)
+  return dateKey(d) // the local day, not UTC's
 }
 
 // seriesId/memberScope: mock data has no synced recurring events, so every fixture is 'none'/null
