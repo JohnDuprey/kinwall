@@ -11,7 +11,7 @@ Tap an event to open its sheet. It shows:
 * **Repeats**, if the event recurs.
 * **Calendar**: the name of the calendar the event is on.
 * **Category**: "🎂 Birthdays". See [Categories](categories.md).
-* **Reminder**: "🔔 30 min before". "· default" is added when it comes from the household default.
+* **Reminder**: "🔔 30 min before", or "🔔 At the start" for one at the start time (Google's "At time of event"). "· default" is added when it comes from the household default.
 * **Family member chips**: tap to tag or untag people. See [Members on events](#members-on-events).
 * **Notes**: the event's own notes (its description), as plain text with its line breaks. Links in them open in a new tab. See [Event notes](#event-notes).
 * **Tasks**: list items linked to this event. See [Linked tasks](#linked-tasks).

@@ -395,7 +395,10 @@ export const REMINDER_OPTIONS: { value: string; label: string; minutes: number[]
 export function reminderLabel(minutes: number[] | null | undefined): string | null {
   if (!minutes || minutes.length === 0) return null
   const one = (m: number) => m % 1440 === 0 ? tn(m / 1440, '{n} day', '{n} days') : m % 60 === 0 ? tn(m / 60, '{n} hour', '{n} hours') : tn(m, '{n} min', '{n} min')
-  return t('{times} before', { times: [...new Set(minutes)].sort((a, b) => a - b).map(one).join(', ') })
+  // 0 is a reminder at the start time (Google's "At time of event"), not "0 days before".
+  const before = [...new Set(minutes)].filter(m => m > 0).sort((a, b) => a - b).map(one).join(', ')
+  if (!minutes.includes(0)) return t('{times} before', { times: before })
+  return before ? t('At the start and {times} before', { times: before }) : t('At the start')
 }
 
 export interface Category {

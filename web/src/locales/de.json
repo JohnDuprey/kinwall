@@ -417,6 +417,8 @@
   "At night ({hours}) some reminders wait until morning: see Hold reminders at night, under Night.": "Nachts ({hours}) warten manche Erinnerungen bis zum Morgen: siehe „Erinnerungen nachts zurückhalten“ unter „Nacht“.",
   "At other stores": "In anderen Geschäften",
   "At the meal time": "Zur Essenszeit",
+  "At the start": "Zu Beginn",
+  "At the start and {times} before": "Zu Beginn und {times} vorher",
   "At {list} min": "Bei {list} Min.",
   "At {times} min": "{times} Min. vorher",
   "At {time}": "Um {time}",
