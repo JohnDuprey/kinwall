@@ -17,7 +17,10 @@ function isFloating(t: ICAL.Time): boolean {
 // `as`: the property the time came from, when it isn't `t` itself (a repeat's occurrence carries no
 // TZID of its own, the series' DTSTART/DTEND does).
 function resolveDate(t: ICAL.Time, tz: string, as: ICAL.Time = t): Date {
-  if (t.isDate || !isFloating(t)) return t.toJSDate();
+  // A date (all-day) is UTC midnight of that date, which isoDate reads back unchanged. toJSDate()
+  // would give the process's local midnight, a day early once the host's TZ is east of UTC.
+  if (t.isDate) return new Date(Date.UTC(t.year, t.month - 1, t.day));
+  if (!isFloating(t)) return t.toJSDate();
   return zonedTimeToUtc({ y: t.year, mo: t.month - 1, d: t.day, h: t.hour, mi: t.minute, s: t.second }, namedZone(as) ?? tz);
 }
 
