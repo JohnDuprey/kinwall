@@ -240,7 +240,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_chores: { date: z.string(), chores: z.array(ChoreDaySchema) },
   create_chore: { chore: ChoreSchema },
   update_chore: { chore: ChoreSchema },
-  complete_chore: OK,
+  complete_chore: { ...OK, completionId: z.string().optional() },
   uncomplete_chore: OK,
   list_pending_approvals: { approvals: z.array(z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), points: z.number() })) },
   approve_chore: { ok: z.boolean(), points: z.number() },
@@ -339,7 +339,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
-  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_suggestions: READ, approve_chore_suggestion: WRITE, reject_chore_suggestion: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
+  create_chore: WRITE, update_chore: SET, complete_chore: WRITE, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_suggestions: READ, approve_chore_suggestion: WRITE, reject_chore_suggestion: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
   list_reward_milestones: READ, create_reward_milestone: WRITE, update_reward_milestone: SET, mark_milestone_given: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
@@ -843,6 +843,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         member: z.string().optional().describe('Assign to a member by name or id; omit for "anyone".'),
         members: z.array(z.string()).optional().describe('Assign to several members by name or id instead: each gets their own linked copy to tick off.'),
         points: z.number().optional(),
+        category: z.string().nullable().optional().describe('Shared chore category, such as Kitchen or Garden; null clears it.'),
+        ongoing: z.boolean().optional().describe('Optional Anyone responsibility, available repeatedly. Cannot have an assignee, repeat schedule, goal or activity.'),
+        sort: z.number().optional().describe('Manual order, ascending before start time. Each linked copy keeps its own order.'),
         repeatGoal: ChoreGoalSchema.nullable().optional().describe('Flexible target: times on distinct days every N days/weeks/months; dueDate required. Omit rrule or use FREQ=DAILY with optional UNTIL. null removes the goal.'),
         rrule: z.string().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR. Omit for a one-off chore.'),
         dueDate: z.string().optional().describe('YYYY-MM-DD. Required if rrule is omitted (one-off); anchors the recurrence otherwise.'),
@@ -890,6 +893,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         member: z.string().nullable().optional().describe('Assign to a member by name or id; null for "anyone".'),
         members: z.array(z.string()).optional().describe('Assign to exactly these members by name or id, each with their own linked copy (copies are added or removed); [] for "anyone".'),
         points: z.number().optional(),
+        category: z.string().nullable().optional().describe('Shared chore category, such as Kitchen or Garden; null clears it.'),
+        ongoing: z.boolean().optional().describe('Optional Anyone responsibility, available repeatedly. Cannot have an assignee, repeat schedule, goal or activity.'),
+        sort: z.number().optional().describe('Manual order, ascending before start time. Each linked copy keeps its own order.'),
         repeatGoal: ChoreGoalSchema.nullable().optional().describe('Flexible target: times on distinct days every N days/weeks/months; dueDate required. Omit rrule or use FREQ=DAILY with optional UNTIL. null removes the goal.'),
         rrule: z.string().nullable().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally with ;UNTIL=YYYYMMDD. null to clear (one-off).'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD.'),
@@ -928,14 +934,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'complete_chore',
     {
       title: 'Complete chore',
-      description: 'Mark a chore complete for a date. Defaults to today.',
+      description: 'Mark a chore complete for a date. Defaults to today. An ongoing responsibility stays available and returns a separate completionId for approval or undo. Reuse operationId when retrying the same tick.',
       inputSchema: {
+        operationId: z.string().min(1).max(100).optional().describe('Stable token for retrying one ongoing tick without awarding twice.'),
         choreId: z.string(),
         date: z.string().optional().describe('YYYY-MM-DD. Default: today.'),
         member: z.string().optional().describe('Who completed it, by name or id; defaults to the chore\'s assigned member.'),
       },
     },
-    async ({ choreId, date, member }) => {
+    async ({ choreId, date, member, operationId }) => {
       let memberId: string | undefined;
       try {
         if (member) memberId = await resolveMember(app, env, auth, member);
@@ -943,10 +950,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
       const day = date ?? await todayInHousehold(env);
-      const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/complete`, { date: day, memberId });
+      const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/complete`, { date: day, memberId, operationId });
       if (res.status >= 400) return errorResult(res.json, 'failed to complete chore');
-      if ((res.json as { pending?: boolean }).pending) return okResult(`Ticked for ${day}; it's waiting for a parent's OK.`, { ok: true });
-      return okResult(`Marked chore complete for ${day}.`, { ok: true });
+      const completionId = (res.json as { completionId?: string }).completionId;
+      if ((res.json as { pending?: boolean }).pending) return okResult(`Ticked for ${day}; it's waiting for a parent's OK.`, { ok: true, ...(completionId ? { completionId } : {}) });
+      return okResult(`Marked chore complete for ${day}.`, { ok: true, ...(completionId ? { completionId } : {}) });
     },
   );
 

@@ -24,3 +24,7 @@ test('date labels distinguish unknown, no chores, all done, and waiting for appr
   assert.match(choreCountLabel({ total: 3, remaining: 2, pending: 1 }), /2 chores left/)
   assert.match(choreCountLabel({ total: 3, remaining: 2, pending: 1 }), /1 waiting for OK/)
 })
+
+test('optional ongoing responsibilities do not add unfinished daily work', () => {
+  assert.deepEqual(countChoreDay([{ memberId: null, completed: false, ongoing: true }, { memberId: null, completed: true }], null, true), { total: 1, remaining: 0, pending: 0 })
+})

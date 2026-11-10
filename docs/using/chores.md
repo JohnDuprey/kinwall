@@ -4,7 +4,7 @@ For a push when someone adds a chore for you or Anyone, turn on **New chores** i
 
 ![Chores on the wall iPad, with leaderboard and streaks](../screenshots/ipad-chores.png)
 
-The Chores tab shows one column per family member plus **🌟 Anyone**. Each column has a progress ring, a "*N* pts today" total and that day's chore cards. The total counts the points that person earned that day, including **Anyone** chores they did; the **Anyone** column says how many points it gave out instead ("10 pts given out"). Cards read in order: chores still to do first, those with a start time by time, then the done ones. A start time that has gone by says so, such as "8:00 AM (late)", on the card and on the Board's Today card. On phones, members with nothing due are listed on one line ("Nothing due: Leo") instead of showing as empty cards. When the family is filtered to one person (the family sheet on a phone, or an avatar on the wall), the tab shows that person and **Anyone**. A display pinned to one person hides **Anyone** only if **Also show things for everyone** is off.
+The Chores tab shows one column per family member plus **🌟 Anyone**. Each column has a progress ring, a "*N* pts today" total and that day's chore cards. The total counts the points that person earned that day, including **Anyone** chores they did; the **Anyone** column says how many points it gave out instead ("10 pts given out"). Cards show unfinished chores first and done chores last. Within those, they follow the [saved order](#putting-chores-in-order), then their start time. A start time that has gone by says so, such as "8:00 AM (late)", on the card and on the Board's Today card. On phones, members with nothing due are listed on one line ("Nothing due: Leo") instead of showing as empty cards. When the family is filtered to one person (the family sheet on a phone, or an avatar on the wall), the tab shows that person and **Anyone**. A display pinned to one person hides **Anyone** only if **Also show things for everyone** is off.
 
 Don't use chores? An admin can turn off **Chores & points** in **Settings → General** (tap **Change** under **Features**). It's hidden on every screen (rewards and the sticker book too); nothing is deleted. See [Features](../settings/general.md#features).
 
@@ -43,6 +43,8 @@ Tap **+** (Add chore). The sheet has:
 |---|---|
 | **Title**, **Emoji** | |
 | **Points** | **−** and **+**, or type a whole number. The same control as in the reward sheet and **Say yes…**. |
+| **Category (optional)** | A shared name such as Kitchen or Garden; filter the Chores tab by category. |
+| **Completion** | Complete once when due, or keep available for anyone as an [ongoing responsibility](#ongoing-responsibilities). |
 | **Assign to** | **🌟 Anyone**, one member, or several. See [Chores for several people](#chores-for-several-people). |
 | **Repeat** | **Once**, **Daily**, **Weekly** or **Custom…**. Custom repeats every N days, weeks, months or years. |
 | **On** (Weekly) | Pick weekdays. With none picked, it repeats on the weekday of its start date. A new chore pre-selects today. |
@@ -287,3 +289,33 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * `POST /api/points/awards {memberId, points, note?, date?}`, `GET /api/points/awards?memberId=`, `DELETE /api/points/awards/{id}` ([bonus points](#bonus-points), parent devices)
 * `GET/POST /api/chore-library`, `PATCH/DELETE /api/chore-library/{id}`, `POST /api/chore-library/{id}/assign {date, memberId?, rrule?}` (parent devices)
 * MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_suggestions`, `approve_chore_suggestion`, `reject_chore_suggestion`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`, `award_points`, `delete_point_award`
+
+## Putting chores in order
+
+On a parent's device, turn on **Edit chores**. Drag chores within a person's column, or use
+**Up** and **Down** below each card on a touchscreen or with a keyboard. The order is saved
+for future days too. Each person's linked copy keeps its own order. A saved order takes
+priority over start times; done chores still move below unfinished chores when you leave
+editing. Chores with the same order use their start time, then their original order.
+
+## Shared chore categories
+
+Give a chore a **Category (optional)**, such as **Household**, **Kitchen**, or **Garden**.
+Pick an existing category or type a new name. The category appears above its card. On the
+Chores tab, open **Chore category** to see just that category, or choose **All chores**.
+Categories work alongside assignments, so shared chores stay in **Anyone** and personal
+chores stay with their person. Editing a linked chore changes the category for every copy.
+Clear the name in the editor to take a chore out of its category.
+
+## Ongoing responsibilities
+
+For something anyone can do as often as needed, such as **Put a wash on**, set **Completion**
+to **Keep available for anyone**. The chore stays available on the Chores tab from its start
+date onward, even after someone finishes it. The same person can do it again on the same day.
+Each tick has its own history card, points, and parent approval when needed. Tap a history
+card to undo that one completion. Deleting the responsibility keeps points already earned.
+
+These responsibilities are optional: they do not add unfinished daily work, become late,
+or break streaks. They appear on Chores rather than the Board's scheduled chore list or a
+person's snapshot. They have no repeat schedule, flexible goal, fixed assignee or activity.
+A checklist can still be required; a reusable checklist resets after each tick.

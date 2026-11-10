@@ -482,7 +482,9 @@ chores.push(
   { id: 'ch-once-next', title: 'Clean your room', emoji: '🧹', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
 )
 // A chore for two people: each has their own linked copy to tick off.
-for (const [id, memberId] of [['ch-table-maya', 'm3'], ['ch-table-leo', 'm4']]) chores.push({ id, title: 'Set the table', emoji: '🍽️', memberId, points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 12, listId: null, pluginId: null, pluginMinutes: null, groupId: 'g-table' })
+chores.push({ id: 'ch-wash', title: 'Put a wash on', emoji: '🧺', memberId: null, points: 5, ongoing: true, category: 'Household', rrule: null, dueDate: dateKey(new Date()), dueTime: null, active: true, sort: 14, listId: null, pluginId: null, pluginMinutes: null })
+for (const c of chores) if (c.title === 'Set the table' || c.title === 'Empty dishwasher') c.category = 'Kitchen'
+for (const [id, memberId] of [['ch-table-maya', 'm3'], ['ch-table-leo', 'm4']]) chores.push({ id, title: 'Set the table', emoji: '🍽️', memberId, points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 12, listId: null, pluginId: null, pluginMinutes: null, groupId: 'g-table', category: 'Kitchen' })
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
 completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), memberId: 'm3', points: 5 })
 // Most repeating chores were done their last time, so the Board's late chores show a few, not all: Sam's
@@ -1411,7 +1413,7 @@ export const mock = {
     const counts: ChoreDateCount[] = []
     for (let date = from; date <= to; date = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
       const grouped = new Map<string | null, ChoreDateCount>()
-      for (const c of chores.filter(c => c.active && dueOn(c, date))) {
+      for (const c of chores.filter(c => c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : dueOn(c, date)))) {
         const comp = completions.get(`${c.id}:${date}`)
         if (!comp && mockGoalProgress(c, date)?.full) continue
         const count = grouped.get(c.memberId) ?? { date, memberId: c.memberId, total: 0, remaining: 0, pending: 0 }
@@ -1426,7 +1428,7 @@ export const mock = {
   },
   getChoresDay: async (date: string): Promise<ChoreDay[]> => {
     const plugins = await installedPlugins()
-    return chores.filter(c => c.active && dueOn(c, date)).map(c => {
+    return chores.filter(c => c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : c.ongoing ? date >= (c.dueDate ?? dateKey(new Date())) : dueOn(c, date))).map(c => {
       const comp = completions.get(`${c.id}:${date}`)
       const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
       const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
@@ -1435,11 +1437,11 @@ export const mock = {
       return { ...c, goalProgress: mockGoalProgress(c, date), completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
     })
   },
-  getChores: async () => chores.map(c => ({ ...c })),
+  getChores: async () => chores.filter(c => !c.sourceId).map(c => ({ ...c })),
   createChore: async ({ memberIds, ...body }: Partial<Chore>) => {
     const owners = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null]
     const groupId = owners.length > 1 ? uid() : null
-    const made = owners.map(memberId => ({ id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null, groupId }))
+    const made = owners.map(memberId => ({ category: body.category ?? null, ongoing: body.ongoing ?? false, id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null, groupId }))
     chores.push(...made); bump(); return made[0]
   },
   // Like the server: the copies of a chore for several people follow, and memberIds sets who has one.
@@ -1462,6 +1464,7 @@ export const mock = {
     }
     bump(); return c
   },
+  orderChores: async (ids: string[]) => { ids.forEach((id, i) => { const c = chores.find(x => x.id === id); if (c) c.sort = i + 1 }); bump(); return { ok: true } },
   deleteChore: async (id: string) => {
     const c = chores.find(x => x.id === id)
     for (const x of chores.filter(x => x === c || (c?.groupId && x.groupId === c.groupId))) chores.splice(chores.indexOf(x), 1)
@@ -1489,7 +1492,11 @@ export const mock = {
     chores.push(c); bump(); return c
   },
   completeChore: async (id: string, date: string, memberId?: string) => {
-    const c = chores.find(x => x.id === id)
+    let c = chores.find(x => x.id === id)
+    if (c?.ongoing) {
+      const record = { ...c, id: `${c.id}:${uid()}`, ongoing: false, sourceId: c.id, dueDate: date, dueTime: null, timerMinutes: null, rrule: null, groupId: null }
+      chores.push(record); c = record; id = record.id
+    }
     if (c && !completions.has(`${id}:${date}`) && mockGoalProgress(c, date)?.full) throw new Error('This goal is full for this interval.')
     if (c?.listId) {
       const mine = (i: ListItem) => i.listId === c.listId && (!c.memberId || !i.memberId || i.memberId === c.memberId)
@@ -2203,6 +2210,7 @@ function mockGoalProgress(c: Chore, date: string) {
 }
 
 function dueOn(c: Chore, d: string) {
+  if (c.ongoing || c.sourceId) return false
   if (!c.rrule) return c.dueDate === d
   return scheduleDates(c.rrule, c.dueDate ?? dateOnly(-28), d, 1)[0] === d
 }

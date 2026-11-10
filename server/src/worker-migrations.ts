@@ -1,3 +1,4 @@
+import m0144 from '../migrations/0144_chore_organisation.sql';
 import m0143 from '../migrations/0143_list_purpose.sql';
 import m0141 from '../migrations/0141_android_push_gateway.sql';
 import m0142 from '../migrations/0142_chore_groups.sql';
@@ -289,4 +290,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0141_android_push_gateway.sql', sql: m0141 },
   { name: '0142_chore_groups.sql', sql: m0142 },
   { name: '0143_list_purpose.sql', sql: m0143 },
+  { name: '0144_chore_organisation.sql', sql: m0144 },
 ];

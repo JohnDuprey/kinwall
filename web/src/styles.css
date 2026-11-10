@@ -1091,6 +1091,11 @@ button.month-cell .month-daynum { flex: none; }
   overflow: hidden;
   transition: transform 0.12s ease, opacity 0.2s ease;
 }
+.chore-entry { display: grid; gap: 6px; min-width: 0; }
+.chore-category-name { color: var(--text-dim); font-size: 0.85em; padding-inline: 4px; overflow-wrap: anywhere; }
+.chore-order-actions { display: flex; gap: 6px; }
+.chore-order-actions .btn { min-height: 44px; flex: 1; padding: 6px; }
+.chore-category-filter { max-width: 360px; margin: 12px 0; }
 .chore-card:active { transform: scale(0.97); }
 .chore-card.done { background: var(--card-soft); } /* no opacity: done text keeps its contrast */
 .chore-card.done .chore-emoji { opacity: 0.5; }

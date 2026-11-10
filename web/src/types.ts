@@ -419,6 +419,9 @@ export const CATEGORY_PRESETS: { name: string; emoji: string; keywords: string[]
 ]
 
 export interface Chore {
+  category?: string | null
+  ongoing?: boolean
+  sourceId?: string | null
   id: string
   title: string
   emoji: string

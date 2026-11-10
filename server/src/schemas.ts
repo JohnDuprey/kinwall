@@ -614,12 +614,17 @@ export const ChoreSchema = z
     approveTimedPlay: z.boolean().openapi({ description: "Activity chores: completion by timed play also waits for a parent's OK (it auto-approves otherwise)." }),
     libraryId: z.string().nullable().openapi({ description: 'The chore library item it was made from (see /api/chore-library), if any. Its completions count as that item\'s "last done".' }),
     timerMinutes: z.number().nullable().openapi({ description: 'Timer length in minutes ("Practice piano - 20 min"): Start on the chore runs the app\'s timer this long, and when it rings it offers to mark the chore done. null = no timer.' }),
+    category: z.string().nullable().default(null),
+    ongoing: z.boolean().default(false).openapi({ description: 'An optional shared responsibility that stays available after each completion. Each tick creates a separate history chore (sourceId), with its own points and approval.' }),
+    sourceId: z.string().nullable().default(null).openapi({ description: 'Ongoing responsibility this completion record belongs to. Read only.' }),
     groupId: z.string().nullable().default(null).openapi({ description: 'Set on a chore for several people: each has their own copy, and the copies share this id. Editing one changes them all (except memberId and sort); deleting one deletes them all.' }),
   })
   .openapi('Chore');
 
 export const ChoreInputSchema = z
   .object({
+    category: z.string().trim().min(1).max(80).nullable().optional(),
+    ongoing: z.boolean().optional(),
     title: z.string().min(1),
     emoji: EmojiSchema.nullable().optional(),
     memberId: z.string().nullable().optional(),

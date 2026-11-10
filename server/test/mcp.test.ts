@@ -1217,3 +1217,20 @@ test('mcp: reward milestones round-trip with schemas, parent access and feature 
   await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ rewardsEnabled: false }) });
   assert.equal((await invoke('list_reward_milestones', {})).isError, true);
 });
+
+test('mcp: ongoing categories, order, repeat-safe ticks and history undo', async () => {
+  const { mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: unknown) => {
+    const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
+    assert.equal(body.result.isError, undefined, JSON.stringify(body.result));
+    return body.result.structuredContent;
+  };
+  const date = new Date().toISOString().slice(0, 10);
+  const { chore } = await call('create_chore', { title: 'Wash clothes', dueDate: date, ongoing: true, category: 'Household', sort: 2 });
+  assert.deepEqual([chore.ongoing, chore.category, chore.sort], [true, 'Household', 2]);
+  assert.equal((await call('update_chore', { choreId: chore.id, category: 'Kitchen' })).chore.category, 'Kitchen');
+  const first = await call('complete_chore', { choreId: chore.id, date, operationId: 'one' });
+  assert.ok(first.completionId);
+  assert.equal((await call('complete_chore', { choreId: chore.id, date, operationId: 'one' })).completionId, first.completionId);
+  await call('uncomplete_chore', { choreId: first.completionId, date });
+});

@@ -13,6 +13,7 @@ import type { Chore, ChoreDay, ChoreDateCount, ChoreSuggestion, LeaderboardEntry
 import { MEMBER_EMOJI, rewardsOn } from './types.ts'
 import { dateKey, todayKeyInTz } from './date.ts'
 import Sheet from './Sheet.tsx'
+import PickField from './PickField.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { CheckIcon, EditIcon, PlusIcon } from './icons.tsx'
@@ -158,7 +159,7 @@ function ProgressRing({ pct, m, label }: { pct: number; m: FaceMember; label: st
 
 function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
-  const schedule = chore.repeatGoal ? goalLabel(chore.repeatGoal) : scheduleText(chore.rrule)
+  const schedule = chore.ongoing ? t('Available anytime') : chore.repeatGoal ? goalLabel(chore.repeatGoal) : scheduleText(chore.rrule)
   // An Anyone chore says who got the points once it's done.
   const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? t('nobody in particular')) : null
   // Waiting for a parent's OK: ticked (tapping unticks it) but not done.
@@ -231,7 +232,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
             aria-label={[t('{title} done', { title: chore.title }), by && t('by {name}', { name: by }), tn(chore.points, '{n} point', '{n} points'), ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
         </div>
-        {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
+        {parentDevice && !chore.sourceId && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
       </>
     )
   }
@@ -253,7 +254,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
         {check}
         {burst && <Confetti />}
       </div>
-      {parentDevice && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
+      {parentDevice && !chore.sourceId && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
       {chore.activity && !act && parentDevice && <a className="chore-activity-fix" href="#/activities?more=1">{chore.activity.name ? t('Turn it on in Get more activities') : t('Install it from Get more activities')}</a>}
     </>
   )
@@ -427,6 +428,25 @@ export default function Chores() {
   const dialog = useDialog()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [chores, setChores] = useState<ChoreDay[]>([])
+  const [category, setCategory] = useState('')
+  const [ordering, setOrdering] = useState(false)
+  const draggedChore = useRef<string | null>(null)
+  const categoryOptions = [...new Set([...chores.map(c => c.category).filter((c): c is string => !!c), ...(category ? [category] : [])])].sort((a, b) => a.localeCompare(b))
+  const inCategory = (c: ChoreDay) => !category || c.category === category
+  const reorder = async (list: ChoreDay[], from: string, to: string) => {
+    if (ordering || from === to) return
+    const ids = list.filter(c => !c.sourceId).map(c => c.id)
+    const start = ids.indexOf(from), end = ids.indexOf(to)
+    if (start < 0 || end < 0) return
+    ids.splice(end, 0, ...ids.splice(start, 1))
+    setOrdering(true)
+    try {
+      await api.orderChores(ids)
+      setChores(all => all.map(c => ids.includes(c.id) ? { ...c, sort: ids.indexOf(c.id) + 1 } : c))
+      announce(t('Chore order saved'))
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save chore order'), true) }
+    finally { setOrdering(false) }
+  }
   const [loadedKey, setLoadedKey] = useState<string | null>(null) // the day `chores` holds
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
@@ -524,7 +544,7 @@ export default function Chores() {
     // Off a parent's device it's approved at once; otherwise the chore (or the person's default) says.
     // An activity chore whose activity is gone always waits off a parent's device (as on the server).
     const waits = !ticked && waitsForOk(c, members.find(m => m.id === creditTo), parentDevice)
-    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null, goalProgress: x.goalProgress ? updatedGoalProgress(x.goalProgress, ticked ? -(c.completed ? 1 : 0) : waits ? 0 : 1, ticked ? -(c.pending ? 1 : 0) : waits ? 1 : 0) : null } : x)) // optimistic
+    if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null, goalProgress: x.goalProgress ? updatedGoalProgress(x.goalProgress, ticked ? -(c.completed ? 1 : 0) : waits ? 0 : 1, ticked ? -(c.pending ? 1 : 0) : waits ? 1 : 0) : null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !ticked && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points
@@ -537,11 +557,12 @@ export default function Chores() {
       if (ticked) await api.queueUncompleteChore(c.id, key)
       else await api.queueCompleteChore(c.id, key, creditTo)
       // Credited to the picked person without asking: say who, with a way back.
-      if (picked) toast(`${waits ? t('Sent for a parent’s OK') : t('Done!')} ✓ ${picked.name}${late && !waits ? ` · ${t('+{n} (late)', { n: pts })}` : ''}`, false, { label: t('Undo'), run: () => { void api.queueUncompleteChore(c.id, key).then(() => { load(); reloadCore() }, () => toast(t('Could not undo that'), true)) } })
+      if (picked && !c.ongoing) toast(`${waits ? t('Sent for a parent’s OK') : t('Done!')} ✓ ${picked.name}${late && !waits ? ` · ${t('+{n} (late)', { n: pts })}` : ''}`, false, { label: t('Undo'), run: () => { void api.queueUncompleteChore(c.id, key).then(() => { load(); reloadCore() }, () => toast(t('Could not undo that'), true)) } })
       else if (late && !waits) toast(t('+{n} (late)', { n: pts }))
+      if (c.ongoing || c.sourceId) load()
       reloadCore()
     } catch (e) {
-      setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection, goalProgress: c.goalProgress } : x)) // revert
+      if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection, goalProgress: c.goalProgress } : x)) // revert
       toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
     }
   }
@@ -591,7 +612,7 @@ export default function Chores() {
   // Past the floor the row overflows and .chore-columns' overflow-x/scroll-snap take over.
   // Someone with nothing due gets a compact chip under the columns rather than a whole blank
   // column, so the people with chores get the width (capped, so two columns aren't a mile wide).
-  const hasChores = (id: string) => chores.some(c => id === '__anyone' ? !c.memberId : c.memberId === id)
+  const hasChores = (id: string) => chores.filter(inCategory).some(c => id === '__anyone' ? !c.memberId : c.memberId === id)
   const idle = !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
   const active = visibleColumns.filter(m => !idle.includes(m))
   const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, calc(480px * var(--screen-k))))` }
@@ -638,34 +659,55 @@ export default function Chores() {
 
       {editing && (
         <div className="edit-mode-bar chores-edit-bar" role="status">
-          <span>{t('Tap a chore to edit it.')}</span>
+          <span>{t('Tap a chore to edit it.')} {t('Drag chores or use Up and Down to put them in order.')}</span>
           <button type="button" className="btn btn-primary" onClick={() => setEditing(false)}>{t('Done')}</button>
         </div>
       )}
 
+      {categoryOptions.length > 0 && <div className="field chore-category-filter">
+        <label htmlFor="chore-category-filter">{t('Chore category')}</label>
+        <PickField id="chore-category-filter" label={t('Chore category')} none={t('All chores')} value={[category]} onChange={values => setCategory(values[0] ?? '')}
+          options={[{ value: '', label: t('All chores') }, ...categoryOptions.map(value => ({ value, label: value }))]} />
+      </div>}
       {error ? (
         <div className="state-card">{t("Couldn't load chores.")}</div>
-      ) : !loading && chores.length === 0 ? (
-        <div className="empty-card"><span className="emoji">✨</span>{t('No chores for this day.')}</div>
+      ) : !loading && !chores.some(inCategory) ? (
+        <div className="empty-card"><span className="emoji">✨</span>{category ? t('No chores in this category for this day.') : t('No chores for this day.')}</div>
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
           {active.map(col => {
-            const list = choreOrder(chores.filter(c => col.id === '__anyone' ? !c.memberId : c.memberId === col.id))
-            const done = list.filter(c => c.completed || c.goalProgress?.full).length
-            const pct = list.length ? done / list.length : 0
+            const columnChores = chores.filter(c => inCategory(c) && (col.id === '__anyone' ? !c.memberId : c.memberId === col.id))
+            const list = editing ? [...columnChores].sort((a, b) => a.sort - b.sort) : choreOrder(columnChores)
+            const movable = list.filter(c => !c.sourceId)
+            const required = list.filter(c => !c.ongoing)
+            const done = required.filter(c => c.completed || c.goalProgress?.full).length
+            const pct = required.length ? done / required.length : 0
             return (
               <div key={col.id} className="chore-column">
                 <div className="chore-col-head">
-                  <ProgressRing pct={pct} m={col} label={t('{name}: {done} of {total} done', { name: col.name, done, total: list.length })} />
+                  <ProgressRing pct={pct} m={col} label={t('{name}: {done} of {total} done', { name: col.name, done, total: required.length })} />
                   <h3 className="chore-col-name" style={{ margin: 0 }}>{col.name}</h3>
                   <div className="chore-col-pts">{col.id === '__anyone' ? t('{n} pts given out', { n: pointsGivenOut(list) }) : isToday ? t('{n} pts today', { n: pointsEarned(chores, col.id) }) : t('{n} pts', { n: pointsEarned(chores, col.id) })}</div>
                   {rewardsShown && col.id !== '__anyone' && 'balance' in col && (
                     <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={t('{name} has {n} points to spend. See rewards', { name: col.name, n: col.balance })}>⭐ {t('{n} to spend', { n: col.balance })}</a>
                   )}
                 </div>
-                {list.map(c => (
-                  <ChoreCard key={c.id} chore={c} editing={editing && parentDevice} late={isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />
-                ))}
+                {list.map(c => {
+                  const index = movable.findIndex(x => x.id === c.id)
+                  const canOrder = editing && parentDevice && !c.sourceId
+                  return <div key={c.id} className="chore-entry" draggable={canOrder && !ordering}
+                    onDragStart={e => { draggedChore.current = c.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.id) }}
+                    onDragEnd={() => { draggedChore.current = null }}
+                    onDragOver={e => { if (canOrder && draggedChore.current && movable.some(x => x.id === draggedChore.current)) e.preventDefault() }}
+                    onDrop={e => { e.preventDefault(); const from = draggedChore.current; draggedChore.current = null; if (canOrder && from) void reorder(movable, from, c.id) }}>
+                    {c.category && <span className="chore-category-name">{c.category}</span>}
+                    <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) setEditChore(c) }} />
+                    {canOrder && <div className="chore-order-actions">
+                      <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑ {t('Up')}</button>
+                      <button className="btn btn-secondary" disabled={ordering || index === movable.length - 1} aria-label={t('Move {title} down', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index + 1].id)}>↓ {t('Down')}</button>
+                    </div>}
+                  </div>
+                })}
               </div>
             )
           })}
@@ -753,6 +795,10 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   const draftRrule = from ? intervalRrule(from.everyN, from.everyUnit) : null
   const storedRrule = chore ? chore.rrule : draftRrule // sent back as-is unless the schedule is edited
   const [title, setTitle] = useState(chore?.title ?? from?.title ?? '')
+  const [category, setCategory] = useState(chore?.category ?? '')
+  const [categories, setCategories] = useState<string[]>([])
+  const [ongoing, setOngoing] = useState(!!chore?.ongoing)
+  useEffect(() => { api.getChores().then(all => setCategories([...new Set(all.map(c => c.category).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b)))).catch(() => {}) }, [])
   const [emoji, setEmoji] = useState(chore?.emoji ?? from?.emoji ?? MEMBER_EMOJI[0])
   const [points, setPoints] = useState(chore?.points ?? from?.points ?? 5)
   // Who it's for: [] is Anyone; several people each get their own linked copy (chore.groupId).
@@ -787,14 +833,14 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   })
   const [schedTouched, setSchedTouched] = useState(false) // untouched = send the stored rrule back as-is (keeps custom rules)
   const editSched = (patch: Partial<ScheduleForm>) => { setSched(s => ({ ...s, ...patch, custom: false })); setSchedTouched(true) }
-  const scheduleValid = validSchedule(sched, dueDate) && (!repeatGoal || !!dueDate && validGoal(repeatGoal))
+  const scheduleValid = ongoing || validSchedule(sched, dueDate) && (!repeatGoal || !!dueDate && validGoal(repeatGoal))
   const assignee = memberIds.length === 1 ? members.find(m => m.id === memberIds[0]) : undefined
   const defaultApproval = !!assignee?.needsApproval
 
   const submit = async () => {
     if (!title.trim() || !isSingleEmoji(emoji) || !scheduleValid || !groupLoaded) return
     const schedule = scheduleBody({ rrule: storedRrule, dueDate: chore?.dueDate ?? draft?.date ?? today }, sched, schedTouched || (!chore && !draft), dueDate)
-    const body = { title: title.trim(), emoji, points, memberIds, ...schedule, repeatGoal, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
+    const body = { title: title.trim(), emoji, points, memberIds: ongoing ? [] : memberIds, ...schedule, ...(ongoing ? { rrule: null, dueDate: dueDate || today } : {}), ongoing, category: category.trim() || null, repeatGoal: ongoing ? null : repeatGoal, listId, pluginId: ongoing ? null : pluginId, ...(!ongoing && pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -845,6 +891,21 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         <PointsStepper value={points} max={1000} onChange={setPoints} label={t('Points')} />
       </div>
       <div className="field">
+        <label htmlFor="chore-category">{t('Category (optional)')}</label>
+        {categories.length > 0 && <PickField label={t('Chore category')} value={category ? [category] : []} onChange={values => setCategory(values[0] ?? '')}
+          options={[{ value: '', label: t('None') }, ...[...new Set([...categories, ...(category ? [category] : [])])].map(value => ({ value, label: value }))]} />}
+        <input id="chore-category" value={category} maxLength={80} onChange={e => setCategory(e.target.value)} placeholder={t('For example, Kitchen or Garden')} />
+        <p className="field-hint">{t('Use the same name to keep shared chores together.')}</p>
+      </div>
+      <div className="field">
+        <label htmlFor="chore-ongoing">{t('Completion')}</label>
+        <select id="chore-ongoing" value={ongoing ? 'ongoing' : 'once'} onChange={e => { const on = e.target.value === 'ongoing'; setOngoing(on); if (on) { setMemberIds([]); setPluginId(null); setRepeatGoal(null) } }}>
+          <option value="once">{t('Once each time it is due')}</option>
+          <option value="ongoing">{t('Keep available for anyone')}</option>
+        </select>
+        {ongoing && <p className="field-hint">{t('Anyone can do it as often as needed. Each tick earns points and stays in the history. This optional chore does not count toward daily progress or become late.')}</p>}
+      </div>
+      {!ongoing && <div className="field">
         <label id="chore-assign">{t('Assign to')}</label>
         <div className="chip-row" role="group" aria-labelledby="chore-assign" aria-describedby="chore-assign-hint">
           <button className={`chip ${memberIds.length === 0 ? 'active' : ''}`} aria-pressed={memberIds.length === 0} onClick={() => setMemberIds([])}>🌟 {t('Anyone')}</button>
@@ -855,7 +916,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         <p className="field-hint" id="chore-assign-hint">{memberIds.length > 1
           ? t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
           : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
-      </div>
+      </div>}
       {settings.features.lists && <div className="field">
         <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>
         <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
@@ -864,7 +925,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         </select>
         <p className="field-hint">{t('Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.')}</p>
       </div>}
-      {(activities.length > 0 || pluginId) && (
+      {!ongoing && (activities.length > 0 || pluginId) && (
         <div className="field">
           <label htmlFor="chore-activity">{t('Do an activity (optional)')}</label>
           <select id="chore-activity" value={pluginId ?? ''} onChange={e => setPluginId(e.target.value || null)}>
@@ -915,7 +976,8 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
           ? (pluginId ? t("Default follows {name}'s setting in Settings → Family; timed play approves itself unless the switch above is on.", { name: assignee.name }) : t("Default follows {name}'s setting in Settings → Family.", { name: assignee.name }))
           : (pluginId ? t('Default follows the setting of whoever does it in Settings → Family; timed play approves itself unless the switch above is on.') : t('Default follows the setting of whoever does it in Settings → Family.'))}</p>
       </div>
-      <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={today} onChange={editSched} onStart={setDueDate} />
+      {ongoing && <div className="field"><label htmlFor="chore-available-from">{t('Starts')}</label><input id="chore-available-from" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>}
+      {!ongoing && <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={today} onChange={editSched} onStart={setDueDate} />}
     </Sheet>
   )
 }

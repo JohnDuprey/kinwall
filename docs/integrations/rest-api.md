@@ -480,3 +480,26 @@ shared screens cannot opt someone into Lock Screen content. Calendar edit permis
 events. Muted plans suppress a stopped occurrence’s separate leave-by activity and are not displayed. This is the shared mobile scheduling feed, including hidden-event filtering and an
 eight-hour lifetime bound. Old Live Activity token registrations default `preferences.events`
 to false; upgraded apps register it explicitly. No existing event is automatically followed.
+
+## Chore organization
+
+Chore create/update accepts `category` (a trimmed name, 1–80 characters, or `null`) and
+`ongoing` (default `false`). Linked copies share their category. `sort` controls manual order
+before start time; each linked copy retains its own order. Parent devices can atomically set
+an ordered subset with `POST /api/chores/order { ids: [...] }` (1–500 distinct definition ids).
+Unknown ids reject the entire request. The first receives sort 1, the next 2, and so on.
+
+An ongoing chore must be assigned to Anyone and have no RRULE, repeat goal or activity.
+It is optional, appears on `/api/chores/day` from `dueDate` onward (creation day if omitted),
+and stays available after completion. It is excluded from scheduled summaries, overdue work,
+and streak requirements. Each `POST /api/chores/{id}/complete` creates a separate history
+chore and returns its `completionId`. Supply `operationId` (1–100 letters, digits, underscores or hyphens) to make retries
+of that tick idempotent. Reusing the token returns the original completion, without resetting
+a checklist, duplicating points or sending another completion notification. Different tokens
+allow the same person to complete the responsibility repeatedly on the same day.
+
+History chores have read-only `sourceId`, use the normal completion/approval endpoints with
+`completionId`, and appear on the day endpoint while completed or pending. They are omitted
+from `GET /api/chores` and cannot be edited or deleted as definitions. Undo the individual
+completion instead. Exports include definitions and history, preserving categories, ongoing
+status, points, approvals and retry ids. Older exports default to no category and not ongoing.

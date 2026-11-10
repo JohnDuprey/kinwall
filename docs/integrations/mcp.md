@@ -275,3 +275,16 @@ when Rewards or Chores & points is off. Milestones earn rewards without spending
 Both use the REST event-follow routes and their permissions. A personally owned device key is
 required; connected apps and shared screens cannot access these personal notification choices.
 The write tool accepts `id`, `enabled`, `minutes`, `scope`, `occurrenceStart`, and `showNow`.
+
+### Chore organization
+
+`create_chore` and `update_chore` accept `category` (a name such as Kitchen, or `null`),
+`sort` (manual order, ascending before start time), and `ongoing`. An ongoing chore is an
+optional shared responsibility for Anyone, with no RRULE, repeat goal or activity. It stays
+available on Chores after a tick; scheduled summaries and streaks exclude it.
+
+`complete_chore` returns a separate `completionId` for each ongoing tick. Use that id with
+`uncomplete_chore` to undo it or with approval tools when needed. Pass the same `operationId`
+when retrying a tick to avoid awarding twice; use a new token for another completion. The
+history records returned by `list_chores` have `sourceId` linking to their responsibility.
+Each linked person's copy keeps its own order; categories change across the linked copies.

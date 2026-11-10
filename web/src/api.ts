@@ -598,6 +598,7 @@ export const api = {
   getChores: () => MOCK ? mock.getChores() : get<Chore[]>('api/chores'),
   createChore: (body: Partial<Chore>, useAdmin?: boolean) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body, useAdmin),
   updateChore: (id: string, body: Partial<Chore>) => MOCK ? mock.updateChore(id, body) : patch<Chore>(`api/chores/${id}`, body),
+  orderChores: (ids: string[]) => MOCK ? mock.orderChores(ids) : post('api/chores/order', { ids }),
   deleteChore: (id: string) => MOCK ? mock.deleteChore(id) : del(`api/chores/${id}`),
   // The chore library: parent devices only (the server answers 403 to wall screens and kids' devices).
   getChoreLibrary: () => MOCK ? mock.getChoreLibrary() : get<LibraryChore[]>('api/chore-library'),
@@ -606,7 +607,7 @@ export const api = {
   deleteLibraryChore: (id: string) => MOCK ? mock.deleteLibraryChore(id) : del(`api/chore-library/${id}`),
   assignLibraryChore: (id: string, body: { date: string; memberId?: string | null; rrule?: string | null }) => MOCK ? mock.assignLibraryChore(id, body) : post<Chore>(`api/chore-library/${id}/assign`, body),
   completeChore: (id: string, date: string, memberId?: string) =>
-    MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId }),
+    MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId, operationId: crypto.randomUUID() }),
   uncompleteChore: (id: string, date: string) =>
     MOCK ? mock.uncompleteChore(id, date) : del(`api/chores/${id}/complete?date=${date}`),
   // Parent approval (parent devices only).
@@ -843,7 +844,7 @@ export const api = {
   queueDeleteListItem: async (listId: string, itemId: string): Promise<Op | null> =>
     MOCK ? (await mock.deleteListItem(listId, itemId), null) : queue('DELETE', `api/lists/${listId}/items/${itemId}`),
   queueCompleteChore: async (id: string, date: string, memberId?: string): Promise<unknown> =>
-    MOCK ? mock.completeChore(id, date, memberId) : queue('POST', `api/chores/${id}/complete`, { date, memberId }),
+    MOCK ? mock.completeChore(id, date, memberId) : queue('POST', `api/chores/${id}/complete`, { date, memberId, operationId: crypto.randomUUID() }),
   queueUncompleteChore: async (id: string, date: string): Promise<unknown> =>
     MOCK ? mock.uncompleteChore(id, date) : queue('DELETE', `api/chores/${id}/complete?date=${date}`),
   // Checkout / Reset: only itemIds (still checked) when given, so a tick made meanwhile isn't swept up.
