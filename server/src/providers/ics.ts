@@ -115,6 +115,10 @@ export async function icsFingerprint(icsText: string): Promise<string> {
   return sha256Hex(stripped);
 }
 
+// About 55 years of a daily repeat (each costs microseconds), so a long-running series still
+// reaches today while a hostile feed can't spin forever.
+const MAX_SKIPPED_OCCURRENCES = 20000;
+
 // Shared by caldav.ts so recurrence expansion isn't duplicated: CalDAV objects are plain
 // iCalendar text (one VEVENT series per object, but a full VCALENDAR can also contain many).
 //
@@ -196,9 +200,21 @@ export async function expandICS(
     }
     let next: ICAL.Time | null;
     let guard = 0;
-    // ponytail: hard iteration cap, upgrade to CPU-time based cutoff if a feed abuses this
-    while (guard++ < 5000 && (next = iterator.next())) {
-      if (next.toJSDate().getTime() >= to.getTime()) break;
+    let skipped = 0;
+    // The iterator starts at DTSTART, so a series running for years walks its whole past first.
+    // Occurrences that ended well before the window are passed over without reading their details
+    // (cheap), under their own, larger cap; a week's slack keeps one moved (RECURRENCE-ID) into it.
+    const span = event.endDate.toJSDate().getTime() - event.startDate.toJSDate().getTime();
+    const skipBefore = from.getTime() - Math.max(0, span) - 7 * 24 * 60 * 60 * 1000;
+    // ponytail: hard iteration caps, upgrade to CPU-time based cutoff if a feed abuses this
+    while (guard < 5000 && (next = iterator.next())) {
+      const at = next.toJSDate().getTime();
+      if (at >= to.getTime()) break;
+      if (at < skipBefore) {
+        if (++skipped >= MAX_SKIPPED_OCCURRENCES) break;
+        continue;
+      }
+      guard++;
       const details = event.getOccurrenceDetails(next);
       const item = details.item;
       const cancelled = isCancelled(item.component);
