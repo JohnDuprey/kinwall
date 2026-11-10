@@ -107,7 +107,8 @@ async function validateReferences(db: KinwallDb, contact: ContactInput): Promise
 function values(c: ContactInput) { return [c.kind, c.name, c.organization ?? null, c.title ?? null, c.givenName ?? null, c.familyName ?? null, c.nickname ?? null, c.relationship ?? null, c.favorite ? 1 : 0, c.emergency ? 1 : 0, JSON.stringify(c.phones), JSON.stringify(c.emails), JSON.stringify(c.addresses), JSON.stringify(c.websites), JSON.stringify(c.dates), c.notes ?? null, JSON.stringify(c.categoryIds), JSON.stringify(c.tags), JSON.stringify(c.memberIds), c.serviceHours ?? null, c.serviceArea ?? null, c.alwaysOpen ? 1 : 0, c.wallVisible ? 1 : 0, c.emergencyVisible ? 1 : 0, c.phoneVisibleOnWall ? 1 : 0, c.addressVisibleOnWall ? 1 : 0, c.visibility ?? 'household', JSON.stringify(c.selectedMemberIds), c.sourceMetadata ? JSON.stringify(c.sourceMetadata) : null, JSON.stringify(c.privateFields)]; }
 function normalizeInput(c: ContactInput): ContactInput {
   const phones = c.phones.map((p) => {
-    const originalValue = p.originalValue ?? p.value;
+    // value is the number as it is now; a stale originalValue sent back with an edited one never wins.
+    const originalValue = p.value;
     const digits = originalValue.replace(/[^\d+]/g, '').replace(/^00/, '+');
     const normalizedValue = /^\+?[0-9]{7,15}$/.test(digits) ? digits : null;
     return { ...p, value: originalValue, originalValue, normalizedValue };
