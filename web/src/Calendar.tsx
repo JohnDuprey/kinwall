@@ -6,7 +6,7 @@ import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
 import { REMINDER_OPTIONS, reminderLabel, trackerKinds } from './types.ts'
-import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { allDayLastDay, dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
@@ -1056,7 +1056,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="detail-color-bar" style={{ background: detailBar }} />
         <div style={{ fontWeight: 800, fontSize: '0.9375rem' }}>
-          {event.allDay ? `${formatDate(new Date(event.start + 'T00:00:00'), DAY)}${event.end !== addDays(new Date(event.start + 'T00:00:00'), 1).toISOString().slice(0, 10) ? ' – ' + formatDate(addDays(new Date(event.end + 'T00:00:00'), -1), DAY) : ''} · ${t('All day')}`
+          {event.allDay ? (() => { const last = allDayLastDay(event.start, event.end); return `${formatDate(new Date(event.start + 'T00:00:00'), DAY)}${last ? ' – ' + formatDate(new Date(last + 'T00:00:00'), DAY) : ''} · ${t('All day')}` })()
             : `${formatDate(new Date(event.start), DAY)} · ${formatTime(event.start, tz)} – ${formatTime(event.end, tz)}`}
         </div>
         {event.meal && event.meal.mealKind !== 'dining_out' && <div className="chip-row"><span className="chip chip-static">🍽️ {mealEventStatus(event.meal).text}</span></div>}
