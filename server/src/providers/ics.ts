@@ -14,9 +14,24 @@ function isFloating(t: ICAL.Time): boolean {
   return t.zone === ICAL.Timezone.localTimezone;
 }
 
-function resolveDate(t: ICAL.Time, tz: string): Date {
+// `as`: the property the time came from, when it isn't `t` itself (a repeat's occurrence carries no
+// TZID of its own, the series' DTSTART/DTEND does).
+function resolveDate(t: ICAL.Time, tz: string, as: ICAL.Time = t): Date {
   if (t.isDate || !isFloating(t)) return t.toJSDate();
-  return zonedTimeToUtc({ y: t.year, mo: t.month - 1, d: t.day, h: t.hour, mi: t.minute, s: t.second }, tz);
+  return zonedTimeToUtc({ y: t.year, mo: t.month - 1, d: t.day, h: t.hour, mi: t.minute, s: t.second }, namedZone(as) ?? tz);
+}
+
+// A TZID with no VTIMEZONE in the feed leaves the time floating in ical.js, though the feed named
+// its zone: use that zone when it's one Intl knows (an IANA name), else the household's. ical.js
+// keeps such a TZID on the time's untyped `timezone` field.
+function namedZone(t: ICAL.Time): string | null {
+  const tzid = (t as ICAL.Time & { timezone?: unknown }).timezone;
+  if (typeof tzid !== 'string' || !tzid) return null;
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: tzid }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
 }
 
 // Cheap pre-filter run on the raw ICS text before ical.js ever parses it, so a large feed
@@ -219,8 +234,8 @@ export async function expandICS(
       const item = details.item;
       const cancelled = isCancelled(item.component);
       if (cancelled && !keep) continue;
-      const startD = resolveDate(details.startDate, tz);
-      const endD = resolveDate(details.endDate, tz);
+      const startD = resolveDate(details.startDate, tz, item.startDate);
+      const endD = resolveDate(details.endDate, tz, item.endDate);
       if (endD <= from) continue;
       const allDay = details.startDate.isDate;
       results.push({
