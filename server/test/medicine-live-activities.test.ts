@@ -148,3 +148,10 @@ test('completed foreground activities retry failed ends and end even if their to
  assert.equal(f.sent.at(-1)?.aps.event,'end');
  assert.equal((await f.db.prepare("SELECT count(*) AS n FROM live_activity_tokens WHERE kind='update'").first<{n:number}>())?.n,0);
 });
+test('a phone signed in again keeps one push-to-start registration, so a dose starts once',async t=>{
+ const f=await fixture(t);await f.register();
+ const again=await createApiKey(f.db,"Sam's phone",'admin',{owner:f.sam.id});await f.register(again.key);
+ const starts=await f.db.prepare("SELECT COUNT(*) AS n FROM live_activity_tokens WHERE kind='start'").first<{n:number}>();
+ assert.equal(starts?.n,1);
+ f.enable();await f.tick('08:00');assert.equal(f.sent.length,1);
+});

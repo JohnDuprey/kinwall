@@ -7,7 +7,7 @@ import { isConnectedApp } from '../auth.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { requestKey, sha256Hex } from '../auth.ts';
-import { encrypt, seal } from '../crypto.ts';
+import { encrypt, seal, unseal } from '../crypto.ts';
 import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import { ErrorSchema, NativePushStatusSchema } from '../schemas.ts';
@@ -84,6 +84,12 @@ liveActivitiesRoutes.openapi(
     )
       .bind(id, d.device, d.keyId, d.grantId, body.kind, body.activity ?? '', await seal(c.env, token, aad(id)), body.endsAt ?? null, new Date().toISOString(), gatewayCredential, gatewayExpiresAt, gatewayCredential ? fingerprint : null, JSON.stringify(body.preferences ?? {}), '')
       .run();
+    if (body.kind === 'start') {
+      // Signing in again leaves the old key or grant with this phone's same push-to-start token;
+      // both would start every activity, so the phone showed each one twice. The newest sign-in keeps it.
+      const { results: others } = await c.env.DB.prepare("SELECT id,token FROM live_activity_tokens WHERE kind='start' AND device<>?").bind(d.device).all<{ id: string; token: string }>();
+      for (const o of others) if (await unseal(c.env, o.token, aad(o.id)).catch(() => '') === token) await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE id=?').bind(o.id).run();
+    }
     await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND id NOT IN (SELECT id FROM live_activity_tokens WHERE device = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)')
       .bind(d.device, d.device, MAX_TOKENS_PER_DEVICE)
       .run();
