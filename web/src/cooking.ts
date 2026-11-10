@@ -21,10 +21,17 @@ const unitLabel = (unit: string, n: string) => unit === 'h' ? t('{n} hr', { n })
  * chimes at its low end, when it's time to check. */
 export function findDurations(text: string): Duration[] {
   const found = new Map<string, Duration>()
-  for (const m of text.matchAll(/(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?\s*-?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/gi)) {
-    const unit = m[3][0].toLowerCase(), size = UNITS[unit]
-    const low = Math.round(Number(m[1]) * size), high = m[2] ? Math.round(Number(m[2]) * size) : 0
-    const label = unitLabel(unit, m[2] ? `${m[1]}–${m[2]}` : m[1])
+  // "1 hour 15 minutes" (or "1 hr and 15 min") is one time, matched before its parts would be.
+  for (const m of text.matchAll(/(\d+)\s*(?:hours?|hrs?)\s*(?:and\s+)?(\d+)\s*(?:minutes?|mins?)\b|(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?\s*-?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/gi)) {
+    const [, hours, minutes, from, to, word] = m
+    if (hours) {
+      const label = t('{h} hr {m} min', { h: hours, m: minutes }), seconds = Number(hours) * 3600 + Number(minutes) * 60
+      if (seconds > 0) found.set(label, { label, seconds })
+      continue
+    }
+    const unit = word[0].toLowerCase(), size = UNITS[unit]
+    const low = Math.round(Number(from) * size), high = to ? Math.round(Number(to) * size) : 0
+    const label = unitLabel(unit, to ? `${from}–${to}` : from)
     if (low > 0) found.set(label, high > low ? { label, seconds: high, check: low } : { label, seconds: low })
   }
   return [...found.values()]
@@ -41,7 +48,7 @@ export function stepTimers(step: RecipeStep): Duration[] {
     const seconds = Math.round(timer.minutes * 60)
     const range = found.find(d => d.check === seconds), same = range ?? found.find(d => d.seconds === seconds && d.check === undefined)
     const label = timer.name ?? (same && named.get(same.label)), name = label ? `${label} · ` : ''
-    return range ? { ...range, label: name + range.label } : { label: name + t('{n} min', { n: timer.minutes }), seconds }
+    return range ? { ...range, label: name + range.label } : { label: name + (same?.label ?? t('{n} min', { n: timer.minutes })), seconds }
   })
 }
 
@@ -50,7 +57,7 @@ const FILLER = new Set(['for', 'about', 'another', 'a', 'an', 'the', 'or', 'then
  * simmer 18–20 minutes", "Rest" for "Rest off the heat for 5 minutes". */
 function durationNames(step: RecipeStep): Map<string, string> {
   const names = new Map<string, string>()
-  for (const part of [step.text, ...step.bullets].join('\n').split(/[\n,;.:!?]+|\s+(?:and|then)\s+/i)) {
+  for (const part of [step.text, ...step.bullets].join('\n').split(/[\n,;.:!?]+|(?<!\b(?:hours?|hrs?))\s+and\s+|\s+then\s+/i)) {
     const word = part.trim().split(/\s+/)[0] ?? ''
     if (!/^\p{L}{3,}$/u.test(word) || FILLER.has(word.toLowerCase())) continue
     for (const d of findDurations(part)) if (!names.has(d.label)) names.set(d.label, word[0].toUpperCase() + word.slice(1).toLowerCase())
