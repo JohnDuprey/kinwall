@@ -32,7 +32,7 @@ This setting uses server push: it is available in browsers and native apps with 
 
 ## Event reminders
 
-* A reminder fires at the event's reminder offset: its own reminder, or the household **Default reminder**. See [Events → Reminders](events.md#reminders).
+* A reminder fires at the event's reminder offset: its own reminder, or the household **Default reminder**. See [Events → Reminders](events.md#reminders). Longer reminders synced from Google or Outlook ("1 week before") or set through the API fire too, up to four weeks ahead.
 * The notification's **title is the event name** (with its category emoji). The body is "In 30 minutes · 4:00 PM", then 📍 location, 👥 who, 🗓 calendar and a short note. Long-press to see all of it.
 * With travel time and **remind before leave**, the first line reads "Leave by … for … · starts …".
 * Tapping the notification opens that event in the calendar.

@@ -64,6 +64,11 @@ const LOOKBACK_MS = 10 * 60 * 1000; // a missed tick still fires once
 // offers (up to 1 day before) with slack for all-day/timezone edge cases. Revisit if a longer
 // reminder offset is ever added.
 const SEARCH_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+// Reminders go up to four weeks before (EventInputSchema's 40320 minutes; Google's "1 week before"
+// syncs in too), plus up to 10 hours of travel when they count back from leaving. Events whose
+// reminders reach past a day are also read that far ahead (a few rows: most reminders are short).
+const LONG_REMINDER_MINUTES = 1440;
+const FARTHEST_REMINDER_MS = (40320 + 600) * 60 * 1000 + 24 * 60 * 60 * 1000;
 
 // Time-of-day triggers (daily summary, chore nudge) fire when their configured HH:MM falls inside
 // (windowStart, now], not on an exact-minute match - a tick can land at any second past the tick
@@ -365,13 +370,34 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const [calsRes, eventsRes, openRes, categoriesRes, membersRes] = await db.batch<unknown>([
+  const longDefault = defaultReminders.some((m) => m > LONG_REMINDER_MINUTES) ? 1 : 0;
+  const [calsRes, eventsRes, openRes, farRes, categoriesRes, membersRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     ...eventRowsStmts(db, ENABLED, [], from, to),
+    db.prepare(
+      `SELECT * FROM events WHERE calendar_id ${ENABLED} AND start >= ? AND start < ? AND CASE WHEN reminders IS NULL THEN ? ` +
+        "ELSE EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(reminders) AND json_type(reminders) = 'array' THEN reminders ELSE '[]' END) WHERE value > ?) END",
+    ).bind(to.toISOString().slice(0, 10), new Date(now.getTime() + FARTHEST_REMINDER_MS).toISOString(), longDefault, LONG_REMINDER_MINUTES),
     db.prepare('SELECT id, name, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
   ]);
-  const events = eventRowsFrom([eventsRes, openRes]);
+  const events = eventRowsFrom([eventsRes, openRes, farRes]);
+  const effectiveOf = (row: EventRow): number[] => {
+    let reminders: number[] | null = null;
+    if (row.reminders) {
+      try {
+        reminders = JSON.parse(row.reminders);
+      } catch {
+        reminders = null;
+      }
+    }
+    // [] = turned off on the event: no regular reminders (transition reminders are per person).
+    return reminders ?? defaultReminders ?? [];
+  };
+  // How far ahead an event's reminders reach: its longest one, with room for travel, at least `to`.
+  const reachOf = (effective: number[]) =>
+    Math.min(now.getTime() + FARTHEST_REMINDER_MS, Math.max(to.getTime(), now.getTime() + (Math.max(0, ...effective.filter(Number.isFinite)) + 600) * 60000 + 24 * 60 * 60 * 1000));
+  const far = new Date(Math.max(to.getTime(), ...events.map((row) => reachOf(effectiveOf(row)))));
   const refs = JSON.stringify(events.map(row => ({ calendarId: row.calendar_id, externalId: row.external_id })));
   // Read links for the same candidates as the reminder loop. Hidden/filter resolution can run
   // alongside this batch and reuses the event rows, without reading calendar history again.
@@ -380,7 +406,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
       db.prepare("SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides WHERE (calendar_id, external_id) IN (SELECT value->>'calendarId', value->>'externalId' FROM json_each(?))").bind(refs),
       mealLinksQuery(db, events.map(row => row.id)),
     ]),
-    hiddenInstanceKeys(db, from, to, events),
+    hiddenInstanceKeys(db, from, far, events),
   ]);
   const travelOverrides = new Map(
     (travelRes.results as unknown as { calendar_id: string; external_id: string; travel_minutes: number | null; remind_before_leave: number }[]).map((r) => [`${r.calendar_id}\u0000${r.external_id}`, r]),
@@ -408,16 +434,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     let memberIds = parseMemberIds(row.member_ids);
     if (memberIds.length === 0) memberIds = parseMemberIds(cal.member_ids);
 
-    let reminders: number[] | null = null;
-    if (row.reminders) {
-      try {
-        reminders = JSON.parse(row.reminders);
-      } catch {
-        reminders = null;
-      }
-    }
-    // [] = turned off on the event: no regular reminders (transition reminders are per person).
-    const effective = reminders ?? defaultReminders ?? [];
+    const effective = effectiveOf(row);
+    const until = new Date(reachOf(effective));
 
     const travel = cal.kind === 'local' ? row : row.external_id ? travelOverrides.get(`${cal.id}\u0000${row.external_id}`) : undefined;
     // A free event (busy = 0) keeps its own reminders, but no leave-by, transition warnings or Live Activity.
@@ -431,9 +449,9 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     });
 
     if (cal.kind === 'local' && row.rrule) {
-      for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
+      for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, until)) {
         if (hidden.has(instanceKey(row.id, inst.start))) continue;
-        if (!free) occurrences.push(occ(inst.start));
+        if (!free && Date.parse(inst.start) < to.getTime()) occurrences.push(occ(inst.start));
         for (const minutes of effective) {
           candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
         }
@@ -441,8 +459,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
       continue;
     }
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
-    if (startMs < from.getTime() || startMs >= to.getTime() || hidden.has(instanceKey(row.id, row.start))) continue;
-    if (!free) occurrences.push(occ(row.start));
+    if (startMs < from.getTime() || startMs >= until.getTime() || hidden.has(instanceKey(row.id, row.start))) continue;
+    if (!free && startMs < to.getTime()) occurrences.push(occ(row.start));
     for (const minutes of effective) {
       candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
     }
