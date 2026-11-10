@@ -134,7 +134,7 @@ test('a week reads the rows near it, not the whole events table', async () => {
 test('a notification tick reads the events once, near now', async () => {
   const { n, db } = counting(withOldRows());
   await runNotifications({ DB: db }, new Date('2026-10-06T14:00:00Z'));
-  assert.equal(n.reads, 2, 'one batch: rows starting near now, and the repeating or long ones');
+  assert.equal(n.reads, 3, 'one batch: rows starting near now, the repeating or long ones, and those with reminders weeks ahead');
   assert.ok(n.rows < 40, `read ${n.rows} event rows`);
 });
 
@@ -193,7 +193,7 @@ test('calendar details read only matching events, including supplied notificatio
 test('notification event details do not read unrelated historical meal links or travel settings', async () => {
   const { db, n } = counting(withOldDetails());
   await runNotifications({ DB: db }, new Date('2026-11-01T15:00:00Z'));
-  assert.equal(n.reads, 2, 'notification event rows are still read once');
+  assert.equal(n.reads, 3, 'notification event rows are still read once (one batch)');
   assert.ok(n.relatedRows < 60, `read ${n.relatedRows} related rows for a notification tick`);
 });
 
