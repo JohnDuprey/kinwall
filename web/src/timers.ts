@@ -18,10 +18,13 @@ export const clock = (ms: number) => {
   return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`
 }
 
-/** 10 -> "10 min", 90 -> "1 hr 30 min", 0.5 -> "30 sec". */
+/** 10 -> "10 min", 90 -> "1 hr 30 min", 0.5 -> "30 sec", 1.5 -> "1 min 30 sec" (an hour or more: to the minute). */
 export function durationLabel(minutes: number) {
-  if (minutes < 1) return t('{n} sec', { n: Math.round(minutes * 60) })
-  const h = Math.floor(minutes / 60), m = Math.round(minutes % 60)
+  const secs = Math.round(minutes * 60)
+  if (secs < 60) return t('{n} sec', { n: secs })
+  if (secs < 3600 && secs % 60) return t('{m} min {s} sec', { m: Math.floor(secs / 60), s: secs % 60 })
+  // Rounded once, as a whole: rounding the minutes after taking the hours out made 119.5 "1 hr 60 min".
+  const total = Math.round(secs / 60), h = Math.floor(total / 60), m = total % 60
   return h ? (m ? t('{h} hr {m} min', { h, m }) : t('{n} hr', { n: h })) : t('{n} min', { n: m })
 }
 

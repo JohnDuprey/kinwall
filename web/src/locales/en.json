@@ -136,6 +136,7 @@
   "{list} and {last}": "{list} and {last}",
   "{list} in {app}": "{list} in {app}",
   "{lists} will sync again once you connect {app}.": "{lists} will sync again once you connect {app}.",
+  "{m} min {s} sec": "{m} min {s} sec",
   "{m}m": "{m}m",
   "{message} (dismiss)": "{message} (dismiss)",
   "{message}. Dismiss": "{message}. Dismiss",
