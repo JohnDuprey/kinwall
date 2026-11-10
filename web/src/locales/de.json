@@ -4361,6 +4361,7 @@
   "{list} and {last}": "{list} und {last}",
   "{message} (dismiss)": "{message} (schließen)",
   "{message}. Dismiss": "{message}. Schließen",
+  "{m} min {s} sec": "{m} Min. {s} Sek.",
   "{m}m": "{m} Min.",
   "{name} (copy)": "{name} (Kopie)",
   "{name} (dark)": "{name} (dunkel)",
