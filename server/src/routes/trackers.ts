@@ -150,8 +150,9 @@ async function check(
   if (e.memberId && !(await db.prepare('SELECT id FROM members WHERE id = ?').bind(e.memberId).first())) return { error: 'member not found' };
   if (!e.photoId) return { own: 0 };
   if (e.photoId === prev?.photo_id) return { own: prev.photo_own };
-  const photo = await db.prepare('SELECT family FROM photos WHERE id = ?').bind(e.photoId).first<{ family: number }>();
-  if (!photo) return { error: 'photoId: photo not found' };
+  const photo = await db.prepare('SELECT family, coloring, avatar FROM photos WHERE id = ?').bind(e.photoId).first<{ family: number; coloring: number; avatar: number }>();
+  // A coloring page or a profile picture is never a memory's: owning one would delete it with the memory.
+  if (!photo || (!photo.family && (photo.coloring || photo.avatar))) return { error: 'photoId: photo not found' };
   if (photo.family) return { own: 0 }; // a family photo, only referenced
   if (await db.prepare('SELECT id FROM tracker_entries WHERE photo_id = ? AND id != ?').bind(e.photoId, e.id).first()) return { error: 'photoId: that photo belongs to another memory' };
   return { own: 1 };
