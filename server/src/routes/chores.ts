@@ -748,6 +748,7 @@ choresRoutes.openapi(
     request: { params: z.object({ id: z.string() }), query: z.object({ date: MealDateSchema }) },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      400: { description: "from a wall screen or kid's device, a day more than a week back or more than a day ahead", content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: 'this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -759,6 +760,11 @@ choresRoutes.openapi(
       .first<{ title: string; member_id: string | null; done_by: string | null }>();
     const blocked = await ownerBlock(c, chore?.member_id, chore?.done_by);
     if (blocked) return c.json({ error: blocked }, 403);
+    // Undoing follows the tick's window: a wall screen or kid's device can't wipe older days (and their points).
+    if ((await requestKey(c))?.scope === 'display') {
+      const today = todayInTz((await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone());
+      if (date < shiftDay(today, -DISPLAY_DAYS_BACK) || date > shiftDay(today, 1)) return c.json({ error: stored('error', "From this device a chore can be ticked for the last {n} days. Older days are for a parent's device.", { n: DISPLAY_DAYS_BACK }) }, 400);
+    }
     await c.env.DB.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).run();
     emit(c, 'chore.uncompleted', { id, date, title: chore?.title ?? null, memberId: chore?.member_id ?? null });
     const upkeepJob = await unlogFromChore(c.env.DB, id, date); // a kid's upkeep chore: its Done goes too
