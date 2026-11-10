@@ -244,6 +244,7 @@ test('mcp: list_events and complete_chore round-trip against the sqlite adapter'
   const env = makeEnv();
   const { rest, mcp } = makeApp(env);
 
+  await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) }); // list_events dates are household days
   const member = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Max', color: '#ff0000' }) })).json() as any;
   const cal = await (await rest('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json() as any;
   await rest('/api/events', {

@@ -17,6 +17,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
+import { zonedTimeToUtc } from './recurrence.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { ChoreGoalSchema, BoardSchema, ChoreDateCountSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, PantryExpiringSchema, PantrySuggestionsSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, MilestoneSchema, MilestoneInputSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
@@ -153,10 +154,22 @@ async function resolveExact(app: App, env: Env, auth: string, path: string, ref:
 }
 
 // "Today" for defaults means the household's day, not UTC's - in the evening west of UTC those differ.
-async function todayInHousehold(env: Env): Promise<string> {
+async function householdTz(env: Env): Promise<string> {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
-  const tz = row?.value || hostTimezone();
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+  return row?.value || hostTimezone();
+}
+
+async function todayInHousehold(env: Env): Promise<string> {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: await householdTz(env) }).format(new Date());
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+/** list_events bounds: a bare date is the start of that day in the household's timezone (GET
+ * /api/events reads it as UTC midnight), a date-time stays as it is. */
+function eventBound(value: string, tz: string): { at: number; date: string | null } {
+  if (!DATE_ONLY.test(value)) return { at: Date.parse(value), date: null };
+  const [y, mo, d] = value.split('-').map(Number);
+  return { at: zonedTimeToUtc({ y, mo: mo - 1, d, h: 0, mi: 0, s: 0 }, tz).getTime(), date: value };
 }
 
 // Lists given as JSON text ("[15]") are parsed rather than rejected: clients holding a stale tool list,
@@ -651,8 +664,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'List events',
       description: 'List calendar events (merged across all calendars) overlapping a date range. Defaults to today through +7 days.',
       inputSchema: {
-        from: z.string().optional().describe('ISO date/datetime, inclusive. Default: today.'),
-        to: z.string().optional().describe('ISO date/datetime, exclusive. Default: 7 days after `from`.'),
+        from: z.string().optional().describe('ISO date/datetime, inclusive; a date is the start of that day in the household timezone. Default: today.'),
+        to: z.string().optional().describe('ISO date/datetime, exclusive; a date is the start of that day in the household timezone. Default: 7 days after `from`.'),
         member: z.string().optional().describe('Member name (case-insensitive) or id to filter by.'),
         calendarId: z.string().optional(),
       },
@@ -666,12 +679,23 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
-      const query = new URLSearchParams({ from: fromDate, to: toDate });
+      // Dates are household days: read the range covering both those days' instants and their UTC
+      // dates (how all-day events are kept), then keep timed events overlapping the household's
+      // days and all-day events on those dates.
+      const tz = await householdTz(env);
+      const lo = eventBound(fromDate, tz), hi = eventBound(toDate, tz);
+      const span = (b: { at: number; date: string | null }, pick: typeof Math.min) =>
+        Number.isNaN(b.at) || !b.date ? null : new Date(pick(b.at, Date.parse(`${b.date}T00:00:00Z`))).toISOString();
+      const query = new URLSearchParams({ from: span(lo, Math.min) ?? fromDate, to: span(hi, Math.max) ?? toDate });
       if (memberId) query.set('memberId', memberId);
       if (calendarId) query.set('calendarId', calendarId);
       const res = await call(app, env, auth, 'GET', `/api/events?${query}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list events');
-      const events = res.json as unknown[];
+      const events = (res.json as { start: string; end: string; allDay: boolean }[]).filter((ev) => {
+        if (!lo.date && !hi.date) return true;
+        if (ev.allDay) return (!hi.date || ev.start < hi.date) && (!lo.date || ev.end > lo.date);
+        return Date.parse(ev.end) > lo.at && Date.parse(ev.start) < hi.at;
+      });
       return okResult(`${events.length} event(s) from ${fromDate} to ${toDate}.`, { events });
     },
   );
