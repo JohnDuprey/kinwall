@@ -23,4 +23,6 @@ Kinwall keeps the household's moving parts in one calm place: calendars, chores,
 
 Just want a look first? The [live demo](https://demo.kinwall.family) runs entirely in your browser with a sample family, and nothing is saved. To build it yourself, see [Demo build](self-hosting/demo-build.md).
 
+Questions, ideas or want to show off your wall? Join the [Kinwall Discord](https://discord.gg/thvf3rySJD).
+
 Kinwall stands on a lot of open-source work; see [Credits](contributing/credits.md).
