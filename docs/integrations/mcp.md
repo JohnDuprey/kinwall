@@ -75,7 +75,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 |---|---|
 | `get_household` | Settings (family name, timezone, week start, language, color scheme), members and a calendar summary, with each calendar's `filter`. |
 | `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Peacock, the deep blue one, is the default; Eucalyptus the gray-teal one, Peach the warm one, Meadow the soft green one), and the family's own schemes with their light and dark palettes. |
-| `list_events` | Events across all calendars in a range (default: today plus 7 days, at most 400 days). Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
+| `list_events` | Events across all calendars in a range (default: today plus 7 days, at most 400 days). Dates (`YYYY-MM-DD`) are whole days in the household's timezone; date-times are taken as given. Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
 | `get_event` | One event by ID (the series row for a recurring local event). |
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
 | `list_chores` | Chores due on a date (default today), with completion state. |
