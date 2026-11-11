@@ -220,3 +220,14 @@ test('large calendar windows keep counts per event and use bounded JSON paramete
   assert.equal(empty.n.relatedRows, 0);
   assert.equal(empty.n.plans.length, 0, 'an empty window skips related queries');
 });
+
+// Reminders weeks ahead: SQLite bills the rows it scans, so the far query walks a partial index of
+// rows whose reminders hold a 4-digit number or more, not every event in the next four weeks.
+test('a notification tick reads events with long reminders through their own index', async () => {
+  const raw = withOldRows();
+  const plans: string[] = [];
+  const db = { prepare: (sql: string) => { if (/FROM events\b.*json_each/s.test(sql)) plans.push(raw.prepare('EXPLAIN QUERY PLAN ' + sql).bind(...sql.split('?').slice(1).map(() => '')).all<{ detail: string }>().results.map((r) => r.detail).join('\n')); return raw.prepare(sql); }, batch: raw.batch.bind(raw) } as unknown as KinwallDb;
+  await runNotifications({ DB: db }, new Date('2026-10-06T14:00:00Z'));
+  assert.equal(plans.length, 1);
+  assert.match(plans[0], /idx_events_long_reminders/);
+});

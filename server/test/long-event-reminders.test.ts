@@ -61,3 +61,12 @@ test('event reminders: four weeks, the longest the API takes, fires too', async 
   await runNotifications(env, new Date(start - 40320 * 60e3 + 60e3));
   assert.deepEqual(reminders(), ['Recital']);
 });
+
+test('event reminders: a household default of a week reminds events without their own', async () => {
+  const { env, rest, cal, reminders } = await setup();
+  await rest('/api/settings', 'PATCH', { defaultReminderMinutes: [10080] });
+  const start = Date.parse('2026-11-20T15:00:00.000Z');
+  await rest('/api/events', 'POST', { calendarId: cal.id, title: 'Dentist', start: new Date(start).toISOString(), end: new Date(start + 3600e3).toISOString(), allDay: false });
+  await runNotifications(env, new Date(start - 10080 * 60e3 + 60e3));
+  assert.deepEqual(reminders(), ['Dentist']);
+});

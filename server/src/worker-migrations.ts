@@ -1,3 +1,4 @@
+import m0145 from '../migrations/0145_events_long_reminders_index.sql';
 import m0144 from '../migrations/0144_chore_organisation.sql';
 import m0143 from '../migrations/0143_list_purpose.sql';
 import m0141 from '../migrations/0141_android_push_gateway.sql';
@@ -291,4 +292,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0142_chore_groups.sql', sql: m0142 },
   { name: '0143_list_purpose.sql', sql: m0143 },
   { name: '0144_chore_organisation.sql', sql: m0144 },
+  { name: '0145_events_long_reminders_index.sql', sql: m0145 },
 ];

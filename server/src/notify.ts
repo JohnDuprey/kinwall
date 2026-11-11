@@ -68,6 +68,7 @@ const SEARCH_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
 // syncs in too), plus up to 10 hours of travel when they count back from leaving. Events whose
 // reminders reach past a day are also read that far ahead (a few rows: most reminders are short).
 const LONG_REMINDER_MINUTES = 1440;
+const HAS_LONG_REMINDER = "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(reminders) AND json_type(reminders) = 'array' THEN reminders ELSE '[]' END) WHERE value > ?)";
 const FARTHEST_REMINDER_MS = (40320 + 600) * 60 * 1000 + 24 * 60 * 60 * 1000;
 
 // Time-of-day triggers (daily summary, chore nudge) fire when their configured HH:MM falls inside
@@ -370,14 +371,17 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const longDefault = defaultReminders.some((m) => m > LONG_REMINDER_MINUTES) ? 1 : 0;
+  // A long household default reaches every event without its own reminders: those can't be indexed, so
+  // that (rare) family scans the four weeks.
+  const longDefault = defaultReminders.some((m) => m > LONG_REMINDER_MINUTES);
   const [calsRes, eventsRes, openRes, farRes, categoriesRes, membersRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     ...eventRowsStmts(db, ENABLED, [], from, to),
-    db.prepare(
-      `SELECT * FROM events WHERE calendar_id ${ENABLED} AND start >= ? AND start < ? AND CASE WHEN reminders IS NULL THEN ? ` +
-        "ELSE EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(reminders) AND json_type(reminders) = 'array' THEN reminders ELSE '[]' END) WHERE value > ?) END",
-    ).bind(to.toISOString().slice(0, 10), new Date(now.getTime() + FARTHEST_REMINDER_MS).toISOString(), longDefault, LONG_REMINDER_MINUTES),
+    // The GLOB (reminders holding a number of 1000 or more, a superset of the long ones) must match
+    // idx_events_long_reminders' WHERE (migrations/0145) exactly, or SQLite scans the four weeks.
+    db.prepare(longDefault
+      ? `SELECT * FROM events WHERE calendar_id ${ENABLED} AND start >= ? AND start < ? AND (reminders IS NULL OR ${HAS_LONG_REMINDER})`
+      : `SELECT * FROM events WHERE calendar_id ${ENABLED} AND start >= ? AND start < ? AND reminders GLOB '*[0-9][0-9][0-9][0-9]*' AND ${HAS_LONG_REMINDER}`).bind(to.toISOString().slice(0, 10), new Date(now.getTime() + FARTHEST_REMINDER_MS).toISOString(), LONG_REMINDER_MINUTES),
     db.prepare('SELECT id, name, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
   ]);
