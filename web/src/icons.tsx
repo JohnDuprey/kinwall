@@ -1,9 +1,10 @@
-// Small inline SVG icon set — no icon library per SPEC.
+// Small inline SVG icon set — no runtime icon library.
+// Lucide-derived outlines: see icons-LICENSE and docs/contributing/icons.md.
 import type { SVGProps } from 'react'
 
 type P = SVGProps<SVGSVGElement>
 // Decorative by default: every icon sits next to text or inside a control with its own aria-label.
-const base = (p: P) => ({ 'aria-hidden': true, width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, ...p })
+const base = (p: P) => ({ 'aria-hidden': true, focusable: 'false' as const, width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, ...p })
 
 export const CalendarIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
@@ -16,15 +17,13 @@ export const ChoreIcon = (p: P) => (
   <svg {...base(p)}><path d="M9 11.5l2 2 4-4.5" /><rect x="3" y="3" width="18" height="18" rx="4" /></svg>
 )
 export const MealIcon = (p: P) => (
-  <svg {...base(p)}><path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M20 21V3c-4 2-5 7-5 11h5" /></svg>
+  <svg {...base(p)}><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /><path d="M7 2v20" /><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" /></svg>
 )
 export const TicketIcon = (p: P) => (
-  // a ticket with a notch on each side and a tear line
-  <svg {...base(p)}><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 5v2M14 11v2M14 17v2" /></svg>
+  <svg {...base(p)}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></svg>
 )
 export const WrenchIcon = (p: P) => (
-  // a wrench: the open jaw at the top right, the handle down to the bottom left
-  <svg {...base(p)}><path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2 2 0 0 1-2.8-2.8l9.4-9.4a4 4 0 0 1-5-5l2.6 2.6 2.8-.4.4-2.8z" /></svg>
+  <svg {...base(p)}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" /></svg>
 )
 export const SettingsIcon = (p: P) => (
   // gear from Lucide (ISC license, lucide.dev)
@@ -39,7 +38,7 @@ export const MoreIcon = (p: P) => (
   <svg {...base(p)}><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
 )
 export const ListIcon = (p: P) => (
-  <svg {...base(p)}><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4.5 6l.75.75L6.5 5.25" /><path d="M4.5 12l.75.75 1.25-1.5" /><path d="M4.5 18l.75.75 1.25-1.5" /></svg>
+  <svg {...base(p)}><path d="M13 5h8" /><path d="M13 12h8" /><path d="M13 19h8" /><path d="m3 17 2 2 4-4" /><path d="m3 7 2 2 4-4" /></svg>
 )
 export const BookIcon = (p: P) => (
   // open book, after Lucide's book-open (ISC license, lucide.dev)
@@ -62,13 +61,13 @@ export const ChevronRight = (p: P) => (
   <svg {...base(p)}><path d="M9 5l7 7-7 7" /></svg>
 )
 export const TrashIcon = (p: P) => (
-  <svg {...base(p)}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+  <svg {...base(p)}><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 )
 export const EditIcon = (p: P) => (
-  <svg {...base(p)}><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z" /></svg>
+  <svg {...base(p)}><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg>
 )
 export const NoteIcon = (p: P) => (
-  <svg {...base(p)}><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></svg>
+  <svg {...base(p)}><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" /></svg>
 )
 export const CheckIcon = (p: P) => (
   <svg {...base(p)}><path d="M5 13l4 4L19 7" /></svg>
@@ -77,19 +76,19 @@ export const KeyIcon = (p: P) => (
   <svg {...base(p)}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l2 2M14 9l2 2" /></svg>
 )
 export const WebhookIcon = (p: P) => (
-  <svg {...base(p)}><circle cx="6" cy="17" r="2.5" /><circle cx="17" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M8 16l7-8M9 18h6.5" /></svg>
+  <svg {...base(p)}><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2" /><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06" /><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8" /></svg>
 )
 export const SunIcon = (p: P) => (
-  <svg {...base(p)}><circle cx="12" cy="12" r="4.5" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></svg>
+  <svg {...base(p)}><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></svg>
 )
 export const MoonIcon = (p: P) => (
-  <svg {...base(p)}><path d="M20 14.5A8.5 8.5 0 1110 3.3a7 7 0 0010 11.2z" /></svg>
+  <svg {...base(p)}><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" /></svg>
 )
 export const LocationIcon = (p: P) => (
   <svg {...base(p)}><path d="M12 21s7-7.2 7-12a7 7 0 10-14 0c0 4.8 7 12 7 12z" /><circle cx="12" cy="9" r="2.3" /></svg>
 )
 export const RepeatIcon = (p: P) => (
-  <svg {...base(p)}><path d="M17 2l4 4-4 4M3 11V9a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" /></svg>
+  <svg {...base(p)}><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
 )
 export const LinkIcon = (p: P) => (
   <svg {...base(p)}><path d="M10 14a4 4 0 006 0l3-3a4 4 0 00-6-6l-1.5 1.5" /><path d="M14 10a4 4 0 00-6 0l-3 3a4 4 0 006 6l1.5-1.5" /></svg>
@@ -104,7 +103,7 @@ export const MonitorIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
 )
 export const BellIcon = (p: P) => (
-  <svg {...base(p)}><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+  <svg {...base(p)}><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
 )
 export const HelpIcon = (p: P) => (
   <svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><path d="M12 17h.01" /></svg>
@@ -134,22 +133,22 @@ export const SlidersIcon = (p: P) => (
 )
 
 export const DropperIcon = (p: P) => (
-  <svg {...base(p)}><path d="M3 21l1-4 9.5-9.5 3 3L7 20l-4 1zM13.5 7.5l3-3a2.1 2.1 0 0 1 3 3l-3 3" /></svg>
+  <svg {...base(p)}><path d="m12 9-8.414 8.414A2 2 0 0 0 3 18.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 3.828 21h1.344a2 2 0 0 0 1.414-.586L15 12" /><path d="m18 9 .4.4a1 1 0 1 1-3 3l-3.8-3.8a1 1 0 1 1 3-3l.4.4 3.4-3.4a1 1 0 1 1 3 3z" /><path d="m2 22 .414-.414" /></svg>
 )
 export const BrushIcon = (p: P) => (
-  <svg {...base(p)}><path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8 9.2 12z" /><path d="M9 13c-2.5 0-4 1.6-4 3.8 0 1.6-1 2.7-2.5 3.2C4 21 6 21.5 8 21c2.6-.6 4-2.4 4-5z" /></svg>
+  <svg {...base(p)}><path d="m11 10 3 3" /><path d="M6.5 21A3.5 3.5 0 1 0 3 17.5a2.62 2.62 0 0 1-.708 1.792A1 1 0 0 0 3 21z" /><path d="M9.969 17.031 21.378 5.624a1 1 0 0 0-3.002-3.002L6.967 14.031" /></svg>
 )
 export const StickerIcon = (p: P) => (
-  <svg {...base(p)}><path d="M21 12V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h6z" /><path d="M21 12l-9 9v-6a3 3 0 0 1 3-3z" /><path d="M8.5 9.5h.01M13.5 9.5h.01M8.5 14c1 1 2.6 1.3 4 .6" /></svg>
+  <svg {...base(p)}><path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z" /><path d="M15 3v5a1 1 0 0 0 1 1h5" /><path d="M8 13h.01" /><path d="M16 13h.01" /><path d="M10 16s.8 1 2 1c1.3 0 2-1 2-1" /></svg>
 )
 export const GiftIcon = (p: P) => (
-  <svg {...base(p)}><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13M12 8c-1.5-3-5-4-5.5-2S9 8 12 8zM12 8c1.5-3 5-4 5.5-2S15 8 12 8z" /></svg>
+  <svg {...base(p)}><path d="M12 7v14" /><path d="M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8" /><path d="M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5" /><rect x="3" y="7" width="18" height="4" rx="1" /></svg>
 )
 export const EraserIcon = (p: P) => (
-  <svg {...base(p)}><path d="M7 21l-4-4a2 2 0 0 1 0-2.8L13.2 4a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L11 21zM21 21H7M8.5 9.5l6 6" /></svg>
+  <svg {...base(p)}><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" /><path d="m5.082 11.09 8.828 8.828" /></svg>
 )
 export const BucketIcon = (p: P) => (
-  <svg {...base(p)}><path d="M11 3L3 11l7 7 8-8zM3 11h15" /><path d="M20 14s2 2.4 2 3.7a2 2 0 0 1-4 0c0-1.3 2-3.7 2-3.7z" /></svg>
+  <svg {...base(p)}><path d="M11 7 6 2" /><path d="M18.992 12H2.041" /><path d="M21.145 18.38A3.34 3.34 0 0 1 20 16.5a3.3 3.3 0 0 1-1.145 1.88c-.575.46-.855 1.02-.855 1.595A2 2 0 0 0 20 22a2 2 0 0 0 2-2.025c0-.58-.285-1.13-.855-1.595" /><path d="m8.5 4.5 2.148-2.148a1.205 1.205 0 0 1 1.704 0l7.296 7.296a1.205 1.205 0 0 1 0 1.704l-7.592 7.592a3.615 3.615 0 0 1-5.112 0l-3.888-3.888a3.615 3.615 0 0 1 0-5.112L5.67 7.33" /></svg>
 )
 export const UndoIcon = (p: P) => (
   <svg {...base(p)}><path d="M9 14L4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-3" /></svg>
@@ -164,10 +163,10 @@ export const DownloadIcon = (p: P) => (
   <svg {...base(p)}><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
 )
 export const HeartIcon = (p: P) => (
-  <svg {...base(p)}><path d="M12 20.5s-7.5-4.6-9.3-9A5 5 0 0 1 12 6.6a5 5 0 0 1 9.3 4.9c-1.8 4.4-9.3 9-9.3 9z" /></svg>
+  <svg {...base(p)}><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
 )
 export const ImagesIcon = (p: P) => (
-  <svg {...base(p)}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
+  <svg {...base(p)}><path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16" /><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2" /><circle cx="13" cy="7" r="1" fill="currentColor" /><rect x="8" y="2" width="14" height="14" rx="2" /></svg>
 )
 export const CloudOffIcon = (p: P) => (
   // cloud-off from Lucide (ISC license, lucide.dev)
@@ -219,5 +218,5 @@ export const SearchIcon = (p: P) => (
   <svg {...base(p)}><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
 )
 export const PhoneIcon = (p: P) => (
-  <svg {...base(p)}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" /></svg>
+  <svg {...base(p)}><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384" /></svg>
 )
