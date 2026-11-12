@@ -26,7 +26,13 @@ Bundled in `web/src/fonts/` (each folder holds its license), from the [Fontsourc
 
 ## Icons
 
-Several of Kinwall's icons (the gear, book, person, cart, basket, pill, cloud-off and eye) are drawn from or after [Lucide](https://lucide.dev), under the ISC License:
+Several of Kinwall's interface icons are drawn from or after [Lucide](https://lucide.dev),
+including the gear, book, person, cart, basket, pill, cloud-off, eye, upkeep wrench,
+tickets, meals and drawing tools. See [Interface icons](icons.md) for the shared
+icon conventions and source revision. The complete Lucide license, including the
+MIT notice for icons derived from Feather, is retained in
+[`web/src/icons-LICENSE`](https://github.com/JohnDuprey/kinwall/blob/main/web/src/icons-LICENSE).
+Lucide's ISC notice follows:
 
 ```
 ISC License

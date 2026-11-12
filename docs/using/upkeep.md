@@ -2,6 +2,8 @@
 
 **Upkeep** keeps the jobs that come round every few months or years: the furnace filter, smoke alarm batteries, the water heater, the gutters, the car's oil change. It remembers when each one was last done, who did it and what it cost, and reminds you before the next one is due.
 
+Look for the outlined wrench in navigation to open **Upkeep**.
+
 Turn it on or off in [Settings → General → Features](../settings/general.md#features) (**Home upkeep**, under Spaces).
 
 ## Things, jobs and Done
