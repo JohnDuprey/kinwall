@@ -1,5 +1,6 @@
 import type { PlanningDraft, WeeklyPlanning } from './weekly-planning.ts'
 import type { Announcement, AnnouncementInput, Announcements } from './announcements.ts';
+import type { InboxItem, InboxSort } from './inbox.ts';
 import { lang, msg, t, tm, type Lang } from './i18n.ts'
 import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
@@ -197,7 +198,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = msg("You're offline. This will work when you're back online.")
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|announcements|outings|outing-categories|outing-feeds|upkeep|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|announcements|inbox|outings|outing-categories|outing-feeds|upkeep|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -292,6 +293,10 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   if (MOCK && /^api\/announcements([/?]|$)/.test(path)) {
     const { mockAnnouncementRequest } = await import('./mock-announcements.ts')
     return mockAnnouncementRequest(path, opts) as Promise<T>
+  }
+  if (MOCK && /^api\/inbox([/?]|$)/.test(path)) {
+    const { mockInboxRequest } = await import('./mock-inbox.ts')
+    return mockInboxRequest(path, opts) as Promise<T>
   }
   if (MOCK && /^api\/polls([/?]|$)/.test(path)) {
     const { mockPollRequest } = await import('./mock-polls.ts')
@@ -388,6 +393,11 @@ export const api = {
   getEventMeal: async (eventId: string): Promise<{ meal: Meal | null }> => MOCK ? (await import('./mock-meals.ts')).mockEventMeal(eventId) : get(`api/events/${encodeURIComponent(eventId)}/meal`),
   getAnnouncements: (status: 'active' | 'all' = 'active') => get<Announcements>('api/announcements?status=' + status),
   createAnnouncement: (body: AnnouncementInput) => post<Announcement>('api/announcements', body),
+  // The quick-capture inbox (parents): sorting makes the task, event or note on the server.
+  getInbox: () => get<{ items: InboxItem[] }>('api/inbox'),
+  addToInbox: (body: { id: string; text: string }) => post<InboxItem>('api/inbox', body),
+  setInboxStatus: (id: string, status: 'open' | 'cleared') => patch<InboxItem>('api/inbox/' + U(id), { status }),
+  sortInboxItem: (id: string, body: InboxSort) => post<InboxItem>('api/inbox/' + U(id) + '/sort', body),
   updateAnnouncement: (id: string, body: Partial<AnnouncementInput>) => patch<Announcement>('api/announcements/' + U(id), body),
   deleteAnnouncement: (id: string) => del<{ ok: boolean }>('api/announcements/' + U(id)),
   getPolls: (status?: Poll['status']) => get<Poll[]>(`api/polls${status ? `?status=${status}` : ''}`),

@@ -93,6 +93,7 @@ export interface NightLook {
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */
 export interface Features {
   announcements: boolean // Scheduled family banners on the Board
+  inbox: boolean // The quick-capture inbox at the top of a parent's screen
 
   chores: boolean // Chores tab, points, rewards, sticker book, chore nudges (the leaderboard, sticker shop and rewards have their own switches too)
   lists: boolean // Lists tab, "Due soon", an event's linked items, list-update notifications

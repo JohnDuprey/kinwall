@@ -1327,7 +1327,7 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
   )
 }
 
-function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, members, categories, onClose, onSave }: {
+export function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, members, categories, onClose, onSave }: {
   event: EventInstance | null; prefill?: Partial<EventInstance>; calendars: CalendarEntry[]; offerNewLocal: boolean
   /** Opened from a share (a flyer or invite): Save to Outings sits beside Add event, with what the flyer said. */
   shared?: OutingExtras

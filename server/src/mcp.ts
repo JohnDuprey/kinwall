@@ -1,6 +1,7 @@
 import { PlanningApplySchema, PlanningSaveSchema, PlanningParamsSchema, PlanningQuerySchema, WeeklyPlanningSchema } from './weekly-planning-schemas.ts';
 import { EventFollowChoiceSchema, EventFollowSchema } from './routes/event-follows.ts';
 import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema } from './announcements.ts';
+import { InboxItemSchema, InboxSchema } from './inbox.ts';
 // MCP (Model Context Protocol) endpoint: POST/DELETE /mcp, stateless Streamable HTTP (GET answers 405: no SSE stream).
 //
 // Library: @modelcontextprotocol/sdk's WebStandardStreamableHTTPServerTransport - it's built on
@@ -320,6 +321,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) }, suggest_outings: OutingIdeasSchema.shape, import_outing: ShareResultSchema.shape,
   list_upkeep_jobs: { jobs: z.array(UpkeepJobSchema) }, get_upkeep_job: { job: UpkeepJobSchema }, create_upkeep_job: { job: UpkeepJobSchema }, update_upkeep_job: { job: UpkeepJobSchema }, delete_upkeep_job: { ok: z.boolean(), job: UpkeepJobSchema.optional() },
   log_upkeep_done: UpkeepDoneResultSchema.shape, list_upkeep_history: { entries: z.array(UpkeepEntrySchema) }, list_upkeep_things: { things: z.array(UpkeepThingSchema), areas: z.array(UpkeepAreaSchema) }, create_upkeep_thing: { thing: UpkeepThingSchema }, update_upkeep_thing: { thing: UpkeepThingSchema },
+  list_inbox: InboxSchema.shape, add_to_inbox: { item: InboxItemSchema },
   list_announcements: AnnouncementsSchema.shape, create_announcement: { announcement: AnnouncementSchema }, update_announcement: { announcement: AnnouncementSchema }, delete_announcement: OK,
   list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
   list_notes: { notes: z.array(NoteSchema) },
@@ -347,6 +349,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
+  list_inbox: READ, add_to_inbox: WRITE,
   list_announcements: READ, create_announcement: WRITE, update_announcement: SET, delete_announcement: DELETE,
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_chore_counts: READ,
@@ -1895,6 +1898,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     },
   );
 
+  tool('list_inbox', { title: 'List the inbox', description: "Parents: the quick-capture inbox, thoughts a parent jotted down to sort out later, newest first, then the 20 most recently sorted (with where each went: a task, event or note) or cleared. Not chores and not anything the family has to do yet.", inputSchema: {} }, async () => {
+    const res = await call(app, env, auth, 'GET', '/api/inbox');
+    return res.status >= 400 ? errorResult(res.json, 'Could not read the inbox') : okResult('The inbox.', res.json as Record<string, unknown>);
+  });
+  tool('add_to_inbox', { title: 'Add to the inbox', description: "Parents: jot a thought down in the quick-capture inbox, as said (\"Permission slip for Friday\"), to sort into a task, event or note later in Kinwall. Use this when someone wants to remember something without deciding yet what it is; never guess a date or make a task or event from it.", inputSchema: { text: z.string().trim().min(1).max(200) } }, async ({ text }) => {
+    const res = await call(app, env, auth, 'POST', '/api/inbox', { id: crypto.randomUUID(), text });
+    return res.status >= 400 ? errorResult(res.json, 'Could not add that to the inbox') : okResult(`In the inbox: ${(res.json as { text: string }).text}`, { item: res.json });
+  });
   tool('list_announcements', { title: 'List family announcements', description: 'Active scheduled messages shown at the top of the Board. Parents may use status=all to include future and expired messages. Timestamps are UTC; startsAt is inclusive and expiresAt exclusive.', inputSchema: { status: z.enum(['active', 'all']).optional() } }, async ({ status }) => {
     const res = await call(app, env, auth, 'GET', '/api/announcements' + (status ? `?status=${status}` : ''));
     return res.status >= 400 ? errorResult(res.json, 'Could not read announcements') : okResult('Family announcements.', res.json as Record<string, unknown>);

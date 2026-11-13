@@ -299,6 +299,7 @@ export const FeaturesSchema = z
     meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
     newscast: z.boolean().default(true), // Home's Newscast tab: GET /api/newscast and its routes answer 404 while off
     announcements: z.boolean().default(true), // Scheduled family messages on the Board
+    inbox: z.boolean().default(true), // The quick-capture inbox (parents): /api/inbox and its routes answer 404 while off
     polls: z.boolean().default(true), // Family polls: /api/polls and its routes answer 404 while off, no poll notifications
     outings: z.boolean().default(true), // Outings: /api/outings and its routes answer 404 while off, no outing reminders
     upkeep: z.boolean().default(true), // Home upkeep: /api/upkeep and its routes answer 404 while off, no upkeep notes, chores or supplies

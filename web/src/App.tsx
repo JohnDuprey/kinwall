@@ -34,6 +34,7 @@ import { announce } from './a11y.tsx'
 import { DialogProvider, useDialog } from './dialog.tsx'
 import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
+const InboxButton = lazy(() => import('./Inbox.tsx')) // the quick-capture inbox, parents only
 import { InstallNudge } from './Install.tsx'
 import { latestOnly } from './latest.ts'
 import { appPlatform, inNativeApp, tellAppHere, tellAppLeaveDemo, tellAppNight, tellAppSignedOut } from './native.ts'
@@ -1012,6 +1013,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
         <div className="header-right">
           <OfflineIcon />
           <TimerButton />
+          {isAdmin && settings.features.inbox !== false && <Suspense fallback={null}><InboxButton /></Suspense>}
           <NotificationBell isAdmin={isAdmin} />
           {wall && <NightScreenButton />}
           <HelpButton />
@@ -1035,6 +1037,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
         <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
         <OfflineIcon />
         <TimerButton />
+        {isAdmin && settings.features.inbox !== false && <Suspense fallback={null}><InboxButton /></Suspense>}
         <NotificationBell isAdmin={isAdmin} />
         {wall && <NightScreenButton />}
         <HelpButton />

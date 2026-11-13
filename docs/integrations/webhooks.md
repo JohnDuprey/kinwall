@@ -99,6 +99,10 @@ These events advance the `chores` revision. They are distinct from purchased rew
 `reward.redeemed`; an existing Home Assistant automation for purchased rewards will not run just
 because someone reaches a milestone. No new Home Assistant entities or native widgets are added.
 
+### Inbox
+
+`inbox.changed` is emitted when a thought is jotted down, sorted, cleared or put back, with `{id}` (never its words). Import emits `{imported}` with the restored count. Sorting also emits what was made (`list.item.changed`, `events.changed` or `announcement.changed`). Turning the feature off prevents inbox changes and their webhooks.
+
 ### Family announcements
 
 `announcement.changed` is emitted when an announcement is created, edited, or deleted, with `{id}`. Import emits `{imported}` with the restored count. The event bumps the global revision. A scheduled start or expiration is a clock boundary, not a data change: it does not emit a webhook. Readers can use `GET /api/announcements`'s `nextChangeAt` to refresh at the boundary. Turning the feature off prevents announcement mutations and their webhooks.

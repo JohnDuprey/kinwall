@@ -1,6 +1,7 @@
 import { PlanningExportSchema } from '../weekly-planning-schemas.ts';
 import { exportWeeklyPlans } from '../weekly-planning.ts';
 import { AnnouncementSchema, readAnnouncements } from '../announcements.ts';
+import { InboxItemSchema, readInbox } from '../inbox.ts';
 // "Your data": GET /api/export (everything the family entered, minus credentials), POST /api/import
 // (merges an export back in) and GET /api/host-events (see host-events.ts). All admin-only -
 // display keys are denied by default in auth.ts.
@@ -211,6 +212,8 @@ const ExportSchema = z
     // Family polls (0102), each with its choices and who voted for what.
     weeklyPlans: z.array(PlanningExportSchema),
     announcements: z.array(AnnouncementSchema.refine(a => Date.parse(a.expiresAt) > Date.parse(a.startsAt), 'Expiration must be after start')),
+    // The quick-capture inbox (0147): open, sorted and cleared thoughts, with where sorted ones went.
+    inboxItems: z.array(InboxItemSchema),
     polls: z.array(PollSchema),
     // Outings (0111): things to do and places to go, with who marked them, and their categories.
     outings: z.array(OutingSchema),
@@ -439,6 +442,7 @@ dataRoutes.openapi(
         restaurants: await readRestaurants(db, { archived: true }),
         weeklyPlans: await exportWeeklyPlans(db),
         announcements: (await readAnnouncements(db, true)).announcements,
+        inboxItems: (await readInbox(db, true)).items,
         polls: await readPolls(db),
         outings: await readOutings(db),
         outingCategories: await readOutingCategories(db),
@@ -509,6 +513,7 @@ const ImportSchema = ExportSchema.extend({
   restaurants: ExportSchema.shape.restaurants.default([]),
   weeklyPlans: ExportSchema.shape.weeklyPlans.default([]),
   announcements: ExportSchema.shape.announcements.default([]),
+  inboxItems: ExportSchema.shape.inboxItems.default([]),
   polls: ExportSchema.shape.polls.default([]),
   outings: ExportSchema.shape.outings.default([]),
   outingCategories: ExportSchema.shape.outingCategories.default([]),
@@ -565,6 +570,7 @@ const ImportResultSchema = z
       restaurants: z.number(),
       weeklyPlans: z.number(),
       announcements: z.number(),
+      inboxItems: z.number(),
       polls: z.number(),
       outings: z.number(),
       upkeep: z.number(),
@@ -1123,6 +1129,7 @@ dataRoutes.openapi(
       db.prepare('DELETE FROM weekly_plan_applies WHERE week_start IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.weeklyPlans.map(p => p.weekStart))),
       ...upserts(db, 'weekly_plans', 'week_start', body.weeklyPlans.map(p => ({ week_start: p.weekStart, revision: p.revision, draft: JSON.stringify(p.draft), applied: JSON.stringify(p.applied) }))),
       ...upserts(db, 'announcements', 'id', body.announcements.map(a => ({ id: a.id, title: a.title, details: a.details, starts_at: new Date(a.startsAt).toISOString(), expires_at: new Date(a.expiresAt).toISOString(), priority: a.priority, created_at: a.createdAt, updated_at: a.updatedAt })), keepCreated),
+      ...upserts(db, 'inbox_items', 'id', body.inboxItems.map(i => ({ id: i.id, text: i.text, status: i.status, target: i.target ? JSON.stringify(i.target) : null, created_at: i.createdAt, updated_at: i.updatedAt, done_at: i.doneAt })), keepCreated),
       // A poll's choices in the file replace its choices here; votes by members or for choices not here are dropped.
       ...upserts(db, 'polls', 'id', body.polls.map((p) => ({ id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winner_option_id: p.winnerOptionId, meal_id: p.mealId, created_by: p.createdBy, created_at: p.createdAt, closed_at: p.closedAt })), { ...keepCreated, expr: { meal_id: "(SELECT id FROM meals WHERE id = j.value->>'meal_id')", created_by: memberRef('created_by') } }),
       db.prepare('DELETE FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.polls.map((p) => p.id))),
@@ -1169,6 +1176,7 @@ dataRoutes.openapi(
       ['restaurant.changed', body.restaurants.length],
       ['weekly-plan.changed', body.weeklyPlans.length],
       ['announcement.changed', body.announcements.length],
+      ['inbox.changed', body.inboxItems.length],
       ['poll.changed', body.polls.length],
       ['outing.changed', body.outings.length + body.outingCategories.length],
       ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
@@ -1214,6 +1222,7 @@ dataRoutes.openapi(
           restaurants: body.restaurants.length,
           weeklyPlans: body.weeklyPlans.length,
           announcements: body.announcements.length,
+          inboxItems: body.inboxItems.length,
           polls: body.polls.length,
           outings: body.outings.length,
           upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,

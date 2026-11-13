@@ -3,6 +3,7 @@ import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventFollowsRoutes } from './routes/event-follows.ts';
 import { runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { announcementsRoutes } from './routes/announcements.ts';
+import { inboxRoutes } from './routes/inbox.ts';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
@@ -245,6 +246,7 @@ export function createApp() {
   app.route('/', newscastRoutes);
   app.route('/', pollsRoutes);
   app.route('/', announcementsRoutes);
+  app.route('/', inboxRoutes(app)); // sorting adds the task, event or note through their own routes
   app.route('/', outingsRoutes);
   app.route('/', outingFeedsRoutes);
   app.route('/', pluginsRoutes);

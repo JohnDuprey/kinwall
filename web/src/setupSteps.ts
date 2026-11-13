@@ -80,6 +80,7 @@ export const FEATURE_CARDS: readonly FeatureCard[] = [
   { id: 'paint', emoji: '🎨', title: msg('Painting and coloring'), sub: msg('Drawing and coloring pages in Activities.'), keys: ['paint'], kids: true },
   { id: 'outings', emoji: '🎟️', title: msg('Outings and places to go'), sub: msg('Things to do nearby, who wants to go and ticket dates.'), keys: ['outings'] },
   { id: 'announcements', emoji: '📣', title: msg('Family announcements'), sub: msg('Scheduled messages at the top of the Board. They appear and disappear at the times you choose.'), keys: ['announcements'] },
+  { id: 'inbox', emoji: '📥', title: msg('Inbox'), sub: msg('Jot something down now and make it a task, an event or a note later.'), keys: ['inbox'] },
   { id: 'polls', emoji: '🗳️', title: msg('Family polls'), sub: msg('Everyone votes, like "Which movie tonight?"'), keys: ['polls'] },
   { id: 'photos', emoji: '📸', title: msg('Photos and memories'), sub: msg('Family photos on the wall and moments worth keeping.'), keys: ['photos', 'trackersMemories'] },
   { id: 'news', emoji: '📰', title: msg('Family news and messages'), sub: msg("Newscast, messages and notes on events and lists."), keys: ['newscast', 'messages', 'notes'] },

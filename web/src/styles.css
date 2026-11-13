@@ -2452,7 +2452,7 @@ a.activity-card:active { transform: scale(0.98); }
 .header .clock { white-space: nowrap; }
 .header-right .member-filter-row { min-width: 0; flex-shrink: 1; }
 @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
-.header-bell { position: relative; flex-shrink: 0; }
+.header-bell, .header-inbox { position: relative; flex-shrink: 0; }
 .header-right .icon-btn.header-timer-on { width: auto; padding: 0 12px 0 10px; gap: 6px; border-radius: 999px; display: inline-flex; align-items: center; }
 .header-timer-clock { font-weight: 800; font-variant-numeric: tabular-nums; }
 
@@ -2546,7 +2546,7 @@ button.notif-item:active { transform: scale(0.99); }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .header-phone .header-right { gap: 6px; flex-shrink: 0; }
-.header-phone .header-bell, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
+.header-phone .header-bell, .header-phone .header-inbox, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
 /* Tablets standing up get the phone header a size up: bigger faces and name, the usual side padding. */
 @media (min-width: 601px) {
   .header-phone { padding: calc(var(--safe-t) + 14px) var(--pad) 6px; gap: 12px; }
@@ -3949,6 +3949,14 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .calendar-toolbar .outings-btn.btn { grid-column: 4; }
   .calendar-toolbar:has(.outings-btn) .filter-btn { grid-column: 5; }
 }
+/* Quick-capture inbox (a demo-only preview, Inbox.tsx). Its header button sizes like the bell's. */
+.inbox-capture-row { display: flex; gap: 8px; }
+.inbox-capture-row input { flex: 1; min-width: 0; }
+.inbox-capture-row .btn { flex: none; }
+.inbox-list { display: flex; flex-direction: column; gap: 8px; }
+.inbox-list .sheet-link > .inbox-put-back { flex: none; color: var(--accent-text); font-size: 0.875rem; }
+.inbox-original { margin: 0 0 16px; font-weight: 700; overflow-wrap: anywhere; }
+.inbox-preview { margin-top: 20px; text-align: center; }
 /* The narrowest phones (an iPhone SE's 320px): the toolbar's gaps tighten so every button fits whole. */
 @media (max-width: 340px) {
   .calendar-toolbar { gap: 4px; }

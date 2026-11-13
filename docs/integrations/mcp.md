@@ -265,6 +265,8 @@ when Rewards or Chores & points is off. Milestones earn rewards without spending
 
 ## Family announcements
 
+`list_inbox` and `add_to_inbox` (parents) read and add to the quick-capture [inbox](../using/inbox.md): `add_to_inbox` takes `text`, saved as said, to sort into a task, event or note later in Kinwall. It never makes a task or event itself or guesses a date. Both refuse access while **Inbox** is off. Sorting is done in Kinwall or through the REST API.
+
 `list_announcements` reads the active messages at the top of the Board; parents can pass `status: "all"` for scheduled and expired messages. `create_announcement`, `update_announcement`, and `delete_announcement` require parent access. Create takes `title`, optional `details`, `startsAt`, `expiresAt`, and optional `priority` (`normal` or `important`). Use ISO timestamps with UTC or an explicit offset. Update and delete identify messages by `id`; update changes only supplied fields. Every tool refuses access while **Family announcements** is off. These messages are separate from Newscast posts and calendar events.
 
 `get_chore_counts` reads scheduled chore counts for a date range (`from`, `to`, inclusive, at most 31 dates), grouped by date and assignee. Each result has `total`, `remaining`, and `pending`; pending approvals remain unfinished. Empty dates are omitted. It follows the same child-device restrictions and Chores feature switch as `GET /api/chores/counts`.

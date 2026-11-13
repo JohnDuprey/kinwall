@@ -121,4 +121,6 @@ API: the night hours are `quietFrom` / `quietTo`, the two effects `nightRest` an
 
 Chore settings (late completion credit, streak grace, daily check-in points, leaderboard, sticker shop and sticker prices) live on the **Family** tab, on parent devices, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).
 
+**Inbox** controls the quick-capture inbox at the top of a parent's screen. Turning it off hides the button and makes the inbox API and MCP tools unavailable. What's in it is kept. See [Inbox](../using/inbox.md).
+
 **Family announcements** controls the scheduled banners at the top of the Board. Turning it off hides the banners and their management controls and makes the announcement API and MCP tools unavailable. Saved messages are kept. See [Family announcements](../using/announcements.md).

@@ -84,6 +84,7 @@ test('mcp: tools/list returns the tools', async () => {
     'add_member',
     'add_note',
     'add_outing_to_calendar',
+    'add_to_inbox',
     'add_to_library',
     'add_tracker_entry',
     'apply_meal_projection',
@@ -166,6 +167,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_contact_categories',
     'list_contacts',
     'list_events',
+    'list_inbox',
     'list_library',
     'list_lists',
     'list_meals',
@@ -1240,4 +1242,14 @@ test('mcp: ongoing categories, order, repeat-safe ticks and history undo', async
   assert.ok(first.completionId);
   assert.equal((await call('complete_chore', { choreId: chore.id, date, operationId: 'one' })).completionId, first.completionId);
   await call('uncomplete_chore', { choreId: first.completionId, date });
+});
+
+test('mcp: add_to_inbox jots a thought down as said and list_inbox reads it back; display keys may not (as REST)', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  const added = await ok('add_to_inbox', { text: 'Permission slip for Friday' });
+  assert.equal(added.item.text, 'Permission slip for Friday');
+  assert.equal(added.item.status, 'open');
+  assert.deepEqual((await ok('list_inbox', {})).items.map((i: any) => i.text), ['Permission slip for Friday']);
+  assert.equal((await call('add_to_inbox', { text: 'x' }, displayKey)).isError, true);
+  assert.equal((await call('list_inbox', {}, displayKey)).isError, true);
 });

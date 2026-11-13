@@ -62,4 +62,6 @@ Reward milestones also export their definitions, participants, the earlier work 
 paused progress, and earned/given dates (`rewardMilestones`). Importing restores missing definitions
 and enrollments; existing ones are kept so older files cannot undo earned or given rewards.
 
+The [inbox](../using/inbox.md) is backed up as `inboxItems`: each thought's words, whether it's open, sorted or cleared, where a sorted one went, and its times. Import restores them by id without deleting others. Older exports without it remain valid.
+
 Scheduled family announcements are backed up with their titles, details, UTC visibility windows, emphasis, ids, and creation/update times. Import restores them by id without deleting other announcements; expired messages stay expired unless you change their schedule. Older exports without announcements remain valid.

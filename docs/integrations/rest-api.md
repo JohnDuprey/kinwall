@@ -446,6 +446,22 @@ Migration 0130 creates an empty command table; it does not backfill or unenroll 
 * Visibility includes `startsAt` and excludes `expiresAt`. Important messages come first, then latest start, then id. Expiration hides a message without deleting it.
 * `features.announcements=false` makes every route return 404. See [Family announcements](../using/announcements.md).
 
+## Inbox
+
+Parents only: wall screens and kids' devices get 403. `features.inbox=false` makes every route return 404. See [Inbox](../using/inbox.md).
+
+* `GET /api/inbox` returns `{items}`: every open thought, newest first, then the 20 most recently sorted or cleared.
+* `POST /api/inbox` with `{text}` (1–200 characters, trimmed) jots one down. An optional client-made `id` (a UUID) makes a retry add it once.
+* `PATCH /api/inbox/{id}` with `{status: "cleared"}` clears an open thought; `{status: "open"}` puts a cleared one back (or one whose sorting was interrupted). Anything else answers 409. Nothing is deleted.
+* `POST /api/inbox/{id}/sort` makes an open thought into one of:
+  * `{kind: "task", listId, title, dueDate?}`: an item on that list, through `POST /api/lists/{id}/items`;
+  * `{kind: "event", event}`: an event, through `POST /api/events` (same body, including write-through to a synced calendar);
+  * `{kind: "note", title, details?, expiresAt}`: a family announcement from now until `expiresAt`, through `POST /api/announcements`.
+
+  Each goes through that route with the caller's key, so its rules, errors and notifications apply as if it were called directly. The thought is claimed in one statement first: a second call, from anywhere, answers 409 and makes nothing. If the route refuses, the thought goes back to `open` and its status (400, 403, 404 or 502) and error come back. On success the thought is `sorted` with `target`: `{kind, id, listId?, label?, at?}` (`label` is a task's list name, `at` an event's start). A `target.id` of `null` means sorting was interrupted after the claim; `PATCH` it back to `open`.
+* Items: `id`, `text` (as jotted, kept whatever it becomes), `status` (`open`, `sorted` or `cleared`), `target`, `createdAt`, `updatedAt`, `doneAt`.
+* Export and import carry them as `inboxItems`.
+
 ## Chore date counts
 
 `GET /api/chores/counts?from=YYYY-MM-DD&to=YYYY-MM-DD` returns counts for up to 31 inclusive calendar dates. Each row is `{date, memberId, total, remaining, pending}`; `memberId: null` means Anyone. Rows with no scheduled chores are omitted. Recurrence uses the household timezone. Pending approvals count as remaining; full flexible goals only count on dates with actual ticks, so already-satisfied goals do not invent extra work. Counts are grouped by the chore's assignee, even when someone else completed an Anyone chore. A child's display key sees only that child's and Anyone counts; a shared wall can read all counts. While Chores is off the response is `[]`. Invalid, reversed, or longer ranges return 400.

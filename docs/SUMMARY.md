@@ -20,6 +20,7 @@
 * [Newscast](using/newscast.md)
 * [Family announcements](using/announcements.md)
 * [Family polls](using/polls.md)
+* [Inbox](using/inbox.md)
 * [Events](using/events.md)
 * [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)

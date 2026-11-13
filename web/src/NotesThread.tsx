@@ -11,7 +11,7 @@ import { formatDate, intlLocale, MONTH_DAY, t } from './i18n.ts'
 const POST_AS_KEY = 'kinwall.notePostAs' // member the last note was posted as
 const MAX = 2000
 
-function relTime(iso: string): string {
+export function relTime(iso: string): string {
   const rtf = new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'auto', style: 'short' })
   const min = Math.round((Date.now() - Date.parse(iso)) / 60000)
   if (min < 1) return t('just now')
