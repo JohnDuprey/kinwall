@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import type { Lang } from '../src/i18n.ts'
 import { DAY, formatDate, intlLocale, lang, msg, pickLang, playerLang, setLang, t, tc, tn } from '../src/i18n.ts'
 
 const de = {
@@ -114,4 +115,13 @@ test('the Nooks heading keeps its German translation', async () => {
   await setLang('de', async () => german)
   assert.equal(t('Nooks'), 'Ecken')
   await setLang('en')
+})
+
+test('setLang: unsupported and inherited keys fall back to English without calling a loader', async () => {
+  for (const invalid of ['xx', '__proto__', 'constructor', 'toString', 'hasOwnProperty', '', null, undefined]) {
+    await setLang('de', load)
+    await setLang(invalid as Lang, () => { throw new Error('Invalid languages must not load') })
+    assert.equal(lang(), 'en')
+    assert.equal(t('Notifications'), 'Notifications')
+  }
 })

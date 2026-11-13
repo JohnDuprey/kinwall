@@ -31,9 +31,10 @@ async function setup(kind: 'google' | 'microsoft' = 'google') {
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (u: unknown) => {
     const url = u instanceof Request ? u.url : String(u);
+    const parsed = new URL(url);
     if (url.startsWith('https://fcm.googleapis.com/')) { sent.push(url); return new Response('', { status: 201 }); }
     // A good refresh expires at once, so the next tick asks again.
-    if (url.includes('oauth2.googleapis.com/token') || url.includes('login.microsoftonline.com')) {
+    if ((parsed.origin === 'https://oauth2.googleapis.com' && parsed.pathname === '/token') || (parsed.origin === 'https://login.microsoftonline.com' && parsed.pathname.endsWith('/oauth2/v2.0/token'))) {
       return token.status === 200 ? Response.json({ access_token: 'fresh', expires_in: 0 }) : new Response(token.body, { status: token.status });
     }
     if (url.includes('/calendarList')) return Response.json({ items: [{ id: 'cal1', accessRole: 'owner' }] });

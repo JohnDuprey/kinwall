@@ -36,7 +36,7 @@ async function setup() {
     return new Response('', { status: 201 });
   }) as typeof fetch;
   const restore = async () => { await flush(); globalThis.fetch = realFetch; };
-  const events = () => sent.filter((s) => s.url.startsWith('https://hooks.example.com')).map((s) => JSON.parse(s.body) as { type: string; data: any });
+  const events = () => sent.filter((s) => new URL(s.url).origin === 'https://hooks.example.com').map((s) => JSON.parse(s.body) as { type: string; data: any });
   const device = async (name: string, kind: 'kid' | 'wall', owner?: string) => {
     const k = (await req('/api/keys', 'POST', { name, scope: 'display' })).json;
     assert.equal((await req(`/api/keys/${k.id}`, 'PATCH', { kind, owner: owner ?? 'shared' })).status, 200);

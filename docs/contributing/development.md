@@ -34,6 +34,16 @@ the local web build can otherwise pass with files that are missing from the imag
 * No UI kit and no state library in `web/`: plain CSS custom properties, React and [`date-fns`](https://date-fns.org).
 * Clickable things are real buttons or links with a pointer and a hover state, from the shared "Pointer and hover" rules at the end of `web/src/styles.css`. See AGENTS.md → Design for the rest.
 
+### Sign-in URL and language boundaries
+
+Calendar and to-do sign-ins validate the server's consent URL with `web/src/providerConsent.ts`
+before navigating. Google URLs must use `https://accounts.google.com`; Microsoft URLs must use
+`https://login.microsoftonline.com`. Embedded credentials and other origins are refused. Keep
+both sign-in entry points on this shared check when adding providers.
+
+`setLang()` also validates its language at runtime, falling back to English before loading words
+for an unsupported value. Its loader map has no inherited property names.
+
 ## Workflows
 
 | Workflow | Runs on | Does |

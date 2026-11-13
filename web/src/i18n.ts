@@ -23,9 +23,9 @@ export const LANGUAGES: { key: Lang; label: string }[] = [
   { key: 'de', label: 'Deutsch' },
 ]
 type Dict = Record<string, string>
-const LOADERS: Record<Exclude<Lang, 'en'>, () => Promise<{ default: Dict }>> = {
-  de: () => import('./locales/de.json'),
-}
+const LOADERS = new Map<Exclude<Lang, 'en'>, () => Promise<{ default: Dict }>>([
+  ['de', () => import('./locales/de.json')],
+])
 export const isLang = (v: unknown): v is Lang => LANGUAGES.some(l => l.key === v)
 export const languageName = (l: Lang) => LANGUAGES.find(x => x.key === l)!.label
 
@@ -51,7 +51,9 @@ export const lang = (): Lang => current
 
 /** Loads `next`'s words, then switches everything rendered from now on to it. If another setLang
  * started meanwhile, the later one wins. */
-export async function setLang(next: Lang, load = (l: Exclude<Lang, 'en'>) => LOADERS[l]().then(m => m.default)): Promise<void> {
+export async function setLang(next: Lang, load = (l: Exclude<Lang, 'en'>) => LOADERS.get(l)!().then(m => m.default)): Promise<void> {
+  // Validate here too: persisted preferences and future callers may bypass the typed boundary.
+  if (!isLang(next)) next = 'en'
   const mine = ++generation
   const words = next === 'en' ? null : await load(next)
   if (mine !== generation) return

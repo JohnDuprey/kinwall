@@ -10,6 +10,7 @@ import { appProviderReturn, inNativeApp } from './native.ts'
 import { ChevronRight } from './icons.tsx'
 import { whenLabel } from './addedBy.ts'
 import { t } from './i18n.ts'
+import { providerConsentUrl } from './providerConsent.ts'
 import { appName, calendarAccountFor, pullDue, taskLinkBroken } from './taskSync.ts'
 import type { Account, List, TaskAccount, TaskAppKind, TaskAppList, TaskLink } from './types.ts'
 
@@ -21,7 +22,9 @@ async function connectTaskApp(kind: 'google' | 'microsoft', say: (m: string) => 
     return
   }
   try {
-    location.href = (await api.startTaskApp(kind, loginHint ?? undefined)).url
+    const url = providerConsentUrl(kind, (await api.startTaskApp(kind, loginHint ?? undefined)).url)
+    if (!url) throw new Error(t("Couldn't start the {name} sign-in", { name: appName(kind) }))
+    location.href = url
   } catch (e) {
     say(e instanceof Error ? e.message : t("Couldn't start the {name} sign-in", { name: appName(kind) }))
   }
