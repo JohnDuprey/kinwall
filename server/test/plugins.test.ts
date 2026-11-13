@@ -327,6 +327,48 @@ test('plugins: an installed plugin whose repo the catalog lists becomes reviewed
   }
 });
 
+test('plugins: replacing a reviewed plugin with an upload or another repo of the same id drops the reviewed mark and source', async () => {
+  const v1 = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': 'v1' });
+  const other = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': 'other' });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: unknown) => {
+    const u = String(url);
+    if (u.includes('/OurFamily/kinwall-plugin-words/releases/download/v1.0.0/')) return new Response(v1);
+    if (u.includes('/someone/kinwall-plugin-else/')) return new Response(other);
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+  const catalog = [{ id: 'sight-words', repo: 'OurFamily/kinwall-plugin-words', version: '1.0.0', sha256: await sha256(v1), name: 'Sight words', emoji: '🔤' }];
+  try {
+    const { req, json } = setup({ PLUGIN_CATALOG: async () => catalog });
+    const reviewed = async () => (await json('/api/plugins', 'POST', { url: 'https://github.com/OurFamily/kinwall-plugin-words' })).json() as Promise<any>;
+    assert.deepEqual([(await reviewed()).reviewed, (await reviewed()).source], [true, 'OurFamily/kinwall-plugin-words']);
+    const uploaded = (await (await upload(req, other)).json()) as any;
+    assert.deepEqual([uploaded.reviewed, uploaded.source], [false, null]);
+    await reviewed();
+    const swapped = (await (await json('/api/plugins', 'POST', { url: 'https://github.com/someone/kinwall-plugin-else' })).json()) as any;
+    assert.deepEqual([swapped.reviewed, swapped.source], [false, 'someone/kinwall-plugin-else']);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('plugins: an update whose release changed its id is refused without installing anything', async () => {
+  let latest = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': 'v1' });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: unknown) => (String(url).endsWith('/latest/download/kinwall-plugin.zip') ? new Response(latest) : new Response('not found', { status: 404 }))) as typeof fetch;
+  try {
+    const { req, json } = setup({ PLUGIN_CATALOG: async () => [] });
+    assert.equal((await json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/kinwall-plugin-words' })).status, 201);
+    latest = await zip({ 'kinwall-plugin.json': JSON.stringify({ ...MANIFEST, id: 'sight-words-2', version: '2.0.0' }), 'index.html': 'v2' });
+    const update = await json('/api/plugins/sight-words/update', 'POST', {});
+    assert.equal(update.status, 400);
+    assert.match(((await update.json()) as any).error, /id changed to sight-words-2/);
+    assert.deepEqual(((await (await req('/api/plugins')).json()) as any[]).map((p) => p.id), ['sight-words']);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 test('activity chores: link a plugin, heartbeats add up (capped), and complete once at the threshold, with points', async (tc) => {
   // Heartbeats count real time since the last one: a minute passes before each (at noon, so hours
   // of them stay on one day).

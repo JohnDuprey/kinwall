@@ -126,7 +126,7 @@ Kinwall reads each calendar once a day, 90 days ahead. Its events never go on th
 
 When the calendar changes, Kinwall follows it: an event that moved moves, and one that's gone or past leaves the pile. One you kept keeps your changes (its name, notes, who's interested) but follows the calendar's day, time and place, and shows **Canceled** if the calendar calls it off. A repeating event (weekly story time) is one outing, at its next time.
 
-**Change** on a calendar edits it, reads it again now, or removes it (its waiting events go; outings you kept stay). If a link stops working, the calendar shows why in plain words, and Kinwall tries again the next day. RSS feeds aren't supported.
+**Change** on a calendar edits it, reads it again now, or removes it (its waiting events go; outings you kept stay). If a link stops working, the calendar shows why in plain words, and Kinwall tries again the next day. A calendar can be up to 20 MB and has 30 seconds to download. RSS feeds aren't supported.
 
 ## Turning it off
 

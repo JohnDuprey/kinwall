@@ -148,6 +148,14 @@ test('oauth: PKCE, code reuse, expiry and redirect mismatches are refused', asyn
   assert.equal(((await (await exchange(t, b)).json()) as any).error, 'invalid_grant');
 });
 
+test('oauth: two exchanges of the same code at once issue tokens only once', async () => {
+  const t = setup();
+  const a = await authorize(t);
+  const results = await Promise.all([exchange(t, a), exchange(t, a)]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 400]);
+  assert.equal((await (t.env.DB as any).prepare('SELECT COUNT(*) AS n FROM oauth_grants').first()).n, 1, 'one sign-in, not two');
+});
+
 test('oauth: registration and authorize only send the browser to registered, safe addresses', async () => {
   const t = setup();
   for (const bad of ['http://evil.example/cb', 'https://ok.example/cb#frag', 'javascript:alert(1)', 'data:text/html,hi', 'file:///etc/passwd', 'kinwall:/oauth', 'family.kinwall.app:/oauth#frag']) {

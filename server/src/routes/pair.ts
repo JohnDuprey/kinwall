@@ -154,13 +154,17 @@ pairRoutes.openapi(
       .bind(code, nowIso)
       .first<PairingRow>();
     if (!pairing) return c.json({ error: 'Code not found or expired' }, 404);
+    // Claim it in one statement before making the key, so two parents approving at once can't
+    // both make one (the device polls 'pending' until the key is stored just below).
+    const claimed = (await c.env.DB.prepare('UPDATE pairings SET approved = 1 WHERE id = ? AND approved = 0').bind(pairing.id).run()).meta.changes;
+    if (!claimed) return c.json({ error: 'Code not found or expired' }, 404);
 
     const { id: keyId, key } = await createApiKey(c.env.DB, name, 'display', { owner, deviceKind: kind });
     const encryptedKey = await encrypt(c.env, key, pairing.id);
 
     const db = c.env.DB;
     await db.batch([
-      db.prepare('UPDATE pairings SET approved = 1, key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?').bind(keyId, name, encryptedKey, pairing.id),
+      db.prepare('UPDATE pairings SET key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?').bind(keyId, name, encryptedKey, pairing.id),
       ...securityEventStmts(db, { kind: 'device.paired', summary: kind === 'kid' ? stored('security', '"{device}" paired as {name}\'s device', { device: name, name: await ownerName(db, owner) }) : stored('security', '"{device}" paired as a wall screen', { device: name }), by: await actorOf(c), device: name, detail: { kind }, about: kind === 'kid' ? owner : null }),
     ]);
 

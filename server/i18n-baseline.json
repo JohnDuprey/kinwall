@@ -15,7 +15,7 @@
   "photo-folder-node.ts": 1,
   "providers/caldav.ts": 10,
   "providers/google.ts": 5,
-  "providers/ics.ts": 3,
+  "providers/ics.ts": 2,
   "providers/microsoft.ts": 8,
   "providers/types.ts": 2,
   "routes/books.ts": 8,

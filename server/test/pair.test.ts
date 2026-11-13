@@ -250,3 +250,13 @@ test('device name: admin can rename a paired device; display key cannot rename; 
   assert.equal(renameEv.device, 'Kitchen Wall Screen');
   assert.equal(renameEv.summary, 'Device "Maya room" renamed to "Kitchen Wall Screen"');
 });
+
+test('pairing: two parents approving the same code at once make one tablet key', async () => {
+  const env = makeEnv();
+  const admin = makeApp(env);
+  const start = await (await makeAnon(env)('/api/pair', { method: 'POST' })).json() as any;
+  const approve = () => admin('/api/pair/approve', { method: 'POST', body: JSON.stringify({ code: start.code, name: 'Kitchen iPad' }) });
+  const results = await Promise.all([approve(), approve()]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 404]);
+  assert.equal((await (env.DB as any).prepare("SELECT COUNT(*) AS n FROM api_keys WHERE scope = 'display'").first()).n, 1);
+});

@@ -266,7 +266,7 @@ snapshotRoutes.openapi(
     // a day; a goal ("3 times a week") isn't late for a day off. A tick waiting for an OK isn't late.
     const since = addDays(today, -DISPLAY_DAYS_BACK), yesterday = addDays(today, -1);
     const lastDue = !settings.features.chores ? [] : (choresRes.results as unknown as ChoreRow[]).flatMap((r) => {
-      const date = !r.rrule ? r.due_date : r.repeat_goal ? null : [...dueDates(r, since, yesterday, tz)].sort().pop();
+      const date = r.repeat_goal ? null : [...dueDates(r, since, yesterday, tz)].sort().pop(); // ongoing chores have none
       return date && date >= since && date < today ? [{ r, date }] : [];
     });
     const ticked = !lastDue.length ? new Set<string>() : new Set((await db.prepare(

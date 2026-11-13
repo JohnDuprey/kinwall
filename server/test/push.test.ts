@@ -196,6 +196,19 @@ test('push: subscription CRUD + scoping (a display key cannot touch another devi
   assert.equal('p256dh' in subA, false);
 });
 
+test('push: the 10-per-key cap never evicts a phone app registration when the admin key signs up browsers', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const now = new Date().toISOString();
+  await env.DB.prepare("INSERT INTO oauth_clients(id,name,redirect_uris,created_at) VALUES('app','Test app','[]',?)").bind(now).run();
+  await env.DB.prepare("INSERT INTO oauth_grants(id,client_id,scope,created_at,device_app) VALUES('grant','app','display',?,1)").bind(now).run();
+  // The Kinwall app's phone registration: no key id, oldest of all.
+  await env.DB.prepare("INSERT INTO push_subscriptions (id, api_key_id, oauth_grant_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES ('native:phone', NULL, 'grant', 'apns:phone', '', 'x', 'Phone', '[]', '{}', '2020-01-01T00:00:00Z')").run();
+  for (let i = 0; i < 11; i++) await subscribe(request, ADMIN_KEY, `browser${i}`);
+  assert.ok(await env.DB.prepare("SELECT 1 FROM push_subscriptions WHERE id = 'native:phone'").first(), 'the phone keeps its registration');
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE endpoint LIKE 'https:%'").first<{ n: number }>())?.n, 10, 'the admin key still keeps at most 10 browsers');
+});
+
 test('push: GET /api/push/vapid-public-key is display-allowed and stable', async () => {
   const env = makeEnv();
   const request = makeApp(env);

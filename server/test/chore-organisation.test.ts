@@ -141,3 +141,31 @@ test('concurrent retries of an ongoing tick award points once', async () => {
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM chore_completions').first() as any).n, 1);
   assert.equal((await db.prepare('SELECT SUM(points_awarded) AS n FROM chore_completions').first() as any).n, 5);
 });
+
+test('an ongoing chore that started days ago is never late on the board', async () => {
+  const { req, make, today } = await setup();
+  const start = new Date(Date.parse(today) - 3 * 86400000).toISOString().slice(0, 10);
+  const c = await make({ ongoing: true, dueDate: start });
+  const late = (await req('/api/board')).json.overdueChores.map((x: any) => x.id);
+  assert.ok(!late.includes(c.id));
+});
+
+test('a tick blocked by an ongoing chore\'s checklist leaves no history behind', async () => {
+  const { req, make, today, maya, db } = await setup();
+  const list = (await req('/api/lists', 'POST', { name: 'Laundry', kind: 'reusable' })).json;
+  await req(`/api/lists/${list.id}/items`, 'POST', { title: 'Add detergent' });
+  const c = await make({ ongoing: true, listId: list.id });
+  for (const op of ['a', 'b']) assert.equal((await req(`/api/chores/${c.id}/complete`, 'POST', { date: today, memberId: maya, operationId: op })).status, 409);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM chores WHERE source_id IS NOT NULL').first() as any).n, 0);
+});
+
+test('an unknown single memberId is refused as unknown member, on create and update', async () => {
+  const { req, make } = await setup();
+  const made = await req('/api/chores', 'POST', { title: 'Wash', memberId: 'nobody' });
+  assert.equal(made.status, 400);
+  assert.equal(made.json.error, 'unknown member');
+  const c = await make({});
+  const patched = await req(`/api/chores/${c.id}`, 'PATCH', { memberId: 'nobody' });
+  assert.equal(patched.status, 400);
+  assert.equal(patched.json.error, 'unknown member');
+});

@@ -2,7 +2,8 @@
 // calendar", iCloud public calendar, or any plain .ics URL).
 import ICAL from 'ical.js';
 import { zonedTimeToUtc } from '../recurrence.ts';
-import { feedFetch, type FeedEnv } from '../outbound.ts';
+import { FEED_TIMEOUT_MS, MAX_FEED_BYTES, feedFetch, readCapped, type FeedEnv } from '../outbound.ts';
+import { stored } from '../i18n.ts';
 import { notesText } from './notes.ts';
 import type { NormalizedEvent, Provider, ProviderCtx } from './types.ts';
 
@@ -323,10 +324,8 @@ function isoDate(d: Date): string {
 }
 
 async function fetchIcs(env: FeedEnv, url: string): Promise<string> {
-  const httpUrl = url.replace(/^webcal:\/\//i, 'https://');
-  const res = await feedFetch(env, httpUrl);
-  if (!res.ok) throw new Error(`ICS feed fetch failed (HTTP ${res.status})`);
-  return res.text();
+  const res = await fetchIcsConditional(env, url, null, null);
+  return res.notModified ? '' : res.text; // no validators sent, so never a 304
 }
 
 export type ConditionalFetchResult =
@@ -335,15 +334,25 @@ export type ConditionalFetchResult =
 
 // Used by sync.ts's chunked sync tick: If-None-Match / If-Modified-Since so an unchanged feed
 // costs one cheap round trip instead of a full fetch + parse + event replace.
-export async function fetchIcsConditional(env: FeedEnv, url: string, etag: string | null, lastModified: string | null): Promise<ConditionalFetchResult> {
+// Stops at MAX_FEED_BYTES and FEED_TIMEOUT_MS (`timeoutMs` is for tests).
+export async function fetchIcsConditional(env: FeedEnv, url: string, etag: string | null, lastModified: string | null, timeoutMs = FEED_TIMEOUT_MS): Promise<ConditionalFetchResult> {
   const httpUrl = url.replace(/^webcal:\/\//i, 'https://');
   const headers: Record<string, string> = {};
   if (etag) headers['If-None-Match'] = etag;
   if (lastModified) headers['If-Modified-Since'] = lastModified;
-  const res = await feedFetch(env, httpUrl, { headers });
-  if (res.status === 304) return { notModified: true };
-  if (!res.ok) throw new Error(`ICS feed fetch failed (HTTP ${res.status})`);
-  return { notModified: false, text: await res.text(), etag: res.headers.get('etag'), lastModified: res.headers.get('last-modified') };
+  const signal = AbortSignal.timeout(timeoutMs);
+  let res: Response, bytes: Uint8Array | null;
+  try {
+    res = await feedFetch(env, httpUrl, { headers, signal });
+    if (res.status === 304) return { notModified: true };
+    if (!res.ok) { await res.body?.cancel(); throw new Error(`ICS feed fetch failed (HTTP ${res.status})`); }
+    bytes = await readCapped(res, MAX_FEED_BYTES);
+  } catch (err) {
+    if (signal.aborted) throw new Error(stored('error', 'The calendar took longer than {n} seconds to download.', { n: Math.round(timeoutMs / 1000) }));
+    throw err;
+  }
+  if (!bytes) throw new Error(stored('error', 'The calendar is larger than {n} MB.', { n: MAX_FEED_BYTES / 1024 / 1024 }));
+  return { notModified: false, text: new TextDecoder().decode(bytes), etag: res.headers.get('etag'), lastModified: res.headers.get('last-modified') };
 }
 
 export const provider: Provider = {

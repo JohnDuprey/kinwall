@@ -211,10 +211,12 @@ pushRoutes.openapi(
     // existing id - ON CONFLICT keeps the old id, not the fresh one in VALUES.
     const existing = await c.env.DB.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').bind(body.subscription.endpoint).first<{ id: string }>();
     const id = existing?.id ?? crypto.randomUUID();
-    // At most MAX_SUBS_PER_KEY per device key: a new one replaces that key's oldest.
+    // At most MAX_SUBS_PER_KEY browsers per device key: a new one replaces that key's oldest. Only
+    // this key's browser sign-ups count (the server's own admin key has no id, like the Kinwall
+    // app's phones, so without the grant and endpoint checks it would evict those).
     if (!existing) {
       await c.env.DB.prepare(
-        'DELETE FROM push_subscriptions WHERE id IN (SELECT id FROM push_subscriptions WHERE api_key_id IS ? ORDER BY created_at DESC, id LIMIT -1 OFFSET ?)',
+        "DELETE FROM push_subscriptions WHERE id IN (SELECT id FROM push_subscriptions WHERE api_key_id IS ? AND oauth_grant_id IS NULL AND endpoint LIKE 'https:%' ORDER BY created_at DESC, id LIMIT -1 OFFSET ?)",
       ).bind(resolved?.id ?? null, MAX_SUBS_PER_KEY - 1).run();
     }
     const [p256dh, auth] = await Promise.all([encrypt(c.env, body.subscription.keys.p256dh, id), encrypt(c.env, body.subscription.keys.auth, id)]);

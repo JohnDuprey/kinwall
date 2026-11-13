@@ -196,7 +196,7 @@ choresRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: ChoreInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule, unknown list, plugin or library chore', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list, plugin, library chore or member', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -210,7 +210,7 @@ choresRoutes.openapi(
     const neverError = await choreRepeatError(c.env.DB, body.rrule, body.dueDate);
     if (neverError) return c.json({ error: neverError }, 400);
     const memberIds = body.memberIds && [...new Set(body.memberIds)];
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId)) ?? (await checkMembers(c, memberIds));
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId)) ?? (await checkMembers(c, memberIds ?? (body.memberId ? [body.memberId] : undefined)));
     if (listError) return c.json({ error: listError }, 400);
     const owners: (string | null)[] = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null];
     if (body.ongoing && (owners.some(m => m !== null) || body.repeatGoal || body.pluginId || body.rrule)) return c.json({ error: 'Ongoing chores must be for Anyone, without a repeat schedule, goal or activity.' }, 400);
@@ -278,7 +278,7 @@ choresRoutes.openapi(
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ChoreInputSchema.omit({ libraryId: true }).partial() } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule, unknown list or unknown plugin', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list, unknown plugin or unknown member', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -287,7 +287,7 @@ choresRoutes.openapi(
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
     const memberIds = body.memberIds && [...new Set(body.memberIds)];
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkMembers(c, memberIds));
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkMembers(c, memberIds ?? (body.memberId ? [body.memberId] : undefined)));
     if (listError) return c.json({ error: listError }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0 AND source_id IS NULL').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
@@ -581,6 +581,16 @@ export function lateCompletionPoints(points: number, late: boolean, creditPercen
 type CompletionResult = boolean | 'pending' | number | 'not found' | { blocked: string } | { notDue: string };
 type OngoingOperation = { operationId?: string; completionId?: string };
 
+/** A chore's checklist: its kind and the open items for `forMember` plus unassigned ones. */
+async function checklistOf(c: Context<{ Bindings: Env }>, listId: string, forMember: string | null): Promise<{ kind: string; remaining: number } | null> {
+  const list = await c.env.DB.prepare(
+    'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
+  )
+    .bind(forMember, forMember, listId)
+    .first<{ kind: string; remaining: number }>();
+  return list && { kind: list.kind, remaining: Number(list.remaining) };
+}
+
 /** Snapshot one optional responsibility tick; retries reuse the same ordinary completion. */
 async function completeOngoing(c: Context<{ Bindings: Env }>, source: ChoreRow, date: string, memberId: string | undefined, operation: OngoingOperation): Promise<CompletionResult> {
   const id = source.id;
@@ -596,6 +606,11 @@ async function completeOngoing(c: Context<{ Bindings: Env }>, source: ChoreRow, 
     return prior.status === 'pending' ? 'pending' : true;
   }
   if (!prior) {
+    // Check the checklist before writing the snapshot, so a blocked tap leaves nothing behind.
+    if (source.list_id) {
+      const remaining = (await checklistOf(c, source.list_id, memberId ?? (await ownDevice(c)) ?? null))?.remaining ?? 0;
+      if (remaining > 0) return remaining;
+    }
     // A concurrent replay can insert the same snapshot; only that id is ignored.
     await c.env.DB.prepare('INSERT OR IGNORE INTO chores (id, title, emoji, member_id, points, due_date, active, sort, created_at, list_id, needs_approval, library_id, category, source_id) VALUES (?,?,?,NULL,?,?,0,?,?,?,?,?,?,?)')
       .bind(completionId, source.title, source.emoji, source.points, date, source.sort, new Date().toISOString(), source.list_id ?? null, source.needs_approval ?? null, source.library_id ?? null, source.category ?? null, id).run();
@@ -635,12 +650,8 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   const forMember = chore.member_id ?? memberId ?? null;
   let checklistKind: string | null = null;
   if (chore.list_id) {
-    const list = await c.env.DB.prepare(
-      'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
-    )
-      .bind(forMember, forMember, chore.list_id)
-      .first<{ kind: string; remaining: number }>();
-    if (list && Number(list.remaining) > 0) return Number(list.remaining);
+    const list = await checklistOf(c, chore.list_id, forMember);
+    if (list && list.remaining > 0) return list.remaining;
     checklistKind = list?.kind ?? null;
   }
   // Parent devices (admin keys) are approved straight away. Timed play follows the chore's own

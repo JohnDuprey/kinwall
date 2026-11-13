@@ -138,6 +138,30 @@ export async function feedFetch(env: FeedEnv, input: string | URL | Request, ini
   }
 }
 
+/** A response's body, read until `max` bytes; null (and the rest left unread) when it's bigger. */
+export async function readCapped(res: Response, max: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!res.body) return new Uint8Array(0);
+  if (Number(res.headers.get('content-length')) > max) { await res.body.cancel(); return null; }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = res.body.getReader();
+  for (let r = await reader.read(); !r.done; r = await reader.read()) {
+    size += r.value.byteLength;
+    if (size > max) { await reader.cancel(); return null; }
+    chunks.push(r.value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+  return bytes;
+}
+
+// An ICS calendar feed (calendars and outing feeds): big enough for years of a busy family
+// calendar, small enough to parse in a Durable Object's memory; and the whole download, redirects
+// included, within 30 seconds.
+export const MAX_FEED_BYTES = 20 * 1024 * 1024;
+export const FEED_TIMEOUT_MS = 30_000;
+
 export const MAX_RECIPE_PDF_BYTES = 15 * 1024 * 1024;
 export const MAX_RECIPE_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -165,18 +189,8 @@ async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, headers: 
       if (!res.ok || !res.body) { await res.body?.cancel(); return { error: `${what} answered ${res.status}`, status: 502 }; }
       const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
       if (!typeOk(type)) { await res.body.cancel(); return { error: `${what} is the wrong kind of file`, status: 502 }; }
-      if (Number(res.headers.get('content-length')) > max) { await res.body.cancel(); return { error: `${what} is too large`, status: 502 }; }
-      const chunks: Uint8Array[] = [];
-      let size = 0;
-      const reader = res.body.getReader();
-      for (let r = await reader.read(); !r.done; r = await reader.read()) {
-        size += r.value.byteLength;
-        if (size > max) { await reader.cancel(); return { error: `${what} is too large`, status: 502 }; }
-        chunks.push(r.value);
-      }
-      const bytes = new Uint8Array(size);
-      let at = 0;
-      for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+      const bytes = await readCapped(res, max);
+      if (!bytes) return { error: `${what} is too large`, status: 502 };
       return { bytes, type, etag: res.headers.get('etag'), url };
     }
   } catch {
