@@ -88,6 +88,15 @@ export function setAdminKey(key: string) {
 export function clearAdminKey() {
   try { sessionStorage.removeItem(ADMIN_KEY_STORAGE) } catch { /* ignore */ }
 }
+/** A typed-in admin key, held for this session only once the server says it's an admin key (a
+ * wrong key, or a display key, is dropped again, so nothing acts on it for the next 5 minutes). */
+export async function verifyAdminKey(key: string): Promise<void> {
+  setAdminKey(key)
+  try {
+    const me = await api.checkAdminKey()
+    if (me.scope !== 'admin') throw new ApiError(403, t('That key is not admin-scoped'))
+  } catch (e) { clearAdminKey(); throw e }
+}
 
 // An <img src> can't send a header, so its credential rides in the URL, where it lands in history
 // and access logs. The server takes only a media token there (auth.ts mediaTokenFor), never the

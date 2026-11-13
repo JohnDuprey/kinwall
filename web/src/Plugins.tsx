@@ -90,9 +90,15 @@ export function PluginPlayer({ id }: { id: string }) {
     api.getPlugins().then(list => setPlugin(list.find(p => p.id === id && p.enabled) ?? null)).catch(() => setPlugin(null))
   }, [id])
 
+  // The bridge follows who plays by id: `player` is a new object whenever the family reloads (a chore
+  // ticked, an event changed), and rebuilding the bridge then would forget the actions handed to the
+  // frame and cut off a word mid-sentence. Their name, picture and language come from the latest render.
+  const playerRef = useRef(player)
+  useEffect(() => { playerRef.current = player })
+  const whoUnknown = player === undefined, playerId = player?.id
   useEffect(() => {
-    if (!plugin || player === undefined) return
-    const member = player?.id ?? ''
+    if (!plugin || whoUnknown) return
+    const member = playerId ?? ''
     const saves: number[] = [] // times of recent saves, for the rate limit below
     const given = new Set<string>() // action ids handed to this frame: the only ones it may mark done
     // '*': the frame's origin is opaque, so no target origin matches it. Checked at send time (an
@@ -112,6 +118,7 @@ export function PluginPlayer({ id }: { id: string }) {
       if (msg.type === 'active' || msg.type === 'save' || msg.type === 'speak') clock.current?.interact(Date.now())
       if (msg.type === 'active') return
       if (msg.type === 'ready') {
+        const player = playerRef.current
         send({
           kinwall: 1, type: 'context',
           context: {
@@ -154,7 +161,7 @@ export function PluginPlayer({ id }: { id: string }) {
     }
     window.addEventListener('message', onMessage)
     return () => { window.removeEventListener('message', onMessage); stopSpeaking() }
-  }, [plugin, player, settings.textScale, parentDevice])
+  }, [plugin, whoUnknown, playerId, settings.textScale, parentDevice])
 
   // Something changed on the server (a queued action among others): tell the open plugin, which can
   // look again with Kinwall.actions(). Not on the first render: the plugin asks on its own at start.
@@ -165,7 +172,6 @@ export function PluginPlayer({ id }: { id: string }) {
   }, [refreshTick])
 
   // Playtime for activity chores: only for a named person, in steps with play in them (playtime.ts).
-  const playerId = player?.id
   useEffect(() => {
     if (!plugin || !playerId) return
     const c = playClock(Date.now())

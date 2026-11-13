@@ -3,7 +3,7 @@ import { Suspense, lazy, Fragment, useCallback, useEffect, useLayoutEffect, useM
 import { navRailFit } from './navRailFit.ts'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
-import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
+import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, verifyAdminKey, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
@@ -467,8 +467,9 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
         <h1>{t('Welcome home 👋')}</h1>
         <p>{t('Paste the key a parent made for this device under Settings → Access.')}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Key')}</label>
+          <label htmlFor="gate-key">{t('Key')}</label>
           <input
+            id="gate-key"
             type="password"
             value={value}
             onChange={e => setValue(e.target.value)}
@@ -511,8 +512,9 @@ function RecoveryCodeGate({ onKey, onBack }: { onKey: (banner?: string) => void;
         <h1>{t('Use a recovery code')}</h1>
         <p>{t('Enter one of the codes you saved when you set up Kinwall. Each code works once.')}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Recovery code')}</label>
+          <label htmlFor="recovery-code">{t('Recovery code')}</label>
           <input
+            id="recovery-code"
             type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false} autoFocus
             placeholder="XXXX-XXXX-XXXX"
             style={{ fontFamily: 'ui-monospace, monospace' }}
@@ -739,10 +741,8 @@ function PairPhoneScreen({ code }: { code: string }) {
   const unlockAdmin = async () => {
     if (!adminKeyValue.trim()) return
     setBusy(true); setError('')
-    setAdminKey(adminKeyValue.trim())
     try {
-      const me = await api.checkAdminKey()
-      if (me.scope !== 'admin') throw new ApiError(403, t('That key is not admin-scoped'))
+      await verifyAdminKey(adminKeyValue.trim())
       setIsAdmin(true)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('Admin key rejected'))
@@ -797,13 +797,13 @@ function PairPhoneScreen({ code }: { code: string }) {
         <h1>{t("Add a wall screen or kid's device")}</h1>
         <p>{t("Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Code')}</label>
-          <input type="text" value={code} readOnly
+          <label htmlFor="pair-code">{t('Code')}</label>
+          <input id="pair-code" type="text" value={code} readOnly
             style={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.12em', textAlign: 'center' }} />
         </div>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Name')}</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("Kitchen wall, Maya's tablet…")} />
+          <label htmlFor="pair-name">{t('Name')}</label>
+          <input id="pair-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("Kitchen wall, Maya's tablet…")} />
         </div>
         {isAdmin && (
           <div className="field" style={{ textAlign: 'left' }}>
@@ -814,8 +814,8 @@ function PairPhoneScreen({ code }: { code: string }) {
         )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
           <div className="field" style={{ textAlign: 'left' }}>
-            <label>{t('Admin key')}</label>
-            <input type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)}
+            <label htmlFor="pair-admin-key">{t('Admin key')}</label>
+            <input id="pair-admin-key" type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder={t('Admin API key')} autoFocus />
           </div>
         )}
@@ -887,8 +887,8 @@ function AdminSetupScreen({ token }: { token: string }) {
         <h1>{t('Create your Kinwall passkey')}</h1>
         <p>{t("Use Face ID, Touch ID, or your device's screen lock to become the admin for this Kinwall.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Name this passkey')}</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('My phone')} autoFocus />
+          <label htmlFor="passkey-name">{t('Name this passkey')}</label>
+          <input id="passkey-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('My phone')} autoFocus />
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
         <button className="btn btn-primary btn-block" onClick={create} disabled={busy || !name.trim()}>

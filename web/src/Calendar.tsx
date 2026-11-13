@@ -39,7 +39,7 @@ import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
 import { dedupeEvents, eventPeople, gridTop, hourPx, isTimedOnDate, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx, type RepeatChoice } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
-import { onMinute } from './minuteTick.ts'
+import { onDayChange, onMinute, rollToToday } from './minuteTick.ts'
 import { DAY, LONG_DAY, formatDate, intlLocale, t, tc, tm, tn } from './i18n.ts'
 import { InlineFaces, ChipFace } from './Face'
 
@@ -300,6 +300,9 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [home])
+  // Past midnight, a view that was showing today shows the new today (Now / Next, transition warnings
+  // and the day's events follow); a day someone paged to stays put.
+  useEffect(() => onDayChange(was => setAnchor(a => rollToToday(a, was))), [])
 
   // Category filter: [] shows everything; otherwise only the picked categories ('__none' = events
   // with no category). Saved per device, since a wall display may want e.g. work events hidden for
@@ -1477,8 +1480,8 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
       </div>
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">
-          <label>{t('Starts')}</label>
-          <input type="date" value={startDate} onChange={e => { if (e.target.value) moveStart(e.target.value, startTime) }} />
+          <label htmlFor="event-start-date">{t('Starts')}</label>
+          <input id="event-start-date" type="date" value={startDate} onChange={e => { if (e.target.value) moveStart(e.target.value, startTime) }} />
         </div>
         {!allDay && (
           <div className="field">
@@ -1487,8 +1490,8 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
           </div>
         )}
         <div className="field">
-          <label>{t('Ends')}</label>
-          <input type="date" value={endDate} min={startDate} onChange={e => { setEndDate(e.target.value); setEndPicked(true) }}
+          <label htmlFor="event-end-date">{t('Ends')}</label>
+          <input id="event-end-date" type="date" value={endDate} min={startDate} onChange={e => { setEndDate(e.target.value); setEndPicked(true) }}
             aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? 'event-end-error' : undefined} />
         </div>
         {!allDay && (

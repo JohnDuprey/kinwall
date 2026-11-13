@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError, setAdminKey } from './api.ts'
+import { api, ApiError, setAdminKey, verifyAdminKey } from './api.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import Setup from './Setup.tsx'
 import type { Member } from './types.ts'
@@ -56,7 +56,7 @@ export default function AuthorizeScreen() {
     try {
       if (how === 'passkey') setAdminKey((await loginWithPasskey()).key)
       else if (how === 'recovery') { setAdminKey((await api.recoveryLogin(recoveryValue.trim())).key); setOfferPasskey(passkeysSupported()) }
-      else if (adminKeyValue.trim()) { setAdminKey(adminKeyValue.trim()); setOfferPasskey(passkeysSupported()) }
+      else if (adminKeyValue.trim()) { await verifyAdminKey(adminKeyValue.trim()); setOfferPasskey(passkeysSupported()) }
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('Sign-in failed'))

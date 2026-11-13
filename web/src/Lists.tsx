@@ -190,8 +190,8 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
         </>
       }>
       <div className="field">
-        <label>{t('Name')}</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('List name')} autoComplete="off" autoFocus={!existing} />
+        <label htmlFor="list-name">{t('Name')}</label>
+        <input id="list-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('List name')} autoComplete="off" autoFocus={!existing} />
       </div>
       <div className="field">
         <label>{t('Type')}</label>
@@ -471,8 +471,8 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
         )}
       </div>
       <div className="field">
-        <label>{t('Notes')}</label>
-        <textarea className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
+        <label htmlFor="item-notes">{t('Notes')}</label>
+        <textarea id="item-notes" className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
     </>
   )
@@ -1715,9 +1715,15 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const taskLink = useTaskLink(listId, refreshTick) // synced with a to-do app (TaskApps.tsx)
 
   // On a one-store trip, the other list type's items for that store come too (alsoAtStore).
+  // A load that comes back after another list was opened is dropped (a slow fetch, or a Checkout
+  // sent on the way out of a list), so this pane never shows one list's items under another's name.
+  const shownList = useRef(listId)
+  useEffect(() => { shownList.current = listId }, [listId])
   const load = () => {
-    const at = tripStore(listId)
-    return api.getList(listId, at && at !== ANY_STORE ? at : undefined).then(d => { setDetail(d); setError(false); onLoaded(d.list) }).catch(() => setError(true))
+    const id = listId, at = tripStore(id)
+    return api.getList(id, at && at !== ANY_STORE ? at : undefined)
+      .then(d => { if (shownList.current !== id) return; setDetail(d); setError(false); onLoaded(d.list) })
+      .catch(() => { if (shownList.current === id) setError(true) })
   }
   // "Shopping at": a trip in one store, kept on this device only, until Checkout (or End).
   const [trip, setTrip] = useState<string | null>(() => tripStore(listId))
@@ -2006,7 +2012,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // start another, and neither does Back or Forward onto shopping mode after the trip ended.
   useEffect(() => { if (shopping && freshLink.current && !trip && storeLink === null && defaultStore) changeTrip(defaultStore) }, [shopping, defaultStore]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (error || !detail) {
+  if (error || !detail || detail.list.id !== listId) { // still the last list's: Loading… until this one comes
     const card = <div className="state-card">{error ? t("Couldn't load this list.") : t('Loading…')}</div>
     return shopMode
       ? createPortal(<div className="shop-mode"><div className="shop-bar"><div className="shop-bar-title" /><button className="btn btn-secondary shop-done" onClick={exitShop}>{t('Back')}</button></div>{card}</div>, document.body)

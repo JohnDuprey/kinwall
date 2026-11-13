@@ -36,6 +36,7 @@ import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 import { latestOnly } from './latest.ts'
+import { onDayChange, rollToToday } from './minuteTick.ts'
 import { DAY, formatDate, LONG_DAY, msg, t, tn, tm } from './i18n.ts'
 
 function updatedGoalProgress(progress: GoalProgress, doneDelta: number, pendingDelta: number): GoalProgress {
@@ -463,7 +464,10 @@ export default function Chores() {
   const suggester = actingMember(selectedMemberId ?? focusMemberId, members, m => !m.grownUp || !members.some(x => !x.grownUp))?.id ?? null
   const [sentTick, setSentTick] = useState(0) // a new idea shows on its card straight away
 
-  const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
+  // The strip follows the day: past midnight it moves on, and a strip showing today shows the new today.
+  const [today, setToday] = useState(() => dateKey(new Date()))
+  useEffect(() => onDayChange(was => { setToday(dateKey(new Date())); setSelectedDate(d => rollToToday(d, was)) }), [])
+  const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(`${today}T00:00`), i - 4)), [today])
   const from = dateKey(strip[0]), to = dateKey(strip[strip.length - 1])
   const [dateCounts, setDateCounts] = useState<ChoreDateCount[]>([])
   const [countsLoaded, setCountsLoaded] = useState(false)
@@ -562,7 +566,7 @@ export default function Chores() {
       if (c.ongoing || c.sourceId) load()
       reloadCore()
     } catch (e) {
-      if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection, goalProgress: c.goalProgress } : x)) // revert
+      if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? c : x)) // revert: the chore as it was
       toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
     }
   }
@@ -874,8 +878,8 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         </>
       }>
       <div className="field">
-        <label>{t('Title')}</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Chore title')} autoComplete="off" autoFocus={!chore} />
+        <label htmlFor="chore-title">{t('Title')}</label>
+        <input id="chore-title" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Chore title')} autoComplete="off" autoFocus={!chore} />
       </div>
       <div className="field">
         <label>{t('Emoji')}</label>
