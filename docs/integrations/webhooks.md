@@ -52,6 +52,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `plugin.action` | An [activity action](../contributing/plugins.md#actions) was queued, like a spelling list for Spelling practice. `data`: `{ id, pluginId, memberId, action }` (`memberId` is `null` for the family's shared data), never the input. |
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
+| `weekly-plan.changed` | A shared [weekly plan](../using/weekly-planning.md) draft is saved or applied. `data`: `{ weekStart }` (or `{ imported }` after import), never the draft choices. Adding meals or to-dos also sends their ordinary change events. |
 | `meal.changed` | A meal is planned, edited or deleted, or someone's order for it changed. `data`: `{ id }`. |
 | `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too, or by an [import from a phone](../using/meals.md#add-restaurants-from-your-phone) that changed something), archived or deleted. `data`: `{ id }`. |
 | `upkeep.changed` | A [home upkeep](../using/upkeep.md) job, thing, area or Done was added, changed or deleted, a job was snoozed or skipped, or a file was added or removed. `data`: `{ id, kind }` (`kind`: `job`, `thing`, `area` or `log`; plus `deleted: true`). |

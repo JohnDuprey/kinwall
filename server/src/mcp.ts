@@ -1,3 +1,4 @@
+import { PlanningApplySchema, PlanningSaveSchema, PlanningParamsSchema, PlanningQuerySchema, WeeklyPlanningSchema } from './weekly-planning-schemas.ts';
 import { EventFollowChoiceSchema, EventFollowSchema } from './routes/event-follows.ts';
 import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema } from './announcements.ts';
 // MCP (Model Context Protocol) endpoint: POST/DELETE /mcp, stateless Streamable HTTP (GET answers 405: no SSE stream).
@@ -313,6 +314,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   send_notification: { result: z.object({ ok: z.boolean(), sent: z.number() }) },
   set_night_screen: NightScreenSchema.shape,
   list_notifications: { notifications: z.array(NotificationSchema) },
+  get_weekly_plan: WeeklyPlanningSchema.shape, save_weekly_plan_draft: WeeklyPlanningSchema.shape, apply_weekly_plan: WeeklyPlanningSchema.shape,
   list_newscast: NewscastSchema.shape,
   list_outings: { outings: z.array(OutingSchema) }, get_outing: { outing: OutingSchema }, create_outing: { outing: OutingSchema }, update_outing: { outing: OutingSchema }, delete_outing: { ok: z.boolean(), outing: OutingSchema.optional() },
   mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) }, suggest_outings: OutingIdeasSchema.shape, import_outing: ShareResultSchema.shape,
@@ -348,6 +350,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_announcements: READ, create_announcement: WRITE, update_announcement: SET, delete_announcement: DELETE,
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_chore_counts: READ,
+  get_weekly_plan: READ, save_weekly_plan_draft: SET, apply_weekly_plan: SET,
   get_household: READ, list_events: READ, get_event: READ, get_event_follow: READ, set_event_follow: SET, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_upkeep_jobs: READ, get_upkeep_job: READ, create_upkeep_job: WRITE, update_upkeep_job: SET, delete_upkeep_job: DELETE, log_upkeep_done: WRITE, list_upkeep_history: READ, list_upkeep_things: READ, create_upkeep_thing: WRITE, update_upkeep_thing: SET, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
@@ -378,6 +381,25 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const inputSchema = config.inputSchema && lenientBooleans(config.inputSchema as z.ZodRawShape);
     return server.registerTool(name, { ...config, inputSchema, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } } as typeof config, cb);
   };
+
+  tool('get_weekly_plan', {
+    title: 'Review a family week', description: 'Parent access required. Calendar events, meals, due to-dos, upkeep and recipe suggestions for a complete family week (default next week), with the saved shared draft. Hidden events and disabled features are omitted. Read sourceVersion and revision before applying choices. No medical tracker or medication data.', inputSchema: PlanningQuerySchema.shape,
+  }, async ({ weekStart }) => {
+    const res = await call(app, env, auth, 'GET', '/api/weekly-plan' + (weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''));
+    return res.status >= 400 ? errorResult(res.json, 'failed to read the week') : okResult('Week ready for review.', res.json as Record<string, unknown>);
+  });
+  tool('save_weekly_plan_draft', {
+    title: 'Save weekly planning draft', description: 'Parent access required. Save shared dinner and preparation choices without creating meals, to-dos or notifications. revision must match get_weekly_plan. An open dinner is intentional, not undecided. Does not assign or request pickups.', inputSchema: { ...PlanningParamsSchema.shape, ...PlanningSaveSchema.shape },
+  }, async ({ weekStart, ...body }) => {
+    const res = await call(app, env, auth, 'PUT', `/api/weekly-plan/${encodeURIComponent(weekStart)}`, body);
+    return res.status >= 400 ? errorResult(res.json, 'failed to save the draft') : okResult('Draft saved; nothing added to the week.', res.json as Record<string, unknown>);
+  });
+  tool('apply_weekly_plan', {
+    title: 'Apply reviewed weekly plan', description: 'Parent access required. Only after the family approves the exact review: atomically add dinner meals and event-linked preparation to-dos, and remember intentionally open dinners. Existing dinners change only with an explicit replaceMealId matching a reviewed dinner with canSwap=true; show the family both current and replacement names. Cooked meals, order nights and calendar-managed meals are changed through Meals. Acknowledged choices never overwrite later edits or recreate deleted items on retry. Send sourceVersion and revision from the review, and a new UUID requestId retained unchanged on retries. 409 requires a new review. Recipe dinners use saved recipe snapshots. Preparation is due-date-only: no timed alerts or pickup requests.', inputSchema: { ...PlanningParamsSchema.shape, ...PlanningApplySchema.shape },
+  }, async ({ weekStart, ...body }) => {
+    const res = await call(app, env, auth, 'POST', `/api/weekly-plan/${encodeURIComponent(weekStart)}/apply`, body);
+    return res.status >= 400 ? errorResult(res.json, 'failed to apply the plan') : okResult('Reviewed choices added to the week.', res.json as Record<string, unknown>);
+  });
 
   tool('list_recipes', { title: 'Find recipes', description: "Search the recipe library; archived=true includes archived recipes. kind: basic lists only basics (seasoning blends, sauces, doughs used inside other recipes), meal only meals. favoriteOf: only that person's favorites (\"Sam's favorites\"); each recipe's favoritedBy lists who loves it.", inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional(), kind: RecipeKindSchema.optional(), favoriteOf: z.string().optional().describe('Member name (case-insensitive) or id.') } }, async ({ search, category, archived, kind, favoriteOf }) => {
     const query = new URLSearchParams();

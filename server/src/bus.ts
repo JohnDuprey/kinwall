@@ -8,6 +8,7 @@ import { queueTaskSync } from './tasks/sync.ts';
 import { refreshRoutineDevices, routineRefreshQuery, type RoutineRefreshSub } from './routine-refresh.ts';
 
 export type BusEventType =
+  | 'weekly-plan.changed'
   | 'announcement.changed'
   | 'contact.changed'
   | 'contact.category.changed'

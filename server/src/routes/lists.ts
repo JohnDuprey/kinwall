@@ -995,35 +995,7 @@ listsRoutes.openapi(
         ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL, updated_at = ? WHERE id = ?').bind(now, rid)),
         // Its steps too, keeping "done = all steps done" (else the next step change closes it again).
         ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL WHERE item_id = ? AND done = 1').bind(rid)),
-        ...rows.map((r) =>
-          c.env.DB.prepare(
-            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, for_member_ids, on_sale, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          ).bind(
-            r.id,
-            r.list_id,
-            r.title,
-            itemKey(r.title),
-            r.notes,
-            r.quantity,
-            r.store,
-            r.category,
-            r.aisle,
-            r.member_id,
-            r.for_member_ids,
-            r.on_sale,
-            r.due_date,
-            r.event_id,
-            r.priority,
-            r.done,
-            r.done_at,
-            r.done_by,
-            r.added_by,
-            r.added_by_label,
-            r.sort,
-            r.created_at,
-            r.updated_at,
-          ),
-        ),
+        ...rows.map((r) => listItemInsert(c.env.DB, r)),
         ...steps.map((st) =>
           c.env.DB.prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at, added_by, added_by_label) VALUES (?,?,?,?,?,?,?,?,?)').bind(
             st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at, st.added_by, st.added_by_label,
@@ -1763,3 +1735,9 @@ listsRoutes.openapi(
     return c.json((await loadItem(db, id, itemId))!, 200);
   },
 );
+
+/** Shared local-item write, also used by atomic weekly planning. */
+export function listItemInsert(db: KinwallDb, r: ListItemRow) {
+  return db.prepare('INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, for_member_ids, on_sale, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .bind(r.id, r.list_id, r.title, itemKey(r.title), r.notes, r.quantity, r.store, r.category, r.aisle, r.member_id, r.for_member_ids, r.on_sale, r.due_date, r.event_id, r.priority, r.done, r.done_at, r.done_by, r.added_by, r.added_by_label, r.sort, r.created_at, r.updated_at);
+}

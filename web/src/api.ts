@@ -1,3 +1,4 @@
+import type { PlanningDraft, WeeklyPlanning } from './weekly-planning.ts'
 import type { Announcement, AnnouncementInput, Announcements } from './announcements.ts';
 import { lang, msg, t, tm, type Lang } from './i18n.ts'
 import { useEffect, useRef, useState } from 'react'
@@ -272,6 +273,10 @@ async function req<T>(path: string, { quiet, ...opts }: RequestInit & { useAdmin
 }
 
 async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean }): Promise<T> {
+  if (MOCK && /^api\/weekly-plan([/?]|$)/.test(path)) {
+    const { mockWeeklyPlanningRequest } = await import('./mock-weekly-planning.ts')
+    return mockWeeklyPlanningRequest(path, opts) as Promise<T>
+  }
   if (MOCK && /^api\/(meals|recipes|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
@@ -338,6 +343,9 @@ const qs = (q: Record<string, string | undefined>) => { const p = new URLSearchP
 const routinePath = (id: string) => ['api', 'routine-mode', U(id)].join('/')
 
 export const api = {
+  getWeeklyPlanning: (weekStart?: string) => get<WeeklyPlanning>('api/weekly-plan' + qs({ weekStart })),
+  saveWeeklyDraft: (weekStart: string, revision: number, draft: PlanningDraft) => put<WeeklyPlanning>('api/weekly-plan/' + encodeURIComponent(weekStart), { revision, draft }),
+  applyWeeklyPlan: (weekStart: string, input: { revision: number; sourceVersion: number; requestId: string; draft: PlanningDraft }) => post<WeeklyPlanning>('api/weekly-plan/' + encodeURIComponent(weekStart) + '/apply', input),
   getRoutineMode: (id: string) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id)) : get<import('./routineMode.ts').RoutineState>(routinePath(id)),
   setRoutineMode: (id: string, policy: import('./routineMode.ts').RoutinePolicy) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id, policy)) : put<import('./routineMode.ts').RoutinePolicy>(routinePath(id), policy),
   getRoutineDevices: (id: string): Promise<import('./routineDevices.ts').RoutineDevices> => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutineDevices(id)) : get<import('./routineDevices.ts').RoutineDevices>(['api', 'routine-mode', U(id), 'devices'].join('/')),
