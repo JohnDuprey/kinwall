@@ -773,7 +773,7 @@ function PairPhoneScreen({ code }: { code: string }) {
       await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setDone(true)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('Could not pair display'))
+      setError(e instanceof ApiError ? e.message : t("Couldn't add the device"))
     } finally {
       setBusy(false)
     }

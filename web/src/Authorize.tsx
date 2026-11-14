@@ -44,7 +44,7 @@ export default function AuthorizeScreen() {
       if (r.deviceApp) setMembers(await api.getMembers(true).catch(() => []))
     } catch (e) {
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) setNeedsSignIn(true)
-      else setError(e instanceof ApiError ? e.message : t('Could not load this request'))
+      else setError(t("This request isn't valid or has expired. Go back to the app and start again."))
     }
   }
   useEffect(() => {
@@ -122,7 +122,13 @@ export default function AuthorizeScreen() {
             </details>
           </>
         ) : !info ? (
-          <p>{error || t('Loading…')}</p>
+          error ? (
+            <>
+              <p role="alert">{error}</p>
+              <button className="btn btn-primary btn-block" onClick={load}>{t('Try again')}</button>
+              <a className="link-btn" style={{ marginTop: 8 }} href="#/">{t('Go to Kinwall')}</a>
+            </>
+          ) : <p>{t('Loading…')}</p>
         ) : (
           <>
             <h1>{t('Connect {name}?', { name: info.clientName })}</h1>
@@ -140,7 +146,7 @@ export default function AuthorizeScreen() {
             {passkeyAdded && <p className="authorize-passkey-done" role="status">{t('Passkey created. Use it next time you sign in.')}</p>}
             <div className="authorize-scopes" role="group" aria-label={t('Access level')}>
               <button className={`authorize-scope ${scope === 'admin' ? 'active' : ''}`} aria-pressed={scope === 'admin'} onClick={() => setScope('admin')}>
-                <b>{t('Full access')}</b><span>{t('Everything you can do as an admin, including members and settings.')}</span>
+                <b>{t('Full access')}</b><span>{t('Everything a parent can do, including members and settings.')}</span>
               </button>
               <button className={`authorize-scope ${scope === 'display' ? 'active' : ''}`} aria-pressed={scope === 'display'} onClick={() => setScope('display')}>
                 <b>{t('Everyday access')}</b><span>{t('Calendar, chores and lists. No members, settings or keys.')}</span>

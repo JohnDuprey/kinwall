@@ -11,7 +11,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 
 ## Language
 
-The **Language** card at the top picks the language this screen shows: **English** or **Deutsch** (German), each written in its own language so you can find yours. Nothing picked means **🏠 Use the family's**, the family's language from [Household](#household).
+The **Language on this device** card at the top picks the language this screen shows: **English** or **Deutsch** (German), each written in its own language so you can find yours. Nothing picked means **🏠 Use the family's**, the family's language from [Household](#household).
 
 * On someone's own device (their phone, or a kid's tablet), the pick is saved in their profile, so it follows them to all their devices. A kid can change their own here.
 * On a wall screen or a shared device, it's saved on that device only.
@@ -95,7 +95,7 @@ API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trac
 
 ### Appearance
 
-Mode (Auto, following each device's system setting, until the family picks one), dark schedule (its own times, or **Same as night**), color scheme (including the family's own schemes), typeface, text size and density. See [Appearance](../using/appearance.md).
+The **Appearance for the family** card sets the family's defaults: mode (Auto, following each device's system setting, until the family picks one), dark schedule (its own times, or **Same as night**), color scheme (including the family's own schemes), typeface, text size and density. See [Appearance](../using/appearance.md).
 
 ### Night
 

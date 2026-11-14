@@ -53,7 +53,7 @@ import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
-import { filterSettings, linkTab, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
+import { filterSettings, linkTab, SEARCH_ALIASES, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
 import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
@@ -324,6 +324,7 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
  * stays in view while it's folded. `keywords` name settings kept in a sheet, so search finds them. */
 function Section({ id, title, icon, summary, keywords, children }: { id?: string; title: string; icon?: React.ReactNode; summary?: ReactNode; keywords?: string[]; children: React.ReactNode }) {
   const headingId = (id ?? title).toLowerCase().replace(/[^a-z0-9]+/g, '-') // an IDREF can't contain spaces
+  keywords = [...(keywords ?? []), ...(SEARCH_ALIASES[headingId] ?? [])]
   const H = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   const acc = useContext(AccordionCtx)
   // A card with one control (a lone Change or Add button) isn't worth folding: show it plain, and
@@ -645,7 +646,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section id="appearance" title={t('Appearance')} icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS.map(x => tm(x))}>
+    <Section id="appearance" title={t('Appearance for the family')} icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS.map(x => tm(x))}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
         {t('For the whole family.')}{overridden.length > 0 && <> {t('This device changes some of it for itself, under Appearance on this device.')}</>}
       </p>
@@ -1435,7 +1436,7 @@ function LanguageSection() {
     try { await api.setMemberLanguage(me.id, next); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save the language'), true) } finally { setSaving(false) }
   }
   return (
-    <Section id="language" title={t('Language')} keywords={['Language', 'Sprache', 'English', 'Deutsch']}>
+    <Section id="language" title={t('Language on this device')} keywords={['Language', 'Sprache', 'English', 'Deutsch']}>
       <div className="settings-row">
         <div>
           <label className="settings-row-label" htmlFor="language-select">{t('Language')}</label>
@@ -3111,7 +3112,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
 
   return (
     <Section id="passkeys" title={t('Parent devices')} icon={<KeyIcon width={16} height={16} />} keywords={[t('Passkeys')]}>
-      <p className="settings-row-sub">{t('Phones and computers that sign in with a passkey. Parents (admins) can change everything.')}</p>
+      <p className="settings-row-sub">{t('Phones and computers that sign in with a passkey. Parents can change everything.')}</p>
       {inFrame() && <p className="settings-row-sub">{t("Inside Home Assistant's panel, some browsers won't add a passkey.")} <a className="text-link" href={location.href} target="_blank" rel="noopener">{t('Open Kinwall in its own tab')}</a>{t(' to add one.')}</p>}
       {me.kind === 'session' && (
         <div className="settings-row">
@@ -3510,10 +3511,10 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
       await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setCode('')
       setAdding(false)
-      toast(t('Display paired'))
+      toast(t('Device added'))
       load()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : t('Could not pair display'), true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't add the device"), true)
     } finally {
       setBusy(false)
     }
@@ -3535,7 +3536,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   }
   const revoke = async (k: ApiKey) => {
     if (!await dialog.confirm({ title: t('Remove "{name}"?', { name: k.name }), body: widgetsUnder(all, { keyId: k.id }).length ? t('It will be signed out and need pairing again. So will its widgets and Watch.') : t('It will be signed out and need pairing again.'), confirmLabel: t('Remove'), danger: true })) return
-    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not revoke display'), true) }
+    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't remove the device"), true) }
   }
 
   return (

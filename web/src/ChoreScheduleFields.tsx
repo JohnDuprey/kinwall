@@ -40,15 +40,15 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
         {f.custom && <option value="stored" disabled>{t('Custom schedule')}</option>}
         {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{tm(REPEATS[r])}</option>)}
         <option value="custom">{t('Custom…')}</option>
-        <option value="goal">{t('Times per interval…')}</option>
+        <option value="goal">{t('A few times a week or month…')}</option>
       </select>
       {f.custom && <p className="field-hint">{t('This schedule has options this editor cannot change. It stays as it is unless you pick another repeat option.')}</p>}
     </div>
     {goal && <>
       <div className="field"><label htmlFor="chore-goal-times">{t('Times')}</label><input id="chore-goal-times" type="number" min={1} max={maxGoalTimes(goal)} step={1} value={goal.times || ''} onChange={e => onGoal({ ...goal, times: Number(e.target.value) })} /></div>
-      <div className="field"><label htmlFor="chore-goal-every">{t('Every')}</label><div className="chore-repeat-interval"><input id="chore-goal-every" type="number" min={1} max={365} step={1} value={goal.every || ''} onChange={e => onGoal({ ...goal, every: Number(e.target.value) })} /><select aria-label={t('Goal interval')} value={goal.unit} onChange={e => onGoal({ ...goal, unit: e.target.value as ChoreGoal['unit'] })}><option value="day">{t('Days')}</option><option value="week">{t('Weeks')}</option><option value="month">{t('Months')}</option></select></div></div>
+      <div className="field"><label htmlFor="chore-goal-every">{t('Every')}</label><div className="chore-repeat-interval"><input id="chore-goal-every" type="number" min={1} max={365} step={1} value={goal.every || ''} onChange={e => onGoal({ ...goal, every: Number(e.target.value) })} /><select aria-label={t('Goal period')} value={goal.unit} onChange={e => onGoal({ ...goal, unit: e.target.value as ChoreGoal['unit'] })}><option value="day">{t('Days')}</option><option value="week">{t('Weeks')}</option><option value="month">{t('Months')}</option></select></div></div>
       {goal.unit === 'week' && <div className="field"><label htmlFor="chore-goal-week">{t('Weeks begin on')}</label><select id="chore-goal-week" value={goal.weekStart} onChange={e => onGoal({ ...goal, weekStart: Number(e.target.value) })}>{order.map(d => <option key={d} value={d}>{dayName(d, 'long')}</option>)}</select></div>}
-      <p className="field-hint">{t('Choose any days in the interval. Counts at most once per day, with points for each completion. Pending approvals reserve a place in the goal.')}</p>
+      <p className="field-hint">{t('Choose any days in the period. Counts at most once per day, with points for each completion. Pending approvals reserve a place in the goal.')}</p>
       {!validGoal(goal) && <p className="field-hint" role="alert">{t('Choose whole numbers and enough days for this goal. Monthly goals allow up to 28 completions per month so every month has enough days.')}</p>}
     </>}
     {!goal && !f.custom && advanced && f.repeat !== 'once' && <>
@@ -127,13 +127,13 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
       </div>}
       <div className="field" aria-live="polite">
         <p className="field-hint">{goal ? goalLabel(goal) : scheduleText(formToRrule(f))}</p>
-        {goalDates && <p className="field-hint">{t('Interval: {from} to {to}', { from: formatDate(new Date(`${goalDates.from}T12:00:00`), { month: 'short', day: 'numeric', year: 'numeric' }), to: formatDate(new Date(`${goalDates.to}T12:00:00`), { month: 'short', day: 'numeric', year: 'numeric' }) })}</p>}
+        {goalDates && <p className="field-hint">{t('This period: {from} to {to}', { from: formatDate(new Date(`${goalDates.from}T12:00:00`), { month: 'short', day: 'numeric', year: 'numeric' }), to: formatDate(new Date(`${goalDates.to}T12:00:00`), { month: 'short', day: 'numeric', year: 'numeric' }) })}</p>}
         {!goal && start && validDate(start) && validSchedule(f, start) && <p className="field-hint">{dates.length
           ? t('Next dates: {dates}', { dates: dates.map(date => formatDate(new Date(`${date}T12:00:00`), { month: 'short', day: 'numeric', year: 'numeric' })).join(' · ') })
           : t('No upcoming dates with these settings.')}</p>}
       </div>
     </>}
     {goal && !validDate(start) && <p className="field-hint" role="alert">{t('Choose a start date for this goal.')}</p>}
-    {!validSchedule(f, start) && <p role="alert" className="field-hint">{t('Check the start date, repeat interval, and end condition. Use whole numbers from 1 to 9999 and end on or after the start date.')}</p>}
+    {!validSchedule(f, start) && <p role="alert" className="field-hint">{t('Check the start date, how often it repeats, and when it ends. Use whole numbers from 1 to 9999 and end on or after the start date.')}</p>}
   </>
 }

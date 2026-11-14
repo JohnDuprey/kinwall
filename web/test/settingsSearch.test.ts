@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Settings search matching, the tabs it covers, links and the open sections kept per device.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fold, linkTab, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from '../src/settingsSearch.ts'
+import { fold, linkTab, matchesAll, SEARCH_ALIASES, queryWords, readOpen, tabsShown, writeOpen } from '../src/settingsSearch.ts'
 
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) } }
 
@@ -55,4 +55,13 @@ test('an old link to a card that moved tabs opens its new tab', () => {
   assert.equal(linkTab('access', 'paired-devices'), 'access')
   assert.equal(linkTab('family', null), 'family')
   assert.equal(linkTab(null, null), null)
+})
+
+test('aliases: what people type finds the card that holds it', () => {
+  const finds = (id: string, q: string) => matchesAll(queryWords(q), (SEARCH_ALIASES[id] ?? []).join(' · '))
+  assert.ok(finds('night', 'quiet'))
+  assert.ok(finds('features', 'medic'))
+  assert.ok(finds('appearance-on-this-device', 'font'))
+  assert.ok(finds('passkeys', 'password'))
+  assert.ok(finds('paired-devices', 'pair'))
 })

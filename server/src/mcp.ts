@@ -34,6 +34,9 @@ import { MealSlotSchema } from './meal-schemas.ts';
 import { ChoreSuggestionSchema } from './routes/chore-suggestions.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
+
+/** "1 chore", "2 chores": counts read aloud by an assistant need real plurals. */
+const plural = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
 import { resolveKey } from './auth.ts';
 import { itemKey } from './item-memory.ts';
 import { NightScreenSchema } from './routes/night-screen.ts';
@@ -65,7 +68,7 @@ async function call(app: App, env: Env, auth: string, method: string, path: stri
 // REST errors (4xx/5xx) become MCP tool results with isError: true and the route's `{error}`
 // text - never a thrown McpError, so the client always gets a readable message.
 function errorResult(json: unknown, fallback: string): CallToolResult {
-  const message = json && typeof json === 'object' && 'error' in json ? String((json as { error: unknown }).error) : fallback;
+  const message = json && typeof json === 'object' && 'error' in json ? String((json as { error: unknown }).error) : plainError(fallback);
   return { content: [{ type: 'text', text: message }], isError: true };
 }
 
@@ -76,7 +79,20 @@ function okResult(summary: string, structuredContent: Record<string, unknown>): 
   };
 }
 
-class MemberResolutionError extends Error {}
+/** Our own fallback wording ("failed to list members") as a sentence an assistant can read to a family. */
+function plainError(message: string): string {
+  const failed = message.startsWith('failed to ');
+  let text = failed ? `Couldn't ${message.slice('failed to '.length)}` : message;
+  if (/^[a-z]+(\s|$)/.test(text)) text = text.charAt(0).toUpperCase() + text.slice(1); // not "listId"
+  if (!/[.!?]$/.test(text)) text += '.';
+  return failed ? `${text} Try again.` : text;
+}
+
+class MemberResolutionError extends Error {
+  constructor(message: string) {
+    super(plainError(message));
+  }
+}
 
 // Members may be referenced by name (case-insensitive) instead of id, per SPEC - this makes
 // the tools usable from a chat window without the caller ever seeing a member id.
@@ -91,7 +107,7 @@ async function resolveMember(app: App, env: Env, auth: string, ref: string): Pro
   const partial = members.filter((m) => m.name.toLowerCase().includes(ref.toLowerCase()));
   if (partial.length === 1) return partial[0].id;
   if (partial.length > 1) throw new MemberResolutionError(`"${ref}" matches multiple members: ${partial.map((m) => m.name).join(', ')}`);
-  throw new MemberResolutionError(`no member found matching "${ref}"`);
+  throw new MemberResolutionError(`no member found matching "${ref}". Try the name as it appears in Kinwall`);
 }
 
 async function resolveMemberIds(app: App, env: Env, auth: string, refs: string[] | undefined): Promise<string[]> {
@@ -387,19 +403,19 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   };
 
   tool('get_weekly_plan', {
-    title: 'Review a family week', description: 'Parent access required. Calendar events, meals, due to-dos, upkeep and recipe suggestions for a complete family week (default next week), with the saved shared draft. Hidden events and disabled features are omitted. Read sourceVersion and revision before applying choices. No medical tracker or medication data.', inputSchema: PlanningQuerySchema.shape,
+    title: 'Review a family week', description: 'Full access required. Calendar events, meals, due to-dos, upkeep and recipe suggestions for a complete family week (default next week), with the saved shared draft. Hidden events and disabled features are omitted. Keep the sourceVersion and revision from this review; saving and applying send them back so nothing changes unnoticed. No medical tracker or medication data.', inputSchema: PlanningQuerySchema.shape,
   }, async ({ weekStart }) => {
     const res = await call(app, env, auth, 'GET', '/api/weekly-plan' + (weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''));
     return res.status >= 400 ? errorResult(res.json, 'failed to read the week') : okResult('Week ready for review.', res.json as Record<string, unknown>);
   });
   tool('save_weekly_plan_draft', {
-    title: 'Save weekly planning draft', description: 'Parent access required. Save shared dinner and preparation choices without creating meals, to-dos or notifications. revision must match get_weekly_plan. An open dinner is intentional, not undecided. Does not assign or request pickups.', inputSchema: { ...PlanningParamsSchema.shape, ...PlanningSaveSchema.shape },
+    title: 'Save weekly planning draft', description: 'Full access required. Save shared dinner and preparation choices without creating meals, to-dos or notifications. revision must match get_weekly_plan. An open dinner is intentional, not undecided. Does not assign or request pickups.', inputSchema: { ...PlanningParamsSchema.shape, ...PlanningSaveSchema.shape },
   }, async ({ weekStart, ...body }) => {
     const res = await call(app, env, auth, 'PUT', `/api/weekly-plan/${encodeURIComponent(weekStart)}`, body);
     return res.status >= 400 ? errorResult(res.json, 'failed to save the draft') : okResult('Draft saved; nothing added to the week.', res.json as Record<string, unknown>);
   });
   tool('apply_weekly_plan', {
-    title: 'Apply reviewed weekly plan', description: 'Parent access required. Only after the family approves the exact review: atomically add dinner meals and event-linked preparation to-dos, and remember intentionally open dinners. Existing dinners change only with an explicit replaceMealId matching a reviewed dinner with canSwap=true; show the family both current and replacement names. Cooked meals, order nights and calendar-managed meals are changed through Meals. Acknowledged choices never overwrite later edits or recreate deleted items on retry. Send sourceVersion and revision from the review, and a new UUID requestId retained unchanged on retries. 409 requires a new review. Recipe dinners use saved recipe snapshots. Preparation is due-date-only: no timed alerts or pickup requests.', inputSchema: { ...PlanningParamsSchema.shape, ...PlanningApplySchema.shape },
+    title: 'Apply reviewed weekly plan', description: 'Full access required. Only after the family approves the exact review: atomically add dinner meals and event-linked preparation to-dos, and remember intentionally open dinners. Existing dinners change only with an explicit replaceMealId for a reviewed dinner that can be swapped; show the family both current and replacement names. Cooked meals, order nights and calendar-managed meals are changed through Meals. Acknowledged choices never overwrite later edits or recreate deleted items on retry. Send sourceVersion and revision from the review, and a new UUID requestId retained unchanged on retries. If the week changed since the review, review it again. Recipe dinners use saved recipe snapshots. Preparation is due-date-only: no timed alerts or pickup requests.', inputSchema: { ...PlanningParamsSchema.shape, ...PlanningApplySchema.shape },
   }, async ({ weekStart, ...body }) => {
     const res = await call(app, env, auth, 'POST', `/api/weekly-plan/${encodeURIComponent(weekStart)}/apply`, body);
     return res.status >= 400 ? errorResult(res.json, 'failed to apply the plan') : okResult('Reviewed choices added to the week.', res.json as Record<string, unknown>);
@@ -416,11 +432,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/recipes/${encodeURIComponent(id)}`);
     return result.status >= 400 ? errorResult(result.json, 'recipe not found') : okResult('Recipe', { recipe: result.json });
   });
-  tool('create_recipe', { title: 'Create recipe', description: 'Admin: create a manual recipe. Its sourceUrl is only stored; to read a recipe off a web page use import_recipe_from_url.', inputSchema: { ...RecipeInputSchema.shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async (input) => {
+  tool('create_recipe', { title: 'Create recipe', description: 'Full access: create a manual recipe. Its sourceUrl is only stored; to read a recipe off a web page use import_recipe_from_url.', inputSchema: { ...RecipeInputSchema.shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to create recipe') : okResult('Recipe created', { recipe: result.json });
   });
-  tool('import_recipe', { title: 'Import recipe', description: 'Admin: import a recipe from another app (e.g. a meal kit), keyed by source + externalId so importing again updates it. Ingredient lines like "1.5 tablespoon Sour Cream" are parsed; pantry: false marks one that ships in the kit (left off grocery lists by default). steps are text (several lines become bullets) or { text, bullets, imageUrl, title, timers: [{ name, minutes }] }; instructions keeps them as numbered text. plan also plans it on that date/slot unless the slot already has a meal (planned: false, with reason); a meal it planned before for that slot within the week is reused. plan.calendarId (a Kinwall calendar id, any writable one) also puts the planned meal on that calendar unless it already has an event; plan.eventStart "cooking" starts it when cooking starts. Only a calendar named here is written to.', inputSchema: { ...RecipeImportSchema.shape, ingredients: jsonList(RecipeImportSchema.shape.ingredients), steps: jsonList(RecipeImportSchema.shape.steps) } }, async (input) => {
+  tool('import_recipe', { title: 'Import recipe', description: 'Full access: import a recipe from another app (e.g. a meal kit), keyed by source + externalId so importing again updates it. Ingredient lines like "1.5 tablespoon Sour Cream" are parsed; pantry: false marks one that ships in the kit (left off grocery lists by default). steps are text (several lines become bullets) or { text, bullets, imageUrl, title, timers: [{ name, minutes }] }; instructions keeps them as numbered text. plan also plans it on that date/slot unless the slot already has a meal (planned: false, with reason); a meal it planned before for that slot within the week is reused. plan.calendarId (a Kinwall calendar id, any writable one) also puts the planned meal on that calendar unless it already has an event; plan.eventStart "cooking" starts it when cooking starts. Only a calendar named here is written to.', inputSchema: { ...RecipeImportSchema.shape, ingredients: jsonList(RecipeImportSchema.shape.ingredients), steps: jsonList(RecipeImportSchema.shape.steps) } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to import recipe') : okResult((result.json as { planned?: boolean }).planned ? 'Recipe imported and planned' : 'Recipe imported', result.json as Record<string, unknown>);
   });
@@ -442,7 +458,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to list the library');
       const books = res.json as { title: string; author: string | null; format: string; readers: unknown[] }[];
       const top = books.slice(0, 15).map((b) => `${b.title}${b.format === 'audiobook' ? ' (audiobook)' : ''}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ' (unread)'}`).join('; ');
-      return okResult(books.length ? `${books.length} book(s): ${top}${books.length > 15 ? '…' : ''}.` : 'No books in the library.', { books: books as unknown as Record<string, unknown>[] });
+      return okResult(books.length ? `${plural(books.length, 'book')}: ${top}${books.length > 15 ? '…' : ''}.` : 'No books in the library.', { books: books as unknown as Record<string, unknown>[] });
     },
   );
 
@@ -536,15 +552,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'book search failed');
       const books = res.json as { title: string; author?: string; year?: number; pages?: number }[];
       const top = books.slice(0, 5).map((b) => `${b.title}${b.author ? ` by ${b.author}` : ''}${b.year ? ` (${b.year})` : ''}${b.pages ? `, ${b.pages} pages` : ''}`).join('; ');
-      return okResult(books.length ? `${books.length} book(s): ${top}.` : 'No books found.', { books: books as Record<string, unknown>[] });
+      return okResult(books.length ? `${plural(books.length, 'book')}: ${top}.` : 'No books found.', { books: books as Record<string, unknown>[] });
     },
   );
 
-  tool('import_recipe_from_url', { title: 'Import recipe from a link', description: 'Admin: read a recipe from a web page (its schema.org Recipe data: name, photo, servings, times, ingredients, steps). Without save it only previews; save: true also saves it, keyed by the page address so importing the same page again updates that recipe. A page without recipe data fails: then ask for the recipe text and use create_recipe.', inputSchema: RecipeUrlImportSchema.shape }, async (input) => {
+  tool('import_recipe_from_url', { title: 'Import recipe from a link', description: 'Full access: read a recipe from a web page (its schema.org Recipe data: name, photo, servings, times, ingredients, steps). Without save it only previews; save: true also saves it, keyed by the page address so importing the same page again updates that recipe. A page without recipe data fails: then ask for the recipe text and use create_recipe.', inputSchema: RecipeUrlImportSchema.shape }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import-url', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to read the recipe page') : okResult(input.save ? 'Recipe imported' : 'Recipe preview (not saved)', result.json as Record<string, unknown>);
   });
-  tool('update_recipe', { title: 'Edit recipe', description: 'Admin: edit a recipe; archived=true archives it, false restores it. Supplying ingredients replaces the ingredient list. steps (structured, instructions follows them) or instructions alone (clears steps). Existing planned meals keep their snapshots.', inputSchema: { id: z.string(), ...RecipeInputSchema.partial().shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async ({ id, ...input }) => {
+  tool('update_recipe', { title: 'Edit recipe', description: 'Full access: edit a recipe; archived=true archives it, false restores it. Supplying ingredients replaces the ingredient list. steps (structured, instructions follows them) or instructions alone (clears steps). Existing planned meals keep their snapshots.', inputSchema: { id: z.string(), ...RecipeInputSchema.partial().shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async ({ id, ...input }) => {
     const result = await call(app, env, auth, 'PATCH', `/api/recipes/${encodeURIComponent(id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to edit recipe') : okResult('Recipe updated', { recipe: result.json });
   });
@@ -580,17 +596,17 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/restaurants/${encodeURIComponent(found.id)}`);
     return result.status >= 400 ? errorResult(result.json, 'restaurant not found') : okResult('Restaurant', { restaurant: result.json });
   });
-  tool('create_restaurant', { title: 'Add restaurant', description: 'Admin: add a restaurant to the binder, optionally with its menu.', inputSchema: { ...RestaurantInputSchema.shape, menu: jsonList(RestaurantInputSchema.shape.menu).describe(MENU_DOC) } }, async (input) => {
+  tool('create_restaurant', { title: 'Add restaurant', description: 'Full access: add a restaurant to the binder, optionally with its menu.', inputSchema: { ...RestaurantInputSchema.shape, menu: jsonList(RestaurantInputSchema.shape.menu).describe(MENU_DOC) } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/restaurants', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to add restaurant') : okResult('Restaurant added', { restaurant: result.json });
   });
-  tool('update_restaurant', { title: 'Edit restaurant', description: 'Admin: edit a restaurant; archived=true archives it, false restores it. Sending menu replaces the menu.', inputSchema: { restaurant: z.string().describe('Restaurant id or exact name.'), ...RestaurantInputSchema.partial().shape, menu: jsonList(RestaurantInputSchema.shape.menu).describe(MENU_DOC) } }, async ({ restaurant, ...input }) => {
+  tool('update_restaurant', { title: 'Edit restaurant', description: 'Full access: edit a restaurant; archived=true archives it, false restores it. Sending menu replaces the menu.', inputSchema: { restaurant: z.string().describe('Restaurant id or exact name.'), ...RestaurantInputSchema.partial().shape, menu: jsonList(RestaurantInputSchema.shape.menu).describe(MENU_DOC) } }, async ({ restaurant, ...input }) => {
     const found = await findRestaurant(restaurant);
     if (!found) return errorResult(null, 'restaurant not found');
     const result = await call(app, env, auth, 'PATCH', `/api/restaurants/${encodeURIComponent(found.id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to edit restaurant') : okResult('Restaurant updated', { restaurant: result.json });
   });
-  tool('import_restaurant', { title: 'Add restaurant from a photo or link', description: "Admin: add a restaurant, or add to one already in the binder (matched by name, case and punctuation ignored). Only empty fields are filled, so nothing a parent typed is changed. Menu items (menu, and/or menuText: one item per line with its prices at the end and its description after \" — \", under \"Section: …\" lines) are added into their sections (a section's items stay together), skipping items already there by name in the same section, so a menu can come in page by page (several photos' text joined by \"--- Page 2 ---\" lines works too); existing items and stars are never changed. url: the restaurant's web page (its details are read) or an Apple Maps link (its name is read). From a photo of a paper menu: read the name, cuisine, phone, address and items off it and send them here. Returns a one-line summary.", inputSchema: { ...RestaurantImportSchema.shape, menu: jsonList(RestaurantImportSchema.shape.menu.unwrap()).optional() } }, async (input) => {
+  tool('import_restaurant', { title: 'Add restaurant from a photo or link', description: "Full access: add a restaurant, or add to one already in the binder (matched by name, case and punctuation ignored). Only empty fields are filled, so nothing a parent typed is changed. Menu items (menu, and/or menuText: one item per line with its prices at the end and its description after \" — \", under \"Section: …\" lines) are added into their sections (a section's items stay together), skipping items already there by name in the same section, so a menu can come in page by page (several photos' text joined by \"--- Page 2 ---\" lines works too); existing items and stars are never changed. url: the restaurant's web page (its details are read) or an Apple Maps link (its name is read). From a photo of a paper menu: read the name, cuisine, phone, address and items off it and send them here. Returns a one-line summary.", inputSchema: { ...RestaurantImportSchema.shape, menu: jsonList(RestaurantImportSchema.shape.menu.unwrap()).optional() } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/restaurants/import', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to add restaurant') : okResult((result.json as { summary: string }).summary, result.json as Record<string, unknown>);
   });
@@ -602,7 +618,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'PUT', `/api/meals/${encodeURIComponent(mealId)}/orders/${encodeURIComponent(memberId)}`, { items, ...(note !== undefined && { note }) });
     return result.status >= 400 ? errorResult(result.json, 'failed to set the order') : okResult(items.length || note ? 'Order saved' : 'Order cleared', { meal: result.json });
   });
-  tool('ask_for_orders', { title: 'Ask for orders', description: "Admin: ask who's eating a dining-out meal (everyone when nobody is picked) and hasn't ordered yet what they want: a notification in the bell and on their phones that opens the order sheet.", inputSchema: { mealId: z.string() } }, async ({ mealId }) => {
+  tool('ask_for_orders', { title: 'Ask for orders', description: "Full access: ask who's eating a dining-out meal (everyone when nobody is picked) and hasn't ordered yet what they want: a notification in the bell and on their phones that opens the order sheet.", inputSchema: { mealId: z.string() } }, async ({ mealId }) => {
     const result = await call(app, env, auth, 'POST', `/api/meals/${encodeURIComponent(mealId)}/ask-orders`);
     return result.status >= 400 ? errorResult(result.json, 'failed to ask for orders') : okResult('Asked for orders', result.json as Record<string, unknown>);
   });
@@ -611,7 +627,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/meals?${new URLSearchParams({ from, to: end })}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to read meals') : okResult('Meal plan', { meals: result.json });
   });
-  tool('create_meal', { title: 'Plan meal', description: 'Admin: plan a recipe, freeform meal, or dining out on a date. Does not create calendar events.', inputSchema: { ...MealInputSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null leaves unassigned. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ member, ...input }) => {
+  tool('create_meal', { title: 'Plan meal', description: 'Full access: plan a recipe, freeform meal, or dining out on a date. Does not create calendar events.', inputSchema: { ...MealInputSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null leaves unassigned. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ member, ...input }) => {
     try {
       if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
     } catch (err) {
@@ -620,7 +636,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', '/api/meals', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to plan meal') : okResult('Meal planned', { meal: result.json });
   });
-  tool('update_meal', { title: 'Update meal', description: 'Admin: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. A calendar event Kinwall created for the meal follows its date, slot, time, title, notes and people (eaters and cook), on whichever calendar it is on; a linked event of your own is never changed.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null clears assignment. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
+  tool('update_meal', { title: 'Update meal', description: 'Full access: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. A calendar event Kinwall created for the meal follows its date, slot, time, title, notes and people (eaters and cook), on whichever calendar it is on; a linked event of your own is never changed.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null clears assignment. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
     try {
       if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
     } catch (err) {
@@ -629,7 +645,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'PATCH', `/api/meals/${encodeURIComponent(id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to update meal') : okResult('Meal updated', { meal: result.json });
   });
-  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Admin: review scaled ingredients, per-meal/day sources, existing list matches, applied and changed amounts before applying. Ambiguous amounts need review. Select a Groceries list to include matches and prior applications; no list returns an unscoped preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Groceries list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
+  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Full access: preview the groceries for a date range before adding them: each ingredient scaled to the servings, which meals need it, what is already on the list, and what was added before or has changed since. Ambiguous amounts need a look. Pick a Groceries list to include what is already on it; with no list this is a general preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Groceries list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
     try {
       if (!listId && listName) listId = (await resolveList(app, env, auth, listName)).id;
     } catch (err) {
@@ -637,9 +653,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     }
     const query = new URLSearchParams({ from, to }); if (listId !== undefined) query.set('listId', listId);
     const result = await call(app, env, auth, 'GET', `/api/meals/projection?${query}`);
-    return result.status >= 400 ? errorResult(result.json, 'failed to project groceries') : okResult('Shopping projection', result.json as Record<string, unknown>);
+    return result.status >= 400 ? errorResult(result.json, 'failed to preview the groceries') : okResult('Grocery preview', result.json as Record<string, unknown>);
   });
-  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Admin: after the user reviews get_meal_projection and chooses a Groceries list (meals add to Groceries lists only), add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied. Items with a basicId are made from a basic (a seasoning blend, sauce or dough): ask once per basic whether it is made already, then pass basics: { [basicId]: "made" } to skip it or "ingredients" to add the basic\'s own ingredients instead (as written, once).', inputSchema: {
+  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Full access: after the family reviews the grocery preview (get_meal_projection) and chooses a Groceries list (meals add to Groceries lists only), add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied. Items with a basicId are made from a basic (a seasoning blend, sauce or dough): ask once per basic whether it is made already, then pass basics: { [basicId]: "made" } to skip it or "ingredients" to add the basic\'s own ingredients instead (as written, once).', inputSchema: {
     ...ProjectionApplySchema.shape,
     listId: ProjectionApplySchema.shape.listId.optional().describe('Target Groceries list id; use this or listName. Takes precedence over listName.'),
     listName: z.string().optional().describe('Target Groceries list name, case-insensitive; use this or listId.'),
@@ -654,7 +670,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     }
     if (!listId) return errorResult(null, 'listId or listName is required');
     const result = await call(app, env, auth, 'POST', '/api/meals/projection/apply', { ...input, listId });
-    return result.status >= 400 ? errorResult(result.json, 'failed to apply groceries') : okResult('Shopping projection applied', result.json as Record<string, unknown>);
+    return result.status >= 400 ? errorResult(result.json, 'failed to apply groceries') : okResult('Groceries added to the list.', result.json as Record<string, unknown>);
   });
 
   tool(
@@ -678,7 +694,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const settings = settingsRes.json as { familyName: string; timezone: string | null };
       return okResult(
         `${settings.familyName}, timezone ${settings.timezone ?? '(not set - server default applies)'}, ` +
-          `${(membersRes.json as unknown[]).length} member(s), ${(calendarsRes.json as unknown[]).length} calendar(s).`,
+          `${plural((membersRes.json as unknown[]).length, 'member')}, ${plural((calendarsRes.json as unknown[]).length, 'calendar')}.`,
         { settings: settingsRes.json, members: membersRes.json, calendars: calendarsRes.json },
       );
     },
@@ -722,7 +738,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         if (ev.allDay) return (!hi.date || ev.start < hi.date) && (!lo.date || ev.end > lo.date);
         return Date.parse(ev.end) > lo.at && Date.parse(ev.start) < hi.at;
       });
-      return okResult(`${events.length} event(s) from ${fromDate} to ${toDate}.`, { events });
+      return okResult(`${plural(events.length, 'event')} from ${fromDate} to ${toDate}.`, { events });
     },
   );
 
@@ -768,7 +784,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'GET', `/api/events/${encodeURIComponent(id)}/items`);
       if (res.status >= 400) return errorResult(res.json, 'failed to get event items');
       const items = res.json as { done: boolean }[];
-      return okResult(`${items.filter((i) => !i.done).length} open of ${items.length} linked item(s).`, { items });
+      return okResult(`${items.filter((i) => !i.done).length} open of ${plural(items.length, 'linked item')}.`, { items });
     },
   );
 
@@ -878,7 +894,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to list chores');
       const chores = res.json as { completed: boolean }[];
       const done = chores.filter((c) => c.completed).length;
-      return okResult(`${day}: ${done}/${chores.length} chore(s) complete.`, { date: day, chores });
+      return okResult(`${day}: ${done}/${plural(chores.length, 'chore')} complete.`, { date: day, chores });
     },
   );
 
@@ -1042,14 +1058,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'List the chore library',
       description:
-        'Admin: the chore library - saved chores that are not on a schedule (clean out the car, wash the windows) for a parent to hand out. Each has its points, checklist, suggested person, an optional "about every N day/week/month" (a soft interval, not a schedule), when a chore made from it was last done and by whom, and any still to do (open). Hand one out with assign_chore_from_library.',
+        'Full access: the chore library - saved chores that are not on a schedule (clean out the car, wash the windows) for a parent to hand out. Each has its points, checklist, suggested person, an optional "about every N day/week/month" (a soft interval, not a schedule), when a chore made from it was last done and by whom, and any still to do (open). Hand one out with assign_chore_from_library.',
       inputSchema: {},
     },
     async () => {
       const res = await call(app, env, auth, 'GET', '/api/chore-library');
       if (res.status >= 400) return errorResult(res.json, 'failed to read the chore library');
       const library = res.json as { title: string }[];
-      return okResult(`${library.length} chore(s) in the library.`, { library });
+      return okResult(`${plural(library.length, 'chore')} in the library.`, { library });
     },
   );
 
@@ -1058,7 +1074,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'Assign a chore from the library',
       description:
-        "Admin: hand out a library chore (from list_chore_library). Makes a normal chore - title, emoji, points, checklist and parent-approval rule carried over - due on date, for member (or the item's suggested person). rrule makes it repeat from that date instead of a one-off.",
+        "Full access: hand out a library chore (from list_chore_library). Makes a normal chore - title, emoji, points, checklist and parent-approval rule carried over - due on date, for member (or the item's suggested person). rrule makes it repeat from that date instead of a one-off.",
       inputSchema: {
         libraryId: z.string(),
         member: z.string().nullable().optional().describe('Who does it, by name or id; null for "anyone". Omit for the suggested person.'),
@@ -1086,7 +1102,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_pending_approvals',
     {
       title: 'List chores to approve',
-      description: "Chores ticked on a wall screen or kid's device that are waiting for a parent's OK (no points until approved), oldest first. Admin only.",
+      description: "Chores ticked on a wall screen or kid's device that are waiting for a parent's OK (no points until approved), oldest first. Full access only.",
       inputSchema: {},
     },
     async () => {
@@ -1101,7 +1117,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'approve_chore',
     {
       title: 'Approve chore',
-      description: "Approve a chore waiting for a parent's OK: awards its points (late credit judged by when it was ticked). Defaults to today. Admin only.",
+      description: "Approve a chore waiting for a parent's OK: awards its points (late credit judged by when it was ticked). Defaults to today. Full access only.",
       inputSchema: { choreId: z.string(), date: z.string().optional().describe('YYYY-MM-DD. Default: today.') },
     },
     async ({ choreId, date }) => {
@@ -1117,7 +1133,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'reject_chore',
     {
       title: 'Not yet (reject chore)',
-      description: "Say \"Not yet\" to a chore waiting for a parent's OK: removes the tick and shows the optional note on the kid's chore until they tick it again; their devices get a notification. Defaults to today. Admin only.",
+      description: "Say \"Not yet\" to a chore waiting for a parent's OK: removes the tick and shows the optional note on the kid's chore until they tick it again; their devices get a notification. Defaults to today. Full access only.",
       inputSchema: { choreId: z.string(), date: z.string().optional().describe('YYYY-MM-DD. Default: today.'), note: z.string().max(200).optional().describe('e.g. "Please make the bed properly".') },
     },
     async ({ choreId, date, note }) => {
@@ -1136,7 +1152,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_chore_suggestions',
     {
       title: 'List chores kids suggested',
-      description: "Chores kids suggested that are waiting for a parent's answer, oldest first: name, the points they think it's worth, repeat, start time, timer, and whether they already did it. Optionally one person (name or id). Admin only.",
+      description: "Chores kids suggested that are waiting for a parent's answer, oldest first: name, the points they think it's worth, repeat, start time, timer, and whether they already did it. Optionally one person (name or id). Full access only.",
       inputSchema: { member: z.string().optional().describe('Name or id.') },
     },
     async ({ member }) => {
@@ -1152,7 +1168,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'approve_chore_suggestion',
     {
       title: 'Approve a suggested chore',
-      description: "Say yes to a chore a kid suggested: makes it a normal chore for them, with the points they asked for or different ones, and optionally a changed repeat, start time or timer. \"Already did it\" ones are recorded as done and earn the points now. A note (praise, or why the points changed) goes to the kid. Admin only.",
+      description: "Say yes to a chore a kid suggested: makes it a normal chore for them, with the points they asked for or different ones, and optionally a changed repeat, start time or timer. \"Already did it\" ones are recorded as done and earn the points now. A note (praise, or why the points changed) goes to the kid. Full access only.",
       inputSchema: {
         id: z.string().describe('From list_chore_suggestions.'),
         points: z.number().int().min(0).max(1000).optional().describe("Default: what the kid asked for."),
@@ -1174,7 +1190,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'reject_chore_suggestion',
     {
       title: 'Not this time (suggested chore)',
-      description: "Say \"Not this time\" to a chore a kid suggested, with an optional note they see on their own device. Admin only.",
+      description: "Say \"Not this time\" to a chore a kid suggested, with an optional note they see on their own device. Full access only.",
       inputSchema: { id: z.string().describe('From list_chore_suggestions.'), note: z.string().max(200).optional().describe('e.g. "Great idea, let\'s talk about it at dinner".') },
     },
     async ({ id, note }) => {
@@ -1196,7 +1212,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     return res.status >= 400 ? errorResult(res.json, 'failed to list milestones') : okResult('Reward milestones', { milestones: res.json });
   });
   tool('create_reward_milestone', {
-    title: 'Create reward milestone', description: 'Parent: enroll explicitly chosen members in a one-time reward milestone. Starts at zero now, earlier work excluded; points are never spent. Target and membership are immutable.',
+    title: 'Create reward milestone', description: 'Full access: enroll explicitly chosen members in a one-time reward milestone. Starts at zero now, earlier work excluded; points are never spent. Target and membership are immutable.',
     inputSchema: MilestoneInputSchema.shape,
   }, async input => {
     let memberIds: string[];
@@ -1206,14 +1222,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     return res.status >= 400 ? errorResult(res.json, 'failed to create milestone') : okResult('Milestone created', { milestone: res.json });
   });
   tool('update_reward_milestone', {
-    title: 'Archive or restore reward milestone', description: 'Parent: archive with active=false, restore with active=true. Keeps awards and handoff history.',
+    title: 'Archive or restore reward milestone', description: 'Full access: archive with active=false, restore with active=true. Keeps awards and handoff history.',
     inputSchema: { milestoneId: z.string(), active: z.boolean() },
   }, async ({ milestoneId, active }) => {
     const res = await call(app, env, auth, 'PATCH', `/api/reward-milestones/${encodeURIComponent(milestoneId)}`, { active });
     return res.status >= 400 ? errorResult(res.json, 'failed to update milestone') : okResult('Milestone updated', { ok: true });
   });
   tool('mark_milestone_given', {
-    title: 'Mark milestone reward given', description: 'Parent: mark an already earned milestone reward given to one member. Does not spend points. milestoneId comes from list_reward_milestones.',
+    title: 'Mark milestone reward given', description: 'Full access: mark an already earned milestone reward given to one member. Does not spend points. milestoneId comes from list_reward_milestones.',
     inputSchema: { milestoneId: z.string(), member: z.string() },
   }, async ({ milestoneId, member }) => {
     let memberId: string;
@@ -1269,7 +1285,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'create_reward',
     {
       title: 'Create reward',
-      description: 'Admin: add a reward members can spend chore points on, e.g. "🍿 Movie night" for 100 points.',
+      description: 'Full access: add a reward members can spend chore points on, e.g. "🍿 Movie night" for 100 points.',
       inputSchema: { title: RewardInputSchema.shape.title, emoji: z.string().optional(), cost: RewardInputSchema.shape.cost.describe('Points it costs (1 or more).'), ...rewardFields },
     },
     async ({ members, ...input }) => {
@@ -1290,7 +1306,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_reward',
     {
       title: 'Edit reward',
-      description: 'Admin: change a reward (use list_rewards for ids); active=false archives it, true brings it back. Only provided fields change.',
+      description: 'Full access: change a reward (use list_rewards for ids); active=false archives it, true brings it back. Only provided fields change.',
       inputSchema: { rewardId: z.string(), title: RewardInputSchema.shape.title.optional(), emoji: z.string().nullable().optional(), cost: RewardInputSchema.shape.cost.optional(), active: z.boolean().optional(), ...rewardFields },
     },
     async ({ rewardId, members, ...input }) => {
@@ -1371,16 +1387,16 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, `failed to ${action} reward`);
       return okResult(done(res.json as { title: string }), { redemption: res.json as Record<string, unknown> });
     });
-  decide('approve_reward', 'Approve reward', "Admin: approve a redeemed reward waiting for a parent's OK. For a split, this takes the shares not taken yet; refused if someone no longer has theirs.", 'approve', (r) => `Approved ${r.title}.`);
+  decide('approve_reward', 'Approve reward', "Full access: approve a redeemed reward waiting for a parent's OK. For a split, this takes the shares not taken yet; refused if someone no longer has theirs.", 'approve', (r) => `Approved ${r.title}.`);
   decide(
     'decline_reward',
     'Not this time (decline reward)',
-    "Admin: decline a redeemed reward waiting for OK, or cancel an approved one not given yet. The points go back (every share of a split) and the members' devices are told, with the optional note.",
+    "Full access: decline a redeemed reward waiting for OK, or cancel an approved one not given yet. The points go back (every share of a split) and the members' devices are told, with the optional note.",
     'decline',
     (r) => `Declined ${r.title}; the points are back.`,
     { note: z.string().max(200).optional().describe('e.g. "Let\'s do it at the weekend".') },
   );
-  decide('mark_reward_given', 'Mark reward given', 'Admin: mark an approved reward as given (delivered).', 'given', (r) => `Marked ${r.title} as given.`);
+  decide('mark_reward_given', 'Mark reward given', 'Full access: mark an approved reward as given (delivered).', 'given', (r) => `Marked ${r.title} as given.`);
 
   tool(
     'get_leaderboard',
@@ -1423,7 +1439,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'award_points',
     {
       title: 'Give bonus points',
-      description: `Admin: give a member bonus points outside a chore (1-${BONUS_MAX}), with an optional short note like "Helped carry groceries". They count like chore points (balance, today, week, leaderboard, profile) but not as a chore, so streaks don't change. Their own devices get a notification. Defaults to today. Undo with delete_point_award (the id is in the result, and in get_points entries with reason "bonus").`,
+      description: `Full access: give a member bonus points outside a chore (1-${BONUS_MAX}), with an optional short note like "Helped carry groceries". They count like chore points (balance, today, week, leaderboard, profile) but not as a chore, so streaks don't change. Their own devices get a notification. Defaults to today. Undo with delete_point_award (the id is in the result, and in get_points entries with reason "bonus").`,
       inputSchema: {
         member: z.string().describe('Member name or id.'),
         points: z.number().int().min(1).max(BONUS_MAX),
@@ -1449,7 +1465,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'delete_point_award',
     {
       title: 'Take back bonus points',
-      description: 'Admin: take back bonus points given by mistake (award_points). The points come off their balance and totals.',
+      description: 'Full access: take back bonus points given by mistake (award_points). The points come off their balance and totals.',
       inputSchema: { id: z.string().describe('The award id (award_points result, or a get_points entry with reason "bonus").') },
     },
     async ({ id }) => {
@@ -1477,7 +1493,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'GET', `/api/members/${encodeURIComponent(memberId)}/stats?period=${period ?? 'week'}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to load profile');
       const s = res.json as { choresDone: number; pointsEarned: number; streak: { current: number; best: number } };
-      return okResult(`${member}: ${s.choresDone} chore(s) done, ${s.pointsEarned} points earned (${period ?? 'week'}); streak ${s.streak.current}, best ${s.streak.best}.`, { member: memberId, stats: res.json as Record<string, unknown> });
+      return okResult(`${member}: ${plural(s.choresDone, 'chore')} done, ${s.pointsEarned} points earned (${period ?? 'week'}); streak ${s.streak.current}, best ${s.streak.best}.`, { member: memberId, stats: res.json as Record<string, unknown> });
     },
   );
 
@@ -1553,7 +1569,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_member',
     {
       title: 'Update family member',
-      description: "Change a family member's name, color, avatar, birthday, whether their chores need a parent's OK, or transition reminders (admin). Only provided fields change. Who is a grown-up can't be changed here: a parent does that on their own device.",
+      description: "Change a family member's name, color, avatar, birthday, whether their chores need a parent's OK, or transition reminders (full access). Only provided fields change. Who is a grown-up can't be changed here: a parent does that on their own device.",
       inputSchema: {
         member: z.string().describe('Member name or id.'),
         name: z.string().optional(),
@@ -1563,7 +1579,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         grownUp: z.boolean().optional().describe("Refused when it would change: who is a grown-up decides who reads their private journal, so a parent sets it on their own device (Settings → Family)."),
         needsApproval: z.boolean().optional().describe("Their chores need a parent's OK by default (a chore's own setting wins). Ignored for a grown-up."),
         transitionReminders: TransitionRemindersSchema.optional().describe(
-          'Admin: pushes to this person\'s own devices before their events. { on, minutes: [10, 5] (1-120, up to 8), repeat: { every: 5, within: 30 } or null, leaveBy: true (count to the leave-by time when there is travel time) }. Replaces the whole setting.',
+          'Full access: pushes to this person\'s own devices before their events. { on, minutes: [10, 5] (1-120, up to 8), repeat: { every: 5, within: 30 } or null, leaveBy: true (count to the leave-by time when there is travel time) }. Replaces the whole setting.',
         ),
         language: LanguageSchema.nullable().optional().describe("The app's language on their own devices and in activities they play ('en' or 'de'); null follows the device and the family's language."),
       },
@@ -1594,7 +1610,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to list lists');
       const lists = res.json as { name: string; itemCount: number; openCount: number; isDefault?: boolean; catalog?: string | null }[];
       const summary = lists.map((l) => `${l.name}${l.isDefault ? ` (default ${l.catalog === 'shopping' ? 'Shopping' : 'Groceries'})` : ''} (${l.openCount}/${l.itemCount} open)`).join(', ') || 'no lists';
-      return okResult(`${lists.length} list(s): ${summary}.`, { lists: res.json as Record<string, unknown>[] });
+      return okResult(`${plural(lists.length, 'list')}: ${summary}.`, { lists: res.json as Record<string, unknown>[] });
     },
   );
 
@@ -1643,7 +1659,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to get list');
       const detail = res.json as { list: { name: string }; items: unknown[]; trip?: { items: { title: string; aisle: string | null; section: string; done: boolean }[] } };
       const trip = detail.trip?.items.map((i) => `${i.done ? '[x] ' : ''}${i.title}${i.section === 'aisle' ? ` (${i.aisle})` : i.section === 'unknown' ? ' (aisle unknown)' : ' (other store)'}`).join(', ');
-      return okResult(`"${detail.list.name}": ${detail.items.length} item(s).${trip ? ` At ${store}: ${trip}.` : ''}`, detail as Record<string, unknown>);
+      return okResult(`"${detail.list.name}": ${plural(detail.items.length, 'item')}.${trip ? ` At ${store}: ${trip}.` : ''}`, detail as Record<string, unknown>);
     },
   );
 
@@ -1715,7 +1731,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'POST', `/api/lists/${encodeURIComponent(resolvedListId)}/items`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to add list items');
       const added = res.json as unknown[];
-      return okResult(`Added ${added.length} item(s).`, { items: res.json as Record<string, unknown>[] });
+      return okResult(`Added ${plural(added.length, 'item')}.`, { items: res.json as Record<string, unknown>[] });
     },
   );
 
@@ -1743,11 +1759,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'GET', `/api/contacts/${encodeURIComponent(resolved)}`);
     return res.status >= 400 ? errorResult(res.json, 'contact not found') : okResult('Contact', { contact: res.json as Record<string, unknown> });
   });
-  tool('create_contact', { title: 'Create household contact', description: 'Admin: add a person or organization. visibility private hides the whole record from display keys; privateFields hides selected fields on household contacts. A phone can carry its phone menu (phones[].menu: wait N seconds, press keys, or wait for the caller), which Call dials through.', inputSchema: ContactInputSchema.shape }, async (input) => {
+  tool('create_contact', { title: 'Create household contact', description: 'Full access: add a person or organization. visibility private hides the whole record from display keys; privateFields hides selected fields on household contacts. A phone can carry its phone menu (phones[].menu: wait N seconds, press keys, or wait for the caller), which Call dials through.', inputSchema: ContactInputSchema.shape }, async (input) => {
     const res = await call(app, env, auth, 'POST', '/api/contacts', input);
     return res.status >= 400 ? errorResult(res.json, 'failed to create contact') : okResult('Contact created', { contact: res.json as Record<string, unknown> });
   });
-  tool('update_contact', { title: 'Update household contact', description: 'Admin: change only the provided fields of a contact. Use id from list_contacts. phones replaces every phone; keep each phone\'s menu (phones[].menu) when changing others.', inputSchema: { id: z.string().uuid(), ...ContactPatchSchema.shape } }, async ({ id, ...input }) => {
+  tool('update_contact', { title: 'Update household contact', description: 'Full access: change only the provided fields of a contact. Use id from list_contacts. phones replaces every phone; keep each phone\'s menu (phones[].menu) when changing others.', inputSchema: { id: z.string().uuid(), ...ContactPatchSchema.shape } }, async ({ id, ...input }) => {
     const res = await call(app, env, auth, 'PATCH', `/api/contacts/${encodeURIComponent(id)}`, input);
     return res.status >= 400 ? errorResult(res.json, 'failed to update contact') : okResult('Contact updated', { contact: res.json as Record<string, unknown> });
   });
@@ -1755,31 +1771,31 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'GET', '/api/contact-categories');
     return res.status >= 400 ? errorResult(res.json, 'failed to list contact categories') : okResult('Contact categories', { categories: res.json as Record<string, unknown>[] });
   });
-  tool('create_contact_category', { title: 'Create contact category', description: 'Admin: create a custom directory category.', inputSchema: ContactCategoryInputSchema.shape }, async (input) => {
+  tool('create_contact_category', { title: 'Create contact category', description: 'Full access: create a custom directory category.', inputSchema: ContactCategoryInputSchema.shape }, async (input) => {
     const res = await call(app, env, auth, 'POST', '/api/contact-categories', input);
     return res.status >= 400 ? errorResult(res.json, 'failed to create contact category') : okResult('Contact category created', { category: res.json as Record<string, unknown> });
   });
-  tool('update_contact_category', { title: 'Update contact category', description: 'Admin: change a custom directory category.', inputSchema: { id: z.string().uuid(), ...ContactCategoryInputSchema.partial().shape } }, async ({ id, ...input }) => {
+  tool('update_contact_category', { title: 'Update contact category', description: 'Full access: change a custom directory category.', inputSchema: { id: z.string().uuid(), ...ContactCategoryInputSchema.partial().shape } }, async ({ id, ...input }) => {
     const res = await call(app, env, auth, 'PATCH', `/api/contact-categories/${encodeURIComponent(id)}`, input);
     return res.status >= 400 ? errorResult(res.json, 'failed to update contact category') : okResult('Contact category updated', { category: res.json as Record<string, unknown> });
   });
-  tool('delete_contact', { title: 'Delete household contact', description: 'Admin: permanently delete a contact. This cannot be undone.', inputSchema: { id: z.string().uuid() } }, async ({ id }) => {
+  tool('delete_contact', { title: 'Delete household contact', description: 'Full access: permanently delete a contact. This cannot be undone.', inputSchema: { id: z.string().uuid() } }, async ({ id }) => {
     const res = await call(app, env, auth, 'DELETE', `/api/contacts/${encodeURIComponent(id)}`);
     return res.status >= 400 ? errorResult(res.json, 'failed to delete contact') : okResult('Contact deleted', { ok: true });
   });
-  tool('delete_contact_category', { title: 'Delete contact category', description: 'Admin: permanently delete a custom directory category and remove it from contacts. Contacts remain.', inputSchema: { id: z.string().uuid() } }, async ({ id }) => {
+  tool('delete_contact_category', { title: 'Delete contact category', description: 'Full access: permanently delete a custom directory category and remove it from contacts. Contacts remain.', inputSchema: { id: z.string().uuid() } }, async ({ id }) => {
     const res = await call(app, env, auth, 'DELETE', `/api/contact-categories/${encodeURIComponent(id)}`);
     return res.status >= 400 ? errorResult(res.json, 'failed to delete contact category') : okResult('Contact category deleted', { ok: true });
   });
-  tool('preview_contact_import', { title: 'Preview contact import', description: 'Admin: preview normalized contact drafts and possible duplicates without saving them. Takes drafts, not vCard text; the Kinwall app sends vCard files to the server itself.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000) } }, async ({ contacts }) => {
+  tool('preview_contact_import', { title: 'Preview contact import', description: 'Full access: preview normalized contact drafts and possible duplicates without saving them. Takes drafts, not vCard text; the Kinwall app sends vCard files to the server itself.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000) } }, async ({ contacts }) => {
     const res = await call(app, env, auth, 'POST', '/api/contacts/import/preview', { contacts });
     return res.status >= 400 ? errorResult(res.json, 'failed to preview contact import') : okResult('Contact import preview', res.json as Record<string, unknown>);
   });
-  tool('import_contacts', { title: 'Import contacts', description: 'Admin: import approved normalized contact drafts. Merge requires an explicit target ID for every draft and confirmMerge.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000), strategy: z.enum(['skip', 'merge', 'create']).optional(), mergeTargets: z.array(z.string().uuid()).optional(), confirmMerge: z.boolean().optional() } }, async ({ contacts, strategy, mergeTargets, confirmMerge }) => {
+  tool('import_contacts', { title: 'Import contacts', description: 'Full access: import approved normalized contact drafts. Merge requires an explicit target ID for every draft and confirmMerge.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000), strategy: z.enum(['skip', 'merge', 'create']).optional(), mergeTargets: z.array(z.string().uuid()).optional(), confirmMerge: z.boolean().optional() } }, async ({ contacts, strategy, mergeTargets, confirmMerge }) => {
     const res = await call(app, env, auth, 'POST', '/api/contacts/import', { contacts, strategy: strategy ?? 'skip', mergeTargets, confirmMerge });
     return res.status >= 400 ? errorResult(res.json, 'failed to import contacts') : okResult('Contacts imported', res.json as Record<string, unknown>);
   });
-  tool('merge_contacts', { title: 'Merge household contacts', description: 'Admin: explicitly merge sourceId into targetId, preserving unique methods and metadata.', inputSchema: { targetId: z.string().uuid(), sourceId: z.string().uuid() } }, async ({ targetId, sourceId }) => {
+  tool('merge_contacts', { title: 'Merge household contacts', description: 'Full access: explicitly merge sourceId into targetId, preserving unique methods and metadata.', inputSchema: { targetId: z.string().uuid(), sourceId: z.string().uuid() } }, async ({ targetId, sourceId }) => {
     const res = await call(app, env, auth, 'POST', '/api/contacts/merge', { targetId, sourceId, confirm: true });
     return res.status >= 400 ? errorResult(res.json, 'failed to merge contacts') : okResult('Contacts merged', { contact: res.json as Record<string, unknown> });
   });
@@ -1861,7 +1877,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'send_notification',
     {
       title: 'Send push notification',
-      description: 'Send a custom push notification now to devices following the given members (or all devices if none given). Admin only.',
+      description: 'Send a custom push notification now to devices following the given members (or all devices if none given). Full access only.',
       inputSchema: {
         title: z.string(),
         body: z.string(),
@@ -1878,7 +1894,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'POST', '/api/notify', { title, body, memberIds: memberIds.length ? memberIds : undefined });
       if (res.status >= 400) return errorResult(res.json, 'failed to send notification');
       const result = res.json as { sent: number };
-      return okResult(`Sent to ${result.sent} device(s).`, { result });
+      return okResult(`Sent to ${plural(result.sent, 'device')}.`, { result });
     },
   );
 
@@ -1913,11 +1929,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     },
   );
 
-  tool('list_inbox', { title: 'List the inbox', description: "Parents: the quick-capture inbox, thoughts a parent jotted down to sort out later, newest first, then the 20 most recently sorted (with where each went: a task, event or note) or cleared. Not chores and not anything the family has to do yet.", inputSchema: {} }, async () => {
+  tool('list_inbox', { title: 'List the inbox', description: "Full access: the quick-capture inbox, thoughts a parent jotted down to sort out later, newest first, then the 20 most recently sorted (with where each went: a task, event or note) or cleared. Not chores and not anything the family has to do yet.", inputSchema: {} }, async () => {
     const res = await call(app, env, auth, 'GET', '/api/inbox');
     return res.status >= 400 ? errorResult(res.json, 'Could not read the inbox') : okResult('The inbox.', res.json as Record<string, unknown>);
   });
-  tool('add_to_inbox', { title: 'Add to the inbox', description: "Parents: jot a thought down in the quick-capture inbox, as said (\"Permission slip for Friday\"), to sort into a task, event or note later in Kinwall. Use this when someone wants to remember something without deciding yet what it is; never guess a date or make a task or event from it.", inputSchema: { text: z.string().trim().min(1).max(200) } }, async ({ text }) => {
+  tool('add_to_inbox', { title: 'Add to the inbox', description: "Full access: jot a thought down in the quick-capture inbox, as said (\"Permission slip for Friday\"), to sort into a task, event or note later in Kinwall. Use this when someone wants to remember something without deciding yet what it is; never guess a date or make a task or event from it.", inputSchema: { text: z.string().trim().min(1).max(200) } }, async ({ text }) => {
     const res = await call(app, env, auth, 'POST', '/api/inbox', { id: crypto.randomUUID(), text });
     return res.status >= 400 ? errorResult(res.json, 'Could not add that to the inbox') : okResult(`In the inbox: ${(res.json as { text: string }).text}`, { item: res.json });
   });
@@ -1925,15 +1941,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'GET', '/api/announcements' + (status ? `?status=${status}` : ''));
     return res.status >= 400 ? errorResult(res.json, 'Could not read announcements') : okResult('Family announcements.', res.json as Record<string, unknown>);
   });
-  tool('create_announcement', { title: 'Schedule a family announcement', description: 'Parents: create a Board announcement with a title, optional details, startsAt and expiresAt (ISO timestamps with UTC or an explicit offset), and normal or important priority.', inputSchema: AnnouncementInputSchema.shape }, async input => {
+  tool('create_announcement', { title: 'Schedule a family announcement', description: 'Full access: create a Board announcement with a title, optional details, startsAt and expiresAt (ISO timestamps with UTC or an explicit offset), and normal or important priority.', inputSchema: AnnouncementInputSchema.shape }, async input => {
     const res = await call(app, env, auth, 'POST', '/api/announcements', input);
     return res.status >= 400 ? errorResult(res.json, 'Could not save announcement') : okResult('Announcement saved.', { announcement: res.json });
   });
-  tool('update_announcement', { title: 'Update a family announcement', description: 'Parents: change a scheduled Board announcement by id. Only supplied fields change; the end must remain after the start.', inputSchema: { id: z.string(), ...AnnouncementPatchSchema.shape } }, async ({ id, ...input }) => {
+  tool('update_announcement', { title: 'Update a family announcement', description: 'Full access: change a scheduled Board announcement by id. Only supplied fields change; the end must remain after the start.', inputSchema: { id: z.string(), ...AnnouncementPatchSchema.shape } }, async ({ id, ...input }) => {
     const res = await call(app, env, auth, 'PATCH', `/api/announcements/${encodeURIComponent(id)}`, input);
     return res.status >= 400 ? errorResult(res.json, 'Could not save announcement') : okResult('Announcement saved.', { announcement: res.json });
   });
-  tool('delete_announcement', { title: 'Delete a family announcement', description: 'Parents: permanently delete a scheduled Board announcement by id.', inputSchema: { id: z.string() } }, async ({ id }) => {
+  tool('delete_announcement', { title: 'Delete a family announcement', description: 'Full access: permanently delete a scheduled Board announcement by id.', inputSchema: { id: z.string() } }, async ({ id }) => {
     const res = await call(app, env, auth, 'DELETE', `/api/announcements/${encodeURIComponent(id)}`);
     return res.status >= 400 ? errorResult(res.json, 'Could not delete announcement') : okResult('Announcement deleted.', res.json as Record<string, unknown>);
   });
@@ -1966,7 +1982,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
   tool(
     'create_poll',
-    { title: 'Start a family poll', description: 'Admin: ask the family a question everyone votes on, kids too (one vote each), and notify every device. Choices: ideas (typed text), recipes from the recipe book and/or restaurants from the binder (ids or exact names; both need Meals on), at least two in all. date and slot tie it to a meal; when it closes, a parent can plan the winner from the app.', inputSchema: { question: z.string().min(1).max(200), ideas: jsonList(z.array(z.string().min(1).max(120))).optional(), recipes: jsonList(z.array(z.string())).optional().describe('Recipe ids or exact names.'), restaurants: jsonList(z.array(z.string())).optional().describe('Restaurant ids or exact names (see list_restaurants).'), date: z.string().optional().describe('YYYY-MM-DD of the meal it decides.'), slot: MealSlotSchema.optional() } },
+    { title: 'Start a family poll', description: 'Full access: ask the family a question everyone votes on, kids too (one vote each), and notify every device. Choices: ideas (typed text), recipes from the recipe book and/or restaurants from the binder (ids or exact names; both need Meals on), at least two in all. date and slot tie it to a meal; when it closes, a parent can plan the winner from the app.', inputSchema: { question: z.string().min(1).max(200), ideas: jsonList(z.array(z.string().min(1).max(120))).optional(), recipes: jsonList(z.array(z.string())).optional().describe('Recipe ids or exact names.'), restaurants: jsonList(z.array(z.string())).optional().describe('Restaurant ids or exact names (see list_restaurants).'), date: z.string().optional().describe('YYYY-MM-DD of the meal it decides.'), slot: MealSlotSchema.optional() } },
     async ({ question, ideas = [], recipes = [], restaurants = [], date, slot }) => {
       let recipeIds: string[], restaurantIds: string[];
       try {
@@ -1989,7 +2005,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
   tool(
     'close_poll',
-    { title: 'End voting on a family poll', description: 'Admin: end voting on a poll and pick the winner: option (id or label), else the choice with the most votes (a tie goes to the one listed first). On a poll whose voting already ended, changes the winner. Plan the winning meal with create_meal if it was about one.', inputSchema: { poll: z.string().optional().describe('Id or exact question; left out, the one open poll.'), option: z.string().optional() } },
+    { title: 'End voting on a family poll', description: 'Full access: end voting on a poll and pick the winner: option (id or label), else the choice with the most votes (a tie goes to the one listed first). On a poll whose voting already ended, changes the winner. Plan the winning meal with create_meal if it was about one.', inputSchema: { poll: z.string().optional().describe('Id or exact question; left out, the one open poll.'), option: z.string().optional() } },
     async ({ poll, option }) => {
       let id: string, optionId: string | undefined;
       try { const p = await findPoll(poll); id = p.id; optionId = option ? findOption(p, option).id : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
@@ -2042,19 +2058,19 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   tool('get_upkeep_job', { title: 'Get a home upkeep job', description: 'One upkeep job (id or title): its schedule, steps, supplies, who does it, next due date and last time done.', inputSchema: { job: z.string() } }, async ({ job }) => {
     try { const j = await findJob(job); const res = await call(app, env, auth, 'GET', `/api/upkeep/jobs/${encodeURIComponent(j.id)}`); return res.status >= 400 ? errorResult(res.json, 'job not found') : okResult(jobLine(res.json as JobOut), { job: res.json }); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
   });
-  tool('create_upkeep_job', { title: 'Add a home upkeep job', description: "Admin: add an upkeep job. repeatKind after (the default: every + unit day/week/month/year from the last time it's done), on (onMonths 1-12 and onDay: every April 15 and October 15) or once (dueOn). startOn: first due date if never done. headsUpDays: how early it shows as due soon. supplies [{name}] go on the shopping list suppliesDays before it's due. chorePoints with a kid as member: it becomes their chore on the day.", inputSchema: { ...UpkeepJobFields, title: z.string().min(1).max(200) } }, async (input) => {
+  tool('create_upkeep_job', { title: 'Add a home upkeep job', description: "Full access: add an upkeep job. repeatKind after (the default: every + unit day/week/month/year from the last time it's done), on (onMonths 1-12 and onDay: every April 15 and October 15) or once (dueOn). startOn: first due date if never done. headsUpDays: how early it shows as due soon. supplies [{name}] go on the shopping list suppliesDays before it's due. chorePoints with a kid as member: it becomes their chore on the day.", inputSchema: { ...UpkeepJobFields, title: z.string().min(1).max(200) } }, async (input) => {
     let b;
     try { b = await jobBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'POST', '/api/upkeep/jobs', b);
-    return res.status >= 400 ? errorResult(res.json, 'failed to add the job') : okResult(`Added: ${jobLine(res.json as JobOut)}`, { job: res.json });
+    return res.status >= 400 ? errorResult(res.json, 'failed to add the job') : okResult(`Added to home upkeep: ${jobLine(res.json as JobOut)}`, { job: res.json });
   });
-  tool('update_upkeep_job', { title: 'Change a home upkeep job', description: 'Admin: change an upkeep job (id or title): any field of create_upkeep_job; archived true puts it away (its history stays).', inputSchema: { job: z.string(), ...UpkeepJobFields } }, async ({ job, ...input }) => {
+  tool('update_upkeep_job', { title: 'Change a home upkeep job', description: 'Full access: change an upkeep job (id or title): any field of create_upkeep_job; archived true puts it away (its history stays).', inputSchema: { job: z.string(), ...UpkeepJobFields } }, async ({ job, ...input }) => {
     let id, b;
     try { id = (await findJob(job)).id; b = await jobBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'PATCH', `/api/upkeep/jobs/${encodeURIComponent(id)}`, b);
     return res.status >= 400 ? errorResult(res.json, 'failed to change the job') : okResult(`Saved: ${jobLine(res.json as JobOut)}`, { job: res.json });
   });
-  tool('delete_upkeep_job', { title: 'Remove a home upkeep job', description: 'Admin: archive an upkeep job (kept, no more reminders), or with hard: true delete it for good. Its history stays either way.', inputSchema: { job: z.string(), hard: z.boolean().optional() } }, async ({ job, hard }) => {
+  tool('delete_upkeep_job', { title: 'Remove a home upkeep job', description: 'Full access: archive an upkeep job (kept, no more reminders), or with hard: true delete it for good. Its history stays either way.', inputSchema: { job: z.string(), hard: z.boolean().optional() } }, async ({ job, hard }) => {
     let id;
     try { id = (await findJob(job)).id; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     if (hard) { const res = await call(app, env, auth, 'DELETE', `/api/upkeep/jobs/${encodeURIComponent(id)}`); return res.status >= 400 ? errorResult(res.json, 'failed to delete the job') : okResult('Deleted. Its history stays.', { ok: true }); }
@@ -2069,7 +2085,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const r = res.json as { job: JobOut; entry: { doneOn: string } | null; pending?: boolean };
     return okResult(r.entry ? `Done on ${r.entry.doneOn}. ${jobLine(r.job)}` : 'Waiting for a grown-up to approve the chore. The upkeep schedule has not changed.', r as unknown as Record<string, unknown>);
   });
-  tool('list_upkeep_history', { title: 'Home upkeep history', description: 'Every time an upkeep job was done, newest first ("when did we last change the furnace filter?"): who, cost (admin), reading and notes. Filter by job or thing (id or name), member, year (YYYY) or search (titles and notes).', inputSchema: { job: z.string().optional(), thing: z.string().optional(), member: z.string().optional(), year: z.string().regex(/^\d{4}$/).optional(), search: z.string().max(200).optional() } }, async (a) => {
+  tool('list_upkeep_history', { title: 'Home upkeep history', description: 'Every time an upkeep job was done, newest first ("when did we last change the furnace filter?"): who, cost (full access), reading and notes. Filter by job or thing (id or name), member, year (YYYY) or search (titles and notes).', inputSchema: { job: z.string().optional(), thing: z.string().optional(), member: z.string().optional(), year: z.string().regex(/^\d{4}$/).optional(), search: z.string().max(200).optional() } }, async (a) => {
     const q = new URLSearchParams({ limit: '200' });
     try {
       if (a.job) q.set('job', (await findJob(a.job)).id);
@@ -2083,20 +2099,20 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const list = res.json as { title: string; doneOn: string; costCents: number | null }[];
     return okResult(list.length ? list.slice(0, 20).map((e) => `${e.doneOn} ${e.title}${e.costCents != null ? ` ($${(e.costCents / 100).toFixed(2)})` : ''}`).join('; ') : 'Nothing logged yet.', { entries: list as unknown as Record<string, unknown>[] });
   });
-  tool('list_upkeep_things', { title: 'List things the family looks after', description: 'The things home upkeep tracks (furnace, fridge, the van…) with their room, brand, model, part notes and warranty (admin), plus the areas they sit in.', inputSchema: { include_archived: z.boolean().optional() } }, async ({ include_archived }) => {
+  tool('list_upkeep_things', { title: 'List things the family looks after', description: 'The things home upkeep tracks (furnace, fridge, the van…) with their room, brand, model, part notes and warranty (full access), plus the areas they sit in.', inputSchema: { include_archived: z.boolean().optional() } }, async ({ include_archived }) => {
     const [things, areas] = await Promise.all([call(app, env, auth, 'GET', `/api/upkeep/things${include_archived ? '?archived=all' : ''}`), call(app, env, auth, 'GET', '/api/upkeep/areas')]);
     if (things.status >= 400) return errorResult(things.json, 'failed to read things');
     const list = things.json as { id: string; name: string; room: string | null }[];
     return okResult(list.length ? list.map((t) => `${t.name}${t.room ? ` (${t.room})` : ''} [${t.id}]`).join('; ') : 'No things yet.', { things: list as unknown as Record<string, unknown>[], areas: areas.json as Record<string, unknown>[] });
   });
   const ThingFields = { ...UpkeepThingPatchSchema.omit({ areaId: true }).shape, area: z.string().nullable().optional().describe('Area name or id; null for none.') };
-  tool('create_upkeep_thing', { title: 'Add a thing to look after', description: 'Admin: add a thing for home upkeep: name, room, brand, model, serial, partNotes (what to buy for it), boughtOn, priceCents, warrantyUntil (YYYY-MM-DD), manualUrl, notes.', inputSchema: { ...ThingFields, name: z.string().min(1).max(200) } }, async ({ area: a, ...input }) => {
+  tool('create_upkeep_thing', { title: 'Add a thing to look after', description: 'Full access: add a thing for home upkeep: name, room, brand, model, serial, partNotes (what to buy for it), boughtOn, priceCents, warrantyUntil (YYYY-MM-DD), manualUrl, notes.', inputSchema: { ...ThingFields, name: z.string().min(1).max(200) } }, async ({ area: a, ...input }) => {
     let areaId;
     try { areaId = await area(a); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'POST', '/api/upkeep/things', { ...input, ...(areaId !== undefined ? { areaId } : {}) });
-    return res.status >= 400 ? errorResult(res.json, 'failed to add the thing') : okResult(`Added: ${(res.json as { name: string }).name}`, { thing: res.json });
+    return res.status >= 400 ? errorResult(res.json, 'failed to add the thing') : okResult(`Added a thing to home upkeep: ${(res.json as { name: string }).name}`, { thing: res.json });
   });
-  tool('update_upkeep_thing', { title: 'Change a thing', description: 'Admin: change a thing (id or name): any field of create_upkeep_thing; archived true is "Sold or gone" (its jobs go quiet, its history stays).', inputSchema: { thing: z.string(), ...ThingFields } }, async ({ thing, area: a, ...input }) => {
+  tool('update_upkeep_thing', { title: 'Change a thing', description: 'Full access: change a thing (id or name): any field of create_upkeep_thing; archived true is "Sold or gone" (its jobs go quiet, its history stays).', inputSchema: { thing: z.string(), ...ThingFields } }, async ({ thing, area: a, ...input }) => {
     let id, areaId;
     try { id = (await findThing(thing)).id; areaId = await area(a); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'PATCH', `/api/upkeep/things/${encodeURIComponent(id)}`, { ...input, ...(areaId !== undefined ? { areaId } : {}) });
@@ -2158,7 +2174,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     let b: Record<string, unknown>;
     try { b = await outingBody(input); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'POST', '/api/outings', b);
-    return res.status >= 400 ? errorResult(res.json, 'failed to add the outing') : okResult(`Added: ${line(res.json as OutingOut)}`, { outing: res.json });
+    return res.status >= 400 ? errorResult(res.json, 'failed to add the outing') : okResult(`Added to outings: ${line(res.json as OutingOut)}`, { outing: res.json });
   });
   tool('update_outing', { title: 'Change an outing', description: 'Change an outing or place (id or title): any field of create_outing; visitStatus been and lastVisitedOn for a place you went to; gotTickets; archived true is "Not for us".', inputSchema: { outing: z.string(), ...OutingFields } }, async ({ outing, ...input }) => {
     let id: string, b: Record<string, unknown>;
@@ -2166,7 +2182,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'PATCH', `/api/outings/${encodeURIComponent(id)}`, b);
     return res.status >= 400 ? errorResult(res.json, 'failed to change the outing') : okResult(`Saved: ${line(res.json as OutingOut)}`, { outing: res.json });
   });
-  tool('delete_outing', { title: 'Remove an outing', description: 'Admin: mark an outing "Not for us" (archived, kept), or with hard: true delete it and its interest marks for good. Its calendar event stays either way.', inputSchema: { outing: z.string(), hard: z.boolean().optional() } }, async ({ outing, hard }) => {
+  tool('delete_outing', { title: 'Remove an outing', description: 'Full access: mark an outing "Not for us" (archived, kept), or with hard: true delete it and its interest marks for good. Its calendar event stays either way.', inputSchema: { outing: z.string(), hard: z.boolean().optional() } }, async ({ outing, hard }) => {
     let id: string;
     try { id = (await findOuting(outing)).id; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     if (hard) { const res = await call(app, env, auth, 'DELETE', `/api/outings/${encodeURIComponent(id)}`); return res.status >= 400 ? errorResult(res.json, 'failed to delete the outing') : okResult('Deleted.', { ok: true }); }
@@ -2179,7 +2195,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'PUT', `/api/outings/${encodeURIComponent(id)}/interest`, { memberId, level: level === 'none' ? null : level });
     return res.status >= 400 ? errorResult(res.json, 'failed to mark interest') : okResult(`Marked. ${line(res.json as OutingOut)}`, { outing: res.json });
   });
-  tool('add_outing_to_calendar', { title: 'Add an outing to the calendar', description: 'Admin: put an outing on the family calendar as a normal event in the "🎟 Outing" category, linked both ways. date: first day (needed for a run or an undated outing); endDate: last day, inclusive for all-day events (left out: date); timed visits spanning days require endTime; startTime/endTime HH:MM (null for all day; left out: the outing\'s); calendarId (left out: the default calendar); members going (names or ids; left out: who ⭐ it and who it\'s for).', inputSchema: { outing: z.string(), ...OutingCalendarInputSchema.omit({ memberIds: true }).shape, members: jsonList(z.array(z.string())).optional() } }, async ({ outing, members, ...input }) => {
+  tool('add_outing_to_calendar', { title: 'Add an outing to the calendar', description: 'Full access: put an outing on the family calendar as a normal event in the "🎟 Outing" category, linked both ways. date: first day (needed for a run or an undated outing); endDate: last day, inclusive for all-day events (left out: date); timed visits spanning days require endTime; startTime/endTime HH:MM (null for all day; left out: the outing\'s); calendarId (left out: the default calendar); members going (names or ids; left out: who ⭐ it and who it\'s for).', inputSchema: { outing: z.string(), ...OutingCalendarInputSchema.omit({ memberIds: true }).shape, members: jsonList(z.array(z.string())).optional() } }, async ({ outing, members, ...input }) => {
     let id: string, memberIds: string[] | undefined;
     try { id = (await findOuting(outing)).id; memberIds = members ? await resolveMemberIds(app, env, auth, members) : undefined; } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'POST', `/api/outings/${encodeURIComponent(id)}/calendar`, { ...input, ...(memberIds ? { memberIds } : {}) });
@@ -2197,7 +2213,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const title = new Map(data.outings.map((o) => [o.id, o.title]));
     return okResult(ideas.length ? ideas.map((i) => `${i.title}${i.note ? ` (${i.note})` : ''}: ${i.outingIds.map((id) => title.get(id)).join(', ')}`).join('; ') : 'No ideas right now: add some outings first.', { ...data, ideas });
   });
-  tool('import_outing', { title: 'Add an outing from a link or a flyer', description: "Admin: add an outing from a web page (its schema.org Event, or a place to visit like a park or museum; an Apple or Google Maps link is a place to visit) or a flyer's or invite's text (its name, date, time, place, cost like \"$15\" or \"free\", ticket dates like \"tickets on sale Oct 1\" or \"register by Oct 3\", and ages like \"ages 7-10\"; \"Cost:\", \"Ends:\", \"Tickets:\" and \"Ages:\" lines help). Check first: preview true (the default) answers with what would be saved (preview.lines, preview.outing) and saves nothing; show it to the person, then call again with preview false (a link: with preview.token) to save. An outing with the same name on the same day (a place: the same name) only gets its empty fields filled in. To change fields before saving, send outing (preview.outing, changed) instead of url and text.", inputSchema: {
+  tool('import_outing', { title: 'Add an outing from a link or a flyer', description: "Full access: add an outing from a web page (its schema.org Event, or a place to visit like a park or museum; an Apple or Google Maps link is a place to visit) or a flyer's or invite's text (its name, date, time, place, cost like \"$15\" or \"free\", ticket dates like \"tickets on sale Oct 1\" or \"register by Oct 3\", and ages like \"ages 7-10\"; \"Cost:\", \"Ends:\", \"Tickets:\" and \"Ages:\" lines help). Check first: preview true (the default) answers with what would be saved (preview.lines, preview.outing) and saves nothing; show it to the person, then call again with preview false (a link: with preview.token) to save. An outing with the same name on the same day (a place: the same name) only gets its empty fields filled in. To change fields before saving, send outing (preview.outing, changed) instead of url and text.", inputSchema: {
     url: z.string().max(5000).optional(), text: z.string().max(100000).optional(), outing: OutingPatchSchema.optional(), preview: z.boolean().optional().describe('Default true.'), token: z.string().max(100).optional(),
   } }, async ({ preview, ...input }) => {
     const res = await call(app, env, auth, 'POST', '/api/share', { kind: 'outing', ...input, preview: preview ?? true });
@@ -2224,7 +2240,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to read Newscast');
       const feed = res.json as { from: string; to: string; items: { title: string; date: string }[] };
       const summary = feed.items.slice(0, 5).map((i) => `${i.title} (${i.date})`).join('; ') || 'nothing yet';
-      return okResult(`${feed.items.length} item(s) from ${feed.from} to ${feed.to}: ${summary}.`, res.json as Record<string, unknown>);
+      return okResult(`${plural(feed.items.length, 'item')} from ${feed.from} to ${feed.to}: ${summary}.`, res.json as Record<string, unknown>);
     },
   );
 
@@ -2244,7 +2260,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to list notifications');
       const rows = res.json as { at: string; title: string }[];
       const summary = rows.slice(0, 5).map((n) => `${n.title} (${n.at})`).join('; ') || 'none';
-      return okResult(`${rows.length} notification(s): ${summary}.`, { notifications: res.json as Record<string, unknown>[] });
+      return okResult(`${plural(rows.length, 'notification')}: ${summary}.`, { notifications: res.json as Record<string, unknown>[] });
     },
   );
 
@@ -2346,7 +2362,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'GET', `/api/pantry/expiring?${query}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to read the pantry');
       const data = res.json as { days: number; items: Parameters<typeof useByText>[0][] };
-      return okResult(data.items.length ? `${data.items.length} to use within ${data.days} day(s): ${data.items.map(useByText).join('; ')}.` : `Nothing in the pantry expires within ${data.days} day(s).`, data as unknown as Record<string, unknown>);
+      return okResult(data.items.length ? `${data.items.length} to use within ${plural(data.days, 'day')}: ${data.items.map(useByText).join('; ')}.` : `Nothing in the pantry expires within ${plural(data.days, 'day')}.`, data as unknown as Record<string, unknown>);
     },
   );
 
@@ -2363,7 +2379,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'GET', `/api/pantry/suggestions?${query}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to suggest meals');
       const data = res.json as { days: number; expiring: unknown[]; suggestions: { recipe: { name: string }; uses: { title: string; daysLeft: number | null }[]; missing: string[] }[]; unmatched: Parameters<typeof useByText>[0][] };
-      if (!data.expiring.length) return okResult(`Nothing in the pantry expires within ${data.days} day(s).`, data as unknown as Record<string, unknown>);
+      if (!data.expiring.length) return okResult(`Nothing in the pantry expires within ${plural(data.days, 'day')}.`, data as unknown as Record<string, unknown>);
       const lines = data.suggestions.map((s, n) => `${n + 1}. ${s.recipe.name}: uses ${s.uses.map((u) => u.title).join(', ')}${s.missing.length ? `; needs ${s.missing.join(', ')}` : '; nothing to buy'}`);
       const rest = data.unmatched.length ? `No saved recipe uses: ${data.unmatched.map(useByText).join('; ')}.` : '';
       return okResult([lines.length ? `Recipes that use up what's expiring:\n${lines.join('\n')}` : 'None of the saved recipes use what\'s expiring.', rest].filter(Boolean).join('\n'), data as unknown as Record<string, unknown>);
@@ -2405,7 +2421,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         keepChecked: z.boolean().optional().describe('Checked items stay in place, crossed off, until Checkout (or Reset). Default on for shopping and reusable lists, off for to-do (and pantry) lists.'),
         archived: z.boolean().optional(),
         restock: z.boolean().optional().describe("Pantry lists: true adds food to the family's default Groceries list when it's checked off (used up), unless it's already there; unticking takes it back off. Turned off when the list stops being a pantry list."),
-        isDefault: z.boolean().optional().describe("Shopping lists: true makes it the family's default list for its type (Groceries or Shopping), which add_list_items, barcode scans, meal ingredients and the app's widgets and Siri use; the type's previous default stops being it. false clears it. Admin only."),
+        isDefault: z.boolean().optional().describe("Shopping lists: true makes it the family's default list for its type (Groceries or Shopping), which add_list_items, barcode scans, meal ingredients and the app's widgets and Siri use; the type's previous default stops being it. false clears it. Full access only."),
       },
     },
     async ({ list, members, kind, ...input }) => {
@@ -2495,7 +2511,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'GET', `/api/lists/remembered${qs ? `?${qs}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the catalog');
       const items = res.json as { title: string }[];
-      return okResult(`${items.length} item(s)${items.length ? `: ${items.slice(0, 50).map((i) => i.title).join(', ')}${items.length > 50 ? ', ...' : ''}` : ''}.`, { items: res.json as Record<string, unknown>[] });
+      return okResult(`${plural(items.length, 'item')}${items.length ? `: ${items.slice(0, 50).map((i) => i.title).join(', ')}${items.length > 50 ? ', ...' : ''}` : ''}.`, { items: res.json as Record<string, unknown>[] });
     },
   );
 
@@ -2540,7 +2556,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'GET', `/api/notes?target=${encodeURIComponent(target)}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list notes');
       const notes = res.json as unknown[];
-      return okResult(`${notes.length} note(s).`, { notes: res.json as Record<string, unknown>[] });
+      return okResult(`${plural(notes.length, 'note')}.`, { notes: res.json as Record<string, unknown>[] });
     },
   );
 

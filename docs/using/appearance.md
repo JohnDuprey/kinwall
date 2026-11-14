@@ -6,12 +6,12 @@
 
 Appearance works on two levels:
 
-* **Household**: **Settings → General → Appearance**. It applies to every device, and it's also used on the sign-in and pairing screens before a device has a key.
+* **Household**: **Settings → General → Appearance for the family**. It applies to every device, and it's also used on the sign-in and pairing screens before a device has a key.
 * **Per device**: **Settings → General**, tap **Change** under **Appearance on this device**. It overrides the household value on this device only.
 
 ## Household settings
 
-The night hours (walls resting, reminders held) are a separate card, right after Appearance. See [Night](night.md).
+The night hours (walls resting, reminders held) are a separate card, right after Appearance for the family. See [Night](night.md).
 
 | Setting | Options | Default |
 |---|---|---|

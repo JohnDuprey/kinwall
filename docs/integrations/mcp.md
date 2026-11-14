@@ -27,7 +27,7 @@ The sign-in flow: no key to copy, and each app gets its own revocable grant. Kin
 1. Add `https://<your-kinwall>/mcp` as a remote MCP server in your client.
 2. The client discovers Kinwall's OAuth metadata (`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`) and registers itself automatically.
 3. Your browser opens Kinwall's consent screen: "*App* wants to use Kinwall". Sign in as an admin with a passkey, or with an admin API key, then choose:
-   * **Full access**: "Everything you can do as an admin, including members and settings."
+   * **Full access**: "Everything a parent can do, including members and settings."
    * **Everyday access**: "Calendar, chores and lists. No members, settings or keys." This is the display scope.
    * **Deny**.
 4. Connected apps are listed and revocable under **Settings → Access → Connected apps**.

@@ -290,7 +290,7 @@ test('mcp: member name resolution - exact, ambiguous, and not found', async () =
   const notFound = await mcp('tools/call', { name: 'complete_chore', arguments: { choreId: chore.id, date: '2026-05-01', member: 'nobody' } });
   const notFoundBody = await notFound.json() as any;
   assert.equal(notFoundBody.result.isError, true);
-  assert.match(notFoundBody.result.content[0].text, /no member found/);
+  assert.match(notFoundBody.result.content[0].text, /No member found/);
 
   const exact = await mcp('tools/call', { name: 'complete_chore', arguments: { choreId: chore.id, date: '2026-05-01', member: 'Emma' } });
   const exactBody = await exact.json() as any;
@@ -848,9 +848,9 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   await call('add_member', { name: 'Emmanuel', color: '#222222' });
   const mealInput = { date: '2026-09-21', slot: 'dinner', title: 'Pasta' };
   await fail('create_meal', { ...mealInput, member: 'Em' }, /multiple members/);
-  await fail('create_meal', { ...mealInput, member: 'Nobody' }, /no member found/);
+  await fail('create_meal', { ...mealInput, member: 'Nobody' }, /No member found/);
   const meal = (await call('create_meal', { ...mealInput, member: 'EMMA' })).structuredContent.meal;
-  await fail('update_meal', { id: meal.id, member: 'Nobody' }, /no member found/);
+  await fail('update_meal', { id: meal.id, member: 'Nobody' }, /No member found/);
   const recipe = (await call('create_recipe', { name: 'Pasta' })).structuredContent.recipe;
   const list = (await call('create_list', { name: 'Groceries', kind: 'shopping' })).structuredContent.list;
   await call('create_list', { name: 'Groceries weekend', kind: 'shopping' });
@@ -858,7 +858,7 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   const range = { from: '2026-09-21', to: '2026-09-27' };
   for (const name of ['get_meal_projection', 'apply_meal_projection']) {
     await fail(name, { ...range, listName: 'groc' }, /multiple lists/);
-    await fail(name, { ...range, listName: 'Missing' }, /no list found/);
+    await fail(name, { ...range, listName: 'Missing' }, /No list found/);
     await fail(name, { ...range, listName: 'Tasks' }, /active Groceries list not found/);
   }
   await fail('apply_meal_projection', range, /listId or listName is required/);
@@ -1109,7 +1109,7 @@ test('mcp: the library: add_to_library by title or ISBN, list_library searches a
   finally { globalThis.fetch = realFetch; }
   const listed = await call('list_library', { q: 'dahl' });
   assert.deepEqual(listed.structuredContent.books.map((b: any) => b.title), ['Matilda']);
-  assert.match((await call('list_library', {})).content[0].text, /2 book\(s\)/);
+  assert.match((await call('list_library', {})).content[0].text, /2 books/);
   assert.match((await call('add_to_library', { title: 'Holes', isbn: '9780142410370' })).content[0].text, /already/i);
 });
 
@@ -1190,7 +1190,7 @@ test('mcp: activity actions are listed, queued for a person by name, and their s
   const bad = await call('run_activity_action', { activity: 'spelling', member: 'Maya', action: 'addList', input: { words: ['x'] } });
   assert.equal(bad.isError, true);
   assert.match(bad.content[0].text, /title is required/);
-  assert.match((await call('run_activity_action', { activity: 'chess', action: 'addList' })).content[0].text, /no installed activity matching "chess"/);
+  assert.match((await call('run_activity_action', { activity: 'chess', action: 'addList' })).content[0].text, /No installed activity matching "chess"/);
   // Wall screens and kids' devices can't queue.
   const display = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json() as any;
   assert.equal((await call('run_activity_action', { activity: 'spelling', member: 'Maya', action: 'addList', input }, display.key)).isError, true);

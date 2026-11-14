@@ -405,7 +405,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         )}
       </div>}
       <div className="field">
-        <label id="lib-readers">{audio ? t('Listened to by') : t('Read by')}</label>
+        <label id="lib-readers">{audio ? t('Who has listened to it') : t('Who has read it')}</label>
         {book.readers.length ? (
           <ul className="lib-reader-list" aria-labelledby="lib-readers">
             {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? t('Family')} <span className="trk-sub">{STATUS_EMOJI[r.status]} {tm((audio ? LISTEN_WORD : STATUS_WORD)[r.status])}</span></li> })}
@@ -413,7 +413,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         ) : <p className="trk-sub">{t('Nobody yet.')}</p>}
       </div>
       <div className="field">
-        <label id="lib-read-it">{audio ? t('Listen to it') : t('Read it')}</label>
+        <label id="lib-read-it">{audio ? t('Add to a listening shelf') : t('Add to a reading shelf')}</label>
         <div className="chip-row" role="group" aria-labelledby="lib-read-it">
           {members.map(m => <button key={m.id} type="button" className="chip" style={{ ['--chip-color' as string]: m.color }} onClick={() => readIt(m)}><ChipFace m={m} /> {m.name}</button>)}
         </div>

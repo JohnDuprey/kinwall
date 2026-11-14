@@ -90,12 +90,12 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
       {lists && lists.length > 1 && <div className="field"><label htmlFor={`${id}-list`}>{t('Grocery list')}</label><select id={`${id}-list`} value={listId} onChange={e => { setListId(e.target.value); setOmitted([]) }}><option value="">{t('Choose a grocery list')}</option>{lists.map(list => <option key={list.id} value={list.id}>{list.emoji} {list.name}</option>)}</select></div>}
       {lists?.length === 1 && <p className="field-hint">{t('Adding to {list}.', { list: `${lists[0].emoji} ${lists[0].name}` })}</p>}
       {lists?.length === 0 && <p>{noLists[0]}<a href="#/lists" onClick={close}>{t('Create a Groceries list in Lists')}</a>{noLists[1]}</p>}
-      {admin && <label className="meal-check"><input type="checkbox" checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)} /> {t('Include source meals and preparation details as notes')}</label>}
+      {admin && <label className="meal-check"><input type="checkbox" checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)} /> {t('Add a note on each item saying which meals need it')}</label>}
       {!admin && <p className="field-hint">{t('A grown-up can add these to a grocery list.')}</p>}
       {loading && <p role="status">{t('Calculating ingredients…')}</p>}
       {current && !loading && <>
         {current.items.length === 0 ? <p className="state-card">{t('No recipe meals in these dates, so there’s nothing to add. Only recipes add to the grocery list.')}</p> : <>
-          {admin && <div className="meal-actions"><button type="button" className="link-btn" onClick={() => setOmitted([])}>{t('Select all unapplied')}</button><button type="button" className="link-btn" onClick={() => setOmitted(current.items.map(item => item.key))}>{t('Omit all')}</button></div>}
+          {admin && <div className="meal-actions"><button type="button" className="link-btn" onClick={() => setOmitted([])}>{t('Select all')}</button><button type="button" className="link-btn" onClick={() => setOmitted(current.items.map(item => item.key))}>{t('Clear all')}</button></div>}
           <ul className="meal-projection-list">{current.items.map((item, index) => <li key={item.key} className="meal-projection-item">
             <div className="meal-check">
               {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (offByDefault(item)) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
@@ -103,8 +103,8 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
             </div>
             <p className="field-hint">{item.applied ? t('Already on this list') : item.partiallyApplied ? t('Partly on this list: only what’s missing is added') : t('Not on the list yet')}{item.basicId ? ` · ${t('A basic: you’ll be asked if it’s made already')}` : ''}{item.category ? ` · ${item.category}` : ''}</p>
             {item.changedSinceApplied && <p className="field-error">{t('This meal changed after it was added. Check the item on the list, because adding again won’t update it.')}</p>}
-            {!item.scalable && <p className="field-hint">{t('Amount needs review; this quantity was not scaled.')}</p>}
-            {item.matches.length > 0 && <p className="field-hint">{t('Existing matches: {matches}. Omit this ingredient if you already have enough.', { matches: item.matches.map(match => `${match.title}${match.quantity ? ` (${match.quantity})` : ''}${match.done ? ` — ${t('checked off')}` : ''}`).join(', ') })}</p>}
+            {!item.scalable && <p className="field-hint">{t('Check this amount; it was not adjusted for the number of servings.')}</p>}
+            {item.matches.length > 0 && <p className="field-hint">{t('Existing matches: {matches}. Untick it if you already have enough.', { matches: item.matches.map(match => `${match.title}${match.quantity ? ` (${match.quantity})` : ''}${match.done ? ` — ${t('checked off')}` : ''}`).join(', ') })}</p>}
             <details><summary>{tn(item.sources.length, '{n} source meal', '{n} source meals')}</summary><ul>{item.sources.map(source => <li key={source.sourceRef}>
               {mealDayLabel(source.date)} · {tm(SLOT_LABEL[source.slot])} · {source.title} ({source.recipeName}) — <IngredientAmount quantity={source.quantity} unit={source.unit} qualifier={source.qualifier} />
               {source.preparation ? ` · ${source.preparation}` : ''}{source.applied ? ` · ${t('Already applied')}` : ''}

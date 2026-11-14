@@ -13,6 +13,17 @@ export const matchesAll = (words: string[], text: string) => {
   return words.every(w => t.includes(w))
 }
 
+/** Words people type that a card's own labels don't use ("quiet hours" for Night, "font" for Typeface),
+ * by the card's id. Merged into the card's keywords, so search finds it and shows what's inside. */
+export const SEARCH_ALIASES: Record<string, string[]> = {
+  night: ['quiet hours', 'bedtime', 'sleep'],
+  features: ['medication reminders', 'medicine', 'pills'],
+  appearance: ['font', 'dark mode'],
+  'appearance-on-this-device': ['font', 'dark mode'],
+  passkeys: ['password', 'sign in', 'login'],
+  'paired-devices': ['pair', 'pairing', 'wall screen', 'kid device', 'add a device', 'tablet'],
+}
+
 const OPEN_KEY = 'kinwall.settingsOpen'
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 const store = (): Store | undefined => { try { return localStorage } catch { return undefined } }
