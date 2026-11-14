@@ -2521,6 +2521,8 @@ a.activity-card:active { transform: scale(0.98); }
   background: var(--danger-fill); color: white; font-size: 0.75rem; font-weight: 800; line-height: 22px; text-align: center; /* not --danger: dark mode's light red is 2.3:1 under white */
   box-shadow: 0 0 0 2px var(--card);
 }
+/* Header counts share geometry; the inbox stays quiet rather than signaling an alert. */
+.inbox-badge { background: var(--text); color: var(--bg); }
 .notif-toolbar { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
 .notif-compose-btn { margin-right: auto; }
 .notif-row { display: flex; align-items: flex-start; gap: 4px; }
@@ -4384,7 +4386,7 @@ html:root[data-cast] {
   .weekly-invite { flex-wrap: wrap; gap: 12px; padding: 16px; }
   .weekly-invite-icon { display: none; }
   .weekly-invite .btn { margin-left: 0; }
-  :root .sheet:has(.weekly-plan) { height: 100%; max-height: 100%; border-radius: 0; }
+  :root .sheet:has(.weekly-plan) { height: 100%; max-height: 100%; border-radius: 0; padding-top: var(--safe-t); }
   .weekly-steps { gap: 6px; }
   .weekly-steps li { font-size: .72rem; flex-direction: column; align-items: flex-start; }
   .weekly-heading { flex-direction: column; align-items: flex-start; padding-top: 20px; }
@@ -4419,7 +4421,8 @@ html:root[data-cast] {
 .sheet:has(.weekly-plan) .sheet-actions .btn { min-width: 0; }
 @media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
   .weekly-family { max-width: 100%; }
-  .sheet:has(.weekly-plan) .sheet-actions { flex-wrap: wrap; }
+  .sheet:has(.weekly-plan) .sheet-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sheet:has(.weekly-plan) .sheet-actions .btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .sheet:has(.weekly-plan) .sheet-actions .btn { min-height: 44px; }
 }
 

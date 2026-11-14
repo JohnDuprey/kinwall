@@ -45,7 +45,7 @@ export default function InboxButton() {
   return <>
     <button type="button" className="icon-btn header-inbox" aria-haspopup="dialog" onClick={() => setOpen(true)}
       aria-label={waiting ? tn(waiting, 'Inbox: {n} thing to sort', 'Inbox: {n} things to sort') : t('Inbox')}>
-      <InboxIcon />{waiting > 0 && <span className="filter-badge" aria-hidden="true">{waiting > 9 ? '9+' : waiting}</span>}
+      <InboxIcon />{waiting > 0 && <span className="bell-badge inbox-badge" aria-hidden="true">{waiting > 9 ? '9+' : waiting}</span>}
     </button>
     {open && <InboxSheet onClose={() => setOpen(false)} />}
   </>
