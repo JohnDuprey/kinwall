@@ -62,3 +62,21 @@ test('a dinner swap targets one existing meal, conflicts if it disappears or can
   plan.applied.dinners[plan.dates[1]] = { id: 'dinner', choice: JSON.stringify(draft.dinners[0]) }
   assert.deepEqual(planConflicts(plan, draft), [], 'an already applied swap is not recreated even after deleting its meal')
 })
+
+test('leaving planning closes without saving or applying, and asks only for unsaved choices', async () => {
+  const { leavePlanning } = await import('../src/weekly-planning.ts')
+  let exits = 0, questions = 0
+  const close = () => { exits++ }
+  const discard = async () => { questions++; return true }
+  await leavePlanning({ busy: false, dirty: false, confirmDiscard: discard, onLeave: close })
+  assert.equal(exits, 1)
+  assert.equal(questions, 0, 'an untouched or already saved plan exits immediately')
+  await leavePlanning({ busy: false, dirty: true, confirmDiscard: async () => { questions++; return false }, onLeave: close })
+  assert.equal(exits, 1, 'keep editing preserves the planner and its draft')
+  await leavePlanning({ busy: false, dirty: true, confirmDiscard: discard, onLeave: close })
+  assert.equal(exits, 2, 'discarding unsaved choices exits without requiring an apply')
+  assert.equal(questions, 2)
+  await leavePlanning({ busy: true, dirty: true, confirmDiscard: discard, onLeave: close })
+  assert.equal(exits, 2, 'an in-flight save cannot be dismissed')
+  assert.equal(questions, 2)
+})

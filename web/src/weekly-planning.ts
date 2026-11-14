@@ -1,4 +1,12 @@
 import { zonedDayKey } from './date.ts'
+
+/** Leaving a review never saves or applies its choices. */
+export async function leavePlanning({ busy, dirty, confirmDiscard, onLeave }: {
+  busy: boolean; dirty: boolean; confirmDiscard: () => Promise<boolean>; onLeave: () => void
+}) {
+  if (busy || (dirty && !await confirmDiscard())) return
+  onLeave()
+}
 export type PlanningDinner = { date: string; kind: 'open' } | { date: string; kind: 'meal'; title: string; recipeId?: string; replaceMealId?: string }
 export type PlanningPrep = { id: string; eventId: string; occurrenceStart: string | null; title: string; dueDate: string; listId: string }
 export type PlanningDraft = { dinners: PlanningDinner[]; prep: PlanningPrep[] }

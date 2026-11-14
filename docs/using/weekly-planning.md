@@ -42,6 +42,11 @@ Create a to-do list in Lists first if you do not have one.
 
 ## Review, save or add
 
+**Close** is available at the bottom of every step, including after saving or adding your plan.
+It returns to Home or Calendar without applying choices. If you have unsaved changes, choose
+**Discard** to leave or **Keep editing** to stay. Previously saved drafts and meals or tasks
+already added to the week stay saved. The header **✕** also closes the planner.
+
 **Save draft** keeps the family's shared choices without creating meals or to-dos.
 Drafts survive reloads, server restarts and JSON export/import. Closing an edited draft
 asks before discarding changes. A draft is shared between parents, not private to one device.

@@ -8,7 +8,7 @@ import { DAY, formatDate, msg, t, tm, tn } from './i18n.ts'
 import { formatTime } from './timeFormat.ts'
 import { onMinute } from './minuteTick.ts'
 import { dateKey, zonedDayKey } from './date.ts'
-import { dinnerCount, dinnerNeedsApply, planConflicts, planningDay, planningDays, type PlanningDinner, type PlanningDraft, type PlanningPrep, type WeeklyPlanning } from './weekly-planning.ts'
+import { dinnerCount, dinnerNeedsApply, leavePlanning, planConflicts, planningDay, planningDays, type PlanningDinner, type PlanningDraft, type PlanningPrep, type WeeklyPlanning } from './weekly-planning.ts'
 
 const steps = [msg('The week ahead'), msg('A few decisions'), msg('Ready for the week')]
 const labelDate = (key: string) => formatDate(new Date(`${key}T12:00:00Z`), DAY, 'UTC')
@@ -79,10 +79,10 @@ function Planner({ initial, onClose, onSaved }: { initial: WeeklyPlanning; onClo
     } catch { setError(t('Could not refresh the week. Try again.')) }
     finally { setBusy(false) }
   }
-  const openMeals = async () => {
-    if (dirty && !await dialog.confirm({ title: t('Discard changes?'), confirmLabel: t('Discard'), cancelLabel: t('Keep editing'), danger: true })) return
-    onClose(); window.location.hash = '/meals'
-  }
+  const leave = (onLeave: () => void = onClose) => leavePlanning({ busy, dirty, onLeave,
+    confirmDiscard: () => dialog.confirm({ title: t('Discard changes?'), confirmLabel: t('Discard'), cancelLabel: t('Keep editing'), danger: true }),
+  })
+  const openMeals = () => leave(() => { onClose(); window.location.hash = '/meals' })
   const save = async (apply: boolean) => {
     setBusy(true); setError(''); setStatus('')
     try {
@@ -97,6 +97,7 @@ function Planner({ initial, onClose, onSaved }: { initial: WeeklyPlanning; onClo
     } finally { setBusy(false) }
   }
   return <Sheet title={t('Plan the week')} onClose={() => { if (!busy) onClose() }} dirty={dirty} dismissable={!busy} actions={<>
+    <button className="btn btn-secondary" disabled={busy} onClick={() => void leave()}>{t('Close')}</button>
     {step > 0 && <button className="btn btn-secondary" disabled={busy} onClick={() => setStep(step - 1)}>{t('Back')}</button>}
     {step < 2 ? <button className="btn btn-primary" disabled={busy} onClick={() => setStep(step + 1)}>{step === 0 ? t('Make a few decisions') : t('Review plan')}</button> : <>
       <button className="btn btn-secondary" disabled={busy} onClick={() => void save(false)}>{t('Save draft')}</button>
