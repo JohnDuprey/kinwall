@@ -114,10 +114,15 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, what, chi
     const els = [...b.querySelectorAll<HTMLElement>(rows)]
     const days = [...b.querySelectorAll<HTMLElement>('.board-day')]
     for (const e of [...els, ...days]) e.hidden = false
+    // Measure without the last fit's heading and More button: they change the wrap's height, so the
+    // next fit would undo this one, flipping every frame (rowsThatFit already leaves room for More).
+    const extras = ([...w.children] as HTMLElement[]).filter(c => c !== b && !c.hidden)
+    for (const e of extras) e.hidden = true
     const top = b.getBoundingClientRect().top
     const info = els.map(e => ({ bottom: e.getBoundingClientRect().bottom - top, heading: e.matches('.snap-day-heading') }))
     // A card with bigger or smaller text is zoomed: measure the space as drawn, like the rows.
     const box = w.getBoundingClientRect(), scale = w.clientHeight ? box.height / w.clientHeight : 1
+    for (const e of extras) e.hidden = false
     // On the fixed board, rows that would sit under the add button (Calendar.tsx) go to More instead.
     const fab = w.closest('[data-fixed]') && document.querySelector('.fab')?.getBoundingClientRect()
     const under = fab && fab.left < box.right && fab.right > box.left && fab.top < box.bottom
