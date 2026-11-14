@@ -27,7 +27,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   const [listId, setListId] = useState('')
   const [result, setResult] = useState<{ key: string; projection?: ShoppingProjection; error?: string } | null>(null)
   const [omitted, setOmitted] = useState<string[]>([])
-  // What ships in a meal kit is already in the box: unchecked until someone ticks it.
+  // Meal-kit items (already in the box) and items already on the list start unchecked until someone ticks them.
   const [kitIncluded, setKitIncluded] = useState<string[]>([])
   const [includeNotes, setIncludeNotes] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -59,7 +59,8 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   const loading = validRange && result?.key !== requestKey
   const current = validRange && result?.key === requestKey ? result.projection : null
   const error = result?.key === requestKey ? result.error : undefined
-  const isOmitted = (item: ShoppingProjection['items'][number]) => omitted.includes(item.key) || (item.qualifier === KIT_QUALIFIER && !kitIncluded.includes(item.key))
+  const offByDefault = (item: ShoppingProjection['items'][number]) => item.qualifier === KIT_QUALIFIER || item.matches.length > 0
+  const isOmitted = (item: ShoppingProjection['items'][number]) => omitted.includes(item.key) || (offByDefault(item) && !kitIncluded.includes(item.key))
   const selected = current?.items.filter(item => !item.applied && !isOmitted(item)) ?? []
   const basics = [...new Map(selected.filter(item => item.basicId).map(item => [item.basicId!, item.basicName ?? item.name])).entries()]
   const apply = async (answers?: BasicChoices) => {
@@ -97,7 +98,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
           {admin && <div className="meal-actions"><button type="button" className="link-btn" onClick={() => setOmitted([])}>{t('Select all unapplied')}</button><button type="button" className="link-btn" onClick={() => setOmitted(current.items.map(item => item.key))}>{t('Omit all')}</button></div>}
           <ul className="meal-projection-list">{current.items.map((item, index) => <li key={item.key} className="meal-projection-item">
             <div className="meal-check">
-              {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (item.qualifier === KIT_QUALIFIER) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
+              {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (offByDefault(item)) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
               <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — <IngredientAmount quantity={item.quantity} unit={item.unit} qualifier={item.qualifier} /></label>
             </div>
             <p className="field-hint">{item.applied ? t('Already on this list') : item.partiallyApplied ? t('Partly on this list: only what’s missing is added') : t('Not on the list yet')}{item.basicId ? ` · ${t('A basic: you’ll be asked if it’s made already')}` : ''}{item.category ? ` · ${item.category}` : ''}</p>

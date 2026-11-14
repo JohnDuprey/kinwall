@@ -14,6 +14,7 @@ Tap **+** in a slot (or **Plan meal**) to add a meal. **Plan meal** starts on th
 * **Meal name**, then **Date** and **Meal** (breakfast, lunch, dinner or snack, filled in from the slot you tapped).
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field) and **Cooking** (who's making it). Eating out has only the time: who's eating is who gets asked for their order, and a place that isn't in the binder can have an optional website.
 * **Who's eating**: **Everyone** (nobody picked), or tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
+* For eating out, the order actions (**Add orders**, **Ask for orders**, **Mark ordered**) sit at the top of an existing meal, and **Mark ordered** replaces the Status choice.
 * **Status**: **Planned** or **Cooked** (**Ordered** when eating out). A cooked meal shows dashed. Then **Notes**.
 
 Use **Cooking history** to show **Cooked** or **Never cooked**, and **Sort** for name, favorites, top rated, date added (newest or oldest first), most cooked or last cooked. These choices also appear in the first meal chooser, week planner, poll recipe picker and recipe library. The week planner starts with **Use food soon first**, keeping pantry suggestions at the top until you choose another sort. Cooking history counts linked meals marked **Cooked** across all dates; planned meals do not count. **Last cooked** uses the meal’s date, not when you tapped the button.
@@ -322,7 +323,7 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 
 ![Use it up above the week planner: six foods to use this week, one past its date, and three recipes that use them with Plan it](../screenshots/ipad-use-it-up.png)
 
-When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** above the week:
+When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** above the week (on a phone's Day view it sits below the day's meals):
 
 * What to use this week, soonest first: "Spinach (expired)", "Chicken breast (tomorrow)", "Greek yogurt (Tue)". Past its date is marked **⚠** and counted ("1 past its date"), so you can check it before cooking.
 * Up to three of your recipes that use those things up, best first, each with what it uses ("Uses Spinach (today), Chicken breast (tomorrow)") and what you'd still need ("Needs Garlic", or "You have everything"). **Show more recipes** lists the rest.
@@ -345,7 +346,7 @@ The card hides when nothing expires this week, and while **Lists** is turned off
 **Groceries** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
 
 1. Pick the range and a grocery list. Only [Groceries lists](lists.md#list-types) can take ingredients (not Shopping lists like the hardware store). If you have just one, it's already chosen; with several, Kinwall picks the one this device used last. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
-2. Untick what you already have (salt, rice in the pantry). Meal-kit ingredients that ship in the box (**in the kit**) start unticked.
+2. Untick what you already have (salt, rice in the pantry). Meal-kit ingredients that ship in the box (**in the kit**) and ingredients that match something already on the list start unticked.
 3. Tap **Add … items to list**. Optionally, each new item gets a note with the meals it's for.
 4. When some of the meals use a [basic](#basics) you make yourself, one sheet asks **Made already?** with a choice for each basic ("Taco seasoning: made already?"): **Made already** leaves it off the list, **Add its ingredients** (the default) adds what goes into it instead of the basic itself, as its recipe writes it (not scaled), once for the whole range even when several meals use it, each with a note saying which basic it's for. Unticking a basic in the preview skips the question for it. Once its ingredients are on the list, adding the range again doesn't ask or add them again.
 
