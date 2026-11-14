@@ -207,6 +207,7 @@ test('mcp: tools/list returns the tools', async () => {
     'save_weekly_plan_draft',
     'search_books',
     'send_notification',
+    'set_chore_dismissed',
     'set_color_scheme',
     'set_event_category',
     'set_event_follow',

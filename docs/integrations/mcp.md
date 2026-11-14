@@ -306,3 +306,10 @@ review and approval of the resulting changes, not an automatic retry with fresh 
 the current and replacement names. The reviewed target must have `canSwap: true`. Preparation is due-date-only, with no timed
 alert. Pickups, requests and acceptance are not part of these tools. No private health tracker,
 medication, journal or check-in data is read. See [REST API](rest-api.md#weekly-planning-parent-access).
+
+### Dismissing late chores
+
+`set_chore_dismissed` takes `choreId`, the missed `date` (`YYYY-MM-DD`) and `dismissed`
+(default `true`). Full access only. It removes just that missed date from the late list,
+without completing the chore or awarding points. Use `dismissed: false` to undo. `get_board`
+leaves dismissed dates out of `overdueChores`; the chore's schedule and history stay unchanged.

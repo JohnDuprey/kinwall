@@ -270,7 +270,7 @@ snapshotRoutes.openapi(
       return date && date >= since && date < today ? [{ r, date }] : [];
     });
     const ticked = !lastDue.length ? new Set<string>() : new Set((await db.prepare(
-      "SELECT chore_id FROM chore_completions WHERE (chore_id, date) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))",
+      "SELECT chore_id FROM chore_completions WHERE (chore_id, date) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1)) UNION ALL SELECT chore_id FROM chore_dismissals WHERE (chore_id, date) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1))",
     ).bind(JSON.stringify(lastDue.map(({ r, date }) => [r.id, date]))).all<{ chore_id: string }>()).results.map((x) => x.chore_id));
     const overdueChores = lastDue.filter(({ r }) => !ticked.has(r.id))
       .sort((a, b) => a.date.localeCompare(b.date)) // stable: chores keep their order within a day

@@ -577,3 +577,14 @@ applied links). Imports accept older files without it. Review counters and reque
 are internal metadata and are not exported. The `weekly-plan.changed` webhook carries only
 `weekStart` (or an import count); ordinary `meal.changed` and `list.item.changed` events also
 fire after new items are committed. No pickup requests or new push alerts are generated.
+
+### Dismissing late chores
+
+`PUT /api/chores/{id}/dismissal` with `{date: "YYYY-MM-DD", dismissed: true}` removes that
+missed occurrence from the Board's `overdueChores`. Parent/full access only; wall screens and
+kids' devices get `403`. The date must be due, before today and within the household's last
+seven days. Paused, archived, ongoing or flexible-goal chores cannot be dismissed; a completed
+or pending occurrence returns `409`. No completion or points are written and future repeats
+are unchanged. Send `dismissed: false` to undo, including after the date leaves the late window.
+Repeating the same request has the same result. Dismissals are included in JSON backups as
+`choreDismissals`; old backups without that field still import.

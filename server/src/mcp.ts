@@ -257,6 +257,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   update_chore: { chore: ChoreSchema },
   complete_chore: { ...OK, completionId: z.string().optional() },
   uncomplete_chore: OK,
+  set_chore_dismissed: OK,
   list_pending_approvals: { approvals: z.array(z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), points: z.number() })) },
   approve_chore: { ok: z.boolean(), points: z.number() },
   reject_chore: OK,
@@ -358,7 +359,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
-  create_chore: WRITE, update_chore: SET, complete_chore: WRITE, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_suggestions: READ, approve_chore_suggestion: WRITE, reject_chore_suggestion: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
+  create_chore: WRITE, update_chore: SET, complete_chore: WRITE, uncomplete_chore: SET, set_chore_dismissed: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_suggestions: READ, approve_chore_suggestion: WRITE, reject_chore_suggestion: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
   list_reward_milestones: READ, create_reward_milestone: WRITE, update_reward_milestone: SET, mark_milestone_given: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
@@ -1008,6 +1009,20 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
 
   tool(
+    'set_chore_dismissed',
+    {
+      title: 'Dismiss a late chore as not done',
+      description: 'Parent only. Remove one missed chore date from the late list without completing it, awarding points, or changing future repeats. Set dismissed to false to undo. The date must be a late occurrence from the last seven days when dismissing.',
+      inputSchema: { choreId: z.string(), date: z.string().describe('The missed date, YYYY-MM-DD.'), dismissed: z.boolean().default(true) },
+    },
+    async ({ choreId, date, dismissed }) => {
+      const res = await call(app, env, auth, 'PUT', `/api/chores/${encodeURIComponent(choreId)}/dismissal`, { date, dismissed });
+      if (res.status >= 400) return errorResult(res.json, 'failed to change chore dismissal');
+      return okResult(dismissed ? `Dismissed the chore for ${date} as not done. No points awarded.` : `Restored the late chore for ${date}.`, { ok: true });
+    },
+  );
+
+  tool(
     'uncomplete_chore',
     {
       title: 'Uncomplete chore',
@@ -1500,7 +1515,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'Get the household board',
       description:
         "The household bulletin board: everyone's events plus untagged ones, open list items due soon (or overdue) or high/urgent, " +
-        "today's chores per member, late chores from the last 7 days (overdueChores: a one-off's day, or a repeating chore's last time before today), and birthdays, for today through the next `days` days. A feature the family turned off (chores, lists, meals) " +
+        "today's chores per member, late chores from the last 7 days, excluding dates dismissed as not done (overdueChores: a one-off's day, or a repeating chore's last time before today), and birthdays, for today through the next `days` days. A feature the family turned off (chores, lists, meals) " +
         'comes back empty. Good for "what\'s coming up for the family?".',
       inputSchema: { days: z.number().int().min(1).max(14).optional().describe('How many days ahead, starting today (default 7).') },
     },

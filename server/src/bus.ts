@@ -21,6 +21,7 @@ export type BusEventType =
   | 'calendar.synced'
   | 'events.changed'
   | 'chore.changed'
+  | 'chore.dismissal.changed'
   | 'chore.completed'
   | 'chore.uncompleted'
   | 'chore.pending'

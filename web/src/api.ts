@@ -633,6 +633,8 @@ export const api = {
   updateLibraryChore: (id: string, body: LibraryChoreInput) => MOCK ? mock.updateLibraryChore(id, body) : patch<LibraryChore>(`api/chore-library/${id}`, body),
   deleteLibraryChore: (id: string) => MOCK ? mock.deleteLibraryChore(id) : del(`api/chore-library/${id}`),
   assignLibraryChore: (id: string, body: { date: string; memberId?: string | null; rrule?: string | null }) => MOCK ? mock.assignLibraryChore(id, body) : post<Chore>(`api/chore-library/${id}/assign`, body),
+  setChoreDismissed: (id: string, date: string, dismissed: boolean) =>
+    MOCK ? mock.setChoreDismissed(id, date, dismissed) : put(`./api/chores/${encodeURIComponent(id)}/dismissal`, { date, dismissed }),
   completeChore: (id: string, date: string, memberId?: string) =>
     MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId, operationId: crypto.randomUUID() }),
   uncompleteChore: (id: string, date: string) =>

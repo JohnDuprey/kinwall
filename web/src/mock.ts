@@ -32,6 +32,7 @@ import { duplicateScore, parseVCards } from './vcard.ts'
 const uid = () => crypto.randomUUID()
 const todayISO = () => dateKey(new Date()) // the local day, like the app's (not UTC's, a day ahead in a US evening)
 
+const choreDismissals = new Set<string>()
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
 const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen' | 'drainedOpen' | 'lastNight'>>() // `${memberId}:${date}`
@@ -1491,6 +1492,11 @@ export const mock = {
     const c: Chore = { id: uid(), title: l.title, emoji: l.emoji ?? '⭐', memberId: body.memberId !== undefined ? body.memberId : l.memberId, points: l.points, rrule: body.rrule ?? null, dueDate: body.date, dueTime: null, active: true, sort: chores.length, listId: l.listId, pluginId: null, pluginMinutes: null, needsApproval: l.needsApproval, libraryId: l.id }
     chores.push(c); bump(); return c
   },
+  setChoreDismissed: async (id: string, date: string, dismissed: boolean) => {
+    const key = `${id}:${date}`
+    if (dismissed) choreDismissals.add(key); else choreDismissals.delete(key)
+    rev++; return { ok: true }
+  },
   completeChore: async (id: string, date: string, memberId?: string) => {
     let c = chores.find(x => x.id === id)
     if (c?.ongoing) {
@@ -2263,7 +2269,7 @@ function mockBoard(days: number): Board {
     // Like the server: a one-off past its day, or a repeating chore's last time before today (not a goal), in the last 7 days.
     overdueChores: !settings.features.chores ? [] : chores.filter(c => c.active).flatMap(c => {
       const date = !c.rrule ? c.dueDate : c.repeatGoal ? null : [1, 2, 3, 4, 5, 6, 7].map(n => inDays(-n)).find(d => dueOn(c, d))
-      return date && date >= inDays(-7) && date < today && !completions.has(`${c.id}:${date}`) ? [{ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date }] : []
+      return date && date >= inDays(-7) && date < today && !completions.has(`${c.id}:${date}`) && !choreDismissals.has(`${c.id}:${date}`) ? [{ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date }] : []
     }).sort((a, b) => a.date.localeCompare(b.date)),
     birthdays,
     meals: [], // api.ts adds the demo menu (mock-meals.ts)

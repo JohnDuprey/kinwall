@@ -902,3 +902,36 @@ choresRoutes.openapi(
     return c.json({ ok: true }, 200);
   },
 );
+
+// Dismiss only the missed occurrence, never complete it or change its future schedule.
+choresRoutes.openapi(createRoute({
+  method: 'put', path: '/api/chores/{id}/dismissal', tags: ['Chores'],
+  summary: 'Dismiss a late chore as not done, or undo that dismissal (parent only)',
+  security: [{ Bearer: [] }],
+  request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: z.object({ date: MealDateSchema, dismissed: z.boolean() }) } } } },
+  responses: {
+    200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } } },
+    400: { description: 'not a late occurrence', content: { 'application/json': { schema: ErrorSchema } } },
+    404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    409: { description: 'already completed', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+}), async c => {
+  const { id } = c.req.valid('param');
+  const { date, dismissed } = c.req.valid('json');
+  const chore = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ?').bind(id).first<ChoreRow>();
+  if (!chore) return c.json({ error: 'not found' }, 404);
+  if (dismissed) {
+    const tz = (await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
+    const today = todayInTz(tz);
+    if (!chore.active || chore.archived || chore.ongoing || chore.repeat_goal || date < shiftDay(today, -DISPLAY_DAYS_BACK) || date >= today || !dueOnDate(chore, date, tz)) {
+      return c.json({ error: stored('error', 'Only a missed chore from the last seven days can be dismissed.') }, 400);
+    }
+    const completed = await c.env.DB.prepare('SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).first();
+    if (completed) return c.json({ error: stored('error', 'This chore has already been ticked off.') }, 409);
+    await c.env.DB.prepare('INSERT OR IGNORE INTO chore_dismissals (chore_id, date, dismissed_at) VALUES (?, ?, ?)').bind(id, date, new Date().toISOString()).run();
+  } else {
+    await c.env.DB.prepare('DELETE FROM chore_dismissals WHERE chore_id = ? AND date = ?').bind(id, date).run();
+  }
+  await emit(c, 'chore.dismissal.changed', { choreId: id, date, dismissed });
+  return c.json({ ok: true as const }, 200);
+});

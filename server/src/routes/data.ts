@@ -1,3 +1,4 @@
+import { MealDateSchema } from '../meal-schemas.ts';
 import { PlanningExportSchema } from '../weekly-planning-schemas.ts';
 import { exportWeeklyPlans } from '../weekly-planning.ts';
 import { AnnouncementSchema, readAnnouncements } from '../announcements.ts';
@@ -148,6 +149,7 @@ const ExportSchema = z
     // The chore library (0082): saved chores to hand out. Older exports predate it.
     choreLibrary: z.array(LibraryChoreSchema.pick({ id: true, title: true, emoji: true, points: true, listId: true, memberId: true, everyN: true, everyUnit: true, needsApproval: true, notes: true, createdAt: true })),
     // pointsAwarded: older exports predate it - null imports as the chore's full points.
+    choreDismissals: z.array(z.object({ choreId: z.string(), date: MealDateSchema, dismissedAt: z.string() })).default([]),
     choreCompletions: z.array(z.object({ id: z.string(), choreId: z.string(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), pointsAwarded: z.number().nullable().default(null), status: z.enum(['approved', 'pending']).default('approved') })),
     lists: z.array(
       ListSchema.extend({
@@ -411,6 +413,7 @@ dataRoutes.openapi(
         choreLibrary: (await db.prepare('SELECT id, title, emoji, points, list_id, member_id, every_n, every_unit, needs_approval, notes, created_at FROM chore_library ORDER BY created_at, id').all<LibraryRow>()).results.map((r) => ({
           id: r.id, title: r.title, emoji: r.emoji, points: r.points, listId: r.list_id, memberId: r.member_id, everyN: r.every_n, everyUnit: r.every_unit, needsApproval: r.needs_approval == null ? null : !!r.needs_approval, notes: r.notes, createdAt: r.created_at,
         })),
+        choreDismissals: (await db.prepare('SELECT chore_id, date, dismissed_at FROM chore_dismissals ORDER BY date, chore_id').all<{ chore_id: string; date: string; dismissed_at: string }>()).results.map(r => ({ choreId: r.chore_id, date: r.date, dismissedAt: r.dismissed_at })),
         choreCompletions: (completions as CompletionRow[]).map((r) => ({ id: r.id, choreId: r.chore_id, date: r.date, memberId: r.member_id, completedAt: r.completed_at, pointsAwarded: r.points_awarded, status: r.status })),
         lists: (lists as ListRow[]).map((l) => {
           const mine = itemRows.filter((i) => i.list_id === l.id);
@@ -958,6 +961,7 @@ dataRoutes.openapi(
         })),
         { ...keepCreated, expr: { member_id: memberRef('member_id'), library_id: "(SELECT id FROM chore_library WHERE id = j.value->>'library_id')" } },
       ),
+      ...upserts(db, 'chore_dismissals', 'chore_id, date', body.choreDismissals.filter(d => choreIds.has(d.choreId)).map(d => ({ chore_id: d.choreId, date: d.date, dismissed_at: d.dismissedAt }))),
       // UNIQUE(chore_id, date) is the natural key (as in POST /chores/:id/complete); an existing tick keeps its id.
       ...upserts(
         db,
