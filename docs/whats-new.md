@@ -4,6 +4,112 @@ The full list of changes in every version is in the [changelog](https://github.c
 
 ## Coming in the next version
 
+## 1.4.0
+
+Catch a thought before it slips away, then look over the week together and get ready for what's
+coming. Keep track of the food you have and find meals to use it up, with easier ways to share
+and organize chores.
+
+### Highlights
+
+* **An inbox for passing thoughts**: jot down "Permission slip for Friday" without picking a
+  date, person or list first. Later, turn it into a task, calendar event or note on the family
+  board. It stays in the inbox until you've added it, and cleared thoughts can be brought back.
+  See [Inbox](using/inbox.md).
+* **Plan the week**: open it from Home or Calendar to see next week's events, dinners, to-dos
+  and home upkeep together. Pick meals, swap a planned dinner or leave one open on purpose, and
+  add preparation tasks linked to an event. Save a shared draft, then review what to add to the
+  week. See [Plan the week](using/weekly-planning.md).
+* **Pantry lists**: keep food at home on its own list, with use-by dates and where it's kept.
+  Scan barcodes in the Kinwall phone app, see what needs using first, and optionally have used-up
+  food added to your grocery list when you check it off. See [Lists](using/lists.md#pantry).
+* **Use it up**: the meal planner suggests your own recipes for food that expires soon, showing
+  what you have and what you'd still need. Open a recipe or plan it for dinner. A connected AI
+  assistant can help with ideas too. See [Meals](using/meals.md#use-it-up).
+* **Chores for several people**: give each person their own copy of a chore in one go. Everyone
+  ticks theirs off and earns their own points; editing the chore changes all the linked copies.
+  See [Chores](using/chores.md#chores-for-several-people).
+* **Chores in your order**: drag chores into place or use the up and down buttons, and give them
+  categories such as Kitchen or Garden to find them more easily. See
+  [Chores](using/chores.md#putting-chores-in-order).
+* **Ongoing responsibilities**: keep jobs like putting a wash on available for anyone to do
+  again, even on the same day. Each completion earns its own points and can need a parent's OK,
+  without adding unfinished daily work or breaking streaks. See
+  [Chores](using/chores.md#ongoing-responsibilities).
+* **Catch up on late chores**: the Board keeps missed chores in reach for seven days, including
+  the most recent missed time for a repeating chore. Open the late list to finish one for the day
+  it was due; a chore with an unfinished checklist opens that checklist first. Parents can also
+  choose **Not done**, with Undo, to remove that missed day without awarding points or changing
+  future repeats. See
+  [Chores](using/chores.md#late-chores).
+
+### Everything else
+
+* Recipe pickers share search, sorting and cooking-history filters. Find favorites, top-rated
+  recipes, meals you cook often or something you have never cooked. See
+  [Meals](using/meals.md#planning-the-week).
+* Planning has a visible **Close** button on every step, asks before discarding unsaved changes,
+  and fits the Calendar toolbar on phones. Hide the Home planning prompt for today, this week
+  or until you bring it back; planning stays available in Calendar.
+* The Board fits its available space more reliably, keeps late chores reachable and stops rows
+  flickering between the card and **More**. On wide screens, approvals sit below the chore
+  columns. Inbox and notification badges line up.
+* Meals puts planned meals first on phones. Cooking instructions are easier to read on a wall,
+  eating-out order actions are easier to find, and ingredients already on the grocery list
+  start unticked when choosing what to add. **Plan meal** starts on the day you're looking at.
+* Removing a book from the library, deleting a journal entry or removing an upkeep file asks
+  first. **Share recipe** explains who can see a recipe and makes a link only when you tap
+  **Make a link**.
+* Chore repeat and due-date choices are easier to find, with less-used options under
+  **More options**. Rewards appear before milestones, and everyday labels and passkey errors use
+  clearer words.
+* Settings cards have clearer names, such as **Language on this device** and **Appearance for
+  the family**, and search finds settings by everyday words such as "quiet hours" or "font".
+* Leaving Free time or a journal takes you back to where you opened it. Open Free time from
+  Home, and Back returns to Home instead of Chores.
+* Event details show which calendar an event comes from. Calendar and Chores views showing today
+  move to the new day after midnight; a date you picked stays put.
+* Calendar feeds handle older repeating events and timezones more reliably, including all-day
+  events on servers in another timezone. Reminders set more than two days ahead now arrive.
+* Cooking steps such as "1 hour 15 minutes" make one timer, and short timers show their actual
+  duration.
+* Clearer icons throughout the app, fixes for lists switching or saving their settings, and
+  edited contact phone numbers saving correctly. Coloring pages and profile pictures no longer
+  turn up as memories.
+* Notification settings explain why the phone app's push notifications are off. Fixes also keep
+  browser notification registrations from displacing the phone app's registrations.
+* A passkey saved in a password manager such as 1Password signs in from your other browsers and
+  devices too, at the same Kinwall address. See
+  [Sign-in and security](using/sign-in-and-security.md).
+* Security fixes for passkeys, connected-app sign-in, device pairing and activity updates.
+* Less database work for long event reminders and phone notification registration, and faster
+  recipe matching for the pantry.
+
+### Upgrading
+
+See [Updating](self-hosting/updating.md). The database updates itself on first start. Existing
+lists and chores keep their types and schedules; pantry lists and ongoing responsibilities are
+choices you turn on. Turning a synced to-do list into a pantry list stops its to-do-app sync.
+
+Weekly planning is for parents. Its drafts are shared between parents and included in backups;
+**Save draft** keeps choices without adding anything, while **Add to the week** applies the
+reviewed meals and preparation tasks. Preparation tasks have due dates, not timed alerts.
+
+Inbox is for parents and included in backups. It starts on; turn it off under
+**Settings → General → Features → Inbox** if you don't need it. Capturing a thought doesn't
+notify anyone. Turning one into a note on the family board makes that note visible on Home.
+English day words such as "Friday" can suggest a date to check before adding an event or task.
+
+Self-hosted Android push enrollment also needs the Kinwall Android app update that names the
+server's public address (version 1.4.0); install it when it reaches your test channel. The phone apps are available as test builds through TestFlight and Google Play testing,
+not yet as public store listings; see [Native apps](integrations/mcp.md#native-apps).
+
+If you use the REST API or MCP: linked chores change together when edited or deleted, and ongoing
+chores return a separate completion ID for each tick. See
+[REST API](integrations/rest-api.md#chore-organization) and
+[MCP](integrations/mcp.md#chore-organization) for the new fields and retry behavior. Calendar feed
+downloads now have a 20 MB limit and a 30-second timeout.
+
 ## 1.3.0
 
 Kinwall now looks after the house too, keeps kids' screen time tied to their chores, and its
