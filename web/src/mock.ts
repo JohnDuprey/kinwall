@@ -983,7 +983,7 @@ function mockNewscast(q: { days?: number; before?: string }): Newscast {
 }
 
 const milestones: Milestone[] = [
-  { id: 'ms1', title: 'Movie night', emoji: '🍿', reward: 'Pick the family movie', metric: 'points', target: 100, active: true, createdAt: '2026-01-01T00:00:00Z', members: [
+  { id: 'ms1', title: '100-point club', emoji: '🍿', reward: 'Pick the family movie', metric: 'points', target: 100, active: true, createdAt: '2026-01-01T00:00:00Z', members: [
     { memberId: 'm3', startedAt: '2026-01-01T00:00:00Z', progress: 65, earnedAt: null, givenAt: null },
     { memberId: 'm4', startedAt: '2026-01-01T00:00:00Z', progress: 40, earnedAt: null, givenAt: null },
   ] },

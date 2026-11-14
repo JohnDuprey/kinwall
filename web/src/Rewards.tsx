@@ -221,8 +221,6 @@ function RewardsPanel({ member }: { member: Member }) {
           </div>
         )}
       </section>
-      <MilestonesPanel memberId={member.id} />
-
       {parentDevice && <ApprovalQueue only="rewards" />}
 
       {waiting.length > 0 && (
@@ -263,6 +261,9 @@ function RewardsPanel({ member }: { member: Member }) {
           <ul className="sticker-packs">{g.items.map(card)}</ul>
         </section>
       ))}
+
+      {/* After what can be spent now: milestones are the long game. */}
+      <MilestonesPanel memberId={member.id} />
 
       {settings.stickersEnabled && (
         <a className="rewards-stickers" href={`#/activities/stickers?member=${member.id}&tab=shop`}>
