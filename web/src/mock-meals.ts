@@ -127,7 +127,8 @@ const link = (recipeId: string, ingredient: string, basicId: string) => {
 }
 link('demo-tacos', 'Taco seasoning', 'demo-taco-seasoning')
 link('demo-pizza', 'Pizza dough', 'demo-pizza-dough')
-const recipe = recipes[0]
+// New demo recipes start blank, not as a copy of a seeded one (its description, favorites and steps).
+const blankRecipe: Recipe = { ...seedRecipe('new', '', '', '', '', []), description: null, instructions: null, preparationNotes: null }
 // Each row is Sunday through Saturday; columns match breakfast, lunch, dinner, snack.
 const menu = [
   ['pancakes', 'wraps', 'chicken', 'parfaits'],
@@ -365,7 +366,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     }
     if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id).map(r => ({ ...r, ingredients: r.ingredients.map(i => i.basicId === id ? { ...i, basicId: null, basicName: null } : i) })); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
     const input = body as Partial<RecipeInput>
-    const saved: Recipe = { ...recipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const saved: Recipe = { ...blankRecipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
     recipes = [...recipes.filter(r => r.id !== saved.id), saved]; return saved
   }
   if (id === 'projection') {

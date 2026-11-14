@@ -26,7 +26,7 @@ async function seedStory() {
   for (const [day, title] of [[1, 'Tacos'], [3, 'Lemon chicken'], [5, 'Leftovers'], [6, 'Family pizza night']] as const) await writeMeal({ date: on(day), slot: 'dinner', title, mealKind: 'freeform' })
   const lists = await mock.getLists()
   const pantry = lists.find(l => l.purpose === 'pantry') ?? await mock.createList({ name: 'Food at home', kind: 'todo', purpose: 'pantry' })
-  await mock.addListItems(pantry.id, { title: 'Spinach', dueDate: on(3), quantity: '1 bag' })
+  await mock.addListItems(pantry.id, { title: 'Spinach', dueDate: on(3), quantity: '1 bag', category: 'Fridge' })
   await mockMealRequest('api/recipes', { method: 'POST', body: JSON.stringify({ name: '20-minute spinach pasta', kind: 'meal', defaultServings: 4, totalMinutes: 20, ingredients: [{ name: 'Spinach', quantity: 1, unit: 'bag' }, { name: 'Pasta', quantity: 400, unit: 'g' }], instructions: 'Cook the pasta. Wilt the spinach in olive oil, then toss with pasta and a little cooking water.' }) })
 }
 async function read(requested?: string): Promise<WeeklyPlanning> {
