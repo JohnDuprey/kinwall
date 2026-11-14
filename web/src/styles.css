@@ -1094,7 +1094,12 @@ button.month-cell .month-daynum { flex: none; }
 .chore-entry { display: grid; gap: 6px; min-width: 0; }
 .chore-category-name { color: var(--text-dim); font-size: 0.85em; padding-inline: 4px; overflow-wrap: anywhere; }
 .chore-order-actions { display: flex; gap: 6px; }
-.chore-order-actions .btn { min-height: 44px; flex: 1; padding: 6px; }
+.chore-order-actions .btn { min-height: 44px; min-width: 44px; flex: 1; padding: 6px; }
+/* Edit mode: Up/Down sit beside the card (arrows on a phone, with words from tablet up) instead of doubling its row. */
+.chore-entry:has(.chore-order-actions) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.chore-entry:has(.chore-order-actions) > .chore-category-name { grid-column: 1 / -1; }
+.chore-order-word { display: none; }
+@media (min-width: 700px) { .chore-order-word { display: inline; } }
 .chore-category-filter { max-width: 360px; margin: 12px 0; }
 .chore-card:active { transform: scale(0.97); }
 .chore-card.done { background: var(--card-soft); } /* no opacity: done text keeps its contrast */

@@ -708,8 +708,8 @@ export default function Chores() {
                     {c.category && <span className="chore-category-name">{c.category}</span>}
                     <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) setEditChore(c) }} />
                     {canOrder && <div className="chore-order-actions">
-                      <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑ {t('Up')}</button>
-                      <button className="btn btn-secondary" disabled={ordering || index === movable.length - 1} aria-label={t('Move {title} down', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index + 1].id)}>↓ {t('Down')}</button>
+                      <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑<span className="chore-order-word"> {t('Up')}</span></button>
+                      <button className="btn btn-secondary" disabled={ordering || index === movable.length - 1} aria-label={t('Move {title} down', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index + 1].id)}>↓<span className="chore-order-word"> {t('Down')}</span></button>
                     </div>}
                   </div>
                 })}
@@ -922,67 +922,70 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
           ? t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
           : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
       </div>}
-      {settings.features.lists && <div className="field">
-        <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>
-        <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
-          <option value="">{t('None')}</option>
-          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
-        </select>
-        <p className="field-hint">{t('Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.')}</p>
-      </div>}
-      {!ongoing && (activities.length > 0 || pluginId) && (
-        <div className="field">
-          <label htmlFor="chore-activity">{t('Do an activity (optional)')}</label>
-          <select id="chore-activity" value={pluginId ?? ''} onChange={e => setPluginId(e.target.value || null)}>
-            <option value="">{t('None')}</option>
-            {activities.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.enabled ? p.name : t('{name} (off)', { name: p.name })}</option>)}
-            {pluginId && !activities.some(p => p.id === pluginId) && <option value={pluginId}>{t('Activity not available')}</option>}
-          </select>
-          {pluginId && (
-            <div className="chore-minutes">
-              <label htmlFor="chore-minutes">{t('Minutes')}</label>
-              <input id="chore-minutes" type="number" inputMode="numeric" min={1} max={60} value={minutes}
-                onChange={e => setMinutes(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setMinutes(m => Math.max(1, m))} />
-            </div>
-          )}
-          <p className="field-hint">{t("Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.")}</p>
-          {pluginId && (
-            <div className="toggle-row">
-              <label id="chore-approve-play-label">{t("Needs a parent's OK even for timed play")}</label>
-              <button className={`switch ${approveTimedPlay ? 'on' : ''}`} role="switch" aria-checked={approveTimedPlay} aria-labelledby="chore-approve-play-label" onClick={() => setApproveTimedPlay(v => !v)}><span className="knob" /></button>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="field">
-        <label htmlFor="chore-start">{t('Start time (optional)')}</label>
-        <div className="timer-custom-row">
-          <input id="chore-start" type="time" value={startTime} aria-describedby="chore-start-hint" onChange={e => setStartTime(e.target.value)} />
-          {startTime && <button type="button" className="btn btn-secondary" onClick={() => setStartTime('')}>{t('No start time')}</button>}
-        </div>
-        <p className="field-hint" id="chore-start-hint">{t("When it should start, every day it's due. It shows on Today on the Board.")}</p>
-      </div>
-      {!pluginId && <div className="field">
-        <label htmlFor="chore-timer">{t('Timer (optional)')}</label>
-        <select id="chore-timer" value={timerMinutes ?? ''} onChange={e => setTimerMinutes(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">{t('None')}</option>
-          {[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
-        </select>
-        <p className="field-hint">{t('Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.')}</p>
-      </div>}
-      <div className="field">
-        <label htmlFor="chore-approval">{t("Needs a parent's OK")}</label>
-        <select id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>
-          <option value="default">{assignee ? (defaultApproval ? t('Default (yes)') : t('Default (no)')) : t('Default')}</option>
-          <option value="yes">{t('Yes')}</option>
-          <option value="no">{t('No')}</option>
-        </select>
-        <p className="field-hint">{t("Ticks from wall screens and kids' devices wait for a parent to approve before the points count.")} {assignee
-          ? (pluginId ? t("Default follows {name}'s setting in Settings → Family; timed play approves itself unless the switch above is on.", { name: assignee.name }) : t("Default follows {name}'s setting in Settings → Family.", { name: assignee.name }))
-          : (pluginId ? t('Default follows the setting of whoever does it in Settings → Family; timed play approves itself unless the switch above is on.') : t('Default follows the setting of whoever does it in Settings → Family.'))}</p>
-      </div>
       {ongoing && <div className="field"><label htmlFor="chore-available-from">{t('Starts')}</label><input id="chore-available-from" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>}
       {!ongoing && <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={today} onChange={editSched} onStart={setDueDate} />}
+      <details className="settings-disclosure" open={!!chore && !!(listId || pluginId || startTime || timerMinutes || needsApproval !== null) || undefined}>
+        <summary>{t('More options')}</summary>
+        {settings.features.lists && <div className="field">
+          <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>
+          <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
+            <option value="">{t('None')}</option>
+            {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
+          </select>
+          <p className="field-hint">{t('Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.')}</p>
+        </div>}
+        {!ongoing && (activities.length > 0 || pluginId) && (
+          <div className="field">
+            <label htmlFor="chore-activity">{t('Do an activity (optional)')}</label>
+            <select id="chore-activity" value={pluginId ?? ''} onChange={e => setPluginId(e.target.value || null)}>
+              <option value="">{t('None')}</option>
+              {activities.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.enabled ? p.name : t('{name} (off)', { name: p.name })}</option>)}
+              {pluginId && !activities.some(p => p.id === pluginId) && <option value={pluginId}>{t('Activity not available')}</option>}
+            </select>
+            {pluginId && (
+              <div className="chore-minutes">
+                <label htmlFor="chore-minutes">{t('Minutes')}</label>
+                <input id="chore-minutes" type="number" inputMode="numeric" min={1} max={60} value={minutes}
+                  onChange={e => setMinutes(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setMinutes(m => Math.max(1, m))} />
+              </div>
+            )}
+            <p className="field-hint">{t("Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.")}</p>
+            {pluginId && (
+              <div className="toggle-row">
+                <label id="chore-approve-play-label">{t("Needs a parent's OK even for timed play")}</label>
+                <button className={`switch ${approveTimedPlay ? 'on' : ''}`} role="switch" aria-checked={approveTimedPlay} aria-labelledby="chore-approve-play-label" onClick={() => setApproveTimedPlay(v => !v)}><span className="knob" /></button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="field">
+          <label htmlFor="chore-start">{t('Start time (optional)')}</label>
+          <div className="timer-custom-row">
+            <input id="chore-start" type="time" value={startTime} aria-describedby="chore-start-hint" onChange={e => setStartTime(e.target.value)} />
+            {startTime && <button type="button" className="btn btn-secondary" onClick={() => setStartTime('')}>{t('No start time')}</button>}
+          </div>
+          <p className="field-hint" id="chore-start-hint">{t("When it should start, every day it's due. It shows on Today on the Board.")}</p>
+        </div>
+        {!pluginId && <div className="field">
+          <label htmlFor="chore-timer">{t('Timer (optional)')}</label>
+          <select id="chore-timer" value={timerMinutes ?? ''} onChange={e => setTimerMinutes(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">{t('None')}</option>
+            {[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
+          </select>
+          <p className="field-hint">{t('Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.')}</p>
+        </div>}
+        <div className="field">
+          <label htmlFor="chore-approval">{t("Needs a parent's OK")}</label>
+          <select id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>
+            <option value="default">{assignee ? (defaultApproval ? t('Default (yes)') : t('Default (no)')) : t('Default')}</option>
+            <option value="yes">{t('Yes')}</option>
+            <option value="no">{t('No')}</option>
+          </select>
+          <p className="field-hint">{t("Ticks from wall screens and kids' devices wait for a parent to approve before the points count.")} {assignee
+            ? (pluginId ? t("Default follows {name}'s setting in Settings → Family; timed play approves itself unless the switch above is on.", { name: assignee.name }) : t("Default follows {name}'s setting in Settings → Family.", { name: assignee.name }))
+            : (pluginId ? t('Default follows the setting of whoever does it in Settings → Family; timed play approves itself unless the switch above is on.') : t('Default follows the setting of whoever does it in Settings → Family.'))}</p>
+        </div>
+      </details>
     </Sheet>
   )
 }

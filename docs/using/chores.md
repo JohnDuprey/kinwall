@@ -45,6 +45,8 @@ A chore that isn't ticked off on its day doesn't disappear right away: for 7 day
 
 Tap **+** (Add chore). The sheet has:
 
+The repeat and due date fields come right after **Assign to**; **Checklist**, **Start time**, **Timer**, **Needs a parent's OK** and the activity choice sit under **More options**, which opens by itself when a chore already uses one.
+
 | Field | Notes |
 |---|---|
 | **Title**, **Emoji** | |
