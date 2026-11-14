@@ -54,7 +54,7 @@ export default function WeeklyPlanner({ home }: { home: boolean }) {
       <div className="weekly-invite-copy"><strong>{t('A look at next week')}</strong><p>{error || (data ? data.features.meals ? tn(dinnerCount(data), '{n} dinner to decide', '{n} dinners to decide') : t('Make a little room for next week.') : t('Loading next week…'))}</p></div>
       <button type="button" className="icon-btn weekly-invite-dismiss" aria-label={t('Hide planner from Home')} aria-haspopup="dialog" onClick={() => { setDuration('today'); setDismissing(true) }}><XIcon /></button>
       <button className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('Plan the week →')}</button>
-    </div> : <button className="btn btn-secondary weekly-calendar-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('Plan the week')}</button>}
+    </div> : <button className="btn btn-secondary weekly-calendar-button" aria-label={t('Plan the week')} aria-haspopup="dialog" onClick={() => setOpen(true)}><span className="weekly-calendar-label">{t('Plan the week')}</span><span className="weekly-calendar-short" aria-hidden="true">{t('Plan')}</span></button>}
     {dismissing && <Sheet title={t('Hide planner from Home?')} onClose={() => setDismissing(false)} actions={<>
       <button type="button" className="btn btn-secondary" onClick={() => setDismissing(false)}>{t('Cancel')}</button>
       <button type="button" className="btn btn-primary" onClick={hideHome}>{t('Hide planner')}</button>

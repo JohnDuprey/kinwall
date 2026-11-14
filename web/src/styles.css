@@ -4402,13 +4402,19 @@ html:root[data-cast] {
 
 /* Calendar keeps planning with its controls; Home keeps the small invitation. */
 .weekly-calendar-button { flex: none; min-height: 44px; white-space: nowrap; }
+.weekly-calendar-short { display: none; }
 @media (min-width: 961px) and (max-width: 1200px) {
   .cal-toolbar:has(.weekly-calendar-button) { grid-template-columns: 1fr auto; }
   .cal-toolbar:has(.weekly-calendar-button) .toolbar-end { grid-column: 2; grid-row: 1; }
   .cal-toolbar:has(.weekly-calendar-button) .toolbar-nav { grid-column: 1 / -1; grid-row: 2; }
 }
 @media (max-width: 600px) {
-  .cal-toolbar .weekly-calendar-button { grid-column: 1 / -1; grid-row: 3; justify-self: end; min-height: 44px; }
+  .cal-toolbar:has(.weekly-calendar-button) > .view-switch { grid-column: 1 / 3; min-width: 0; }
+  .cal-toolbar .weekly-calendar-button { grid-column: 3; grid-row: 1; justify-self: end; min-height: 44px; padding: 8px 12px; }
+  .weekly-calendar-label { display: none; }
+  .weekly-calendar-short { display: inline; }
+  .cal-toolbar.no-switch .weekly-calendar-button { grid-column: 4; grid-row: 2; }
+  .cal-toolbar.no-switch:has(.weekly-calendar-button) .toolbar-nav { grid-column: 1 / 4; }
   .weekly-invite { margin-inline: 14px; }
 }
 
