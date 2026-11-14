@@ -4335,7 +4335,9 @@ html:root[data-cast] {
 /* Scheduled messages stay above every Board layout, with a visible label for emphasis. */
 .board-scroll:has(> .board-announcements) { display: flex; flex-direction: column; }
 .board-announcements { flex: none; padding: 8px var(--pad) 0; }
-.board-announcements ~ .board { height: auto; flex: 1 1 0; min-height: 480px; } /* an explicit min-height: the auto one is the cards' content, so unfit cards would stretch the grid */
+.board-announcements ~ .board { height: auto; flex: 1 0 480px; }
+/* The fixed board fits the room left: an explicit min-height, since the auto one is the cards' content, so unfit cards would stretch the grid. A scrolling board keeps its content height. */
+.board-scroll[data-fixed] > .board-announcements ~ .board { flex: 1 1 0; min-height: 480px; }
 .announcement-banner { display: flex; gap: 12px; padding: 16px; margin-bottom: 8px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); overflow-wrap: anywhere; }
 .announcement-important { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
 .announcement-icon { flex: none; font-size: 1.6rem; }
