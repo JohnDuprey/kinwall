@@ -10,11 +10,11 @@
 |---|---|
 | Household settings (including Newscast's per-person **Featured** and **Can post** switches) | Passwords, OAuth tokens, CalDAV logins |
 | Members, categories | API keys, sessions, recovery codes, the night PIN (set it again after a restore) |
-| Chores **with completion history** and dates dismissed as not done (points awarded, and whether each is approved or waiting for a parent's OK), the [chore library](../using/chores.md#chore-library) and which chores came from it, and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
+| Chores **with completion history** and dates dismissed as not done (points awarded, and whether each is approved or waiting for a parent's OK), each chore's category, saved order, linked copies for several people and whether it's an ongoing responsibility, the [chore library](../using/chores.md#chore-library) and which chores came from it, and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
 | Points spent, daily check-ins, sticker packs unlocked and sticker book pages | |
 | [Temp check](../using/snapshot.md#temp-check) settings and answers (evening goal checks and energy battery check-ins too), each person's own feelings, and [journal](../using/journal.md) entries. [Medications](../using/medications.md) and their taken/skipped log. Sleep, feelings, goal checks, journal entries and medications are encrypted on the server but **in plain form in this file** (a connected app's export leaves them out). A [private journal](../using/journal.md#private-journals) entry's words and a private day's goal check notes are never in the file, for anyone: its mood and day are. Whether journals are private isn't in the file either | |
 | Rewards (archived ones too), every reward request with its status and note, and each person's goal | |
-| Lists (with their type: Groceries, Shopping, To-do or Reusable), items, group order, remembered store/category/aisle per item and the catalog categories (per catalog), stores' aisle orders | Push subscriptions |
+| Lists (with their type: Groceries, Shopping, To-do, Pantry or Reusable, and a pantry's automatic restocking), items (with a pantry item's use-by date and where it's kept), group order, remembered store/category/aisle per item and the catalog categories (per catalog), stores' aisle orders | Push subscriptions |
 | Local calendars **with their events** (reminders, travel time) | Synced events themselves (they're fetched again) |
 | Every calendar's name, color, members, default category, filter and hidden events | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |
@@ -63,5 +63,7 @@ paused progress, and earned/given dates (`rewardMilestones`). Importing restores
 and enrollments; existing ones are kept so older files cannot undo earned or given rewards.
 
 The [inbox](../using/inbox.md) is backed up as `inboxItems`: each thought's words, whether it's open, sorted or cleared, where a sorted one went, and its times. Import restores them by id without deleting others. Older exports without it remain valid.
+
+[Plan the week](../using/weekly-planning.md) is backed up as `weeklyPlans`: each week's shared draft and the meals and to-dos it added. Import replaces the plan for each week in the file and leaves other weeks alone. Older exports without it remain valid.
 
 Scheduled family announcements are backed up with their titles, details, UTC visibility windows, emphasis, ids, and creation/update times. Import restores them by id without deleting other announcements; expired messages stay expired unless you change their schedule. Older exports without announcements remain valid.
