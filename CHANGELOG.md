@@ -1,5 +1,80 @@
 # Changelog
 
+## [1.4.0](https://github.com/JohnDuprey/kinwall/compare/v1.3.0...v1.4.0) (2026-11-14)
+
+
+### New
+
+* **calendar:** add shared weekly planning ([f626c5e](https://github.com/JohnDuprey/kinwall/commit/f626c5e35fadb50a0f4eb0f5cdd8ac81c9052798))
+* **calendar:** allow dismissing the home planner prompt ([9887dc7](https://github.com/JohnDuprey/kinwall/commit/9887dc7f2c4166f72a7bc3f7db40d577ecb19ab9))
+* **calendar:** show the event's calendar in its details ([30ee3b6](https://github.com/JohnDuprey/kinwall/commit/30ee3b6a2c1a9bcc93536202377d7aa320579618))
+* **chores:** add manual order, categories and ongoing chores ([7b2cdbc](https://github.com/JohnDuprey/kinwall/commit/7b2cdbcfaddd9c6b89470e93a8f9ba4a5d666520)), closes [#94](https://github.com/JohnDuprey/kinwall/issues/94)
+* **chores:** assign a chore to several people ([d875ac6](https://github.com/JohnDuprey/kinwall/commit/d875ac6aeee659d64048b1fce264536930c5e63b))
+* **chores:** dismiss missed chores without awarding points ([c103492](https://github.com/JohnDuprey/kinwall/commit/c1034920b0690918025f8cd211ff7bc7926fc1df))
+* **chores:** open a late chore's checklist on its day ([41785fe](https://github.com/JohnDuprey/kinwall/commit/41785fe58428d1d52f833368a6445bf85e6da6de)), closes [#77](https://github.com/JohnDuprey/kinwall/issues/77)
+* **chores:** show a repeating chore's missed last time as late ([fdb4322](https://github.com/JohnDuprey/kinwall/commit/fdb4322d504da1e7781a0f07e8a91d79ef58f9c0)), closes [#77](https://github.com/JohnDuprey/kinwall/issues/77)
+* **chores:** show late one-off chores on the board ([dc37c54](https://github.com/JohnDuprey/kinwall/commit/dc37c54d008160e9641bd03a74e605ff2a6eb36b)), closes [#77](https://github.com/JohnDuprey/kinwall/issues/77)
+* **inbox:** add a quick-capture inbox for parents ([be71f2b](https://github.com/JohnDuprey/kinwall/commit/be71f2b42f8374f26bc967c27e7e4bf7b6d2fd71))
+* **lists:** add pantry lists with use-by dates and meal ideas ([#89](https://github.com/JohnDuprey/kinwall/issues/89)) ([fded338](https://github.com/JohnDuprey/kinwall/commit/fded3380b422ee5291e263a796aac0a204bbffaa))
+* **lists:** support barcode scanning in pantry lists ([4082f02](https://github.com/JohnDuprey/kinwall/commit/4082f02cc893b332da8b38eff2794f91578e94e5))
+* **recipes:** share selectors and add sorting and cooking filters ([e774848](https://github.com/JohnDuprey/kinwall/commit/e77484837b2377a195226fee8816921167529672))
+* **server:** give the android app the address to enroll with ([fcbf5dd](https://github.com/JohnDuprey/kinwall/commit/fcbf5dda13e8da1c67d2113e4f381446f41a9f28)), closes [#77](https://github.com/JohnDuprey/kinwall/issues/77)
+* **settings:** say why the app's push notifications are off ([33e4039](https://github.com/JohnDuprey/kinwall/commit/33e403954bd20beeb166ef194a297db2e84e8c15)), closes [#77](https://github.com/JohnDuprey/kinwall/issues/77)
+
+
+### Fixed
+
+* **auth:** require user verification in passkey requests ([6e9d77a](https://github.com/JohnDuprey/kinwall/commit/6e9d77a45a6aa192bef19a5676a89e5d41a18c21))
+* **board:** fit the board to the room left; chores before approvals on wide screens ([205fb20](https://github.com/JohnDuprey/kinwall/commit/205fb205c13eea321bba9b6e07617d091bf81a1f))
+* **board:** keep late chores from being cut off on a tight chores card ([7725a6e](https://github.com/JohnDuprey/kinwall/commit/7725a6e05a5ecc3c4caa2dcea9d8ff1a0dae46b0))
+* **board:** keep the scrolling board at its content height ([cbdc03d](https://github.com/JohnDuprey/kinwall/commit/cbdc03d5bb7b225a2c4f84b6d10763bc3769c5ae))
+* **board:** stop a card's rows flickering between fit and More ([39c2294](https://github.com/JohnDuprey/kinwall/commit/39c2294e0d9cc67fc676ee85392fa83cd820d1cf))
+* **calendar:** fit planner control in the phone toolbar ([c7bb308](https://github.com/JohnDuprey/kinwall/commit/c7bb3085ead92c0bdd7176fe21c4ce31b53ef611))
+* **calendar:** keep planning exit controls visible on phones ([44f8e01](https://github.com/JohnDuprey/kinwall/commit/44f8e011e6aa95702427e3c5f8bc07b42d0108af))
+* **calendar:** roll today views past midnight, fix races ([cbeb340](https://github.com/JohnDuprey/kinwall/commit/cbeb34041a56430e1f2a2fc27d15a5c5402c99f8))
+* **calendar:** say "At the start" for a reminder at the start time ([1dffd58](https://github.com/JohnDuprey/kinwall/commit/1dffd5893799b9e41bec56edb69895b4ca7d1591))
+* **calendar:** send event reminders set more than two days ahead ([da63381](https://github.com/JohnDuprey/kinwall/commit/da63381d166e74d869d4ea4e8c6e290a5eb35192))
+* **calendar:** show one-day all-day events without a date range ([d561955](https://github.com/JohnDuprey/kinwall/commit/d561955515593532911e0cf5702e6c3c88d2272d))
+* **chores:** limit undoing a tick to the days a device can tick ([8ef4e59](https://github.com/JohnDuprey/kinwall/commit/8ef4e599d44a2ca702f0ebaec97f56a0d3996a26))
+* **chores:** move repeat and due up, fold advanced options, compact Up and Down ([4ee99ff](https://github.com/JohnDuprey/kinwall/commit/4ee99ff54f01f8fcb0bb083dde40afd1cdb55554))
+* **contacts:** save an edited phone number sent with its old value ([ea6e25d](https://github.com/JohnDuprey/kinwall/commit/ea6e25d975a8039a4847ab6421cf3f831b9eddab))
+* **lists:** keep a list open after saving its settings ([#91](https://github.com/JohnDuprey/kinwall/issues/91)) ([ce25c0e](https://github.com/JohnDuprey/kinwall/commit/ce25c0efe76f9d04c25a4875399a25f1970b3f7f)), closes [#90](https://github.com/JohnDuprey/kinwall/issues/90)
+* **lists:** keep add fields clear of the phone status bar ([54a5bc2](https://github.com/JohnDuprey/kinwall/commit/54a5bc26fb9a071919daf36c9bc136317596c457))
+* **lists:** refresh cards when the default list changes ([c580bea](https://github.com/JohnDuprey/kinwall/commit/c580bea96d211fde8aec616fb0294828b7d513d8))
+* **mcp:** accept the six redirect addresses gemini registers ([92cea8b](https://github.com/JohnDuprey/kinwall/commit/92cea8bfd41b9d03ec7ad0758cdc7bf1da4b8574))
+* **mcp:** read list_events dates as days in the household timezone ([3a20007](https://github.com/JohnDuprey/kinwall/commit/3a2000762414b4fc0fcb7e3de62e45f8aacb0bb3))
+* **meals:** leave ingredients already on the list unticked and enlarge check rows ([1533ea3](https://github.com/JohnDuprey/kinwall/commit/1533ea38d3f843b872e34b946fca070e5de9c7e0))
+* **meals:** put eating-out order actions on top and drop the duplicate status ([7350ac9](https://github.com/JohnDuprey/kinwall/commit/7350ac9d865fc66bfcefbeee46035c7e239fce8f))
+* **meals:** put the step first in cooking mode and read bigger on a wall ([60ce015](https://github.com/JohnDuprey/kinwall/commit/60ce015176ae1a39731f4e82c6a862f82064fad7))
+* **meals:** scope the larger check rows to the groceries preview ([bc6fbf7](https://github.com/JohnDuprey/kinwall/commit/bc6fbf77452c878369d2787c411de2502da7b8d1))
+* **meals:** show planned meals before Use it up on phones ([438eee2](https://github.com/JohnDuprey/kinwall/commit/438eee2951931fa5a9215a05cf25e1d11b05bc89))
+* **recipes:** make "1 hour 15 minutes" one cooking timer ([675cdb2](https://github.com/JohnDuprey/kinwall/commit/675cdb21631571a95206db77d235e682cb4febd5))
+* **rewards:** list rewards before milestones and rename the demo milestone ([9f58d8b](https://github.com/JohnDuprey/kinwall/commit/9f58d8b4b71c41bb82ced366f83403babdf7fa9d))
+* **server:** keep one push-to-start registration per phone ([cdc471f](https://github.com/JohnDuprey/kinwall/commit/cdc471f85aa31a74375704c49e24843ef4b0fd20))
+* **settings:** keep search aliases out of the Inside line ([a89e1d6](https://github.com/JohnDuprey/kinwall/commit/a89e1d68232bd834e42a388dcba90ad964f974c3))
+* **sync,chores,plugins,mcp,push,pair:** close feed, race and plugin-id gaps ([f1b1471](https://github.com/JohnDuprey/kinwall/commit/f1b147146d94e0edccc684f8f2be0285515f52d1))
+* **sync:** keep all-day feed events on their date in any server timezone ([525071c](https://github.com/JohnDuprey/kinwall/commit/525071c184f65e978a58da06c3fcaf0d3c21308d))
+* **sync:** read feed times in the TZID they name without a VTIMEZONE ([792671f](https://github.com/JohnDuprey/kinwall/commit/792671f2799dbfee3aee76c85a0ab97ad3858241))
+* **sync:** show feed repeats that started many years ago ([1a067e0](https://github.com/JohnDuprey/kinwall/commit/1a067e0420b2864455b4a8f6e460cfe764df6a50))
+* **trackers:** keep coloring pages and profile pictures out of memories ([5090c3b](https://github.com/JohnDuprey/kinwall/commit/5090c3b96b098bcc9fe9f1872956c42907d82b48))
+* **web:** align inbox and notification badges ([68a8e1c](https://github.com/JohnDuprey/kinwall/commit/68a8e1c40de55b3e34b4cd4c274014537d50b74e))
+* **web:** answer demo chore ticks like the server ([115eb93](https://github.com/JohnDuprey/kinwall/commit/115eb93203aa879e5af031c248ed9d45f12aa7a8))
+* **web:** center the Go to Kinwall link on the Authorize error ([840cb33](https://github.com/JohnDuprey/kinwall/commit/840cb3336a5e1d1277905411a144b8da58f3fc61))
+* **web:** confirm destructive deletes and plan meals on the viewed day ([48f39ae](https://github.com/JohnDuprey/kinwall/commit/48f39ae67908ac9a51f038222210e4ae9f689829))
+* **web:** label part-minute timers by how long they run ([7ea38b6](https://github.com/JohnDuprey/kinwall/commit/7ea38b6315694eaba6cf1a525b96dc22f69cf4b0))
+* **web:** make interface icons recognizable at small sizes ([de936da](https://github.com/JohnDuprey/kinwall/commit/de936da26b0d54b7c14bcb68e0573122f9e7ed1d))
+* **web:** plain words for chores, meals, settings, passkey errors and MCP text ([8341a89](https://github.com/JohnDuprey/kinwall/commit/8341a8925754bc5c7561d7bc2e975b51a1d03df7))
+* **web:** return from free time and journal to their entry points ([089bcd8](https://github.com/JohnDuprey/kinwall/commit/089bcd806f69bfb4f1618c9680a637897a6c6bfb))
+* **web:** use the local day for demo dates ([ab71a6d](https://github.com/JohnDuprey/kinwall/commit/ab71a6dc362f72db461f8f9bce156dc45086fc1d))
+* **web:** validate sign-in URLs and language selection ([68740fc](https://github.com/JohnDuprey/kinwall/commit/68740fc7fd4320adb19a2bb18537a65ab91c8e23))
+
+
+### Faster
+
+* **calendar:** read long event reminders through a partial index ([ab0c274](https://github.com/JohnDuprey/kinwall/commit/ab0c27423c18671390ab4938876c7ed569fba06a))
+* **meals:** sort pantry once when ranking recipes ([f13c11a](https://github.com/JohnDuprey/kinwall/commit/f13c11a35b828f3305386f0ca62b812eb2be9d12))
+* **server:** answer an unchanged native push registration without writing ([470a722](https://github.com/JohnDuprey/kinwall/commit/470a7221ffa468cf384e69b84898adb395b422cd))
+
 ## [1.3.0](https://github.com/JohnDuprey/kinwall/compare/v1.2.0...v1.3.0) (2026-11-07)
 
 
