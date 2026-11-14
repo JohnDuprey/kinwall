@@ -228,7 +228,14 @@ Clients that show MCP prompts (often as a slash command) get **Use it up** (`use
 
 ## Native apps
 
-The same OAuth server signs in native apps, such as Kinwall for iPhone, iPad, Apple Watch and Android, built from the [kinwall-mobile](https://github.com/JohnDuprey/kinwall-mobile) repository. They aren't on the App Store or Play Store yet, so for now you build and install one yourself from that repo. Besides `https` and loopback `http` redirect addresses, registration accepts an app's own reverse-domain link scheme (RFC 8252), like `family.kinwall.app:/oauth`. Single-word schemes such as `javascript:` or `data:` are always refused. The consent screen then says you'll return to "the app".
+The same OAuth server signs in native apps, such as Kinwall for iPhone, iPad, Apple Watch and Android, built from the [kinwall-mobile](https://github.com/JohnDuprey/kinwall-mobile) repository. The apps are in testing and aren't publicly listed in the App Store or Google Play yet. To try a test build:
+
+* **iPhone and iPad** (the Watch app comes with the iPhone app): open the [Kinwall beta on TestFlight](https://testflight.apple.com/join/WhWaQB2G) on the device and follow its steps.
+* **Android**: join the [kinwall-testers group](https://groups.google.com/g/kinwall-testers), then [become a tester](https://play.google.com/apps/testing/family.kinwall.app) with the same Google account, then install [Kinwall from Google Play](https://play.google.com/store/apps/details?id=family.kinwall.app). The Play page shows only after you opt in; if it says the app isn't found, wait a few minutes and try again.
+
+Test builds can change, expire or stop taking new testers. You can also build and install an app yourself from that repo, but only the official builds can use the [push gateway](../self-hosting/configuration.md#push-gateway).
+
+Besides `https` and loopback `http` redirect addresses, registration accepts an app's own reverse-domain link scheme (RFC 8252), like `family.kinwall.app:/oauth`. Single-word schemes such as `javascript:` or `data:` are always refused. The consent screen then says you'll return to "the app".
 
 For Kinwall's own app (redirect `family.kinwall.app:/oauth`), the consent screen also asks **Whose device is this?**: **Shared** or one family member, **Shared** preselected. The choice becomes the owner of the grant's keys and of the widget and watch keys the app creates from them. With **Everyday access** it pins the app to that member, as with a paired display; with **Full access** it only sets personal defaults. MCP clients and other apps aren't asked and have no owner. See [Settings → Access](../settings/access.md#connected-apps).
 
