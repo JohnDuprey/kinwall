@@ -58,3 +58,16 @@ export function planningWeek(today: string, weekStart: number): string[] {
     return date.toISOString().slice(0, 10)
   })
 }
+
+export type PlannerDismissDuration = 'today' | 'week' | 'always'
+/** Dates are already in the family timezone; the prompt returns at its next midnight or week start. */
+export function plannerDismissUntil(duration: PlannerDismissDuration, today: string, weekStart: number): string {
+  if (duration === 'always') return 'always'
+  if (duration === 'week') return planningWeek(today, weekStart)[0]
+  const tomorrow = new Date(`${today}T12:00:00Z`)
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+  return tomorrow.toISOString().slice(0, 10)
+}
+export function plannerInviteHidden(until: string | undefined, today: string): boolean {
+  return until === 'always' || (!!until && /^\d{4}-\d{2}-\d{2}$/.test(until) && today < until)
+}

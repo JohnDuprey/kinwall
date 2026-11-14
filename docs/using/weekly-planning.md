@@ -4,6 +4,8 @@ Parents can open **Plan the week** from the Calendar toolbar or **A look at next
 Home. It starts with the next complete week, using the family's week-start setting and
 timezone. It is part of Calendar, with no new navigation tab or feature switch.
 
+Hide **A look at next week** on Home with its **×** button. **For how long?** offers **Today**, **This week** or **Until I show it again**. The choice is remembered on this device, even after reloading. Today expires at the family’s midnight; this week expires at the next family week-start day. **Undo** brings it straight back. **Plan the week** stays available on Calendar; open it and choose **Show planner on Home** to restore the Home prompt later.
+
 ![Plan the week on a tablet: the week ahead, day by day, with events, meals, food to use and upkeep](../screenshots/ipad-plan-week.png)
 
 ## Look over the week

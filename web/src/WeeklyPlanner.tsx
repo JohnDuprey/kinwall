@@ -8,8 +8,10 @@ import { useDialog } from './dialog.tsx'
 import { DAY, formatDate, msg, t, tm, tn } from './i18n.ts'
 import { formatTime } from './timeFormat.ts'
 import { onMinute } from './minuteTick.ts'
+import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance } from './useTheme.ts'
+import { XIcon } from './icons.tsx'
 import { dateKey, zonedDayKey } from './date.ts'
-import { dinnerCount, dinnerNeedsApply, leavePlanning, planConflicts, planningDay, planningDays, type PlanningDinner, type PlanningDraft, type PlanningPrep, type WeeklyPlanning } from './weekly-planning.ts'
+import { plannerDismissUntil, plannerInviteHidden, type PlannerDismissDuration, dinnerCount, dinnerNeedsApply, leavePlanning, planConflicts, planningDay, planningDays, type PlanningDinner, type PlanningDraft, type PlanningPrep, type WeeklyPlanning } from './weekly-planning.ts'
 
 const steps = [msg('The week ahead'), msg('A few decisions'), msg('Ready for the week')]
 const labelDate = (key: string) => formatDate(new Date(`${key}T12:00:00Z`), DAY, 'UTC')
@@ -17,33 +19,55 @@ const shiftDay = (key: string, offset: number) => { const day = new Date(`${key}
 const previousDay = (key: string) => shiftDay(key, -1)
 
 export default function WeeklyPlanner({ home }: { home: boolean }) {
-  const { parentDevice, settings, refreshTick } = useApp()
+  const { parentDevice, settings, refreshTick, toast } = useApp()
+  const device = useDeviceAppearance()
+  const timezone = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const today = zonedDayKey(new Date().toISOString(), timezone)
+  const hidden = plannerInviteHidden(device.weeklyPlannerHiddenUntil, today)
+  const [dismissing, setDismissing] = useState(false)
+  const [duration, setDuration] = useState<PlannerDismissDuration>('today')
+  const dismissId = useId()
+  const showHome = () => setDeviceAppearance({ ...readDeviceAppearance(), weeklyPlannerHiddenUntil: undefined })
+  const hideHome = () => {
+    setDeviceAppearance({ ...readDeviceAppearance(), weeklyPlannerHiddenUntil: plannerDismissUntil(duration, today, settings.weekStart) })
+    setDismissing(false)
+    toast(t('Planner hidden from Home.'), false, { label: t('Undo'), run: showHome })
+  }
   const [data, setData] = useState<WeeklyPlanning | null>(null)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
-    if (!parentDevice) return
+    if (!parentDevice || (home && hidden)) return
     let live = true
     api.getWeeklyPlanning().then(value => { if (live) { setData(value); setError('') } }).catch(() => { if (live) setError(t('Could not load next week. Try again.')) })
     return () => { live = false }
-  }, [parentDevice, settings.weekStart, settings.timezone, refreshTick, retry])
+  }, [parentDevice, home, hidden, settings.weekStart, settings.timezone, refreshTick, retry])
   useEffect(() => {
-    const timezone = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
     let day = zonedDayKey(new Date().toISOString(), timezone)
     return onMinute(() => { const next = zonedDayKey(new Date().toISOString(), timezone); if (next !== day) { day = next; setRetry(n => n + 1) } })
-  }, [settings.timezone])
+  }, [timezone])
   if (!parentDevice) return null
   return <>
-    {home ? <div className="weekly-invite">
+    {home ? !hidden && <div className="weekly-invite">
       <span className="weekly-invite-icon" aria-hidden="true">☀️</span>
-      <div><strong>{t('A look at next week')}</strong><p>{error || (data ? data.features.meals ? tn(dinnerCount(data), '{n} dinner to decide', '{n} dinners to decide') : t('Make a little room for next week.') : t('Loading next week…'))}</p></div>
+      <div className="weekly-invite-copy"><strong>{t('A look at next week')}</strong><p>{error || (data ? data.features.meals ? tn(dinnerCount(data), '{n} dinner to decide', '{n} dinners to decide') : t('Make a little room for next week.') : t('Loading next week…'))}</p></div>
+      <button type="button" className="icon-btn weekly-invite-dismiss" aria-label={t('Hide planner from Home')} aria-haspopup="dialog" onClick={() => { setDuration('today'); setDismissing(true) }}><XIcon /></button>
       <button className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('Plan the week →')}</button>
     </div> : <button className="btn btn-secondary weekly-calendar-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('Plan the week')}</button>}
-    {open && (data ? <Planner initial={data} onClose={() => setOpen(false)} onSaved={setData} /> : <Sheet title={t('Plan the week')} onClose={() => setOpen(false)}><p role="status">{error || t('Loading next week…')}</p>{error && <button className="btn btn-secondary" onClick={() => setRetry(n => n + 1)}>{t('Try again')}</button>}</Sheet>)}
+    {dismissing && <Sheet title={t('Hide planner from Home?')} onClose={() => setDismissing(false)} actions={<>
+      <button type="button" className="btn btn-secondary" onClick={() => setDismissing(false)}>{t('Cancel')}</button>
+      <button type="button" className="btn btn-primary" onClick={hideHome}>{t('Hide planner')}</button>
+    </>}>
+      <p>{t('This only hides the Home prompt on this device. You can still open the planner from Calendar.')}</p>
+      <div className="field"><label htmlFor={dismissId}>{t('For how long?')}</label><select id={dismissId} value={duration} onChange={e => setDuration(e.target.value as PlannerDismissDuration)}>
+        <option value="today">{t('Today')}</option><option value="week">{t('This week')}</option><option value="always">{t('Until I show it again')}</option>
+      </select></div>
+    </Sheet>}
+    {open && (data ? <Planner initial={data} onClose={() => setOpen(false)} onSaved={setData} onShowHome={hidden ? showHome : undefined} /> : <Sheet title={t('Plan the week')} onClose={() => setOpen(false)}><p role="status">{error || t('Loading next week…')}</p>{error && <button className="btn btn-secondary" onClick={() => setRetry(n => n + 1)}>{t('Try again')}</button>}</Sheet>)}
   </>
 }
-function Planner({ initial, onClose, onSaved }: { initial: WeeklyPlanning; onClose: () => void; onSaved: (plan: WeeklyPlanning) => void }) {
+function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPlanning; onClose: () => void; onSaved: (plan: WeeklyPlanning) => void; onShowHome?: () => void }) {
   const { members, reloadCore } = useApp()
   const dialog = useDialog()
   const [source, setSource] = useState(initial)
@@ -107,6 +131,7 @@ function Planner({ initial, onClose, onSaved }: { initial: WeeklyPlanning; onClo
   </>}>
     <div className="weekly-plan" ref={body}>
       {MOCK && <p className="weekly-note">{t('Demo · Changes stay in this page until reload. Nothing is sent.')}</p>}
+      {onShowHome && <button type="button" className="link-btn" onClick={onShowHome}>{t('Show planner on Home')}</button>}
       <ol className="weekly-steps">{steps.map((label, i) => <li key={label} aria-current={i === step ? 'step' : undefined}><span>{i + 1}</span>{tm(label)}</li>)}</ol>
       <div className="weekly-heading"><div><span className="weekly-eyebrow">{t('{start} – {end}', { start: labelDate(source.dates[0]), end: labelDate(source.dates[6]) })}</span><h2>{tm(steps[step])}</h2><p>{step === 0 ? t('A little planning. More room for family.') : step === 1 ? t('Choose a few dinners and prepare for what’s coming.') : t('Review what will be added before saving.')}</p></div>
         <div className="weekly-family">{members.map(member => <div key={member.id}><Face m={member} /><small>{member.name}</small></div>)}</div>

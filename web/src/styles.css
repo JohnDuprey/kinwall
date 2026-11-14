@@ -4353,6 +4353,8 @@ html:root[data-cast] {
 
 /* Parent-only weekly planning. */
 .weekly-invite { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin: 4px var(--pad) var(--gap); flex-shrink: 0; }
+.weekly-invite-copy { flex: 1; min-width: 0; }
+.weekly-invite .weekly-invite-dismiss { flex: none; order: 1; }
 .weekly-invite-icon { font-size: 28px; }
 .weekly-invite p { margin: 4px 0 0; color: var(--text-dim); font-size: .9rem; }
 .weekly-invite .btn { margin-left: auto; flex: none; }
@@ -4385,7 +4387,9 @@ html:root[data-cast] {
 @media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
   .weekly-invite { flex-wrap: wrap; gap: 12px; padding: 16px; }
   .weekly-invite-icon { display: none; }
+  .weekly-invite-copy { flex-basis: calc(100% - 56px); }
   .weekly-invite .btn { margin-left: 0; }
+  .weekly-invite .weekly-invite-dismiss { order: 0; align-self: flex-start; }
   :root .sheet:has(.weekly-plan) { height: 100%; max-height: 100%; border-radius: 0; padding-top: var(--safe-t); }
   .weekly-steps { gap: 6px; }
   .weekly-steps li { font-size: .72rem; flex-direction: column; align-items: flex-start; }
