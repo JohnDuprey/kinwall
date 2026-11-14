@@ -207,6 +207,8 @@
 .cook-timer-chip:disabled { border-style: dashed; }
 .cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
 .cook-step-side .cook-ingredients { margin-top: 0; }
+.cook-step-body { display: flex; flex-direction: column; }
+.cook-step-body > .cook-ingredients { order: 1; } /* the instruction first, this step's ingredients after it, on every screen */
 .cook-ingredients { margin-top: 16px; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--card); border: 1px solid var(--border); }
 /* Above the step text (no photo): the same 20px as between the photo and the step. */
 .cook-ingredients + .cook-step-text, .cook-ingredients + .cook-bullets { margin-top: 20px; }
@@ -248,6 +250,11 @@
   .cook-nav .btn { min-height: 52px; }
   .cook-step-text { font-size: clamp(1.25rem, 0.8rem + 2vw, 2rem); }
   .cook-step-side .cook-photo { max-height: 30vh; } /* leaves room for the step's ingredients under it */
+}
+/* A wall or tablet read from across the counter: bigger words. */
+@media (min-width: 1200px) and (min-height: 800px) {
+  .cook-step-text, .cook-bullets { --cook-text: clamp(2rem, 1.2rem + 1.6vw, 3rem); }
+  .cook-step { max-width: calc(1400px * var(--screen-k)); }
 }
 @media (prefers-reduced-motion: reduce) { .cook-progress > div { transition: none; } }
 
