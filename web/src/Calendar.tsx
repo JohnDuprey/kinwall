@@ -1,6 +1,6 @@
 import { EventFollow } from './EventFollow.tsx'
 import { AnnouncementsButton } from './FamilyAnnouncements.tsx'
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
@@ -42,6 +42,8 @@ import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, last
 import { onDayChange, onMinute, rollToToday } from './minuteTick.ts'
 import { DAY, LONG_DAY, formatDate, intlLocale, t, tc, tm, tn } from './i18n.ts'
 import { InlineFaces, ChipFace } from './Face'
+
+const WeeklyPlanner = lazy(() => import('./WeeklyPlanner.tsx'))
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -479,6 +481,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} warnMinutes={warnTimes} />}
       {warnTimes.length > 0 && <TransitionWarnings events={todayEvents} minutes={warnTimes} sound={!!device.warningSound} settings={settings} />}
       {parentDevice && <SyncAlert calendars={calendars} />}
+      {parentDevice && !locked && home && <Suspense fallback={null}><WeeklyPlanner home /></Suspense>}
       {home ? (!locked || (viewMode === 'board' && categories.length > 0)) && (
         // Home: Board | Newscast, the Board's count chips, Polls, Outings and Layout and filter. Locked
         // to a view, just the category filter (when the family has categories).
@@ -515,6 +518,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
           </div>
           {/* Show hidden and the filter sit together at the end, same size and gap. */}
           <div className="toolbar-end">
+            {parentDevice && !locked && <Suspense fallback={null}><WeeklyPlanner home={false} /></Suspense>}
             {/* A day opened from Month on a phone: Back to it. With the switch inline, its Month is that one tap already. */}
             {isPhone && viewMode === 'day' && dayFrom && !locked && !tabsShown && (
               <button type="button" className="btn btn-secondary day-back" aria-label={t('Back to {view}', { view: viewLabel(dayFrom, true) })} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>

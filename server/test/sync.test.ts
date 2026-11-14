@@ -249,20 +249,20 @@ test('sync: a slice writes only new, changed and removed events', async () => {
   const to = new Date('2026-10-31T00:00:00Z');
   const slice = async () => { const before = await writes(env); await replaceSlice(env, provider, cal, {} as any, from, to); return (await writes(env)) - before; };
 
-  assert.equal(await slice(), 60, 'first sync inserts every event');
+  assert.equal(await slice(), 60 + 60, 'each insert also advances the planning review counter');
   const stored = await env.DB.prepare("SELECT id, rowid, updated_at FROM events WHERE calendar_id = 'c1' ORDER BY id").all();
   assert.equal(await slice(), 0, 'unchanged provider data writes nothing');
   const after = await env.DB.prepare("SELECT id, rowid, updated_at FROM events WHERE calendar_id = 'c1' ORDER BY id").all();
   assert.deepEqual(after.results, stored.results, 'unchanged rows are left alone');
 
   events = events.map((e, i) => (i === 5 ? { ...e, title: 'Moved dentist' } : e));
-  assert.equal(await slice(), 1, 'one changed event is one write');
+  assert.equal(await slice(), 1 + 1, 'one changed event plus its planning review counter');
   events = events.map((e, i) => (i === 6 ? { ...e, allDay: true, start: '2026-10-02', end: '2026-10-03' } : e));
-  assert.equal(await slice(), 1, 'timed to all-day is one write');
+  assert.equal(await slice(), 1 + 1, 'timed to all-day plus its planning review counter');
   events = events.map((e, i) => (i === 7 ? { ...e, reminders: [] } : e));
   assert.equal(await slice(), 1, 'reminder change is one write');
   events = events.filter((_, i) => i !== 9);
-  assert.equal(await slice(), 1, 'a removed event is one delete');
+  assert.equal(await slice(), 1 + 1, 'one delete plus its planning review counter');
   const titles = (await env.DB.prepare("SELECT title FROM events WHERE calendar_id = 'c1'").all()).results.map((r: any) => r.title);
   assert.equal(titles.length, 59);
   assert.ok(titles.includes('Moved dentist') && !titles.includes('Event 9'));
@@ -342,7 +342,7 @@ test('sync: a changed ICS feed and a full sync write only the difference, and re
     let w = await writes(env);
     let r = await rev(env);
     await syncCalendarTick(env, cal.id);
-    assert.equal((await writes(env)) - w, 5);
+    assert.equal((await writes(env)) - w, 5 + 2); // two changed sources advance the planning review counter
     assert.equal((await rev(env)) - r, 1);
 
     // Full sync ("Sync now") with the same data: only the calendars bookkeeping row, no rev bump.
@@ -363,7 +363,7 @@ test('sync: a changed ICS feed and a full sync write only the difference, and re
     feed = makeFeed(['A', 'B2']);
     w = await writes(env);
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    assert.equal((await writes(env)) - w, 1 + 1 + 2); // delete, bookkeeping, rev + area rev
+    assert.equal((await writes(env)) - w, 1 + 1 + 2 + 1); // delete, bookkeeping, rev + area rev, planning counter
     const left = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.deepEqual(left.map((e) => e.title).sort(), ['A', 'B2']);
   } finally {

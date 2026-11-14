@@ -288,3 +288,19 @@ available on Chores after a tick; scheduled summaries and streaks exclude it.
 when retrying a tick to avoid awarding twice; use a new token for another completion. The
 history records returned by `list_chores` have `sourceId` linking to their responsibility.
 Each linked person's copy keeps its own order; categories change across the linked copies.
+
+### Weekly planning
+
+Parent-scoped connectors can use `get_weekly_plan` to review a complete family week and its
+shared draft (default: next week). `save_weekly_plan_draft` saves `{weekStart, revision, draft}`
+without adding anything. `apply_weekly_plan` adds the exact family-approved meals and linked
+to-dos using `{weekStart, revision, sourceVersion, requestId, draft}`. The three tools use the
+same parent-only routes, validation and feature filtering as the UI.
+
+Keep the UUID request ID unchanged when retrying a lost apply response. A 409 requires a new
+review and approval of the resulting changes, not an automatic retry with fresh counters.
+`kind: open` means an intentionally open dinner. A dinner choice with an explicit
+`replaceMealId` swaps that eligible planned dinner in place; the family must approve both
+the current and replacement names. The reviewed target must have `canSwap: true`. Preparation is due-date-only, with no timed
+alert. Pickups, requests and acceptance are not part of these tools. No private health tracker,
+medication, journal or check-in data is read. See [REST API](rest-api.md#weekly-planning-parent-access).

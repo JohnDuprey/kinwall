@@ -503,3 +503,59 @@ History chores have read-only `sourceId`, use the normal completion/approval end
 from `GET /api/chores` and cannot be edited or deleted as definitions. Undo the individual
 completion instead. Exports include definitions and history, preserving categories, ongoing
 status, points, approvals and retry ids. Older exports default to no category and not ongoing.
+
+### Weekly planning (parent access)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/weekly-plan?weekStart=YYYY-MM-DD` | Read the week's visible events, meals, due tasks, upkeep, pantry use-by dates, recipes, suggestions and shared draft. Omit `weekStart` for the next complete family week. |
+| PUT | `/api/weekly-plan/{weekStart}` | Save `{revision, draft}` without creating meals or tasks. |
+| POST | `/api/weekly-plan/{weekStart}/apply` | Atomically apply `{revision, sourceVersion, requestId, draft}` after reviewing its exact changes. |
+
+All three require an admin-scoped key; wall screens and child devices receive 403.
+`weekStart` must be a real date on the family's configured first weekday. Responses are
+not cached. Disabled Meals/Lists/Upkeep areas and hidden calendar events are omitted.
+No private health, medication, journal or check-in records are read.
+
+`draft` has `dinners` (up to seven unique dates in the week) and `prep` (up to 30 unique UUIDs):
+
+```json
+{
+  "dinners": [
+    { "date": "2026-11-17", "kind": "open" },
+    { "date": "2026-11-19", "kind": "meal", "title": "Spinach pasta", "recipeId": "recipe-id" }
+  ],
+  "prep": [{
+    "id": "eb17c8a5-48dc-4b44-b78b-9726b4fa5a48",
+    "eventId": "event-id", "occurrenceStart": null,
+    "title": "Pack library books", "dueDate": "2026-11-17", "listId": "todo-list-id"
+  }]
+}
+```
+
+Omit `recipeId` for a freeform dinner. To swap a planned dinner, include its explicit
+`replaceMealId` on the `kind: meal` choice. The target must still be a dinner on that date
+with `canSwap: true` in the reviewed response. Swaps update the same meal ID, preserve its
+people, servings, notes and time, and snapshot the replacement recipe. Cooked meals,
+order nights and meals with calendar events managed by Kinwall have `canSwap: false`;
+change them through Meals so their order and calendar behavior is preserved.
+
+Omitting a dinner date leaves it undecided. Preparation requires an event occurrence visible in that week and an active, ordinary to-do list. Its
+real due date can be in that week or the preceding week, on or before the event. Local
+recurrences require their `occurrenceStart`; the resulting list item links to the existing
+series, with the explicit due date. No repeating task or timed alert is created.
+
+The response includes `revision`, `sourceVersion`, `draft`, and `applied` maps of dinner dates
+and preparation UUIDs to created item IDs and their original choice fingerprints. A stale
+revision or changed source data returns 409, without partial writes. Reload the week and
+review again; do not automatically resubmit with a newer version. Reuse the exact same UUID
+`requestId` and body after a lost response: an acknowledged apply is replayed without writes.
+Reusing that ID with different input returns 409. Existing dinners are changed only with
+an explicit eligible `replaceMealId`; already acknowledged choices never overwrite later edits or recreate deleted items on retry.
+A new, reviewed swap can target a dinner previously added by planning.
+
+JSON exports include the optional `weeklyPlans` section (week start, revision, draft and
+applied links). Imports accept older files without it. Review counters and request receipts
+are internal metadata and are not exported. The `weekly-plan.changed` webhook carries only
+`weekStart` (or an import count); ordinary `meal.changed` and `list.item.changed` events also
+fire after new items are committed. No pickup requests or new push alerts are generated.

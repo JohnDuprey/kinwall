@@ -1,3 +1,4 @@
+import { weeklyPlanningRoutes } from './routes/weekly-planning.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventFollowsRoutes } from './routes/event-follows.ts';
 import { runMedicineLiveActivities } from './medicine-live-activities.ts';
@@ -218,6 +219,7 @@ export function createApp() {
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
   app.route('/', pantryRoutes);
+  app.route('/', weeklyPlanningRoutes);
   app.route('/', notesRoutes);
   app.route('/', contactsRoutes);
   app.route('/', stickersRoutes);

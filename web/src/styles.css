@@ -4340,3 +4340,89 @@ html:root[data-cast] {
 /* Existing Chores date chips: blank dates keep the same height; words/checks distinguish states. */
 .date-chore-count { min-height: 16px; margin-top: 3px; font-size: 0.6875rem; line-height: 1.25; font-weight: 800; color: var(--accent-text); white-space: nowrap; }
 .date-chores-done { color: var(--text-dim); }
+
+/* Parent-only weekly planning. */
+.weekly-invite { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin: 4px var(--pad) var(--gap); flex-shrink: 0; }
+.weekly-invite-icon { font-size: 28px; }
+.weekly-invite p { margin: 4px 0 0; color: var(--text-dim); font-size: .9rem; }
+.weekly-invite .btn { margin-left: auto; flex: none; }
+:root .sheet:has(.weekly-plan) { width: min(100%, 1000px); max-width: 1000px; max-height: 94%; }
+.weekly-plan { max-width: 940px; margin: auto; }
+.weekly-note { color: var(--text-dim); font-size: .85rem; line-height: 1.5; }
+.weekly-steps { display: flex; gap: 18px; padding: 12px 0 22px; margin: 0; list-style: none; border-bottom: 1px solid var(--border); }
+.weekly-steps li { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: .85rem; flex: 1; }
+.weekly-steps li[aria-current] { color: var(--text); font-weight: 700; }
+.weekly-steps span { display: grid; place-items: center; background: var(--bg-alt); width: 28px; height: 28px; border-radius: 50%; flex: none; }
+.weekly-steps li[aria-current] span { background: var(--accent-strong); color: var(--accent-ink); }
+.weekly-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 20px 0 16px; }
+.weekly-heading h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); margin: 8px 0; letter-spacing: -.035em; }
+.weekly-heading p { color: var(--text-dim); margin: 0; line-height: 1.5; }
+.weekly-eyebrow { font-size: .8rem; font-weight: 650; color: var(--text-dim); }
+.weekly-family { display: flex; gap: 12px; }
+.weekly-family > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.weekly-highlight { display: flex; gap: 16px; padding: 20px; border-radius: 16px; background: var(--accent-soft); margin-bottom: 22px; }
+.weekly-highlight > span { font-size: 28px; }
+.weekly-highlight p { margin: 6px 0 0; line-height: 1.5; color: var(--text-dim); }
+.weekly-days { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.weekly-day, .weekly-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; min-width: 0; }
+.weekly-day-busy { border-color: var(--accent); background: var(--bg-alt); }
+.weekly-day h3, .weekly-card h3 { margin: 10px 0; font-size: 1.05rem; }
+.weekly-day p, .weekly-card p { color: var(--text-dim); line-height: 1.6; margin: 8px 0; }
+.weekly-decisions, .weekly-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.weekly-review .weekly-card:last-child { grid-column: 1 / -1; }
+.weekly-card .field { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.weekly-card select { width: 100%; min-height: 44px; }
+@media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
+  .weekly-invite { flex-wrap: wrap; gap: 12px; padding: 16px; }
+  .weekly-invite-icon { display: none; }
+  .weekly-invite .btn { margin-left: 0; }
+  :root .sheet:has(.weekly-plan) { height: 100%; max-height: 100%; border-radius: 0; }
+  .weekly-steps { gap: 6px; }
+  .weekly-steps li { font-size: .72rem; flex-direction: column; align-items: flex-start; }
+  .weekly-heading { flex-direction: column; align-items: flex-start; padding-top: 20px; }
+  .weekly-days, .weekly-decisions, .weekly-review { grid-template-columns: 1fr; }
+  .weekly-day { padding: 16px; }
+  .weekly-family { gap: 18px; }
+}
+@media (min-width: 701px) and (max-width: 850px) { .weekly-days { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Calendar keeps planning with its controls; Home keeps the small invitation. */
+.weekly-calendar-button { flex: none; min-height: 44px; white-space: nowrap; }
+@media (min-width: 961px) and (max-width: 1200px) {
+  .cal-toolbar:has(.weekly-calendar-button) { grid-template-columns: 1fr auto; }
+  .cal-toolbar:has(.weekly-calendar-button) .toolbar-end { grid-column: 2; grid-row: 1; }
+  .cal-toolbar:has(.weekly-calendar-button) .toolbar-nav { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 600px) {
+  .cal-toolbar .weekly-calendar-button { grid-column: 1 / -1; grid-row: 3; justify-self: end; min-height: 44px; }
+  .weekly-invite { margin-inline: 14px; }
+}
+
+/* Planning uses the existing calendar, meal and list services. */
+.weekly-alert { padding: 16px; margin: 12px 0; border: 1px solid var(--danger); border-radius: var(--radius-sm); }
+.weekly-alert p { margin: 0 0 12px; }
+.weekly-prep { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+.weekly-prep > .btn { align-self: flex-start; flex: none; }
+.weekly-event-people { display: block; font-size: .8rem; }
+.weekly-recipe-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.weekly-recipe { flex: none; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 4px; white-space: normal; }
+.weekly-recipe span { font-size: .85rem; font-weight: 400; }
+.weekly-family { flex-wrap: wrap; max-width: 45%; }
+.sheet:has(.weekly-plan) .sheet-actions .btn { min-width: 0; }
+@media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
+  .weekly-family { max-width: 100%; }
+  .sheet:has(.weekly-plan) .sheet-actions { flex-wrap: wrap; }
+  .sheet:has(.weekly-plan) .sheet-actions .btn { min-height: 44px; }
+}
+
+.weekly-swap-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.weekly-swap-actions .btn { min-height: 44px; }
+
+/* Picker fields follow the shared label/input layout, with room between the two dinner choices. */
+.weekly-meal-picker, .weekly-prep-picker { display: grid; gap: 20px; min-width: 0; }
+.weekly-meal-picker .field, .weekly-prep-picker .field { margin: 0; min-width: 0; }
+.weekly-picker-custom { display: grid; gap: 12px; }
+.weekly-picker-custom > .btn { justify-self: start; }
+.weekly-picker-recipes { border-top: 1px solid var(--border); padding-top: 20px; min-width: 0; }
+.weekly-meal-picker .weekly-recipe { border-radius: var(--radius-sm); padding: 14px 16px; min-height: 52px; }
+.weekly-prep-picker > h3, .weekly-prep-picker > p { margin: 0; }

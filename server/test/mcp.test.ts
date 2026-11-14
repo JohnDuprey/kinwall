@@ -87,6 +87,7 @@ test('mcp: tools/list returns the tools', async () => {
     'add_to_library',
     'add_tracker_entry',
     'apply_meal_projection',
+    'apply_weekly_plan',
     'approve_chore',
     'approve_chore_suggestion',
     'approve_reward',
@@ -149,6 +150,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_restaurant',
     'get_snapshot',
     'get_upkeep_job',
+    'get_weekly_plan',
     'import_contacts',
     'import_outing',
     'import_recipe',
@@ -200,6 +202,7 @@ test('mcp: tools/list returns the tools', async () => {
     'reset_activity_time',
     'run_activity_action',
     'save_color_scheme',
+    'save_weekly_plan_draft',
     'search_books',
     'send_notification',
     'set_color_scheme',
@@ -596,6 +599,9 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   const today = new Date().toISOString().slice(0, 10);
   const ev = (await call('create_event', { calendarId: cal.id, title: 'School play', start: `${today}T18:00:00Z`, end: `${today}T19:00:00Z`, members: ['ava'], reminders: [30] })).event;
   await call('get_household');
+  const week = await call('get_weekly_plan');
+  const weekDraft = await call('save_weekly_plan_draft', { weekStart: week.weekStart, revision: week.revision, draft: { dinners: [], prep: [] } });
+  await call('apply_weekly_plan', { weekStart: week.weekStart, revision: weekDraft.revision, sourceVersion: weekDraft.sourceVersion, requestId: crypto.randomUUID(), draft: weekDraft.draft });
   await call('list_events', { from: today });
   await call('get_event', { id: ev.id });
   await call('update_event', { id: ev.id, title: 'School play!' });

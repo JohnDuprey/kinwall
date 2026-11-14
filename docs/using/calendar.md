@@ -289,3 +289,10 @@ old details until they reconnect. Notification visibility and delivery remain co
 A followed event has one Live Activity on each phone. Refreshing notification preferences does not
 start another copy. The updated iPhone app also removes older duplicate event cards when it opens
 or receives an activity update, retaining one running card and its working update token.
+
+## Plan the week
+
+Parents can open **Plan the week** in the Calendar toolbar, or the invitation on Home.
+Review the next full family week, choose dinners and event preparation, then save a shared
+draft or add the reviewed meals and to-dos. Dinners deliberately left open stay decided.
+See [Weekly planning](weekly-planning.md) for saving, conflict checks and the demo.

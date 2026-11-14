@@ -137,3 +137,19 @@ The snapshot stays inside that tick. A later recipient gets a fresh read on the 
 tick, while retries skip already-sent copies before loading summary data. The regression
 test covers four devices plus the feed: five meal reads and five goal reads become one
 each, and twenty per-event calendar lookups become one shared calendar read.
+
+### Weekly planning writes
+
+Migration 0146 adds empty weekly draft/receipt tables and a one-row source counter; it does
+not backfill or change family records. Source-table triggers advance the review counter in
+the same transaction as relevant writes, so a source change between validation and the apply
+batch cannot slip through. Event reminder-only changes and idle sync bookkeeping do not
+advance it. A relevant changed source row adds one small metadata write. The counter is
+conservative across weeks: unrelated calendar, meal, list or upkeep changes can require a
+new review. Drafts use their own revision for compare-and-swap; a failed guard aborts the
+whole Node/D1 batch. Apply receipts make lost-response retries safe.
+
+Planning reuses `buildMeal`/`mealWrite` and `listItemInsert`, then emits ordinary domain changes
+after commit. No provider events or timed alerts are created. Source counters and receipts
+are not exported; shared drafts and applied item links are. Imports of older exports keep
+working, and an import replaces receipts only for weeks explicitly included in that file.
