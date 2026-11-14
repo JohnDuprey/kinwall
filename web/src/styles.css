@@ -1132,6 +1132,12 @@ button.month-cell .month-daynum { flex: none; }
 .chore-notyet { margin-top: 4px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: 0.8125rem; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
 .approve-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 12px; }
 .chores-scroll .approve-card { margin: 0 var(--pad) 12px; } /* in line with the leaderboard and columns, not edge to edge */
+/* Wall and tablet: a kid's chores come first. The parent-only approvals wait under the columns. */
+@media (min-width: 700px) and (min-height: 640px) {
+  .chores-scroll > .chore-columns { order: 1; }
+  .chores-scroll > .approve-card { order: 2; margin-top: 12px; }
+  .chores-scroll > .chore-category-filter { margin: 0 var(--pad) 4px; width: 100%; }
+}
 .approve-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 1rem; }
 .approve-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent-strong); color: #fff; font-size: 0.75rem; line-height: 22px; text-align: center; }
 .approve-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -4329,7 +4335,7 @@ html:root[data-cast] {
 /* Scheduled messages stay above every Board layout, with a visible label for emphasis. */
 .board-scroll:has(> .board-announcements) { display: flex; flex-direction: column; }
 .board-announcements { flex: none; padding: 8px var(--pad) 0; }
-.board-announcements ~ .board { height: auto; flex: 1 0 480px; }
+.board-announcements ~ .board { height: auto; flex: 1 1 0; min-height: 480px; } /* an explicit min-height: the auto one is the cards' content, so unfit cards would stretch the grid */
 .announcement-banner { display: flex; gap: 12px; padding: 16px; margin-bottom: 8px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); overflow-wrap: anywhere; }
 .announcement-important { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
 .announcement-icon { flex: none; font-size: 1.6rem; }
@@ -4358,6 +4364,15 @@ html:root[data-cast] {
 .weekly-invite-icon { font-size: 28px; }
 .weekly-invite p { margin: 4px 0 0; color: var(--text-dim); font-size: .9rem; }
 .weekly-invite .btn { margin-left: auto; flex: none; }
+/* Wall and tablet on its side: the Board shares out what's left of the screen's height, so the chrome above it takes one slim line each. */
+@media (min-width: 880px) and (min-height: 640px), (max-height: 500px) and (orientation: landscape) {
+  .weekly-invite { padding: 6px 16px; gap: 12px; }
+  .weekly-invite .btn { min-height: 44px; padding-block: 4px; }
+  .weekly-invite-icon { font-size: 20px; }
+  .weekly-invite > div { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+  .weekly-invite p { margin: 0; }
+}
+@media (min-width: 880px) and (min-height: 640px) { .now-next { padding: 6px 14px; flex-direction: row; flex-wrap: wrap; gap: 2px 20px; } }
 :root .sheet:has(.weekly-plan) { width: min(100%, 1000px); max-width: 1000px; max-height: 94%; }
 .weekly-plan { max-width: 940px; margin: auto; }
 .weekly-note { color: var(--text-dim); font-size: .85rem; line-height: 1.5; }
