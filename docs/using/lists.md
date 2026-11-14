@@ -345,7 +345,7 @@ A **Pantry** list is the food your family has at home, with the date to use each
 
 <img src="../screenshots/phone-pantry.png" width="300" alt="A Kitchen pantry list on a phone, grouped into Fridge, Freezer and Pantry, with expired spinach flagged and use-by dates on the rest" />
 
-In the mobile app, tap 📷 beside the add field to scan a barcode, just like groceries. Check the product name before adding it, or type a name if it is unknown. **Also save to catalog** remembers the name for both pantry and grocery scans. Saved products add right away; an open item with the same name is flagged as already on the list. Pantry scans stay on this pantry list and add food as available. Tap the item afterward to set **Use by** and where it is kept.
+In the Kinwall app for iPhone and Android, tap 📷 beside the add field to scan a barcode, just like groceries. Check the product name before adding it, or type a name if it is unknown. **Also save to catalog** remembers the name for both pantry and grocery scans. Saved products add right away; an open item with the same name is flagged as already on the list. Pantry scans stay on this pantry list and add food as available. Tap the item afterward to set **Use by** and where it is kept.
 
 * Add food in the add bar like any list, then tap it to fill in **Quantity**, **Use by** and **Where it's kept**.
 * **Use by** is the use-by or best-by date on the package, or your best guess for fresh food. Leave it empty for things that keep (rice, flour).
