@@ -725,8 +725,9 @@ button.month-cell .month-daynum { flex: none; }
   text-align: center;
 }
 /* A toast with one action ("Event added" + View): the button is a light pill inside the dark one, 44px to tap. */
-.toast-with-action { display: flex; align-items: center; gap: 14px; padding: 4px 4px 4px 22px; white-space: nowrap; }
-.toast-action { flex: none; min-height: 44px; padding: 0 18px; border: none; border-radius: 999px; background: var(--bg); color: var(--text); font: inherit; font-weight: 800; }
+/* A long message wraps beside the button, so the action always stays on screen (e.g. a phone's Undo). */
+.toast-with-action { display: flex; align-items: center; gap: 14px; padding: 4px 4px 4px 22px; width: max-content; text-align: start; border-radius: 28px; }
+.toast-action { flex: none; white-space: nowrap; min-height: 44px; padding: 0 18px; border: none; border-radius: 999px; background: var(--bg); color: var(--text); font: inherit; font-weight: 800; }
 
 /* ---------- Sheet (bottom sheet modal) ---------- */
 .sheet-backdrop {
