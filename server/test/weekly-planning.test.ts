@@ -271,3 +271,14 @@ test('a swap changes only the explicitly selected dinner when a date has more th
   assert.equal(meals.length, 2); assert.equal(meals.find((m: any) => m.id === first.id).title, 'Soup');
   assert.equal(meals.find((m: any) => m.id === other.id).title, 'Leftovers');
 });
+
+test('weekly recipe choices include browsing metadata and cooking history outside the planning week', async () => {
+  const f = fixture();
+  const recipe = await f.json('/api/recipes', 'POST', { name: 'Soup', ingredients: [{ name: 'Carrot' }] });
+  await f.json('/api/meals', 'POST', { date: '2025-01-01', slot: 'dinner', mealKind: 'recipe', recipeId: recipe.id, status: 'prepared' });
+  const choice = (await f.json('/api/weekly-plan')).recipes.find((r: any) => r.id === recipe.id);
+  assert.equal(choice.createdAt, recipe.createdAt);
+  assert.equal(choice.cookedCount, 1);
+  assert.equal(choice.lastCookedDate, '2025-01-01');
+  assert.deepEqual(choice.ingredients, [{ name: 'Carrot' }]);
+});

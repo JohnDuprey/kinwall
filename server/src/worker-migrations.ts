@@ -1,3 +1,4 @@
+import m0148 from '../migrations/0148_recipe_cooking_index.sql';
 import m0147 from '../migrations/0147_inbox.sql';
 import m0146 from '../migrations/0146_weekly_planning.sql';
 import m0145 from '../migrations/0145_events_long_reminders_index.sql';
@@ -297,4 +298,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0145_events_long_reminders_index.sql', sql: m0145 },
   { name: '0146_weekly_planning.sql', sql: m0146 },
   { name: '0147_inbox.sql', sql: m0147 },
+  { name: '0148_recipe_cooking_index.sql', sql: m0148 },
 ];

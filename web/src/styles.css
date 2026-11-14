@@ -4437,3 +4437,9 @@ html:root[data-cast] {
 .weekly-picker-recipes { border-top: 1px solid var(--border); padding-top: 20px; min-width: 0; }
 .weekly-meal-picker .weekly-recipe { border-radius: var(--radius-sm); padding: 14px 16px; min-height: 52px; }
 .weekly-prep-picker > h3, .weekly-prep-picker > p { margin: 0; }
+
+/* Keep recipe choices usable in narrow sheets and with the landscape keyboard open. */
+.recipe-picker > .recipe-browse-controls { margin-block: 16px; }
+.recipe-browse-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 16px 12px; }
+.recipe-browse-controls .field { min-width: 0; margin-bottom: 0; }
+.recipe-browse-controls select { width: 100%; }

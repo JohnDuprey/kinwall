@@ -1,3 +1,4 @@
+import RecipeSelector from './RecipeSelector.tsx'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK } from './api.ts'
@@ -164,7 +165,7 @@ function Planner({ initial, onClose, onSaved }: { initial: WeeklyPlanning; onClo
 
 function MealPicker({ source, date, onClose, onChoose }: { source: WeeklyPlanning; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
   const formId = useId()
-  const [search, setSearch] = useState(''), [title, setTitle] = useState('')
+  const [title, setTitle] = useState('')
   const suggested = new Set(source.suggestions.filter(s => s.uses.some(i => !i.useBy || date <= i.useBy)).map(r => r.id))
   return <Sheet title={t('Choose dinner for {date}', { date: labelDate(date) })} onClose={onClose} dirty={!!title.trim()}>
     <div className="weekly-meal-picker">
@@ -173,12 +174,13 @@ function MealPicker({ source, date, onClose, onChoose }: { source: WeeklyPlannin
         <button className="btn btn-primary" disabled={!title.trim()} onClick={() => onChoose({ date, kind:'meal', title:title.trim() })}>{t('Use this dinner')}</button>
       </section>
       <section className="weekly-picker-recipes">
-        <div className="field"><label htmlFor={`${formId}-search`}>{t('Or choose a recipe')}</label><input id={`${formId}-search`} type="search" value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <div className="weekly-recipe-list">{source.recipes.filter(r => r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a,b) => Number(suggested.has(b.id)) - Number(suggested.has(a.id))).map(recipe => {
-      const suggestion = source.suggestions.find(s => s.id === recipe.id)
-      const usable = suggestion?.uses.filter(i => !i.useBy || date <= i.useBy)
-      return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date,kind:'meal',title:recipe.name,recipeId:recipe.id })}><strong>{recipe.name}</strong>{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food:item.title,date:labelDate(item.useBy!) })}</span>)}</button>
-        })}</div>
+        <RecipeSelector recipes={source.recipes} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
+          onPick={recipe => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}
+          renderRecipe={recipe => {
+            const suggestion = source.suggestions.find(s => s.id === recipe.id)
+            const usable = suggestion?.uses.filter(i => !i.useBy || date <= i.useBy)
+            return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}><strong>{recipe.name}</strong>{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food: item.title, date: labelDate(item.useBy!) })}</span>)}</button>
+          }} />
       </section>
     </div>
   </Sheet>

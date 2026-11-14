@@ -64,7 +64,7 @@ export async function readWeeklyPlanning(db: KinwallDb, requested?: string): Pro
       events: events.map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, allDay: e.allDay, memberIds: e.memberIds, occurrenceStart: e.occurrenceStart })),
       meals: meals.map(m => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
       pantry: expiringWithin(safePantry, 6).filter(i => i.useBy).map(i => ({ id: i.id, title: i.title, useBy: i.useBy! })),
-      recipes: recipes.map(r => ({ id: r.id, name: r.name, totalMinutes: r.totalMinutes ?? null })),
+      recipes: recipes.map(r => ({ id: r.id, name: r.name, totalMinutes: r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })),
       suggestions: suggestions.map(s => ({ ...s.recipe, uses: s.uses.map(i => ({ title: i.title, useBy: i.useBy })) })),
       tasks: taskRows.results.map(i => ({ id: i.id, title: i.title, dueDate: i.due_date, eventId: i.event_id, listId: i.list_id, done: !!i.done })),
       jobs: jobs.filter(j => !j.archived && j.nextDue && j.nextDue <= end).map(j => ({ id: j.id, title: j.title, date: j.nextDue! })),

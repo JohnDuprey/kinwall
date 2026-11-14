@@ -16,7 +16,8 @@ import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
 import { useIsPhone } from './useIsPhone.ts'
-import { recipeMatches } from './recipe-search.ts'
+import { browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
+import RecipeBrowseControls from './RecipeBrowseControls.tsx'
 import type { Meal, Recipe, RecipeKind, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
@@ -52,7 +53,8 @@ export default function Meals() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('active')
   const [category, setCategory] = useState('')
-  const [sort, setSort] = useState<'name' | 'rating'>('name')
+  const [sort, setSort] = useState<RecipeSort>('name')
+  const [cooked, setCooked] = useState<CookedFilter>('all')
   // '' everything, 'any' anyone's favorites, else one member's ("Sam's favorites").
   const [loved, setLoved] = useState('')
   const [kind, setKind] = useState<'' | RecipeKind>('')
@@ -132,16 +134,14 @@ export default function Meals() {
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
-  const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved))) && recipeMatches(recipe, search))
-  // Top rated: best family average first, then most ratings; unrated keep name order at the end.
-  if (sort === 'rating') shownRecipes.sort((a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0) || (b.rating?.count ?? 0) - (a.rating?.count ?? 0))
-  const filterCount = [kind, filter !== 'active', category, loved, sort !== 'name'].filter(Boolean).length
+  const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked })
+  const filterCount = [kind, filter !== 'active', category, loved, cooked !== 'all', sort !== 'name'].filter(Boolean).length
   const filters = <>
     <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">{t('All')}</option><option value="meal">{t('Meals')}</option><option value="basic">{t('Basics')}</option></select></div>
     <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">{t('Active recipes')}</option><option value="archived">{t('Archived recipes')}</option><option value="all">{t('All recipes')}</option></select></div>
     <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">{t('All categories')}</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>
     <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><select id="recipe-loved" value={loved} onChange={e => setLoved(e.target.value)}><option value="">{t('All recipes')}</option><option value="any">{t("Anyone's favorites")}</option>{members.map(m => <option key={m.id} value={m.id}>{t("{name}'s favorites", { name: m.name })}</option>)}</select></div>
-    <div className="field"><label htmlFor="recipe-sort">{t('Sort')}</label><select id="recipe-sort" value={sort} onChange={e => setSort(e.target.value as 'name' | 'rating')}><option value="name">{t('Name')}</option><option value="rating">{t('Top rated')}</option></select></div>
+    <RecipeBrowseControls sort={sort} cooked={cooked} onSort={setSort} onCooked={setCooked} />
   </>
   // Phone Week: a day's empty slots fold into one "+" row (the slot to plan: dinner when it's free).
   const compactWeek = isPhone && span === 'week'
@@ -191,13 +191,13 @@ export default function Meals() {
           <FilterIcon width={20} height={20} />{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}</button> : filters}
       </div>
       {showFilters && isPhone && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
-        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setSort('name') }}>{t('Clear filters')}</button>}
+        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name') }}>{t('Clear filters')}</button>}
         <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>{tn(shownRecipes.length, 'Show {n} recipe', 'Show {n} recipes')}</button>
       </>}>{filters}</Sheet>}
       {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(n => n + 1)} />}
       {!recipesLoaded && !recipeError ? <p role="status">{t('Loading recipes…')}</p> : <>
         <p className="field-hint" role="status">{tn(shownRecipes.length, '{n} recipe', '{n} recipes')}</p>
-        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || filter !== 'active' ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
+        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || cooked !== 'all' || filter !== 'active' ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
           <strong>{recipe.name}{recipe.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && t('Makes {amount}', { amount: recipe.makes }) : servingsLabel(recipe.defaultServings), tn(recipe.ingredients.length, '{n} ingredient', '{n} ingredients'), recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && t('Archived')].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{!!recipe.favoritedBy?.length && <span className="recipe-loved"><span aria-hidden="true">♥</span><EaterAvatars ids={recipe.favoritedBy} members={members} label={t('Favorite of')} /></span>}{recipe.description && <p>{recipe.description}</p>}

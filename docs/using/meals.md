@@ -16,6 +16,8 @@ Tap **+** in a slot (or **Plan meal**) to add a meal. **Plan meal** starts on th
 * **Who's eating**: **Everyone** (nobody picked), or tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
 * **Status**: **Planned** or **Cooked** (**Ordered** when eating out). A cooked meal shows dashed. Then **Notes**.
 
+Use **Cooking history** to show **Cooked** or **Never cooked**, and **Sort** for name, favorites, top rated, date added (newest or oldest first), most cooked or last cooked. These choices also appear in the first meal chooser, week planner, poll recipe picker and recipe library. The week planner starts with **Use food soon first**, keeping pantry suggestions at the top until you choose another sort. Cooking history counts linked meals marked **Cooked** across all dates; planned meals do not count. **Last cooked** uses the meal’s date, not when you tapped the button.
+
 Only recipe meals add to the grocery list; something else and eating out don't.
 
 To trade two meals around, open a planned meal's sheet and tap **Swap with…**, right under the meal's name: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.

@@ -143,7 +143,7 @@ test('single recipe reads use indexes for recipes and their related rows', async
   assert.deepEqual(recipes[0].ingredients.map(i => i.id), ['tacos']);
   assert.deepEqual(recipes[0].rating, { average: 5, count: 1, byMember: { maya: 5 } });
   assert.deepEqual(recipes[0].favoritedBy, ['maya']);
-  assert.equal(plans.length, 4);
-  for (const plan of plans) assert.doesNotMatch(plan, /SCAN (recipes|i|recipe_ratings|recipe_favorites)\b/, plan);
+  assert.equal(plans.length, 5);
+  for (const plan of plans) assert.doesNotMatch(plan, /SCAN (recipes|i|recipe_ratings|recipe_favorites|meals)\b/, plan);
   assert.deepEqual(await readRecipes(db, { id: 'missing' }), []);
 });

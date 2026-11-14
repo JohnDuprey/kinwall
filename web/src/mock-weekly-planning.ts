@@ -56,7 +56,7 @@ async function read(requested?: string): Promise<WeeklyPlanning> {
     events: events.map(e => ({ id:e.id,title:e.title,start:e.start,end:e.end,allDay:e.allDay,memberIds:e.memberIds,occurrenceStart:e.occurrenceStart })),
     meals: settings.features.meals ? meals.map(m => ({ id:m.id,date:m.date,slot:m.slot,title:m.title,canSwap:m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })) : [],
     pantry: settings.features.meals && settings.features.lists ? pantry.expiring.filter(i => i.useBy && i.useBy >= dates[0] && i.useBy <= dates[6]).map(i => ({id:i.id,title:i.title,useBy:i.useBy!})) : [],
-    recipes: settings.features.meals ? recipes.filter(r => r.kind !== 'basic').map(r => ({ id:r.id,name:r.name,totalMinutes:r.totalMinutes ?? null })) : [],
+    recipes: settings.features.meals ? recipes.filter(r => r.kind !== 'basic').map(r => ({ id:r.id,name:r.name,totalMinutes:r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })) : [],
     lists: settings.features.lists ? todos.map(l => ({ id:l.id,name:l.name })) : [],
     tasks: settings.features.lists ? taskRows.filter(i => !i.done && i.dueDate && i.dueDate >= dates[0] && i.dueDate <= dates[6]).map(i => ({ id:i.id,title:i.title,dueDate:i.dueDate,eventId:i.eventId,listId:i.listId,done:i.done })) : [],
     jobs: settings.features.upkeep ? jobs.filter(j => j.nextDue && j.nextDue <= dates[6]).map(j => ({ id:j.id,title:j.title,date:j.nextDue! })) : [],

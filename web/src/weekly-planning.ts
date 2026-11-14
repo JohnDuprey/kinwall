@@ -1,3 +1,4 @@
+import type { RecipeRating } from './meal-types.ts'
 import { zonedDayKey } from './date.ts'
 
 /** Leaving a review never saves or applies its choices. */
@@ -20,7 +21,7 @@ export type WeeklyPlanning = {
   jobs: { id: string; title: string; date: string }[]
   lists: { id: string; name: string }[]
   pantry: { id: string; title: string; useBy: string }[]
-  recipes: { id: string; name: string; totalMinutes: number | null }[]
+  recipes: { id: string; name: string; totalMinutes: number | null; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; favoritedBy?: string[]; rating?: RecipeRating; description?: string | null; ingredients?: { name: string }[] }[]
   suggestions: { id: string; name: string; totalMinutes: number | null; uses: { title: string; useBy: string | null }[] }[]
 }
 export const planningDay = (event: WeeklyPlanning['events'][number], timezone: string) => event.allDay ? event.start.slice(0, 10) : zonedDayKey(event.start, timezone)

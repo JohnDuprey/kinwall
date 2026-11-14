@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -13,7 +13,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import type { Member } from './types.ts'
 import { t, tm } from './i18n.ts'
 import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, isOrderNight, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy, statusLabel, swapCandidates, swapWindow } from './meal-date.ts'
-import { pickerRecipes } from './recipe-search.ts'
+import RecipeSelector from './RecipeSelector.tsx'
 import type { Meal, MealInput, MealKind, MealSlot, MealStatus, OrderType, Recipe, Restaurant } from './meal-types.ts'
 import type { Me } from './types.ts'
 import PickField from './PickField.tsx'
@@ -201,56 +201,35 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
 function MealChooser({ recipes, slot, date, onRecipe, onOther }: {
   recipes: Recipe[]; slot: MealSlot; date: string; onRecipe: (recipe: Recipe) => void; onOther: (kind: 'freeform' | 'dining_out', title: string) => void
 }) {
-  const [query, setQuery] = useState('')
-  const shown = pickerRecipes(recipes, query, null, false)
-  const name = query.trim()
-  return <div className="recipe-picker">
-    <div className="field"><label htmlFor="meal-choose">{t('What’s for {meal} on {day}?', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date, { weekday: 'long' }) })}</label>
-      <input id="meal-choose" type="search" data-autofocus placeholder={t('Find a recipe')} value={query} onChange={e => setQuery(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (shown[0]) onRecipe(shown[0]); else if (name) onOther('freeform', name) } }} /></div>
-    <div className="meal-actions meal-choose-other">
-      <button type="button" className="btn btn-secondary" onClick={() => onOther('freeform', name)}>{name && !shown.length ? t('Something else: “{name}”', { name }) : t('Something else')}</button>
+  return <RecipeSelector recipes={recipes} onPick={onRecipe} searchLabel={t('What’s for {meal} on {day}?', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date, { weekday: 'long' }) })}
+    onEmptyEnter={name => { if (name) onOther('freeform', name) }}
+    beforeResults={(query, shown) => <div className="meal-actions meal-choose-other">
+      <button type="button" className="btn btn-secondary" onClick={() => onOther('freeform', query.trim())}>{query.trim() && !shown.length ? t('Something else: “{name}”', { name: query.trim() }) : t('Something else')}</button>
       <button type="button" className="btn btn-secondary" onClick={() => onOther('dining_out', '')}>{t('Eating out')}</button>
-    </div>
-    {shown.length ? <div className="sheet-links">{shown.map(r => <button key={r.id} type="button" className="sheet-link" onClick={() => onRecipe(r)}>
+    </div>}
+    emptyMessage={recipes.some(r => !r.archived) ? t('No recipes match. Tap Something else to plan it by name.') : t('No recipes yet. Tap Something else to plan a meal by name.')}
+    renderRecipe={r => <button key={r.id} type="button" className="sheet-link" onClick={() => onRecipe(r)}>
       {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
       <span>{r.name}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
-    </button>)}</div>
-      : <p className="state-card">{recipes.some(r => !r.archived) ? t('No recipes match. Tap Something else to plan it by name.') : t('No recipes yet. Tap Something else to plan a meal by name.')}</p>}
-  </div>
+    </button>} />
 }
 
-/** Choosing a meal's recipe: search by name or ingredient, arrows move through the list, Enter picks. */
+/** Shared by meal editing and polls; browsing is also shared with the week planner. */
 export function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
   recipes: Recipe[]; currentId: string | null; saved: { id: string | null; name: string } | null
   onPick: (recipe: Recipe | null) => void; onClose: () => void
 }) {
-  const [query, setQuery] = useState('')
-  // Basics (seasoning blends, doughs…) stay out of meal planning unless asked for.
   const [basics, setBasics] = useState(false)
-  const shown = pickerRecipes(recipes, query, currentId, basics)
+  const formId = useId()
   const hasBasics = recipes.some(r => r.kind === 'basic' && !r.archived)
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('input, .sheet-link')]
-    const next = items[items.indexOf(document.activeElement as HTMLElement) + (e.key === 'ArrowDown' ? 1 : -1)]
-    if (next) { e.preventDefault(); next.focus() }
-  }
   return <Sheet title={t('Choose a recipe')} onClose={onClose}>
-    <div className="recipe-picker" onKeyDown={onKey}>
-      <div className="field"><label htmlFor="recipe-picker-search">{t('Find a recipe')}</label>
-        <input id="recipe-picker-search" type="search" data-autofocus placeholder={t('Recipe name or ingredient')} value={query} onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); onPick(shown[0]) } }} /></div>
-      {hasBasics && <div className="field"><label htmlFor="recipe-picker-show">{t('Show')}</label><select id="recipe-picker-show" value={basics ? 'all' : 'meals'} onChange={e => setBasics(e.target.value === 'all')}><option value="meals">{t('Meals')}</option><option value="all">{t('Meals and basics')}</option></select></div>}
-      <div className="sheet-links">
-        {saved && !query.trim() && <button type="button" className="sheet-link" aria-current={currentId === saved.id || undefined} onClick={() => onPick(null)}><BookIcon /><span>{t('{name} (saved recipe)', { name: saved.name })}<small>{t('Kept with this meal')}</small></span></button>}
-        {shown.map(r => <button key={r.id} type="button" className="sheet-link" aria-current={r.id === currentId || undefined} onClick={() => onPick(r)}>
-          {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
-          <span>{r.name}{r.archived ? ` ${t('(archived)')}` : ''}{r.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
-        </button>)}
-      </div>
-      {!shown.length && <p className="state-card">{t('No recipes match')}</p>}
-    </div>
+    <RecipeSelector recipes={recipes} currentId={currentId} basics={basics} onPick={onPick}
+      extraControls={hasBasics && <div className="field"><label htmlFor={`${formId}-show`}>{t('Show')}</label><select id={`${formId}-show`} value={basics ? 'all' : 'meals'} onChange={e => setBasics(e.target.value === 'all')}><option value="meals">{t('Meals')}</option><option value="all">{t('Meals and basics')}</option></select></div>}
+      savedRow={saved && <button type="button" className="sheet-link" aria-current={currentId === saved.id || undefined} onClick={() => onPick(null)}><BookIcon /><span>{t('{name} (saved recipe)', { name: saved.name })}<small>{t('Kept with this meal')}</small></span></button>}
+      renderRecipe={r => <button key={r.id} type="button" className="sheet-link" aria-current={r.id === currentId || undefined} onClick={() => onPick(r)}>
+        {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
+        <span>{r.name}{r.archived ? ` ${t('(archived)')}` : ''}{r.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+      </button>} />
   </Sheet>
 }
 

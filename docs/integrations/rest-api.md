@@ -132,6 +132,8 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 | Security activity | `GET /api/security-events?limit=&before=&q=&kinds=` (admin only). See [Security activity](#security-activity). |
 
+Recipe reads include `cookedCount` (the number of linked meals marked `prepared` across all dates) and `lastCookedDate` (the latest such meal date, or `null`). These are derived from meal history and update when meals are edited or deleted. `createdAt` remains the date the recipe was first added.
+
 `GET /api/medications/due` also returns `checkedAt` (the server time for its answer)
 and `recheckAt` (the next dose start, applicable snooze expiry, due-window expiry, or
 household midnight). Clients can schedule a single refetch using the difference between
@@ -524,7 +526,7 @@ status, points, approvals and retry ids. Older exports default to no category an
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/weekly-plan?weekStart=YYYY-MM-DD` | Read the week's visible events, meals, due tasks, upkeep, pantry use-by dates, recipes, suggestions and shared draft. Omit `weekStart` for the next complete family week. |
+| GET | `/api/weekly-plan?weekStart=YYYY-MM-DD` | Read the week's visible events, meals, due tasks, upkeep, pantry use-by dates, recipes (including `createdAt`, cooking history, favorites, ratings and ingredient names for browsing), suggestions and shared draft. Omit `weekStart` for the next complete family week. |
 | PUT | `/api/weekly-plan/{weekStart}` | Save `{revision, draft}` without creating meals or tasks. |
 | POST | `/api/weekly-plan/{weekStart}/apply` | Atomically apply `{revision, sourceVersion, requestId, draft}` after reviewing its exact changes. |
 

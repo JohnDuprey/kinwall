@@ -107,12 +107,14 @@ export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: s
   // Direct equality lets SQLite seek one recipe and its related rows, rather than scanning
   // the whole library for an optional (? IS NULL OR id = ?) filter.
   const related = opts.id === undefined ? [] : [opts.id];
-  const [recipes, ingredients, ratings, favorites] = await db.batch<unknown>([
+  const [recipes, ingredients, ratings, favorites, cooking] = await db.batch<unknown>([
     db.prepare(`SELECT * FROM recipes WHERE ${related.length ? 'id=?' : '1'} AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, '')), lower(?)) > 0) ORDER BY name, id`).bind(...related, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
     db.prepare(`SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id${related.length ? ' WHERE i.recipe_id = ?' : ''} ORDER BY i.sort, i.id`).bind(...related),
     db.prepare(`SELECT recipe_id, member_id, stars FROM recipe_ratings${related.length ? ' WHERE recipe_id = ?' : ''}`).bind(...related),
     db.prepare(`SELECT recipe_id, member_id FROM recipe_favorites${related.length ? ' WHERE recipe_id = ?' : ''} ORDER BY member_id`).bind(...related),
+    db.prepare(`SELECT recipe_id, count(*) AS cooked_count, max(date) AS last_cooked_date FROM meals WHERE status = 'prepared' AND recipe_id IS NOT NULL${related.length ? ' AND recipe_id = ?' : ''} GROUP BY recipe_id`).bind(...related),
   ]);
+  const cookedBy = new Map((cooking.results as { recipe_id: string; cooked_count: number; last_cooked_date: string }[]).map(r => [r.recipe_id, r]));
   const starsBy = new Map<string, Record<string, number>>();
   for (const r of ratings.results as { recipe_id: string; member_id: string; stars: number }[]) starsBy.set(r.recipe_id, { ...starsBy.get(r.recipe_id), [r.member_id]: r.stars });
   const lovedBy = new Map<string, string[]>();
@@ -122,7 +124,7 @@ export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: s
     const values = byRecipe.get(row.recipe_id) ?? [];
     values.push(ingredientApi(row)); byRecipe.set(row.recipe_id, values);
   }
-  return (recipes.results as RecipeRow[]).map((r) => ({ ...recipeApi(r, byRecipe.get(r.id) ?? []), rating: ratingApi(starsBy.get(r.id) ?? {}), favoritedBy: lovedBy.get(r.id) ?? [] }))
+  return (recipes.results as RecipeRow[]).map((r) => ({ ...recipeApi(r, byRecipe.get(r.id) ?? []), cookedCount: cookedBy.get(r.id)?.cooked_count ?? 0, lastCookedDate: cookedBy.get(r.id)?.last_cooked_date ?? null, rating: ratingApi(starsBy.get(r.id) ?? {}), favoritedBy: lovedBy.get(r.id) ?? [] }))
     .filter((r) => (!opts.category || r.ingredients.some((i) => normalizeIngredient(i.category ?? '') === normalizeIngredient(opts.category!))) && (!opts.favoriteOf || r.favoritedBy.includes(opts.favoriteOf)));
 }
 // Each meal's orders ride along as JSON, so reading meals stays one query.
