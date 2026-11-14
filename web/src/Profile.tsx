@@ -1,3 +1,4 @@
+import { openJournal } from './pageNavigation.ts'
 // A member's profile (#/profile/{memberId}): what they've been up to - chores and points by period,
 // streak, books, sticker book, activity time, badges, birthday. Opened from a leaderboard pill, a
 // header avatar's day sheet, or "Me" on a member's own device. About one person only: no sibling
@@ -360,7 +361,7 @@ function JournalCard({ member }: { member: Member }) {
       <h3 id="pf-journal" className="snap-heading">{t('Journal')} <span>🔒 {privateTag(member)}</span></h3>
       {evening && week && week.of > 0 && <p className="profile-note">🎯 {t('Goals met this week:')} <strong>{t('{done} of {total}', { done: week.met, total: week.of })}</strong></p>}
       <p className="profile-note">{t("Check-ins, goals and {name}'s own notes, day by day.", { name: member.name })}</p>
-      <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>{t('Open the journal')}</a>
+      <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`} onClick={openJournal}>{t('Open the journal')}</a>
     </section>
   )
 }

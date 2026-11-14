@@ -1,3 +1,4 @@
+import { openRoutine } from './pageNavigation.ts'
 import { choreCountLabel, countChoreDay, sumChoreCounts } from './choreCounts.ts'
 import { goalLabel, goalProgressLabel, validGoal } from './choreGoal.ts'
 import type { ChoreGoal, GoalProgress } from './choreGoal.ts'
@@ -632,7 +633,7 @@ export default function Chores() {
             when they don't fit). Off a phone the leaderboard takes the next row. */}
         <h2 className="period-label" aria-label={formatDate(selectedDate, LONG_DAY)}>{formatDate(selectedDate, isPhone ? DAY : LONG_DAY)}</h2>
         {!isPhone && leaderboard}
-        {(parentDevice || meMemberId) && <a className="btn btn-secondary chores-rewards-btn" href="#/routine">{t('Free time')}</a>}
+        {(parentDevice || meMemberId) && <a className="btn btn-secondary chores-rewards-btn" href="#/routine" onClick={openRoutine}>{t('Free time')}</a>}
         {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label={t('Give points')}><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">{t('Give points')}</span><span className="chores-short-label">{t('Give')}</span></GivePoints>}
         {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label={t('Edit chores')} onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">{t('Edit chores')}</span><span className="chores-short-label">{t('Edit')}</span></button>}
         {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">{t('Library')}</span><span className="chores-short-label">{t('Library')}</span></button>}

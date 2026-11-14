@@ -1,3 +1,4 @@
+import { openJournal } from './pageNavigation.ts'
 import { holdAwake } from './wakeLock.ts'
 import { Suspense, lazy, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { navRailFit } from './navRailFit.ts'
@@ -189,7 +190,7 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
         <div className="nav-rail-btn"><MoreIcon /><span>{t('More')}</span></div>
       </div>}
       {shown.map(item => (
-        <a key={item.key} href={item.href} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${tm(item.label)}` : <span>{tm(item.label)}</span>}{badge(item.key)}</a>
+        <a key={item.key} href={item.href} onClick={item.key === 'journal' ? openJournal : undefined} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${tm(item.label)}` : <span>{tm(item.label)}</span>}{badge(item.key)}</a>
       ))}
       {overflow && (
         <button className={`${btn} ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
@@ -204,7 +205,7 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
               {/* "Nooks": the spaces with several parts inside (Meals, Outings, Trackers, Activities) get a heading. */}
               {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">{t('Nooks')}</h3>}
               <a className={`more-row ${tab === item.key ? 'active' : ''} ${!NOOKS.has(item.key) && NOOKS.has(rest[i - 1]?.key ?? '') ? 'more-after-group' : ''}`} href={item.href} aria-current={tab === item.key ? 'page' : undefined}
-                onClick={() => setMore(false)}>
+                onClick={e => { setMore(false); if (item.key === 'journal') openJournal(e) }}>
                 <item.Icon /> <span>{tm(item.label)}</span>{badge(item.key)}
               </a>
             </Fragment>))}
