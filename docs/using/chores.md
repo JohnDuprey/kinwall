@@ -27,7 +27,7 @@ On a phone, open someone's day from the family button at the top left, then tap 
 
 On a short **Chores today** card, the late-chores count may be inside **+N more**. Open it to reach the count and its list.
 
-<img src="../screenshots/phone-late-chores.png" width="300" alt="The Late chores list on a phone, each chore with who it's for, the day it was due and a Done button" />
+<img src="../screenshots/phone-late-chores.png" width="300" alt="The Late chores list on a phone, each chore with who it's for, the day it was due, and Not done and Done buttons" />
 
 A chore that isn't ticked off on its day doesn't disappear right away: for 7 days it stays on the Board as late. For a repeating chore, that's its last time before today: **Feed the fish** missed yesterday is late, but not the days before, so a missed week doesn't stack up seven copies. The Board's chores spot (the **Chores today** card, the Chores tile, or the row on **Today**) shows **⏰ 2 late chores**. Tap it for a list of them, each with who it's for and the day it was due ("Was due Thu, Nov 5"). Tap **Done** to tick one off for that day. It earns the [late completion credit](#points-late-completion-credit), or waits for a parent's OK like any other tick. After 7 days it drops off the Board, since a wall screen or kid's device can't tick it any more; a parent's device can still tick it on its day on the Chores tab. To drop a late one-time chore instead, go to its day on the Chores tab and delete it.
 
