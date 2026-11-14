@@ -2578,7 +2578,7 @@ button.notif-item:active { transform: scale(0.99); }
 .note-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 0.875rem; font-weight: 800; background: var(--bg-alt); color: var(--text-dim); flex-shrink: 0; }
 .note-name { font-weight: 800; font-size: 0.875rem; }
 .note-time { color: var(--text-dim); font-size: 0.75rem; font-weight: 700; }
-.note-edit { margin-left: auto; }
+.note-edit { margin-left: auto; min-width: 44px; }
 .note-body { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 600; }
 .note-body a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
 .note-form { display: flex; flex-direction: column; gap: 8px; }

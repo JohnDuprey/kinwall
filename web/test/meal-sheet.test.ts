@@ -37,3 +37,10 @@ test('mealEventStatus: what a meal event says on the calendar', () => {
   assert.deepEqual(mealEventStatus({ ...pizza, status: 'prepared' }), { done: true, text: '✓ Ordered', compact: '🍽️✓' })
   assert.equal(mealEventStatus({ ...pizza, restaurantId: null }).text, 'Planned') // eating out somewhere else: no orders to count
 })
+
+test('planDay: Plan meal starts on the day on screen', async () => {
+  const { planDay } = await import('../src/meal-date.ts')
+  assert.equal(planDay(true, '2026-11-17', '2026-11-14', '2026-11-08', '2026-11-14'), '2026-11-17') // day view: that day
+  assert.equal(planDay(false, '2026-11-12', '2026-11-14', '2026-11-08', '2026-11-14'), '2026-11-14') // this week: today
+  assert.equal(planDay(false, '2026-11-19', '2026-11-14', '2026-11-15', '2026-11-21'), '2026-11-15') // another week: its first day
+})

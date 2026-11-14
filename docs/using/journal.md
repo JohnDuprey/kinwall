@@ -22,7 +22,7 @@ On evenings with a goal, today's **Goal check** waits at the top until they answ
 
 ## Writing an entry
 
-Tap **+ New entry**, write what happened (up to 2,000 characters), pick a mood if you like and change the day if it's about another one. **Save**. Tap an entry to change it; **More… → Delete entry** removes it.
+Tap **+ New entry**, write what happened (up to 2,000 characters), pick a mood if you like and change the day if it's about another one. **Save**. Tap an entry to change it; **More… → Delete entry** removes it after asking.
 
 ## Who can open it
 

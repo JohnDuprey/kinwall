@@ -118,11 +118,11 @@ export default function NotesThread({ target, title: heading }: { target: NoteTa
                   <div className="note-form" onKeyDownCapture={escape(() => stopEdit(n.id))}>
                     <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} maxLength={MAX} autoFocus aria-label={t('Edit note by {name}', { name: who(n) })} rows={3} />
                     <div className="note-actions">
-                      <button type="button" className="btn btn-danger" onClick={() => remove(n)}>{t('Delete')}</button>
                       <span style={{ flex: 1 }} />
                       <button type="button" className="btn btn-secondary" onClick={() => stopEdit(n.id)}>{t('Cancel')}</button>
                       <button type="button" className="btn btn-primary" onClick={() => saveEdit(n)} disabled={!editDraft.trim()}>{t('Save')}</button>
                     </div>
+                    <div className="sheet-danger-zone"><button type="button" className="link-btn link-danger" onClick={() => remove(n)}>{t('Delete note')}</button></div>
                   </div>
                 ) : (
                   <div className="note-body"><Linkified text={n.body} /></div>

@@ -45,6 +45,10 @@ export function byMealTime<M extends { slot: MealSlot; plannedTime?: string | nu
   return [...meals].sort((a, b) => mealMinutes(a, mealTimes) - mealMinutes(b, mealTimes) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
 }
 export function moveMealDate(date: string, days: number) { return dateKey(addDays(new Date(`${date}T12:00:00`), days)) }
+/** The day "Plan meal" starts on: the day on screen, or in a week view today when it's in the week, else the week's first day. */
+export function planDay(dayView: boolean, anchor: string, today: string, from: string, to: string) {
+  return dayView ? anchor : today >= from && today <= to ? today : from
+}
 export function mealDayLabel(date: string, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) {
   return formatDate(new Date(`${date}T12:00:00`), options)
 }

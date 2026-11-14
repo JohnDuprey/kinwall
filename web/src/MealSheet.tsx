@@ -120,7 +120,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
   }
   const close = () => { if (!busy) onClose() }
   return <Sheet title={meal ? admin ? t('Edit meal') : meal.title : t('Plan a meal')} onClose={close} dismissable={!busy} dirty={canUpdate ? 'auto' : false} actions={!choosing && canUpdate ? <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? t('Saving…') : meal ? t('Save') : t('Add meal')}</button> : undefined}>
-    {choosing ? <MealChooser recipes={recipes} slot={draft.slot}
+    {choosing ? <MealChooser recipes={recipes} slot={draft.slot} date={draft.date}
       onRecipe={recipe => { setDraft(d => ({ ...d, mealKind: 'recipe', recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings })); setChoosing(false) }}
       onOther={(kind, title) => { setDraft(d => ({ ...d, mealKind: kind, recipeId: null, title })); setChoosing(false) }} /> :
     <form id={formId} onSubmit={e => { e.preventDefault(); void save() }}>
@@ -198,14 +198,14 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
 
 /** The first step of planning a meal: find a recipe (Enter picks the first match), or plan something
  * else by name, or eating out. */
-function MealChooser({ recipes, slot, onRecipe, onOther }: {
-  recipes: Recipe[]; slot: MealSlot; onRecipe: (recipe: Recipe) => void; onOther: (kind: 'freeform' | 'dining_out', title: string) => void
+function MealChooser({ recipes, slot, date, onRecipe, onOther }: {
+  recipes: Recipe[]; slot: MealSlot; date: string; onRecipe: (recipe: Recipe) => void; onOther: (kind: 'freeform' | 'dining_out', title: string) => void
 }) {
   const [query, setQuery] = useState('')
   const shown = pickerRecipes(recipes, query, null, false)
   const name = query.trim()
   return <div className="recipe-picker">
-    <div className="field"><label htmlFor="meal-choose">{t('What’s for {meal}?', { meal: tm(SLOT_WORD[slot]) })}</label>
+    <div className="field"><label htmlFor="meal-choose">{t('What’s for {meal} on {day}?', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date, { weekday: 'long' }) })}</label>
       <input id="meal-choose" type="search" data-autofocus placeholder={t('Find a recipe')} value={query} onChange={e => setQuery(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (shown[0]) onRecipe(shown[0]); else if (name) onOther('freeform', name) } }} /></div>
     <div className="meal-actions meal-choose-other">

@@ -7,7 +7,7 @@ import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
 import { t, tm, tn } from './i18n.ts'
-import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, planDay, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet, { Stars, ratingOwner } from './RecipeSheet.tsx'
 import Sheet from './Sheet.tsx'
@@ -146,9 +146,10 @@ export default function Meals() {
   // Phone Week: a day's empty slots fold into one "+" row (the slot to plan: dinner when it's free).
   const compactWeek = isPhone && span === 'week'
   const freeSlot = (date: string) => ['dinner', ...MEAL_SLOTS].find(slot => !bySlot.has(`${date}:${slot}`)) as typeof MEAL_SLOTS[number] | undefined
+  const planMeal = () => { const date = planDay(dayView, anchor, today, from, to); setEditing({ meal: null, initial: { date, slot: freeSlot(date) ?? 'dinner' } }) }
   return <div className="meals-view scroll-y">
     <div className="meals-heading"><div><h1>{t('Meals')}</h1><p className="field-hint">{t('What are we eating, and what do we need to buy?')}</p></div>
-      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> {t('Groceries')}</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> {t('Import from a link')}</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : view === 'recipes' ? setRecipeSheet({ recipe: null }) : setPlace({ restaurant: null, editing: true })}><PlusIcon /> {view === 'week' ? t('Plan meal') : view === 'recipes' ? t('New recipe') : t('New restaurant')}</button>}</div>
+      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> {t('Groceries')}</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> {t('Import from a link')}</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? planMeal() : view === 'recipes' ? setRecipeSheet({ recipe: null }) : setPlace({ restaurant: null, editing: true })}><PlusIcon /> {view === 'week' ? t('Plan meal') : view === 'recipes' ? t('New recipe') : t('New restaurant')}</button>}</div>
     </div>
     <Segmented tabs idBase="meals-tab" label={t('Meals sections')} value={view} onChange={setView} options={[{ key: 'week', label: t('Week planner') }, { key: 'recipes', label: t('Recipe library') }, { key: 'restaurants', label: t('Restaurants') }]} />
     {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}

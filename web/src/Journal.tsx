@@ -14,6 +14,7 @@ import { dayName } from './Snapshot.tsx'
 import { SLEEP } from './tempCheck.ts'
 import { JOURNAL_TEXT_MAX, MOODS, outcomeOf, privacyLine } from './journal.ts'
 import GoalFollowUp from './GoalFollowUp.tsx'
+import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import type { Journal as JournalData, JournalDay, JournalEntry, Member } from './types.ts'
 import { Face } from './Face'
@@ -150,6 +151,7 @@ function Day({ day, today, onEdit }: { day: JournalDay; today: string; onEdit: (
 
 function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member; entry: JournalEntry | null; today: string; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
+  const dialog = useDialog()
   const [date, setDate] = useState(entry?.date ?? today)
   const [text, setText] = useState(entry?.text ?? '')
   const [mood, setMood] = useState(entry?.mood ?? '')
@@ -164,6 +166,7 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
   }
   const more = async (action: string) => {
     if (action !== 'delete' || !entry) return
+    if (!await dialog.confirm({ title: t('Delete this entry?'), body: t('It is deleted for good.'), confirmLabel: t('Delete'), danger: true })) return
     try { await api.deleteJournalEntry(member.id, entry.id); toast(t('Entry deleted')); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't delete that"), true) }
   }

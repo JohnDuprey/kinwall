@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { Segmented } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
+import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -268,6 +269,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   onClose: () => void; onSaved: (b: LibraryBook) => void; onChanged: () => void; onStarted: () => void
 }) {
   const { toast, members: everyone } = useApp()
+  const dialog = useDialog()
   const [more, setMore] = useState(false)
   const [borrower, setBorrower] = useState('')
   // Whose book: ours, borrowed or on the wishlist. Picking Borrowed asks where from and when it's due first.
@@ -321,6 +323,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
     } catch (e) { toast(errMsg(e, t("Couldn't start it")), true) }
   }
   const remove = async () => {
+    if (!await dialog.confirm({ title: t('Remove “{title}” from the library?', { title: book.title }), body: t('It comes off the shelf for everyone.'), confirmLabel: t('Remove'), danger: true })) return
     try { await api.deleteLibraryBook(book.id); toast(t('Removed: {title}', { title: book.title })); onChanged() }
     catch (e) { toast(errMsg(e, t("Couldn't remove it")), true) }
   }
@@ -418,8 +421,8 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       </div>
       {canRemove && <div className="lib-detail-actions">
         <button type="button" className="btn btn-secondary" onClick={lookUp} disabled={looking}>{looking ? t('Looking up…') : t('🔎 Look up details')}</button>
-        <button type="button" className="btn btn-danger" onClick={remove}>{t('Remove from library')}</button>
       </div>}
+      {canRemove && <div className="sheet-danger-zone"><button type="button" className="link-btn link-danger" onClick={remove}>{t('Remove from library')}</button></div>}
     </Sheet>
   )
 }

@@ -3929,7 +3929,7 @@
   "What {name} is": "Was {name} ist",
   "What's on now and what's next today, with a countdown, above the calendar.": "Was gerade läuft und was heute als Nächstes kommt, mit Countdown, über dem Kalender.",
   "What's the chore?": "Was ist die Aufgabe?",
-  "What’s for {meal}?": "Was gibt’s zum {meal}?",
+  "What’s for {meal} on {day}?": "Was gibt’s zum {meal} am {day}?",
   "When": "Wann",
   "When I start my day": "Wenn mein Tag beginnt",
   "When I start my day (by {time})": "Wenn mein Tag beginnt (spätestens {time})",

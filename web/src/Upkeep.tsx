@@ -435,7 +435,7 @@ function ThingSheet({ id, jobs, onClose, onOpenJob, onEdit }: { id: string; jobs
     {who.parent && <section className="restaurant-section"><h3>{t('Receipts and manuals')}</h3>
       {x.files.length > 0 && <ul className="upkeep-file-list">{x.files.map(f => <li key={f.id}>
         <a href={api.upkeepFileUrl(f.id) || undefined} target="_blank" rel="noopener noreferrer">📎 {f.name}</a>
-        <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api.deleteUpkeepFile(f.id), t('Removed: {name}', { name: f.name }))} aria-label={t('Remove {name}', { name: f.name })}>{t('Remove')}</button>
+        <button type="button" className="link-btn" disabled={busy} onClick={async () => { if (await dialog.confirm({ title: t('Remove “{name}”?', { name: f.name }), confirmLabel: t('Remove'), danger: true })) void run(() => api.deleteUpkeepFile(f.id), t('Removed: {name}', { name: f.name })) }} aria-label={t('Remove {name}', { name: f.name })}>{t('Remove')}</button>
       </li>)}</ul>}
       <div className="field"><label htmlFor={fileId}>{t('Add a receipt, manual or photo (up to 2 MB)')}</label><input id={fileId} type="file" disabled={busy} accept="image/png,image/jpeg,image/webp,application/pdf" onChange={e => { void upload(e.target.files?.[0]); e.target.value = '' }} /></div>
     </section>}
