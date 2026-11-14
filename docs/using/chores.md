@@ -27,6 +27,8 @@ On a phone, open someone's day from the family button at the top left, then tap 
 
 On a short **Chores today** card, the late-chores count may be inside **+N more**. Open it to reach the count and its list.
 
+<img src="../screenshots/phone-late-chores.png" width="300" alt="The Late chores list on a phone, each chore with who it's for, the day it was due and a Done button" />
+
 A chore that isn't ticked off on its day doesn't disappear right away: for 7 days it stays on the Board as late. For a repeating chore, that's its last time before today: **Feed the fish** missed yesterday is late, but not the days before, so a missed week doesn't stack up seven copies. The Board's chores spot (the **Chores today** card, the Chores tile, or the row on **Today**) shows **⏰ 2 late chores**. Tap it for a list of them, each with who it's for and the day it was due ("Was due Thu, Nov 5"). Tap **Done** to tick one off for that day. It earns the [late completion credit](#points-late-completion-credit), or waits for a parent's OK like any other tick. After 7 days it drops off the Board, since a wall screen or kid's device can't tick it any more; a parent's device can still tick it on its day on the Chores tab. To drop a late one-time chore instead, go to its day on the Chores tab and delete it.
 
 * A repeating chore only ever shows its last time, and the next time takes its place once that day passes. Once it's ticked off, earlier misses stay on the Chores tab's calendar, which shows each day's open count.
@@ -58,6 +60,8 @@ Tap **+** (Add chore). The sheet has:
 | **Needs a parent's OK** | **Default**, **Yes** or **No**. See [Parent approval](#parent-approval). With an activity, also **Needs a parent's OK even for timed play**. |
 
 ### Chores for several people
+
+<img src="../screenshots/phone-chore-editor.png" width="300" alt="Editing Set the table on a phone: category Kitchen, completed once each time it is due, assigned to both Maya and Leo" />
 
 Pick more than one person under **Assign to** to give each of them their own copy of the chore, such as **Set the table** for Maya and Leo but not Sam. Each copy shows in that person's column and is ticked off on its own: Maya finishing hers doesn't tick off Leo's, and each earns the points. **🌟 Anyone** is different: one chore that whoever does it first gets the points for.
 
@@ -291,6 +295,8 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_suggestions`, `approve_chore_suggestion`, `reject_chore_suggestion`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`, `award_points`, `delete_point_award`
 
 ## Putting chores in order
+
+![Edit chores on the wall display: Up and Down below each card, Set the table under Kitchen and Put a wash on under Household, available anytime](../screenshots/ipad-chores-order.png)
 
 On a parent's device, turn on **Edit chores**. Drag chores within a person's column, or use
 **Up** and **Down** below each card on a touchscreen or with a keyboard. The order is saved

@@ -4,6 +4,8 @@ Parents can open **Plan the week** from the Calendar toolbar or **A look at next
 Home. It starts with the next complete week, using the family's week-start setting and
 timezone. It is part of Calendar, with no new navigation tab or feature switch.
 
+![Plan the week on a tablet: the week ahead, day by day, with events, meals, food to use and upkeep](../screenshots/ipad-plan-week.png)
+
 ## Look over the week
 
 The overview brings together visible calendar events, meals, due to-dos, food to use and
@@ -14,6 +16,11 @@ appear only while their existing features are on. Private health trackers, medic
 journals and check-ins are not read by planning.
 
 ## Make a few decisions
+
+<p>
+  <img src="../screenshots/phone-plan-decisions.png" width="32%" alt="Dinner choices on a phone: a recipe for Sunday, Tacos already planned for Monday with Swap dinner, and a simple birthday takeout for Tuesday" />
+  <img src="../screenshots/phone-plan-review.png" width="32%" alt="The review on a phone: two dinners to add, one dinner left open on purpose and one preparation to-do, with Save draft and Add to the week" />
+</p>
 
 For a dinner without a meal, choose a recipe, enter a dinner name, leave dinner open on
 purpose or decide later. **Plan something simple** is for leftovers, takeout or anything

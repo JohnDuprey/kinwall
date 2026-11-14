@@ -318,6 +318,8 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 
 ## Use it up
 
+![Use it up above the week planner: six foods to use this week, one past its date, and three recipes that use them with Plan it](../screenshots/ipad-use-it-up.png)
+
 When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** above the week:
 
 * What to use this week, soonest first: "Spinach (expired)", "Chicken breast (tomorrow)", "Greek yogurt (Tue)". Past its date is marked **⚠** and counted ("1 past its date"), so you can check it before cooking.
