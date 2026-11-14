@@ -119,11 +119,14 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
+  const showOrders = linkedMeal?.mealKind === 'dining_out' && !isOrderNight(linkedMeal)
   return <Sheet title={meal ? admin ? t('Edit meal') : meal.title : t('Plan a meal')} onClose={close} dismissable={!busy} dirty={canUpdate ? 'auto' : false} actions={!choosing && canUpdate ? <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? t('Saving…') : meal ? t('Save') : t('Add meal')}</button> : undefined}>
     {choosing ? <MealChooser recipes={recipes} slot={draft.slot} date={draft.date}
       onRecipe={recipe => { setDraft(d => ({ ...d, mealKind: 'recipe', recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings })); setChoosing(false) }}
       onOther={(kind, title) => { setDraft(d => ({ ...d, mealKind: kind, recipeId: null, title })); setChoosing(false) }} /> :
     <form id={formId} onSubmit={e => { e.preventDefault(); void save() }}>
+      {/* An order night's orders have their own view (Orders.tsx OrderNightSheet); eating out somewhere else keeps them here, on top. */}
+      {showOrders && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {admin ? <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${formId}-kind`}>{t('What are we eating?')}</label><select id={`${formId}-kind`} value={draft.mealKind} onChange={e => update('mealKind', e.target.value as MealKind)}><option value="recipe">{t('A recipe')}</option><option value="freeform">{t('Something else')}</option><option value="dining_out">{t('Eating out')}</option></select></div>
         {draft.mealKind === 'recipe' && <div className="field"><label htmlFor={`${formId}-recipe`}>{t('Recipe')}</label>
@@ -169,12 +172,10 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
         {meal?.recipeSnapshot && <p className="field-hint">{t('The recipe is saved with this meal, so later recipe edits don’t change it.')}</p>}
         {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <label className="meal-check"><input type="checkbox" checked={refreshRecipe} disabled={busy} onChange={e => setRefreshRecipe(e.target.checked)} /> {t('Refresh from the current recipe when saving')}</label>}
       </section>}
-      {/* An order night's orders have their own view (Orders.tsx OrderNightSheet); eating out somewhere else keeps them here. */}
-      {linkedMeal?.mealKind === 'dining_out' && !isOrderNight(linkedMeal) && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {draft.mealKind !== 'recipe' && <p className="field-hint">{draft.mealKind === 'dining_out' ? t('Eating out doesn’t add anything to the grocery list.') : t('Only recipes add to the grocery list.')}</p>}
       {canUpdate ? <fieldset className="meal-fieldset meal-spaced" disabled={busy}>
         {/* On an order night the status locks everyone's orders: a grown-up's call (the server says so too). */}
-        {(admin || draft.mealKind !== 'dining_out') && <div className="field"><label htmlFor={`${formId}-status`}>{t('Status')}</label><select id={`${formId}-status`} value={draft.status} onChange={e => update('status', e.target.value as MealStatus)}>{(['planned', 'prepared'] as const).map(status => <option key={status} value={status}>{statusLabel({ status, mealKind: draft.mealKind })}</option>)}</select></div>}
+        {(admin || draft.mealKind !== 'dining_out') && !showOrders && <div className="field"><label htmlFor={`${formId}-status`}>{t('Status')}</label><select id={`${formId}-status`} value={draft.status} onChange={e => update('status', e.target.value as MealStatus)}>{(['planned', 'prepared'] as const).map(status => <option key={status} value={status}>{statusLabel({ status, mealKind: draft.mealKind })}</option>)}</select></div>}
         <div className="field"><label htmlFor={`${formId}-notes`}>{t('Notes')}</label><textarea id={`${formId}-notes`} maxLength={10000} value={draft.notes ?? ''} onChange={e => update('notes', e.target.value || null)} /></div>
       </fieldset> : <><p>{t('Status: {status}', { status: statusLabel(draft) })}</p>{draft.notes && <p className="meal-prose">{draft.notes}</p>}</>}
       {((snapshot && selectedRecipe) || meal?.sourceUrl || linkedMeal?.calendarEventId) && <div className="sheet-links">
