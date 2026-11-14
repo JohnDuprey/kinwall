@@ -6,7 +6,7 @@ The inbox is for grown-ups: it's on a parent's device, not on wall screens set t
 
 ## Jot it down
 
-Tap the **inbox** button at the top of the screen, beside the bell. It's there on every screen. Its small gray number is how many things are waiting (gray, not the bell's red: nothing in it is urgent).
+Tap the **inbox** button at the top of the screen, beside the bell. It's there on every screen. Its small number is how many things are waiting. It's the same color as the text, not the bell's red, because nothing in it is urgent.
 
 Type, then **Save** or press Enter. The box clears and stays ready for the next one. There's no day, person, list or type to pick first. If saving doesn't work (no connection, say), what you typed goes back in the box. Something typed but not saved asks before the inbox closes.
 
@@ -25,5 +25,7 @@ A day word in what you wrote ("Friday", "tomorrow") fills in the next such day, 
 A thought leaves the inbox only once its task, event or note is added. **Later**, ✕ or closing the event form leaves it where it was. If adding fails, it stays in the inbox to try again. Tapping twice adds it once, and so does sorting the same thought from two phones at the same moment.
 
 **Not needed** clears a thought without adding anything, with **Undo**. Nothing is deleted: sorted and cleared thoughts are listed under **Recently sorted**. Tap a sorted one to see where it went, or **Put back** to return a cleared one to the inbox.
+
+If saving stops partway (the connection drops, say), the thought is listed as "Didn’t finish saving". **Put back** checks first: if its task, event or note was added after all, the thought links to it, so nothing is added twice. Otherwise the thought goes back in the inbox to sort again. Put back waits a few minutes before doing that, in case it's still saving on another device. An event for a Google, Outlook or CalDAV calendar is the exception: Kinwall can't tell whether that calendar took it, so check the calendar before you sort the thought again.
 
 The inbox is part of the family's [export and backups](../your-data/export-import.md). Turn it off in **Settings → General → Features → Inbox**.

@@ -454,7 +454,7 @@ Parents only: wall screens and kids' devices get 403. `features.inbox=false` mak
 
 * `GET /api/inbox` returns `{items}`: every open thought, newest first, then the 20 most recently sorted or cleared.
 * `POST /api/inbox` with `{text}` (1–200 characters, trimmed) jots one down. An optional client-made `id` (a UUID) makes a retry add it once.
-* `PATCH /api/inbox/{id}` with `{status: "cleared"}` clears an open thought; `{status: "open"}` puts a cleared one back (or one whose sorting was interrupted). Anything else answers 409. Nothing is deleted.
+* `PATCH /api/inbox/{id}` with `{status: "cleared"}` clears an open thought; `{status: "open"}` puts a cleared one back. For one whose sorting was interrupted, it links the task, event or note if it was made (200, still `sorted`), otherwise puts it back; within 5 minutes of the sort starting it answers 409, since it may still be saving. Anything else answers 409. Nothing is deleted.
 * `POST /api/inbox/{id}/sort` makes an open thought into one of:
   * `{kind: "task", listId, title, dueDate?}`: an item on that list, through `POST /api/lists/{id}/items`;
   * `{kind: "event", event}`: an event, through `POST /api/events` (same body, including write-through to a synced calendar);

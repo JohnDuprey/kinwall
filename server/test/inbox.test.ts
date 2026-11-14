@@ -96,8 +96,11 @@ test('inbox: not needed clears without deleting, put back returns it, and an int
   assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'cleared' })).status, 409);
   assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', { kind: 'note', title: 'x', expiresAt: '2099-01-01T00:00:00Z' })).status, 409);
   assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' })).body.status, 'open');
-  // A sort that stopped after claiming it (no target made): still listed, and it can go back.
-  await db.prepare("UPDATE inbox_items SET status = 'sorted', target = '{\"kind\":\"task\",\"id\":null}' WHERE id = ?").bind(item.id).run();
+  // A sort that stopped after claiming it (nothing made): still listed. While it might still be
+  // saving it stays put; a few minutes later it can go back.
+  await db.prepare("UPDATE inbox_items SET status = 'sorted', target = '{\"kind\":\"task\",\"id\":null}', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), item.id).run();
+  assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' })).status, 409);
+  await db.prepare('UPDATE inbox_items SET updated_at = ? WHERE id = ?').bind(new Date(Date.now() - 10 * 60_000).toISOString(), item.id).run();
   assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' })).body.status, 'open');
   assert.equal((await send(`/api/inbox/nope`, 'PATCH', { status: 'open' })).status, 404);
 });
@@ -123,4 +126,114 @@ test('inbox: the family backup carries every thought, and restoring it brings th
   assert.equal(restored.status, 200, JSON.stringify(restored.body));
   assert.equal(restored.body.imported.inboxItems, 2);
   assert.deepEqual((await fresh.send('/api/inbox')).body.items, backup.inboxItems);
+});
+
+// Interruptions: the database fails (or the request stops) after the task, event or note was made.
+/** Makes statements matching `match` throw while `on()` is true. */
+function failing(db: any, match: RegExp, on: () => boolean) {
+  const prepare = db.prepare.bind(db);
+  db.prepare = (sql: string) => {
+    if (match.test(sql) && on()) throw new Error('simulated interruption');
+    return prepare(sql);
+  };
+}
+/** Holds statements matching `match` until the returned function is called. */
+function holding(db: any, match: RegExp) {
+  const prepare = db.prepare.bind(db);
+  let go!: () => void, reached!: () => void;
+  const gate = new Promise<void>(r => { go = r; }), held = new Promise<void>(r => { reached = r; });
+  db.prepare = (sql: string) => {
+    const stmt = prepare(sql);
+    if (!match.test(sql)) return stmt;
+    return { bind: (...args: unknown[]) => ({ run: async () => { reached(); await gate; return stmt.bind(...args).run(); } }) };
+  };
+  return { held, go };
+}
+const ago = (db: any, id: string, minutes: number) => db.prepare('UPDATE inbox_items SET updated_at = ? WHERE id = ?').bind(new Date(Date.now() - minutes * 60_000).toISOString(), id).run();
+const bakeSale = { kind: 'event', event: { title: 'Bake sale', start: '2026-11-20', end: '2026-11-21', allDay: true } };
+const tacoNote = { kind: 'note', title: 'Taco night idea', expiresAt: '2099-01-01T00:00:00Z' };
+
+for (const [kind, body, table] of [['event', bakeSale, 'events'], ['note', tacoNote, 'announcements']] as const) {
+  test(`inbox: ${kind === "event" ? "an" : "a"} ${kind} made before saving where it went is linked, and putting it back or retrying makes no second one`, async () => {
+    const { send, db } = await setup();
+    await send('/api/calendars', 'POST', { kind: 'local', name: 'Family', color: '#F2A27A' });
+    const item = (await send('/api/inbox', 'POST', { text: 'Bake sale Friday' })).body;
+    let once = true;
+    failing(db, /^UPDATE inbox_items SET target/, () => once && !(once = false));
+    assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', body)).status, 500);
+    assert.equal(await count(db, `SELECT COUNT(*) AS n FROM ${table}`), 1);
+    const made = (await db.prepare(`SELECT id FROM ${table}`).first() as any).id;
+    assert.equal((await send('/api/inbox')).body.items[0].target.id, made);
+    await ago(db, item.id, 10);
+    assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' })).status, 409);
+    assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', body)).status, 409);
+    assert.equal(await count(db, `SELECT COUNT(*) AS n FROM ${table}`), 1);
+  });
+
+  test(`inbox: when the database stays down after a ${kind} was made, put back links it once it can`, async () => {
+    const { send, db } = await setup();
+    await send('/api/calendars', 'POST', { kind: 'local', name: 'Family', color: '#F2A27A' });
+    const item = (await send('/api/inbox', 'POST', { text: 'Bake sale Friday' })).body;
+    let down = true;
+    failing(db, /^UPDATE inbox_items SET (target|status = 'open')/, () => down);
+    assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', body)).status, 500);
+    down = false;
+    const stuck = (await send('/api/inbox')).body.items[0];
+    assert.deepEqual([stuck.status, stuck.target], ['sorted', { kind, id: null }]);
+    const made = (await db.prepare(`SELECT id FROM ${table}`).first() as any).id;
+    // It was made, so linking it is safe straight away.
+    const back = await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' });
+    assert.equal(back.status, 200);
+    assert.deepEqual([back.body.status, back.body.target.kind, back.body.target.id], ['sorted', kind, made]);
+    assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', body)).status, 409);
+    assert.equal(await count(db, `SELECT COUNT(*) AS n FROM ${table}`), 1);
+  });
+}
+
+test('inbox: an interrupted task is linked to its list, and sorting it into another list adds nothing', async () => {
+  const { send, db, list } = await setup();
+  const other = (await send('/api/lists', 'POST', { name: 'Errands', kind: 'todo' })).body;
+  const item = (await send('/api/inbox', 'POST', { text: 'Permission slip' })).body;
+  let down = true;
+  failing(db, /^UPDATE inbox_items SET (target|status = 'open')/, () => down);
+  assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', { kind: 'task', listId: list.id, title: 'Permission slip' })).status, 500);
+  down = false;
+  await ago(db, item.id, 10);
+  const back = await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' });
+  assert.deepEqual(back.body.target, { kind: 'task', id: item.id, listId: list.id, label: 'To-do' });
+  assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', { kind: 'task', listId: other.id, title: 'Permission slip' })).status, 409);
+  assert.equal(await count(db, 'SELECT COUNT(*) AS n FROM list_items'), 1);
+});
+
+test('inbox: put back while a sort is still saving waits, and the event is made once', async () => {
+  const { send, db } = await setup();
+  await send('/api/calendars', 'POST', { kind: 'local', name: 'Family', color: '#F2A27A' });
+  const item = (await send('/api/inbox', 'POST', { text: 'Bake sale Friday' })).body;
+  const { held, go } = holding(db, /^INSERT INTO events/);
+  const sorting = send(`/api/inbox/${item.id}/sort`, 'POST', bakeSale);
+  await held;
+  assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' })).status, 409);
+  go();
+  const sorted = await sorting;
+  assert.equal(sorted.status, 200);
+  assert.equal(sorted.body.target.id, (await db.prepare('SELECT id FROM events').first() as any).id);
+  assert.equal((await send(`/api/inbox/${item.id}/sort`, 'POST', bakeSale)).status, 409);
+  assert.equal(await count(db, 'SELECT COUNT(*) AS n FROM events'), 1);
+});
+
+test('inbox: a sort that finishes long after the thought was put back and sorted again leaves the newer sort alone', async () => {
+  const { send, db } = await setup();
+  await send('/api/calendars', 'POST', { kind: 'local', name: 'Family', color: '#F2A27A' });
+  const item = (await send('/api/inbox', 'POST', { text: 'Bake sale Friday' })).body;
+  const { held, go } = holding(db, /^INSERT INTO events/);
+  const sorting = send(`/api/inbox/${item.id}/sort`, 'POST', bakeSale);
+  await held;
+  await ago(db, item.id, 10);
+  assert.equal((await send(`/api/inbox/${item.id}`, 'PATCH', { status: 'open' })).body.status, 'open');
+  const note = await send(`/api/inbox/${item.id}/sort`, 'POST', tacoNote);
+  assert.equal(note.body.target.kind, 'note');
+  go();
+  await sorting;
+  const now = (await send('/api/inbox')).body.items[0];
+  assert.deepEqual([now.status, now.target], ['sorted', note.body.target]);
 });

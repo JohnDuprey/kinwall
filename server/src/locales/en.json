@@ -562,6 +562,7 @@
   "error|That’s already been sorted.": "That’s already been sorted.",
   "error|That’s already in the inbox, or it went somewhere.": "That’s already in the inbox, or it went somewhere.",
   "error|That's before the dose's day started": "That's before the dose's day started",
+  "error|That’s still being saved. Try again in a few minutes.": "That’s still being saved. Try again in a few minutes.",
   "error|The calendar is larger than {n} MB.": "The calendar is larger than {n} MB.",
   "error|The calendar link didn't work (error {code}). Check the link.": "The calendar link didn't work (error {code}). Check the link.",
   "error|The calendar took longer than {n} seconds to download.": "The calendar took longer than {n} seconds to download.",

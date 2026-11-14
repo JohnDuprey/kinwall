@@ -6,6 +6,10 @@ import { ErrorSchema } from '../schemas.ts';
 import type { Env } from '../env.ts';
 import { readFeatures } from './settings.ts';
 import { InboxInputSchema, InboxItemSchema, InboxPatchSchema, InboxSchema, InboxSortSchema, inboxApi, readInbox, type InboxItem, type InboxRow } from '../inbox.ts';
+import { createEvent } from './events.ts';
+import { createAnnouncement } from './announcements.ts';
+
+type Target = NonNullable<InboxItem['target']>;
 
 type App = OpenAPIHono<{ Bindings: Env }>;
 const json = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
@@ -16,9 +20,13 @@ const errors = {
 const ID = z.object({ id: z.string() });
 
 /** The quick-capture inbox. Parents only: a wall screen or kid's device key isn't in auth.ts's
- * display allow-list. Sorting re-enters the family's own routes (POST /api/lists/{id}/items,
- * /api/events, /api/announcements) with the caller's key, so each keeps its own rules, calendar
- * write-through and notifications. */
+ * display allow-list. Sorting makes a task through POST /api/lists/{id}/items with the caller's key,
+ * and an event or note through the same code as POST /api/events and /api/announcements (createEvent,
+ * createAnnouncement), so each keeps its own rules, calendar write-through and notifications.
+ *
+ * Each is made with the thought's own id (a synced calendar's event excepted), so a sort interrupted
+ * after it was made can find it: the sort itself on the way out, or putting the thought back later,
+ * links it instead of making a second one. */
 export function inboxRoutes(app: App) {
   const r = createRouter();
   r.use('/api/inbox*', async (c, next) => {
@@ -29,6 +37,19 @@ export function inboxRoutes(app: App) {
     const row = await db.prepare('SELECT * FROM inbox_items WHERE id = ?').bind(id).first<InboxRow>();
     return row ? inboxApi(row) : null;
   };
+  /** Where a sorted thought went: the task, event or note with this id, if it's there. */
+  const madeAt = async (db: Env['DB'], kind: Target['kind'], id: string): Promise<Target | null> => {
+    if (kind === 'task') {
+      const row = await db.prepare('SELECT i.list_id, l.name FROM list_items i LEFT JOIN lists l ON l.id = i.list_id WHERE i.id = ?').bind(id).first<{ list_id: string; name: string | null }>();
+      return row && { kind, id, listId: row.list_id, label: row.name ?? '' };
+    }
+    if (kind === 'event') {
+      const row = await db.prepare('SELECT start FROM events WHERE id = ?').bind(id).first<{ start: string }>();
+      return row && { kind, id, at: row.start };
+    }
+    return (await db.prepare('SELECT id FROM announcements WHERE id = ?').bind(id).first()) && { kind, id };
+  };
+  const unlinked = "status = 'sorted' AND target->>'id' IS NULL";
 
   r.openapi(createRoute({
     method: 'get', path: '/api/inbox', tags: ['Inbox'], summary: 'Every open thought in the inbox, newest first, then the 20 most recently sorted or cleared (parents)', security: [{ Bearer: [] }],
@@ -51,13 +72,22 @@ export function inboxRoutes(app: App) {
     request: { params: ID, body: json(InboxPatchSchema) }, responses: { 200: { description: 'Updated', ...json(InboxItemSchema) }, 409: { description: 'Not in a state that can change that way', ...json(ErrorSchema) }, ...errors },
   }), async c => {
     const { id } = c.req.valid('param'), { status } = c.req.valid('json');
-    if (!(await load(c.env.DB, id))) return c.json({ error: 'That isn’t in the inbox.' }, 404);
+    const item = await load(c.env.DB, id);
+    if (!item) return c.json({ error: 'That isn’t in the inbox.' }, 404);
     const now = new Date().toISOString();
+    // An interrupted sort: what it made, if anything, is linked rather than made again.
+    const made = status === 'open' && item.status === 'sorted' && item.target && !item.target.id ? await madeAt(c.env.DB, item.target.kind, id) : null;
+    // ponytail: a sort still saving can't be put back for 5 minutes (longer than a request runs); a synced
+    // calendar that takes longer could get the event twice.
+    const saving = new Date(Date.now() - 5 * 60_000).toISOString();
     // Put back: a cleared thought, or one whose saving was interrupted (sorted with nothing made).
-    const res = status === 'cleared'
+    const res = made ? await c.env.DB.prepare(`UPDATE inbox_items SET target = ?, updated_at = ? WHERE id = ? AND ${unlinked}`).bind(JSON.stringify(made), now, id).run()
+      : status === 'cleared'
       ? await c.env.DB.prepare("UPDATE inbox_items SET status = 'cleared', done_at = ?, updated_at = ? WHERE id = ? AND status = 'open'").bind(now, now, id).run()
-      : await c.env.DB.prepare("UPDATE inbox_items SET status = 'open', target = NULL, done_at = NULL, updated_at = ? WHERE id = ? AND (status = 'cleared' OR (status = 'sorted' AND target->>'id' IS NULL))").bind(now, id).run();
-    if (!res.meta.changes) return c.json({ error: status === 'cleared' ? 'That’s already been sorted.' : 'That’s already in the inbox, or it went somewhere.' }, 409);
+      : await c.env.DB.prepare(`UPDATE inbox_items SET status = 'open', target = NULL, done_at = NULL, updated_at = ? WHERE id = ? AND (status = 'cleared' OR (${unlinked} AND updated_at < ?))`).bind(now, id, saving).run();
+    if (!res.meta.changes) {
+      return c.json({ error: status === 'cleared' ? 'That’s already been sorted.' : item.status === 'sorted' && !item.target?.id ? 'That’s still being saved. Try again in a few minutes.' : 'That’s already in the inbox, or it went somewhere.' }, 409);
+    }
     emit(c, 'inbox.changed', { id });
     return c.json((await load(c.env.DB, id))!, 200);
   });
@@ -80,36 +110,44 @@ export function inboxRoutes(app: App) {
     if (!item) return c.json({ error: 'That isn’t in the inbox.' }, 404);
     const now = new Date().toISOString();
     // Claim it first, in one statement, so two taps or two devices make it once. A crash before it's
-    // made leaves it sorted with no target: still listed, and PATCH status=open puts it back.
+    // linked leaves it sorted with no target: still listed, and PATCH status=open links what was made
+    // or puts it back. `mine`: only while this claim stands, so a sort that outlived a put back and a
+    // newer sort changes nothing.
     const claim = await c.env.DB.prepare("UPDATE inbox_items SET status = 'sorted', target = ?, done_at = ?, updated_at = ? WHERE id = ? AND status = 'open'")
       .bind(JSON.stringify({ kind: input.kind, id: null }), now, now, id).run();
     if (!claim.meta.changes) return c.json({ error: 'That’s already been sorted.' }, 409);
-    const release = () => c.env.DB.prepare("UPDATE inbox_items SET status = 'open', target = NULL, done_at = NULL, updated_at = ? WHERE id = ?").bind(new Date().toISOString(), id).run();
+    const mine = `id = ? AND ${unlinked} AND updated_at = ?`;
+    const link = (target: Target) => c.env.DB.prepare(`UPDATE inbox_items SET target = ?, updated_at = ? WHERE ${mine}`).bind(JSON.stringify(target), new Date().toISOString(), id, now).run();
+    /** Not made: back in the inbox. Made after all (an earlier sort's, or this one's before it failed): linked. */
+    const release = async () => {
+      const made = await madeAt(c.env.DB, input.kind, id);
+      await (made ? link(made) : c.env.DB.prepare(`UPDATE inbox_items SET status = 'open', target = NULL, done_at = NULL, updated_at = ? WHERE ${mine}`).bind(new Date().toISOString(), id, now).run());
+      return !!made;
+    };
 
-    const send = (path: string, body: unknown) => app.request(path, {
-      method: 'POST', body: JSON.stringify(body),
-      headers: { Authorization: c.req.header('Authorization') ?? '', 'Accept-Language': c.req.header('Accept-Language') ?? '', 'Content-Type': 'application/json', 'X-Kinwall-Source': c.req.header('X-Kinwall-Source') ?? 'inbox' },
-    }, c.env);
-    let res: Response;
     try {
-      res = input.kind === 'task' ? await send(`/api/lists/${encodeURIComponent(input.listId)}/items`, [{ id: item.id, title: input.title, dueDate: input.dueDate ?? null }]) // the thought's id: a retry after a crash adds it once
-        : input.kind === 'event' ? await send('/api/events', input.event)
-        : await send('/api/announcements', { title: input.title, details: input.details, startsAt: now, expiresAt: input.expiresAt, priority: 'normal' });
+      let made: { id: string } | { error: string; status: number };
+      if (input.kind === 'task') {
+        const res = await app.request(`/api/lists/${encodeURIComponent(input.listId)}/items`, {
+          method: 'POST', body: JSON.stringify([{ id, title: input.title, dueDate: input.dueDate ?? null }]),
+          headers: { Authorization: c.req.header('Authorization') ?? '', 'Accept-Language': c.req.header('Accept-Language') ?? '', 'Content-Type': 'application/json', 'X-Kinwall-Source': c.req.header('X-Kinwall-Source') ?? 'inbox' },
+        }, c.env);
+        const body = await res.json().catch(() => ({})) as { error?: string } & { id: string }[];
+        made = res.status >= 400 ? { error: body.error ?? stored('error', 'That couldn’t be saved.'), status: res.status } : body[0];
+      } else if (input.kind === 'event') {
+        const created = await createEvent(c, input.event, id);
+        made = 'error' in created ? created : created.row;
+      } else {
+        made = !(await readFeatures(c.env.DB)).announcements ? { error: 'Announcements are turned off in Settings → General → Features.', status: 404 }
+          : await createAnnouncement(c, { title: input.title, details: input.details, startsAt: now, expiresAt: input.expiresAt, priority: 'normal' }, id).then(a => 'error' in a ? { ...a, status: 400 } : a);
+      }
+      if ('error' in made) {
+        if (!(await release())) return c.json({ error: made.error }, (made.status === 403 || made.status === 404 || made.status === 502 ? made.status : 400) as 400 | 403 | 404 | 502);
+      } else await link((await madeAt(c.env.DB, input.kind, made.id)) ?? { kind: input.kind, id: made.id });
     } catch (e) {
-      await release();
+      await release().catch(() => {}); // the database may still be down: putting it back later links it
       throw e;
     }
-    const body = await res.json().catch(() => ({})) as Record<string, unknown> & { error?: string };
-    if (res.status >= 400) {
-      await release();
-      return c.json({ error: body.error ?? stored('error', 'That couldn’t be saved.') }, (res.status === 403 || res.status === 404 || res.status === 502 ? res.status : 400) as 400 | 403 | 404 | 502);
-    }
-    const made = (Array.isArray(body) ? body[0] : body) as { id: string; start?: string };
-    const list = input.kind === 'task' ? await c.env.DB.prepare('SELECT name FROM lists WHERE id = ?').bind(input.listId).first<{ name: string }>() : null;
-    const target: NonNullable<InboxItem['target']> = input.kind === 'task' ? { kind: 'task', id: made.id, listId: input.listId, label: list?.name ?? '' }
-      : input.kind === 'event' ? { kind: 'event', id: made.id, at: made.start }
-      : { kind: 'note', id: made.id };
-    await c.env.DB.prepare('UPDATE inbox_items SET target = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(target), new Date().toISOString(), id).run();
     emit(c, 'inbox.changed', { id });
     return c.json((await load(c.env.DB, id))!, 200);
   });

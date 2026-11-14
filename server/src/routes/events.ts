@@ -692,7 +692,9 @@ async function providerFail(c: Ctx, err: unknown): Promise<Fail<502>> {
   return { error: "That couldn't be saved to the calendar. Ask a parent to check it under Settings → Calendars.", status: 502 };
 }
 
-export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>): Promise<Fail<400 | 403 | 502> | { row: EventRow; cal: CalendarRow }> {
+/** `localId`: the row's id on a Kinwall calendar (the inbox uses the thought's own, so an interrupted
+ * sort can find what it made); a synced calendar's row keeps the id sync gives it. */
+export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>, localId?: string): Promise<Fail<400 | 403 | 502> | { row: EventRow; cal: CalendarRow }> {
   const calendarId = body.calendarId ?? (await defaultCalendarId(c.env.DB));
   if (!calendarId) return { error: 'No calendar takes new events. Add a Kinwall calendar in Settings → Calendars.', status: 400 };
   const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(calendarId).first<CalendarRow>();
@@ -744,7 +746,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
     // Remote calendars get the same deterministic id sync would assign this externalId, so a
     // freshly write-through-created event keeps its id across the next sync instead of
     // colliding with (or being orphaned by) the row sync inserts.
-    id: externalId ? await deterministicEventId(cal.id, externalId) : crypto.randomUUID(),
+    id: externalId ? await deterministicEventId(cal.id, externalId) : (localId ?? crypto.randomUUID()),
     calendar_id: cal.id,
     external_id: externalId,
     title,
