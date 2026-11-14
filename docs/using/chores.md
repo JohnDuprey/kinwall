@@ -305,7 +305,8 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 ![Edit chores on the wall display: Up and Down below each card, Set the table under Kitchen and Put a wash on under Household, available anytime](../screenshots/ipad-chores-order.png)
 
 On a parent's device, turn on **Edit chores**. Drag chores within a person's column, or use
-**Up** and **Down** below each card on a touchscreen or with a keyboard. The order is saved
+**Up** and **Down** on a touchscreen or with a keyboard: below each card in a narrow column, as on
+a tablet or wall display, or beside it (↑ and ↓) on a phone. The order is saved
 for future days too. Each person's linked copy keeps its own order. A saved order takes
 priority over start times; done chores still move below unfinished chores when you leave
 editing. Chores with the same order use their start time, then their original order.
