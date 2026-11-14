@@ -126,7 +126,7 @@ export default function AuthorizeScreen() {
             <>
               <p role="alert">{error}</p>
               <button className="btn btn-primary btn-block" onClick={load}>{t('Try again')}</button>
-              <a className="link-btn" style={{ marginTop: 8 }} href="#/">{t('Go to Kinwall')}</a>
+              <a className="link-btn" style={{ display: "block", marginTop: 12, textAlign: "center" }} href="#/">{t('Go to Kinwall')}</a>
             </>
           ) : <p>{t('Loading…')}</p>
         ) : (
