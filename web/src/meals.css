@@ -46,9 +46,13 @@
 .recipe-ingredient-more[open] summary::before, .recipe-steps-preview[open] summary::before { content: '▾'; }
 .recipe-ingredient-more summary .field-hint { margin: 0; color: var(--text-dim); font-weight: 600; overflow-wrap: anywhere; }
 .meal-spaced { margin-top: 20px; }
-.meal-check { display: flex; align-items: center; gap: 10px; margin: 12px 0; min-height: 44px; }
-.meal-check input { flex-shrink: 0; width: 28px; height: 28px; margin: 0; accent-color: var(--accent); }
-.meal-check label { flex: 1; cursor: pointer; padding: 10px 0; min-height: 44px; box-sizing: border-box; }
+.meal-check { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; min-height: 44px; }
+.meal-check input { flex-shrink: 0; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.meal-check label { flex: 1; cursor: pointer; }
+/* Groceries preview: a whole 44px row is the tap target, with a bigger box. */
+.meal-projection-item .meal-check { align-items: center; }
+.meal-projection-item .meal-check input { width: 28px; height: 28px; }
+.meal-projection-item .meal-check label { padding: 10px 0; min-height: 44px; box-sizing: border-box; }
 .meal-ingredients { padding-left: 22px; }
 .meal-ingredients li { margin: 10px 0; overflow-wrap: anywhere; }
 .meal-sheet-intro { margin: 0 0 20px; }
