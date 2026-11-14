@@ -324,7 +324,6 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
  * stays in view while it's folded. `keywords` name settings kept in a sheet, so search finds them. */
 function Section({ id, title, icon, summary, keywords, children }: { id?: string; title: string; icon?: React.ReactNode; summary?: ReactNode; keywords?: string[]; children: React.ReactNode }) {
   const headingId = (id ?? title).toLowerCase().replace(/[^a-z0-9]+/g, '-') // an IDREF can't contain spaces
-  keywords = [...(keywords ?? []), ...(SEARCH_ALIASES[headingId] ?? [])]
   const H = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   const acc = useContext(AccordionCtx)
   // A card with one control (a lone Change or Add button) isn't worth folding: show it plain, and
@@ -345,10 +344,11 @@ function Section({ id, title, icon, summary, keywords, children }: { id?: string
     const searching = acc.words.length > 0
     const folds = busy
     const open = !folds || (searching ? !acc.shut.has(headingId) : acc.open.has(headingId))
+    // SEARCH_ALIASES (in data-keywords below) help a card match, but never show in "Inside:".
     const inside = searching ? (keywords ?? []).filter(k => matchesAll(acc.words, k)) : []
     return (
       <section className={folds ? `settings-section settings-acc${open ? ' open' : ''}` : 'settings-section'} id={id} aria-labelledby={`${headingId}-title`}
-        data-acc={headingId} data-title={title} data-keywords={keywords?.join(' · ')}>
+        data-acc={headingId} data-title={title} data-keywords={[...(keywords ?? []), ...(SEARCH_ALIASES[headingId] ?? [])].join(' · ')}>
         <H className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>
           {folds
             ? <button type="button" className="settings-acc-btn" aria-expanded={open} aria-controls={`${headingId}-body`} onClick={() => acc.toggle(headingId)}>
