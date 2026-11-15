@@ -105,7 +105,11 @@ for (let n = 1; n <= 6; n++) {
   if (n !== 1) medLog.set(`med2:${demoDay(-n)}`, { '08:00': { status: 'taken', at, by: "Sam's phone" } }) // yesterday: not marked
   medLog.set(`med3:${demoDay(-n)}`, { wake: { startedAt: startedAt(n), status: 'taken', at: startedAt(n), by: "Sam's phone" } })
 }
-medLog.set(`med3:${demoDay(0)}`, { wake: { startedAt: startedAt(0) } })
+// Today's doses are taken already, so the demo's Board has no Take now waiting (a new dose added in the demo shows it).
+const takenAt = new Date(Math.min(Date.now(), new Date().setHours(8, 5, 0, 0))).toISOString()
+medLog.set(`med1:${demoDay(0)}`, { '08:00': { status: 'taken', at: takenAt, by: 'Kitchen wall' } })
+medLog.set(`med2:${demoDay(0)}`, { '08:00': { status: 'taken', at: takenAt, by: "Sam's phone" } })
+medLog.set(`med3:${demoDay(0)}`, { wake: { startedAt: startedAt(0), status: 'taken', at: startedAt(0), by: "Sam's phone" } })
 const doseStatus = (date: string, e: MockDose | undefined): DoseStatus => e?.status ?? (date < dateKey(new Date()) ? 'missed' : 'due')
 const bump = () => { reconcileMockMilestones(); rev++ }
 
@@ -478,7 +482,7 @@ const chores: Chore[] = [
 ]
 // One-time examples: the completed chore is history; the future one can become a name requirement.
 chores.push(
-  { id: 'ch-late', title: 'Wash the car', emoji: '🚗', memberId: 'm2', points: 10, rrule: null, dueDate: dateOnly(-2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null }, // not done: a late chore on the Board
+  { id: 'ch-late', title: 'Wash the car', emoji: '🚗', memberId: 'm2', points: 10, rrule: null, dueDate: dateOnly(1), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch-once-done', title: 'Return library books', emoji: '📚', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(-1), dueTime: null, active: true, sort: 10, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch-once-next', title: 'Clean your room', emoji: '🧹', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
 )
@@ -488,12 +492,10 @@ for (const c of chores) if (c.title === 'Set the table' || c.title === 'Empty di
 for (const [id, memberId] of [['ch-table-maya', 'm3'], ['ch-table-leo', 'm4']]) chores.push({ id, title: 'Set the table', emoji: '🍽️', memberId, points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 12, listId: null, pluginId: null, pluginMinutes: null, groupId: 'g-table', category: 'Kitchen' })
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
 completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), memberId: 'm3', points: 5 })
-// Most repeating chores were done their last time, so the Board's late chores show a few, not all: Sam's
-// Make bed and Leo's Tidy toys (a checklist, so Done opens it in Chores) were missed.
-for (const id of ['ch2', 'ch3', 'ch5', 'ch7', 'ch8']) {
-  const c = chores.find(x => x.id === id)!
+// Every repeating chore was done its last time, so the demo's Board opens with nothing late.
+for (const c of chores.filter(x => x.rrule && !x.repeatGoal)) {
   const n = [1, 2, 3, 4, 5, 6, 7].find(n => dueOn(c, dateOnly(-n)))
-  if (n) completions.set(`${id}:${dateOnly(-n)}`, { completedAt: at(-n, 18), memberId: c.memberId, points: c.points })
+  if (n) completions.set(`${c.id}:${dateOnly(-n)}`, { completedAt: at(-n, 18), memberId: c.memberId, points: c.points })
 }
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
 // parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
@@ -584,8 +586,8 @@ let listItems: ListItem[] = ([
   { id: 'li3', listId: 'l1', title: 'Bread', notes: null, quantity: null, store: 'Neighborhood market', aisle: 'Bakery', category: 'Bakery', memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', onSale: true, store: 'Neighborhood market', aisle: 'Produce', category: 'Produce', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), priority: 'low', updatedAt: new Date().toISOString() },
   { id: 'li5', listId: 'l1', title: 'Paper towels', notes: null, quantity: '12 rolls', store: 'Warehouse club', aisle: 'Aisle 14', category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
-  { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: todayISO(), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(-3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
+  { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: inDays(3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(9), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
   { id: 'li8', listId: 'l2', title: 'Book dentist appointment', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li13', listId: 'l2', title: 'Pack shin guards + water bottle', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: 'e1', done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li17', listId: 'l2', title: 'Rake the leaves', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: inDays(1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso(), addedBy: { label: 'Todoist' } },
@@ -594,7 +596,7 @@ let listItems: ListItem[] = ([
   { id: 'li10', listId: 'l3', title: 'Sleeping bags', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li11', listId: 'l3', title: 'Flashlight', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li12', listId: 'l3', title: 'Bug spray', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li15', listId: 'l4', title: 'Tidy the couch and put every blanket back in the basket by the window', notes: 'The gray throw goes in the hall closet, not the basket.', quantity: null, store: null, category: null, memberId: 'm3', dueDate: todayISO(), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso(), priority: 'urgent',
+  { id: 'li15', listId: 'l4', title: 'Tidy the couch and put every blanket back in the basket by the window', notes: 'The gray throw goes in the hall closet, not the basket.', quantity: null, store: null, category: null, memberId: 'm3', dueDate: inDays(5), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso(), priority: 'urgent',
     steps: [{ id: uid(), title: 'Fold the blankets', done: true, sort: 0 }, { id: uid(), title: 'Fluff the cushions', done: false, sort: 1 }, { id: uid(), title: 'Find the remote', done: false, sort: 2 }] },
   { id: 'li16', listId: 'l4', title: 'Toys back in their bins', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: inDays(2), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso(),
     steps: ['Blocks in the red bin', 'Cars in the blue bin', 'Books on the shelf', 'Stuffies on the bed', 'Check under the couch'] },
