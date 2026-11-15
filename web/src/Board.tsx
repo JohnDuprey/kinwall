@@ -32,7 +32,7 @@ import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { useLateChoresSlot } from './LateChores.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardFixed, boardShort, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from './boardFit.ts'
+import { boardAreas, boardChores, boardFixed, boardShort, castFit, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipFit, type ChipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores, stripFit } from './boardFit.ts'
 import { columnRows, type BoardCardSpec, cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -203,6 +203,38 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
         <div className="board-slot-item board-slot-chips">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
         <div className="board-slot-item board-slot-chips board-slot-words">{items.map(it => <Fragment key={it.key}>{it.chip}</Fragment>)}</div>
       </div>
+    </div>
+  )
+}
+
+/** The wall or tablet Board's "Today at a glance" strip above the cards: today's slot items as chips
+ *  with their words, on one line (boardFit.ts stripFit). The ones that don't fit go behind a "+N more"
+ *  chip that opens them whole in a sheet. Every chip is drawn unseen too, at its own width, to measure. */
+function StatusStrip({ items }: { items: SlotItem[] }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [shown, setShown] = useState(items.length)
+  const [open, setOpen] = useState(false)
+  const measure = useCallback(() => {
+    const el = ref.current, unseen = el?.querySelector<HTMLElement>(':scope > .board-status-measure')
+    if (!el || !unseen) return
+    const [more, ...chips] = [...unseen.children].map(c => c.getBoundingClientRect().width)
+    setShown(stripFit(chips, el.getBoundingClientRect().width, more, 8))
+  }, [])
+  useBoardMeasure(ref, measure, items)
+  const rest = items.slice(shown)
+  // A tap on something in the sheet goes where it leads (a list, a poll's sheet), so this one closes.
+  const leave = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest('a, button')) setOpen(false) }
+  return (
+    <div ref={ref} className="board-status board-slot-words" role="group" aria-label={t('Today at a glance')}>
+      {items.slice(0, shown).map(it => <span key={it.key} className="board-status-item">{it.chip}</span>)}
+      {rest.length > 0 && <button type="button" className="board-slot-chip board-status-more" aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('+{n} more', { n: rest.length })}</button>}
+      <div className="board-status-measure board-slot-words" aria-hidden="true" inert>
+        <span className="board-slot-chip board-status-more">{t('+{n} more', { n: items.length })}</span>
+        {items.map(it => <span key={it.key} className="board-status-item">{it.chip}</span>)}
+      </div>
+      {open && <Sheet title={t('Today at a glance')} onClose={() => setOpen(false)}>
+        <div className="board-sheet board-slot" onClickCapture={leave}>{rest.map(it => <div key={it.key} className="board-slot-item">{it.full}</div>)}</div>
+      </Sheet>}
     </div>
   )
 }
@@ -429,6 +461,8 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   ].filter((t): t is string => !!t)
   // One or two of them (Groceries, Rewards) go on the toolbar as chips rather than stretch across a row.
   const chips = tileChips(tiles, !!chipHost)
+  // On the wall or tablet board with today's slot on, the count tiles join it in the strip above the cards (StatusStrip).
+  const tilesInStrip = fixed && todayTiles && tiles.length > 0 && !chips
   // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
@@ -438,7 +472,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   // The Checklist card: its list, else the first reusable one; gone (or none), the card goes too.
   const checklistId = layout?.columns.flat().find(c => c.id === 'checklist')?.listId
   const checklist = lists.find(l => l.id === checklistId) ?? (checklistId ? undefined : lists.find(l => l.kind === 'reusable'))
-  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 && !chips : !cardOn(a, f) ? false
+  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 && !chips && !tilesInStrip : !cardOn(a, f) ? false
     : a === 'checklist' ? !!checklist : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true
   const custom = layout && layoutAreas(layout, can)
   const shown = custom ? custom.shown : ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
@@ -546,12 +580,21 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     ...(tiles.includes('rewards') ? [{ key: 'rewards', href: '#/rewards', icon: <span aria-hidden="true">🎁 </span>, name: t('Rewards'), value: t('{n} waiting', { n: rewardRequests }), count: `${rewardRequests}` }] : []),
   ]
 
+  // On the wall or tablet board, today's slot and the count tiles are one strip of chips above the
+  // cards, so Today keeps its whole height for the day's events; a phone's scrolling board keeps the
+  // slot at Today's foot.
+  const stripItems: SlotItem[] = [...todaySlot, ...(tilesInStrip ? countTiles : []).map(c => {
+    const row = <a className="board-slot-row" href={c.href} aria-label={`${c.name}: ${c.value}`}>{c.icon}<span className="board-slot-row-text" aria-hidden="true">{c.name} · {c.value}</span></a>
+    return { key: c.key, row, full: row, chip: <a className="board-slot-chip" href={c.href} aria-label={`${c.name}: ${c.value}`}>{c.icon}<span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{c.name}</span><span aria-hidden="true" className="board-slot-chip-text">{c.count}</span></a> }
+  })]
+  const slotStrip = fixed && stripItems.length > 0
   return (
     <div className="board-scroll" ref={scrollRef} data-fixed={fixed || undefined}>
       <ToolbarChips host={chips ? chipHost : null} tiles={countTiles} />
       <FamilyAnnouncements />
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
+      {slotStrip && <div className="board-polls"><StatusStrip items={stripItems} /></div>}
       {medsSlot.sheets}{pollSlot.sheets}{lateSlot.sheets}
       <BoardGrid columns={cast && fixed && custom?.columns.length === 2 ? custom.columns : undefined}
         compact={new Set(cast && short ? tidbitAreas.filter((_, i) => tidbits[i] && tidbits[i]?.kind !== 'trivia') : [])}
@@ -623,7 +666,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
           )}
         </section>}
 
-        {has('today') && <Card title={t('Today')} area="today" density={dense('today')} foot={<TodaySlot fixed={fixed} items={todaySlot} />}>
+        {has('today') && <Card title={t('Today')} area="today" density={dense('today')} foot={!slotStrip && <TodaySlot fixed={fixed} items={todaySlot} />}>
           {(() => {
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = todayOrder(events.filter(e => e.date === today), now.getTime())

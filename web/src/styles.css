@@ -2940,6 +2940,14 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-words .board-slot-chip { flex: 1 1 auto; }
 .board-slot-words .board-slot-chip-long { display: inline; }
 .board-slot-words .board-routine-chip .board-slot-chip-long { white-space: normal; overflow-wrap: anywhere; }
+/* The wall or tablet Board's "Today at a glance" strip (Board.tsx StatusStrip): one line of chips with
+   their words; what doesn't fit goes behind +N more. The unseen copy measures each chip at its own width. */
+.board-status { position: relative; display: flex; gap: 8px; flex-wrap: nowrap; overflow: hidden; }
+.board-polls:has(> .board-status) { padding-bottom: 8px; } /* with the board's 4px top, the 12px the cards keep between them */
+.board-status-item { flex: none; display: flex; gap: 8px; }
+.board-status .board-slot-chip { flex: none; padding-inline: 14px; }
+.board-status .board-slot-chip-long, .board-status .board-routine-chip .board-slot-chip-long { white-space: nowrap; }
+.board-status-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; display: flex; gap: 8px; flex-wrap: nowrap; }
 /* Today's events that are over, folded into one quiet row under what's on now and next. */
 .board-earlier { width: 100%; min-height: 44px; justify-content: flex-start; color: var(--text-dim); font-weight: 700; }
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }
@@ -4349,6 +4357,8 @@ html:root[data-cast] {
 .board-announcements ~ .board { height: auto; flex: 1 0 480px; }
 /* The fixed board fits the room left: an explicit min-height, since the auto one is the cards' content, so unfit cards would stretch the grid. A scrolling board keeps its content height. */
 .board-scroll[data-fixed] > .board-announcements ~ .board { flex: 1 1 0; min-height: 480px; }
+/* With Today at a glance above the cards, the count tiles' row moved into it, so the cards need that much less height. */
+.board-scroll[data-fixed] > .board-polls:has(> .board-status) ~ .board { min-height: 424px; }
 .announcement-banner { display: flex; gap: 12px; padding: 16px; margin-bottom: 8px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); overflow-wrap: anywhere; }
 .announcement-important { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
 .announcement-icon { flex: none; font-size: 1.6rem; }
