@@ -6,6 +6,8 @@ The inbox is for grown-ups: it's on a parent's device, not on wall screens set t
 
 ## Jot it down
 
+<img src="../screenshots/phone-inbox.png" width="300" alt="The inbox on a phone: a Jot it down box with Save, and three things to sort, each with when it was saved" />
+
 Tap the **inbox** button at the top of the screen, beside the bell. It's there on every screen. Its small number is how many things are waiting. It's the same color as the text, not the bell's red, because nothing in it is urgent.
 
 Type, then **Save** or press Enter. The box clears and stays ready for the next one. There's no day, person, list or type to pick first. If saving doesn't work (no connection, say), what you typed goes back in the box. Something typed but not saved asks before the inbox closes.
@@ -13,6 +15,8 @@ Type, then **Save** or press Enter. The box clears and stays ready for the next 
 You can also add to it from an AI assistant connected to Kinwall ("Add 'permission slip for Friday' to my inbox"). See [MCP](../integrations/mcp.md).
 
 ## Sort it out later
+
+<img src="../screenshots/phone-inbox-sort.png" width="300" alt="Sorting Permission slip for Friday on a phone: made into a task on Weekend To-Dos, due Friday, Nov 20, with Not needed, Later and Add task" />
 
 Tap a thought to sort it. What you wrote stays at the top, and you pick what it becomes:
 
