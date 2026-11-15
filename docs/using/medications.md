@@ -36,7 +36,7 @@ Only the person counts. A parent's phone opening a kid's day, or a parent answer
 The Take now cards update when a dose becomes due, a snooze ends, or its late window
 closes. Returning to the app also checks for changes made on another device.
 
-At each dose time, **💊 Take now** ("3 due", with who) shows on the [Board](calendar.md#board-view): in **Today at a glance** above the cards on a wall or a tablet on its side, or in the Today card right under the events on a phone (a count tile across the top on a layout without Today); tap it to open the doses in a sheet. The person's **Day** view shows their doses right there. Each dose shows who, the medicine and the time, with three buttons:
+At each dose time, **💊 Take now** ("3 due", with who) shows on the [Board](calendar.md#board-view): in **Today at a glance** above the cards on a wall or a tablet, or in the Today card right under the events on a phone (a count tile across the top on a layout without Today); tap it to open the doses in a sheet. The person's **Day** view shows their doses right there. Each dose shows who, the medicine and the time, with three buttons:
 
 * **Taken**: logs when and on which device, with a quick cheer that changes each time ("🚀 Leo for the win!") and a little confetti. Low-stimulation mode keeps it to a calm "Nice job, Leo." with no confetti. There are no points for medicine: points would be a reason to tap Taken without taking it, and they show on the leaderboard.
 * **Skip**: logs that it was skipped on purpose.

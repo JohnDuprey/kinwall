@@ -153,14 +153,13 @@ export function chipFit(full: number[], short: number[], room: number, freed: nu
 }
 export type ChipFit = 'names' | 'short' | 'tight' | 'wrap'
 
-/** How many of the wall Board's status chips (`widths`, in order) fit on its one line of `room`: all
- *  of them, else as many as leave room for the +N chip (`more`) that opens the rest. */
-export function stripFit(widths: number[], room: number, more: number, gap = 6): number {
-  const upTo = (n: number) => widths.slice(0, n).reduce((t, w) => t + w + gap, 0)
-  if (upTo(widths.length) - gap <= room + 0.5) return widths.length
-  let n = 0
-  while (n < widths.length && upTo(n + 1) + more <= room + 0.5) n++
-  return n
+/** Which of the Board's status chips (`widths`, in order) fit on its one line of `room`: all of
+ *  them, else each in turn that still fits beside the +N chip (`more`) that opens the rest, so one
+ *  wide chip doesn't push the narrower ones after it off the line. */
+export function stripFit(widths: number[], room: number, more: number, gap = 6): boolean[] {
+  if (widths.reduce((t, w) => t + w + gap, -gap) <= room + 0.5) return widths.map(() => true)
+  let used = more
+  return widths.map(w => used + gap + w <= room + 0.5 ? (used += gap + w, true) : false)
 }
 
 /** Today's events on the Board, for a glance late in the day: what's on now (all-day ones too), then

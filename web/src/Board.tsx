@@ -212,7 +212,7 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
  *  chip that opens them whole in a sheet. Every chip is drawn unseen too, at its own width, to measure. */
 function StatusStrip({ items }: { items: SlotItem[] }) {
   const ref = useRef<HTMLDivElement>(null)
-  const [shown, setShown] = useState(items.length)
+  const [shown, setShown] = useState<boolean[]>([])
   const [open, setOpen] = useState(false)
   const measure = useCallback(() => {
     const el = ref.current, unseen = el?.querySelector<HTMLElement>(':scope > .board-status-measure')
@@ -221,12 +221,12 @@ function StatusStrip({ items }: { items: SlotItem[] }) {
     setShown(stripFit(chips, el.getBoundingClientRect().width, more, 8))
   }, [])
   useBoardMeasure(ref, measure, items)
-  const rest = items.slice(shown)
+  const fits = items.map((_, i) => shown[i] ?? true), rest = items.filter((_, i) => !fits[i])
   // A tap on something in the sheet goes where it leads (a list, a poll's sheet), so this one closes.
   const leave = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest('a, button')) setOpen(false) }
   return (
     <div ref={ref} className="board-status board-slot-words" role="group" aria-label={t('Today at a glance')}>
-      {items.slice(0, shown).map(it => <span key={it.key} className="board-status-item">{it.chip}</span>)}
+      {items.filter((_, i) => fits[i]).map(it => <span key={it.key} className="board-status-item">{it.chip}</span>)}
       {rest.length > 0 && <button type="button" className="board-slot-chip board-status-more" aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('+{n} more', { n: rest.length })}</button>}
       <div className="board-status-measure board-slot-words" aria-hidden="true" inert>
         <span className="board-slot-chip board-status-more">{t('+{n} more', { n: items.length })}</span>
@@ -529,12 +529,13 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
     },
     todayTiles && choresTile && lateSlot.item,
-    todayTiles && choresTile && routineRows.length > 0 && {
-      key: 'routine',
-      chip: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} chip />,
-      row: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} />,
-      full: <RoutineHomeIndicator rows={routineRows} parent={parentDevice} />,
-    },
+    // Each kid's free time on its own, so a long one goes behind +N on its own (StatusStrip).
+    ...(todayTiles && choresTile ? routineRows.map(row => ({
+      key: `routine:${row.id}`,
+      chip: <RoutineHomeIndicator rows={[row]} parent={parentDevice} chip />,
+      row: <RoutineHomeIndicator rows={[row]} parent={parentDevice} />,
+      full: <RoutineHomeIndicator rows={[row]} parent={parentDevice} />,
+    })) : []),
     // Right after the chores: what the kids are saving for, at every size the full Chores card isn't on.
     todayTiles && choresTile && goals.length > 0 && {
       key: 'goals',
@@ -580,14 +581,14 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     ...(tiles.includes('rewards') ? [{ key: 'rewards', href: '#/rewards', icon: <span aria-hidden="true">🎁 </span>, name: t('Rewards'), value: t('{n} waiting', { n: rewardRequests }), count: `${rewardRequests}` }] : []),
   ]
 
-  // On the wall or tablet board, today's slot and the count tiles are one strip of chips above the
-  // cards, so Today keeps its whole height for the day's events; a phone's scrolling board keeps the
-  // slot at Today's foot.
+  // On a wall or tablet board, today's slot is one strip of chips above the cards (with the count
+  // tiles too when the board fits the screen), so Today keeps its height for the day's events; a
+  // phone keeps the slot at Today's foot.
   const stripItems: SlotItem[] = [...todaySlot, ...(tilesInStrip ? countTiles : []).map(c => {
     const row = <a className="board-slot-row" href={c.href} aria-label={`${c.name}: ${c.value}`}>{c.icon}<span className="board-slot-row-text" aria-hidden="true">{c.name} · {c.value}</span></a>
     return { key: c.key, row, full: row, chip: <a className="board-slot-chip" href={c.href} aria-label={`${c.name}: ${c.value}`}>{c.icon}<span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{c.name}</span><span aria-hidden="true" className="board-slot-chip-text">{c.count}</span></a> }
   })]
-  const slotStrip = fixed && stripItems.length > 0
+  const slotStrip = (fixed || boardW >= 700) && stripItems.length > 0
   return (
     <div className="board-scroll" ref={scrollRef} data-fixed={fixed || undefined}>
       <ToolbarChips host={chips ? chipHost : null} tiles={countTiles} />

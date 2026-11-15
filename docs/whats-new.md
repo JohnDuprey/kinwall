@@ -42,7 +42,7 @@ and organize chores.
   choose **Not done**, with Undo, to remove that missed day without awarding points or changing
   future repeats. See
   [Chores](using/chores.md#late-chores).
-* **Today at a glance**: on a wall or a tablet on its side, medicine, chores, free time, to-dos,
+* **Today at a glance**: on a wall or a tablet, medicine, chores, free time, to-dos,
   an open poll and the list counts sit on one line above the cards, so the Today card keeps its
   whole column for the day's events. What doesn't fit opens from **+N more**. See
   [Board view](using/calendar.md#board-view).
