@@ -11,6 +11,8 @@ tests() { local out; out=$(npm test 2>&1) || { echo "$out" | tail -40; return 1;
   echo "$out" | grep -E '^ℹ (tests|pass|fail) ' || { echo "$out" | tail -40; echo "no test summary: the tests didn't run"; return 1; }
   grep -qE '^ℹ fail 0$' <<< "$out" || { echo "$out" | grep -B2 -A12 'not ok' | head -60; return 1; }; }
 
+step "discord forum bridge: tests"; node --test tools/discord-sync/test/*.test.mjs
+
 step "server: typecheck"; (cd server && npm run typecheck >/dev/null)
 step "server: tests";     (cd server && tests)
 # `tsc -p .` in web checks nothing (web/tsconfig.json has no files); use the app config.

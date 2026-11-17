@@ -1,0 +1,9 @@
+{$SYNC_ASSET_HOST} {
+	@files path_regexp asset ^/assets/[a-f0-9]{64}$
+	handle @files {
+		reverse_proxy bridge:8098
+	}
+	handle {
+		respond 404
+	}
+}

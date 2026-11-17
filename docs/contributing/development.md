@@ -55,6 +55,8 @@ for an unsupported value. Its loader map has no inherited property names.
 | `demo.yml` | `v*` tags, a release, manual | Demo build to Cloudflare Pages (when `DEMO_PAGES_PROJECT` is set). |
 | `discord.yml` | a release, manual | Posts the release's highlights from What's new to Discord (when the `DISCORD_RELEASE_WEBHOOK` secret is set). |
 
+Community forum synchronization is a separate service; see [Discord forum and GitHub Issues](discord-forum-sync.md).
+
 ## Releases
 
 Releases are for self-hosters and for [What's new](../whats-new.md); the hosted service deploys from `main` on its own.
