@@ -7,7 +7,11 @@ to install. This is community tooling, separate from Kinwall family data and rel
 ## Behavior
 
 * Existing and new human-created forum posts become issues. Existing replies are
-  imported in chronological order, with authors, timestamps, and source links.
+  imported in chronological order, with authors, readable UTC timestamps (for example,
+  "Nov 17, 2026 at 3:45 AM UTC"), and source links. Community wording is preserved;
+  docs/website editorial rules do not filter what participants say. Mentions are
+  neutralized only to avoid pinging unrelated GitHub accounts. Formatting revisions
+  refresh existing bridge-owned copies in place, subject to edit conflict protection.
 * GitHub issues with the configured `discord` label become forum posts. Unlabeled
   issues do not create new posts. Removing the label later does not unlink an existing pair.
 * Replies flow both ways. Source edits update the bridge-owned copy. Long GitHub
@@ -56,7 +60,7 @@ Configure these repository settings:
 * Actions secret `DISCORD_SYNC_BOT_TOKEN`: the Discord bot token.
 * Actions variables `DISCORD_GUILD_ID` and `DISCORD_FORUM_ID`: the selected server/forum.
 * Optional variables `DISCORD_SYNC_TAG_MAP`, `DISCORD_DEFAULT_TAG`,
-  `DISCORD_SYNC_REDACT_TERMS`, and `DISCORD_SYNC_RELATED_ISSUES`, using the JSON formats
+  and `DISCORD_SYNC_RELATED_ISSUES`, using the JSON formats
   below. These values are passed through environment variables, never interpolated
   into shell commands.
 * Leave `DISCORD_SYNC_ENABLED` unset or `false` while reviewing. Once the workflow is
@@ -147,8 +151,6 @@ Optional configuration:
   to issue labels. Required GitHub labels are created during startup with writes enabled.
 * `DISCORD_DEFAULT_TAG` is an existing forum tag ID for new GitHub-origin posts with no
   matching labels. It is required when the forum requires a tag.
-* `SYNC_REDACT_TERMS=["private-term"]` removes configured literal terms, ignoring case,
-  from Discord content before publishing to GitHub. Source links remain available.
 * `SYNC_RELATED_ISSUES={"100000000000000003":42}` appends a related issue link to a
   particular imported post. It never changes either issue's state.
 * `SYNC_INTERVAL_SECONDS` accepts 15–3600; default 60. `DISCORD_SYNC_LABEL` defaults to

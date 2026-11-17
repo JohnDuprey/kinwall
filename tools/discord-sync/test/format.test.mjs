@@ -27,7 +27,24 @@ test('attribution neutralizes mentions and preserves source links', () => {
   assert.equal(hash('same'), hash('same'));
 });
 
-test('literal redaction terms escape regex syntax and ignore case', async () => {
-  const { redact } = await import('../format.mjs');
-  assert.equal(redact('A.B and a.b but not aXb', ['a.b']), '[redacted] and [redacted] but not aXb');
+test('community wording is preserved even when a legacy filter is supplied', () => {
+  const body = githubBody({ id: '3', author: { username: 'Sam' }, content: 'I use another calendar.', timestamp: '2026-11-17T03:45:09.454000+00:00' }, 'https://discord.com/channels/1/2/3', [], ['calendar']);
+  assert.ok(body.includes('I use another calendar.'));
+  assert.ok(!body.includes('[redacted]'));
+});
+
+test('timestamps use a readable UTC date and minute, without fractional seconds', () => {
+  const body = githubBody({ id: '3', author: { username: 'Sam' }, content: 'Activities', timestamp: '2026-11-17T03:45:09.454000+00:00' }, 'https://discord.com/channels/1/2/3');
+  assert.match(body, /^\*\*Sam\*\* · Nov 17, 2026 at 3:45 AM UTC\n/);
+  assert.ok(!body.includes('454000'));
+  assert.ok(!body.includes('+00:00'));
+});
+
+test('missing or invalid timestamps are omitted instead of showing raw data', () => {
+  for (const timestamp of [undefined, 'not-a-date']) {
+    const body = githubBody({ id: '3', author: { username: 'Sam' }, content: 'Activities', timestamp }, 'https://discord.com/channels/1/2/3');
+    assert.match(body, /^\*\*Sam\*\*\n/);
+    assert.ok(!body.includes('undefined'));
+    assert.ok(!body.includes('not-a-date'));
+  }
 });

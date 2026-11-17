@@ -1,4 +1,4 @@
-import { hash, sourceHash, marker, extractMarker, chunks, githubBody, discordBody, redact } from './format.mjs';
+import { hash, sourceHash, marker, extractMarker, chunks, githubBody, discordBody, IMPORT_FORMAT_VERSION } from './format.mjs';
 
 /** Full reconciliation: no event order assumptions, no destructive propagation. */
 export class Bridge {
@@ -36,9 +36,9 @@ export class Bridge {
     this.action(type, key, preview);
     if (this.apply) { this.guard(); await write(); } // PATCH is idempotent and safe to repeat
   }
-  fingerprint(message) { return hash([sourceHash(message), this.config.terms]); }
+  fingerprint(message) { return hash([sourceHash(message), IMPORT_FORMAT_VERSION]); }
   issueBody(thread, starter, files) {
-    const text = githubBody(starter, this.discordUrl(thread.id, starter.id), files, this.config.terms);
+    const text = githubBody(starter, this.discordUrl(thread.id, starter.id), files);
     const related = this.config.relatedIssues?.[thread.id];
     return text + (related ? `\n\nRelated GitHub issue: https://github.com/${this.config.repo}/issues/${related}` : '');
   }
@@ -46,6 +46,10 @@ export class Bridge {
     const files = [];
     for (const attachment of message.attachments ?? []) {
       if (!this.apply) {
+        const published = this.store.get(`release-attachment:${attachment.id}`);
+        if (published) { files.push(published); continue; }
+        const cached = this.store.get(`attachment:${attachment.id}`);
+        if (cached && this.config.assetBase) { files.push({ ...cached, url: `${this.config.assetBase}/${cached.hash}` }); continue; }
         files.push({ filename: attachment.filename, url: `https://assets.invalid/preview/${attachment.id}`, image: attachment.content_type?.startsWith('image/') });
         this.action('preserve-attachment', attachment.id, { filename: attachment.filename });
       } else files.push(await this.assets.copy(attachment));
@@ -128,8 +132,8 @@ export class Bridge {
             const body = this.issueBody(thread, starter, await this.files(starter));
             const labels = [...new Set([this.config.label, ...this.tagLabels(thread)])];
             const issue = await this.create(`issue:${thread.id}`, 'create-issue', async () => issues.filter(i => this.ownGithub(i) && extractMarker(i.body, 'discord') === thread.id),
-              () => this.github.createIssue({ title: redact(thread.name, this.config.terms), body, labels }),
-              { title: redact(thread.name, this.config.terms), body, labels });
+              () => this.github.createIssue({ title: thread.name, body, labels }),
+              { title: thread.name, body, labels });
             if (issue.body !== undefined && issue.body !== body) throw new Error('Recovered issue differs from the current source; review the copies before continuing');
             if (!String(issue.number).startsWith('planned-') && !issues.some(i => i.number === issue.number)) issues.push(issue);
             issueByNumber.set(issue.number, issue);
@@ -145,14 +149,14 @@ export class Bridge {
             const changed = this.fingerprint(starter) !== binding.dHash;
             if (changed || thread.name !== binding.dTitle) {
               const body = this.issueBody(thread, starter, await this.files(starter));
-              const title = redact(thread.name, this.config.terms);
+              const title = thread.name;
               if (issue.body === body && issue.title === title) {
                 Object.assign(binding, { dHash: this.fingerprint(starter), dTitle: thread.name, gHash: hash(body), gTitle: title });
               } else if (hash(issue.body) !== binding.gHash || (binding.gTitle && issue.title !== binding.gTitle)) {
                 this.action('conflict', `issue:${issue.number}`, { body, title });
                 this.warn(`issue:${issue.number}`, new Error('Both source and GitHub changed; issue body/title retained for manual conflict resolution'));
               } else {
-                await this.update(`issue:${issue.number}`, 'edit-issue', () => this.github.updateIssue(issue.number, { body, title }));
+                await this.update(`issue:${issue.number}`, 'edit-issue', () => this.github.updateIssue(issue.number, { body, title }), { body, title });
                 Object.assign(issue, { body, title });
                 Object.assign(binding, { dHash: this.fingerprint(starter), dTitle: thread.name, gHash: hash(body), gTitle: title });
               }
@@ -222,7 +226,7 @@ export class Bridge {
     const saved = this.store.get(`discord-message:${message.id}`);
     const fingerprint = this.fingerprint(message);
     if (saved?.hash === fingerprint) return;
-    const body = githubBody(message, this.discordUrl(thread.id, message.id), await this.files(message), this.config.terms);
+    const body = githubBody(message, this.discordUrl(thread.id, message.id), await this.files(message));
     const matches = comments.filter(c => this.ownGithub(c) && extractMarker(c.body, 'discord') === message.id);
     if (matches.length > 1) throw new Error('Duplicate GitHub comment origin markers; manual reconciliation required');
     if (saved) {
@@ -230,7 +234,7 @@ export class Bridge {
       if (!current) throw new Error('GitHub copy was deleted; not recreating it');
       if (current.body === body) { this.store.set(`discord-message:${message.id}`, { id: saved.id, hash: fingerprint, bodyHash: hash(body) }); return; }
       if (hash(current.body) !== saved.bodyHash) { this.action('conflict', key, { body }); throw new Error('Both copies changed; GitHub comment retained for manual conflict resolution'); }
-      await this.update(key, 'edit-comment', () => this.github.updateComment(saved.id, body));
+      await this.update(key, 'edit-comment', () => this.github.updateComment(saved.id, body), { body });
       current.body = body;
       this.store.set(`discord-message:${message.id}`, { id: saved.id, hash: fingerprint, bodyHash: hash(body) });
       return;

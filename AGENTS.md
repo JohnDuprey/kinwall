@@ -117,8 +117,10 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
 
 - Examples, fixtures, screenshots and the demo use the demo family only: "Our Family" with Alex,
   Sam, Maya and Leo. Never real names, addresses or photos.
-- Don't name competing family-calendar products anywhere public. Services Kinwall imports from or
-  syncs with (Google, HelloFresh, stores) are fine to name.
+- Kinwall-authored public copy (docs, website, release notes) must not name competing family-calendar
+  products. Services Kinwall imports from or syncs with (Google, HelloFresh, stores) are fine to name.
+  Community discussions and imported user posts preserve participants' wording, including product
+  names; do not apply the authored-copy rule as a filter to Discord/GitHub conversations.
 - Never commit secrets, API keys or tokens; tests use obvious fakes.
 
 ## Health data

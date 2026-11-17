@@ -4,14 +4,18 @@ export const marker = (kind, id) => `<!-- kinwall-discord-sync:${kind}:${id} -->
 export const sourceHash = message => hash({ content: message.content, attachments: (message.attachments ?? []).map(a => [a.id, a.filename]) });
 export const neutral = value => String(value ?? '').replaceAll('@', '@\u200b');
 export const cleanName = value => neutral(value).replace(/[\[\]<>*_`\r\n]/g, '');
-export function redact(value, terms = []) {
-  let text = String(value ?? '');
-  for (const term of terms.filter(Boolean)) text = text.replace(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '[redacted]');
-  return text;
+// Bump when attribution formatting changes so existing bridge-owned copies refresh in place.
+export const IMPORT_FORMAT_VERSION = 2;
+const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' });
+const timeFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+export function formatTimestamp(value) {
+  const date = value ? new Date(value) : undefined;
+  return date && Number.isFinite(date.getTime()) ? `${dateFormat.format(date)} at ${timeFormat.format(date)}` : '';
 }
-export function githubBody(message, url, attachments = [], terms = []) {
+export function githubBody(message, url, attachments = []) {
   const files = attachments.map(a => `${a.image ? '!' : ''}[${cleanName(a.filename)}](${a.url})`).join('\n');
-  return `**${cleanName(message.author.global_name || message.author.username)}** · ${message.timestamp}\n[Original Discord message](${url})\n\n${neutral(redact(message.content, terms))}${files ? `\n\n${files}` : ''}\n\n${marker('discord', message.id)}`;
+  const timestamp = formatTimestamp(message.timestamp);
+  return `**${cleanName(message.author.global_name || message.author.username)}**${timestamp ? ` · ${timestamp}` : ''}\n[Original Discord message](${url})\n\n${neutral(message.content)}${files ? `\n\n${files}` : ''}\n\n${marker('discord', message.id)}`;
 }
 export function discordBody(item) {
   return `**${cleanName(item.user?.login || 'GitHub')}** (GitHub) · ${item.html_url}\n\n${neutral(item.body || '(No description)')}`;

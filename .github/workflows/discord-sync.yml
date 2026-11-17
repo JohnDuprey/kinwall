@@ -55,7 +55,6 @@ jobs:
           SYNC_DATA_DIR: ${{ runner.temp }}/discord-sync
           SYNC_TAG_MAP: ${{ vars.DISCORD_SYNC_TAG_MAP || '{}' }}
           DISCORD_DEFAULT_TAG: ${{ vars.DISCORD_DEFAULT_TAG }}
-          SYNC_REDACT_TERMS: ${{ vars.DISCORD_SYNC_REDACT_TERMS || '[]' }}
           SYNC_RELATED_ISSUES: ${{ vars.DISCORD_SYNC_RELATED_ISSUES || '{}' }}
           SYNC_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
           SYNC_INITIALIZE: ${{ inputs.initialize }}

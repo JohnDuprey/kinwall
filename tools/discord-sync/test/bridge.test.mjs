@@ -248,3 +248,59 @@ test('the pending intent is remotely checkpointed before creating a destination'
     assert.ok(order.indexOf('write') > order.indexOf('checkpoint-pending'));
   } finally { f.store.close(); }
 });
+
+test('format revisions refresh legacy issues and replies once without creating duplicates', async () => {
+  const { hash, sourceHash } = await import('../format.mjs');
+  const f = fixture();
+  try {
+    await f.bridge.run();
+    const issue = f.issues[0];
+    const starter = f.messages.get('100')[0];
+    const reply = f.messages.get('100')[1];
+    issue.body = issue.body.replace('Jan 1, 2026 at 12:00 AM UTC', starter.timestamp);
+    const binding = f.store.get('thread:100');
+    f.store.set('thread:100', { ...binding, dHash: hash([sourceHash(starter), []]), gHash: hash(issue.body) });
+    const comment = f.comments.get(issue.number)[0];
+    comment.body = comment.body.replace('Jan 2, 2026 at 12:00 AM UTC', reply.timestamp);
+    const saved = f.store.get('discord-message:101');
+    f.store.set('discord-message:101', { ...saved, hash: hash([sourceHash(reply), []]), bodyHash: hash(comment.body) });
+    const refreshed = await f.bridge.run();
+    assert.deepEqual(refreshed.warnings, []);
+    assert.ok(refreshed.actions.some(a => a.type === 'edit-issue'));
+    assert.ok(refreshed.actions.some(a => a.type === 'edit-comment'));
+    assert.ok(!refreshed.actions.some(a => a.type.startsWith('create-')));
+    assert.ok(issue.body.includes('Jan 1, 2026 at 12:00 AM UTC'));
+    assert.ok(comment.body.includes('Jan 2, 2026 at 12:00 AM UTC'));
+    assert.equal(f.issues.length, 1);
+    assert.equal(f.comments.get(issue.number).length, 1);
+    const repeated = await f.bridge.run();
+    assert.deepEqual(repeated.actions, []);
+  } finally { f.store.close(); }
+});
+
+test('legacy filters do not rewrite community issue titles or wording', async () => {
+  const f = fixture();
+  try {
+    f.config.terms = ['calendar'];
+    f.threads[0].name = 'Calendar ideas';
+    f.messages.get('100')[0].content = 'I use another calendar.';
+    await f.bridge.run();
+    assert.equal(f.issues[0].title, 'Calendar ideas');
+    assert.ok(f.issues[0].body.includes('I use another calendar.'));
+    assert.ok(!f.issues[0].body.includes('[redacted]'));
+  } finally { f.store.close(); }
+});
+
+test('formatting previews reuse published attachment URLs without uploading or replacing images', async () => {
+  const f = fixture();
+  try {
+    f.messages.get('100')[0].attachments = [{ id: '70', filename: 'image.png', content_type: 'image/png' }];
+    const url = 'https://github.com/example/kinwall/releases/download/discord-sync-data/attachment-example.png';
+    f.store.set('release-attachment:70', { filename: 'image.png', image: true, url });
+    const preview = new Bridge({ config: f.config, store: f.store, discord: f.discord, github: f.github, assets: {}, apply: false });
+    const result = await preview.run();
+    assert.ok(result.actions.find(a => a.type === 'create-issue').body.includes(url));
+    assert.ok(!result.actions.some(a => a.type === 'preserve-attachment'));
+    assert.equal(f.writes.length, 0);
+  } finally { f.store.close(); }
+});
