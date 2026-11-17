@@ -111,8 +111,31 @@ export interface Features {
   polls: boolean // Family polls: the Board card, the Polls sheet, poll notifications (their routes answer 404 while off)
   outings: boolean // Outings: the tab, the Board's Outings button and its reminders (their routes answer 404 while off)
   upkeep: boolean // Home upkeep: the tab, its jobs in Due soon, its reminders, chores and supplies (on unless turned off; its routes answer 404 while off)
+  school: boolean // School: the tab and its routes (off until a family turns it on; its routes answer 404 while off)
   checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
+
+// School (server: routes/school.ts). One save for several kids is one log per kid, sharing groupId.
+export interface SchoolSubject { id: string; name: string; emoji: string | null; color: string; sort: number; archived: boolean; goalHours?: number | null }
+export type SchoolMode = 'home' | 'enrolled'
+export type SchoolKind = 'lesson' | 'homework' | 'test' | 'project'
+export interface SchoolKid {
+  memberId: string; mode: SchoolMode; grade: string | null; approveLogs: boolean
+  toSchoolBy?: string | null; toSchoolTime?: string | null; fromSchoolBy?: string | null; fromSchoolTime?: string | null // getting there and home: 'bus' or a grown-up's id, and when
+  dayStart: string | null; dayEnd: string | null; schoolDays: number[] // school hours ("HH:MM") on these weekdays, 0 = Sunday
+  yearStart?: string // their school year starts, "MM-DD"; it runs to the day before it comes round again
+  yearGoalHours?: number | null; yearGoalDays?: number | null; dailyGoalMinutes?: number | null // records: a school year's hours and days, a school day's minutes
+  teacherEmail?: string | null; teacherLink?: string | null // how to reach the teacher (parents' devices only: null elsewhere)
+  calendarId: string | null; schoolContactId?: string | null; teacherName?: string | null; contactIds: string[]; terms: number // the school's calendar, the school (Contacts) and their teacher, other contacts, report card terms a year
+}
+export type SchoolKidInput = Partial<Omit<SchoolKid, 'memberId' | 'mode'>> & { mode: SchoolMode }
+/** A report card grade (parents only). year: the school year's first calendar year (2026 = 2026–27). */
+export interface SchoolGrade { id: string; memberId: string | null; formerMember?: string | null; year: number; term: number; subjectId: string; grade: string; updatedAt: string }
+export interface SchoolLog { id: string; groupId: string; memberId: string | null; formerMember?: string | null; subjectId: string | null; date: string; minutes: number; title: string | null; notes: string | null; pending: boolean; createdBy: string | null; createdAt: string; updatedAt: string; choreId?: string | null; choreDate?: string | null; photoId?: string | null }
+export interface SchoolLogInput { memberIds: string[]; subjectId?: string | null; date?: string; minutes: number; title?: string | null; notes?: string | null; photoId?: string | null }
+/** A kid's school year, July 1 to June 30 (GET /api/school/records, parents only). */
+export interface SchoolRecords { year: number; from: string; to: string; minutes: number; days: number; bySubject: { subjectId: string | null; minutes: number }[]; byMonth: { month: string; minutes: number; days: number }[]; photos: { photoId: string; logId: string; date: string; title: string | null; subjectId: string | null }[]; reportCards: { term: number; photoId: string }[] }
+export interface SchoolSummary { from: string; to: string; rows: { memberId: string; subjectId: string | null; minutes: number }[] }
 
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
 export type TrackerKind = 'reading' | 'memory' | 'health'
@@ -446,6 +469,10 @@ export interface Chore {
   timerMinutes?: number | null // Start runs the app's timer this long (ChoreTimer.tsx)
   groupId?: string | null // a chore for several people: one linked copy each, edited and deleted together
   memberIds?: string[] // create/update only: the people who each get a copy; [] = Anyone
+  // Schoolwork (School.tsx): ticking it off logs schoolMinutes of school time under its subject.
+  schoolSubjectId?: string | null
+  schoolKind?: SchoolKind | null
+  schoolMinutes?: number | null
 }
 
 /** A saved chore in the chore library (server: routes/chore-library.ts). Parent devices only. */

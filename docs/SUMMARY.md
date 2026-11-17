@@ -36,6 +36,7 @@
   * [Meals](using/meals.md)
   * [Outings](using/outings.md)
   * [Home upkeep](using/upkeep.md)
+  * [School](using/school.md)
   * [Trackers](using/trackers.md)
   * [Activities (Paint)](using/activities.md)
 * [Add to Kinwall from your phone](using/share-to-kinwall.md)

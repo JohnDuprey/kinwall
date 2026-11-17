@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { goalProgressFor } from '../chore-goals.ts';
 // A member's day (or week) at a glance: greeting, weather, their events + everyone's, their chores,
 // their due/important list items, birthdays, and a peek at tomorrow. What the header avatar opens,
@@ -100,7 +101,7 @@ snapshotRoutes.openapi(
     const today = todayInTz(tz, now);
     const [membersRes, choresRes, itemsRes, stepsRes, categoriesRes, checkInRes] = await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday FROM members ORDER BY sort, created_at'),
-      db.prepare('SELECT * FROM chores WHERE active = 1 AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(memberId),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at`).bind(memberId),
       db
         .prepare(
           `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
@@ -219,7 +220,7 @@ snapshotRoutes.openapi(
 
     const [membersRes, choresRes, completionsRes, itemsRes, stepsRes, categoriesRes] = await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday FROM members ORDER BY sort, created_at'),
-      db.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 ORDER BY sort, created_at`),
       db.prepare('SELECT chore_id, status FROM chore_completions WHERE date = ?').bind(today),
       db.prepare(
         `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
@@ -265,7 +266,9 @@ snapshotRoutes.openapi(
     // chore's last time before today. Only that last time, so a missed daily chore doesn't pile up a copy
     // a day; a goal ("3 times a week") isn't late for a day off. A tick waiting for an OK isn't late.
     const since = addDays(today, -DISPLAY_DAYS_BACK), yesterday = addDays(today, -1);
+    // Schoolwork is left out: an unfinished lesson isn't a late chore (School shows it).
     const lastDue = !settings.features.chores ? [] : (choresRes.results as unknown as ChoreRow[]).flatMap((r) => {
+      if (r.school_kind) return [];
       const date = r.repeat_goal ? null : [...dueDates(r, since, yesterday, tz)].sort().pop(); // ongoing chores have none
       return date && date >= since && date < today ? [{ r, date }] : [];
     });

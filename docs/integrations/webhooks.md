@@ -59,6 +59,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `upkeep.changed` | A [home upkeep](../using/upkeep.md) job, thing, area or Done was added, changed or deleted, a job was snoozed or skipped, or a file was added or removed. `data`: `{ id, kind }` (`kind`: `job`, `thing`, `area` or `log`; plus `deleted: true`). |
 | `upkeep.done` | An upkeep job was marked done (also when a kid ticks off its chore). `data`: `{ id, jobId, thingId, title, doneOn, memberId }`, where `id` is the Done; never the cost, reading or notes. |
 | `upkeep.due` | The morning's heads-up, due or late note went out for an upkeep job, once per job and due date. `data`: `{ jobId, title, dueOn, status }` (`soon`, `due` or `overdue`). Enough for "flash the hall light". |
+| `school.changed` | [School](../using/school.md) time was logged, changed, approved or deleted, or a subject or a kid's school settings changed. `data`: `{ id, kind }` (`kind`: `log`, `subject` or `kid`; plus `deleted: true`, `approved: true`, or for a new log `memberIds` and `pending`). |
 | `outing.changed` | An [outing](../using/outings.md) or place was added, changed, marked (👀 / ⭐), put on the calendar or deleted, or its categories changed. `data`: `{ id }` (or `{ categoryId }`), never who marked what. |
 | `poll.changed` | A [family poll](../using/polls.md) was started, voted in, closed, linked to a meal or deleted. `data`: `{ id, status }` (`open`, `closed` with `winnerOptionId`, or `deleted`), never who voted for what. |
 | `display.paired` | A wall display was paired. |

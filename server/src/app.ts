@@ -49,6 +49,7 @@ import { mcpOAuthRoutes } from './routes/mcp-oauth.ts';
 import { revRoutes } from './routes/rev.ts';
 import { nightScreenRoutes } from './routes/night-screen.ts';
 import { upkeepRoutes } from './routes/upkeep.ts';
+import { schoolRoutes } from './routes/school.ts';
 import { dataRoutes } from './routes/data.ts';
 import { notesRoutes } from './routes/notes.ts';
 import { contactsRoutes } from './routes/contacts.ts';
@@ -198,6 +199,7 @@ export function createApp() {
   app.route('/', revRoutes);
   app.route('/', nightScreenRoutes);
   app.route('/', upkeepRoutes);
+  app.route('/', schoolRoutes);
   app.route('/', settingsRoutes);
   app.route('/', quietPinRoutes);
   app.route('/', appearanceRoutes);

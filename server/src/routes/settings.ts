@@ -159,8 +159,8 @@ function parseMealTimes(raw: string | undefined): z.infer<typeof MealTimesSchema
 }
 
 export type Features = z.infer<typeof FeaturesSchema>;
-export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, checkIns: true };
-// Saved over the defaults, so a switch added later starts on for families that saved before it existed.
+export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true };
+// Saved over the defaults, so a switch added later starts at its default (on, except School) for families that saved before it existed.
 export function parseFeatures(raw: string | undefined): Features {
   try {
     const saved = JSON.parse(raw ?? '{}');
@@ -262,8 +262,12 @@ export function settingsWrites(db: KinwallDb, { theme, ...body }: z.infer<typeof
   }
   // Legacy 'theme': 'light'|'dark' -> themeMode, unless an explicit themeMode was also sent.
   if (theme && patch.themeMode === undefined) patch.themeMode = theme;
+  // The feature switches merge over the saved ones, so a switch a client leaves out (one it doesn't
+  // know yet) keeps its saved value instead of falling back to its default.
   return Object.entries(patch).map(([key, value]) =>
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(key, value),
+    db.prepare(key === 'features'
+      ? "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = json_patch(CASE WHEN json_valid(settings.value) THEN settings.value ELSE '{}' END, excluded.value)"
+      : "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(key, value),
   );
 }
 

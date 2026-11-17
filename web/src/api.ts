@@ -16,6 +16,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
@@ -198,7 +199,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = msg("You're offline. This will work when you're back online.")
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|announcements|inbox|outings|outing-categories|outing-feeds|upkeep|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|announcements|inbox|outings|outing-categories|outing-feeds|upkeep|school|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -289,6 +290,10 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   if (MOCK && /^api\/upkeep([/?]|$)/.test(path)) {
     const { mockUpkeepRequest } = await import('./mock-upkeep.ts')
     return mockUpkeepRequest(path, opts) as Promise<T>
+  }
+  if (MOCK && /^api\/school([/?]|$)/.test(path)) {
+    const { mockSchoolRequest } = await import('./mock-school.ts')
+    return mockSchoolRequest(path, opts) as Promise<T>
   }
   if (MOCK && /^api\/announcements([/?]|$)/.test(path)) {
     const { mockAnnouncementRequest } = await import('./mock-announcements.ts')
@@ -407,6 +412,25 @@ export const api = {
   closePoll: (id: string, optionId?: string) => post<Poll>(`api/polls/${encodeURIComponent(id)}/close`, { optionId }),
   updatePoll: (id: string, body: { question?: string; mealId?: string | null }) => patch<Poll>(`api/polls/${encodeURIComponent(id)}`, body),
   deletePoll: (id: string) => del<{ ok: boolean }>(`api/polls/${encodeURIComponent(id)}`),
+  // School (routes/school.ts). Walls and kids' devices read and log; the rest is for parents.
+  getSchoolSubjects: (archived = false) => get<SchoolSubject[]>('api/school/subjects' + (archived ? '?archived=all' : '')),
+  createSchoolSubject: (body: { name: string; emoji?: string | null; color: string }) => post<SchoolSubject>('api/school/subjects', body),
+  updateSchoolSubject: (id: string, body: Partial<Omit<SchoolSubject, 'id'>>) => patch<SchoolSubject>('api/school/subjects/' + U(id), body),
+  deleteSchoolSubject: (id: string) => del<{ ok: boolean }>('api/school/subjects/' + U(id)),
+  getSchoolKids: () => get<SchoolKid[]>('api/school/kids'),
+  putSchoolKid: (memberId: string, body: SchoolKidInput) => put<SchoolKid>('api/school/kids/' + U(memberId), body),
+  getSchoolGrades: (memberId: string, year: number) => get<SchoolGrade[]>('api/school/grades' + qs({ memberId, year: String(year) })),
+  putSchoolGrade: (body: { memberId: string; year: number; term: number; subjectId: string; grade: string }) => put<SchoolGrade | null>('api/school/grades', body),
+  getSchoolTermsUsed: (memberId: string) => get<{ highestTerm: number }>('api/school/kids/' + U(memberId) + '/terms-used'),
+  deleteSchoolKid: (memberId: string) => del<{ ok: boolean }>('api/school/kids/' + U(memberId)),
+  getSchoolLogs: (q: { from?: string; to?: string; pending?: boolean } = {}) => get<SchoolLog[]>('api/school/logs' + qs({ from: q.from, to: q.to, pending: q.pending ? '1' : undefined })),
+  logSchool: (body: SchoolLogInput) => post<{ logs: SchoolLog[] }>('api/school/logs', body),
+  getSchoolRecords: (memberId: string, year: number) => get<SchoolRecords>('api/school/records' + qs({ memberId, year: String(year) })),
+  putSchoolReportCard: (body: { memberId: string; year: number; term: number; photoId: string | null }) => put<{ ok: boolean }>('api/school/report-cards', body),
+  updateSchoolLog: (id: string, body: Partial<Pick<SchoolLog, 'subjectId' | 'date' | 'minutes' | 'title' | 'notes' | 'photoId'>>, all = false) => patch<{ logs: SchoolLog[] }>('api/school/logs/' + U(id) + (all ? '?all=1' : ''), body),
+  approveSchoolLog: (id: string, all = false) => post<{ ok: boolean }>('api/school/logs/' + U(id) + '/approve' + (all ? '?all=1' : '')),
+  deleteSchoolLog: (id: string, all = false) => del<{ ok: boolean }>('api/school/logs/' + U(id) + (all ? '?all=1' : '')),
+  getSchoolSummary: (from: string, to: string) => get<SchoolSummary>('api/school/summary' + qs({ from, to })),
   // Home upkeep (routes/upkeep.ts). A wall or kid's device gets its own jobs and no costs or files.
   getUpkeepJobs: (status?: string) => get<UpkeepJob[]>('api/upkeep/jobs' + qs({ status })),
   getArchivedUpkeepJobs: () => get<UpkeepJob[]>('api/upkeep/jobs?archived=true'),

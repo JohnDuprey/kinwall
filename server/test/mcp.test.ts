@@ -149,6 +149,8 @@ test('mcp: tools/list returns the tools', async () => {
     'get_points',
     'get_recipe',
     'get_restaurant',
+    'get_school_grades',
+    'get_school_summary',
     'get_snapshot',
     'get_upkeep_job',
     'get_weekly_plan',
@@ -188,6 +190,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_upkeep_history',
     'list_upkeep_jobs',
     'list_upkeep_things',
+    'log_school',
     'log_upkeep_done',
     'mark_milestone_given',
     'mark_outing_interest',
@@ -725,6 +728,18 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('get_upkeep_job', { job: oil.id })).job.lastDone.doneOn, today);
   assert.equal((await call('delete_upkeep_job', { job: oil.id })).job.archived, true);
   assert.equal((await call('delete_upkeep_job', { job: oil.id, hard: true })).ok, true);
+  // School: off by default, so the tools refuse until it's on; then a log for a kid shows in the summary.
+  assert.equal((await mcp('tools/call', { name: 'get_school_summary', arguments: {} }).then((r) => r.json()) as any).result.isError, true);
+  const features = ((await (await rest('/api/settings')).json()) as any).features;
+  await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ features: { ...features, school: true } }) });
+  await rest(`/api/school/kids/${avaId}`, { method: 'PUT', body: JSON.stringify({ mode: 'home' }) });
+  assert.equal((await call('log_school', { kids: ['ava'], subject: 'math', minutes: 45, date: today })).logs[0].pending, false);
+  const school = await call('get_school_summary', { from: today, to: today, kid: 'Ava' });
+  await rest('/api/school/grades', { method: 'PUT', body: JSON.stringify({ memberId: avaId, year: 2026, term: 1, subjectId: 'ss-math', grade: 'A-' }) });
+  assert.deepEqual((await call('get_school_grades', { kid: 'ava', year: 2026 })).grades.map((g: any) => g.grade), ['A-']);
+  const test = (await call('create_chore', { title: 'Spelling test', member: 'ava', dueDate: today, subject: 'reading', schoolKind: 'test' })).chore;
+  assert.deepEqual([test.schoolSubjectId, test.schoolKind, test.points], ['ss-reading', 'test', 0]);
+  assert.deepEqual(school.rows.map((r: any) => [r.subjectId, r.minutes]), [['ss-math', 45]]);
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });

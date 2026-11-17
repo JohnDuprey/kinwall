@@ -28,6 +28,7 @@ import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
 import { OutingCategorySchema, OutingCalendarInputSchema, OutingIdeasSchema, OutingPatchSchema, OutingSchema } from './routes/outings.ts';
 import { ShareResultSchema } from './routes/share.ts';
+import { SchoolGradeSchema, SchoolLogSchema, SchoolSummarySchema, schoolYearOf } from './routes/school.ts';
 import { UpkeepAreaSchema, UpkeepDoneResultSchema, UpkeepEntrySchema, UpkeepJobPatchSchema, UpkeepJobSchema, UpkeepThingPatchSchema, UpkeepThingSchema } from './routes/upkeep.ts';
 import { RestaurantImportResultSchema, RestaurantImportSchema } from './routes/restaurants.ts';
 import { MealSlotSchema } from './meal-schemas.ts';
@@ -338,6 +339,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   mark_outing_interest: { outing: OutingSchema }, add_outing_to_calendar: { outing: OutingSchema }, list_outing_categories: { categories: z.array(OutingCategorySchema) }, suggest_outings: OutingIdeasSchema.shape, import_outing: ShareResultSchema.shape,
   list_upkeep_jobs: { jobs: z.array(UpkeepJobSchema) }, get_upkeep_job: { job: UpkeepJobSchema }, create_upkeep_job: { job: UpkeepJobSchema }, update_upkeep_job: { job: UpkeepJobSchema }, delete_upkeep_job: { ok: z.boolean(), job: UpkeepJobSchema.optional() },
   log_upkeep_done: UpkeepDoneResultSchema.shape, list_upkeep_history: { entries: z.array(UpkeepEntrySchema) }, list_upkeep_things: { things: z.array(UpkeepThingSchema), areas: z.array(UpkeepAreaSchema) }, create_upkeep_thing: { thing: UpkeepThingSchema }, update_upkeep_thing: { thing: UpkeepThingSchema },
+  log_school: { logs: z.array(SchoolLogSchema) }, get_school_summary: SchoolSummarySchema.shape, get_school_grades: { grades: z.array(SchoolGradeSchema) },
   list_inbox: InboxSchema.shape, add_to_inbox: { item: InboxItemSchema },
   list_announcements: AnnouncementsSchema.shape, create_announcement: { announcement: AnnouncementSchema }, update_announcement: { announcement: AnnouncementSchema }, delete_announcement: OK,
   list_polls: { polls: z.array(PollSchema) }, create_poll: { poll: PollSchema }, vote_poll: { poll: PollSchema }, close_poll: { poll: PollSchema },
@@ -371,7 +373,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_chore_counts: READ,
   get_weekly_plan: READ, save_weekly_plan_draft: SET, apply_weekly_plan: SET,
-  get_household: READ, list_events: READ, get_event: READ, get_event_follow: READ, set_event_follow: SET, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_upkeep_jobs: READ, get_upkeep_job: READ, create_upkeep_job: WRITE, update_upkeep_job: SET, delete_upkeep_job: DELETE, log_upkeep_done: WRITE, list_upkeep_history: READ, list_upkeep_things: READ, create_upkeep_thing: WRITE, update_upkeep_thing: SET, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, get_event_follow: READ, set_event_follow: SET, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_upkeep_jobs: READ, get_upkeep_job: READ, create_upkeep_job: WRITE, update_upkeep_job: SET, delete_upkeep_job: DELETE, log_upkeep_done: WRITE, list_upkeep_history: READ, list_upkeep_things: READ, create_upkeep_thing: WRITE, update_upkeep_thing: SET, log_school: WRITE, get_school_summary: READ, get_school_grades: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -902,7 +904,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'create_chore',
     {
       title: 'Create chore',
-      description: 'Create a recurring or one-off chore, optionally with a start time and a timer.',
+      description: 'Create a recurring or one-off chore, optionally with a start time and a timer. With subject it is schoolwork (a lesson, homework, a test or a project, e.g. "Maya has a spelling test Friday"): ticking it off logs schoolMinutes of School time under that subject; points default to 0.',
       inputSchema: {
         title: z.string(),
         emoji: z.string().optional(),
@@ -922,22 +924,27 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         minutes: z.number().int().min(1).max(60).optional().describe('Minutes of play the activity needs, 1-60. Default 5.'),
         needsApproval: z.boolean().nullable().optional().describe("Ticks from wall screens and kids' devices wait for a parent's OK: true/false overrides the person's default, null follows it."),
         approveTimedPlay: z.boolean().optional().describe("Activity chores: also wait for a parent's OK when timed play completes it (default: auto-approve)."),
+        subject: z.string().optional().describe('Schoolwork: a School subject by name (Math, Reading…) or id. Needs School turned on to see it there.'),
+        schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).optional().describe('Schoolwork: what kind. Default lesson.'),
+        schoolMinutes: z.number().int().min(1).max(1440).optional().describe('Schoolwork: minutes of School time logged when it is ticked off. Default the timer, else 30.'),
       },
     },
-    async ({ member, members, list, activity, minutes, ...input }) => {
+    async ({ member, members, list, activity, minutes, subject, ...input }) => {
       let memberId: string | undefined;
       let memberIds: string[] | undefined;
       let listId: string | undefined;
       let pluginId: string | undefined;
+      let schoolSubjectId: string | undefined;
       try {
         if (member) memberId = await resolveMember(app, env, auth, member);
         if (members) memberIds = await Promise.all(members.map((m) => resolveMember(app, env, auth, m)));
         if (list) listId = (await resolveList(app, env, auth, list)).id;
         if (activity) pluginId = await resolvePlugin(app, env, auth, activity);
+        if (subject) schoolSubjectId = (await resolveExact(app, env, auth, '/api/school/subjects?archived=all', subject, 'subject')).id;
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, memberIds, listId, pluginId, pluginMinutes: minutes });
+      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, memberIds, listId, pluginId, pluginMinutes: minutes, schoolSubjectId });
       if (res.status >= 400) return errorResult(res.json, 'failed to create chore');
       const chore = res.json as { title: string };
       return okResult(`Created chore "${chore.title}".`, { chore: res.json as Record<string, unknown> });
@@ -2117,6 +2124,52 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     try { id = (await findThing(thing)).id; areaId = await area(a); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
     const res = await call(app, env, auth, 'PATCH', `/api/upkeep/things/${encodeURIComponent(id)}`, { ...input, ...(areaId !== undefined ? { areaId } : {}) });
     return res.status >= 400 ? errorResult(res.json, 'failed to change the thing') : okResult(`Saved: ${(res.json as { name: string }).name}`, { thing: res.json });
+  });
+
+  // School: kids by name or id (each must be in school), a subject by id or exact name. Time a kid
+  // logs from their own device may wait for a parent's approval (routes/school.ts); a full-access
+  // sign-in's log never waits.
+  const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`);
+  tool('log_school', { title: 'Log school time', description: 'Log school time (homeschool lessons, homework, practice, a field trip) for one kid or several: one entry per kid. kids: names or ids of kids in school. subject: a subject name (Math, Reading…) or id; omit for none. date defaults to today. Fails while School is turned off.', inputSchema: { kids: jsonList(z.array(z.string()).min(1)), subject: z.string().optional(), minutes: z.number().int().min(1).max(1440), date: z.string().regex(DATE_ONLY).optional(), title: z.string().max(200).optional(), notes: z.string().max(2000).optional() } }, async ({ kids, subject, ...rest }) => {
+    let memberIds: string[], subjectId: string | undefined;
+    try {
+      memberIds = await resolveMemberIds(app, env, auth, kids);
+      if (subject) subjectId = (await resolveExact(app, env, auth, '/api/school/subjects', subject, 'subject')).id;
+    } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+    const res = await call(app, env, auth, 'POST', '/api/school/logs', { memberIds, subjectId, ...rest });
+    if (res.status >= 400) return errorResult(res.json, 'failed to log school time');
+    const logs = (res.json as { logs: { pending: boolean }[] }).logs;
+    const waiting = logs.filter((l) => l.pending).length;
+    return okResult(`Logged ${hm(rest.minutes)}${subject ? ` of ${subject}` : ''} for ${plural(logs.length, 'kid')}${waiting ? `; ${waiting} waiting for a parent to approve` : ''}.`, { logs });
+  });
+  tool('get_school_summary', { title: 'School time summary', description: 'Approved school minutes by kid and subject between from and to (YYYY-MM-DD, inclusive; default the last 7 days). kid: only that kid (name or id). Answers "how much math did Maya do this month?". Fails while School is turned off.', inputSchema: { from: z.string().regex(DATE_ONLY).optional(), to: z.string().regex(DATE_ONLY).optional(), kid: z.string().optional() } }, async ({ from, to, kid }) => {
+    let only: string | undefined;
+    try { if (kid) only = await resolveMember(app, env, auth, kid); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const q = new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) });
+    const [sum, subjects, members] = await Promise.all([call(app, env, auth, 'GET', `/api/school/summary?${q}`), call(app, env, auth, 'GET', '/api/school/subjects?archived=all'), call(app, env, auth, 'GET', '/api/members')]);
+    if (sum.status >= 400) return errorResult(sum.json, 'failed to read school time');
+    const data = sum.json as z.infer<typeof SchoolSummarySchema>;
+    const rows = data.rows.filter((r) => !only || r.memberId === only);
+    const subjectName = new Map(((subjects.json ?? []) as { id: string; name: string }[]).map((x) => [x.id, x.name]));
+    const memberName = new Map(((members.json ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name]));
+    const byKid = new Map<string, string[]>();
+    for (const r of rows) byKid.set(r.memberId, [...(byKid.get(r.memberId) ?? []), `${r.subjectId ? subjectName.get(r.subjectId) ?? 'a removed subject' : 'no subject'} ${hm(r.minutes)}`]);
+    const text = byKid.size ? [...byKid].map(([id, parts]) => `${memberName.get(id) ?? 'A removed member'}: ${parts.join(', ')}`).join('; ') : 'No school time logged.';
+    return okResult(`${data.from} to ${data.to}. ${text}`, { ...data, rows });
+  });
+
+  tool('get_school_grades', { title: 'Report card grades', description: "Full access: a kid's report card grades by term and subject for a school year (year: its first calendar year, 2026 for 2026-27; default the kid's current school year, which starts on their school year start). kid: name or id.", inputSchema: { kid: z.string(), year: z.number().int().optional() } }, async ({ kid, year }) => {
+    let memberId: string;
+    try { memberId = await resolveMember(app, env, auth, kid); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const today = await todayInHousehold(env);
+    const kidRow = ((await call(app, env, auth, 'GET', '/api/school/kids')).json as { memberId: string; yearStart?: string }[] | null)?.find((k) => k.memberId === memberId);
+    const y = year ?? schoolYearOf(today, kidRow?.yearStart);
+    const [res, subjects] = await Promise.all([call(app, env, auth, 'GET', `/api/school/grades?memberId=${encodeURIComponent(memberId)}&year=${y}`), call(app, env, auth, 'GET', '/api/school/subjects?archived=all')]);
+    if (res.status >= 400) return errorResult(res.json, 'failed to read grades');
+    const grades = res.json as z.infer<typeof SchoolGradeSchema>[];
+    const name = new Map(((subjects.json ?? []) as { id: string; name: string }[]).map((x) => [x.id, x.name]));
+    const text = grades.length ? grades.map((g) => `Term ${g.term} ${name.get(g.subjectId) ?? 'a removed subject'}: ${g.grade}`).join('; ') : 'No grades saved.';
+    return okResult(`${y}-${String((y + 1) % 100).padStart(2, '0')}. ${text}`, { grades });
   });
 
   // Outings: an outing by id or its exact title (or the one title containing it); a category by id or name.

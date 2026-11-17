@@ -4,6 +4,17 @@ The full list of changes in every version is in the [changelog](https://github.c
 
 ## Coming in the next version
 
+### Highlights
+
+* **School**: a new place for what each kid learns, for kids who are homeschooled and kids who
+  go to a school. Log time by subject for one kid or several at once; add lessons, homework, tests
+  and projects that kids tick off like chores (with the same repeat options, and optional points);
+  see each kid's school day with their bus or pickup, school hours, the school's calendar, lunch
+  and teacher. Grown-ups get report card grades, records of a school year against hour and day
+  goals, a photo portfolio and a printable year-end report. Time a kid logs can wait for a
+  grown-up's OK. School starts off: turn it on in Settings → General → Features. See
+  [School](using/school.md).
+
 ## 1.4.0
 
 Catch a thought before it slips away, then look over the week together and get ready for what's

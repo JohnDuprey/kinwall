@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from './schoolwork.ts';
 import { revokeAndroidGateways } from './android-push-gateway.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventPlans } from './routes/event-follows.ts';
@@ -708,7 +709,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
   const load = async () => {
     const [eventsRes, openRes, choresRes, linkedRes, dueRes, mealsRes, calendarsRes] = await db.batch<unknown>([
       ...eventRowsStmts(db, ENABLED, [], dayStart, dayEnd),
-      db.prepare('SELECT * FROM chores WHERE active = 1'),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`),
       // Urgent/important items first (so they make the top 3) and marked.
       db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
       // Food on a pantry list isn't a to-do: its use-by date stays out of the summary.
@@ -784,7 +785,7 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
   if (targets.length === 0) return;
 
   const [choresRes, completionsRes] = await db.batch<unknown>([
-    db.prepare('SELECT * FROM chores WHERE active = 1'),
+    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`),
     db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
   ]);
   const chores = choresRes.results as unknown as ChoreRow[];

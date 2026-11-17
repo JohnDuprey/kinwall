@@ -398,9 +398,11 @@ membersRoutes.openapi(
       .filter((cal) => cal.after.length !== cal.before.length) // the LIKE above can false-positive on a substring match
       .map((cal) => c.env.DB.prepare('UPDATE calendars SET member_ids = ? WHERE id = ?').bind(JSON.stringify(cal.after), cal.id));
     // A device owned by this member becomes a shared one (still locked; an admin can re-assign it).
-    // Their tracker entries stay, under their name ("Leo (removed)"); the FK then clears member_id.
+    // Their tracker entries and school records stay, under their name ("Leo (removed)"); the FK then clears member_id.
     await c.env.DB.batch<unknown>([
       c.env.DB.prepare('UPDATE tracker_entries SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?').bind(id, id),
+      // Their school records stay the same way: logged time, grades and report cards (school.ts).
+      ...['school_logs', 'school_grades', 'school_report_cards'].map((table) => c.env.DB.prepare(`UPDATE ${table} SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?`).bind(id, id)),
       c.env.DB.prepare('DELETE FROM photos WHERE avatar = 1 AND member_id = ?').bind(id), // their profile picture
       c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates,
       c.env.DB.prepare('UPDATE meals SET eater_ids = (SELECT json_group_array(value) FROM json_each(meals.eater_ids) WHERE value != ?) WHERE eater_ids LIKE ?').bind(id, `%${id}%`), c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id),

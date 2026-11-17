@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { deviceOwner, requestKey } from '../auth.ts';
@@ -13,10 +14,10 @@ import { oneTimeRoutineChore, routineChoreNames, routineChoreSelection } from '.
 
 /** A child's live chores and today's completions: polled by the child's iPhone, so it reads only
  * those rows (test/query-plans.test.ts). Binds: today's date, the child. */
-export const ROUTINE_CHORES_SQL = "SELECT c.*, cc.status AS completion_status, EXISTS (SELECT 1 FROM chore_completions done WHERE done.chore_id = c.id AND done.status = 'approved') AS approved_once FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE c.member_id = ? AND c.active = 1 AND c.archived = 0 ORDER BY c.sort, c.created_at";
+export const ROUTINE_CHORES_SQL = `SELECT c.*, cc.status AS completion_status, EXISTS (SELECT 1 FROM chore_completions done WHERE done.chore_id = c.id AND done.status = 'approved') AS approved_once FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE ${schoolworkVisibleSql("c")} AND c.member_id = ? AND c.active = 1 AND c.archived = 0 ORDER BY c.sort, c.created_at`;
 /** The saved selection's chores by id, archived ones too (a done one-time chore becomes its name).
  * Binds: the child, the selected ids as JSON. */
-export const ROUTINE_SELECTED_SQL = 'SELECT c.* FROM json_each(?2) j CROSS JOIN chores c ON c.id = j.value WHERE c.member_id = ?1';
+export const ROUTINE_SELECTED_SQL = `SELECT c.* FROM json_each(?2) j CROSS JOIN chores c ON c.id = j.value WHERE ${schoolworkVisibleSql("c")} AND c.member_id = ?1`;
 export const routineModeRoutes = createRouter();
 const Domains = z.array(z.preprocess(value => typeof value === 'string' ? schoolDomain(value) : value, z.string())).max(40).transform(values => [...new Set(values)]);
 const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -61,7 +62,7 @@ routineModeRoutes.openapi(createRoute({ method: 'put', path: '/api/routine-mode/
   const previous = input.requiredOneTimeChoreNames === undefined && input.requiredChoreIds !== null ? await c.env.DB.prepare('SELECT required_one_time_names FROM routine_mode WHERE member_id = ?').bind(memberId).first<{ required_one_time_names: string }>() : null;
   let policy = { ...input, requiredOneTimeChoreNames: input.requiredOneTimeChoreNames ?? JSON.parse(previous?.required_one_time_names ?? '[]') as string[] };
   if (policy.requiredChoreIds?.length) {
-    const { results } = await c.env.DB.prepare(`SELECT id, title, rrule, repeat_goal FROM chores WHERE member_id = ? AND active = 1 AND archived = 0 AND id IN (${policy.requiredChoreIds.map(() => '?').join(',')})`).bind(memberId, ...policy.requiredChoreIds).all<Pick<ChoreRow, 'id' | 'title' | 'rrule' | 'repeat_goal'>>();
+    const { results } = await c.env.DB.prepare(`SELECT id, title, rrule, repeat_goal FROM chores WHERE ${schoolworkVisibleSql()} AND member_id = ? AND active = 1 AND archived = 0 AND id IN (${policy.requiredChoreIds.map(() => '?').join(',')})`).bind(memberId, ...policy.requiredChoreIds).all<Pick<ChoreRow, 'id' | 'title' | 'rrule' | 'repeat_goal'>>();
     if (results.length !== policy.requiredChoreIds.length) return c.json({ error: stored('error', 'Choose active chores assigned to this child.') }, 400);
     policy = { ...policy, ...routineChoreSelection(policy.requiredChoreIds, policy.requiredOneTimeChoreNames, results) };
   }

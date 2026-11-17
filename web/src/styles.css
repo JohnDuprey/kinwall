@@ -764,7 +764,8 @@ button.month-cell .month-daynum { flex: none; }
   flex-shrink: 0;
 }
 .sheet-title { font-size: 1.1875rem; font-weight: 800; }
-.sheet-body { padding: 4px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* Leave room above the first field for its outside focus ring, including increased contrast. */
+.sheet-body { padding: 6px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .sheet-actions { display: flex; gap: 10px; padding: 10px 20px 4px; flex-shrink: 0; }
 .sheet-actions .actions-select { flex: 1; min-width: 0; min-height: 48px; border-radius: 999px; font-weight: 800; }
 /* A sheet with little height left (the keyboard up on a phone on its side leaves ~170px): a fixed
@@ -4119,7 +4120,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 :root[data-density="compact"] .sheet { max-height: 93%; } /* more form, less backdrop; the backdrop still shows above */
 :root[data-density="compact"] .sheet-grabber { margin: 6px auto 2px; }
 :root[data-density="compact"] .sheet-header { padding: 2px 14px 4px; }
-:root[data-density="compact"] .sheet-body { padding: 2px 14px 10px; }
+:root[data-density="compact"] .sheet-body { padding: 6px 14px 10px; }
 :root[data-density="compact"] .sheet-actions { gap: 8px; padding: 6px 14px 0; }
 :root[data-density="compact"] .sheet-actions :is(.btn, .actions-select) { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .sheet-body .btn { min-height: 44px; padding: 8px 16px; }
@@ -4243,7 +4244,7 @@ html:root[data-cast] {
 @media (hover: hover) and (pointer: fine) {
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
-    .list-item-check, .meal-card, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
+    .list-item-check, .school-work-check, .meal-card, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item, .setup-check-row
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
@@ -4251,7 +4252,7 @@ html:root[data-cast] {
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-edit-btn,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
+    .activity-card, .school-work-main, .school-work.compact, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the "off" track keeps its own inset ring). */

@@ -11,7 +11,8 @@ import { runNotifications } from '../src/notify.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
-const ALL_ON = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, checkIns: true };
+// ALL_ON: every switch at its default (School starts off).
+const ALL_ON = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true };
 
 function setup() {
   const db = openDb(':memory:');
@@ -139,4 +140,16 @@ test('rewardsEnabled: on by default; off refuses a reward request, and so does c
   await request('/api/settings', 'PATCH', { features: ALL_ON });
   assert.equal((await redeem()).status, 402, 'on again: on to the points check');
   assert.equal(((await (await request('/api/rewards')).json()) as any[]).length, 1, 'rewards are kept');
+});
+
+test('features: a client that leaves a switch out keeps what was saved (an older app never turns School back off)', async () => {
+  const { request } = setup();
+  assert.equal((await request('/api/settings', 'PATCH', { features: { ...ALL_ON, school: true } })).status, 200);
+  const { school: _school, ...olderClient } = ALL_ON;
+  const res = await request('/api/settings', 'PATCH', { features: { ...olderClient, chores: false } });
+  assert.equal(res.status, 200);
+  const saved = ((await (await request('/api/settings')).json()) as any).features;
+  assert.deepEqual([saved.school, saved.chores], [true, false]);
+  assert.equal((await request('/api/settings', 'PATCH', { features: { ...ALL_ON, school: false } })).status, 200);
+  assert.equal(((await (await request('/api/settings')).json()) as any).features.school, false, 'sent: it changes');
 });

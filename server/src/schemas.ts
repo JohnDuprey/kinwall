@@ -303,6 +303,7 @@ export const FeaturesSchema = z
     polls: z.boolean().default(true), // Family polls: /api/polls and its routes answer 404 while off, no poll notifications
     outings: z.boolean().default(true), // Outings: /api/outings and its routes answer 404 while off, no outing reminders
     upkeep: z.boolean().default(true), // Home upkeep: /api/upkeep and its routes answer 404 while off, no upkeep notes, chores or supplies
+    school: z.boolean().default(false), // School: /api/school and its routes answer 404 while off. The one switch that starts off: most families don't need it
     checkIns: z.boolean().default(true), // Temp check, goal checks, the energy battery, journals, Insights: no check-in, goal or battery notifications and no check-in points while off
   })
   .openapi('Features');
@@ -435,7 +436,9 @@ export const SettingsPatchSchema = z
       .max(MAX_BOARD_PRESETS)
       .refine((l) => new Set(l.map((x) => x.id)).size === l.length, 'preset ids must be unique')
       .optional(), // the whole list
-    features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
+    // admin keys only (a display key gets 403). School has no default here: a client from before it
+    // leaves it out, and the saved switch stays (settings.ts settingsWrites merges over what's saved).
+    features: FeaturesSchema.extend({ school: z.boolean().optional() }).optional(),
     defaultGroceryStore: z.string().trim().max(60).nullable().optional(), // null clears it
     defaultShoppingStore: z.string().trim().max(60).nullable().optional(),
     mealTimes: MealTimesSchema.optional(),
@@ -618,6 +621,9 @@ export const ChoreSchema = z
     category: z.string().nullable().default(null),
     ongoing: z.boolean().default(false).openapi({ description: 'An optional shared responsibility that stays available after each completion. Each tick creates a separate history chore (sourceId), with its own points and approval.' }),
     sourceId: z.string().nullable().default(null).openapi({ description: 'Ongoing responsibility this completion record belongs to. Read only.' }),
+    schoolSubjectId: z.string().nullable().default(null).openapi({ description: 'Schoolwork: the School subject. Ticking it off (once approved) logs schoolMinutes of school time under it.' }),
+    schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().default(null).openapi({ description: 'Schoolwork: what kind; null for an ordinary chore.' }),
+    schoolMinutes: z.number().int().nullable().default(null).openapi({ description: 'Schoolwork: minutes logged when it is ticked off (default the timer, else 30).' }),
     groupId: z.string().nullable().default(null).openapi({ description: 'Set on a chore for several people: each has their own copy, and the copies share this id. Editing one changes them all (except memberId and sort); deleting one deletes them all.' }),
   })
   .openapi('Chore');
@@ -644,6 +650,9 @@ export const ChoreInputSchema = z
     approveTimedPlay: z.boolean().optional(),
     libraryId: z.string().nullable().optional().openapi({ description: 'Create only: the chore library item this chore is made from (e.g. a repeating version of it).' }),
     timerMinutes: z.number().int().min(1).max(240).nullable().optional().openapi({ description: 'Timer length in minutes, 1-240; null for no timer.' }),
+    schoolSubjectId: z.string().nullable().optional().openapi({ description: 'Schoolwork: a School subject id; null makes it an ordinary chore again.' }),
+    schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().optional(),
+    schoolMinutes: z.number().int().min(1).max(1440).nullable().optional(),
   })
   .openapi('ChoreInput');
 

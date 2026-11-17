@@ -22,6 +22,7 @@
 | [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos and coloring pages (download them separately from Photos) |
 | [Family polls](../using/polls.md) with their choices and votes | |
 | [Home upkeep](../using/upkeep.md): areas, things, jobs and every Done, costs and notes too | Its receipts and manuals: they're in the photo backup zip, under `upkeep/` |
+| [School](../using/school.md): subjects, which kids are in school and their school settings, every entry of school time, report card grades and which photo is each report card | The photos themselves: they're in the photo backup zip |
 | [Meals](../using/meals.md): recipes (archived ones too, basics with their links), planned meals with their own ingredient copies, and which ingredients were already added to which shopping list | |
 | ICS feed URLs | |
 | Passkey and webhook *names/URLs*, for reference | [Security activity](../using/sign-in-and-security.md#security-activity) (it's about this server's sign-ins and devices, and an import shouldn't be able to write one) |

@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 // A member's profile numbers (GET /api/members/{id}/stats), built from tables Kinwall already
 // fills: chore_completions, check_ins, point_entries, tracker_entries (reading only - health never shows
 // here), member_sticker_packs, scrapbook_stickers, plugin_playtime and reward_redemptions.
@@ -81,8 +82,8 @@ memberStatsRoutes.openapi(
       db.prepare("SELECT cc.chore_id, cc.date, COALESCE(cc.points_awarded, 0) AS points, c.title, c.emoji FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.member_id = ? AND cc.status = 'approved' ORDER BY cc.date").bind(id),
       db.prepare("SELECT amount, reason, at FROM point_entries WHERE member_id = ? AND (amount < 0 OR reason = 'reward_refund')").bind(id),
       // The streak: the leaderboard's chores (active, assigned to them) and anyone's ticks on them.
-      db.prepare('SELECT * FROM chores WHERE active = 1 AND member_id = ?').bind(id),
-      db.prepare("SELECT chore_id, date FROM chore_completions WHERE status = 'approved' AND chore_id IN (SELECT id FROM chores WHERE active = 1 AND member_id = ?)").bind(id),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND member_id = ?`).bind(id),
+      db.prepare(`SELECT chore_id, date FROM chore_completions WHERE status = 'approved' AND chore_id IN (SELECT id FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND member_id = ?)`).bind(id),
       db.prepare("SELECT id, title, data FROM tracker_entries WHERE kind = 'reading' AND member_id = ?").bind(id),
       db.prepare('SELECT pack_id FROM member_sticker_packs WHERE member_id = ?').bind(id),
       db.prepare('SELECT COUNT(*) AS n FROM scrapbook_stickers WHERE member_id = ?').bind(id),

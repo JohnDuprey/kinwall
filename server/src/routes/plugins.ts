@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { goalProgressFor } from '../chore-goals.ts';
 // Activity plugins. A plugin is a small web page (HTML/JS/CSS/images) that shows up under Activities.
 //
@@ -708,7 +709,7 @@ async function choreProgress(c: Context<{ Bindings: Env }>, id: string, member: 
   const [playRes, choresRes, doneRes, notYetRes] = await db.batch<unknown>([
     db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(date, member, id),
     // Theirs, and Anyone chores (whoever gets there first earns those).
-    db.prepare('SELECT * FROM chores WHERE active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(id, member),
+    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at`).bind(id, member),
     db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(date),
     // A parent said "Not yet": play time alone doesn't send it back, the kid ticks it again.
     db.prepare('SELECT chore_id FROM chore_rejections WHERE date = ?').bind(date),
