@@ -41,7 +41,7 @@ A parent taps **Add schoolwork** for a lesson, homework, a test or a project:
 * **More options**: a start time, a timer and whether a tick needs a parent's OK, as on a chore.
 * **Still due on days off**: off to start, so it's skipped on a kid's days with no school (a holiday, a break, summer). Turn it on for homework over a break.
 
-Schoolwork is a chore with a subject. It's added, changed and ticked off here in School, not on the **Chores** tab, and it shows on the Board like a chore. It never shows as a late chore on the Board. Time from a tick on a wall or a kid's own device waits for a grown-up when that kid's School settings say so. When the tick itself needs a parent's OK, its time is logged once a parent approves it.
+Schoolwork is a chore with a subject. It's added, changed and ticked off here in School, not on the **Chores** tab. On the Board's **Today** card it has a line of its own under the events ("🎒 Schoolwork · 2 left today", with each kid and how many they have left) that opens School, and schoolwork with a start time or a timer gets a row among the day's events, like a chore. It never shows as a late chore on the Board. Time from a tick on a wall or a kid's own device waits for a grown-up when that kid's School settings say so. When the tick itself needs a parent's OK, its time is logged once a parent approves it.
 
 ## Days off and early release
 

@@ -252,19 +252,23 @@ snapshotRoutes.openapi(
     const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
     const noSchool = await schoolworkOff(db, today, today, choresRes.results as ChoreRow[]);
     const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && (completedToday.has(row.id) || pendingToday.has(row.id) || !noSchool(row, today)) && (!goalStates.get(row.id)?.full || completedToday.has(row.id) || pendingToday.has(row.id)));
-    const byMember = new Map<string | null, ChoreRow[]>();
-    for (const row of dueToday) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
     const memberById = new Map(members.map((m) => [m.id, m]));
-    const chores = !settings.features.chores ? [] : [...byMember.entries()]
-      .map(([memberId, rows]) => {
+    // Each person's count, chores and schoolwork apart: schoolwork opens School, chores the Chores tab.
+    const isWork = (r: ChoreRow) => !!(r.school_subject_id || r.school_kind);
+    const counts = (list: ChoreRow[]) => {
+      const byMember = new Map<string | null, ChoreRow[]>();
+      for (const row of list) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
+      return [...byMember.entries()].map(([memberId, rows]) => {
         const m = memberId ? memberById.get(memberId) : undefined;
         return { memberId, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, remaining: rows.filter((r) => !completedToday.has(r.id)).length, total: rows.length, pending: rows.filter((r) => pendingToday.has(r.id)).length };
-      })
-      .filter((c) => c.total > 0);
+      }).filter((c) => c.total > 0);
+    };
+    const chores = !settings.features.chores ? [] : counts(dueToday.filter((r) => !isWork(r)));
+    const schoolwork = !settings.features.chores ? [] : counts(dueToday.filter(isWork));
     // A start time that isn't "HH:MM" (an older free-text one from the API) isn't a time to sort by.
     const timedChores = !settings.features.chores ? [] : dueToday
       .filter((r) => (r.due_time && HHMM.test(r.due_time)) || r.timer_minutes)
-      .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, dueTime: r.due_time && HHMM.test(r.due_time) ? r.due_time : null, timerMinutes: r.timer_minutes ?? null, done: completedToday.has(r.id), pending: pendingToday.has(r.id) }));
+      .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, dueTime: r.due_time && HHMM.test(r.due_time) ? r.due_time : null, timerMinutes: r.timer_minutes ?? null, done: completedToday.has(r.id), pending: pendingToday.has(r.id), school: isWork(r) }));
     // Late chores, as far back as a wall screen can tick them: a one-off whose day passed, and a repeating
     // chore's last time before today. Only that last time, so a missed daily chore doesn't pile up a copy
     // a day; a goal ("3 times a week") isn't late for a day off. A tick waiting for an OK isn't late.
@@ -306,6 +310,7 @@ snapshotRoutes.openapi(
       items,
       chores,
       timedChores,
+      schoolwork,
       overdueChores,
       birthdays: birthdays.filter((b) => b.date <= to),
       meals: meals.filter((m) => m.date <= to),

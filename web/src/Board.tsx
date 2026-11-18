@@ -483,10 +483,15 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   // Chores with a start time or a timer are rows of their own on Today (withTimedChores), so its
   // summary counts the rest; the Chores card and tiles still count them all.
   const timed = boardChores(data.timedChores ?? [], selectedMemberId, focusMemberId, focusShowsShared)
-  const restChores = !timed.length ? chores : chores.map(c => {
-    const own = timed.filter(t => t.memberId === c.memberId)
+  const rest = (list: typeof chores, school: boolean) => list.map(c => {
+    const own = timed.filter(t => t.memberId === c.memberId && !!t.school === school)
     return { ...c, remaining: c.remaining - own.filter(t => !t.done).length, total: c.total - own.length }
   }).filter(c => c.total > 0)
+  // Schoolwork is counted on its own (it opens School); the timed ones are Today's rows like chores.
+  const restWork = rest(boardChores(data.schoolwork ?? [], selectedMemberId, focusMemberId, focusShowsShared), true)
+  const workLeft = restWork.reduce((n, c) => n + c.remaining, 0)
+  const workText = workLeft ? t('{n} left today', { n: workLeft }) : t('All done ✓')
+  const restChores = !timed.length ? chores : rest(chores, false)
   const restLeft = restChores.reduce((n, c) => n + c.remaining, 0)
   const overdue = items.filter(i => i.overdue).length
   const dueWeek = items.filter(i => !i.overdue && i.dueDate).length
@@ -495,14 +500,15 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const dueToday = items.filter(i => i.overdue || i.dueDate === today)
   const dueLater = items.filter(i => !i.overdue && i.dueDate && i.dueDate > today).length
   const dueSummary = [overdue > 0 && t('{n} overdue', { n: overdue }), dueToday.length - overdue > 0 && t('{n} due today', { n: dueToday.length - overdue }), dueLater > 0 && t('{n} later this week', { n: dueLater })].filter(Boolean).join(' · ')
-  const choresPeople = restChores.length > 0 && <span className="board-tile-people">
-    {restChores.map(c => (
+  const people = (list: typeof chores) => list.length > 0 && <span className="board-tile-people">
+    {list.map(c => (
       <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? t('Anyone')}: ${c.remaining ? t('{n} left', { n: c.remaining }) : t('done')}`}>
         <Avatar m={{ name: c.name ?? t('Anyone'), color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
         <span aria-hidden="true">{c.remaining || '✓'}</span>
       </span>
     ))}
   </span>
+  const choresPeople = people(restChores)
   const choresText = restLeft ? t('{n} left today', { n: restLeft }) : t('All done ✓')
   // Saving-for goals, short ("Leo 🍦 18/50"), on the compact chores line and tile too: the full Chores
   // card has them on each person's row, but a 1080p wall gets the line, and the kids' goal belongs on the wall.
@@ -527,6 +533,12 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       chip: <a className="board-slot-chip" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{restLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!restLeft ? t('All done') : tn(restLeft, '{n} chore', '{n} chores')}</span></a>,
       row: <a className="board-slot-row" href="#/chores" aria-label={`${choresName}: ${choresText}`}><span aria-hidden="true">✅</span><span className="board-slot-row-text">{choresName} · {choresText}</span></a>,
       full: <a className="board-slot-full" href="#/chores"><span className="board-slot-head"><span aria-hidden="true">✅</span>{choresName} · {choresText}</span>{choresPeople}</a>,
+    },
+    todayTiles && choresTile && restWork.length > 0 && {
+      key: 'schoolwork',
+      chip: <a className="board-slot-chip" href="#/school" aria-label={`${t('Schoolwork')}: ${workText}`}><span aria-hidden="true">🎒</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-short">{workLeft || '✓'}</span><span aria-hidden="true" className="board-slot-chip-text board-slot-chip-long">{!workLeft ? t('Schoolwork done') : tn(workLeft, '{n} schoolwork', '{n} schoolwork')}</span></a>,
+      row: <a className="board-slot-row" href="#/school" aria-label={`${t('Schoolwork')}: ${workText}`}><span aria-hidden="true">🎒</span><span className="board-slot-row-text">{t('Schoolwork')} · {workText}</span></a>,
+      full: <a className="board-slot-full" href="#/school"><span className="board-slot-head"><span aria-hidden="true">🎒</span>{t('Schoolwork')} · {workText}</span>{people(restWork)}</a>,
     },
     todayTiles && choresTile && lateSlot.item,
     // Each kid's free time on its own, so a long one goes behind +N on its own (StatusStrip).

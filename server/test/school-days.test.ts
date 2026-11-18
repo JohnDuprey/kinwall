@@ -185,3 +185,16 @@ test('school travel: one bus reminder for kids on the same bus, once, and none o
   await runNotifications(t.env, new Date('2026-11-18T07:35:00Z'));
   assert.equal((await read()).length, 2, 'no school: no bus reminder');
 });
+
+test('board: schoolwork is counted on its own, and a timed one is a row on Today like a chore', async () => {
+  const t = await setup();
+  await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'home' });
+  const today = new Date().toISOString().slice(0, 10);
+  await t.req('/api/chores', 'POST', { title: 'Dishes', memberId: t.maya.id, dueDate: today });
+  await t.req('/api/chores', 'POST', { title: 'Math lesson', memberId: t.maya.id, dueDate: today, schoolSubjectId: 'ss-math' });
+  await t.req('/api/chores', 'POST', { title: 'Piano', memberId: t.maya.id, dueDate: today, dueTime: '16:00', schoolSubjectId: 'ss-music' });
+  const board = (await t.req('/api/board')).json;
+  assert.deepEqual(board.chores.map((c: any) => [c.memberId, c.total]), [[t.maya.id, 1]], 'chores leave schoolwork out');
+  assert.deepEqual(board.schoolwork.map((c: any) => [c.memberId, c.total, c.remaining]), [[t.maya.id, 2, 2]]);
+  assert.deepEqual(board.timedChores.map((c: any) => [c.title, c.school]), [['Piano', true]]);
+});

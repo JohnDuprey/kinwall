@@ -1029,6 +1029,11 @@ let mockKeys: ApiKey[] = [
 
 // The feature switches outlive a reload in this tab (sessionStorage), so turning one on (School starts
 // off) doesn't undo itself; the rest of the demo starts fresh each time.
+const boardCounts = (list: Chore[], owners: (string | null)[], today: string) => owners.map(id => {
+  const mine = list.filter(c => c.memberId === id)
+  const m = members.find(x => x.id === id)
+  return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`) || !!completions.get(`${c.id}:${today}`)?.pending).length }
+}).filter(c => c.total > 0)
 const schoolworkVisible = (c: Chore) => !(c.schoolSubjectId || c.schoolKind) || !!settings.features.school
 const FEATURES_KEY = 'kinwall.demoFeatures'
 try { Object.assign(settings.features, JSON.parse(sessionStorage.getItem(FEATURES_KEY) ?? '{}')) } catch { /* starts with the defaults */ }
@@ -2278,17 +2283,15 @@ function mockBoard(days: number): Board {
     weather: mockWeather(dates),
     events: all.filter(e => !isBday(e)),
     items: !settings.features.lists ? [] : openItems(today, () => true).filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent'),
-    chores: !settings.features.chores ? [] : owners.map(id => {
-      const mine = todays.filter(c => c.memberId === id)
-      const m = members.find(x => x.id === id)
-      return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`) || !!completions.get(`${c.id}:${today}`)?.pending).length }
-    }).filter(c => c.total > 0),
+    // Like the server: chores and schoolwork counted apart.
+    chores: !settings.features.chores ? [] : boardCounts(todays.filter(c => !c.schoolKind), owners, today),
+    schoolwork: !settings.features.chores ? [] : boardCounts(todays.filter(c => !!c.schoolKind), owners, today),
     timedChores: !settings.features.chores ? [] : todays.filter(c => c.dueTime || c.timerMinutes).map(c => {
       const comp = completions.get(`${c.id}:${today}`)
-      return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending }
+      return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending, school: !!c.schoolKind }
     }),
     // Like the server: a one-off past its day, or a repeating chore's last time before today (not a goal), in the last 7 days.
-    overdueChores: !settings.features.chores ? [] : chores.filter(c => schoolworkVisible(c) && c.active).flatMap(c => {
+    overdueChores: !settings.features.chores ? [] : chores.filter(c => !c.schoolKind && c.active).flatMap(c => {
       const date = !c.rrule ? c.dueDate : c.repeatGoal ? null : [1, 2, 3, 4, 5, 6, 7].map(n => inDays(-n)).find(d => dueOn(c, d))
       return date && date >= inDays(-7) && date < today && !completions.has(`${c.id}:${date}`) && !choreDismissals.has(`${c.id}:${date}`) ? [{ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date }] : []
     }).sort((a, b) => a.date.localeCompare(b.date)),

@@ -1637,10 +1637,13 @@ export const BoardSchema = z
     items: z.array(SnapshotItemSchema), // anyone's open items due by `to` (incl. overdue), plus undated urgent/high
     chores: z.array(
       z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number(), pending: z.number() }), // pending: of remaining, ticked and waiting for a parent's OK
-    ),
+    ).openapi({ description: "Each person's chores today, not counting schoolwork." }),
+    schoolwork: z.array(
+      z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number(), pending: z.number() }),
+    ).openapi({ description: "Each kid's schoolwork today (School), counted like chores. Empty while School is off." }),
     // Today's chores with a start time or a timer, each on its own: the Board's Today card shows them as rows among the day's events.
     timedChores: z.array(
-      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean() }),
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean(), school: z.boolean().openapi({ description: 'Schoolwork (opens School).' }) }),
     ),
     // Late chores from the last 7 days, not ticked, oldest first: a one-off's day, or a repeating chore's last time before today (not a goal chore). Tick one off for its `date`.
     overdueChores: z.array(
