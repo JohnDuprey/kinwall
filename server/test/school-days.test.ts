@@ -197,6 +197,7 @@ test('board: schoolwork is counted on its own, and a timed one is a row on Today
   assert.deepEqual(board.chores.map((c: any) => [c.memberId, c.total]), [[t.maya.id, 1]], 'chores leave schoolwork out');
   assert.deepEqual(board.schoolwork.map((c: any) => [c.memberId, c.total, c.remaining]), [[t.maya.id, 2, 2]]);
   assert.deepEqual(board.timedChores.map((c: any) => [c.title, c.school]), [['Piano', true]]);
+  assert.deepEqual(board.otherChores.map((c: any) => [c.title, c.school]), [['Math lesson', true], ['Dishes', false]], 'the rest of today, schoolwork first, for Today’s spare room');
 });
 
 test('school days: kids at the same school share its hours, calendars and bus times; a pickup stays their own', async () => {

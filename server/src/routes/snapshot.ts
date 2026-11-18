@@ -269,6 +269,12 @@ snapshotRoutes.openapi(
     const timedChores = !settings.features.chores ? [] : dueToday
       .filter((r) => (r.due_time && HHMM.test(r.due_time)) || r.timer_minutes)
       .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, dueTime: r.due_time && HHMM.test(r.due_time) ? r.due_time : null, timerMinutes: r.timer_minutes ?? null, done: completedToday.has(r.id), pending: pendingToday.has(r.id), school: isWork(r) }));
+    // The rest of today's open chores and schoolwork (no start time or timer), each on its own: the
+    // Board's Today card fills spare room with them.
+    const otherChores = !settings.features.chores ? [] : dueToday
+      .filter((r) => !((r.due_time && HHMM.test(r.due_time)) || r.timer_minutes) && !completedToday.has(r.id) && !pendingToday.has(r.id))
+      .map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, memberId: r.member_id, dueTime: null, timerMinutes: null, done: false, pending: false, school: isWork(r) }))
+      .sort((a, b) => Number(b.school) - Number(a.school)); // schoolwork first: it's the day's must-dos
     // Late chores, as far back as a wall screen can tick them: a one-off whose day passed, and a repeating
     // chore's last time before today. Only that last time, so a missed daily chore doesn't pile up a copy
     // a day; a goal ("3 times a week") isn't late for a day off. A tick waiting for an OK isn't late.
@@ -310,6 +316,7 @@ snapshotRoutes.openapi(
       items,
       chores,
       timedChores,
+      otherChores,
       schoolwork,
       overdueChores,
       birthdays: birthdays.filter((b) => b.date <= to),

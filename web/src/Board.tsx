@@ -111,15 +111,18 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, what, chi
   const fit = useCallback(() => {
     const w = wrap.current, b = body.current
     if (!w || !b) return
-    const els = [...b.querySelectorAll<HTMLElement>(rows)]
+    // Filler rows (.board-filler: Today's other chores) only take room that's left: never More.
+    const fillers = [...b.querySelectorAll<HTMLElement>('.board-filler')]
+    const els = [...b.querySelectorAll<HTMLElement>(rows)].filter(e => !e.matches('.board-filler'))
     const days = [...b.querySelectorAll<HTMLElement>('.board-day')]
-    for (const e of [...els, ...days]) e.hidden = false
+    for (const e of [...els, ...days, ...fillers]) e.hidden = false
     // Measure without the last fit's heading and More button: they change the wrap's height, so the
     // next fit would undo this one, flipping every frame (rowsThatFit already leaves room for More).
     const extras = ([...w.children] as HTMLElement[]).filter(c => c !== b && !c.hidden)
     for (const e of extras) e.hidden = true
     const top = b.getBoundingClientRect().top
     const info = els.map(e => ({ bottom: e.getBoundingClientRect().bottom - top, heading: e.matches('.snap-day-heading') }))
+    const fill = fillers.map(e => e.getBoundingClientRect().bottom - top)
     // A card with bigger or smaller text is zoomed: measure the space as drawn, like the rows.
     const box = w.getBoundingClientRect(), scale = w.clientHeight ? box.height / w.clientHeight : 1
     for (const e of extras) e.hidden = false
@@ -131,6 +134,7 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', head, what, chi
     const beside = under && fab.left - box.left >= 160 * scale ? box.height - space : 0
     const shown = rowsThatFit(info, space, Math.max(0, MORE_SPACE * scale - beside))
     els.forEach((e, i) => { e.hidden = i >= shown })
+    fillers.forEach((e, i) => { e.hidden = shown < els.length || fill[i] > space })
     for (const d of days) d.hidden = !!d.querySelector('.snap-day-heading[hidden]') // a day whose rows all went
     setMore(shown < els.length ? moreLabel(info, shown, what) : null)
     setNone(shown === 0 && els.length > 0)
@@ -691,7 +695,9 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             // Chores with a start time or a timer, among the events by time (boardFit.ts withTimedChores).
             const startOf = (e: SnapshotEvent) => { const z = zonedParts(e.start, tz); return e.allDay || `${z.year}-${String(z.month).padStart(2, '0')}-${String(z.day).padStart(2, '0')}` < today ? -1 : z.hour * 60 + z.minute }
             const rows = withTimedChores(todays.shown, startOf, timed)
-            if (!bdays.length && !rows.length && !todays.earlier.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">{t('Nothing on the calendar today.')}</p></>
+            // Room left on a wall or tablet goes to today's other chores and schoolwork (FitBody: only what fits).
+            const others = boardChores(data.otherChores ?? [], selectedMemberId, focusMemberId, focusShowsShared)
+            if (!bdays.length && !rows.length && !todays.earlier.length && !books.length && !(fixed && others.length)) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">{t('Nothing on the calendar today.')}</p></>
             return (
               <ul className="snap-list">
                 {goals}
@@ -703,6 +709,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
                 {todays.earlier.length > 0 && <li><button className="snap-row board-earlier" aria-haspopup="dialog" onClick={() => setEarlierOpen(true)}>
                   {tn(todays.earlier.length, '{n} event earlier today', '{n} events earlier today')}<span aria-hidden="true"> ›</span>
                 </button></li>}
+                {fixed && others.map(c => <ChoreLine key={`other:${c.id}`} c={c} who={byId.get(c.memberId ?? selectedMemberId ?? '')} filler />)}
               </ul>
             )
           })()}
@@ -914,9 +921,11 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
 
 /** A chore with a start time or a timer on Today, like an event: "4:00 PM · 20 min", "🎹 Practice
  *  piano", whose it is, and Start for its timer (ChoreTimer.tsx). Without a timer it opens the Chores tab. */
-function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
+/** A chore on Today: one with a start time or timer among the events, or (`filler`) another of today's
+ *  chores or schoolwork in room that's left. Schoolwork opens School. */
+function ChoreLine({ c, who, filler }: { c: TimedChore; who?: Member; filler?: boolean }) {
   const late = isLate(c.dueTime, new Date().toTimeString().slice(0, 5))
-  const when = [c.dueTime ? (late ? t('{time} (late)', { time: formatTime(c.dueTime) }) : formatTime(c.dueTime)) : t('Today'), c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
+  const when = [c.dueTime ? (late ? t('{time} (late)', { time: formatTime(c.dueTime) }) : formatTime(c.dueTime)) : c.school ? t('Schoolwork') : filler ? t('Chore') : t('Today'), c.timerMinutes && durationLabel(c.timerMinutes)].filter(Boolean).join(' · ')
   const main = <>
     <span className="board-bar" style={{ background: who?.color ?? 'var(--border)' }} aria-hidden="true" />
     <span className="snap-main" aria-hidden="true">
@@ -925,10 +934,10 @@ function ChoreLine({ c, who }: { c: TimedChore; who?: Member }) {
     </span>
     {who && <span className="board-avatars" aria-hidden="true"><Avatar m={who} /></span>}
   </>
-  const label = t('Chore: {details}', { details: [c.dueTime && formatTime(c.dueTime), late && t('late'), c.title, c.timerMinutes && t('{time} timer', { time: durationLabel(c.timerMinutes) }), who?.name ?? (!c.memberId && t('anyone'))].filter(Boolean).join(', ') })
-  if (!c.timerMinutes) return <li><a className="snap-row board-event board-chore-line" href="#/chores" aria-label={label}>{main}</a></li>
+  const label = (c.school ? t('Schoolwork: {details}', { details: [c.dueTime && formatTime(c.dueTime), late && t('late'), c.title, c.timerMinutes && t('{time} timer', { time: durationLabel(c.timerMinutes) }), who?.name ?? (!c.memberId && t('anyone'))].filter(Boolean).join(', ') }) : t('Chore: {details}', { details: [c.dueTime && formatTime(c.dueTime), late && t('late'), c.title, c.timerMinutes && t('{time} timer', { time: durationLabel(c.timerMinutes) }), who?.name ?? (!c.memberId && t('anyone'))].filter(Boolean).join(', ') }))
+  if (!c.timerMinutes) return <li className={filler ? 'board-filler' : undefined}><a className="snap-row board-event board-chore-line" href={c.school ? '#/school' : '#/chores'} aria-label={label}>{main}</a></li>
   return (
-    <li><div className="snap-row board-event board-chore-line" role="group" aria-label={label}>
+    <li className={filler ? 'board-filler' : undefined}><div className="snap-row board-event board-chore-line" role="group" aria-label={label}>
       {main}
       <ChoreTimerButton chore={c} who={who?.name} />
     </div></li>

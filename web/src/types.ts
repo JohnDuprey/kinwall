@@ -1137,6 +1137,7 @@ export interface Board {
   items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
   chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number; pending?: number }[]
   timedChores?: TimedChore[] // today's chores with a start time or a timer: rows of their own on Today
+  otherChores?: TimedChore[] // today's other open chores and schoolwork, no time: Today fills spare room with them
   schoolwork?: Board['chores'] // each kid's schoolwork today, counted like chores (not in `chores`)
   overdueChores?: OverdueChore[] // late chores from the last 7 days, not ticked, oldest first: a one-off's day or a repeating chore's last time (an older server sends none)
   birthdays: SnapshotBirthday[]

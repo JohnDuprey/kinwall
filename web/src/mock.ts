@@ -2283,6 +2283,10 @@ function mockBoard(days: number): Board {
     weather: mockWeather(dates),
     events: all.filter(e => !isBday(e)),
     items: !settings.features.lists ? [] : openItems(today, () => true).filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent'),
+    // Like the server: today's other open chores and schoolwork, schoolwork first, for Today's spare room.
+    otherChores: !settings.features.chores ? [] : todays.filter(c => !c.dueTime && !c.timerMinutes && !c.ongoing && !completions.has(`${c.id}:${today}`))
+      .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: null, timerMinutes: null, done: false, pending: false, school: !!c.schoolKind }))
+      .sort((a, b) => Number(b.school) - Number(a.school)),
     // Like the server: chores and schoolwork counted apart.
     chores: !settings.features.chores ? [] : boardCounts(todays.filter(c => !c.schoolKind), owners, today),
     schoolwork: !settings.features.chores ? [] : boardCounts(todays.filter(c => !!c.schoolKind), owners, today),

@@ -1645,6 +1645,10 @@ export const BoardSchema = z
     timedChores: z.array(
       z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean(), school: z.boolean().openapi({ description: 'Schoolwork (opens School).' }) }),
     ),
+    // Today's other open chores and schoolwork (no start time or timer), schoolwork first: the Board's Today card fills spare room with them.
+    otherChores: z.array(
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean(), school: z.boolean() }),
+    ),
     // Late chores from the last 7 days, not ticked, oldest first: a one-off's day, or a repeating chore's last time before today (not a goal chore). Tick one off for its `date`.
     overdueChores: z.array(
       z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), points: z.number(), date: z.string() }),
