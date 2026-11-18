@@ -29,7 +29,8 @@ import { hoursMinutes } from './reading.ts'
 import { csv, DEFAULT_YEAR_START, groups, kidTotals, onDay, schoolYearOf, schoolYears, weekOf, type LogGroup } from './school.ts'
 import PickField from './PickField.tsx'
 import { formatTime } from './timeFormat.ts'
-import type { Contact } from './contact-types.ts'
+import type { Contact, ContactCategory } from './contact-types.ts'
+import { ContactForm } from './Contacts.tsx'
 import type { CalendarEntry, ChoreDay, EventInstance, Member, SchoolDay, SchoolDayKind, SchoolDayRule, SchoolDays, SchoolGrade, SchoolRecords, SchoolKid, SchoolKind, SchoolLog, SchoolMode, SchoolSettings, SchoolSubject } from './types.ts'
 import './meals.css'
 import './outings.css'
@@ -799,6 +800,17 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
     api.getContacts().then(cs => setContacts([...cs].sort((a, b) => a.name.localeCompare(b.name)))).catch(() => { /* none to offer */ })
   }, [])
   const run = async (p: Promise<unknown>) => { try { await p; changed() } catch (e) { toast(err(e, t('Could not save.')), true) } }
+  // A new contact made from the school or other-contacts picker (Contacts' own form), picked for that kid once saved.
+  const [newContact, setNewContact] = useState<{ m: Member; k: SchoolKid; role: 'school' | 'other'; name: string } | null>(null)
+  const [categories, setCategories] = useState<ContactCategory[]>([])
+  useEffect(() => { if (newContact && !categories.length) api.getContactCategories().then(setCategories).catch(() => { /* none to offer */ }) }, [newContact, categories.length])
+  const contactSaved = (c: Contact) => {
+    if (!newContact) return
+    const { m, k, role } = newContact
+    setContacts(cs => [...cs.filter(x => x.id !== c.id), c].sort((a, b) => a.name.localeCompare(b.name)))
+    void run(api.putSchoolKid(m.id, role === 'school' ? { mode: k.mode, schoolContactId: c.id } : { mode: k.mode, contactIds: [...k.contactIds, c.id] }))
+    setNewContact(null)
+  }
   // Fewer report cards a year hides the later terms: say so first when one has grades or a photo saved.
   const setTerms = async (m: Member, k: SchoolKid, terms: number) => {
     if (terms < k.terms) {
@@ -827,7 +839,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
     if (action === 'delete' && await dialog.confirm({ title: t('Delete “{title}”?', { title: s.name }), body: t('Time logged under it stays, with no subject. To keep its name on that time, put it away instead.'), confirmLabel: t('Delete'), danger: true })) await run(api.deleteSchoolSubject(s.id))
   }
   const active = subjects.filter(s => !s.archived), away = subjects.filter(s => s.archived)
-  return <Sheet title={t('Set up School')} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
+  return <><Sheet title={t('Set up School')} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
     <h3>{t('Kids')}</h3>
     {!children.length && <p className="field-hint">{t('Add your kids in Family first.')}</p>}
     <div className="school-setup-kids">{children.map(m => {
@@ -844,7 +856,8 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
         </div>
         {k && <div className="field"><label htmlFor={`${id}-${m.id}-school`}>{t('Which school')}</label>
             <PickField id={`${id}-${m.id}-school`} label={t('Which school')} search value={k.schoolContactId ? [k.schoolContactId] : []} none={t('None')}
-              options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))} />
+              options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))}
+              add={{ label: t('New school…'), onAdd: name => setNewContact({ m, k, role: 'school', name }) }} />
             <p className="field-hint">{k.mode === 'enrolled' && !sameSchool(k).length ? t('From Contacts: add the school there first. Its number is the one to call, for the teacher too. Kids at the same school share its hours and bus times.') : t('From Contacts: add the school there first. Its number is the one to call, for the teacher too.')}</p></div>}
         {k && <label className="school-check"><input type="checkbox" checked={k.approveLogs} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: e.target.checked }))} /> {t('A grown-up checks the time {name} logs', { name: m.name })}</label>}
         {k?.mode === 'enrolled' && <>
@@ -911,7 +924,8 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
           {k.teacherName && <p className="field-hint">{t('Only grown-ups’ phones and computers show these, not the wall or a kid’s device.')}</p>}
           <div className="field"><label htmlFor={`${id}-${m.id}-contacts`}>{t('Other contacts')}</label>
             <PickField id={`${id}-${m.id}-contacts`} label={t('Other contacts')} multiple search value={k.contactIds} none={t('None')}
-              options={contacts.map(c => ({ value: c.id, label: c.name }))} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, contactIds: ids }))} />
+              options={contacts.map(c => ({ value: c.id, label: c.name }))} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, contactIds: ids }))}
+              add={{ label: t('New contact…'), onAdd: name => setNewContact({ m, k, role: 'other', name }) }} />
             <p className="field-hint">{t('A tutor, a coach, a carpool: from Contacts.')}</p></div>
         </>}
       </div>
@@ -939,4 +953,6 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
       <div className="outing-list">{away.map(s => <div key={s.id} className="school-subject"><span>{s.emoji} {s.name}</span><button type="button" className="btn btn-secondary" onClick={() => void run(api.updateSchoolSubject(s.id, { archived: false }))}>{t('Bring back')}</button></div>)}</div>
     </>}
   </Sheet>
+  {newContact && <ContactForm initial={null} draft={newContact.role === 'school' ? { name: newContact.name, kind: 'organization', relationship: t('School') } : { name: newContact.name }} categories={categories} members={members} onClose={() => setNewContact(null)} onSaved={contactSaved} />}
+  </>
 }
