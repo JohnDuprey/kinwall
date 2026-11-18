@@ -36,7 +36,7 @@ test('library: create, list, update and delete; checklist and person are checked
   assert.equal(created.status, 201);
   assert.deepEqual(
     { ...created.json, id: undefined, createdAt: undefined },
-    { id: undefined, createdAt: undefined, title: 'Clean out the car', emoji: '🚗', points: 10, listId: list.id, memberId: leo.id, everyN: 4, everyUnit: 'week', needsApproval: null, notes: 'Vacuum the mats too', lastDone: null, lastMemberId: null, timesAssigned: 0, open: null },
+    { id: undefined, createdAt: undefined, title: 'Clean out the car', emoji: '🚗', points: 10, listId: list.id, memberId: leo.id, everyN: 4, everyUnit: 'week', needsApproval: null, notes: 'Vacuum the mats too', lastDone: null, lastMemberId: null, lastMemberIds: [], lastOneOf: false, timesAssigned: 0, open: null },
   );
   assert.equal((await req('/api/chore-library', 'POST', { title: 'X', listId: 'nope' })).status, 400);
   assert.equal((await req('/api/chore-library', 'POST', { title: 'X', memberId: 'nope' })).status, 400);
@@ -112,7 +112,7 @@ test('library: last done, last person and the open assignment come from the chor
   const got = lib.find((l: any) => l.id === item.id);
   assert.deepEqual(got.lastDone, { date: daysAgo(9), memberId: maya.id });
   assert.deepEqual([got.lastMemberId, got.timesAssigned], [leo.id, 3]);
-  assert.deepEqual(got.open, { choreId: next.id, dueDate: daysAgo(-3), memberId: leo.id, repeats: false });
+  assert.deepEqual(got.open, { choreId: next.id, dueDate: daysAgo(-3), memberId: leo.id, eligibleMemberIds: null, repeats: false });
   assert.deepEqual(lib.find((l: any) => l.id === other.id).lastDone, null);
   assert.deepEqual(lib.map((l: any) => l.title), ['Flip the mattress', 'Rake leaves']); // A-Z; the app sorts "due-ish" first
 
@@ -121,6 +121,42 @@ test('library: last done, last person and the open assignment come from the chor
   await req(`/api/members/${leo.id}`, 'PATCH', { needsApproval: true });
   await req(`/api/chores/${next.id}/complete`, 'POST', { date: daysAgo(-3) }, kid);
   assert.deepEqual((await req('/api/chore-library')).json.find((l: any) => l.id === item.id).lastDone.date, daysAgo(9));
+});
+
+test('library: handing out to several people gives each a linked copy; "Again" knows them all', async () => {
+  const { req } = setup();
+  const leo = (await req('/api/members', 'POST', { name: 'Leo', color: '#e57' })).json;
+  const maya = (await req('/api/members', 'POST', { name: 'Maya', color: '#57e' })).json;
+  const item = (await req('/api/chore-library', 'POST', { title: 'Rake leaves', points: 15, memberId: leo.id })).json;
+
+  const both = await req(`/api/chore-library/${item.id}/assign`, 'POST', { date: today, memberIds: [leo.id, maya.id] });
+  assert.equal(both.status, 201);
+  assert.ok(both.json.groupId);
+  const copies = (await req('/api/chores')).json;
+  assert.deepEqual(copies.map((c: any) => [c.memberId, c.groupId, c.libraryId, c.points]).sort(), [[leo.id, both.json.groupId, item.id, 15], [maya.id, both.json.groupId, item.id, 15]].sort());
+  let got = (await req('/api/chore-library')).json[0];
+  assert.deepEqual([[...got.lastMemberIds].sort(), got.timesAssigned], [[leo.id, maya.id].sort(), 2]);
+
+  // Deleting one (the toast's Undo) takes the whole group.
+  await req(`/api/chores/${both.json.id}`, 'DELETE');
+  assert.deepEqual((await req('/api/chores')).json, []);
+
+  // One person or [] (Anyone) is a plain chore, like POST /api/chores.
+  const one = (await req(`/api/chore-library/${item.id}/assign`, 'POST', { date: today, memberIds: [maya.id] })).json;
+  assert.deepEqual([one.memberId, one.groupId], [maya.id, null]);
+  got = (await req('/api/chore-library')).json[0];
+  assert.deepEqual([got.lastMemberId, got.lastMemberIds], [maya.id, [maya.id]]);
+  const anyone = (await req(`/api/chore-library/${item.id}/assign`, 'POST', { date: today, memberIds: [] })).json;
+  assert.deepEqual([anyone.memberId, anyone.groupId], [null, null]);
+  assert.deepEqual((await req('/api/chore-library')).json[0].lastMemberIds, []);
+  assert.equal((await req(`/api/chore-library/${item.id}/assign`, 'POST', { date: today, memberIds: [leo.id, 'nope'] })).status, 400);
+
+  // "Just one of them": one chore either can do, and "Again" knows to hand it out that way.
+  for (const c of [one, anyone]) await req(`/api/chores/${c.id}`, 'DELETE');
+  const shared = (await req(`/api/chore-library/${item.id}/assign`, 'POST', { date: today, memberIds: [leo.id, maya.id], oneOf: true })).json;
+  assert.deepEqual([shared.memberId, shared.groupId, [...shared.eligibleMemberIds].sort()], [null, null, [leo.id, maya.id].sort()]);
+  got = (await req('/api/chore-library')).json[0];
+  assert.deepEqual([[...got.lastMemberIds].sort(), got.lastOneOf, [...got.open.eligibleMemberIds].sort()], [[leo.id, maya.id].sort(), true, [leo.id, maya.id].sort()]);
 });
 
 test("library: parent devices only - wall screens and kids' devices get 403, but still do assigned chores", async () => {

@@ -615,6 +615,7 @@
   "error|This activity has no {name} action{value}": "This activity has no {name} action{value}",
   "error|This can be answered from their own device or a parent's": "This can be answered from their own device or a parent's",
   "error|This chore has already been ticked off.": "This chore has already been ticked off.",
+  "error|This chore is for someone else.": "This chore is for someone else.",
   "error|This chore isn't due on that day.": "This chore isn't due on that day.",
   "error|This device {verb} as {ownName}.": "This device {verb} as {ownName}.",
   "error|This device belongs to someone else": "This device belongs to someone else",

@@ -38,7 +38,7 @@ import { shareText } from './rewardSplit.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 import { latestOnly } from './latest.ts'
 import { onDayChange, rollToToday } from './minuteTick.ts'
-import { DAY, formatDate, LONG_DAY, msg, t, tn, tm } from './i18n.ts'
+import { DAY, formatDate, intlLocale, LONG_DAY, msg, t, tn, tm } from './i18n.ts'
 
 function updatedGoalProgress(progress: GoalProgress, doneDelta: number, pendingDelta: number): GoalProgress {
   const done = Math.max(0, progress.done + doneDelta), pending = Math.max(0, progress.pending + pendingDelta)
@@ -159,6 +159,9 @@ function ProgressRing({ pct, m, label }: { pct: number; m: FaceMember; label: st
   )
 }
 
+/** Whether this person can do a "just one of them" chore (any chore without that limit: yes). */
+const canDo = (c: Pick<ChoreDay, 'eligibleMemberIds'>, memberId: string) => !c.eligibleMemberIds || c.eligibleMemberIds.includes(memberId)
+
 function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void; onNotDone?: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
   const schedule = chore.ongoing ? t('Available anytime') : chore.repeatGoal ? goalLabel(chore.repeatGoal) : scheduleText(chore.rrule)
@@ -170,6 +173,8 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chor
   const goalBlocked = !!chore.goalProgress?.full && !ticked
   const goalProgress = chore.goalProgress
   const goalText = goalProgress && chore.repeatGoal ? goalProgressLabel(chore.repeatGoal, goalProgress.done) : ''
+  // "Just one of them": who can do it ("Maya or Leo"), until one of them has.
+  const oneOf = !chore.completed && chore.eligibleMemberIds ? new Intl.ListFormat(intlLocale(), { type: 'disjunction' }).format(members.filter(m => chore.eligibleMemberIds!.includes(m.id)).map(m => m.name)) : ''
   const notYet = !ticked && chore.rejection ? (chore.rejection.note ? t('Not yet: {note}', { note: chore.rejection.note }) : t('Not yet')) : ''
   const notDone = !ticked && chore.dismissed ? t('Marked not done') : '' // heard, not shown: the Undo not done link says it
   const cl = chore.checklist
@@ -202,7 +207,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chor
       <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
       <div className="chore-info">
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-        <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}{notDoneLink && !act && !timer && <> · {notDoneLink}</>}</div>
+        <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), oneOf, t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}{notDoneLink && !act && !timer && <> · {notDoneLink}</>}</div>
         {goalText && <div className="chore-pts">{goalText}</div>}
         {goalBlocked && <div className="chore-waiting">{goalProgress!.done >= goalProgress!.target ? t('Goal reached') : t('Waiting for OK')}</div>}
         {goalProgress && goalProgress.pending > 0 && <div className="chore-waiting">{t('{n} waiting for OK this interval', { n: goalProgress.pending })}</div>}
@@ -549,7 +554,7 @@ export default function Chores() {
     if (!ticked && c.checklist && c.checklist.done < c.checklist.total) { setChecklistId(c.id); return }
     // An Anyone chore credits the filtered (or pinned) person; otherwise ask who did it.
     // `doneBy` null = "Nobody in particular" was picked.
-    const picked = !ticked && !c.memberId && doneBy === undefined ? actingMember(selectedMemberId, members) : null
+    const picked = !ticked && !c.memberId && doneBy === undefined ? actingMember(selectedMemberId, members, m => canDo(c, m.id)) : null
     if (!ticked && !c.memberId && doneBy === undefined) {
       if (picked) doneBy = picked.id
       else if (members.length > 0) { setWhoFor(c); return }
@@ -599,7 +604,7 @@ export default function Chores() {
   // A checklist chore completes itself on its last tick when it knows who gets the points (its person,
   // or the person picked); an Anyone chore that would ask Who did it? waits for a tap instead.
   const checklistDone = (c: ChoreDay) => {
-    const who = members.find(m => m.id === (c.memberId ?? actingMember(selectedMemberId, members)?.id))
+    const who = members.find(m => m.id === (c.memberId ?? actingMember(selectedMemberId, members, m => canDo(c, m.id))?.id))
     if (!who || c.completed || c.pending) return null
     const late = key < dateKey(new Date())
     return earnedText(late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points, who.name, waitsForOk(c, who, parentDevice))
@@ -631,6 +636,8 @@ export default function Chores() {
     dialog.confirm({ title: who ? t('Mark "{title}" done for {name}?', { title: c.title, name: who }) : t('Mark "{title}" done?', { title: c.title }), confirmLabel: t('Mark done') }).then(ok => { if (ok) toggle(c) })
   }, [loading, chores, hashTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Filtered to one person, the Anyone column leaves out "just one of them" chores they're not one of.
+  const inAnyone = (c: ChoreDay) => !c.memberId && (!selectedMemberId || canDo(c, selectedMemberId))
   const columns = [...members, { id: '__anyone', name: t('Anyone'), color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
   const visibleColumns = selectedMemberId
     // Anyone's chores stay beside the filtered person; only a display pinned to someone can hide them.
@@ -641,7 +648,7 @@ export default function Chores() {
   // Past the floor the row overflows and .chore-columns' overflow-x/scroll-snap take over.
   // Someone with nothing due gets a compact chip under the columns rather than a whole blank
   // column, so the people with chores get the width (capped, so two columns aren't a mile wide).
-  const hasChores = (id: string) => chores.filter(inCategory).some(c => id === '__anyone' ? !c.memberId : c.memberId === id)
+  const hasChores = (id: string) => chores.filter(inCategory).some(c => id === '__anyone' ? inAnyone(c) : c.memberId === id)
   const idle = !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
   const active = visibleColumns.filter(m => !idle.includes(m))
   const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, calc(480px * var(--screen-k))))` }
@@ -705,7 +712,7 @@ export default function Chores() {
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
           {active.map(col => {
-            const columnChores = chores.filter(c => inCategory(c) && (col.id === '__anyone' ? !c.memberId : c.memberId === col.id))
+            const columnChores = chores.filter(c => inCategory(c) && (col.id === '__anyone' ? inAnyone(c) : c.memberId === col.id))
             const list = editing ? [...columnChores].sort((a, b) => a.sort - b.sort) : choreOrder(columnChores)
             const movable = list.filter(c => !c.sourceId)
             const required = list.filter(c => !c.ongoing)
@@ -777,7 +784,7 @@ export default function Chores() {
         <Sheet title={t('Who did it?')} onClose={() => setWhoFor(null)}>
           <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{whoFor.emoji} {t('{title} · {n} pts go to whoever you pick.', { title: whoFor.title, n: whoFor.points })}</p>
           <div className="who-grid">
-            {members.map(m => (
+            {members.filter(m => canDo(whoFor, m.id)).map(m => (
               <button key={m.id} className="who-btn" onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, m.id) }}>
                 <Face m={m} className="who-avatar" aria-hidden="true" />
                 {m.name}
@@ -832,8 +839,9 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   const [emoji, setEmoji] = useState(chore?.emoji ?? from?.emoji ?? MEMBER_EMOJI[0])
   const [points, setPoints] = useState(chore?.points ?? from?.points ?? 5)
   // Who it's for: [] is Anyone; several people each get their own linked copy (chore.groupId).
-  const startMember = chore ? chore.memberId : draft?.memberId ?? null
-  const [memberIds, setMemberIds] = useState<string[]>(startMember ? [startMember] : [])
+  const startMember = chore ? chore.memberId : null
+  const [memberIds, setMemberIds] = useState<string[]>(draft?.memberIds ?? chore?.eligibleMemberIds ?? (startMember ? [startMember] : []))
+  const [oneOf, setOneOf] = useState(!!chore?.eligibleMemberIds || !!draft?.oneOf) // several people: one shared chore, not a copy each
   const [groupLoaded, setGroupLoaded] = useState(!chore?.groupId) // saving sets the whole group, so wait for it
   useEffect(() => {
     const groupId = chore?.groupId
@@ -870,7 +878,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
   const submit = async () => {
     if (!title.trim() || !isSingleEmoji(emoji) || !scheduleValid || !groupLoaded) return
     const schedule = scheduleBody({ rrule: storedRrule, dueDate: chore?.dueDate ?? draft?.date ?? today }, sched, schedTouched || (!chore && !draft), dueDate)
-    const body = { title: title.trim(), emoji, points, memberIds: ongoing ? [] : memberIds, ...schedule, ...(ongoing ? { rrule: null, dueDate: dueDate || today } : {}), ongoing, category: category.trim() || null, repeatGoal: ongoing ? null : repeatGoal, listId, pluginId: ongoing ? null : pluginId, ...(!ongoing && pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
+    const body = { title: title.trim(), emoji, points, memberIds: ongoing ? [] : memberIds, oneOf: !ongoing && oneOf && memberIds.length > 1, ...schedule, ...(ongoing ? { rrule: null, dueDate: dueDate || today } : {}), ongoing, category: category.trim() || null, repeatGoal: ongoing ? null : repeatGoal, listId, pluginId: ongoing ? null : pluginId, ...(!ongoing && pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, timerMinutes: pluginId ? null : timerMinutes, dueTime: startTime || null, ...(from ? { libraryId: from.id } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -943,8 +951,12 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
             <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
+        {memberIds.length > 1 && <select aria-label={t('How many of them do it')} value={oneOf ? 'one' : 'each'} onChange={e => setOneOf(e.target.value === 'one')} style={{ marginTop: 8 }}>
+          <option value="each">{t('Each of them does it')}</option>
+          <option value="one">{t('Just one of them does it')}</option>
+        </select>}
         <p className="field-hint" id="chore-assign-hint">{memberIds.length > 1
-          ? t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
+          ? oneOf ? t('The first of them to tick it off gets the points, and it is done for all of them.') : t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
           : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
       </div>}
       {ongoing && <div className="field"><label htmlFor="chore-available-from">{t('Starts')}</label><input id="chore-available-from" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>}

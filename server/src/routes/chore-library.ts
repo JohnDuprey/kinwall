@@ -9,7 +9,7 @@ import type { KinwallDb } from '../db.ts';
 import { emit } from '../bus.ts';
 import { isValidRrule } from '../recurrence.ts';
 import { ChoreSchema, EmojiSchema, ErrorSchema } from '../schemas.ts';
-import { announceNewChore, choreRepeatError, insertChore, toApi as choreToApi, type ChoreRow } from './chores.ts';
+import { announceNewChore, checkMembers, choreRepeatError, eligibleOf, insertChore, splitOwners, toApi as choreToApi, type ChoreRow } from './chores.ts';
 
 export const choreLibraryRoutes = createRouter();
 
@@ -26,8 +26,8 @@ export type LibraryRow = {
   notes: string | null;
   created_at: string;
 };
-type ListedRow = LibraryRow & { last_done: string | null; last_done_by: string | null; last_member_id: string | null; times_assigned: number };
-type OpenRow = { id: string; library_id: string; due_date: string | null; member_id: string | null; rrule: string | null };
+type ListedRow = LibraryRow & { last_done: string | null; last_done_by: string | null; last_member_id: string | null; last_member_ids: string | null; last_eligible: string | null; times_assigned: number };
+type OpenRow = { id: string; library_id: string; due_date: string | null; member_id: string | null; rrule: string | null; eligible_member_ids: string | null };
 
 const UnitSchema = z.enum(['day', 'week', 'month']);
 
@@ -46,9 +46,11 @@ export const LibraryChoreSchema = z
     createdAt: z.string(),
     lastDone: z.object({ date: z.string(), memberId: z.string().nullable() }).nullable().openapi({ description: 'The latest approved completion of a chore made from it.' }),
     lastMemberId: z.string().nullable().openapi({ description: 'Who the most recent chore made from it went to (null = Anyone). "Again" uses it when timesAssigned > 0.' }),
+    lastMemberIds: z.array(z.string()).openapi({ description: 'Everyone the most recent chore made from it went to: several when it was handed to several people, [] for Anyone or never.' }),
+    lastOneOf: z.boolean().openapi({ description: 'The most recent one was "just one of them" (oneOf): lastMemberIds shared one chore.' }),
     timesAssigned: z.number(),
     open: z
-      .object({ choreId: z.string(), dueDate: z.string().nullable(), memberId: z.string().nullable(), repeats: z.boolean() })
+      .object({ choreId: z.string(), dueDate: z.string().nullable(), memberId: z.string().nullable(), eligibleMemberIds: z.array(z.string()).nullable().openapi({ description: 'Just one of these people (see Chore.eligibleMemberIds).' }), repeats: z.boolean() })
       .nullable()
       .openapi({ description: 'A chore made from it that is still to do (a one-off not ticked yet, or a repeating one), soonest first.' }),
   })
@@ -73,6 +75,8 @@ const AssignSchema = z
   .object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).openapi({ description: 'YYYY-MM-DD: the day it is due (a repeating one starts then).' }),
     memberId: z.string().nullable().optional().openapi({ description: "Who does it; null = Anyone. Omit for the item's suggested person." }),
+    memberIds: z.array(z.string()).max(100).optional().openapi({ description: 'Several people instead, each with their own linked copy to tick off (they share a groupId, like POST /api/chores); [] for Anyone. Replaces memberId.' }),
+    oneOf: z.boolean().optional().openapi({ description: 'With memberIds of two or more: one chore any one of them does (eligibleMemberIds) instead of a copy each.' }),
     dueTime: z.string().nullable().optional(),
     rrule: z.string().nullable().optional().openapi({ description: '"Make it repeat": a recurrence such as FREQ=WEEKLY;INTERVAL=4. Omit for a one-off.' }),
   })
@@ -109,9 +113,12 @@ const LIST_SQL = `SELECT l.*,
   (SELECT cc.date FROM chore_completions cc JOIN chores ch ON ch.id = cc.chore_id WHERE ch.library_id = l.id AND cc.status = 'approved' ORDER BY cc.date DESC, cc.completed_at DESC LIMIT 1) AS last_done,
   (SELECT cc.member_id FROM chore_completions cc JOIN chores ch ON ch.id = cc.chore_id WHERE ch.library_id = l.id AND cc.status = 'approved' ORDER BY cc.date DESC, cc.completed_at DESC LIMIT 1) AS last_done_by,
   (SELECT ch.member_id FROM chores ch WHERE ch.library_id = l.id ORDER BY ch.created_at DESC, ch.rowid DESC LIMIT 1) AS last_member_id,
+  NULLIF((SELECT json_group_array(g.member_id) FROM chores g WHERE g.archived = 0 AND g.member_id IS NOT NULL AND g.group_id =
+    (SELECT ch.group_id FROM chores ch WHERE ch.library_id = l.id ORDER BY ch.created_at DESC, ch.rowid DESC LIMIT 1)), '[]') AS last_member_ids,
+  (SELECT ch.eligible_member_ids FROM chores ch WHERE ch.library_id = l.id ORDER BY ch.created_at DESC, ch.rowid DESC LIMIT 1) AS last_eligible,
   (SELECT COUNT(*) FROM chores ch WHERE ch.library_id = l.id) AS times_assigned
   FROM chore_library l`;
-const OPEN_SQL = `SELECT id, library_id, due_date, member_id, rrule FROM chores ch WHERE library_id IS NOT NULL AND active = 1 AND archived = 0
+const OPEN_SQL = `SELECT id, library_id, due_date, member_id, rrule, eligible_member_ids FROM chores ch WHERE library_id IS NOT NULL AND active = 1 AND archived = 0
   AND (rrule IS NOT NULL OR NOT EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ch.id)) ORDER BY due_date IS NULL, due_date, created_at`;
 
 function toApi(r: ListedRow, open: OpenRow | undefined): z.infer<typeof LibraryChoreSchema> {
@@ -129,8 +136,11 @@ function toApi(r: ListedRow, open: OpenRow | undefined): z.infer<typeof LibraryC
     createdAt: r.created_at,
     lastDone: r.last_done ? { date: r.last_done, memberId: r.last_done_by } : null,
     lastMemberId: r.last_member_id,
+    // A hand-out to several people is a group of copies; otherwise it's just the last person.
+    lastMemberIds: r.last_member_ids ? JSON.parse(r.last_member_ids) : r.last_member_id ? [r.last_member_id] : eligibleOf({ member_id: null, eligible_member_ids: r.last_eligible }) ?? [],
+    lastOneOf: !r.last_member_id && !!eligibleOf({ member_id: null, eligible_member_ids: r.last_eligible }),
     timesAssigned: Number(r.times_assigned),
-    open: open ? { choreId: open.id, dueDate: open.due_date, memberId: open.member_id, repeats: !!open.rrule } : null,
+    open: open ? { choreId: open.id, dueDate: open.due_date, memberId: open.member_id, eligibleMemberIds: eligibleOf(open), repeats: !!open.rrule } : null,
   };
 }
 
@@ -277,7 +287,7 @@ choreLibraryRoutes.openapi(
     path: '/api/chore-library/{id}/assign',
     tags: ['Chores'],
     summary:
-      'Hand out a library chore: makes a normal chore (title, emoji, points, checklist and approval carried over) due on date, for memberId or the suggested person. With rrule it repeats from that date (parent devices only).',
+      'Hand out a library chore: makes a normal chore (title, emoji, points, checklist and approval carried over) due on date, for memberId, memberIds (a linked copy each) or the suggested person. With rrule it repeats from that date (parent devices only).',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), body: json(AssignSchema) },
     responses: { 201: { description: 'the chore it made', ...json(ChoreSchema) }, 400: err('invalid date, rrule or member'), 404: err('not found') },
@@ -290,16 +300,19 @@ choreLibraryRoutes.openapi(
     if (b.rrule && !isValidRrule(b.rrule)) return c.json({ error: 'invalid rrule' }, 400);
     const neverError = await choreRepeatError(c.env.DB, b.rrule, b.date);
     if (neverError) return c.json({ error: neverError }, 400);
+    const memberIds = b.memberIds && [...new Set(b.memberIds)];
     const memberId = b.memberId !== undefined ? b.memberId : item.member_id;
-    const error = await checkRefs(c.env.DB, { memberId });
+    const error = memberIds ? await checkMembers(c, memberIds) : await checkRefs(c.env.DB, { memberId });
     if (error) return c.json({ error }, 400);
+    const { copies, eligible } = splitOwners(memberIds, b.oneOf);
+    const owners: (string | null)[] = copies ? (copies.length ? copies : [null]) : [memberId];
     // A checklist archived since it was saved is left off rather than failing the assign.
     const listId = item.list_id && (await c.env.DB.prepare('SELECT id FROM lists WHERE id = ? AND archived = 0').bind(item.list_id).first()) ? item.list_id : null;
     const row: ChoreRow = {
       id: crypto.randomUUID(),
       title: item.title,
       emoji: item.emoji,
-      member_id: memberId,
+      member_id: owners[0],
       points: item.points,
       rrule: b.rrule || null,
       due_date: b.date, // a repeating chore anchors on it
@@ -311,9 +324,11 @@ choreLibraryRoutes.openapi(
       needs_approval: item.needs_approval,
       approve_timed_play: 0,
       library_id: id,
+      group_id: owners.length > 1 ? crypto.randomUUID() : null,
+      eligible_member_ids: eligible,
     };
-    await insertChore(c.env.DB, row);
-    await announceNewChore(c, row);
+    for (const [i, m] of owners.entries()) await insertChore(c.env.DB, { ...row, id: i ? crypto.randomUUID() : row.id, member_id: m });
+    await announceNewChore(c, row, eligibleOf(row) ?? owners);
     emit(c, 'chore.changed', { id: row.id, libraryId: id });
     return c.json(choreToApi(row), 201);
   },

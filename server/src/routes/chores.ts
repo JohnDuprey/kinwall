@@ -35,6 +35,7 @@ export type ChoreRow = {
   points: number;
   rrule: string | null;
   repeat_goal?: string | null;
+  eligible_member_ids?: string | null; // "just one of them": JSON member ids on an Anyone chore (migration 0155)
   due_date: string | null;
   due_time: string | null;
   active: number;
@@ -64,6 +65,7 @@ export function toApi(row: ChoreRow) {
     points: row.points,
     rrule: row.rrule,
     repeatGoal: readChoreGoal(row.repeat_goal),
+    eligibleMemberIds: eligibleOf(row),
     dueDate: row.due_date,
     dueTime: row.due_time,
     active: !!row.active,
@@ -102,7 +104,19 @@ async function checkList(c: { env: Env }, listId: string | null | undefined): Pr
   return row ? null : 'unknown list';
 }
 
-async function checkMembers(c: { env: Env }, memberIds: string[] | undefined): Promise<string | null> {
+/** "Just one of them": the people an Anyone chore is limited to, or null for anyone at all. */
+export function eligibleOf(row: Pick<ChoreRow, 'member_id' | 'eligible_member_ids'>): string[] | null {
+  if (row.member_id || !row.eligible_member_ids) return null;
+  try { const ids = JSON.parse(row.eligible_member_ids); return Array.isArray(ids) && ids.length ? ids : null; } catch { return null; }
+}
+
+/** Splits who a chore is for into a copy each (copies) or, with oneOf and two or more people, one
+ * Anyone chore limited to them (eligible, as stored JSON). */
+export function splitOwners(memberIds: string[] | undefined, oneOf: boolean | undefined): { copies: string[] | undefined; eligible: string | null } {
+  return oneOf && memberIds && memberIds.length > 1 ? { copies: [], eligible: JSON.stringify(memberIds) } : { copies: memberIds, eligible: null };
+}
+
+export async function checkMembers(c: { env: Env }, memberIds: string[] | undefined): Promise<string | null> {
   if (!memberIds?.length) return null;
   const row = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM members WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(memberIds)).first<{ n: number }>();
   return row?.n === memberIds.length ? null : 'unknown member';
@@ -118,9 +132,9 @@ async function checkLibrary(c: { env: Env }, libraryId: string | null | undefine
 function choreInsert(db: Env['DB'], row: ChoreRow) {
   return db
     .prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes, school_days_off) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes, school_days_off, eligible_member_ids) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null, row.group_id ?? null, row.category ?? null, row.ongoing ?? 0, row.source_id ?? null, row.school_subject_id ?? null, row.school_kind ?? null, row.school_minutes ?? null, row.school_days_off ?? 0);
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null, row.group_id ?? null, row.category ?? null, row.ongoing ?? 0, row.source_id ?? null, row.school_subject_id ?? null, row.school_kind ?? null, row.school_minutes ?? null, row.school_days_off ?? 0, row.member_id ? null : row.eligible_member_ids ?? null);
 }
 
 async function checkSubject(c: { env: Env }, subjectId: string | null | undefined): Promise<string | null> {
@@ -229,7 +243,8 @@ choresRoutes.openapi(
     const memberIds = body.memberIds && [...new Set(body.memberIds)];
     const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId)) ?? (await checkSubject(c, body.schoolSubjectId)) ?? (await checkMembers(c, memberIds ?? (body.memberId ? [body.memberId] : undefined)));
     if (listError) return c.json({ error: listError }, 400);
-    const owners: (string | null)[] = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null];
+    const { copies, eligible } = splitOwners(memberIds, body.oneOf);
+    const owners: (string | null)[] = copies ? (copies.length ? copies : [null]) : [body.memberId ?? null];
     if (body.ongoing && (owners.some(m => m !== null) || body.repeatGoal || body.pluginId || body.rrule)) return c.json({ error: 'Ongoing chores must be for Anyone, without a repeat schedule, goal or activity.' }, 400);
     const groupId = owners.length > 1 ? crypto.randomUUID() : null;
     const row: ChoreRow = {
@@ -253,6 +268,7 @@ choresRoutes.openapi(
       library_id: body.libraryId ?? null,
       timer_minutes: body.timerMinutes ?? null,
       group_id: groupId,
+      eligible_member_ids: eligible,
       category: body.category ?? null,
       ongoing: body.ongoing ? 1 : 0,
       school_subject_id: body.schoolSubjectId ?? null,
@@ -262,7 +278,7 @@ choresRoutes.openapi(
     };
     const rows = owners.map((m, i) => ({ ...row, id: i ? crypto.randomUUID() : row.id, member_id: m }));
     for (const r of rows) await insertChore(c.env.DB, r);
-    await announceNewChore(c, row, owners);
+    await announceNewChore(c, row, eligibleOf(row) ?? owners);
     emit(c, 'chore.changed', { id: row.id });
     return c.json(toApi(rows[0]), 201);
   },
@@ -348,7 +364,11 @@ choresRoutes.openapi(
       school_days_off: body.schoolDaysOff !== undefined ? (body.schoolDaysOff ? 1 : 0) : existing.school_days_off ?? 0,
     };
     if (!updated.school_subject_id) { updated.school_kind = null; updated.school_minutes = null; updated.school_days_off = 0; } else updated.school_kind ??= 'lesson';
-    const owners = memberIds ?? [updated.member_id];
+    // Who it's for: memberIds (with oneOf) decides afresh; naming one person drops a "just one of them" limit.
+    const split = memberIds ? splitOwners(memberIds, body.oneOf) : null;
+    if (split) updated.eligible_member_ids = split.eligible;
+    else if (body.memberId) updated.eligible_member_ids = null;
+    const owners = split ? split.copies ?? [] : [updated.member_id];
     if (updated.ongoing && (owners.some(m => m !== null) || goal || updated.plugin_id || updated.rrule)) return c.json({ error: 'Ongoing chores must be for Anyone, without a repeat schedule, goal or activity.' }, 400);
     if (updated.ongoing && !existing.ongoing) {
       const { results } = await c.env.DB.prepare('SELECT date FROM chore_completions WHERE chore_id = ?').bind(id).all<{ date: string }>();
@@ -362,9 +382,9 @@ choresRoutes.openapi(
     }
     updated.plugin_minutes = updated.plugin_id ? body.pluginMinutes ?? existing.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null;
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=?, category=?, ongoing=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=?, category=?, ongoing=?, eligible_member_ids=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, updated.category ?? null, updated.ongoing ?? 0, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, updated.category ?? null, updated.ongoing ?? 0, updated.eligible_member_ids ?? null, id)
       .run();
     // The other copies of a chore for several people follow, keeping their own person and order.
     if (existing.group_id) {
@@ -378,8 +398,8 @@ choresRoutes.openapi(
     await c.env.DB.prepare('UPDATE chores SET school_subject_id = ?, school_kind = ?, school_minutes = ?, school_days_off = ? WHERE id = ? OR (group_id = ? AND archived = 0)')
       .bind(updated.school_subject_id ?? null, updated.school_kind ?? null, updated.school_minutes ?? null, updated.school_days_off ?? 0, id, existing.group_id ?? null).run();
     let result = updated;
-    if (memberIds) {
-      const { rows, added } = await regroup(c.env.DB, updated, memberIds);
+    if (split) {
+      const { rows, added } = await regroup(c.env.DB, updated, split.copies ?? []);
       if (added.length) await announceNewChore(c, added[0], added.map((r) => r.member_id));
       result = rows.find((r) => r.id === id) ?? rows[0];
     }
@@ -490,7 +510,7 @@ choresRoutes.openapi(createRoute({
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
   if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);
   const owner = await deviceOwner(c), tz = settings.get('timezone') ?? hostTimezone();
-  const rows = (choresRes.results as ChoreRow[]).filter(r => !owner || !r.member_id || r.member_id === owner);
+  const rows = (choresRes.results as ChoreRow[]).filter(r => !owner || (r.member_id ? r.member_id === owner : !eligibleOf(r) || eligibleOf(r)!.includes(owner)));
   let completionFrom = from, completionTo = to;
   for (const row of rows) {
     const goal = readChoreGoal(row.repeat_goal);
@@ -670,6 +690,8 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   if (!chore) return 'not found';
   const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
   if (blocked) return { blocked };
+  const eligible = eligibleOf(chore);
+  if (eligible && memberId && !eligible.includes(memberId)) return { notDue: stored('error', 'This chore is for someone else.') };
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
   const tz = settings.get('timezone') ?? hostTimezone();
   const today = todayInTz(tz);

@@ -95,3 +95,31 @@ test('chore groups: deleting one copy deletes them all, keeping the history of d
   const exported = (await req('/api/export')).json;
   assert.deepEqual(exported.chores.map((c: any) => [c.id, c.archived, c.groupId]), [[b.id, true, a.groupId]]);
 });
+
+test('just one of them: one shared chore for some people; the first tick finishes it and only they can do it', async () => {
+  const { req, maya, leo, sam, chores } = await setup();
+  const res = await req('/api/chores', 'POST', { title: 'Walk the dog', points: 10, dueDate: '2026-06-01', memberIds: [maya, leo], oneOf: true });
+  assert.equal(res.status, 201);
+  assert.deepEqual([res.json.memberId, res.json.groupId, [...res.json.eligibleMemberIds].sort()], [null, null, [maya, leo].sort()]);
+  assert.equal((await chores()).length, 1); // one chore, not a copy each
+
+  // Only Maya or Leo can be credited; Sam can't.
+  assert.equal((await req(`/api/chores/${res.json.id}/complete`, 'POST', { date: '2026-06-01', memberId: sam })).status, 400);
+  assert.equal((await req(`/api/chores/${res.json.id}/complete`, 'POST', { date: '2026-06-01', memberId: leo })).status, 200);
+  const day = (await req('/api/chores/day?date=2026-06-01')).json as any[];
+  assert.deepEqual(day.map((c) => [c.completed, c.completedBy]), [[true, leo]]);
+  const counts = (await req('/api/chores/counts?from=2026-06-01&to=2026-06-01')).json as any[];
+  assert.deepEqual(counts.map((c) => [c.memberId, c.total, c.remaining]), [[null, 1, 0]]);
+
+  // Switching to "each of them" makes a copy each and drops the limit; back again folds them into one.
+  const each = (await req(`/api/chores/${res.json.id}`, 'PATCH', { memberIds: [maya, leo] })).json;
+  assert.equal(each.eligibleMemberIds, null);
+  assert.deepEqual((await chores()).map((c) => [c.memberId, c.eligibleMemberIds]).sort(), [[maya, null], [leo, null]].sort());
+  const one = (await req(`/api/chores/${each.id}`, 'PATCH', { memberIds: [maya, sam], oneOf: true })).json;
+  assert.deepEqual([one.memberId, one.groupId, [...one.eligibleMemberIds].sort()], [null, null, [maya, sam].sort()]);
+  assert.equal((await chores()).length, 1);
+  // Naming one person makes it a plain chore for them.
+  assert.equal((await req(`/api/chores/${one.id}`, 'PATCH', { memberId: maya })).json.eligibleMemberIds, null);
+  // oneOf with a single person is just that person's chore.
+  assert.deepEqual(Object.values((({ memberId, eligibleMemberIds }) => ({ memberId, eligibleMemberIds }))((await req('/api/chores', 'POST', { title: 'X', dueDate: '2026-06-01', memberIds: [sam], oneOf: true })).json)), [sam, null]);
+});

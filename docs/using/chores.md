@@ -77,6 +77,8 @@ Pick more than one person under **Assign to** to give each of them their own cop
 
 The copies stay linked. Editing one and tapping **Save** changes them all, and tapping a person under **Assign to** before saving adds or removes their copy. Down to one person, it's an ordinary chore again. **More… → Delete chore…** deletes every copy. Copies that were ever done keep their history and points, as for any chore.
 
+When only one of them needs to do it (walk the dog: Maya or Leo, not both), pick them and choose **Just one of them does it** instead of **Each of them does it**. It's then one chore, shown under **🌟 Anyone** as "Maya or Leo". The first of them to tick it off gets the points, and it's done for the day. Only they can tick it off, **Who did it?** offers only them, and it reaches their devices like their own chores. The others' streaks don't break because someone else did it. Handing out a [library chore](#chore-library) to several people offers the same choice.
+
 **Custom…** adds a repeat interval and unit. Weekly schedules let you choose weekdays and which day begins each week. Monthly schedules let you pick several **Days of the month** (such as 1, 5 and 24), or several **Weekdays of the month** (such as First Monday and Last Friday). Open the picker, choose all the dates or combinations you need, and tap **Done**. With no numbered dates picked, the chore repeats on the day of its start date. Weekday schedules need at least one choice. Months without a picked date or weekday skip that occurrence; if two choices land on the same day, the chore is only due once that day. Yearly schedules use the month and day of the start date; February 29 only occurs in leap years. The editor shows upcoming dates when a start date is set.
 
 ### A number of times per interval
@@ -219,8 +221,8 @@ Some jobs don't fit a schedule: clean out the car, wash the windows, flip the ma
 
 * Each saved chore has a title, emoji, points, and optionally a checklist, the person it usually goes to, notes, whether it needs a parent's OK, and **About every** a number of days, weeks or months.
 * **About every** is not a schedule. It's a hint: once a chore has been about that long since it was last done (90% of the way there), it moves to the top with **⏰ Due-ish**. Each row says how it's going, for example "Last done 5 weeks ago · usually every 4 weeks", "Not done yet" or "To do: Maya, Sat".
-* **Tap a chore** to hand it out: pick **Who** (or **Anyone**) and **When** (**Today**, **Tomorrow**, **This weekend** or **Pick a date**), then **Add chore**. It becomes a normal one-off chore with the same points, checklist and approval setting. The library stays open, so you can hand out a few in a row.
-* **Again · Maya** gives a chore to whoever got it last time (Maya here), for today, in one tap. **Undo** on the "Added" message takes it back. The rows stay where they are until you close the library, so the next **Again** doesn't move under your finger.
+* **Tap a chore** to hand it out: pick **Who** (one person, several, or **Anyone**) and **When** (**Today**, **Tomorrow**, **This weekend** or **Pick a date**), then **Add chore**. It becomes a normal one-off chore with the same points, checklist and approval setting. Picking several people gives each their own copy to tick off, just like a [chore for several people](#chores-for-several-people). The library stays open, so you can hand out a few in a row.
+* **Again · Maya** gives a chore to whoever got it last time (Maya here, or everyone it went to if it went to several people), for today, in one tap. **Undo** on the "Added" message takes it back. The rows stay where they are until you close the library, so the next **Again** doesn't move under your finger.
 * **More… → Make it repeat…** opens the chore editor filled in, repeating at the chore's **About every** (for example every 4 weeks). Change the schedule there if you like.
 * **More… → Edit library chore…** changes the saved chore (chores already handed out stay as they are), and **Remove from library…** at the bottom of that sheet deletes it.
 * **Save to library** (in a chore's edit sheet, under **More…**) saves an existing chore to the library. Its history comes along, so "last done" is right from the start.
@@ -301,7 +303,7 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
 * `POST /api/points/awards {memberId, points, note?, date?}`, `GET /api/points/awards?memberId=`, `DELETE /api/points/awards/{id}` ([bonus points](#bonus-points), parent devices)
-* `GET/POST /api/chore-library`, `PATCH/DELETE /api/chore-library/{id}`, `POST /api/chore-library/{id}/assign {date, memberId?, rrule?}` (parent devices)
+* `GET/POST /api/chore-library`, `PATCH/DELETE /api/chore-library/{id}`, `POST /api/chore-library/{id}/assign {date, memberId?, memberIds?, rrule?}` (parent devices)
 * MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_suggestions`, `approve_chore_suggestion`, `reject_chore_suggestion`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`, `award_points`, `delete_point_award`
 
 ## Putting chores in order

@@ -1,5 +1,6 @@
 // Chores → Library (parent devices): saved chores that aren't on a schedule, due-ish ones on top.
-// Tap one → who → when → it's a normal one-off chore; "Again" hands it to the last person today;
+// Tap one → who → when → it's a normal one-off chore (a linked copy each for several people); "Again"
+// hands it to whoever had it last, today;
 // "Make it repeat" opens the chore editor with it filled in.
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from './AppContext.tsx'
@@ -13,7 +14,7 @@ import { isSingleEmoji } from './emoji.ts'
 import { useDialog } from './dialog.tsx'
 import { libraryStatus, sortLibrary, whenDate, type WhenPick } from './choreLibrary.ts'
 import { Face } from './Face'
-import { DAY, formatDate, t, msg, tm } from './i18n.ts'
+import { DAY, formatDate, intlLocale, t, msg, tm } from './i18n.ts'
 
 // The starter set a new family gets (server routes/chore-library.ts STARTER_LIBRARY) is stored in
 // English. Until the family takes one up it shows in the current language; handing it out, making it
@@ -28,7 +29,7 @@ const shown = (i: LibraryChore): Shown => {
 const adopt = async (item: Shown) => { if (item.english) await api.updateLibraryChore(item.id, { title: item.title }) }
 
 /** What "Make it repeat" hands the chore editor. */
-export type RepeatDraft = { item: LibraryChore; memberId: string | null; date: string }
+export type RepeatDraft = { item: LibraryChore; memberIds: string[]; oneOf: boolean; date: string }
 
 export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: () => void; onAssigned: (date: string) => void; onRepeat: (d: RepeatDraft) => void }) {
   const { members, toast, refreshTick } = useApp()
@@ -40,6 +41,8 @@ export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: 
   useEffect(() => { void load() }, [refreshTick])
   const today = dateKey(new Date())
   const nameOf = (id: string | null) => (id ? members.find(m => m.id === id)?.name ?? t('someone') : t('Anyone'))
+  // "Maya and Leo", or "Maya or Leo" when it went to just one of them.
+  const namesOf = (ids: string[], oneOf = false) => (ids.length ? new Intl.ListFormat(intlLocale(), { type: oneOf ? 'disjunction' : 'conjunction' }).format(ids.map(nameOf)) : t('Anyone'))
   // After an Again the rows keep their places until the sheet closes, so the next row's Again
   // doesn't slide under the thumb that just tapped.
   const [frozen, setFrozen] = useState<string[] | null>(null)
@@ -54,8 +57,8 @@ export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: 
     if (!frozen) setFrozen(rows.map(r => r.item.id))
     try {
       await adopt(item)
-      const c = await api.assignLibraryChore(item.id, { date: today, memberId: item.lastMemberId })
-      toast(t('Added: {title} for {name} today', { title: item.title, name: nameOf(item.lastMemberId) }), false, { label: t('Undo'), run: () => {
+      const c = await api.assignLibraryChore(item.id, { date: today, memberIds: item.lastMemberIds, oneOf: item.lastOneOf })
+      toast(t('Added: {title} for {name} today', { title: item.title, name: namesOf(item.lastMemberIds, item.lastOneOf) }), false, { label: t('Undo'), run: () => {
         api.deleteChore(c.id).then(() => { onAssigned(today); void load() }, () => toast(t('Could not undo that'), true))
       } })
       onAssigned(today); void load()
@@ -84,12 +87,12 @@ export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: 
                   <span className="lib-emoji" aria-hidden="true">{item.emoji ?? '⭐'}</span>
                   <span>
                     {item.title}
-                    <small>{t('{n} pts', { n: item.points })} · {libraryStatus(item, today, nameOf)}</small>
+                    <small>{t('{n} pts', { n: item.points })} · {libraryStatus(item, today, id => id === null && item.open?.eligibleMemberIds ? namesOf(item.open.eligibleMemberIds, true) : nameOf(id))}</small>
                     {dueIsh && <small className="lib-due">⏰ {t('Due again soon')}</small>}
                   </span>
                 </button>
                 {item.timesAssigned > 0 && !item.open && (
-                  <button type="button" className="btn btn-secondary lib-again" onClick={() => again(item)} aria-label={t('Give {title} to {name} again today', { title: item.title, name: nameOf(item.lastMemberId) })}>{t('Give to {name} again', { name: nameOf(item.lastMemberId) })}</button>
+                  <button type="button" className="btn btn-secondary lib-again" onClick={() => again(item)} aria-label={t('Give {title} to {name} again today', { title: item.title, name: namesOf(item.lastMemberIds, item.lastOneOf) })}>{t('Give to {name} again', { name: namesOf(item.lastMemberIds, item.lastOneOf) })}</button>
                 )}
               </li>
             ))}
@@ -103,17 +106,21 @@ const WHEN: [WhenPick | 'date', string][] = [['today', msg('Today')], ['tomorrow
 
 function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Shown; onBack: () => void; onEdit: () => void; onAssigned: (date: string) => void; onRepeat: (d: RepeatDraft) => void }) {
   const { members, toast } = useApp()
-  const [memberId, setMemberId] = useState<string | null>(item.timesAssigned ? item.lastMemberId : item.memberId)
+  // [] is Anyone; several people each get their own linked copy.
+  const [memberIds, setMemberIds] = useState<string[]>(item.timesAssigned ? item.lastMemberIds : item.memberId ? [item.memberId] : [])
+  const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
+  const [oneOf, setOneOf] = useState(item.timesAssigned > 0 && item.lastOneOf) // several people: one chore for any one of them
   const [when, setWhen] = useState<WhenPick | 'date'>('today')
   const [date, setDate] = useState(dateKey(new Date()))
   const day = when === 'date' ? date : whenDate(when)
-  const who = members.find(m => m.id === memberId)
+  const shared = oneOf && memberIds.length > 1
+  const who = memberIds.length ? new Intl.ListFormat(intlLocale(), { type: shared ? 'disjunction' : 'conjunction' }).format(members.filter(m => memberIds.includes(m.id)).map(m => m.name)) : null
 
   const assign = async () => {
     try {
       await adopt(item)
-      await api.assignLibraryChore(item.id, { date: day, memberId })
-      toast(t('Added: {title} for {name}, {date}', { title: item.title, name: who?.name ?? t('anyone'), date: formatDate(new Date(`${day}T00:00:00`), DAY) }))
+      await api.assignLibraryChore(item.id, { date: day, memberIds, oneOf: shared })
+      toast(t('Added: {title} for {name}, {date}', { title: item.title, name: who ?? t('anyone'), date: formatDate(new Date(`${day}T00:00:00`), DAY) }))
       onAssigned(day)
     } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add the chore'), true) }
   }
@@ -122,7 +129,7 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Sho
     <Sheet title={`${item.emoji ?? '⭐'} ${item.title}`} onClose={onBack}
       actions={
         <>
-          <select className="settings-select actions-select" aria-label={t('Library chore actions')} value="" onChange={e => { if (e.target.value === 'repeat') { void adopt(item).catch(() => { /* the library keeps the English title */ }); onRepeat({ item, memberId, date: day }) } if (e.target.value === 'edit') onEdit() }}>
+          <select className="settings-select actions-select" aria-label={t('Library chore actions')} value="" onChange={e => { if (e.target.value === 'repeat') { void adopt(item).catch(() => { /* the library keeps the English title */ }); onRepeat({ item, memberIds, oneOf: shared, date: day }) } if (e.target.value === 'edit') onEdit() }}>
             <option value="" disabled hidden>{t('More…')}</option>
             <option value="repeat">{t('Make it repeat…')}</option>
             <option value="edit">{t('Edit library chore…')}</option>
@@ -133,18 +140,25 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Sho
       <p className="settings-row-sub lib-intro">{[t('{n} pts', { n: item.points }), item.listId && t('with its checklist'), item.notes].filter(Boolean).join(' · ')}</p>
       <div className="field">
         <label id="lib-who">{t('Who')}</label>
-        <div className="who-grid" role="group" aria-labelledby="lib-who">
+        <div className="who-grid" role="group" aria-labelledby="lib-who" aria-describedby="lib-who-hint">
           {members.map(m => (
-            <button key={m.id} type="button" className={`who-btn ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} onClick={() => setMemberId(m.id)}>
+            <button key={m.id} type="button" className={`who-btn ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} onClick={() => toggleMember(m.id)}>
               <Face m={m} className="who-avatar" aria-hidden="true" />
               {m.name}
             </button>
           ))}
-          <button type="button" className={`who-btn ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>
+          <button type="button" className={`who-btn ${memberIds.length === 0 ? 'active' : ''}`} aria-pressed={memberIds.length === 0} onClick={() => setMemberIds([])}>
             <span className="who-avatar" aria-hidden="true" style={{ background: 'var(--bg)' }}>🌟</span>
             {t('Anyone')}
           </button>
         </div>
+        {memberIds.length > 1 && <select aria-label={t('How many of them do it')} value={oneOf ? 'one' : 'each'} onChange={e => setOneOf(e.target.value === 'one')} style={{ marginTop: 8 }}>
+          <option value="each">{t('Each of them does it')}</option>
+          <option value="one">{t('Just one of them does it')}</option>
+        </select>}
+        <p className="field-hint" id="lib-who-hint">{memberIds.length > 1
+          ? oneOf ? t('The first of them to tick it off gets the points, and it is done for all of them.') : t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
+          : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
       </div>
       <div className="field">
         <label htmlFor="lib-when">{t('When')}</label>

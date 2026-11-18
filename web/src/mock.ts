@@ -530,7 +530,7 @@ const playtime = new Map<string, number>([[`${dateKey(new Date())}:m3:spelling`,
 // The chore library: occasional jobs, a few due-ish, one already handed out (the dog's bath, Saturday).
 const dayOffset = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
 const saturday = () => { const d = new Date(); return dateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + ((6 - d.getDay() + 7) % 7 || 0))) }
-type DemoLibrary = Omit<LibraryChore, 'lastDone' | 'open' | 'timesAssigned' | 'lastMemberId'> & { seenDone: LibraryChore['lastDone']; seenMember: string | null; seenTimes: number }
+type DemoLibrary = Omit<LibraryChore, 'lastDone' | 'open' | 'timesAssigned' | 'lastMemberId' | 'lastMemberIds' | 'lastOneOf'> & { seenDone: LibraryChore['lastDone']; seenMember: string | null; seenTimes: number }
 const lib = (id: string, emoji: string, title: string, points: number, every: [number, LibraryChore['everyUnit']] | null, done: [number, string] | null, memberId: string | null = null, notes: string | null = null): DemoLibrary => ({
   id, title, emoji, points, listId: null, memberId, everyN: every?.[0] ?? null, everyUnit: every?.[1] ?? null, needsApproval: null, notes, createdAt: '2026-01-01T00:00:00.000Z',
   seenDone: done ? { date: dayOffset(-done[0]), memberId: done[1] } : null, seenMember: done?.[1] ?? null, seenTimes: done ? 3 : 0,
@@ -557,7 +557,9 @@ function libraryView(l: DemoLibrary): LibraryChore {
     if (c && (!lastDone || date >= lastDone.date)) lastDone = { date, memberId: v.memberId ?? c.memberId }
   }
   const open = made.filter(c => c.active && (c.rrule || ![...completions.keys()].some(k => k.startsWith(`${c.id}:`)))).sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))[0]
-  return { ...item, lastDone, lastMemberId: made.length ? made[made.length - 1].memberId : seenMember, timesAssigned: seenTimes + made.length, open: open ? { choreId: open.id, dueDate: open.dueDate, memberId: open.memberId, repeats: !!open.rrule } : null }
+  const last = made.at(-1)
+  const lastMembers = last ? (last.groupId ? made.filter(c => c.groupId === last.groupId).map(c => c.memberId) : last.eligibleMemberIds ?? [last.memberId]) : [seenMember]
+  return { ...item, lastDone, lastMemberId: last ? last.memberId : seenMember, lastMemberIds: lastMembers.filter((m): m is string => !!m), lastOneOf: !!last?.eligibleMemberIds, timesAssigned: seenTimes + made.length, open: open ? { choreId: open.id, dueDate: open.dueDate, memberId: open.memberId, eligibleMemberIds: open.eligibleMemberIds ?? null, repeats: !!open.rrule } : null }
 }
 const libraryRow = (body: LibraryChoreInput, from?: Chore): DemoLibrary => ({
   id: uid(), title: body.title ?? from?.title ?? 'New chore', emoji: body.emoji ?? from?.emoji ?? null, points: body.points ?? from?.points ?? 0, listId: body.listId ?? from?.listId ?? null,
@@ -1461,15 +1463,18 @@ export const mock = {
     })
   },
   getChores: async () => chores.filter(c => schoolworkVisible(c) && !c.sourceId).map(c => ({ ...c })),
-  createChore: async ({ memberIds, ...body }: Partial<Chore>) => {
-    const owners = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null]
+  createChore: async ({ memberIds, oneOf, ...body }: Partial<Chore>) => {
+    const eligibleMemberIds = oneOf && (memberIds?.length ?? 0) > 1 ? memberIds! : null
+    const owners = eligibleMemberIds ? [null] : memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null]
     const groupId = owners.length > 1 ? uid() : null
-    const made = owners.map(memberId => ({ schoolSubjectId: body.schoolSubjectId ?? null, schoolKind: body.schoolSubjectId ? body.schoolKind ?? 'lesson' : null, schoolMinutes: body.schoolSubjectId ? body.schoolMinutes ?? null : null, category: body.category ?? null, ongoing: body.ongoing ?? false, id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null, groupId }))
+    const made = owners.map(memberId => ({ schoolSubjectId: body.schoolSubjectId ?? null, schoolKind: body.schoolSubjectId ? body.schoolKind ?? 'lesson' : null, schoolMinutes: body.schoolSubjectId ? body.schoolMinutes ?? null : null, category: body.category ?? null, ongoing: body.ongoing ?? false, id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null, groupId, eligibleMemberIds }))
     chores.push(...made); bump(); return made[0]
   },
   // Like the server: the copies of a chore for several people follow, and memberIds sets who has one.
-  updateChore: async (id: string, { memberIds, ...patch }: Partial<Chore>) => {
+  updateChore: async (id: string, { memberIds, oneOf, ...patch }: Partial<Chore>) => {
     const c = chores.find(x => x.id === id); if (!c) throw new Error('not found')
+    if (memberIds) { c.eligibleMemberIds = oneOf && memberIds.length > 1 ? memberIds : null; if (c.eligibleMemberIds) memberIds = [] }
+    else if (patch.memberId) c.eligibleMemberIds = null
     const { memberId: _m, sort: _s, ...shared } = patch
     for (const x of chores) if (x === c || (c.groupId && x.groupId === c.groupId)) Object.assign(x, x === c ? patch : shared)
     if (memberIds) {
@@ -1509,10 +1514,13 @@ export const mock = {
     for (const c of chores) if (c.libraryId === id) c.libraryId = null
     bump(); return { ok: true }
   },
-  assignLibraryChore: async (id: string, body: { date: string; memberId?: string | null; rrule?: string | null }) => {
+  assignLibraryChore: async (id: string, body: { date: string; memberId?: string | null; memberIds?: string[]; oneOf?: boolean; rrule?: string | null }) => {
     const l = library.find(x => x.id === id); if (!l) throw new Error('not found')
-    const c: Chore = { id: uid(), title: l.title, emoji: l.emoji ?? '⭐', memberId: body.memberId !== undefined ? body.memberId : l.memberId, points: l.points, rrule: body.rrule ?? null, dueDate: body.date, dueTime: null, active: true, sort: chores.length, listId: l.listId, pluginId: null, pluginMinutes: null, needsApproval: l.needsApproval, libraryId: l.id }
-    chores.push(c); bump(); return c
+    const eligibleMemberIds = body.oneOf && (body.memberIds?.length ?? 0) > 1 ? body.memberIds! : null
+    const owners = eligibleMemberIds ? [null] : body.memberIds ? (body.memberIds.length ? body.memberIds : [null]) : [body.memberId !== undefined ? body.memberId : l.memberId]
+    const groupId = owners.length > 1 ? uid() : null
+    const made: Chore[] = owners.map(memberId => ({ id: uid(), title: l.title, emoji: l.emoji ?? '⭐', memberId, points: l.points, rrule: body.rrule ?? null, dueDate: body.date, dueTime: null, active: true, sort: chores.length, listId: l.listId, pluginId: null, pluginMinutes: null, needsApproval: l.needsApproval, libraryId: l.id, groupId, eligibleMemberIds }))
+    chores.push(...made); bump(); return made[0]
   },
   setChoreDismissed: async (id: string, date: string, dismissed: boolean) => {
     const key = `${id}:${date}`

@@ -637,6 +637,7 @@ export const ChoreSchema = z
     schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().default(null).openapi({ description: 'Schoolwork: what kind; null for an ordinary chore.' }),
     schoolMinutes: z.number().int().nullable().default(null).openapi({ description: 'Schoolwork: minutes logged when it is ticked off (default the timer, else 30).' }),
     schoolDaysOff: z.boolean().default(false).openapi({ description: "Schoolwork: still due on the kid's days off and in summer (homework over a break). Otherwise it's left out on days with no school." }),
+    eligibleMemberIds: z.array(z.string()).nullable().default(null).openapi({ description: '"Just one of them": an Anyone chore (memberId null) only these people can do. The first of them to tick it finishes it for the day and gets the points. null = anyone.' }),
     groupId: z.string().nullable().default(null).openapi({ description: 'Set on a chore for several people: each has their own copy, and the copies share this id. Editing one changes them all (except memberId and sort); deleting one deletes them all.' }),
   })
   .openapi('Chore');
@@ -649,6 +650,7 @@ export const ChoreInputSchema = z
     emoji: EmojiSchema.nullable().optional(),
     memberId: z.string().nullable().optional(),
     memberIds: z.array(z.string()).max(100).optional().openapi({ description: 'Several people, each with their own copy to tick off (linked by groupId); [] for Anyone. Replaces memberId. On an update, the chore\'s whole group becomes exactly these people: copies are kept, added or deleted.' }),
+    oneOf: z.boolean().optional().openapi({ description: 'With memberIds of two or more: one shared chore that any one of them does (eligibleMemberIds) instead of a copy each.' }),
     points: z.number().optional(),
     repeatGoal: ChoreGoalSchema.nullable().optional(),
     rrule: z.string().nullable().optional(),

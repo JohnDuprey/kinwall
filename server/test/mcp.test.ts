@@ -632,6 +632,8 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('list_chore_library')).library[0].title, 'Wash the car');
   const handed = (await call('assign_chore_from_library', { libraryId: ((await libItem.json()) as any).id, member: 'ava' })).chore;
   assert.deepEqual([handed.title, handed.dueDate, handed.points, handed.rrule], ['Wash the car', today, 10, null]);
+  const again = (await call('assign_chore_from_library', { libraryId: handed.libraryId, members: ['ava', avaId] })).chore;
+  assert.deepEqual([again.memberId, again.groupId], [avaId, null]); // the same person twice is one copy
   await call('uncomplete_chore', { choreId: chore.id, date: today });
   await call('get_leaderboard', { period: 'week' });
   await call('complete_chore', { choreId: chore.id, date: today });

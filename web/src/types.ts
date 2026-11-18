@@ -479,6 +479,8 @@ export interface Chore {
   timerMinutes?: number | null // Start runs the app's timer this long (ChoreTimer.tsx)
   groupId?: string | null // a chore for several people: one linked copy each, edited and deleted together
   memberIds?: string[] // create/update only: the people who each get a copy; [] = Anyone
+  oneOf?: boolean // create/update only: with memberIds of 2+, one chore any one of them does
+  eligibleMemberIds?: string[] | null // "just one of them": an Anyone chore only these people can do
   // Schoolwork (School.tsx): ticking it off logs schoolMinutes of school time under its subject.
   schoolSubjectId?: string | null
   schoolKind?: SchoolKind | null
@@ -501,9 +503,11 @@ export interface LibraryChore {
   notes: string | null
   createdAt: string
   lastDone: { date: string; memberId: string | null } | null
-  lastMemberId: string | null // who the last chore made from it went to ("Again")
+  lastMemberId: string | null // who the last chore made from it went to
+  lastMemberIds: string[] // everyone it last went to ("Again"): several for a hand-out to several people, [] = Anyone
+  lastOneOf: boolean // the last hand-out was "just one of them"
   timesAssigned: number
-  open: { choreId: string; dueDate: string | null; memberId: string | null; repeats: boolean } | null
+  open: { choreId: string; dueDate: string | null; memberId: string | null; eligibleMemberIds?: string[] | null; repeats: boolean } | null
 }
 export type LibraryChoreInput = Partial<Pick<LibraryChore, 'title' | 'emoji' | 'points' | 'listId' | 'memberId' | 'everyN' | 'everyUnit' | 'needsApproval' | 'notes'>> & { fromChoreId?: string }
 

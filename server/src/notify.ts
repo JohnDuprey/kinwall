@@ -18,7 +18,7 @@ import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { hostTimezone } from './env.ts';
 import { expand, zonedTimeToUtc } from './recurrence.ts';
-import { dueOnDate, type ChoreRow } from './routes/chores.ts';
+import { dueOnDate, eligibleOf, type ChoreRow } from './routes/chores.ts';
 import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { enqueueMedicinePush, retryMedicinePushes } from './medicine-push-retries.ts';
@@ -803,15 +803,17 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
     const key = sub ? `nudge:${sub.id}:${today}` : `feed:nudge:${today}`;
     if (await alreadySent(db, key)) continue;
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
+    // "Just one of them" chores go to their people's devices, like their own chores.
     const mine = dueToday.filter((c) => c.member_id
       ? memberMatch(deviceMemberIds, [c.member_id])
+      : eligibleOf(c) ? !sub || memberMatch(deviceMemberIds, eligibleOf(c)!)
       : !sub || subPrefs(sub).choreNudgeAnyone === true);
     if (mine.length === 0) continue;
     const titles = mine.slice(0, 3).map((c) => c.title).join(', ');
     const { tn } = words(sub ? sub.lang : fam);
     const payload = { title: tn(mine.length, '{n} chore left today', '{n} chores left today'), body: titles, url: '/chores', tag: `chore:daily:${today}` };
     if (sub) await sendToSub(env, db, sub, payload);
-    else await recordNotification(db, { kind: 'chore', ...payload, memberIds: [...new Set(mine.flatMap((c) => (c.member_id ? [c.member_id] : [])))], source: 'system', at: now });
+    else await recordNotification(db, { kind: 'chore', ...payload, memberIds: [...new Set(mine.flatMap((c) => (c.member_id ? [c.member_id] : eligibleOf(c) ?? [])))], source: 'system', at: now });
     await markSent(db, key, now);
   }
 }

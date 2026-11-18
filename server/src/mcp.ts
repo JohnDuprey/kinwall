@@ -910,6 +910,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         emoji: z.string().optional(),
         member: z.string().optional().describe('Assign to a member by name or id; omit for "anyone".'),
         members: z.array(z.string()).optional().describe('Assign to several members by name or id instead: each gets their own linked copy to tick off.'),
+        oneOf: z.boolean().optional().describe('With members: one shared chore that any one of them does (the first tick finishes it) instead of a copy each.'),
         points: z.number().optional(),
         category: z.string().nullable().optional().describe('Shared chore category, such as Kitchen or Garden; null clears it.'),
         ongoing: z.boolean().optional().describe('Optional Anyone responsibility, available repeatedly. Cannot have an assignee, repeat schedule, goal or activity.'),
@@ -965,6 +966,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         emoji: z.string().optional(),
         member: z.string().nullable().optional().describe('Assign to a member by name or id; null for "anyone".'),
         members: z.array(z.string()).optional().describe('Assign to exactly these members by name or id, each with their own linked copy (copies are added or removed); [] for "anyone".'),
+        oneOf: z.boolean().optional().describe('With members: one shared chore any one of them does instead of a copy each.'),
         points: z.number().optional(),
         category: z.string().nullable().optional().describe('Shared chore category, such as Kitchen or Garden; null clears it.'),
         ongoing: z.boolean().optional().describe('Optional Anyone responsibility, available repeatedly. Cannot have an assignee, repeat schedule, goal or activity.'),
@@ -1081,24 +1083,28 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'Assign a chore from the library',
       description:
-        "Full access: hand out a library chore (from list_chore_library). Makes a normal chore - title, emoji, points, checklist and parent-approval rule carried over - due on date, for member (or the item's suggested person). rrule makes it repeat from that date instead of a one-off.",
+        "Full access: hand out a library chore (from list_chore_library). Makes a normal chore - title, emoji, points, checklist and parent-approval rule carried over - due on date, for member (or the item's suggested person), or for several members (each gets their own linked copy). rrule makes it repeat from that date instead of a one-off.",
       inputSchema: {
         libraryId: z.string(),
         member: z.string().nullable().optional().describe('Who does it, by name or id; null for "anyone". Omit for the suggested person.'),
+        members: z.array(z.string()).optional().describe('Several people instead, by name or id: each gets their own linked copy to tick off.'),
+        oneOf: z.boolean().optional().describe('With members: one chore any one of them does instead of a copy each.'),
         date: z.string().optional().describe('YYYY-MM-DD, household timezone. Default: today.'),
         dueTime: z.string().optional(),
         rrule: z.string().optional().describe('Make it repeat, e.g. FREQ=WEEKLY;INTERVAL=4 or FREQ=MONTHLY. Omit for a one-off.'),
       },
     },
-    async ({ libraryId, member, date, ...input }) => {
+    async ({ libraryId, member, members, date, ...input }) => {
       let memberId: string | null | undefined;
+      let memberIds: string[] | undefined;
       try {
         if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
+        if (members) memberIds = await Promise.all(members.map((m) => resolveMember(app, env, auth, m)));
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
       const day = date ?? await todayInHousehold(env);
-      const res = await call(app, env, auth, 'POST', `/api/chore-library/${encodeURIComponent(libraryId)}/assign`, { ...input, date: day, ...(memberId !== undefined ? { memberId } : {}) });
+      const res = await call(app, env, auth, 'POST', `/api/chore-library/${encodeURIComponent(libraryId)}/assign`, { ...input, date: day, ...(memberId !== undefined ? { memberId } : {}), ...(memberIds ? { memberIds } : {}) });
       if (res.status >= 400) return errorResult(res.json, 'failed to assign the chore');
       const chore = res.json as { title: string };
       return okResult(`Assigned "${chore.title}" for ${day}.`, { chore: res.json as Record<string, unknown> });
