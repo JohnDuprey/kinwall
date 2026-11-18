@@ -46,7 +46,8 @@
 .school-work.compact.done .school-work-mark { color: var(--success); }
 .school-work-title { flex: 1; min-width: 0; font-size: 0.875rem; font-weight: 700; overflow-wrap: break-word; hyphens: auto; }
 .school-work.compact.done .school-work-title { text-decoration: line-through; color: var(--text-dim); }
-.school-plan-wrap { overflow-x: auto; margin-bottom: 16px; }
+/* Room inside the scroller for the cells' shadow and today's outline, which it would clip; the negative margin keeps the grid aligned. */
+.school-plan-wrap { overflow-x: auto; padding: 4px 8px 12px; margin: -4px -8px 4px; }
 .school-plan { display: grid; gap: 8px; min-width: 760px; align-items: start; }
 .school-plan-day { text-align: center; font-size: 0.875rem; color: var(--text-dim); padding: 4px 0; }
 .school-plan-day.today { color: var(--text); }
