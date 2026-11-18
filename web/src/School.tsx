@@ -842,6 +842,10 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
           {k && <div className="field"><label htmlFor={`${id}-${m.id}-grade`}>{t('Grade')}</label>
             <input id={`${id}-${m.id}-grade`} type="text" maxLength={30} placeholder={t('3rd')} defaultValue={k.grade ?? ''} onBlur={e => { if ((e.target.value.trim() || null) !== k.grade) void run(api.putSchoolKid(m.id, { mode: k.mode, grade: e.target.value.trim() || null })) }} /></div>}
         </div>
+        {k && <div className="field"><label htmlFor={`${id}-${m.id}-school`}>{t('Which school')}</label>
+            <PickField id={`${id}-${m.id}-school`} label={t('Which school')} search value={k.schoolContactId ? [k.schoolContactId] : []} none={t('None')}
+              options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))} />
+            <p className="field-hint">{k.mode === 'enrolled' && !sameSchool(k).length ? t('From Contacts: add the school there first. Its number is the one to call, for the teacher too. Kids at the same school share its hours and bus times.') : t('From Contacts: add the school there first. Its number is the one to call, for the teacher too.')}</p></div>}
         {k && <label className="school-check"><input type="checkbox" checked={k.approveLogs} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: e.target.checked }))} /> {t('A grown-up checks the time {name} logs', { name: m.name })}</label>}
         {k?.mode === 'enrolled' && <>
           {sameSchool(k).length > 0 && <p className="field-hint">{t('Goes to the same school as {names}: its hours, early release, school days, calendars, school year and bus times are shared. Pickups and drop-offs stay each kid’s own.', { names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(sameSchool(k).map(x => members.find(mm => mm.id === x.memberId)?.name ?? '')) })}</p>}
@@ -893,10 +897,6 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
           <div className="field"><label htmlFor={`${id}-${m.id}-last`}>{t('Last day of school (optional)')}</label>
             <input key={k.lastDay ?? ''} id={`${id}-${m.id}-last`} type="date" defaultValue={k.lastDay ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.lastDay ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, lastDay: e.target.value || null })) }} />
             <p className="field-hint">{t('Leave it empty to use a “Last day of school” event on the calendars.')}</p></div>
-          <div className="field"><label htmlFor={`${id}-${m.id}-school`}>{t('School')}</label>
-            <PickField id={`${id}-${m.id}-school`} label={t('School')} search value={k.schoolContactId ? [k.schoolContactId] : []} none={t('None')}
-              options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))} />
-            <p className="field-hint">{t('From Contacts: add the school there first. Its number is the one to call, for the teacher too.')}</p></div>
           <div className="field"><label htmlFor={`${id}-${m.id}-teacher`}>{t('Teacher')}</label>
             <input id={`${id}-${m.id}-teacher`} type="text" maxLength={80} placeholder={t('Ms. Okafor')} defaultValue={k.teacherName ?? ''}
               onBlur={e => { if ((e.target.value.trim() || null) !== (k.teacherName ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, teacherName: e.target.value.trim() || null })) }} /></div>
