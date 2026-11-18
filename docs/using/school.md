@@ -10,7 +10,7 @@ School starts off. Turning it off hides schoolwork from Chores, the Board, remin
 
 ## Set up
 
-A parent taps **Set up**:
+A parent taps **Set up**. Each kid's settings fold away under their name, with a line saying how they're set up ("Goes to school · 3rd grade · Maple Grove School"); tap a kid to open them.
 
 * **Kids**: for each kid, pick **Homeschooled**, **Goes to a school** or **Not in school**, and their grade if you like. Only kids in school show in School. Grown-ups never do.
 * **A grown-up checks the time Maya logs** (with each kid’s name): time that kid logs from a wall screen or their own device waits for a parent to approve it, and doesn't count until then. Grown-ups get a notification ("Maya logged 30 min of Science. Approve?") in the bell and on their phones. Time a parent logs never waits.

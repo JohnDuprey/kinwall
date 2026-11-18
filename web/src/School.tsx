@@ -21,7 +21,7 @@ import { validGoal, type ChoreGoal } from './choreGoal.ts'
 import { durationLabel } from './timers.ts'
 import Sheet from './Sheet.tsx'
 import { ChipFace, Face } from './Face'
-import { ChevronLeft, ChevronRight, MinusIcon, PlusIcon } from './icons.tsx'
+import { ChevronDown, ChevronLeft, ChevronRight, MinusIcon, PlusIcon } from './icons.tsx'
 import { todayKeyInTz } from './date.ts'
 import { addDayKeys } from './library.ts'
 import { DAY, formatDate, intlLocale, msg, t, tm, tn } from './i18n.ts'
@@ -791,6 +791,8 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
   const id = useId()
   const [newName, setNewName] = useState('')
   const children = members.filter(m => !m.grownUp)
+  // Each kid's settings fold away; with one kid it starts open.
+  const [open, setOpen] = useState<Set<string>>(() => new Set(children.length === 1 ? [children[0].id] : []))
   const { settings } = useApp()
   const weekOrder = Array.from({ length: 7 }, (_, i) => (i + (settings.weekStart ?? 0)) % 7)
   const [calendars, setCalendars] = useState<CalendarEntry[]>([])
@@ -844,8 +846,14 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
     {!children.length && <p className="field-hint">{t('Add your kids in Family first.')}</p>}
     <div className="school-setup-kids">{children.map(m => {
       const k = kids.find(x => x.memberId === m.id)
-      return <div key={m.id} className="school-setup-kid">
-        <div className="school-total-head"><Face m={m} /><strong>{m.name}</strong></div>
+      const isOpen = open.has(m.id)
+      const school = k?.schoolContactId ? contacts.find(c => c.id === k.schoolContactId)?.name : undefined
+      return <div key={m.id} className={`school-setup-kid ${isOpen ? 'open' : ''}`}>
+        <button type="button" className="school-kid-toggle" aria-expanded={isOpen} aria-controls={`${id}-${m.id}-body`} onClick={() => setOpen(o => { const n = new Set(o); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n })}>
+          <Face m={m} /><span className="school-kid-name"><strong>{m.name}</strong><span className="field-hint">{!k ? t('Not in school') : school ? t('{line} · {school}', { line: modeLine(k), school }) : modeLine(k)}</span></span>
+          <ChevronDown className="settings-acc-chevron" width={18} height={18} aria-hidden="true" />
+        </button>
+        {isOpen && <div id={`${id}-${m.id}-body`} className="school-setup-kid-body">
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-${m.id}-mode`}>{t('School')}</label>
             <select id={`${id}-${m.id}-mode`} className="settings-select" value={k?.mode ?? ''} onChange={e => void setMode(m, e.target.value as SchoolMode | '')}>
@@ -858,7 +866,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
             <PickField id={`${id}-${m.id}-school`} label={t('Which school')} search value={k.schoolContactId ? [k.schoolContactId] : []} none={t('None')}
               options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))}
               add={{ label: t('New school…'), onAdd: name => setNewContact({ m, k, role: 'school', name }) }} />
-            <p className="field-hint">{k.mode === 'enrolled' && !sameSchool(k).length ? t('From Contacts: add the school there first. Its number is the one to call, for the teacher too. Kids at the same school share its hours and bus times.') : t('From Contacts: add the school there first. Its number is the one to call, for the teacher too.')}</p></div>}
+            <p className="field-hint">{k.mode === 'enrolled' && !sameSchool(k).length ? t('From Contacts, or add a new one. Its number is the one to call, for the teacher too. Kids at the same school share its hours and bus times.') : t('From Contacts, or add a new one. Its number is the one to call, for the teacher too.')}</p></div>}
         {k && <label className="school-check"><input type="checkbox" checked={k.approveLogs} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: e.target.checked }))} /> {t('A grown-up checks the time {name} logs', { name: m.name })}</label>}
         {k?.mode === 'enrolled' && <>
           {sameSchool(k).length > 0 && <p className="field-hint">{t('Goes to the same school as {names}: its hours, early release, school days, calendars, school year and bus times are shared. Pickups and drop-offs stay each kid’s own.', { names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(sameSchool(k).map(x => members.find(mm => mm.id === x.memberId)?.name ?? '')) })}</p>}
@@ -928,6 +936,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
               add={{ label: t('New contact…'), onAdd: name => setNewContact({ m, k, role: 'other', name }) }} />
             <p className="field-hint">{t('A tutor, a coach, a carpool: from Contacts.')}</p></div>
         </>}
+        </div>}
       </div>
     })}</div>
 
