@@ -1096,6 +1096,8 @@ button.month-cell .month-daynum { flex: none; }
 .chore-entry { display: grid; gap: 6px; min-width: 0; }
 .chore-category-name { color: var(--text-dim); font-size: 0.85em; padding-inline: 4px; overflow-wrap: anywhere; }
 .chore-order-actions { display: flex; gap: 6px; }
+/* Inline in a chore's details line: a full 44px tap area that doesn't make the line taller. */
+.chore-notdone-link { display: inline-flex; align-items: center; min-height: 44px; margin: -14px 0; padding: 0 4px; font-size: inherit; vertical-align: middle; }
 .chore-order-actions .btn { min-height: 44px; min-width: 44px; flex: 1; padding: 6px; }
 /* Edit mode: Up/Down go under the card in a narrow column (tablet and wall columns), beside it once the
    column has room (arrows only, words too when wider), so the card keeps its width. */

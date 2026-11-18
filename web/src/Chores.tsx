@@ -159,7 +159,7 @@ function ProgressRing({ pct, m, label }: { pct: number; m: FaceMember; label: st
   )
 }
 
-function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void }) {
+function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chore: ChoreDay; editing: boolean; late?: boolean; onToggle: () => void; onEdit: () => void; onNotDone?: () => void }) {
   const { members, selectedMemberId, parentDevice } = useApp()
   const schedule = chore.ongoing ? t('Available anytime') : chore.repeatGoal ? goalLabel(chore.repeatGoal) : scheduleText(chore.rrule)
   // An Anyone chore says who got the points once it's done.
@@ -171,6 +171,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
   const goalProgress = chore.goalProgress
   const goalText = goalProgress && chore.repeatGoal ? goalProgressLabel(chore.repeatGoal, goalProgress.done) : ''
   const notYet = !ticked && chore.rejection ? (chore.rejection.note ? t('Not yet: {note}', { note: chore.rejection.note }) : t('Not yet')) : ''
+  const notDone = !ticked && chore.dismissed ? t('Marked not done') : '' // heard, not shown: the Undo not done link says it
   const cl = chore.checklist
   const checklist = cl && !ticked ? `☑ ${cl.done}/${cl.total} ${cl.name}` : '' // a reusable list resets once done: "0/1" would look unfinished
   // A linked activity: tapping the card plays it (as the chore's person), the check still ticks it.
@@ -184,6 +185,12 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
   const timer = !act && !ticked && chore.timerMinutes ? chore.timerMinutes : 0
   const startsAt = chore.dueTime && /^\d{2}:\d{2}$/.test(chore.dueTime) ? late && !ticked ? t('{time} (late)', { time: formatTime(chore.dueTime) }) : formatTime(chore.dueTime) : ''
   const [burst, setBurst] = useState(false)
+  // A missed day on a parent's device: a small "Not done" (or "Undo not done") link, not a button row.
+  const notDoneLink = onNotDone && !editing ? (
+    <button type="button" className="link-btn chore-notdone-link"
+      aria-label={chore.dismissed ? t('Put {title} back on the list', { title: chore.title }) : t('Dismiss {title} as not done', { title: chore.title })}
+      onClick={e => { e.stopPropagation(); onNotDone() }} onKeyDown={e => e.stopPropagation()}>{chore.dismissed ? t('Undo not done') : t('Not done')}</button>
+  ) : null
   // Toggle on click, not pointerup: a sheet the toggle opens (Who did it?, a checklist) would
   // otherwise catch the click a touch sends right after lifting the finger.
   const handleClick = () => {
@@ -195,7 +202,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
       <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
       <div className="chore-info">
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-        <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}</div>
+        <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}{notDoneLink && !act && !timer && <> · {notDoneLink}</>}</div>
         {goalText && <div className="chore-pts">{goalText}</div>}
         {goalBlocked && <div className="chore-waiting">{goalProgress!.done >= goalProgress!.target ? t('Goal reached') : t('Waiting for OK')}</div>}
         {goalProgress && goalProgress.pending > 0 && <div className="chore-waiting">{t('{n} waiting for OK this interval', { n: goalProgress.pending })}</div>}
@@ -208,7 +215,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
     </>
   )
   const check = <div className={`chore-check ${chore.completed ? 'done' : pending ? 'pending' : ''}`}>{chore.completed ? <CheckIcon width={18} height={18} /> : pending && <span aria-hidden="true">⏳</span>}</div>
-  const said = [pending && t("waiting for a parent's OK"), notYet].filter(Boolean)
+  const said = [pending && t("waiting for a parent's OK"), notYet, notDone].filter(Boolean)
   const editOnRightClick = (e: React.MouseEvent) => { e.preventDefault(); onEdit() }
   // Edit chores mode (parent devices): the whole card opens the editor, a pencil where the check was.
   if (editing) {
@@ -234,6 +241,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit }: { chore: ChoreDay
             aria-label={[t('{title} done', { title: chore.title }), by && t('by {name}', { name: by }), tn(chore.points, '{n} point', '{n} points'), ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
         </div>
+        {notDoneLink}
         {parentDevice && !chore.sourceId && <button className="btn btn-secondary focus-reveal" onClick={onEdit}>{t('Edit {title}', { title: chore.title })}</button>}
       </>
     )
@@ -550,7 +558,7 @@ export default function Chores() {
     // Off a parent's device it's approved at once; otherwise the chore (or the person's default) says.
     // An activity chore whose activity is gone always waits off a parent's device (as on the server).
     const waits = !ticked && waitsForOk(c, members.find(m => m.id === creditTo), parentDevice)
-    if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null, goalProgress: x.goalProgress ? updatedGoalProgress(x.goalProgress, ticked ? -(c.completed ? 1 : 0) : waits ? 0 : 1, ticked ? -(c.pending ? 1 : 0) : waits ? 1 : 0) : null } : x)) // optimistic
+    if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, dismissed: false, completedBy: ticked ? null : creditTo ?? null, goalProgress: x.goalProgress ? updatedGoalProgress(x.goalProgress, ticked ? -(c.completed ? 1 : 0) : waits ? 0 : 1, ticked ? -(c.pending ? 1 : 0) : waits ? 1 : 0) : null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !ticked && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points
@@ -571,6 +579,21 @@ export default function Chores() {
       if (!c.ongoing) setChores(list => list.map(x => x.id === c.id ? c : x)) // revert: the chore as it was
       toast(e instanceof ApiError ? e.message : t('Could not update chore'), true)
     }
+  }
+
+  // A missed day in the last week, on a parent's device: mark it not done (no points, not left) or undo
+  // that, as from the Board's late list.
+  const canMarkNotDone = parentDevice && key < today && key >= dateKey(addDays(new Date(`${today}T00:00`), -7))
+  const markable = (c: ChoreDay) => canMarkNotDone && !c.completed && !c.pending && !c.ongoing && !c.repeatGoal && !c.sourceId
+  const setNotDone = async (c: ChoreDay, dismissed: boolean) => {
+    try {
+      await api.setChoreDismissed(c.id, key, dismissed)
+      const said = dismissed ? t('{title} dismissed as not done. No points awarded.', { title: c.title }) : t('{title} is back on the list.', { title: c.title })
+      if (dismissed) toast(said, false, { label: t('Undo'), run: () => void setNotDone(c, false) })
+      else toast(said)
+      announce(said)
+      load(); reloadCore()
+    } catch (e) { toast(e instanceof ApiError ? e.message : dismissed ? t('Could not dismiss chore') : t('Could not restore chore'), true) }
   }
 
   // A checklist chore completes itself on its last tick when it knows who gets the points (its person,
@@ -652,7 +675,7 @@ export default function Chores() {
             <div className="wd">{formatDate(d, { weekday: 'short' })}</div>
             <div className="dn">{d.getDate()}</div>
             <div className={`date-chore-count${count?.total && !count.remaining ? ' date-chores-done' : ''}`} aria-hidden="true">
-              {settings.features.chores && count && count.total > 0 && (count.remaining > 0 ? <>{count.pending > 0 && <span>⏳ </span>}{t('{n} left', { n: count.remaining })}</> : <>✓ {t('Done')}</>)}
+              {settings.features.chores && count && count.total > 0 && (count.remaining > 0 ? <>{count.pending > 0 && <span>⏳ </span>}{t('{n} left', { n: count.remaining })}</> : count.dismissed === count.total ? t('Not done') : <>✓ {t('Done')}</>)}
             </div>
           </button>
         })}
@@ -707,7 +730,8 @@ export default function Chores() {
                     onDragOver={e => { if (canOrder && draggedChore.current && movable.some(x => x.id === draggedChore.current)) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); const from = draggedChore.current; draggedChore.current = null; if (canOrder && from) void reorder(movable, from, c.id) }}>
                     {c.category && <span className="chore-category-name">{c.category}</span>}
-                    <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) setEditChore(c) }} />
+                    <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) setEditChore(c) }}
+                      onNotDone={markable(c) ? () => void setNotDone(c, !c.dismissed) : undefined} />
                     {canOrder && <div className="chore-order-actions">
                       <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑<span className="chore-order-word"> {t('Up')}</span></button>
                       <button className="btn btn-secondary" disabled={ordering || index === movable.length - 1} aria-label={t('Move {title} down', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index + 1].id)}>↓<span className="chore-order-word"> {t('Down')}</span></button>

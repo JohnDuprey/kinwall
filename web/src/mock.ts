@@ -1438,9 +1438,10 @@ export const mock = {
       for (const c of chores.filter(c => !c.schoolSubjectId && !c.schoolKind && c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : dueOn(c, date)))) {
         const comp = completions.get(`${c.id}:${date}`)
         if (!comp && mockGoalProgress(c, date)?.full) continue
-        const count = grouped.get(c.memberId) ?? { date, memberId: c.memberId, total: 0, remaining: 0, pending: 0 }
+        const count = grouped.get(c.memberId) ?? { date, memberId: c.memberId, total: 0, remaining: 0, pending: 0, dismissed: 0 }
         count.total++
-        if (!comp || comp.pending) count.remaining++
+        if (!comp && choreDismissals.has(`${c.id}:${date}`)) count.dismissed!++
+        else if (!comp || comp.pending) count.remaining++
         if (comp?.pending) count.pending++
         grouped.set(c.memberId, count)
       }
@@ -1456,7 +1457,7 @@ export const mock = {
       const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
       const p = c.pluginId ? plugins.find(x => x.id === c.pluginId) : undefined
       const activity = c.pluginId ? { pluginId: c.pluginId, name: p?.name ?? null, emoji: p?.emoji ?? null, available: !!p?.enabled, needSeconds: (c.pluginMinutes ?? 5) * 60, doneSeconds: playtime.get(`${date}:${c.memberId}:${c.pluginId}`) ?? 0 } : null
-      return { ...c, goalProgress: mockGoalProgress(c, date), completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
+      return { ...c, goalProgress: mockGoalProgress(c, date), completed: !!comp && !comp.pending, pending: !!comp?.pending, dismissed: !comp && choreDismissals.has(`${c.id}:${date}`), completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
     })
   },
   getChores: async () => chores.filter(c => schoolworkVisible(c) && !c.sourceId).map(c => ({ ...c })),
@@ -1541,7 +1542,7 @@ export const mock = {
     const points = pending ? 0 : prev && !prev.pending ? prev.points ?? 0 : date < dateKey(new Date()) ? Math.round((c?.points ?? 0) * settings.lateCompletionCredit / 100) : c?.points ?? 0
     if (prev && !prev.pending) credit(prev.memberId, -(prev.points ?? 0), date)
     credit(who, points, date)
-    completions.set(key, { completedAt: new Date().toISOString(), memberId: who, pending, points }); bump()
+    completions.set(key, { completedAt: new Date().toISOString(), memberId: who, pending, points }); choreDismissals.delete(key); bump()
     if (c?.schoolSubjectId && !pending) (await import('./mock-school.ts')).logFromChore(c, date, who) // like the server: schoolwork logs its time
     return { ok: true, pending } // like the server's answer
   },

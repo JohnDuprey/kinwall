@@ -29,12 +29,12 @@ test('chore date counts: recurrence, anyone, approvals and mutations match the d
   const counts = await json('/api/chores/counts?from=2026-10-19&to=2026-11-02');
   assert.ok(counter.count <= 3, `a whole strip took ${counter.count} database round trips`);
   const find = (date: string, memberId: string | null) => counts.find((c: any) => c.date === date && c.memberId === memberId);
-  assert.deepEqual(find('2026-10-19', maya.id), { date: '2026-10-19', memberId: maya.id, total: 1, remaining: 0, pending: 0 });
+  assert.deepEqual(find('2026-10-19', maya.id), { date: '2026-10-19', memberId: maya.id, total: 1, remaining: 0, pending: 0, dismissed: 0 });
   assert.equal(find('2026-10-21', maya.id).remaining, 1);
   assert.equal(find('2026-10-26', maya.id), undefined, 'alternating week is empty');
   assert.equal(find('2026-11-02', maya.id).remaining, 1);
   assert.equal(find('2026-10-24', leo.id).remaining, 1);
-  assert.deepEqual(find('2026-10-24', null), { date: '2026-10-24', memberId: null, total: 1, remaining: 1, pending: 1 });
+  assert.deepEqual(find('2026-10-24', null), { date: '2026-10-24', memberId: null, total: 1, remaining: 1, pending: 1, dismissed: 0 });
   await json(`/api/chores/${monthly.id}`, 'PATCH', { rrule: null, dueDate: '2026-10-25' });
   const edited = await json('/api/chores/counts?from=2026-10-24&to=2026-10-25');
   assert.equal(edited.some((c: any) => c.date === '2026-10-24' && c.memberId === leo.id), false);
@@ -53,7 +53,7 @@ test('chore date counts: full flexible goals leave no extra work, and undo reope
   assert.equal(counts.length, 6);
   await db.prepare("INSERT INTO chore_completions (chore_id,date,member_id,completed_at,points_awarded,status) VALUES (?, '2026-10-19', ?, '2026-10-19T12:00:00Z',0,'pending')").bind(chore.id, maya.id).run();
   counts = await json('/api/chores/counts?from=2026-10-19&to=2026-10-25');
-  assert.deepEqual(counts, [{ date: '2026-10-19', memberId: maya.id, total: 1, remaining: 1, pending: 1 }]);
+  assert.deepEqual(counts, [{ date: '2026-10-19', memberId: maya.id, total: 1, remaining: 1, pending: 1, dismissed: 0 }]);
 });
 
 test('chore date counts: bounded real dates, display scope, child privacy and the feature switch', async () => {

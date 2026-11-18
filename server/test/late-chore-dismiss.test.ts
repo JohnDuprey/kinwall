@@ -65,3 +65,21 @@ test('dismissed dates survive backup round trips and old backups remain accepted
   delete backup.choreDismissals;
   assert.equal((await restored.req('POST', '/api/import', backup)).status, 200);
 });
+
+test('the Chores tab sees a dismissed day: the day marks it, the counts stop calling it left, and ticking it clears the dismissal', async () => {
+  const t = await setup();
+  const c = (await t.req('POST', '/api/chores', { title: 'Water plants', points: 5, dueDate: t.day(-2) })).json;
+  const dayRow = async () => (await t.req('GET', `/api/chores/day?date=${t.day(-2)}`)).json.find((x: any) => x.id === c.id);
+  const count = async () => (await t.req('GET', `/api/chores/counts?from=${t.day(-2)}&to=${t.day(-2)}`)).json[0];
+  assert.equal((await dayRow()).dismissed, false);
+  assert.deepEqual([(await count()).total, (await count()).remaining, (await count()).dismissed], [1, 1, 0]);
+
+  await t.req('PUT', `/api/chores/${c.id}/dismissal`, { date: t.day(-2), dismissed: true });
+  assert.deepEqual([(await dayRow()).dismissed, (await dayRow()).completed], [true, false]);
+  assert.deepEqual([(await count()).total, (await count()).remaining, (await count()).dismissed], [1, 0, 1]);
+
+  // A parent ticks it after all: it's done, not dismissed.
+  await t.req('POST', `/api/chores/${c.id}/complete`, { date: t.day(-2) });
+  assert.deepEqual([(await dayRow()).dismissed, (await dayRow()).completed], [false, true]);
+  assert.equal(await t.db.prepare('SELECT COUNT(*) AS n FROM chore_dismissals').first<number>('n'), 0);
+});

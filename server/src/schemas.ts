@@ -681,13 +681,14 @@ export const ActivityProgressSchema = z.object({
   doneSeconds: z.number(),
 });
 
-export const ChoreDateCountSchema = z.object({ date: z.string(), memberId: z.string().nullable(), total: z.number().int(), remaining: z.number().int(), pending: z.number().int() }).openapi('ChoreDateCount');
+export const ChoreDateCountSchema = z.object({ date: z.string(), memberId: z.string().nullable(), total: z.number().int(), remaining: z.number().int(), pending: z.number().int(), dismissed: z.number().int().openapi({ description: 'Missed and marked not done by a parent: part of total, not of remaining.' }) }).openapi('ChoreDateCount');
 
 export const ChoreDaySchema = ChoreSchema.extend({
   goalProgress: ChoreGoalProgressSchema.nullable().optional(),
   completed: z.boolean().openapi({ description: "Done and counted (a completion waiting for a parent's OK is pending instead)." }),
   pending: z.boolean().openapi({ description: "Ticked from a wall screen or kid's device, waiting for a parent's OK: no points yet." }),
   rejection: z.object({ note: z.string().nullable(), at: z.string() }).nullable().openapi({ description: "A parent's \"Not yet\" for this day, until it's ticked again." }),
+  dismissed: z.boolean().openapi({ description: 'A parent marked this missed day not done (PUT /api/chores/{id}/dismissal): no points, and not counted as left. Ticking it off clears it.' }),
   completedAt: z.string().nullable(),
   completedBy: z.string().nullable(),
   checklist: z.object({ listId: z.string(), name: z.string(), total: z.number(), done: z.number() }).nullable().openapi({ description: 'Progress on the linked checklist, when the chore has one.' }),

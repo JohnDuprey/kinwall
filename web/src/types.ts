@@ -507,13 +507,14 @@ export interface LibraryChore {
 }
 export type LibraryChoreInput = Partial<Pick<LibraryChore, 'title' | 'emoji' | 'points' | 'listId' | 'memberId' | 'everyN' | 'everyUnit' | 'needsApproval' | 'notes'>> & { fromChoreId?: string }
 
-export interface ChoreDateCount { date: string; memberId: string | null; total: number; remaining: number; pending: number }
+export interface ChoreDateCount { date: string; memberId: string | null; total: number; remaining: number; pending: number; dismissed?: number }
 
 export interface ChoreDay extends Chore {
   goalProgress?: import('./choreGoal.ts').GoalProgress | null
   completed: boolean // done and counted
   pending?: boolean // ticked on a wall screen or kid's device, waiting for a parent's OK (no points yet)
   rejection?: { note: string | null; at: string } | null // a parent's "Not yet", until it's ticked again
+  dismissed?: boolean // a missed day a parent marked not done: no points, not left; ticking it clears it
   completedAt: string | null
   completedBy: string | null
   checklist: { listId: string; name: string; total: number; done: number } | null

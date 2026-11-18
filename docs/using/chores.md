@@ -35,6 +35,10 @@ A chore that isn't ticked off on its day doesn't disappear right away: for 7 day
   whole family. It does not complete the chore, award points, change streaks or change future
   repeats. The missed day still counts as not completed. **Undo** brings the late entry back.
   A wall screen or kid's device can mark a late chore done, but cannot dismiss it.
+* On the Chores tab, a parent's device shows a small **Not done** link on each open chore on a day
+  from the last week, which does the same. A dismissed chore shows **Undo not done** instead and no longer counts
+  toward that day's "left" count (a day where every chore was marked not done says **Not done**, not **Done**); **Undo not done** brings it back. Ticking it off after all
+  clears the dismissal.
 * A repeating chore only ever shows its last time, and the next time takes its place once that day passes. Once it's ticked off, earlier misses stay on the Chores tab's calendar, which shows each day's open count.
 * A chore with a goal ("3 times a week") isn't late for a day off.
 * A late chore with a [checklist](#checklists) that still has open items opens Chores on its day with the checklist, to tick them off there. Finishing it ticks the chore off for that day.

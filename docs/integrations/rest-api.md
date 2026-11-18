@@ -587,5 +587,7 @@ kids' devices get `403`. The date must be due, before today and within the house
 seven days. Paused, archived, ongoing or flexible-goal chores cannot be dismissed; a completed
 or pending occurrence returns `409`. No completion or points are written and future repeats
 are unchanged. Send `dismissed: false` to undo, including after the date leaves the late window.
+`GET /api/chores/day` marks a dismissed occurrence `dismissed: true`, `GET /api/chores/counts`
+counts it as `dismissed` instead of `remaining`, and completing it later clears the dismissal.
 Repeating the same request has the same result. Dismissals are included in JSON backups as
 `choreDismissals`; old backups without that field still import.

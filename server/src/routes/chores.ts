@@ -477,7 +477,7 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
 export const ChoreCountQuerySchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine(q => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 30 * 86400000, 'choose an ordered range of at most 31 days');
 choresRoutes.openapi(createRoute({
   method: 'get', path: '/api/chores/counts', tags: ['Chores'], security: [{ Bearer: [] }],
-  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is not counted. Chores off returns an empty list.',
+  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished; a missed day a parent marked not done is not remaining. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is not counted. Chores off returns an empty list.',
   request: { query: ChoreCountQuerySchema },
   responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
 }), async c => {
@@ -500,6 +500,7 @@ choresRoutes.openapi(createRoute({
     if (last.to > completionTo) completionTo = last.to;
   }
   const completed = (await db.prepare('SELECT chore_id, date, status FROM chore_completions WHERE date BETWEEN ? AND ?').bind(completionFrom, completionTo).all<{ chore_id: string; date: string; status: string }>()).results;
+  const dismissed = new Set((await db.prepare('SELECT chore_id, date FROM chore_dismissals WHERE date BETWEEN ? AND ?').bind(from, to).all<{ chore_id: string; date: string }>()).results.map(d => `${d.chore_id}:${d.date}`));
   const completions = new Map<string, typeof completed>();
   for (const item of completed) { const list = completions.get(item.chore_id) ?? []; list.push(item); completions.set(item.chore_id, list); }
   const counts = new Map<string, z.infer<typeof ChoreDateCountSchema>>();
@@ -514,9 +515,10 @@ choresRoutes.openapi(createRoute({
         if (done.filter(d => d.date >= countFrom && d.date <= period.to).length >= goal.times) continue;
       }
       const id = `${date}:${row.member_id ?? ''}`;
-      const count = counts.get(id) ?? { date, memberId: row.member_id, total: 0, remaining: 0, pending: 0 };
+      const count = counts.get(id) ?? { date, memberId: row.member_id, total: 0, remaining: 0, pending: 0, dismissed: 0 };
       count.total++;
-      if (completion?.status !== 'approved') count.remaining++;
+      if (!completion && dismissed.has(`${row.id}:${date}`)) count.dismissed++; // a day marked not done isn't left
+      else if (completion?.status !== 'approved') count.remaining++;
       if (completion?.status === 'pending') count.pending++;
       counts.set(id, count);
     }
@@ -538,7 +540,7 @@ choresRoutes.openapi(
     const { date } = c.req.valid('query');
 
     // tz, chores and completions are all independent reads - one batch, one round trip.
-    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes, rejectionsRes] = await c.env.DB.batch<unknown>([
+    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes, rejectionsRes, dismissalsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date = ?) ORDER BY sort, created_at`).bind(date),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
@@ -551,7 +553,9 @@ choresRoutes.openapi(
       c.env.DB.prepare('SELECT id, name, manifest, enabled FROM plugins'),
       c.env.DB.prepare('SELECT member_id, plugin_id, seconds FROM plugin_playtime WHERE date = ?').bind(date),
       c.env.DB.prepare('SELECT chore_id, note, rejected_at FROM chore_rejections WHERE date = ?').bind(date),
+      c.env.DB.prepare('SELECT chore_id FROM chore_dismissals WHERE date = ?').bind(date),
     ]);
+    const dismissed = new Set((dismissalsRes.results as { chore_id: string }[]).map((r) => r.chore_id));
     const rejections = new Map((rejectionsRes.results as { chore_id: string; note: string | null; rejected_at: string }[]).map((r) => [r.chore_id, r]));
     const plugins = new Map((pluginsRes.results as PluginInfo[]).map((p) => [p.id, p]));
     const play = playRes.results as PlayRow[];
@@ -579,6 +583,7 @@ choresRoutes.openapi(
           completed: completion?.status === 'approved',
           pending: completion?.status === 'pending',
           rejection: rejection && !completion ? { note: rejection.note, at: rejection.rejected_at } : null,
+          dismissed: dismissed.has(row.id) && !completion,
           completedAt: completion?.completed_at ?? null,
           completedBy: completion?.member_id ?? null,
           checklist: cl ? { listId: cl.list_id, name: cl.name, total: Number(cl.total), done: Number(cl.done) } : null,
@@ -708,6 +713,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
       `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) SELECT ?,?,?,?,?,?,?${capacity} ON CONFLICT(chore_id, date) DO ${timedPlay || chore.source_id ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
     ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved', ...capacityArgs),
     c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ? AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?)').bind(id, date, id, date), // ticked again: the "Not yet" note goes
+    c.env.DB.prepare('DELETE FROM chore_dismissals WHERE chore_id = ? AND date = ? AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?)').bind(id, date, id, date), // ticked after all: no longer "not done"
   ]);
   const written = writtenRes.results[0] as { status: string; points_awarded: number } | undefined;
   if (!written) return goal && !timedPlay ? { notDue: stored('error', 'This goal is full for this interval. Undo a completion to make room.') } : false;
