@@ -284,14 +284,44 @@ schoolRoutes.openapi(
       ['contact_ids', input.contactIds && JSON.stringify([...new Set(input.contactIds)])], ['terms', input.terms], ['year_goal_hours', input.yearGoalHours], ['year_goal_days', input.yearGoalDays], ['daily_goal_minutes', input.dailyGoalMinutes], ['year_start', input.yearStart]];
     const set = cols.filter(([, v]) => v !== undefined);
     const now = new Date().toISOString();
+    const before = await db.prepare('SELECT * FROM school_kids WHERE member_id = ?').bind(id).first<KidRow>();
     await db.batch([
       db.prepare('INSERT OR IGNORE INTO school_kids (member_id, mode, updated_at) VALUES (?, ?, ?)').bind(id, input.mode, now),
       db.prepare(`UPDATE school_kids SET ${set.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE member_id = ?`).bind(...set.map(([, v]) => v), now, id),
     ]);
+    await shareSchool(db, id, new Set(set.map(([k]) => k)), before, now);
     emit(c, 'school.changed', { id, kind: 'kid' });
     return c.json(toKid((await db.prepare('SELECT * FROM school_kids WHERE member_id = ?').bind(id).first<KidRow>())!), 200);
   },
 );
+
+// Kids at the same school (the same school contact) share its schedule: hours, early release, school
+// days, calendars, the school year and report cards; and those who ride the bus share its times. A
+// grown-up's drop-off or pickup stays each kid's own. Changing one kid's changes the others'; a kid who
+// joins a school (or starts riding its bus) takes what the others have.
+const SHARED = ['day_start', 'day_end', 'half_day_end', 'school_days', 'calendar_ids', 'year_start', 'last_day', 'terms'] as const;
+const BUS = [['to_school_time', 'to_school_by'], ['from_school_time', 'from_school_by'], ['half_from_school_time', 'from_school_by']] as const;
+async function shareSchool(db: KinwallDb, id: string, sent: Set<string>, before: KidRow | null, now: string) {
+  const kid = (await db.prepare('SELECT * FROM school_kids WHERE member_id = ?').bind(id).first<KidRow>())!;
+  if (kid.mode !== 'enrolled' || !kid.school_contact_id) return;
+  const others = (await db.prepare("SELECT * FROM school_kids WHERE mode = 'enrolled' AND school_contact_id = ? AND member_id <> ?").bind(kid.school_contact_id, id).all<KidRow>()).results;
+  if (!others.length) return;
+  const update = (memberId: string, cols: [string, unknown][]) => cols.length ? db.prepare(`UPDATE school_kids SET ${cols.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE member_id = ?`).bind(...cols.map(([, v]) => v), now, memberId) : null;
+  const stmts = [];
+  const joined = before?.school_contact_id !== kid.school_contact_id || before?.mode !== 'enrolled';
+  const mine: [string, unknown][] = [];
+  if (joined) for (const k of SHARED) { if (!sent.has(k)) mine.push([k, others[0][k]]); }
+  else { const changed = SHARED.filter(k => sent.has(k)).map(k => [k, kid[k]] as [string, unknown]); for (const o of others) stmts.push(update(o.member_id, changed)); }
+  for (const [time, by] of BUS) {
+    if (kid[by] !== 'bus') continue;
+    const riders = others.filter(o => o[by] === 'bus');
+    if (sent.has(time) && !joined) for (const o of riders) stmts.push(update(o.member_id, [[time, kid[time]]]));
+    else if (!sent.has(time) && (joined || sent.has(by)) && riders.length) mine.push([time, riders[0][time]]);
+  }
+  stmts.push(update(id, mine));
+  const run = stmts.filter((x): x is NonNullable<typeof x> => !!x);
+  if (run.length) await db.batch(run);
+}
 
 schoolRoutes.openapi(
   createRoute({ method: 'delete', path: '/api/school/kids/{id}', tags: ['School'], summary: 'Take a family member out of school (parents); their logged time stays', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }),

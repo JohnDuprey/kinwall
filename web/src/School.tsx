@@ -24,7 +24,7 @@ import { ChipFace, Face } from './Face'
 import { ChevronLeft, ChevronRight, MinusIcon, PlusIcon } from './icons.tsx'
 import { todayKeyInTz } from './date.ts'
 import { addDayKeys } from './library.ts'
-import { DAY, formatDate, msg, t, tm, tn } from './i18n.ts'
+import { DAY, formatDate, intlLocale, msg, t, tm, tn } from './i18n.ts'
 import { hoursMinutes } from './reading.ts'
 import { csv, DEFAULT_YEAR_START, groups, kidTotals, onDay, schoolYearOf, schoolYears, weekOf, type LogGroup } from './school.ts'
 import PickField from './PickField.tsx'
@@ -813,6 +813,8 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
     }
     await run(api.putSchoolKid(m.id, { mode: k.mode, terms }))
   }
+  // Other kids at the same school (the same school contact): they share its schedule (routes/school.ts shareSchool).
+  const sameSchool = (k: SchoolKid) => k.schoolContactId ? kids.filter(x => x.memberId !== k.memberId && x.mode === 'enrolled' && x.schoolContactId === k.schoolContactId) : []
   const setMode = (m: Member, value: SchoolMode | '') => run(value ? api.putSchoolKid(m.id, { mode: value }) : api.deleteSchoolKid(m.id))
   const addSubject = async () => {
     const name = newName.trim()
@@ -842,9 +844,10 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
         </div>
         {k && <label className="school-check"><input type="checkbox" checked={k.approveLogs} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: e.target.checked }))} /> {t('A grown-up checks the time {name} logs', { name: m.name })}</label>}
         {k?.mode === 'enrolled' && <>
+          {sameSchool(k).length > 0 && <p className="field-hint">{t('Goes to the same school as {names}: its hours, early release, school days, calendars, school year and bus times are shared. Pickups and drop-offs stay each kid’s own.', { names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(sameSchool(k).map(x => members.find(mm => mm.id === x.memberId)?.name ?? '')) })}</p>}
           <div className="meal-form-row">
-            <div className="field"><label htmlFor={`${id}-${m.id}-start`}>{t('School starts')}</label><input id={`${id}-${m.id}-start`} type="time" defaultValue={k.dayStart ?? ''} onBlur={e => { if ((e.target.value || null) !== k.dayStart) void run(api.putSchoolKid(m.id, { mode: k.mode, dayStart: e.target.value || null })) }} /></div>
-            <div className="field"><label htmlFor={`${id}-${m.id}-end`}>{t('School ends')}</label><input id={`${id}-${m.id}-end`} type="time" defaultValue={k.dayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== k.dayEnd) void run(api.putSchoolKid(m.id, { mode: k.mode, dayEnd: e.target.value || null })) }} /></div>
+            <div className="field"><label htmlFor={`${id}-${m.id}-start`}>{t('School starts')}</label><input key={k.dayStart ?? ''} id={`${id}-${m.id}-start`} type="time" defaultValue={k.dayStart ?? ''} onBlur={e => { if ((e.target.value || null) !== k.dayStart) void run(api.putSchoolKid(m.id, { mode: k.mode, dayStart: e.target.value || null })) }} /></div>
+            <div className="field"><label htmlFor={`${id}-${m.id}-end`}>{t('School ends')}</label><input key={k.dayEnd ?? ''} id={`${id}-${m.id}-end`} type="time" defaultValue={k.dayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== k.dayEnd) void run(api.putSchoolKid(m.id, { mode: k.mode, dayEnd: e.target.value || null })) }} /></div>
             <div className="field"><label htmlFor={`${id}-${m.id}-terms`}>{t('Report cards a year')}</label>
               <select id={`${id}-${m.id}-terms`} className="settings-select" value={k.terms} onChange={e => void setTerms(m, k, Number(e.target.value))}>{[2, 3, 4, 6].map(n => <option key={n} value={n}>{n}</option>)}</select></div>
           </div>
@@ -856,13 +859,13 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
                   <option value="">{t('Not set')}</option><option value="bus">{t('The bus')}</option>
                   {members.filter(g => g.grownUp).map(g => <option key={g.id} value={g.id}>{t('{name}: {verb}', { name: g.name, verb })}</option>)}
                 </select></div>
-              {by && <div className="field"><label htmlFor={`${id}-${m.id}-${leg}-time`}>{t('At')}</label><input id={`${id}-${m.id}-${leg}-time`} type="time" defaultValue={time}
+              {by && <div className="field"><label htmlFor={`${id}-${m.id}-${leg}-time`}>{t('At')}</label><input key={time} id={`${id}-${m.id}-${leg}-time`} type="time" defaultValue={time}
                 onBlur={e => { if ((e.target.value || null) !== (k[timeKey] ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, [timeKey]: e.target.value || null })) }} /></div>}
             </div>
           })}
           <div className="meal-form-row">
-            <div className="field"><label htmlFor={`${id}-${m.id}-hend`}>{t('Early release ends')}</label><input id={`${id}-${m.id}-hend`} type="time" defaultValue={k.halfDayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfDayEnd ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfDayEnd: e.target.value || null })) }} /></div>
-            {k.fromSchoolBy && <div className="field"><label htmlFor={`${id}-${m.id}-hhome`}>{k.fromSchoolBy === 'bus' ? t('Bus home on early release') : t('Pickup on early release')}</label><input id={`${id}-${m.id}-hhome`} type="time" defaultValue={k.halfFromSchoolTime ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfFromSchoolTime ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfFromSchoolTime: e.target.value || null })) }} /></div>}
+            <div className="field"><label htmlFor={`${id}-${m.id}-hend`}>{t('Early release ends')}</label><input key={k.halfDayEnd ?? ''} id={`${id}-${m.id}-hend`} type="time" defaultValue={k.halfDayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfDayEnd ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfDayEnd: e.target.value || null })) }} /></div>
+            {k.fromSchoolBy && <div className="field"><label htmlFor={`${id}-${m.id}-hhome`}>{k.fromSchoolBy === 'bus' ? t('Bus home on early release') : t('Pickup on early release')}</label><input key={k.halfFromSchoolTime ?? ''} id={`${id}-${m.id}-hhome`} type="time" defaultValue={k.halfFromSchoolTime ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfFromSchoolTime ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfFromSchoolTime: e.target.value || null })) }} /></div>}
           </div>
           <div className="field"><label id={`${id}-${m.id}-days`}>{t('School days')}</label>
             <div className="chip-row" role="group" aria-labelledby={`${id}-${m.id}-days`}>{weekOrder.map(d => <button key={d} type="button" className={`chip ${k.schoolDays.includes(d) ? 'active' : ''}`} aria-pressed={k.schoolDays.includes(d)}
@@ -888,7 +891,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
               options={calendars.map(c => ({ value: c.id, label: c.name }))} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, calendarIds: ids }))} />
             <p className="field-hint">{t('The school’s and the district’s. Their events show on {name}’s School day, and days off and early release come from them.', { name: m.name })}</p></div>
           <div className="field"><label htmlFor={`${id}-${m.id}-last`}>{t('Last day of school (optional)')}</label>
-            <input id={`${id}-${m.id}-last`} type="date" defaultValue={k.lastDay ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.lastDay ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, lastDay: e.target.value || null })) }} />
+            <input key={k.lastDay ?? ''} id={`${id}-${m.id}-last`} type="date" defaultValue={k.lastDay ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.lastDay ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, lastDay: e.target.value || null })) }} />
             <p className="field-hint">{t('Leave it empty to use a “Last day of school” event on the calendars.')}</p></div>
           <div className="field"><label htmlFor={`${id}-${m.id}-school`}>{t('School')}</label>
             <PickField id={`${id}-${m.id}-school`} label={t('School')} search value={k.schoolContactId ? [k.schoolContactId] : []} none={t('None')}

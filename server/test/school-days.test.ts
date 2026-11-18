@@ -198,3 +198,34 @@ test('board: schoolwork is counted on its own, and a timed one is a row on Today
   assert.deepEqual(board.schoolwork.map((c: any) => [c.memberId, c.total, c.remaining]), [[t.maya.id, 2, 2]]);
   assert.deepEqual(board.timedChores.map((c: any) => [c.title, c.school]), [['Piano', true]]);
 });
+
+test('school days: kids at the same school share its hours, calendars and bus times; a pickup stays their own', async () => {
+  const t = await setup();
+  const school = (await t.req('/api/contacts', 'POST', { name: 'Maple Grove School', phones: [{ label: 'main', value: '555-010-2200' }] })).json;
+  const other = (await t.req('/api/contacts', 'POST', { name: 'Hillside Middle' })).json;
+  const put = (id: string, body: object) => t.req(`/api/school/kids/${id}`, 'PUT', { mode: 'enrolled', ...body });
+  const kid = async (id: string) => (await t.req('/api/school/kids')).json.find((k: any) => k.memberId === id);
+  await put(t.maya.id, { schoolContactId: school.id, dayStart: '08:15', dayEnd: '15:05', halfDayEnd: '12:05', calendarIds: [t.school.id], lastDay: '2027-06-11', toSchoolBy: 'bus', toSchoolTime: '07:35', fromSchoolBy: 'bus', fromSchoolTime: '15:25' });
+  // Leo joins the same school: he takes its schedule and the bus there, but Alex picks him up.
+  await put(t.leo.id, { toSchoolBy: 'bus', fromSchoolBy: t.alex.id, fromSchoolTime: '15:10' });
+  await put(t.leo.id, { schoolContactId: school.id });
+  let leo = await kid(t.leo.id);
+  assert.deepEqual([leo.dayStart, leo.dayEnd, leo.halfDayEnd, leo.calendarIds, leo.lastDay, leo.toSchoolTime, leo.fromSchoolTime], ['08:15', '15:05', '12:05', [t.school.id], '2027-06-11', '07:35', '15:10'], 'the school’s schedule and bus, his own pickup');
+  // A change on one kid's card is the school's: both change.
+  await put(t.leo.id, { dayEnd: '15:00', calendarIds: [t.school.id, t.district.id] });
+  let maya = await kid(t.maya.id);
+  assert.deepEqual([maya.dayEnd, maya.calendarIds], ['15:00', [t.school.id, t.district.id]]);
+  // The bus time is shared by those on the bus; Leo's pickup isn't Maya's bus.
+  await put(t.maya.id, { toSchoolTime: '07:40', fromSchoolTime: '15:20' });
+  leo = await kid(t.leo.id);
+  assert.deepEqual([leo.toSchoolTime, leo.fromSchoolTime], ['07:40', '15:10']);
+  await put(t.leo.id, { fromSchoolTime: '15:15' });
+  assert.equal((await kid(t.maya.id)).fromSchoolTime, '15:20', 'a pickup time stays the kid’s own');
+  // Leo starts riding the bus home: he takes its time.
+  await put(t.leo.id, { fromSchoolBy: 'bus' });
+  assert.equal((await kid(t.leo.id)).fromSchoolTime, '15:20');
+  // A kid at another school keeps their own.
+  await put(t.leo.id, { schoolContactId: other.id, dayEnd: '14:30' });
+  maya = await kid(t.maya.id);
+  assert.equal(maya.dayEnd, '15:00');
+});

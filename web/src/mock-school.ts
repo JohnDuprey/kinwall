@@ -101,7 +101,25 @@ export async function mockSchoolRequest(path: string, options: RequestInit) {
   if (what === 'kids') {
     if (action === 'terms-used') return { highestTerm: Math.max(0, ...grades.filter(g => g.memberId === id).map(g => g.term), ...cards.filter(c => c.memberId === id).map(c => c.term)) }
     if (method === 'GET') return copy(mock.demoKid() ? kids.map(k => ({ ...k, teacherEmail: null, teacherLink: null })) : kids) // like the server: parents' devices only
-    if (method === 'PUT') { const was = kids.find(x => x.memberId === id); const k: SchoolKid = { ...kidBase, grade: null, approveLogs: false, ...was, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)), mode: body.mode, memberId: id }; kids = [...kids.filter(x => x.memberId !== id), k]; return copy(k) }
+    if (method === 'PUT') {
+      const was = kids.find(x => x.memberId === id); const k: SchoolKid = { ...kidBase, grade: null, approveLogs: false, ...was, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)), mode: body.mode, memberId: id }
+      // Like the server (routes/school.ts shareSchool): kids at the same school share its schedule, and its bus times among those on the bus.
+      const others = k.mode === 'enrolled' && k.schoolContactId ? kids.filter(x => x.memberId !== id && x.mode === 'enrolled' && x.schoolContactId === k.schoolContactId) : []
+      const shared = ['dayStart', 'dayEnd', 'halfDayEnd', 'schoolDays', 'calendarIds', 'yearStart', 'lastDay', 'terms'] as const
+      const bus = [['toSchoolTime', 'toSchoolBy'], ['fromSchoolTime', 'fromSchoolBy'], ['halfFromSchoolTime', 'fromSchoolBy']] as const
+      const joined = was?.schoolContactId !== k.schoolContactId || was?.mode !== 'enrolled'
+      if (others.length) {
+        if (joined) { for (const f of shared) if (body[f] === undefined) Object.assign(k, { [f]: others[0][f] }) }
+        else for (const o of others) for (const f of shared) if (body[f] !== undefined) Object.assign(o, { [f]: k[f] })
+        for (const [time, by] of bus) {
+          if (k[by] !== 'bus') continue
+          const riders = others.filter(o => o[by] === 'bus')
+          if (body[time] !== undefined && !joined) riders.forEach(o => Object.assign(o, { [time]: k[time] }))
+          else if (body[time] === undefined && (joined || body[by] !== undefined) && riders.length) Object.assign(k, { [time]: riders[0][time] })
+        }
+      }
+      kids = [...kids.filter(x => x.memberId !== id), k]; return copy(k)
+    }
     kids = kids.filter(x => x.memberId !== id); return { ok: true }
   }
   if (what === 'grades') {
