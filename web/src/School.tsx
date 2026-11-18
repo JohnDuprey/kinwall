@@ -888,9 +888,9 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
                 onBlur={e => { if ((e.target.value || null) !== (k[timeKey] ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, [timeKey]: e.target.value || null })) }} /></div>}
             </div>
           })}
-          <div className="meal-form-row">
+          <div className="meal-form-row school-half-row">
             <div className="field"><label htmlFor={`${id}-${m.id}-hend`}>{t('Early release ends')}</label><input key={k.halfDayEnd ?? ''} id={`${id}-${m.id}-hend`} type="time" defaultValue={k.halfDayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfDayEnd ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfDayEnd: e.target.value || null })) }} /></div>
-            {k.fromSchoolBy && <div className="field"><label htmlFor={`${id}-${m.id}-hhome`}>{k.fromSchoolBy === 'bus' ? t('Bus home on early release') : t('Pickup on early release')}</label><input key={k.halfFromSchoolTime ?? ''} id={`${id}-${m.id}-hhome`} type="time" defaultValue={k.halfFromSchoolTime ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfFromSchoolTime ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfFromSchoolTime: e.target.value || null })) }} /></div>}
+            {k.fromSchoolBy && <div className="field"><label htmlFor={`${id}-${m.id}-hhome`}>{k.fromSchoolBy === 'bus' ? t('Early release bus') : t('Early release pickup')}</label><input key={k.halfFromSchoolTime ?? ''} id={`${id}-${m.id}-hhome`} type="time" defaultValue={k.halfFromSchoolTime ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfFromSchoolTime ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfFromSchoolTime: e.target.value || null })) }} /></div>}
           </div>
           <div className="field"><label id={`${id}-${m.id}-days`}>{t('School days')}</label>
             <div className="chip-row" role="group" aria-labelledby={`${id}-${m.id}-days`}>{weekOrder.map(d => <button key={d} type="button" className={`chip ${k.schoolDays.includes(d) ? 'active' : ''}`} aria-pressed={k.schoolDays.includes(d)}

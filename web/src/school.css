@@ -138,3 +138,5 @@ button.school-plan-day { background: none; border: none; font: inherit; font-wei
 .school-kid-name .field-hint { overflow-wrap: anywhere; }
 .school-setup-kid.open .settings-acc-chevron { transform: rotate(180deg); }
 .school-setup-kid-body { display: grid; gap: 8px; }
+/* Early release's two times: inputs line up even when a label wraps (a longer translation). */
+.school-half-row { align-items: end; }
