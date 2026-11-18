@@ -21,7 +21,7 @@
 .school-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .school-download { flex: none; }
 .school-setup-kids, .school-subjects { display: grid; gap: 12px; margin-bottom: 16px; }
-.school-setup-kid { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; gap: 8px; }
+.school-setup-kid { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .school-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .school-check input { width: 22px; height: 22px; flex: none; }
 .school-subject { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } /* on a phone, the hours and More go under the name */
@@ -137,6 +137,6 @@ button.school-plan-day { background: none; border: none; font: inherit; font-wei
 .school-kid-name { flex: 1; min-width: 0; display: grid; }
 .school-kid-name .field-hint { overflow-wrap: anywhere; }
 .school-setup-kid.open .settings-acc-chevron { transform: rotate(180deg); }
-.school-setup-kid-body { display: grid; gap: 8px; }
+.school-setup-kid-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } /* minmax: a long calendar name cuts off (…), never widens the sheet */
 /* Early release's two times: inputs line up even when a label wraps (a longer translation). */
 .school-half-row { align-items: end; }
