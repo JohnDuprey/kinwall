@@ -127,7 +127,8 @@ const link = (recipeId: string, ingredient: string, basicId: string) => {
 }
 link('demo-tacos', 'Taco seasoning', 'demo-taco-seasoning')
 link('demo-pizza', 'Pizza dough', 'demo-pizza-dough')
-const recipe = recipes[0]
+// New demo recipes start blank, not as a copy of a seeded one (its description, favorites and steps).
+const blankRecipe: Recipe = { ...seedRecipe('new', '', '', '', '', []), description: null, instructions: null, preparationNotes: null }
 // Each row is Sunday through Saturday; columns match breakfast, lunch, dinner, snack.
 const menu = [
   ['pancakes', 'wraps', 'chicken', 'parfaits'],
@@ -335,7 +336,10 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   }
   if (resource === 'recipes') {
     if (id === 'import-url' || id === 'parse-text' || id === 'import') throw new Error('The demo can’t read recipe pages. Try it on your own Kinwall.')
-    if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).map(r => ({ kind: 'meal' as const, makes: null, ...r }))
+    if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).map(r => {
+      const dates = meals.filter(m => m.recipeId === r.id && m.status === 'prepared').map(m => m.date).sort()
+      return { kind: 'meal' as const, makes: null, ...r, cookedCount: dates.length, lastCookedDate: dates.at(-1) ?? null }
+    })
     const old = recipes.find(r => r.id === id)
     if (id && !old) throw new Error('Recipe not found')
     if (action === 'share') {
@@ -362,7 +366,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     }
     if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id).map(r => ({ ...r, ingredients: r.ingredients.map(i => i.basicId === id ? { ...i, basicId: null, basicName: null } : i) })); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
     const input = body as Partial<RecipeInput>
-    const saved: Recipe = { ...recipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const saved: Recipe = { ...blankRecipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
     recipes = [...recipes.filter(r => r.id !== saved.id), saved]; return saved
   }
   if (id === 'projection') {

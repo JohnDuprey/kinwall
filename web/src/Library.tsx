@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { Segmented } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
+import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -268,6 +269,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   onClose: () => void; onSaved: (b: LibraryBook) => void; onChanged: () => void; onStarted: () => void
 }) {
   const { toast, members: everyone } = useApp()
+  const dialog = useDialog()
   const [more, setMore] = useState(false)
   const [borrower, setBorrower] = useState('')
   // Whose book: ours, borrowed or on the wishlist. Picking Borrowed asks where from and when it's due first.
@@ -321,6 +323,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
     } catch (e) { toast(errMsg(e, t("Couldn't start it")), true) }
   }
   const remove = async () => {
+    if (!await dialog.confirm({ title: t('Remove “{title}” from the library?', { title: book.title }), body: t('It comes off the shelf for everyone.'), confirmLabel: t('Remove'), danger: true })) return
     try { await api.deleteLibraryBook(book.id); toast(t('Removed: {title}', { title: book.title })); onChanged() }
     catch (e) { toast(errMsg(e, t("Couldn't remove it")), true) }
   }
@@ -402,7 +405,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         )}
       </div>}
       <div className="field">
-        <label id="lib-readers">{audio ? t('Listened to by') : t('Read by')}</label>
+        <label id="lib-readers">{audio ? t('Who has listened to it') : t('Who has read it')}</label>
         {book.readers.length ? (
           <ul className="lib-reader-list" aria-labelledby="lib-readers">
             {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? t('Family')} <span className="trk-sub">{STATUS_EMOJI[r.status]} {tm((audio ? LISTEN_WORD : STATUS_WORD)[r.status])}</span></li> })}
@@ -410,7 +413,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         ) : <p className="trk-sub">{t('Nobody yet.')}</p>}
       </div>
       <div className="field">
-        <label id="lib-read-it">{audio ? t('Listen to it') : t('Read it')}</label>
+        <label id="lib-read-it">{audio ? t('Add to a listening shelf') : t('Add to a reading shelf')}</label>
         <div className="chip-row" role="group" aria-labelledby="lib-read-it">
           {members.map(m => <button key={m.id} type="button" className="chip" style={{ ['--chip-color' as string]: m.color }} onClick={() => readIt(m)}><ChipFace m={m} /> {m.name}</button>)}
         </div>
@@ -418,8 +421,8 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       </div>
       {canRemove && <div className="lib-detail-actions">
         <button type="button" className="btn btn-secondary" onClick={lookUp} disabled={looking}>{looking ? t('Looking up…') : t('🔎 Look up details')}</button>
-        <button type="button" className="btn btn-danger" onClick={remove}>{t('Remove from library')}</button>
       </div>}
+      {canRemove && <div className="sheet-danger-zone"><button type="button" className="link-btn link-danger" onClick={remove}>{t('Remove from library')}</button></div>}
     </Sheet>
   )
 }

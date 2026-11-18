@@ -179,7 +179,7 @@ passkeysRoutes.openapi(
       userDisplayName: shared ? `Kinwall admin (${host})` : 'Kinwall admin',
       attestationType: 'none',
       excludeCredentials: passkeys.map((p) => ({ id: p.credential_id, transports: transportsOf(p) as any })),
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred', ...(authenticator && { authenticatorAttachment: authenticator }) },
+      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', ...(authenticator && { authenticatorAttachment: authenticator }) },
     });
     // @simplewebauthn/server v14 only emits a single hint (via preferredAuthenticatorType), so set
     // both on the JSON directly; @simplewebauthn/browser spreads it into credentials.create().
@@ -242,7 +242,7 @@ passkeysRoutes.openapi(
 
     let verification;
     try {
-      verification = await verifyRegistrationResponse({ response: response as any, expectedChallenge: challenge, expectedOrigin: expectedOrigins, expectedRPID: rpID });
+      verification = await verifyRegistrationResponse({ requireUserVerification: true, response: response as any, expectedChallenge: challenge, expectedOrigin: expectedOrigins, expectedRPID: rpID });
     } catch (err) {
       console.error('passkey registration failed', err);
       return c.json({ error: "That passkey couldn't be added. Please try again." }, 400);
@@ -319,7 +319,7 @@ passkeysRoutes.openapi(
     const passkeys = await existingPasskeys(c.env.DB);
     const options = await generateAuthenticationOptions({
       rpID,
-      userVerification: 'preferred',
+      userVerification: 'required',
       allowCredentials: passkeys.map((p) => ({ id: p.credential_id, transports: transportsOf(p) as any })),
     });
     await storeChallenge(c.env.DB, 'auth_challenge', options.challenge, null, CHALLENGE_TTL_MS);
@@ -384,6 +384,7 @@ export async function finishPasskeyLogin(
   if (!passkey) throw new Error('unknown passkey');
 
   const verification = await verifyAuthenticationResponse({
+    requireUserVerification: true,
     response: response as any,
     expectedChallenge: opts.expectedChallenge,
     expectedOrigin: opts.expectedOrigin,

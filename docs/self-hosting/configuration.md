@@ -30,6 +30,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `HOST_PORTAL_URL` | — | For hosts running Kinwall for other families: a page where a family can manage or delete their instance. It's linked from **Settings → Access → Your data**. |
 | `PLUGIN_CATALOG_URL` | `https://app.kinwall.family/plugins/catalog.json` | Where the list of reviewed activity plugins comes from (fetched hourly). See [Building activity plugins](../contributing/plugins.md#getting-reviewed). |
 | `PLUGINS_CATALOG_ONLY` | — | `1` allows only reviewed plugins: no other repositories and no uploads. |
+| `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | — | Direct Android FCM alerts; all three plus the canonical public URL are required. See [below](#android-push-fcm). |
 | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | — | Apple push for native alerts and the iPhone app's Live Activities. See [below](#live-activities-apple-push). |
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
@@ -77,6 +78,49 @@ Point `PHOTO_FOLDER` at a folder of pictures you already keep on the server or a
 * The name of the folder a picture is in shows as its caption, so a folder called `2024 Beach day` captions its pictures "2024 Beach day". Pictures at the top of the folder have no caption.
 * Kinwall only reads the folder, about once an hour, so new pictures show up within the hour. Each picture is sent to the screen as it is, at full size.
 * Every signed-in device of the family can see these pictures, wall screens included, so only point it at pictures you're happy to have on the wall.
+
+### Android push (FCM)
+
+Android push requires a Firebase-enabled Kinwall Android build with Google Play services and
+client configuration for the same Firebase project as the server. Ordinary builds keep local
+reminders. This uses direct FCM HTTP v1, not Expo Push Service, legacy server keys or the Apple
+gateway. It works on Node and Workers using Web Crypto and fetch; it needs no Firebase Admin SDK.
+
+Enable the Firebase Cloud Messaging API in the project's Google Cloud console. Give a dedicated
+service account the **Firebase Cloud Messaging API Admin** role on that project (or a custom role
+with `cloudmessaging.messages.create`). Set `FCM_PROJECT_ID` to its project ID,
+`FCM_CLIENT_EMAIL` to its service-account email and `FCM_PRIVATE_KEY` to its RSA PKCS8 PEM key.
+Newlines or literal `\n` escapes are accepted. Set `PUBLIC_URL` to the canonical family URL;
+self-hosted installations can instead save their public URL in Settings. Delivery includes only
+its normalized origin so the app can reject a former family's notification.
+
+Keep credentials in server secrets, never in the app, repository, browser settings or logs.
+On Node, inject the three environment variables into the container/service; on Workers use
+secret bindings (`wrangler secret put FCM_PRIVATE_KEY`, and the corresponding project/email
+bindings). Hosts embedding Kinwall must forward the three fields plus their trusted per-family
+`PUBLIC_URL` into `createKinwall`. Token exchange and sends go only to Google's fixed HTTPS
+endpoints; short-lived OAuth tokens are cached in memory and renewed after expiry or rejection.
+See Google's [FCM authorization guide](https://firebase.google.com/docs/cloud-messaging/send/v1-api),
+[service-account protocol](https://developers.google.com/identity/protocols/oauth2/service-account)
+and [message schema](https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages).
+
+Successful registration enables all server native alerts, including medicines and daily chores;
+event reminders remain local. Missing or malformed credentials or public URL report unavailable,
+so compatible apps retain local reminders. Readiness is configuration capability, not proof of
+IAM permissions, provider acceptance or phone display: verify the matching build and credentials
+before distribution. Android permission, channel settings (daily **Chores** is opt-in), network,
+battery limits and force-stop behavior still apply. New chores have their own **New chores**
+channel and Kinwall preference, off by default. Android alerts can wait in FCM for up to one hour while a device is asleep or offline;
+FCM drops them after that window. Temporary failures retain subscriptions; failed medicine alerts get at
+most two encrypted retries within ten minutes, with stale text canceled after relevant changes.
+Google can read notification text; medicine names remain off unless explicitly enabled.
+Physical-device background delivery, cold-start taps, token rotation and sign-out need separate
+verification with a configured build; automated checks use fake credentials and mocked delivery.
+
+Without FCM credentials, the official Android app can use the [push gateway](#push-gateway)
+instead. It proves its installation with Play Integrity and an Android Keystore key before the
+gateway issues a device credential; the server only verifies and stores that credential.
+The key proves possession; it is not hardware key attestation.
 
 ### Live Activities (Apple push)
 
@@ -131,7 +175,7 @@ a credential issued for a specific phone token, server origin and push type. Con
 or save your server's public address in **Settings → Calendars → Calendar providers** to identify
 your Kinwall server. The environment variable takes precedence over the saved address.
 Gateway delivery activates when the app registers its device
-credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key. It makes outbound
+credential. No gateway address or separate enable switch is needed. The server needs no Apple signing key or Firebase service-account credentials. It makes outbound
 HTTPS requests only; the home server does not need a public inbound endpoint.
 Credentials are sent only to this fixed gateway; the server refuses gateway redirects.
 
@@ -140,15 +184,38 @@ a device credential. It keeps the credential in secure device storage, renews it
 when the app refreshes, and revokes it on sign-out or a server change. Builds without App Attest
 keep local reminders. A phone keeps its local medicine reminders until registration succeeds;
 expired gateway registrations allow local scheduling again on the next reminder refresh. Direct APNs
-takes precedence when its credentials are configured.
+takes precedence when its credentials are configured. Android likewise prefers valid direct FCM
+configuration and does not fail over after a failed direct send, avoiding an extra copy.
+
+The official Android app uses its Android Keystore key and a Play Integrity verdict for an
+eligible, recognized and licensed installation, including device integrity and the allowed app
+signing certificate/version. Key possession alone is not hardware key attestation. Unsupported
+builds or failed enrollment keep local reminders. Android capabilities use separate fixed
+`/v1/android/` endpoints and an `android-v1` credential; they never use Apple App Attest or the
+Apple gateway endpoints. A self-hosted server needs a configured canonical HTTP or HTTPS origin;
+local hosts and ports work because the gateway never fetches that address. The phone still needs
+to reach it when opening a notification.
+
+The app enrolls only when the server explicitly reports `gatewayAvailable: true`; older servers
+keep their existing fallback behavior. Before `push: true`, the server independently verifies the
+capability's exact case-sensitive token fingerprint, `android-alert` kind, origin and expiry.
+All native alerts, including medicines and daily chores, then use the scoped capability while
+event reminders remain local. Expiry or rejection returns the app to local scheduling on its next
+refresh. Renewals keep saved choices; token changes require a new capability.
+
+Android detach, token rotation, subscription deletion and key/grant revocation queue encrypted
+best-effort upstream cleanup. It runs after reminder delivery, with at most five concurrent
+requests per tick, five minutes between attempts and three attempts within one day. Local
+sign-out never waits on this network work. If the server remains offline, cleanup may not reach
+the gateway; the app also queues revocation and capabilities expire automatically.
 
 Device credentials are verified and stored encrypted. Expired or rejected credentials require
 registration again; temporary delivery failures leave the registration intact. Failed medicine
 alerts get at most two further attempts over ten minutes. Pending text is encrypted and discarded
 when its dose log, schedule, recipient or privacy settings change. A timeout can still cause a
-duplicate alert if Apple accepted the first request; registration does not guarantee delivery.
+duplicate alert if the delivery provider accepted the first request; registration does not guarantee delivery.
 
-The gateway and Apple can read notification text. Medicine names remain off unless explicitly
+The gateway and the delivery provider (Apple for iOS, Google for Android) can read notification text. Medicine names remain off unless explicitly
 enabled for that device. The gateway does not make the home server reachable when tapping a
 notification, and remote delivery still depends on the server and gateway being available.
 

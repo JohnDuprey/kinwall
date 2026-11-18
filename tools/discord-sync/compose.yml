@@ -1,0 +1,37 @@
+services:
+  bridge:
+    build: .
+    restart: unless-stopped
+    init: true
+    env_file: ${SYNC_ENV_FILE:?Set SYNC_ENV_FILE to an absolute path to the private credential file}
+    environment:
+      SYNC_DATA_DIR: /data
+      SYNC_HOST: 0.0.0.0
+      SYNC_PORT: 8098
+    volumes:
+      - bridge-data:/data
+    expose:
+      - '8098'
+    stop_grace_period: 90s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  assets:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      SYNC_ASSET_HOST: ${SYNC_ASSET_HOST:?Set SYNC_ASSET_HOST to the DNS hostname for permanent attachments}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  bridge-data:
+  caddy-data:
+  caddy-config:

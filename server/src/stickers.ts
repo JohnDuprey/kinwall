@@ -23,11 +23,11 @@ export function scaledPrice(pack: StickerPack, scalePercent: number): number {
 
 // earned = chore points + positive ledger entries; spent = purchases (negative entries) net of
 // reward refunds (a declined reward gives its points back; that isn't earning). balance = earned - spent.
+// Maintained by ledger triggers, so repeated member reads do not revisit all history.
 export const POINT_TOTALS_SQL = `SELECT m.id AS member_id,
-  (SELECT COALESCE(SUM(points_awarded), 0) FROM chore_completions WHERE member_id = m.id)
-    + (SELECT COALESCE(SUM(amount), 0) FROM point_entries WHERE member_id = m.id AND amount > 0 AND reason <> 'reward_refund') AS earned,
-  (SELECT COALESCE(-SUM(amount), 0) FROM point_entries WHERE member_id = m.id AND (amount < 0 OR reason = 'reward_refund')) AS spent
-FROM members m`;
+  coalesce(t.chore_earned,0) + coalesce(t.ledger_earned,0) AS earned,
+  coalesce(t.ledger_spent,0) AS spent
+FROM members m LEFT JOIN member_point_totals t ON t.member_id=m.id`;
 
 // One member's balance as a SQL expression; bind the member id twice.
 export const BALANCE_EXPR =

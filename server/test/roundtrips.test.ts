@@ -143,7 +143,7 @@ test('round trips: hot GET/write paths stay within budget', async () => {
   await measure(
     'PATCH event memberIds',
     () => auth(`/api/events/${seed.localEventId}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [seed.members[3].id] }) }),
-    4,
+    5, // Event Live Activities add one native-delivery capability lookup after edits.
     200,
   );
 

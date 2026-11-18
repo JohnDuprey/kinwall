@@ -250,7 +250,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
   return c.json({ added: itemIds.length, itemIds, projection: await shoppingProjection(c.env.DB, from, to, listId) }, 200);
 });
 
-async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, old?: Meal): Promise<Meal | string> {
+export async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, old?: Meal): Promise<Meal | string> {
   const now = new Date().toISOString();
   const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, calendarEventStart: null, status: 'planned', sourceUrl: null, restaurantId: null, orderType: null, orders: [], createdAt: now, ...old, ...input, updatedAt: now };
   if (input.recipeId && input.mealKind === undefined) meal.mealKind = 'recipe';

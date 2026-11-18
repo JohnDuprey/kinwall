@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardAreas, boardChores, boardFixed, boardShort, tidbitCardsThatFit, castFit, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores } from '../src/boardFit.ts'
+import { boardAreas, boardChores, boardFixed, boardShort, tidbitCardsThatFit, castFit, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipFit, tileChips, tileColumns, todayOrder, chipWords, withTimedChores, stripFit } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -216,4 +216,12 @@ test('short three-column board: Today takes its whole column; meals go under the
   assert.equal(boardAreas(shown)['--board-areas-3'], '"tiles tiles tiles" "clock today coming" "photo today coming" "photo today coming" "photo meals coming"', 'tall: as before')
   // With Chores' full card, Today keeps the top half and Chores the rest.
   assert.ok(boardAreas([...shown, 'chores'], true)['--board-areas-3'].endsWith('"photo chores coming" "meals chores coming"'))
+})
+
+test('stripFit: every chip on one line when they fit, else the ones that fit in order with room for +N', () => {
+  assert.deepEqual(stripFit([100, 120, 80], 312, 40), [true, true, true], 'all three with their two gaps')
+  assert.deepEqual(stripFit([100, 120, 80], 311, 40), [true, true, false], 'one short: two chips, then +1 (100 + 6 + 120 + 6 + 40 = 272)')
+  assert.deepEqual(stripFit([100, 300, 80], 300, 40), [true, false, true], 'a chip too wide for what is left goes behind +N; a later one that fits still shows')
+  assert.deepEqual(stripFit([300, 20], 200, 40), [false, true], 'a first chip wider than the line: the rest, then +N')
+  assert.deepEqual(stripFit([], 100, 40), [])
 })

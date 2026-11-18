@@ -55,3 +55,29 @@ test('matchBasic: one basic with the same key; none when several match or it is 
   assert.equal(matchBasic('Taco seasoning', basics, 'b1'), null, 'not itself')
   assert.equal(matchBasic('', basics), null)
 })
+
+test('recipe browsing combines history filters and explicit sorts without mutating input', async () => {
+  const { browseRecipes } = await import('../src/recipe-search.ts')
+  const all = [
+    { ...recipe('a', 'Apple'), createdAt: '2026-01-01', cookedCount: 2, lastCookedDate: '2026-10-01', favoritedBy: ['maya'] },
+    { ...recipe('b', 'Bread'), createdAt: '2026-10-01', cookedCount: 0, lastCookedDate: null },
+    { ...recipe('c', 'Curry'), createdAt: '2026-05-01', cookedCount: 4, lastCookedDate: '2026-09-01' },
+  ]
+  assert.deepEqual(browseRecipes(all, { sort: 'newest' }).map(r => r.id), ['b', 'c', 'a'])
+  assert.deepEqual(browseRecipes(all, { sort: 'oldest' }).map(r => r.id), ['a', 'c', 'b'])
+  assert.deepEqual(browseRecipes(all, { sort: 'most-cooked' }).map(r => r.id), ['c', 'a', 'b'])
+  assert.deepEqual(browseRecipes(all, { sort: 'last-cooked' }).map(r => r.id), ['a', 'c', 'b'])
+  assert.deepEqual(browseRecipes(all, { cooked: 'cooked', sort: 'newest' }).map(r => r.id), ['c', 'a'])
+  assert.deepEqual(browseRecipes(all, { cooked: 'never' }).map(r => r.id), ['b'])
+  assert.deepEqual(browseRecipes(all, { cooked: 'cooked', query: 'apple' }).map(r => r.id), ['a'])
+  assert.deepEqual(all.map(r => r.id), ['a', 'b', 'c'])
+  assert.deepEqual(browseRecipes([recipe('old', 'Old export')], { cooked: 'never' }).map(r => r.id), ['old'])
+  assert.deepEqual(pickerRecipes(all, '', null, false, { sort: 'newest', cooked: 'cooked' }).map(r => r.id), ['c', 'a'])
+})
+
+test('week planner suggestions lead by default but explicit sorting takes precedence', () => {
+  const all = [{ ...recipe('a', 'Apple'), createdAt: '2026-01-01' }, { ...recipe('b', 'Bread'), createdAt: '2026-05-01' }]
+  const suggestedIds = new Set(['a'])
+  assert.deepEqual(pickerRecipes(all, '', null, false, { sort: 'suggested', suggestedIds }).map(r => r.id), ['a', 'b'])
+  assert.deepEqual(pickerRecipes(all, '', null, false, { sort: 'newest', suggestedIds }).map(r => r.id), ['b', 'a'])
+})

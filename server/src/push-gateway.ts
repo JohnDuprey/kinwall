@@ -15,7 +15,7 @@ export type PushGatewayEnv = EncryptionEnv & {
 const ORIGIN = 'https://push.kinwall.family';
 export const gatewayAad = (id: string) => `push-gateway:${id}`;
 
-async function smallJson(response: Response): Promise<unknown> {
+export async function smallJson(response: Response): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) return null;
   let text = '', size = 0;

@@ -202,7 +202,7 @@ const PUBLIC_PATH =
 // listed here is denied for display keys - deny by default, not scattered checks.
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/announcements$/ },
-  { method: 'PUT', pattern: /^\/api\/push\/native$/ },
+  { method: 'PUT', pattern: /^\/api\/push\/(native|android)$/ },
   { method: 'GET', pattern: /^\/api\/recipes(\/[^/]+)?$/ },
   { method: 'PUT', pattern: /^\/api\/recipes\/[^/]+\/(rating|favorite)$/ }, // family members rate and heart dinners (a member's own device only for them)
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/source\.pdf$/ }, // the recipe card viewer
@@ -231,6 +231,10 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/upkeep\/(jobs|things)(\/[^/]+)?$|^\/api\/upkeep\/(areas|log)$/ },
   { method: 'POST', pattern: /^\/api\/upkeep\/jobs\/[^/]+\/done$/ },
   { method: 'DELETE', pattern: /^\/api\/upkeep\/log\/[^/]+$/ },
+  // School: walls and kids' devices read subjects, kids, logs and the summary, and log time (a kid's
+  // device only for its kid; routes/school.ts holds it for approval when the kid's settings say so).
+  { method: 'GET', pattern: /^\/api\/school\/(subjects|kids|logs|summary|days)$/ },
+  { method: 'POST', pattern: /^\/api\/school\/logs$/ },
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },
@@ -302,6 +306,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/rewards\/[^/]+\/redeem$/ },
   { method: 'POST', pattern: /^\/api\/rewards\/redemptions\/[^/]+\/cancel$/ }, // take back their own pending request (routes/rewards.ts: own device only)
   { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/reward-goal$/ },
+  { method: 'GET', pattern: /^\/api\/event-activities$/ },
+  { method: 'GET', pattern: /^\/api\/events\/[^/]+\/follow$/ },
+  { method: 'PUT', pattern: /^\/api\/events\/[^/]+\/follow$/ },
   { method: 'GET', pattern: /^\/api\/categories$/ },
   { method: 'GET', pattern: /^\/api\/(?:contacts(?:\/categories|\/[0-9a-f-]+)?|contact-categories(?:\/[0-9a-f-]+)?)$/ },
   { method: 'GET', pattern: /^\/api\/lists$/ },
@@ -314,7 +321,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
   { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only); routes/lists.ts keeps displays to view fields; deleting lists and their order are for parent devices
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items$/ },
-  { method: 'GET', pattern: /^\/api\/lists\/[^/]+\/barcodes\/\d+$/ }, // scanning a product into a shopping list (saving it to the catalog: routes/lists.ts teaches)
+  { method: 'GET', pattern: /^\/api\/lists\/[^/]+\/barcodes\/\d+$/ }, // scanning a product into a shopping or pantry list (saving it to the catalog: routes/lists.ts teaches)
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items\/move$/ }, // moving between lists, like editing items on both
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
@@ -396,7 +403,7 @@ const NOT_A_DEVICE = stored('error', "Connected apps can't get push notification
 const NO_WEBHOOKS = stored('error', "Connected apps can't set up webhooks. Do this from a parent's own device.");
 const NO_PLUGINS = stored('error', "Connected apps can't add or update activities. Do this from a parent's own device.");
 const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[] = [
-  { method: /^(PUT)$/, pattern: /^\/api\/push\/native$/, error: NOT_A_DEVICE },
+  { method: /^(PUT)$/, pattern: /^\/api\/push\/(native|android)$/, error: NOT_A_DEVICE },
   { method: /^(POST)$/, pattern: /^\/api\/keys$/ },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/keys\/[^/]+$/ },
   { method: /^(POST)$/, pattern: /^\/api\/device-keys$/ },

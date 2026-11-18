@@ -1,3 +1,5 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
+import { schoolworkOff } from '../school-days.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { deviceOwner, requestKey } from '../auth.ts';
@@ -10,6 +12,13 @@ import { evaluateRoutine, schoolDomain } from '../routine-mode.ts';
 import { stored } from '../i18n.ts';
 import { emit } from '../bus.ts';
 import { oneTimeRoutineChore, routineChoreNames, routineChoreSelection } from '../routine-chores.ts';
+
+/** A child's live chores and today's completions: polled by the child's iPhone, so it reads only
+ * those rows (test/query-plans.test.ts). Binds: today's date, the child. */
+export const ROUTINE_CHORES_SQL = `SELECT c.*, cc.status AS completion_status, EXISTS (SELECT 1 FROM chore_completions done WHERE done.chore_id = c.id AND done.status = 'approved') AS approved_once FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE ${schoolworkVisibleSql("c")} AND c.member_id = ? AND c.active = 1 AND c.archived = 0 ORDER BY c.sort, c.created_at`;
+/** The saved selection's chores by id, archived ones too (a done one-time chore becomes its name).
+ * Binds: the child, the selected ids as JSON. */
+export const ROUTINE_SELECTED_SQL = `SELECT c.* FROM json_each(?2) j CROSS JOIN chores c ON c.id = j.value WHERE ${schoolworkVisibleSql("c")} AND c.member_id = ?1`;
 export const routineModeRoutes = createRouter();
 const Domains = z.array(z.preprocess(value => typeof value === 'string' ? schoolDomain(value) : value, z.string())).max(40).transform(values => [...new Set(values)]);
 const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -34,10 +43,12 @@ routineModeRoutes.openapi(createRoute({ method: 'get', path: '/api/routine-mode/
   const enrollment = key?.id && key.scope !== 'admin' ? await c.env.DB.prepare('SELECT enrolled, revision, choices_after_revision FROM routine_device_enrollments WHERE key_id = ? AND member_id = ?').bind(key.id, memberId).first<{ enrolled: number; revision: number; choices_after_revision: number }>() : null;
   const timezone = await householdTz(c.env.DB), date = todayInTz(timezone);
   const policy = await c.env.DB.prepare('SELECT enabled, app_mode, cutoff, allowed_websites_only, allowed_web_domains, school_link_domains, start, day_schedules, required_chore_ids, required_one_time_names FROM routine_mode WHERE member_id = ?').bind(memberId).first<{ enabled: number; app_mode: 'selected' | 'all'; cutoff: string; allowed_websites_only: number; allowed_web_domains: string; school_link_domains: string | null; start: string; day_schedules: string | null; required_chore_ids: string | null; required_one_time_names: string }>();
-  const { results } = await c.env.DB.prepare("SELECT c.*, cc.status AS completion_status, EXISTS (SELECT 1 FROM chore_completions done WHERE done.chore_id = c.id AND done.status = 'approved') AS approved_once FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE c.member_id = ? ORDER BY c.sort, c.created_at").bind(date, memberId).all<ChoreRow & { completion_status: string | null; approved_once: number }>();
-  const selection = routineChoreSelection(policy?.required_chore_ids == null ? null : JSON.parse(policy.required_chore_ids), JSON.parse(policy?.required_one_time_names ?? '[]'), results);
-  const active = results.filter(row => row.active && !row.archived);
-  const chores = active.filter(row => dueOnDate(row, date, timezone)).map(row => ({ id: row.id, title: row.title, oneTime: oneTimeRoutineChore(row), completed: row.completion_status === 'approved', pending: row.completion_status === 'pending' }));
+  const { results: active } = await c.env.DB.prepare(ROUTINE_CHORES_SQL).bind(date, memberId).all<ChoreRow & { completion_status: string | null; approved_once: number }>();
+  const ids: string[] | null = policy?.required_chore_ids == null ? null : JSON.parse(policy.required_chore_ids);
+  const selected = ids?.length ? (await c.env.DB.prepare(ROUTINE_SELECTED_SQL).bind(memberId, JSON.stringify(ids)).all<ChoreRow>()).results : [];
+  const selection = routineChoreSelection(ids, JSON.parse(policy?.required_one_time_names ?? '[]'), selected);
+  const noSchool = await schoolworkOff(c.env.DB, date, date, active);
+  const chores = active.filter(row => dueOnDate(row, date, timezone) && (row.completion_status === 'approved' || row.completion_status === 'pending' || !noSchool(row, date))).map(row => ({ id: row.id, title: row.title, oneTime: oneTimeRoutineChore(row), completed: row.completion_status === 'approved', pending: row.completion_status === 'pending' }));
   c.header('Cache-Control', 'no-store');
   const decision = evaluateRoutine({ enabled: enrollment?.enrolled !== 0 && !!policy?.enabled && (await readFeatures(c.env.DB)).chores, ...selection, appMode: policy?.app_mode ?? 'selected', cutoff: policy?.cutoff ?? '19:30', start: policy?.start ?? '00:00', daySchedules: policy?.day_schedules ? JSON.parse(policy.day_schedules) : undefined, allowedWebsitesOnly: !!policy?.allowed_websites_only, allowedWebDomains: JSON.parse(policy?.allowed_web_domains ?? '[]') as string[], schoolLinkDomains: policy?.school_link_domains == null ? undefined : JSON.parse(policy.school_link_domains) as string[] }, chores, timezone);
   // Older child apps infer future schedule-only grants from an empty ID list. Name rules
@@ -53,7 +64,7 @@ routineModeRoutes.openapi(createRoute({ method: 'put', path: '/api/routine-mode/
   const previous = input.requiredOneTimeChoreNames === undefined && input.requiredChoreIds !== null ? await c.env.DB.prepare('SELECT required_one_time_names FROM routine_mode WHERE member_id = ?').bind(memberId).first<{ required_one_time_names: string }>() : null;
   let policy = { ...input, requiredOneTimeChoreNames: input.requiredOneTimeChoreNames ?? JSON.parse(previous?.required_one_time_names ?? '[]') as string[] };
   if (policy.requiredChoreIds?.length) {
-    const { results } = await c.env.DB.prepare(`SELECT id, title, rrule, repeat_goal FROM chores WHERE member_id = ? AND active = 1 AND archived = 0 AND id IN (${policy.requiredChoreIds.map(() => '?').join(',')})`).bind(memberId, ...policy.requiredChoreIds).all<Pick<ChoreRow, 'id' | 'title' | 'rrule' | 'repeat_goal'>>();
+    const { results } = await c.env.DB.prepare(`SELECT id, title, rrule, repeat_goal FROM chores WHERE ${schoolworkVisibleSql()} AND member_id = ? AND active = 1 AND archived = 0 AND id IN (${policy.requiredChoreIds.map(() => '?').join(',')})`).bind(memberId, ...policy.requiredChoreIds).all<Pick<ChoreRow, 'id' | 'title' | 'rrule' | 'repeat_goal'>>();
     if (results.length !== policy.requiredChoreIds.length) return c.json({ error: stored('error', 'Choose active chores assigned to this child.') }, 400);
     policy = { ...policy, ...routineChoreSelection(policy.requiredChoreIds, policy.requiredOneTimeChoreNames, results) };
   }

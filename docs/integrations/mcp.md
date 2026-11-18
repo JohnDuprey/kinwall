@@ -27,7 +27,7 @@ The sign-in flow: no key to copy, and each app gets its own revocable grant. Kin
 1. Add `https://<your-kinwall>/mcp` as a remote MCP server in your client.
 2. The client discovers Kinwall's OAuth metadata (`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`) and registers itself automatically.
 3. Your browser opens Kinwall's consent screen: "*App* wants to use Kinwall". Sign in as an admin with a passkey, or with an admin API key, then choose:
-   * **Full access**: "Everything you can do as an admin, including members and settings."
+   * **Full access**: "Everything a parent can do, including members and settings."
    * **Everyday access**: "Calendar, chores and lists. No members, settings or keys." This is the display scope.
    * **Deny**.
 4. Connected apps are listed and revocable under **Settings → Access → Connected apps**.
@@ -75,7 +75,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 |---|---|
 | `get_household` | Settings (family name, timezone, week start, language, color scheme), members and a calendar summary, with each calendar's `filter`. |
 | `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Peacock, the deep blue one, is the default; Eucalyptus the gray-teal one, Peach the warm one, Meadow the soft green one), and the family's own schemes with their light and dark palettes. |
-| `list_events` | Events across all calendars in a range (default: today plus 7 days, at most 400 days). Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
+| `list_events` | Events across all calendars in a range (default: today plus 7 days, at most 400 days). Dates (`YYYY-MM-DD`) are whole days in the household's timezone; date-times are taken as given. Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
 | `get_event` | One event by ID (the series row for a recurring local event). |
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
 | `list_chores` | Chores due on a date (default today), with completion state. |
@@ -84,11 +84,13 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_points` | One member's points (by name or ID): balance left to spend, all-time earned and spent, and recent ledger entries (purchases, check-ins and bonus points with their notes). Read-only. Stickers are bought on the wall, not over MCP; rewards can be redeemed with `redeem_reward`. |
 | `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, the day's meals, (day) tomorrow at a glance, and whether they've done today's [daily check-in](../using/snapshot.md#daily-check-in) (`checkedIn`, `checkInPoints`). The same data as tapping their avatar. A [feature](../settings/general.md#features) that's off comes back empty: no chores while Chores & points is off, no list items while Lists is off. |
 | `get_board` | The whole household's bulletin board for today and the next `days` days (default 7, max 14): everyone's events plus untagged ones, open list items due soon, overdue or high/urgent, today's chores per member (and `timedChores`: today's chores with a start time or a timer), birthdays and meals. The same data as the calendar's Board view. A [feature](../settings/general.md#features) that's off comes back empty: no chores while Chores & points is off, no list items while Lists is off. |
-| `list_lists` | All lists with item and open counts. A shopping list's `catalog` is its type: `groceries` or `shopping`. |
+| `list_lists` | All lists with item and open counts. A shopping list's `catalog` is its type: `groceries` or `shopping`. A to-do list with `purpose: "pantry"` is a [pantry list](../using/lists.md#pantry), food at home: its items' `dueDate` is the use-by date and `overdueCount` is how many have expired. |
+| `get_expiring_food` | Food to use soon: open items on [pantry lists](../using/lists.md#pantry) with a use-by date within `days` (default 7; 0 is today and anything past), soonest first, with where each is kept and its status (`expired`, `today`, `soon`, `later`). `list` limits it to one pantry list. |
+| `suggest_meals_from_pantry` | What to eat to use food up before it expires ([Use it up](../using/meals.md#use-it-up)): the family's recipes ranked by the expiring items they use, each with what it uses, what else it uses from the pantry and what's missing, plus `unmatched`, expiring food no suggested recipe uses, for the assistant to suggest ideas of its own. `days`, `limit` (default 10), `list`. |
 | `get_list` | One list by ID or name, with items (in the list's sort order, each with its steps and, on a shopping list, its aisle at each store), group order, store/category/aisle suggestions (shopping lists only; since 2026-09-30 other lists get empty ones) and stores' aisle orders. With `store`, also the list as shopped there: items in that store's aisle order with their aisle, then those with no aisle known there, then those planned for other stores. An item with no aisle known there takes the store's aisle named like its category (its department), if there is one. |
 | `list_categories` | Categories (name, emoji, color, keywords) in order. |
 | `list_notes` | The notes thread on an event or list item (`target`: `event:<id>` or `list_item:<id>`), oldest first. `memberId` null means "Someone". |
-| `list_recipes` | [Meals](../using/meals.md) recipes with their ingredients. Filters: `search`, `category`, `archived`, `kind` (`meal` or `basic`), `favoriteOf` (a member's name or ID: only their favorites). Each recipe's `favoritedBy` lists the member IDs who love it. |
+| `list_recipes` | [Meals](../using/meals.md) recipes with their ingredients. Filters: `search`, `category`, `archived`, `kind` (`meal` or `basic`), `favoriteOf` (a member's name or ID: only their favorites). Recipes also include derived `cookedCount` (linked prepared meals across all dates) and `lastCookedDate` (latest prepared meal date, or null). Each recipe's `favoritedBy` lists the member IDs who love it. |
 | `get_recipe` | One recipe by ID. |
 | `list_restaurants` | The family's [restaurant binder](../using/meals.md#restaurants): each place's phone, address, website, ordering link, notes and menu (`favorite` marks the family's starred items). `search` matches a name, cuisine or menu item; `archived: true` includes archived places. |
 | `get_restaurant` | One restaurant by ID or exact name, with its menu. |
@@ -112,6 +114,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_upkeep_jobs` | [Home upkeep](../using/upkeep.md) jobs, soonest due first, each with its status (overdue, due, soon, later, or done for a one-off), next due date and the last time it was done. Filters: `status`, `thing`, `member` (names or IDs), `include_archived`. |
 | `get_upkeep_job` | One upkeep job by ID or title: its schedule, steps, supplies and who does it. |
 | `list_upkeep_history` | Every Done, newest first ("When did we last change the furnace filter?"): filter by `job`, `thing`, `member`, `year` or `search`. Costs only through an admin sign-in. |
+| `get_school_grades` | A kid's [School](../using/school.md) report card grades by term and subject for a school year (`year`: its first calendar year; default the current one). Full access only. |
+| `get_school_summary` | [School](../using/school.md) time by kid and subject between `from` and `to` (default the last 7 days); `kid` by name or ID for one kid. Time waiting for a parent's approval isn't counted. |
 | `list_upkeep_things` | The things home upkeep tracks, with their room, brand, model, part notes and warranty (admin), and the areas. |
 | `list_polls` | [Family polls](../using/polls.md), open ones first (`status` to pick open or closed): each choice with the member IDs who voted for it, the winner once closed, and the meal planned from it. |
 | `list_activity_actions` | [Activities](../using/activities.md#activities-from-others) that take actions, each action's description and the input it takes (properties with types, which are required). See [Actions](../contributing/plugins.md#actions). |
@@ -127,8 +131,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `set_event_category` | Sets or clears an event's category (by name). Clearing falls back to keyword or calendar default. |
 | `run_activity_action` | Asks an activity to do one of its actions for a person: `activity` and `member` by name or ID, `action`, and `input` as `list_activity_actions` describes it. For example, Spelling practice's `addList` with `{ title, words, testDate }` adds a spelling list. It's queued and applies the next time that person opens the activity; the input's shape is checked first. Full access. |
 | `reset_activity_time` | Resets one person's counted play time for an activity (`activity` and `member` by name or ID, optional `date`, default today) so its [activity chores](../using/chores.md#activity-chores) count from zero again. A chore the play already completed stays done; `uncomplete_chore` undoes that. Full access. |
-| `create_chore` | Creates a recurring or one-off chore. `dueTime` (HH:MM) is when it starts and `timerMinutes` how long its [timer](../using/chores.md#start-time-and-timer) runs. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. `needsApproval` and `approveTimedPlay` set [parent approval](../using/chores.md#parent-approval). |
-| `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date, start time (`dueTime`), timer (`timerMinutes`, or `null` to remove), checklist (`list`, or `null` to unlink), parent approval (`needsApproval`, `approveTimedPlay`), or active state. |
+| `create_chore` | Creates a recurring or one-off chore. With `subject` (a [School](../using/school.md) subject by name or ID) it's schoolwork: `schoolKind` (`lesson`, `homework`, `test`, `project`) and `schoolMinutes`, logged as school time when it's ticked off. `dueTime` (HH:MM) is when it starts and `timerMinutes` how long its [timer](../using/chores.md#start-time-and-timer) runs. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. `needsApproval` and `approveTimedPlay` set [parent approval](../using/chores.md#parent-approval). `members` (names or IDs) gives several people their own linked copy instead of one `member`. |
+| `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date, start time (`dueTime`), timer (`timerMinutes`, or `null` to remove), checklist (`list`, or `null` to unlink), parent approval (`needsApproval`, `approveTimedPlay`), or active state. On a chore for [several people](../using/chores.md#chores-for-several-people) (`groupId`), changes apply to every copy, and `members` sets exactly who has one (`[]` for Anyone). |
 | `complete_chore` | Marks a chore done for a date (default today). The date has to be a day the chore is due on; a display key can use the last 7 days, today, or one day ahead. Refused while the chore's checklist has open items. From a display key, a chore that needs a parent's OK waits for approval instead. |
 | `uncomplete_chore` | Undoes a completion. |
 | `list_pending_approvals` | Chores waiting for a [parent's OK](../using/chores.md#parent-approval), oldest first, with the points approving would award (admin). |
@@ -150,9 +154,9 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `decline_reward` | "Not this time": declines a waiting request, or cancels an approved one, and gives the points back (every share of a split), with an optional `note` the kids see (admin). |
 | `mark_reward_given` | Marks an approved request as given (admin). |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year) and `grownUp` (a parent or other adult; default false). |
-| `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `needsApproval` (their chores need a parent's OK by default; ignored for a grown-up), `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)) or `language` (`en`, `de`, `fr`, `es`, or `null` to follow the family's). Admin. It can't change `grownUp`: who is a grown-up decides who reads their [private journal](../using/journal.md#private-journals), so a parent sets it on their own device. |
-| `create_list` | Creates a groceries, shopping, to-do or reusable list. `shopping` without a type makes a list named like groceries (or the family's first shopping list) a Groceries list. |
-| `update_list` | Renames, changes kind (`groceries`, `shopping`, `todo`, `reusable`), emoji, owners, item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`, `aisle`), grouping (`groupBy`: `store`, `category`, `aisle`, `none`; shopping lists use `aisle` for `category`), whether checked items stay in place (`keepChecked`), makes a shopping list its type's default (`isDefault`), or archives a list. Everyday access may change only `sortBy`, `groupBy` and `keepChecked`. |
+| `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `needsApproval` (their chores need a parent's OK by default; ignored for a grown-up), `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)) or `language` (`en`, `de`, or `null` to follow the family's). Admin. It can't change `grownUp`: who is a grown-up decides who reads their [private journal](../using/journal.md#private-journals), so a parent sets it on their own device. |
+| `create_list` | Creates a groceries, shopping, pantry, to-do or reusable list (a pantry list takes `restock`: add used-up food to the grocery list). `shopping` without a type makes a list named like groceries (or the family's first shopping list) a Groceries list. |
+| `update_list` | Renames, changes kind (`groceries`, `shopping`, `pantry`, `todo`, `reusable`; `pantry` is a to-do list with `purpose: "pantry"`, and `todo` makes it a plain to-do list again; `restock` turns a pantry list's adding of used-up food to the grocery list on or off), emoji, owners, item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`, `aisle`), grouping (`groupBy`: `store`, `category`, `aisle`, `none`; shopping lists use `aisle` for `category`), whether checked items stay in place (`keepChecked`), makes a shopping list its type's default (`isDefault`), or archives a list. Everyday access may change only `sortBy`, `groupBy` and `keepChecked`. |
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category (a shopping item's department), aisle, onSale, member, forMembers, dueDate, eventId, priority, steps). `forMembers` is who the item is for (names or ids; left out = everyone). `steps` is a list of step titles in order. On a shopping list, a store, category or aisle left out comes from what the family used last time for that item. With no `listId` or `listName` ("add milk"), items go to the family's default Groceries list, else the first Groceries list. |
 | `update_list_item` | Edits an item's title, notes, quantity, store, category, aisle, whether it's on sale (`onSale`, cleared when it's checked off), assignee, who it's for (`forMembers`, replacing the whole set; `[]` = everyone), due date, linked event or priority (`low` / `normal` / `high` / `urgent`). |
 | `set_store_aisle_order` | Sets the order a store's aisles are walked in (`store`, `aisles`), e.g. Produce, Bakery, Aisle 4, Frozen, Aisle 5, Dairy, for one list type (`catalog`: `groceries`, the default, or `shopping`). Aisle sort and trips on lists of that type follow it. |
@@ -187,6 +191,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `create_upkeep_job` | Adds an upkeep job (admin): `repeatKind` `after` (`every` + `unit`), `on` (`onMonths` + `onDay`) or `once` (`dueOn`), `thing`, `member` and `area` by name, `headsUpDays`, `steps`, `supplies`, `chorePoints` for a kid. |
 | `update_upkeep_job` | Changes an upkeep job (by ID or title): any field of `create_upkeep_job`; `archived: true` puts it away. Admin. |
 | `log_upkeep_done` | Marks an upkeep job done: `doneOn` (default today), `member`, `cost` in dollars, `reading` with `readingUnit` (`mi`, `km`, `h`), `notes`. Moves its next due date. Cost, reading and notes need an admin sign-in. |
+| `log_school` | Logs [school](../using/school.md) time for one kid or several (`kids`, names or IDs of kids in school): `minutes`, `subject` by name or ID, `date` (default today), `title`, `notes`. One entry per kid. |
 | `create_upkeep_thing` | Adds a thing for home upkeep (admin): name, room, brand, model, serial, part notes, bought on, price, warranty end, manual link, notes. |
 | `update_upkeep_thing` | Changes a thing (by ID or name); `archived: true` is "Sold or gone". Admin. |
 | `create_poll` | Starts a [family poll](../using/polls.md) and notifies everyone (admin): `question`, `ideas` (typed choices), `recipes` and/or `restaurants` from the binder (IDs or exact names; both need Meals on), at least two in all, and optional `date` and `slot` for the meal it decides. |
@@ -210,7 +215,7 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 | `delete_list_item` | Deletes an item from a list, with its steps and notes. |
 | `delete_list_step` | Deletes one step of an item. If every remaining step is done, the item becomes done. |
 | `delete_note` | Deletes one note from an event's or list item's thread. |
-| `delete_chore` | Deletes a chore. One that was ever done is archived instead: it leaves every list, but its completion history and the points earned from it stay. `update_chore` with `active: false` pauses it instead. Full access. |
+| `delete_chore` | Deletes a chore, with every copy of a chore for several people. One that was ever done is archived instead: it leaves every list, but its completion history and the points earned from it stay. `update_chore` with `active: false` pauses it instead. Full access. |
 | `delete_tracker_entry` | Deletes a book, memory or health entry. A memory's own photo goes with it, unless it's also a family photo. Full access. Health entries only once a parent turns on [health for connected apps](#health-entries). |
 | `delete_outing` | Marks an outing "Not for us" (kept), or with `hard: true` deletes it and its interest marks. Its calendar event stays. Admin. |
 | `delete_upkeep_job` | Puts an upkeep job away (kept, no more reminders), or with `hard: true` deletes it. Its history stays either way. Admin. |
@@ -220,9 +225,20 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 
 Members, calendars, API keys, webhooks and photos can't be deleted over MCP. Those are too destructive or sensitive for a chat tool, so do them in Kinwall's settings.
 
+## Prompts
+
+Clients that show MCP prompts (often as a slash command) get **Use it up** (`use_it_up`, optional `days`, default 7). It asks the assistant to call `suggest_meals_from_pantry`, suggest what to eat over the next few days starting with what expires first, offer simple ideas for expiring food none of your recipes use, say plainly what's already past its date, and ask before planning a meal, saving a recipe or adding to the grocery list.
+
 ## Native apps
 
-The same OAuth server signs in native apps, such as Kinwall for iPhone, iPad, Apple Watch and Android, built from the [kinwall-mobile](https://github.com/JohnDuprey/kinwall-mobile) repository. They aren't on the App Store or Play Store yet, so for now you build and install one yourself from that repo. Besides `https` and loopback `http` redirect addresses, registration accepts an app's own reverse-domain link scheme (RFC 8252), like `family.kinwall.app:/oauth`. Single-word schemes such as `javascript:` or `data:` are always refused. The consent screen then says you'll return to "the app".
+The same OAuth server signs in native apps, such as Kinwall for iPhone, iPad, Apple Watch and Android, built from the [kinwall-mobile](https://github.com/JohnDuprey/kinwall-mobile) repository. The apps are in testing and aren't publicly listed in the App Store or Google Play yet. To try a test build:
+
+* **iPhone and iPad** (the Watch app comes with the iPhone app): open the [Kinwall beta on TestFlight](https://testflight.apple.com/join/WhWaQB2G) on the device and follow its steps.
+* **Android**: join the [kinwall-testers group](https://groups.google.com/g/kinwall-testers), then [become a tester](https://play.google.com/apps/testing/family.kinwall.app) with the same Google account, then install [Kinwall from Google Play](https://play.google.com/store/apps/details?id=family.kinwall.app). The Play page shows only after you opt in; if it says the app isn't found, wait a few minutes and try again.
+
+Test builds can change, expire or stop taking new testers. You can also build and install an app yourself from that repo, but only the official builds can use the [push gateway](../self-hosting/configuration.md#push-gateway).
+
+Besides `https` and loopback `http` redirect addresses, registration accepts an app's own reverse-domain link scheme (RFC 8252), like `family.kinwall.app:/oauth`. Single-word schemes such as `javascript:` or `data:` are always refused. The consent screen then says you'll return to "the app".
 
 For Kinwall's own app (redirect `family.kinwall.app:/oauth`), the consent screen also asks **Whose device is this?**: **Shared** or one family member, **Shared** preselected. The choice becomes the owner of the grant's keys and of the widget and watch keys the app creates from them. With **Everyday access** it pins the app to that member, as with a paired display; with **Full access** it only sets personal defaults. MCP clients and other apps aren't asked and have no owner. See [Settings → Access](../settings/access.md#connected-apps).
 
@@ -259,6 +275,51 @@ when Rewards or Chores & points is off. Milestones earn rewards without spending
 
 ## Family announcements
 
+`list_inbox` and `add_to_inbox` (parents) read and add to the quick-capture [inbox](../using/inbox.md): `add_to_inbox` takes `text`, saved as said, to sort into a task, event or note later in Kinwall. It never makes a task or event itself or guesses a date. Both refuse access while **Inbox** is off. Sorting is done in Kinwall or through the REST API.
+
 `list_announcements` reads the active messages at the top of the Board; parents can pass `status: "all"` for scheduled and expired messages. `create_announcement`, `update_announcement`, and `delete_announcement` require parent access. Create takes `title`, optional `details`, `startsAt`, `expiresAt`, and optional `priority` (`normal` or `important`). Use ISO timestamps with UTC or an explicit offset. Update and delete identify messages by `id`; update changes only supplied fields. Every tool refuses access while **Family announcements** is off. These messages are separate from Newscast posts and calendar events.
 
 `get_chore_counts` reads scheduled chore counts for a date range (`from`, `to`, inclusive, at most 31 dates), grouped by date and assignee. Each result has `total`, `remaining`, and `pending`; pending approvals remain unfinished. Empty dates are omitted. It follows the same child-device restrictions and Chores feature switch as `GET /api/chores/counts`.
+
+### Personal event countdowns
+
+`get_event_follow` reads and `set_event_follow` changes the caller's own event-follow choice.
+Both use the REST event-follow routes and their permissions. A personally owned device key is
+required; connected apps and shared screens cannot access these personal notification choices.
+The write tool accepts `id`, `enabled`, `minutes`, `scope`, `occurrenceStart`, and `showNow`.
+
+### Chore organization
+
+`create_chore` and `update_chore` accept `category` (a name such as Kitchen, or `null`),
+`sort` (manual order, ascending before start time), and `ongoing`. An ongoing chore is an
+optional shared responsibility for Anyone, with no RRULE, repeat goal or activity. It stays
+available on Chores after a tick; scheduled summaries and streaks exclude it.
+
+`complete_chore` returns a separate `completionId` for each ongoing tick. Use that id with
+`uncomplete_chore` to undo it or with approval tools when needed. Pass the same `operationId`
+when retrying a tick to avoid awarding twice; use a new token for another completion. The
+history records returned by `list_chores` have `sourceId` linking to their responsibility.
+Each linked person's copy keeps its own order; categories change across the linked copies.
+
+### Weekly planning
+
+Parent-scoped connectors can use `get_weekly_plan` to review a complete family week and its
+shared draft (default: next week). `save_weekly_plan_draft` saves `{weekStart, revision, draft}`
+without adding anything. `apply_weekly_plan` adds the exact family-approved meals and linked
+to-dos using `{weekStart, revision, sourceVersion, requestId, draft}`. The three tools use the
+same parent-only routes, validation and feature filtering as the UI.
+
+Keep the UUID request ID unchanged when retrying a lost apply response. A 409 requires a new
+review and approval of the resulting changes, not an automatic retry with fresh counters.
+`kind: open` means an intentionally open dinner. A dinner choice with an explicit
+`replaceMealId` swaps that eligible planned dinner in place; the family must approve both
+the current and replacement names. The reviewed target must have `canSwap: true`. Preparation is due-date-only, with no timed
+alert. Pickups, requests and acceptance are not part of these tools. No private health tracker,
+medication, journal or check-in data is read. See [REST API](rest-api.md#weekly-planning-parent-access).
+
+### Dismissing late chores
+
+`set_chore_dismissed` takes `choreId`, the missed `date` (`YYYY-MM-DD`) and `dismissed`
+(default `true`). Full access only. It removes just that missed date from the late list,
+without completing the chore or awarding points. Use `dismissed: false` to undo. `get_board`
+leaves dismissed dates out of `overdueChores`; the chore's schedule and history stay unchanged.

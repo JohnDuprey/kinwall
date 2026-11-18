@@ -153,6 +153,15 @@ export function chipFit(full: number[], short: number[], room: number, freed: nu
 }
 export type ChipFit = 'names' | 'short' | 'tight' | 'wrap'
 
+/** Which of the Board's status chips (`widths`, in order) fit on its one line of `room`: all of
+ *  them, else each in turn that still fits beside the +N chip (`more`) that opens the rest, so one
+ *  wide chip doesn't push the narrower ones after it off the line. */
+export function stripFit(widths: number[], room: number, more: number, gap = 6): boolean[] {
+  if (widths.reduce((t, w) => t + w + gap, -gap) <= room + 0.5) return widths.map(() => true)
+  let used = more
+  return widths.map(w => used + gap + w <= room + 0.5 ? (used += gap + w, true) : false)
+}
+
 /** Today's events on the Board, for a glance late in the day: what's on now (all-day ones too), then
  *  what's next, in start order; the ones already over go to `earlier`, which the card folds into one
  *  "3 earlier" row, so they never push what's on now behind "+N more". */

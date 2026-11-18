@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { goalProgressFor } from '../chore-goals.ts';
 // Activity plugins. A plugin is a small web page (HTML/JS/CSS/images) that shows up under Activities.
 //
@@ -261,8 +262,9 @@ export async function unpack(zip: Uint8Array): Promise<{ manifest: Manifest; fil
   return { manifest: parsed.data, files };
 }
 
-async function install(db: KinwallDb, zip: Uint8Array, source: string | null, entry?: CatalogEntry): Promise<Row> {
+async function install(db: KinwallDb, zip: Uint8Array, source: string | null, entry?: CatalogEntry, updating?: string): Promise<Row> {
   const { manifest, files } = await unpack(zip);
+  if (updating && manifest.id !== updating) throw new PackageError(stored('error', "The package's id changed to {id}", { id: manifest.id }));
   if (entry && (manifest.id !== entry.id || manifest.version !== entry.version)) throw new PackageError(`The package is ${manifest.id} v${manifest.version}, not the catalog's ${entry.id} v${entry.version}`);
   const existing = await db.prepare('SELECT source FROM plugins WHERE id = ?').bind(manifest.id).first<{ source: string | null }>();
   if (!existing) {
@@ -274,12 +276,13 @@ async function install(db: KinwallDb, zip: Uint8Array, source: string | null, en
   if (others + files.reduce((n, f) => n + f.data.length, 0) > PLUGIN_LIMITS.maxTotalBytes)
     throw new PackageError(stored('error', 'All plugins together can take at most {n} MB. Remove one to make room.', { n: PLUGIN_LIMITS.maxTotalBytes / 1048576 }));
   const now = new Date().toISOString();
-  // Updating keeps its on/off state and everyone's saved data; the files are replaced wholesale.
+  // Updating keeps its on/off state and everyone's saved data; the files are replaced wholesale, and
+  // the source and reviewed mark describe the new files (an upload or another repo is not reviewed).
   await db.batch([
     db
       .prepare(
         `INSERT INTO plugins (id, name, version, manifest, source, enabled, reviewed, installed_at, updated_at) VALUES (?,?,?,?,?,1,?,?,?)
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, version = excluded.version, manifest = excluded.manifest, source = COALESCE(excluded.source, plugins.source), reviewed = MAX(plugins.reviewed, excluded.reviewed), updated_at = excluded.updated_at`,
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, version = excluded.version, manifest = excluded.manifest, source = excluded.source, reviewed = excluded.reviewed, updated_at = excluded.updated_at`,
       )
       .bind(manifest.id, manifest.name, manifest.version, JSON.stringify(manifest), source, entry ? 1 : 0, now, now),
     db.prepare('DELETE FROM plugin_files WHERE plugin_id = ?').bind(manifest.id),
@@ -398,8 +401,7 @@ pluginsRoutes.openapi(
     if (!row.source) return c.json({ error: 'This plugin was uploaded; upload the new package to update it.' }, 400);
     try {
       const { zip, entry } = await packageFor(c.env, row.source);
-      const next = await install(c.env.DB, zip, row.source, entry);
-      if (next.id !== row.id) return c.json({ error: `The package's id changed to ${next.id}` }, 400);
+      const next = await install(c.env.DB, zip, row.source, entry, row.id);
       emit(c, 'settings.changed', {});
       return c.json(toApi(next), 200);
     } catch (e) {
@@ -707,7 +709,7 @@ async function choreProgress(c: Context<{ Bindings: Env }>, id: string, member: 
   const [playRes, choresRes, doneRes, notYetRes] = await db.batch<unknown>([
     db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(date, member, id),
     // Theirs, and Anyone chores (whoever gets there first earns those).
-    db.prepare('SELECT * FROM chores WHERE active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(id, member),
+    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at`).bind(id, member),
     db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(date),
     // A parent said "Not yet": play time alone doesn't send it back, the kid ticks it again.
     db.prepare('SELECT chore_id FROM chore_rejections WHERE date = ?').bind(date),

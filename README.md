@@ -99,6 +99,10 @@ Download everything your family entered as one JSON file and import it into anot
 
 Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-code), with UI/UX design decisions by Ashley Duprey.
 
+## Community
+
+Questions, ideas or want to show off your wall? Join the [Kinwall Discord](https://discord.gg/thvf3rySJD).
+
 ## Support the project
 
 Kinwall is free and self-hostable. If it's on your wall, [sponsoring on GitHub](https://github.com/sponsors/JohnDuprey) helps keep it that way.

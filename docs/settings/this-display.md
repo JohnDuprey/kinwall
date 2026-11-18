@@ -57,7 +57,7 @@ Google Photos is connected for the whole family under [Night](general.md#night) 
 
 ## Notifications
 
-This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **List updates**, **Show medicine names in notifications on this device** (with [medications](../using/medications.md) on; off by default, so reminders say only "Time for Leo's medicine"), **Which family members?** (on a kid's own device, "For Leo and the whole family." instead: it follows only them), **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
+This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **Include Anyone chores** (off by default; adds shared chores to the daily reminder), **New chores** (off by default; a push when a chore is added for someone this device follows or Anyone, skipping your own additions), **List updates**, **Show medicine names in notifications on this device** (with [medications](../using/medications.md) on; off by default, so reminders say only "Time for Leo's medicine"), **Which family members?** (on a kid's own device, "For Leo and the whole family." instead: it follows only them), **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
 
 While the family's night hours hold reminders, the card says so at the top ("At night (10:00 PM–6:00 AM) some reminders wait until morning"): that's **Hold reminders at night**, under [Night](general.md#night).
 
@@ -79,15 +79,18 @@ A device with a display key gets two tabs:
 
 **Calendars** and **Access** are never shown to a display, not even briefly. Settings shows the display view until the server confirms the device is an admin.
 
-### Apple push in the iPhone and iPad app
+### Push in the phone and tablet app
 
-A current paid-team build can receive family messages and the server reminders selected here.
-**Send test** confirms whether the server successfully handed the alert to Apple; it does not prove
+A current push-enabled app build can receive family messages and the server reminders selected here.
+**Send test** confirms whether the server successfully handed the alert to Apple or Google; it does not prove
 that the phone displayed it. The app must have notification permission and the server must have
-APNs configured. Event reminders remain local. Medicine and chore reminders switch to server
-notifications after APNs registration succeeds, avoiding duplicate local copies. Older apps,
-Android and servers without APNs continue using local reminders and the bell feed.
+the matching push service configured: APNs for iPhone/iPad, or FCM for a Firebase-enabled Android
+build with Google Play services. Event reminders remain local. Medicine and daily chore reminders
+switch to server notifications only after the app confirms delivery readiness, avoiding duplicate
+local copies. Older apps, ordinary Android builds and unavailable servers continue using local
+reminders and the bell feed. Android channel permissions still apply; **New chores** is separate
+from the daily **Chores** channel and requires its own Kinwall switch. See [server configuration](../self-hosting/configuration.md#android-push-fcm).
 
 The medicine countdown’s names setting and the separate **Show medicine names in notifications on
 this device** setting apply to different surfaces. Both default off. Names sent in a notification
-pass through Apple and may appear on the Lock Screen; enable them only deliberately.
+pass through Apple or Google and may appear on the Lock Screen; enable them only deliberately.

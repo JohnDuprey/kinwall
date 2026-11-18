@@ -22,13 +22,13 @@ function makeEnv(): Env {
   return { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, PUBLIC_URL: 'http://localhost:8080', ENCRYPTION_KEY: TEST_ENCRYPTION_KEY };
 }
 
-function makeApp(env: Env) {
+function makeApp(env: Env, background?: Promise<unknown>[]) {
   const app = createApp();
   return (p: string, init: RequestInit = {}, key = ADMIN_KEY) => {
     const headers = new Headers(init.headers);
     if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${key}`);
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-    return Promise.resolve(app.request(p, { ...init, headers }, env));
+    return Promise.resolve(app.request(p, { ...init, headers }, env, background ? { waitUntil: p => background.push(p), passThroughOnException() {}, props: {} } : undefined));
   };
 }
 
@@ -194,6 +194,19 @@ test('push: subscription CRUD + scoping (a display key cannot touch another devi
   // The endpoint/keys are never returned.
   assert.equal('endpoint' in subA, false);
   assert.equal('p256dh' in subA, false);
+});
+
+test('push: the 10-per-key cap never evicts a phone app registration when the admin key signs up browsers', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const now = new Date().toISOString();
+  await env.DB.prepare("INSERT INTO oauth_clients(id,name,redirect_uris,created_at) VALUES('app','Test app','[]',?)").bind(now).run();
+  await env.DB.prepare("INSERT INTO oauth_grants(id,client_id,scope,created_at,device_app) VALUES('grant','app','display',?,1)").bind(now).run();
+  // The Kinwall app's phone registration: no key id, oldest of all.
+  await env.DB.prepare("INSERT INTO push_subscriptions (id, api_key_id, oauth_grant_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES ('native:phone', NULL, 'grant', 'apns:phone', '', 'x', 'Phone', '[]', '{}', '2020-01-01T00:00:00Z')").run();
+  for (let i = 0; i < 11; i++) await subscribe(request, ADMIN_KEY, `browser${i}`);
+  assert.ok(await env.DB.prepare("SELECT 1 FROM push_subscriptions WHERE id = 'native:phone'").first(), 'the phone keeps its registration');
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE endpoint LIKE 'https:%'").first<{ n: number }>())?.n, 10, 'the admin key still keeps at most 10 browsers');
 });
 
 test('push: GET /api/push/vapid-public-key is display-allowed and stable', async () => {
@@ -485,6 +498,77 @@ test('notify: remindBeforeLeave counts reminders back from the leave-by time and
 // --- In-app notification feed (GET /api/notifications) ---
 
 const feed = async (request: ReturnType<typeof makeApp>, qs = '', key = ADMIN_KEY) => (await (await request(`/api/notifications${qs}`, {}, key)).json()) as any[];
+
+test('chore nudges: Anyone is opt-in per device; personal reminders and the household feed are preserved', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) });
+  const maya = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#e57' }) })).json() as any;
+  for (const [title, memberId] of [['Trash', null], ['Bed', maya.id]]) {
+    await request('/api/chores', { method: 'POST', body: JSON.stringify({ title, memberId, dueDate: '2030-03-04' }) });
+  }
+  const { row, keys } = await subscribe(request, ADMIN_KEY, 'phone', { eventReminders: false, choreNudge: true });
+  assert.equal(row.prefs.choreNudgeAnyone, false);
+  // Legacy subscriptions missing the field also default off.
+  await env.DB.prepare('UPDATE push_subscriptions SET prefs = ? WHERE id = ?').bind(JSON.stringify({ eventReminders: false, choreNudge: true }), row.id).run();
+  const push = stubPush();
+  try {
+    await runNotifications(env, new Date('2030-03-04T08:00:00Z'));
+    assert.equal(push.sent.length, 1);
+    const payload = JSON.parse(await referenceDecrypt(push.sent[0].body!, keys.privateKey, keys.p256dh, keys.auth));
+    assert.equal(payload.body, 'Bed');
+    assert.equal((await feed(request)).find(n => n.kind === 'chore').body, 'Trash, Bed');
+    const updated = await request(`/api/push/subscriptions/${row.id}`, { method: 'PATCH', body: JSON.stringify({ prefs: { choreNudgeAnyone: true } }) });
+    assert.equal(updated.status, 200);
+    assert.equal(((await updated.json()) as any).prefs.choreNudgeAnyone, true);
+    const timeOnly = await request(`/api/push/subscriptions/${row.id}`, { method: 'PATCH', body: JSON.stringify({ prefs: { choreNudgeTime: '08:00' } }) });
+    assert.equal(((await timeOnly.json()) as any).prefs.choreNudgeAnyone, true, 'editing another preference preserves opt-in');
+    // Only a shared chore remains tomorrow; opting in must still send a reminder.
+    await request('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Dishes', dueDate: '2030-03-05' }) });
+    await subscribe(request, ADMIN_KEY, 'quiet', { eventReminders: false, choreNudge: true });
+    await runNotifications(env, new Date('2030-03-05T08:00:00Z'));
+    assert.equal(push.sent.length, 2);
+    assert.ok(push.sent[1].url.endsWith('/phone'), 'a device without opt-in stays quiet for shared-only chores');
+    const next = JSON.parse(await referenceDecrypt(push.sent[1].body!, keys.privateKey, keys.p256dh, keys.auth));
+    assert.equal(next.body, 'Dishes');
+    await runNotifications(env, new Date('2030-03-05T08:00:00Z'));
+    assert.equal(push.sent.length, 2);
+  } finally { push.restore(); }
+});
+
+test('chore nudges: Anyone opt-in is independent per device and keeps member filters and the master switch', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) });
+  const maya = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#e57' }) })).json() as any;
+  const leo = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Leo', color: '#5ae' }) })).json() as any;
+  for (const [title, memberId] of [['Trash', null], ['Bed', maya.id], ['Books', leo.id]]) {
+    await request('/api/chores', { method: 'POST', body: JSON.stringify({ title, memberId, dueDate: '2030-03-04' }) });
+  }
+  const devices = [];
+  for (const [name, anyone, memberIds, enabled, expected] of [
+    ['personal', false, [maya.id], true, 'Bed'],
+    ['shared', true, [maya.id], true, 'Trash, Bed'],
+    ['all', false, [], true, 'Bed, Books'],
+    ['disabled', true, [maya.id], false, null],
+  ] as const) {
+    const device = await subscribe(request, ADMIN_KEY, name, { eventReminders: false, choreNudge: enabled, choreNudgeAnyone: anyone });
+    await request(`/api/push/subscriptions/${device.row.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds }) });
+    devices.push({ name, ...device, expected });
+  }
+  const push = stubPush();
+  try {
+    await runNotifications(env, new Date('2030-03-04T08:00:00Z'));
+    assert.equal(push.sent.length, 3);
+    for (const d of devices) {
+      const sent = push.sent.find(s => s.url.endsWith('/' + d.name));
+      if (d.expected === null) { assert.equal(sent, undefined); continue; }
+      assert.ok(sent);
+      const payload = JSON.parse(await referenceDecrypt(sent.body!, d.keys.privateKey, d.keys.p256dh, d.keys.auth));
+      assert.equal(payload.body, d.expected);
+    }
+  } finally { push.restore(); }
+});
 
 test('feed: a reminder is recorded once with no push subscriptions at all, deep-linked, for the event\'s members, and bumps rev', async () => {
   const env = makeEnv();
@@ -1092,4 +1176,207 @@ test('notify: a list update skips the device and the person who made it, in the 
   assert.equal(await sees(alexKey.key), true);
   assert.equal(await sees(ADMIN_KEY), true);
   assert.deepEqual(push.sent.map((s) => s.url.split('/').pop()).sort(), ['alex-phone', 'kitchen']);
+});
+
+test('new chores: opt-in, member filters, Anyone, language and author exclusions work independently of daily reminders', async () => {
+  const env = makeEnv(), background: Promise<unknown>[] = [];
+  const request = makeApp(env, background);
+  const drain = async () => { while (background.length) await Promise.all(background.splice(0)); };
+  const json = async (url: string, method = 'GET', body?: unknown, key = ADMIN_KEY) => {
+    const res = await request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, key);
+    assert.ok(res.ok, `${url}: ${res.status} ${await res.clone().text()}`);
+    await drain();
+    return await res.json() as any;
+  };
+  const alex = await json('/api/members', 'POST', { name: 'Alex', color: '#5ae', grownUp: true });
+  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#ea5', language: 'de' });
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#5ea' });
+  const device = async (name: string, owner: string, scope: string) => {
+    const k = await json('/api/keys', 'POST', { name, scope });
+    await json(`/api/keys/${k.id}`, 'PATCH', { owner, kind: scope === 'admin' ? 'grownup' : 'kid' });
+    return k.key as string;
+  };
+  const author = await device('Alex phone', alex.id, 'admin');
+  const authorOther = await device('Alex tablet', alex.id, 'admin');
+  const mayaKey = await device('Maya phone', maya.id, 'display');
+  const leoKey = await device('Leo phone', leo.id, 'display');
+  const subs = [];
+  for (const [name, key, enabled] of [['author', author, true], ['author-other', authorOther, true], ['maya', mayaKey, true], ['leo', leoKey, true], ['all', ADMIN_KEY, true], ['off', ADMIN_KEY, false]] as const) {
+    const s = await subscribe(request, key, name, { newChores: enabled, choreNudge: false });
+    assert.equal(s.row.prefs.newChores, enabled, 'the API saves the new preference');
+    subs.push({ name, ...s });
+  }
+  // Older child subscription rows must still follow only their owner.
+  await env.DB.prepare("UPDATE push_subscriptions SET member_ids = '[]' WHERE id = ?").bind(subs.find(s => s.name === 'leo')!.row.id).run();
+  const legacy = await subscribe(request, ADMIN_KEY, 'legacy');
+  await env.DB.prepare("UPDATE push_subscriptions SET prefs = '{}' WHERE id = ?").bind(legacy.row.id).run();
+  await json(`/api/push/subscriptions/${subs.find(s => s.name === 'all')!.row.id}`, 'PATCH', { prefs: { summaryTime: '09:00' } });
+  const push = stubPush();
+  try {
+    const chore = await json('/api/chores', 'POST', { title: 'Make bed', memberId: maya.id, dueDate: '2030-03-04', rrule: 'FREQ=DAILY' }, author);
+    assert.deepEqual(push.sent.map(s => s.url.split('/').pop()).sort(), ['all', 'maya']);
+    const sub = subs.find(s => s.name === 'maya')!;
+    const payload = JSON.parse(await referenceDecrypt(push.sent.find(s => s.url.endsWith('/maya'))!.body!, sub.keys.privateKey, sub.keys.p256dh, sub.keys.auth));
+    assert.equal(payload.title, 'Neue Aufgabe');
+    assert.equal(payload.body, 'Make bed');
+    assert.equal(payload.url, '/#/chores');
+    assert.equal((await feed(request, '', mayaKey)).filter(n => n.title === 'New chore').length, 1);
+    assert.equal((await feed(request, '', leoKey)).some(n => n.title === 'New chore'), false);
+    assert.equal((await feed(request, '', authorOther)).some(n => n.title === 'New chore'), false);
+    await json(`/api/chores/${chore.id}`, 'PATCH', { title: 'Make your bed' }, author);
+    assert.equal(push.sent.length, 2, 'editing a chore does not notify again');
+    await json('/api/chores', 'POST', { title: 'Take out trash', dueDate: '2030-03-04' }, author);
+    assert.deepEqual(push.sent.slice(2).map(s => s.url.split('/').pop()).sort(), ['all', 'leo', 'maya']);
+    assert.ok((await feed(request, '', leoKey)).some(n => n.body === 'Take out trash'));
+    assert.equal((await feed(request, '', author)).some(n => n.body === 'Take out trash'), false);
+  } finally { await drain(); push.restore(); }
+});
+
+test('new chores: library assignments notify; inactive chores, invalid creates and disabled chores do not', async () => {
+  const env = makeEnv(), background: Promise<unknown>[] = [];
+  const request = makeApp(env, background);
+  const drain = async () => { while (background.length) await Promise.all(background.splice(0)); };
+  const json = async (url: string, method: string, body: unknown) => {
+    const res = await request(url, { method, body: JSON.stringify(body) });
+    await drain();
+    assert.ok(res.ok, `${url}: ${res.status}`);
+    return await res.json() as any;
+  };
+  const key = await json('/api/keys', 'POST', { name: 'Kitchen wall', scope: 'display' });
+  const { row } = await subscribe(request, key.key, 'wall');
+  assert.equal(row.prefs.newChores, false, 'new and legacy devices default off');
+  await json(`/api/push/subscriptions/${row.id}`, 'PATCH', { prefs: { newChores: true } });
+  const push = stubPush();
+  try {
+    const item = await json('/api/chore-library', 'POST', { title: 'Clean out the car' });
+    assert.equal(push.sent.length, 0, 'saving a library template does not assign it');
+    await json(`/api/chore-library/${item.id}/assign`, 'POST', { date: '2030-03-04' });
+    assert.equal(push.sent.length, 1);
+    assert.equal((await feed(request)).filter(n => n.kind === 'chore').length, 1);
+    await json('/api/chores', 'POST', { title: 'Paused', active: false });
+    assert.equal((await request('/api/chores', { method: 'POST', body: JSON.stringify({ title: '' }) })).status, 400);
+    await drain();
+    assert.equal(push.sent.length, 1);
+    const settings = await (await request('/api/settings')).json() as any;
+    await json('/api/settings', 'PATCH', { features: { ...settings.features, chores: false } });
+    await json('/api/chores', 'POST', { title: 'Disabled' });
+    assert.equal(push.sent.length, 1);
+    assert.equal((await feed(request)).filter(n => n.kind === 'chore').length, 1);
+  } finally { await drain(); push.restore(); }
+});
+
+test('daily summaries share reads across recipients while keeping filters, language and later ticks fresh', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const json = async (url: string, method = 'GET', body?: unknown) => {
+    const res = await request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    assert.ok(res.ok, `${method} ${url}: ${res.status} ${await res.clone().text()}`);
+    return await res.json() as any;
+  };
+  await json('/api/settings', 'PATCH', { timezone: 'UTC', language: 'en' });
+  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#5ae', language: 'de' });
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#ea5', language: 'en' });
+  const sam = await json('/api/members', 'POST', { name: 'Sam', color: '#5ea', grownUp: true });
+  const device = async (name: string, owner: string) => {
+    const grownUp = owner === sam.id;
+    const key = await json('/api/keys', 'POST', { name, scope: grownUp ? 'admin' : 'display' });
+    await json(`/api/keys/${key.id}`, 'PATCH', { owner, kind: grownUp ? 'grownup' : 'kid' });
+    return key.key as string;
+  };
+  const mayaKey = await device('Maya phone', maya.id), leoKey = await device('Leo phone', leo.id), samKey = await device('Sam phone', sam.id);
+  const prefs = { dailySummary: true, summaryTime: '07:30', eventReminders: false, outingReminders: false, upkeepReminders: false };
+  const subscribers = [
+    { name: 'family-summary', ...(await subscribe(request, ADMIN_KEY, 'family-summary', prefs)) },
+    { name: 'maya-summary', ...(await subscribe(request, mayaKey, 'maya-summary', prefs)) },
+    { name: 'leo-summary', ...(await subscribe(request, leoKey, 'leo-summary', prefs)) },
+    { name: 'sam-summary', ...(await subscribe(request, samKey, 'sam-summary', prefs)) },
+  ];
+  // Delivery language comes from the owner; each device follows its chosen people.
+  await json(`/api/push/subscriptions/${subscribers[1].row.id}`, 'PATCH', { memberIds: [maya.id] });
+  await json(`/api/push/subscriptions/${subscribers[2].row.id}`, 'PATCH', { memberIds: [leo.id] });
+  await json(`/api/push/subscriptions/${subscribers[3].row.id}`, 'PATCH', { memberIds: [sam.id] });
+  const calendar = async (name: string, memberIds: string[]) => json('/api/calendars', 'POST', { kind: 'local', name, memberIds });
+  const mayaCal = await calendar('Maya', [maya.id]), leoCal = await calendar('Leo', [leo.id]), sharedCal = await calendar('Our Family', []);
+  const event = (calendarId: string, title: string, rrule?: string) => json('/api/events', 'POST', { calendarId, title, start: '2030-03-04T16:00:00Z', end: '2030-03-04T17:00:00Z', allDay: false, rrule });
+  const soccer = await event(mayaCal.id, 'Soccer'), piano = await event(leoCal.id, 'Piano');
+  await event(sharedCal.id, 'Walk', 'FREQ=DAILY;COUNT=2');
+  const hidden = await event(sharedCal.id, 'Hidden surprise');
+  await json(`/api/events/${hidden.id}/hidden`, 'PUT', { scope: 'occurrence' });
+  await json('/api/chores', 'POST', { title: 'Set the table', dueDate: '2030-03-04' });
+  const goal = await json('/api/chores', 'POST', { title: 'Practice piano', dueDate: '2030-03-04', repeatGoal: { times: 1, every: 1, unit: 'week', weekStart: 1 } });
+  await json(`/api/chores/${goal.id}/complete`, 'POST', { date: '2030-03-04' });
+  const list = await json('/api/lists', 'POST', { name: 'Checklist', kind: 'todo' });
+  await json(`/api/lists/${list.id}/items`, 'POST', [
+    { title: 'Cleats', eventId: soccer.id, priority: 'urgent' },
+    { title: 'Sheet music', eventId: piano.id },
+    { title: 'Library books', memberId: maya.id, dueDate: '2030-03-04' },
+    { title: 'Backpack', memberId: leo.id, dueDate: '2030-03-04' },
+  ]);
+  const meal = await json('/api/meals', 'POST', { date: '2030-03-04', slot: 'dinner', title: 'Tacos', mealKind: 'freeform' });
+  const db = env.DB as ReturnType<typeof openDb>;
+  const prepare = db.prepare.bind(db);
+  const reads = { meals: 0, goals: 0, calendarLookups: 0 };
+  db.prepare = (sql: string) => {
+    // Observe executions (including batch rawAll), not just statement preparation.
+    const count = () => {
+      if (sql.startsWith('SELECT slot, title FROM meals WHERE date = ?')) reads.meals++;
+      if (sql.startsWith("SELECT COALESCE(SUM(status = 'approved')")) reads.goals++;
+      if (sql === 'SELECT member_ids FROM calendars WHERE id = ?') reads.calendarLookups++;
+    };
+    const wrap = (statement: ReturnType<typeof prepare>): ReturnType<typeof prepare> => {
+      const bind = statement.bind.bind(statement), all = statement.rawAll.bind(statement), first = statement.first.bind(statement);
+      statement.bind = (...values: unknown[]) => wrap(bind(...values));
+      statement.rawAll = <T>() => { count(); return all<T>(); };
+      statement.first = <T>(col?: string) => { count(); return first<T>(col); };
+      return statement;
+    };
+    return wrap(prepare(sql));
+  };
+  const push = stubPush();
+  try {
+    const now = new Date('2030-03-04T07:30:00Z');
+    await runNotifications(env, now);
+    assert.equal(push.sent.length, 4);
+    const bodies = new Map<string, { title: string; body: string }>();
+    for (const sub of subscribers) {
+      const sent = push.sent.find(p => p.url.endsWith('/' + sub.name))!;
+      bodies.set(sub.name, JSON.parse(await referenceDecrypt(sent.body!, sub.keys.privateKey, sub.keys.p256dh, sub.keys.auth)));
+    }
+    const mayaText = bodies.get('maya-summary')!, leoText = bodies.get('leo-summary')!, samText = bodies.get('sam-summary')!, familyText = bodies.get('family-summary')!;
+    assert.equal(mayaText.title, 'Heute');
+    assert.match(mayaText.body, /^2 Termine · 1 Aufgabe/);
+    assert.match(mayaText.body, /Essen: Abendessen · Tacos/);
+    assert.match(mayaText.body, /• Soccer — ‼️ Cleats/);
+    assert.match(mayaText.body, /Heute fällig: Library books/);
+    assert.doesNotMatch(mayaText.body, /Piano|Sheet music|Backpack|Hidden surprise/);
+    assert.match(leoText.body, /^2 events · 1 chore/);
+    assert.match(leoText.body, /Piano|Walk/);
+    assert.match(leoText.body, /Due today: Backpack/);
+    assert.doesNotMatch(leoText.body, /Soccer|Cleats|Library books|Hidden surprise/);
+    assert.match(samText.body, /^1 event · 1 chore — Walk/);
+    assert.doesNotMatch(samText.body, /Soccer|Piano|Cleats|Sheet music|Library books|Backpack|Hidden surprise/);
+    assert.match(familyText.body, /^3 events · 1 chore/);
+    const summaries = (await feed(request)).filter(n => n.kind === 'summary');
+    assert.equal(summaries.length, 1);
+    assert.equal(summaries[0].body, familyText.body);
+    assert.deepEqual(reads, { meals: 1, goals: 1, calendarLookups: 0 });
+
+    // A retry whose window includes the same time skips the already-sent recipients and feed.
+    await db.prepare("DELETE FROM settings WHERE key = 'notifyLastTick'").run();
+    reads.meals = reads.goals = reads.calendarLookups = 0;
+    await runNotifications(env, now);
+    assert.equal(push.sent.length, 4);
+    assert.deepEqual(reads, { meals: 0, goals: 0, calendarLookups: 0 });
+
+    // A later recipient must read a new snapshot, rather than yesterday's or the earlier tick's.
+    const late = await subscribe(request, leoKey, 'late-summary', { ...prefs, summaryTime: '07:35' });
+    await json(`/api/meals/${meal.id}`, 'PATCH', { title: 'Soup' });
+    reads.meals = reads.goals = reads.calendarLookups = 0;
+    await runNotifications(env, new Date('2030-03-04T07:35:00Z'));
+    assert.equal(push.sent.length, 5);
+    const payload = JSON.parse(await referenceDecrypt(push.sent.at(-1)!.body!, late.keys.privateKey, late.keys.p256dh, late.keys.auth));
+    assert.match(payload.body, /Meals: Dinner · Soup/);
+    assert.doesNotMatch(payload.body, /Tacos/);
+    assert.deepEqual(reads, { meals: 1, goals: 1, calendarLookups: 0 });
+  } finally { push.restore(); }
 });

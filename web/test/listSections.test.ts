@@ -64,3 +64,23 @@ test('aisleGroup: by store and aisle; with no aisle, by department instead of on
   assert.equal(aisleGroup({ store: 'Market', aisle: null, category: 'Household' }), '\u0000Household')
   assert.equal(aisleGroup({ store: null, aisle: null, category: null }), null, 'nothing known: Other')
 })
+
+test('listSections: Pantry lists (to-do lists with purpose pantry) get their own section, after the shopping ones', () => {
+  const s = listSections([l('chores', 'todo', 0), { id: 'kitchen', kind: 'todo' as const, purpose: 'pantry' as const, sort: 1, createdAt: '2026-01-01' }, l('groceries', 'shopping', 2, undefined, 'groceries')])
+  assert.deepEqual(s.map(x => [x.type, x.label]), [['groceries', 'Groceries'], ['pantry', 'Pantry'], ['todo', 'To-dos']])
+  // A pantry list is a to-do list underneath, so older apps keep working; To-do clears it.
+  assert.deepEqual(typeFields('pantry'), { kind: 'todo', purpose: 'pantry' })
+  assert.deepEqual(typeFields('todo'), { kind: 'todo', purpose: null })
+  assert.equal(listType({ kind: 'todo', purpose: 'pantry' }), 'pantry')
+  assert.equal(listType({ kind: 'shopping', catalog: 'groceries', purpose: 'pantry' }), 'groceries') // only a to-do list is one
+})
+
+test('listDefaultChanged: refresh other cards only when the saved default changes', async () => {
+  const { listDefaultChanged } = await import('../src/listSections.ts')
+  assert.equal(listDefaultChanged({ isDefault: false }, { isDefault: true }), true)
+  assert.equal(listDefaultChanged({ isDefault: true }, { isDefault: false }), true)
+  assert.equal(listDefaultChanged({ isDefault: true }, { isDefault: true }), false)
+  assert.equal(listDefaultChanged({ isDefault: false }, { isDefault: false }), false)
+  assert.equal(listDefaultChanged({}, { isDefault: false }), false)
+  assert.equal(listDefaultChanged(undefined, { isDefault: true }), false, 'first load has no previous card')
+})

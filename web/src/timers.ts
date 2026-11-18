@@ -8,7 +8,7 @@
  * was started (a recipe step), so that spot can show it. */
 import { t } from './i18n.ts'
 
-export interface Timer { id: number; label: string; seconds: number; endsAt: number; done: boolean; left?: number; title?: string; detail?: string; key?: string; check?: number; checked?: boolean }
+export interface Timer { id: number; label: string; seconds: number; endsAt: number; done: boolean; left?: number; title?: string; detail?: string; key?: string; check?: number; checked?: boolean; nativeRevision?: string }
 /** `check`: a range's low end ("5–6 min" checks at 5): seconds from the start when it chimes and
  * says "Check it", then runs on to `seconds`. `checked`: it chimed. Timers saved before ranges have neither. */
 export type NewTimer = Pick<Timer, 'label' | 'seconds' | 'title' | 'detail' | 'key' | 'check'>
@@ -18,10 +18,13 @@ export const clock = (ms: number) => {
   return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`
 }
 
-/** 10 -> "10 min", 90 -> "1 hr 30 min", 0.5 -> "30 sec". */
+/** 10 -> "10 min", 90 -> "1 hr 30 min", 0.5 -> "30 sec", 1.5 -> "1 min 30 sec" (an hour or more: to the minute). */
 export function durationLabel(minutes: number) {
-  if (minutes < 1) return t('{n} sec', { n: Math.round(minutes * 60) })
-  const h = Math.floor(minutes / 60), m = Math.round(minutes % 60)
+  const secs = Math.round(minutes * 60)
+  if (secs < 60) return t('{n} sec', { n: secs })
+  if (secs < 3600 && secs % 60) return t('{m} min {s} sec', { m: Math.floor(secs / 60), s: secs % 60 })
+  // Rounded once, as a whole: rounding the minutes after taking the hours out made 119.5 "1 hr 60 min".
+  const total = Math.round(secs / 60), h = Math.floor(total / 60), m = total % 60
   return h ? (m ? t('{h} hr {m} min', { h, m }) : t('{n} hr', { n: h })) : t('{n} min', { n: m })
 }
 
@@ -113,3 +116,46 @@ export function ringDue(at: number): Timer[] {
   if (up.length) save(timers.map(t => up.includes(t) ? { ...t, done: true } : t))
   return up
 }
+
+/** Native changes are replayed until the next activity payload acknowledges their revision.
+ * Removed timers stay removed. Replays do not undo a later in-page pause/reset. */
+export function mergeTimerChanges(ts: Timer[], value: unknown): Timer[] {
+  if (!Array.isArray(value)) return ts
+  let changed = false
+  const next = ts.map(timer => {
+    const c = value.find(c => c && typeof c === 'object' && c.id === timer.id)
+    if (!c || typeof c.nativeRevision !== 'string' || !c.nativeRevision || c.nativeRevision === timer.nativeRevision ||
+      !Number.isFinite(c.endsAt) || (c.left !== undefined && (!Number.isFinite(c.left) || c.left < 0))) return timer
+    changed = true
+    return { ...timer, endsAt: c.endsAt, left: c.left, done: false, nativeRevision: c.nativeRevision }
+  })
+  return changed ? next : ts
+}
+
+/** Subscribe before requesting, and reconcile before ticking or publishing old web state. */
+export function connectNativeTimers() {
+  const native = () => (window as Window & { kinwallNative?: { timerControls?: boolean } }).kinwallNative?.timerControls === true
+  const post = () => {
+    if (!native()) return
+    nativeTimersReady = false
+    const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage(m: unknown): void } } } }
+    w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'timerSync' })
+  }
+  const sync = (event: Event) => {
+    if (!native()) return
+    const next = mergeTimerChanges(timers, (event as CustomEvent).detail)
+    nativeTimersReady = true
+    // Always notify: the first snapshot unlocks the initial activity publication.
+    save([...next])
+  }
+  const visibility = () => { if (document.hidden) nativeTimersReady = false; else post() }
+  window.addEventListener('kinwall:timer-sync', sync)
+  document.addEventListener('visibilitychange', visibility)
+  post()
+  return () => { window.removeEventListener('kinwall:timer-sync', sync); document.removeEventListener('visibilitychange', visibility) }
+}
+let nativeTimersReady = false
+export const nativeTimerControls = () => typeof window !== 'undefined' &&
+  (window as Window & { kinwallNative?: { timerControls?: boolean } }).kinwallNative?.timerControls === true
+export const timersReady = () => typeof window === 'undefined' ||
+  (window as Window & { kinwallNative?: { timerControls?: boolean } }).kinwallNative?.timerControls !== true || nativeTimersReady

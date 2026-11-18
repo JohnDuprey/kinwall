@@ -6,12 +6,12 @@
 
 Appearance works on two levels:
 
-* **Household**: **Settings → General → Appearance**. It applies to every device, and it's also used on the sign-in and pairing screens before a device has a key.
+* **Household**: **Settings → General → Appearance for the family**. It applies to every device, and it's also used on the sign-in and pairing screens before a device has a key.
 * **Per device**: **Settings → General**, tap **Change** under **Appearance on this device**. It overrides the household value on this device only.
 
 ## Household settings
 
-The night hours (walls resting, reminders held) are a separate card, right after Appearance. See [Night](night.md).
+The night hours (walls resting, reminders held) are a separate card, right after Appearance for the family. See [Night](night.md).
 
 | Setting | Options | Default |
 |---|---|---|
@@ -43,7 +43,7 @@ Overrides are saved in the browser's local storage on that device. They're never
 
 **Navigation position** (Auto, Bottom, Left, Right) for tablets and desktops is in the **This screen** card. Phones use the bottom bar, and a rail down the left side when turned sideways. Side menus on tablets and larger screens keep the destinations that fit and put the rest in **More**, which opens a sheet. This adjusts when you rotate the device or change text size. See [This device](../settings/this-display.md).
 
-While the on-screen keyboard is up, the header, tabs, rail and **+** button step aside so the field you're typing in, its label and its **Save** or **Add** button fit in what's left, and the navigation stays where it was (a tablet on its side doesn't switch to the phone layout). On a phone on its side, a sheet scrolls as one, with its buttons kept on the bottom edge. Everything comes back when the keyboard goes away.
+While the on-screen keyboard is up, the header, tabs, rail and **+** button step aside so the field you're typing in, its label and its **Save** or **Add** button fit in what's left, and the navigation stays where it was (a tablet on its side doesn't switch to the phone layout). On a phone on its side, a sheet scrolls as one, with its buttons kept on the bottom edge. Fields stay below the phone’s status bar and above the keyboard, including the add bar on to-do and pantry lists. Everything comes back when the keyboard goes away.
 
 ## Typeface
 

@@ -195,9 +195,11 @@ async function setup(now = at('22:00')) {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS);
   const env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN, ENCRYPTION_KEY: KEY } as Env;
-  const ctx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+  const background: Promise<unknown>[] = [];
+  const ctx = { waitUntil: (p: Promise<unknown>) => background.push(p), passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
   const req = async (p: string, method = 'GET', body?: unknown, key = ADMIN, headers: Record<string, string> = {}) => {
     const res = await createApp().request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...headers } }, env, ctx);
+    while (background.length) await Promise.all(background.splice(0));
     return { status: res.status, json: (await res.json().catch(() => null)) as any };
   };
   await req('/api/settings', 'PATCH', { timezone: 'America/Los_Angeles' });
@@ -431,6 +433,7 @@ test('heads-up push: the evening before a heavy day, once, to their own devices 
   await busyTomorrow(s);
   await s.check(s.maya.id, TODAY, { sleep: 'poorly', feelings: ['tired', SECRET] });
   const tick = await everyDevice(s);
+  const feedBefore = s.db.prepare('SELECT * FROM notifications ORDER BY id').all().results;
   assert.deepEqual(await tick(at('18:55')), {}, 'not yet');
   const sent = await tick(at('19:02'));
   assert.deepEqual(Object.keys(sent), ['maya-phone']);
@@ -443,7 +446,7 @@ test('heads-up push: the evening before a heavy day, once, to their own devices 
   const claims = s.db.prepare('SELECT key FROM sent_notifications').all<{ key: string }>().results.map((r) => r.key).filter((k) => k.startsWith('battery:'));
   assert.equal(claims.length, 1);
   assert.match(claims[0], /^battery:[0-9a-f]{64}$/, 'the claim never says who or which day');
-  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE kind != 'privacy'").first<{ n: number }>()!.n, 0, 'personal: not in the family feed');
+  assert.deepEqual(s.db.prepare('SELECT * FROM notifications ORDER BY id').all().results, feedBefore, 'personal: does not add to the family feed');
 });
 
 test('heads-up push: held through quiet hours until the morning, then "today"', async (t) => {

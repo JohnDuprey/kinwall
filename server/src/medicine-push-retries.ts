@@ -13,10 +13,11 @@ type Row = { id: string; subscription_id: string; payload: string; attempts: num
 const destination = (s: Sub) => sha256Hex(JSON.stringify([s.endpoint, s.auth, s.prefs, s.member_ids, s.lang, s.delivery_owner, s.delivery_scope]));
 const aad = (id: string) => `push-retry:${id}`;
 
-/** The scheduler's dose claim stays intact. Only a failed gateway destination gets a retry;
+/** The scheduler's dose claim stays intact. Failed gateway and Android destinations get a retry;
  * successful sibling devices and the household feed are never replayed. */
 export async function enqueueMedicinePush(env: Env, sub: Sub, payload: Payload, version: string, now: number): Promise<void> {
-  if (env.NATIVE_PUSH_SEND || apnsConfigured(env) || !nativeEndpoint(sub.endpoint) || !sub.gateway_credential) return;
+  if (!nativeEndpoint(sub.endpoint)) return;
+  if (!sub.endpoint.startsWith('fcm:') && (env.NATIVE_PUSH_SEND || apnsConfigured(env) || !sub.gateway_credential)) return;
   const id = await sha256Hex(JSON.stringify([sub.id, version, payload]));
   const pending: Pending = { version, destination: await destination(sub), payload, notBefore: now + 60000, expiresAt: now + 10 * 60000 };
   await env.DB.prepare('INSERT INTO push_retries(id,subscription_id,payload) VALUES (?,?,?) ON CONFLICT(id) DO NOTHING')

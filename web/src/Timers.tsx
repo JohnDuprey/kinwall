@@ -8,7 +8,7 @@ import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
 import Sheet from './Sheet.tsx'
 import { t } from './i18n.ts'
 import {
-  cancelTimer, chimeDue, choreOfTimer, clock, durationLabel, forgetCancel, lastCancelled, undoCancel, getTimers, isRunning, pauseTimer, phase, resetTimer, resumeTimer, ringDue,
+  connectNativeTimers, timersReady, nativeTimerControls, cancelTimer, chimeDue, choreOfTimer, clock, durationLabel, forgetCancel, lastCancelled, undoCancel, getTimers, isRunning, pauseTimer, phase, resetTimer, resumeTimer, ringDue,
   startTimer, stopTimer, subscribeTimers, timerWords, untilNext, type NewTimer, type Timer,
 } from './timers.ts'
 
@@ -65,6 +65,7 @@ const RING_AGAIN_MS = 5000
 export function TimerHost() {
   const timers = useTimers()
   const now = useNow(timers.some(isRunning))
+  useEffect(connectNativeTimers, [])
   const any = timers.length > 0
   useEffect(() => {
     if (!any) return
@@ -72,6 +73,7 @@ export function TimerHost() {
     return () => window.removeEventListener('pointerdown', unlockSound, { capture: true })
   }, [any])
   useEffect(() => {
+    if (!timersReady() || (nativeTimerControls() && document.hidden)) return
     // A range at its low end: a short, soft chime and "Check it"; it keeps running to its end.
     const check = chimeDue(Date.now())
     if (check.length) {
@@ -100,7 +102,8 @@ export function TimerHost() {
   }, [ringing])
   // The soonest timer on the Lock Screen and in the Dynamic Island, "Done" once it rings, gone when dismissed.
   useEffect(() => {
-    const a = timerActivity(timers.map(t => ({ ...t, paused: t.left !== undefined })))
+    if (!timersReady()) return
+    const a = timerActivity(timers.map(t => ({ ...t, paused: t.left !== undefined })), nativeTimerControls())
     if (a) tellAppActivity('cooking', a); else endAppActivity('cooking')
   }, [timers])
 

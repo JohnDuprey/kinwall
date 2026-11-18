@@ -1,11 +1,12 @@
+import { EventFollow } from './EventFollow.tsx'
 import { AnnouncementsButton } from './FamilyAnnouncements.tsx'
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
 import { REMINDER_OPTIONS, reminderLabel, trackerKinds } from './types.ts'
-import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { allDayLastDay, dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
@@ -38,9 +39,11 @@ import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
 import { dedupeEvents, eventPeople, gridTop, hourPx, isTimedOnDate, layoutDay, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx, type RepeatChoice } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
-import { onMinute } from './minuteTick.ts'
+import { onDayChange, onMinute, rollToToday } from './minuteTick.ts'
 import { DAY, LONG_DAY, formatDate, intlLocale, t, tc, tm, tn } from './i18n.ts'
 import { InlineFaces, ChipFace } from './Face'
+
+const WeeklyPlanner = lazy(() => import('./WeeklyPlanner.tsx'))
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -81,7 +84,7 @@ function useNowMinutes(tz: string) {
 
 /** Scrolls a time-grid to where it opens (dayLayout.ts gridTop): 7 AM, or near now on today.
  * `space`: the grid's height under its sticky head. */
-function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number, space: number) {
+function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number, space: number) {
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -299,6 +302,9 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [home])
+  // Past midnight, a view that was showing today shows the new today (Now / Next, transition warnings
+  // and the day's events follow); a day someone paged to stays put.
+  useEffect(() => onDayChange(was => setAnchor(a => rollToToday(a, was))), [])
 
   // Category filter: [] shows everything; otherwise only the picked categories ('__none' = events
   // with no category). Saved per device, since a wall display may want e.g. work events hidden for
@@ -475,6 +481,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} warnMinutes={warnTimes} />}
       {warnTimes.length > 0 && <TransitionWarnings events={todayEvents} minutes={warnTimes} sound={!!device.warningSound} settings={settings} />}
       {parentDevice && <SyncAlert calendars={calendars} />}
+      {parentDevice && !locked && home && <Suspense fallback={null}><WeeklyPlanner home /></Suspense>}
       {home ? (!locked || (viewMode === 'board' && categories.length > 0)) && (
         // Home: Board | Newscast, the Board's count chips, Polls, Outings and Layout and filter. Locked
         // to a view, just the category filter (when the family has categories).
@@ -511,6 +518,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
           </div>
           {/* Show hidden and the filter sit together at the end, same size and gap. */}
           <div className="toolbar-end">
+            {parentDevice && !locked && <Suspense fallback={null}><WeeklyPlanner home={false} /></Suspense>}
             {/* A day opened from Month on a phone: Back to it. With the switch inline, its Month is that one tap already. */}
             {isPhone && viewMode === 'day' && dayFrom && !locked && !tabsShown && (
               <button type="button" className="btn btn-secondary day-back" aria-label={t('Back to {view}', { view: viewLabel(dayFrom, true) })} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>
@@ -1045,7 +1053,8 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
     else onToggleMember(memberId)
   }
   const { background: detailBar } = eventVisual(event, members, categories, 10)
-  const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? t('another calendar')
+  const calendarEntry = calendars.find(c => c.id === event.calendarId)
+  const calendarName = calendarEntry?.name ?? t('another calendar')
   const scopeLabel = memberScopeLabel(event.memberScope)
   const catLabel = categoryLabel(event, categories)
   return (
@@ -1054,7 +1063,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="detail-color-bar" style={{ background: detailBar }} />
         <div style={{ fontWeight: 800, fontSize: '0.9375rem' }}>
-          {event.allDay ? `${formatDate(new Date(event.start + 'T00:00:00'), DAY)}${event.end !== addDays(new Date(event.start + 'T00:00:00'), 1).toISOString().slice(0, 10) ? ' – ' + formatDate(addDays(new Date(event.end + 'T00:00:00'), -1), DAY) : ''} · ${t('All day')}`
+          {event.allDay ? (() => { const last = allDayLastDay(event.start, event.end); return `${formatDate(new Date(event.start + 'T00:00:00'), DAY)}${last ? ' – ' + formatDate(new Date(last + 'T00:00:00'), DAY) : ''} · ${t('All day')}` })()
             : `${formatDate(new Date(event.start), DAY)} · ${formatTime(event.start, tz)} – ${formatTime(event.end, tz)}`}
         </div>
         {event.meal && event.meal.mealKind !== 'dining_out' && <div className="chip-row"><span className="chip chip-static">🍽️ {mealEventStatus(event.meal).text}</span></div>}
@@ -1072,6 +1081,11 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             <RepeatIcon width={18} height={18} />{t('Repeats')}
           </div>
         )}
+        {calendarEntry && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
+            <CalendarIcon width={18} height={18} style={{ flexShrink: 0 }} />{calendarEntry.name}
+          </div>
+        )}
         {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>{catLabel}</div>}
         {event.busy === false && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>{t("Free: doesn't block time")}</div>}
         {reminderLabel(event.reminders) && (
@@ -1079,6 +1093,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             🔔 {(() => { const reminder = event.remindBeforeLeave && event.leaveAt ? t('{reminder} leaving', { reminder: reminderLabel(event.reminders)! }) : reminderLabel(event.reminders)!; return event.reminderSource === 'default' ? t('{reminder} · default', { reminder }) : reminder })()}
           </div>
         )}
+        <EventFollow key={`${event.id}:${event.start}`} event={event} />
         {leadOf(event) && <div className="leave-by">{leadText(event, t => formatTime(t, tz))}</div>}
         {/* Read-only events have no edit sheet, so their travel time is set right here. */}
         {canEdit && event.readOnly && !event.allDay && (
@@ -1139,7 +1154,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             {t('Only the family members and travel time are saved in Kinwall — the event itself comes from {calendar}.', { calendar: calendarName })}
           </div>
         )}
-        {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} choosing={hiding} setChoosing={setHiding} />}
+        {parent && <HideSection event={event} calendar={calendarEntry} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} choosing={hiding} setChoosing={setHiding} />}
         {canEdit && !event.readOnly && <div className="sheet-danger-zone"><button className="link-btn link-danger" onClick={() => { setHiding(false); onDelete() }}>{t('Delete event')}</button></div>}
       </div>
     </Sheet>
@@ -1212,7 +1227,7 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
     load()
     api.getLists().then(ls => {
       setLists(ls)
-      setListId(id => ls.some(l => l.id === id) ? id : (ls.find(l => l.kind === 'todo') ?? ls[0])?.id ?? '')
+      setListId(id => ls.some(l => l.id === id) ? id : (ls.find(l => l.kind === 'todo' && l.purpose !== 'pantry') ?? ls[0])?.id ?? '')
     }).catch(() => setLists([]))
   }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = async (item: ListItem) => {
@@ -1312,7 +1327,7 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
   )
 }
 
-function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, members, categories, onClose, onSave }: {
+export function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, members, categories, onClose, onSave }: {
   event: EventInstance | null; prefill?: Partial<EventInstance>; calendars: CalendarEntry[]; offerNewLocal: boolean
   /** Opened from a share (a flyer or invite): Save to Outings sits beside Add event, with what the flyer said. */
   shared?: OutingExtras
@@ -1469,8 +1484,8 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
       </div>
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">
-          <label>{t('Starts')}</label>
-          <input type="date" value={startDate} onChange={e => { if (e.target.value) moveStart(e.target.value, startTime) }} />
+          <label htmlFor="event-start-date">{t('Starts')}</label>
+          <input id="event-start-date" type="date" value={startDate} onChange={e => { if (e.target.value) moveStart(e.target.value, startTime) }} />
         </div>
         {!allDay && (
           <div className="field">
@@ -1479,8 +1494,8 @@ function EventEditSheet({ event, prefill, shared, calendars, offerNewLocal, memb
           </div>
         )}
         <div className="field">
-          <label>{t('Ends')}</label>
-          <input type="date" value={endDate} min={startDate} onChange={e => { setEndDate(e.target.value); setEndPicked(true) }}
+          <label htmlFor="event-end-date">{t('Ends')}</label>
+          <input id="event-end-date" type="date" value={endDate} min={startDate} onChange={e => { setEndDate(e.target.value); setEndPicked(true) }}
             aria-invalid={endBeforeStart || undefined} aria-describedby={endBeforeStart ? 'event-end-error' : undefined} />
         </div>
         {!allDay && (

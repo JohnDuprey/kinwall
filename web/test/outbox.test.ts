@@ -163,3 +163,14 @@ test('applyChoreOps: ticks and unticks for that day only', () => {
     { id: 'k2', completed: false, completedBy: null },
   ])
 })
+
+test('applyChoreOps: repeated ongoing ticks keep the definition and distinct retry-safe history', () => {
+  const chores = [{ id: 'wash', completed: false, completedBy: null, ongoing: true }]
+  const tick: Op = { tag: TAG, method: 'POST', path: 'api/chores/wash/complete', body: { date: '2026-09-27', memberId: 'maya', operationId: 'one' } }
+  const two = { ...tick, body: { date: '2026-09-27', memberId: 'leo', operationId: 'two' } }
+  const out = outbox.applyChoreOps(chores, '2026-09-27', [tick, tick, two])
+  assert.deepEqual(out.map(c => [c.id, c.completed]), [['wash', false], ['wash:one', true], ['wash:two', true]])
+  const undo: Op = { tag: TAG, method: 'DELETE', path: 'api/chores/wash:one/complete?date=2026-09-27' }
+  assert.deepEqual(outbox.applyChoreOps(out, '2026-09-27', [undo]).map(c => c.id), ['wash', 'wash:two'])
+  assert.deepEqual(chores, [{ id: 'wash', completed: false, completedBy: null, ongoing: true }])
+})

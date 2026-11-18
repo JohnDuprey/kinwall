@@ -1,4 +1,8 @@
+import { MealDateSchema } from '../meal-schemas.ts';
+import { PlanningExportSchema } from '../weekly-planning-schemas.ts';
+import { exportWeeklyPlans } from '../weekly-planning.ts';
 import { AnnouncementSchema, readAnnouncements } from '../announcements.ts';
+import { InboxItemSchema, readInbox } from '../inbox.ts';
 // "Your data": GET /api/export (everything the family entered, minus credentials), POST /api/import
 // (merges an export back in) and GET /api/host-events (see host-events.ts). All admin-only -
 // display keys are denied by default in auth.ts.
@@ -43,6 +47,7 @@ import { PollSchema, readPolls } from './polls.ts';
 import { OutingCategorySchema, OutingSchema, readOutingCategories, readOutings } from './outings.ts';
 import { UpkeepAreaSchema, UpkeepEntrySchema, UpkeepJobSchema, UpkeepThingSchema } from './upkeep.ts';
 import { readAreas, readJobs, readLog, readThings } from '../upkeep.ts';
+import { DEFAULT_YEAR_START, readGrades, readKids, readLogs, readSubjects, SchoolGradeSchema, SchoolKidSchema, SchoolLogSchema, SchoolSubjectSchema } from './school.ts';
 import {
   CalendarSchema,
   CalendarFilterSchema,
@@ -145,6 +150,7 @@ const ExportSchema = z
     // The chore library (0082): saved chores to hand out. Older exports predate it.
     choreLibrary: z.array(LibraryChoreSchema.pick({ id: true, title: true, emoji: true, points: true, listId: true, memberId: true, everyN: true, everyUnit: true, needsApproval: true, notes: true, createdAt: true })),
     // pointsAwarded: older exports predate it - null imports as the chore's full points.
+    choreDismissals: z.array(z.object({ choreId: z.string(), date: MealDateSchema, dismissedAt: z.string() })).default([]),
     choreCompletions: z.array(z.object({ id: z.string(), choreId: z.string(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), pointsAwarded: z.number().nullable().default(null), status: z.enum(['approved', 'pending']).default('approved') })),
     lists: z.array(
       ListSchema.extend({
@@ -152,6 +158,8 @@ const ExportSchema = z
         keepChecked: z.boolean().optional(), // older exports: the kind's default (0040)
         catalog: z.enum(CATALOGS).nullable().optional(), // older exports predate list types (0076): see catalogsFor
         isDefault: z.boolean().default(false), // older exports predate default lists (0088)
+        purpose: ListSchema.shape.purpose.default(null), // older exports predate pantry lists (0143)
+        restock: z.boolean().default(false),
         overdueCount: z.number().optional(), // computed, and older exports predate it
         itemsRev: z.number().optional(), // computed, and older exports predate it
         lastDoneAt: z.string().nullable().default(null), // older exports predate who-did-what (0078)
@@ -205,7 +213,10 @@ const ExportSchema = z
     // The restaurant binder (0100), each with its menu.
     restaurants: z.array(RestaurantSchema),
     // Family polls (0102), each with its choices and who voted for what.
+    weeklyPlans: z.array(PlanningExportSchema),
     announcements: z.array(AnnouncementSchema.refine(a => Date.parse(a.expiresAt) > Date.parse(a.startsAt), 'Expiration must be after start')),
+    // The quick-capture inbox (0147): open, sorted and cleared thoughts, with where sorted ones went.
+    inboxItems: z.array(InboxItemSchema),
     polls: z.array(PollSchema),
     // Outings (0111): things to do and places to go, with who marked them, and their categories.
     outings: z.array(OutingSchema),
@@ -216,6 +227,14 @@ const ExportSchema = z
     upkeepThings: z.array(UpkeepThingSchema.omit({ files: true })),
     upkeepJobs: z.array(UpkeepJobSchema.omit({ nextDue: true, status: true, lastDone: true, calendarEventStart: true })),
     upkeepLog: z.array(UpkeepEntrySchema.omit({ files: true })),
+    // School (0150): subjects, which kids are in school, and every log of school time.
+    schoolSubjects: z.array(SchoolSubjectSchema),
+    schoolKids: z.array(SchoolKidSchema),
+    schoolLogs: z.array(SchoolLogSchema),
+    schoolGrades: z.array(SchoolGradeSchema),
+    schoolReportCards: z.array(z.object({ id: z.string().optional(), memberId: z.string().nullable(), formerMember: z.string().nullable().default(null), year: z.number().int(), term: z.number().int(), photoId: z.string() })),
+    // A grown-up's mark for one kid's day (0154): school, a half day or none, over what the calendars say.
+    schoolDayMarks: z.array(z.object({ memberId: z.string(), date: z.string(), kind: z.enum(['school', 'half', 'off']) })),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
@@ -293,9 +312,9 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes, school_days_off FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
-      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, emoji, color, kind, purpose, restock, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
         'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, for_member_ids, on_sale, due_date, event_id, priority, done, done_at, done_by, done_by_label, added_by, added_by_label, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
@@ -403,6 +422,7 @@ dataRoutes.openapi(
         choreLibrary: (await db.prepare('SELECT id, title, emoji, points, list_id, member_id, every_n, every_unit, needs_approval, notes, created_at FROM chore_library ORDER BY created_at, id').all<LibraryRow>()).results.map((r) => ({
           id: r.id, title: r.title, emoji: r.emoji, points: r.points, listId: r.list_id, memberId: r.member_id, everyN: r.every_n, everyUnit: r.every_unit, needsApproval: r.needs_approval == null ? null : !!r.needs_approval, notes: r.notes, createdAt: r.created_at,
         })),
+        choreDismissals: (await db.prepare('SELECT chore_id, date, dismissed_at FROM chore_dismissals ORDER BY date, chore_id').all<{ chore_id: string; date: string; dismissed_at: string }>()).results.map(r => ({ choreId: r.chore_id, date: r.date, dismissedAt: r.dismissed_at })),
         choreCompletions: (completions as CompletionRow[]).map((r) => ({ id: r.id, choreId: r.chore_id, date: r.date, memberId: r.member_id, completedAt: r.completed_at, pointsAwarded: r.points_awarded, status: r.status })),
         lists: (lists as ListRow[]).map((l) => {
           const mine = itemRows.filter((i) => i.list_id === l.id);
@@ -432,7 +452,9 @@ dataRoutes.openapi(
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         restaurants: await readRestaurants(db, { archived: true }),
+        weeklyPlans: await exportWeeklyPlans(db),
         announcements: (await readAnnouncements(db, true)).announcements,
+        inboxItems: (await readInbox(db, true)).items,
         polls: await readPolls(db),
         outings: await readOutings(db),
         outingCategories: await readOutingCategories(db),
@@ -440,6 +462,12 @@ dataRoutes.openapi(
         upkeepThings: (await readThings(db)).map(({ files: _, ...t }) => t),
         upkeepJobs: (await readJobs(db, '0000-01-01', (iso) => iso.slice(0, 10), { rawArchive: true })).map(({ nextDue: _n, status: _s, lastDone: _l, calendarEventStart: _e, ...j }) => j),
         upkeepLog: (await readLog(db)).map(({ files: _, ...e }) => e),
+        schoolSubjects: await readSubjects(db, true),
+        schoolKids: await readKids(db),
+        schoolLogs: await readLogs(db),
+        schoolGrades: await readGrades(db),
+        schoolReportCards: (await db.prepare('SELECT id, member_id, former_member, year, term, photo_id FROM school_report_cards ORDER BY member_id, year, term').all<{ id: string; member_id: string | null; former_member: string | null; year: number; term: number; photo_id: string }>()).results.map((r) => ({ id: r.id, memberId: r.member_id, formerMember: r.former_member, year: r.year, term: r.term, photoId: r.photo_id })),
+        schoolDayMarks: (await db.prepare('SELECT member_id, date, kind FROM school_day_marks ORDER BY member_id, date').all<{ member_id: string; date: string; kind: 'school' | 'half' | 'off' }>()).results.map((r) => ({ memberId: r.member_id, date: r.date, kind: r.kind })),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
@@ -501,7 +529,9 @@ const ImportSchema = ExportSchema.extend({
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
   restaurants: ExportSchema.shape.restaurants.default([]),
+  weeklyPlans: ExportSchema.shape.weeklyPlans.default([]),
   announcements: ExportSchema.shape.announcements.default([]),
+  inboxItems: ExportSchema.shape.inboxItems.default([]),
   polls: ExportSchema.shape.polls.default([]),
   outings: ExportSchema.shape.outings.default([]),
   outingCategories: ExportSchema.shape.outingCategories.default([]),
@@ -509,6 +539,12 @@ const ImportSchema = ExportSchema.extend({
   upkeepThings: ExportSchema.shape.upkeepThings.default([]),
   upkeepJobs: ExportSchema.shape.upkeepJobs.default([]),
   upkeepLog: ExportSchema.shape.upkeepLog.default([]),
+  schoolSubjects: ExportSchema.shape.schoolSubjects.default([]),
+  schoolLogs: ExportSchema.shape.schoolLogs.default([]),
+  schoolGrades: ExportSchema.shape.schoolGrades.default([]),
+  schoolReportCards: ExportSchema.shape.schoolReportCards.default([]),
+  schoolDayMarks: ExportSchema.shape.schoolDayMarks.default([]),
+  schoolKids: z.array(SchoolKidSchema.partial({ dayStart: true, dayEnd: true, schoolDays: true, calendarIds: true, halfDayEnd: true, halfFromSchoolTime: true, lastDay: true, schoolContactId: true, teacherName: true, teacherEmail: true, teacherLink: true, contactIds: true, terms: true, yearGoalHours: true, yearGoalDays: true, dailyGoalMinutes: true, yearStart: true, toSchoolBy: true, toSchoolTime: true, fromSchoolBy: true, fromSchoolTime: true }).extend({ calendarId: z.string().nullable().optional() })).default([]), // older exports lack the newer fields (and had one calendarId)
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
@@ -556,10 +592,13 @@ const ImportResultSchema = z
       recipes: z.number(),
       meals: z.number(),
       restaurants: z.number(),
+      weeklyPlans: z.number(),
       announcements: z.number(),
+      inboxItems: z.number(),
       polls: z.number(),
       outings: z.number(),
       upkeep: z.number(),
+      school: z.number(),
       mealShoppingSources: z.number(),
       itemMemory: z.number(),
       storeAisles: z.number(),
@@ -719,6 +758,12 @@ dataRoutes.openapi(
     const checkIns = body.checkIns.filter((ci) => fileMembers.has(ci.memberId));
     const scrapbook = body.scrapbook.filter((st) => fileMembers.has(st.memberId));
     const redemptions = body.rewardRedemptions.filter((r) => fileMembers.has(r.memberId));
+    const schoolKids = body.schoolKids.filter((k) => fileMembers.has(k.memberId));
+    // A member's school records with that member; a removed member's (memberId null, under formerMember) always.
+    const schoolLogs = body.schoolLogs.filter((l) => l.memberId === null || fileMembers.has(l.memberId));
+    const schoolGrades = body.schoolGrades.filter((g) => g.memberId === null || fileMembers.has(g.memberId));
+    const schoolReportCards = body.schoolReportCards.filter((r) => r.memberId === null || fileMembers.has(r.memberId));
+    const schoolDayMarks = body.schoolDayMarks.filter((m) => fileMembers.has(m.memberId));
     // A member's entries only with that member (they're personal); the family's and removed members' always.
     // A connected app without aiHealthAccess neither adds health entries nor overwrites one by id, nor turns the switch on.
     const healthHidden = !!(await healthBlock(c));
@@ -910,6 +955,8 @@ dataRoutes.openapi(
         })),
         { ...keepCreated, expr: { member_id: memberRef('member_id') } },
       ),
+      // Before chores: schoolwork points at its subject.
+      ...upserts(db, 'school_subjects', 'id', body.schoolSubjects.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, color: s.color, sort: s.sort, archived: s.archived ? 1 : 0, goal_hours: s.goalHours ?? null, created_at: new Date().toISOString() })), keepCreated),
       ...upserts(
         db,
         'chores',
@@ -937,9 +984,18 @@ dataRoutes.openapi(
           timer_minutes: ch.timerMinutes,
           archived: ch.archived ? 1 : 0,
           library_id: ch.libraryId,
+          group_id: ch.groupId,
+          category: ch.category,
+          ongoing: ch.ongoing ? 1 : 0,
+          source_id: ch.sourceId,
+          school_subject_id: ch.schoolSubjectId ?? null,
+          school_kind: ch.schoolKind ?? null,
+          school_minutes: ch.schoolMinutes ?? null,
+          school_days_off: ch.schoolDaysOff ? 1 : 0,
         })),
-        { ...keepCreated, expr: { member_id: memberRef('member_id'), library_id: "(SELECT id FROM chore_library WHERE id = j.value->>'library_id')" } },
+        { ...keepCreated, expr: { member_id: memberRef('member_id'), library_id: "(SELECT id FROM chore_library WHERE id = j.value->>'library_id')", school_subject_id: "(SELECT id FROM school_subjects WHERE id = j.value->>'school_subject_id')" } },
       ),
+      ...upserts(db, 'chore_dismissals', 'chore_id, date', body.choreDismissals.filter(d => choreIds.has(d.choreId)).map(d => ({ chore_id: d.choreId, date: d.date, dismissed_at: d.dismissedAt }))),
       // UNIQUE(chore_id, date) is the natural key (as in POST /chores/:id/complete); an existing tick keeps its id.
       ...upserts(
         db,
@@ -964,6 +1020,8 @@ dataRoutes.openapi(
           emoji: l.emoji,
           color: l.color,
           kind: l.kind,
+          purpose: l.kind === 'todo' ? l.purpose : null,
+          restock: l.kind === 'todo' && l.purpose === 'pantry' && l.restock ? 1 : 0,
           member_ids: JSON.stringify(l.memberIds),
           group_by: l.groupBy,
           sort_by: l.sortBy,
@@ -1106,7 +1164,17 @@ dataRoutes.openapi(
         { ...keepCreated, expr: { thing_id: "(SELECT id FROM upkeep_things WHERE id = j.value->>'thing_id')", area_id: "(SELECT id FROM upkeep_areas WHERE id = j.value->>'area_id')", member_id: memberRef('member_id'), contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')", supplies_list_id: "(SELECT id FROM lists WHERE id = j.value->>'supplies_list_id')", calendar_event_id: "(SELECT id FROM events WHERE id = j.value->>'calendar_event_id')", handed_chore_id: "(SELECT id FROM chores WHERE id = j.value->>'handed_chore_id')" } }),
       ...upserts(db, 'upkeep_log', 'id', body.upkeepLog.map((e) => ({ id: e.id, job_id: e.jobId, thing_id: e.thingId, title: e.title, done_on: e.doneOn, member_id: e.memberId, contact_id: e.contactId, cost_cents: e.costCents, reading: e.reading, reading_unit: e.readingUnit, notes: e.notes, chore_id: e.choreId, chore_date: e.choreDate ?? null, created_by: e.createdBy, created_at: e.createdAt })),
         { ...keepCreated, expr: { job_id: "(SELECT id FROM upkeep_jobs WHERE id = j.value->>'job_id')", thing_id: "(SELECT id FROM upkeep_things WHERE id = j.value->>'thing_id')", member_id: memberRef('member_id'), created_by: memberRef('created_by'), contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'contact_id')" } }),
+      db.prepare('DELETE FROM weekly_plan_applies WHERE week_start IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.weeklyPlans.map(p => p.weekStart))),
+      ...upserts(db, 'weekly_plans', 'week_start', body.weeklyPlans.map(p => ({ week_start: p.weekStart, revision: p.revision, draft: JSON.stringify(p.draft), applied: JSON.stringify(p.applied) }))),
       ...upserts(db, 'announcements', 'id', body.announcements.map(a => ({ id: a.id, title: a.title, details: a.details, starts_at: new Date(a.startsAt).toISOString(), expires_at: new Date(a.expiresAt).toISOString(), priority: a.priority, created_at: a.createdAt, updated_at: a.updatedAt })), keepCreated),
+      ...upserts(db, 'school_kids', 'member_id', schoolKids.map((k) => ({ member_id: k.memberId, mode: k.mode, grade: k.grade, approve_logs: k.approveLogs ? 1 : 0, day_start: k.dayStart ?? null, day_end: k.dayEnd ?? null, to_school_by: k.toSchoolBy ?? null, to_school_time: k.toSchoolTime ?? null, from_school_by: k.fromSchoolBy ?? null, from_school_time: k.fromSchoolTime ?? null, school_days: JSON.stringify(k.schoolDays ?? [1, 2, 3, 4, 5]), calendar_ids: JSON.stringify(k.calendarIds ?? (k.calendarId ? [k.calendarId] : [])), half_day_end: k.halfDayEnd ?? null, half_from_school_time: k.halfFromSchoolTime ?? null, last_day: k.lastDay ?? null, school_contact_id: k.schoolContactId ?? null, teacher_name: k.teacherName ?? null, teacher_email: k.teacherEmail ?? null, teacher_link: k.teacherLink ?? null, contact_ids: JSON.stringify(k.contactIds ?? []), terms: k.terms ?? 3, year_goal_hours: k.yearGoalHours ?? null, year_goal_days: k.yearGoalDays ?? null, daily_goal_minutes: k.dailyGoalMinutes ?? null, year_start: k.yearStart ?? DEFAULT_YEAR_START, updated_at: new Date().toISOString() })),
+        { expr: { calendar_ids: "(SELECT json_group_array(c.id) FROM calendars c WHERE c.id IN (SELECT value FROM json_each(j.value->>'calendar_ids')))", school_contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'school_contact_id')" } }),
+      ...upserts(db, 'school_grades', 'id', schoolGrades.map((g) => ({ id: g.id, member_id: g.memberId, former_member: g.formerMember ?? null, year: g.year, term: g.term, subject_id: g.subjectId, grade: g.grade, updated_at: g.updatedAt })), { expr: { member_id: memberRef('member_id') }, where: "EXISTS (SELECT 1 FROM school_subjects WHERE id = excluded.subject_id)" }),
+      ...upserts(db, 'school_day_marks', 'member_id, date', schoolDayMarks.map((m) => ({ member_id: m.memberId, date: m.date, kind: m.kind }))),
+      ...upserts(db, 'school_report_cards', 'id', schoolReportCards.map((r) => ({ id: r.id ?? crypto.randomUUID(), member_id: r.memberId, former_member: r.formerMember ?? null, year: r.year, term: r.term, photo_id: r.photoId, updated_at: new Date().toISOString() })), { expr: { member_id: memberRef('member_id') } }),
+      ...upserts(db, 'school_logs', 'id', schoolLogs.map((l) => ({ id: l.id, group_id: l.groupId, member_id: l.memberId, former_member: l.formerMember ?? null, subject_id: l.subjectId, date: l.date, minutes: l.minutes, title: l.title, notes: l.notes, pending: l.pending ? 1 : 0, created_by: l.createdBy, created_at: l.createdAt, updated_at: l.updatedAt, chore_id: l.choreId ?? null, chore_date: l.choreDate ?? null, photo_id: l.photoId ?? null })),
+        { ...keepCreated, expr: { member_id: memberRef('member_id'), subject_id: "(SELECT id FROM school_subjects WHERE id = j.value->>'subject_id')", created_by: memberRef('created_by') } }),
+      ...upserts(db, 'inbox_items', 'id', body.inboxItems.map(i => ({ id: i.id, text: i.text, status: i.status, target: i.target ? JSON.stringify(i.target) : null, created_at: i.createdAt, updated_at: i.updatedAt, done_at: i.doneAt })), keepCreated),
       // A poll's choices in the file replace its choices here; votes by members or for choices not here are dropped.
       ...upserts(db, 'polls', 'id', body.polls.map((p) => ({ id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winner_option_id: p.winnerOptionId, meal_id: p.mealId, created_by: p.createdBy, created_at: p.createdAt, closed_at: p.closedAt })), { ...keepCreated, expr: { meal_id: "(SELECT id FROM meals WHERE id = j.value->>'meal_id')", created_by: memberRef('created_by') } }),
       db.prepare('DELETE FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.polls.map((p) => p.id))),
@@ -1151,10 +1219,13 @@ dataRoutes.openapi(
       ['recipe.changed', body.recipes.length],
       ['meal.changed', body.meals.length],
       ['restaurant.changed', body.restaurants.length],
+      ['weekly-plan.changed', body.weeklyPlans.length],
       ['announcement.changed', body.announcements.length],
+      ['inbox.changed', body.inboxItems.length],
       ['poll.changed', body.polls.length],
       ['outing.changed', body.outings.length + body.outingCategories.length],
       ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
+      ['school.changed', body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1195,10 +1266,13 @@ dataRoutes.openapi(
           recipes: body.recipes.length,
           meals: body.meals.length,
           restaurants: body.restaurants.length,
+          weeklyPlans: body.weeklyPlans.length,
           announcements: body.announcements.length,
+          inboxItems: body.inboxItems.length,
           polls: body.polls.length,
           outings: body.outings.length,
           upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,
+          school: body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

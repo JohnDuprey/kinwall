@@ -7,7 +7,7 @@ import { isConnectedApp } from '../auth.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { requestKey, sha256Hex } from '../auth.ts';
-import { encrypt, seal } from '../crypto.ts';
+import { encrypt, seal, unseal } from '../crypto.ts';
 import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import { ErrorSchema, NativePushStatusSchema } from '../schemas.ts';
@@ -22,7 +22,7 @@ const TokenSchema = z
     token: z.string().regex(/^[0-9a-f]{16,400}$/i).openapi({ description: 'The APNs token, hex. Never returned or logged' }),
     activity: z.string().min(1).max(300).optional().openapi({ description: "An update token's activity, as the app names it: 'leaveBy:<event id>@<start>'" }),
     endsAt: z.string().datetime({ offset: true }).optional().openapi({ description: "An update token's activity: when the server should end it" }),
-    preferences: z.object({ leaveBy: z.boolean().default(true), medications: z.boolean().default(false), medicationNames: z.boolean().default(false), kidDoses: z.boolean().default(false) }).strict().optional().openapi({ description: 'Start token only: per-device opt-ins. Medicines are off for older registrations; kidDoses requires a parent device.' }),
+    preferences: z.object({ events: z.boolean().default(false), leaveBy: z.boolean().default(true), medications: z.boolean().default(false), medicationNames: z.boolean().default(false), kidDoses: z.boolean().default(false) }).strict().optional().openapi({ description: 'Start token only: per-device capabilities and opt-ins. events enables scheduling of personally followed events; old registrations default off. kidDoses requires a parent device.' }),
     gateway: GatewayInput.nullable().optional(),
   })
   .strict()
@@ -84,6 +84,12 @@ liveActivitiesRoutes.openapi(
     )
       .bind(id, d.device, d.keyId, d.grantId, body.kind, body.activity ?? '', await seal(c.env, token, aad(id)), body.endsAt ?? null, new Date().toISOString(), gatewayCredential, gatewayExpiresAt, gatewayCredential ? fingerprint : null, JSON.stringify(body.preferences ?? {}), '')
       .run();
+    if (body.kind === 'start') {
+      // Signing in again leaves the old key or grant with this phone's same push-to-start token;
+      // both would start every activity, so the phone showed each one twice. The newest sign-in keeps it.
+      const { results: others } = await c.env.DB.prepare("SELECT id,token FROM live_activity_tokens WHERE kind='start' AND device<>?").bind(d.device).all<{ id: string; token: string }>();
+      for (const o of others) if (await unseal(c.env, o.token, aad(o.id)).catch(() => '') === token) await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE id=?').bind(o.id).run();
+    }
     await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND id NOT IN (SELECT id FROM live_activity_tokens WHERE device = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)')
       .bind(d.device, d.device, MAX_TOKENS_PER_DEVICE)
       .run();
@@ -108,7 +114,7 @@ liveActivitiesRoutes.openapi(
     const { activity } = c.req.valid('json');
     const d = await device(c);
     if (!d) return c.json({ error: 'register from a device key' }, 400);
-    if (!activity) await c.env.DB.prepare("UPDATE live_activity_tokens SET preferences=json_set(preferences,'$.endRequested',json('true')) WHERE device=? AND kind='update' AND activity LIKE 'medication:%'").bind(d.device).run();
+    if (!activity) await c.env.DB.prepare("UPDATE live_activity_tokens SET preferences=json_set(preferences,'$.endRequested',json('true')) WHERE device=? AND kind='update' AND (activity LIKE 'medication:%' OR activity LIKE 'event:%')").bind(d.device).run();
     await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND kind = ? AND activity = ?').bind(d.device, activity ? 'update' : 'start', activity ?? '').run();
     return c.json({ ok: true }, 200);
   },

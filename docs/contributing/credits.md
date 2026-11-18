@@ -26,7 +26,13 @@ Bundled in `web/src/fonts/` (each folder holds its license), from the [Fontsourc
 
 ## Icons
 
-Several of Kinwall's icons (the gear, book, person, cart, basket, pill, cloud-off and eye) are drawn from or after [Lucide](https://lucide.dev), under the ISC License:
+Several of Kinwall's interface icons are drawn from or after [Lucide](https://lucide.dev),
+including the gear, book, person, cart, basket, pill, cloud-off, eye, upkeep wrench,
+tickets, meals and drawing tools. See [Interface icons](icons.md) for the shared
+icon conventions and source revision. The complete Lucide license, including the
+MIT notice for icons derived from Feather, is retained in
+[`web/src/icons-LICENSE`](https://github.com/JohnDuprey/kinwall/blob/main/web/src/icons-LICENSE).
+Lucide's ISC notice follows:
 
 ```
 ISC License
@@ -89,7 +95,7 @@ Each is used only when a family turns it on or uses the feature that needs it, a
 
 Kinwall connects to these open-source projects; they're credited where they come up in the docs too.
 
-* [Home Assistant](https://www.home-assistant.io) and [HACS](https://hacs.xyz), for the [Kinwall integration and add-on](../integrations/home-assistant.md).
+* [Home Assistant](https://www.home-assistant.io), its Marketplace and [HACS](https://hacs.xyz) before it, for the [Kinwall integration and add-on](../integrations/home-assistant.md).
 * The [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home Assistant by Katherine Dubé, behind the [meal kit blueprints](../integrations/home-assistant.md#meal-kits).
 * [n8n](https://n8n.io), for [workflows](../integrations/n8n.md).
 

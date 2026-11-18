@@ -4,7 +4,7 @@ The [Home Assistant](https://www.home-assistant.io) integration and add-on live 
 
 ## What the integration gives you
 
-Install it through [HACS](https://hacs.xyz), then add it under **Settings → Devices & Services** with your Kinwall URL and an admin API key. You get a device for each family member plus a **Family** device:
+Install it from Home Assistant's Marketplace (**Settings → Marketplace → Add from link**, then `JohnDuprey/kinwall-homeassistant`; before Home Assistant 2026.11, through [HACS](https://hacs.xyz)), then add it under **Settings → Devices & Services** with your Kinwall URL and an admin API key. You get a device for each family member plus a **Family** device:
 
 * **Calendars**: one per member, plus a read-only family calendar.
 * **To-do lists**: each member's chores for today (tick one off to complete it), the **Anyone** chores, and every Kinwall list, so voice assistants and the to-do card work with your lists.

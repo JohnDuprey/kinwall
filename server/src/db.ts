@@ -19,4 +19,7 @@ export interface KinwallDb {
   /** Runs all statements in one transaction (all-or-nothing), in order; one `{ results }` per
    * statement (rows for SELECTs, empty for writes). Statements come from this db's prepare(). */
   batch<T = unknown>(statements: KinwallStatement[]): Awaitable<{ results: T[] }[]>;
+  /** Optional: rows read so far, for hosts billed per row read (a Durable Object). The scheduled
+   * job logs each notification part's share when it's there (notify.ts runNotifications). */
+  readonly rowsRead?: number;
 }

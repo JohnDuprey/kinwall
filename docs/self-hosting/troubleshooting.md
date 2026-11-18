@@ -73,6 +73,14 @@ A [to-do list synced with an app](../using/todo-apps.md) shows its error under i
 5. If the device was removed from the list, its subscription expired. Turn notifications on again.
 6. Docker: the notification loop runs every 2 minutes, but only while the container is running.
 
+### The Android app won't turn on push notifications
+
+Without Firebase credentials on your server, the Kinwall Android app gets push notifications through the [push gateway](configuration.md#push-gateway). When that doesn't work, **Settings → General → Notifications** in the app says why, and the phone keeps its own reminders meanwhile:
+
+* **"…need this server's Public URL"**: set `PUBLIC_URL`, or the **Public URL** in **Settings → Calendars → Calendar providers**. The app can reach the server on any address (a LAN IP, another port); the Public URL is only how the server names itself.
+* **"This phone couldn't be verified…"**: Google Play has to vouch for the phone and the app. Install Kinwall from Google Play, on a phone that has Google Play services and isn't rooted. The phone also needs to reach `https://push.kinwall.family`.
+* **"The server didn't accept this phone…"**: the server log has a line starting `Android push: a phone's gateway registration wasn't accepted` with the reason, such as the server's address changing or the push gateway being out of reach. Your server needs Kinwall 1.3.0 or later.
+
 ## A display shows an admin section, or doesn't
 
 Settings shows the display view until the server confirms the device is an admin. If an admin phone only shows General and Family, it's signed in with a display key. Sign out and **Sign in with passkey**.

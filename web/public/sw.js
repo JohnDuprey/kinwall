@@ -23,16 +23,16 @@ self.addEventListener('activate', (event) => {
 })
 
 // The page posts the files it loaded (it ran before this worker controlled it), so the very first
-// visit already leaves an app that opens offline. That list is the whole running build (index +
-// App chunk), so older builds' files are dropped here and the cache doesn't grow with each deploy.
+// visit already leaves an app that opens offline. The page includes this build's deferred screens
+// from its HTML, so unopened screens stay available too. Older builds' files are dropped here.
 self.addEventListener('message', (event) => {
   const urls = event.data && event.data.cacheUrls
   if (!Array.isArray(urls)) return
   const current = urls.filter(isAsset)
   if (!current.length) return
   event.waitUntil(caches.open(SHELL).then(cache => Promise.all([
-    ...current.map(u => cache.match(u).then(hit => hit || cache.add(u).catch(() => {}))),
-    cache.match(scopeUrl).then(hit => hit || cache.add(scopeUrl).catch(() => {})),
+    ...current.map(u => cache.match(u, { ignoreVary: true }).then(hit => hit || cache.add(u).catch(() => {}))),
+    cache.match(scopeUrl, { ignoreVary: true }).then(hit => hit || cache.add(scopeUrl).catch(() => {})),
     cache.keys().then(reqs => Promise.all(reqs.filter(r => isAsset(r.url) && !current.includes(r.url)).map(r => cache.delete(r)))),
   ])))
 })
@@ -49,7 +49,9 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate' && url.split('?')[0] === scopeUrl) {
     event.respondWith(shell(req))
   } else if (isAsset(url)) {
-    event.respondWith(caches.open(SHELL).then(cache => cache.match(req).then(hit => hit || fetch(req).then(res => {
+    // These build files are identical for every Origin. Prefetches and module requests can
+    // send different Origin headers; a host's Vary: Origin must not make the cache miss.
+    event.respondWith(caches.open(SHELL).then(cache => cache.match(req, { ignoreVary: true }).then(hit => hit || fetch(req).then(res => {
       if (res.ok) cache.put(req, res.clone()).catch(() => {})
       return res
     }))))
@@ -62,7 +64,7 @@ function shell(req) {
       if (res.ok && !res.redirected && (res.headers.get('content-type') || '').includes('text/html')) cache.put(scopeUrl, res.clone()).catch(() => {})
       return res
     })
-    const fallback = () => cache.match(scopeUrl).then(hit => hit || network)
+    const fallback = () => cache.match(scopeUrl, { ignoreVary: true }).then(hit => hit || network)
     return new Promise(resolve => {
       const timer = setTimeout(() => resolve(fallback()), NAV_TIMEOUT)
       network.then(res => { clearTimeout(timer); resolve(res) }, () => { clearTimeout(timer); resolve(fallback()) })

@@ -11,16 +11,29 @@ On the device that should get notifications, go to **Settings → General → No
 | **Event reminders** | on | A notification at each event's reminder time. On a device that belongs to someone, also their [transition reminders](#transition-reminders), if they have them. |
 | **Daily summary** + time | off, 07:30 | "Today": event and chore counts, the first event titles, and open linked tasks. |
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
+| **Include Anyone chores** | off | Include shared chores anyone can do in this device’s daily chore reminder. Shown when Chore reminder is on. |
+| **New chores** | off | A push when a new chore is added for someone this device follows or Anyone. Skips chores you add yourself. Independent of the daily chore reminder. |
+| **School reminders** | on | Before the bus and before a school drop-off or pickup, on school days ([School](school.md#bus-and-pickup-reminders)). Kids on the same bus get one. Shown while School is on. |
 | **Outing reminders** | on | Heads-ups for [outings](outings.md#reminders) someone ⭐ (a week before and the day before), ticket dates ("🎟 Get tickets for the sewing class by Tuesday"), and last chances. Shown while Outings is on. |
 | **Home upkeep** | on | [Upkeep](upkeep.md#reminders) jobs coming up, due today and late, and warranties about to end. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |
 | **Which family members?** | Everyone | Only events and chores for these people. A device following nobody gets everything. A kid's own device doesn't have this: it follows only that kid (and everything for the whole family), and says so. |
 
+Anyone chores stay visible in the app and the household bell regardless of this choice. Existing devices also start with **Include Anyone chores** off. In native apps using local reminders, the same choice is under **Notifications** after updating the mobile app; enable the daily chore reminder in iPhone Settings → Kinwall, or the Chores notification channel in Android Settings (8:00 AM). Supported iOS builds using server push use the subscription preference above.
+
 **Send test** sends "Notifications are on 🎉" to this device. **Turn off** unsubscribes it. Times use the household timezone.
+
+## New chores
+
+Turn on **New chores** on each device that should receive these pushes. Adding an active chore, including handing one out from the chore library, sends **New chore** with its title. Tapping it opens Chores. A repeating chore sends one notification when added, rather than one for every repeat. Future chores notify when added too. Editing a chore, importing chores, or saving an unscheduled library chore does not send one.
+
+The bell keeps a copy for the assigned person, or the whole family for Anyone chores, even when push is off. The device that added the chore and that person's other devices skip both the push and the bell entry. **Which family members?** filters assigned chores; Anyone chores are included regardless of **Include Anyone chores**, which applies only to daily reminders. Turning off **Chores & points** stops new chore notifications too.
+
+This setting uses server push: it is available in browsers and native apps with server push support. Native apps using only local reminders need an app update to support it.
 
 ## Event reminders
 
-* A reminder fires at the event's reminder offset: its own reminder, or the household **Default reminder**. See [Events → Reminders](events.md#reminders).
+* A reminder fires at the event's reminder offset: its own reminder, or the household **Default reminder**. See [Events → Reminders](events.md#reminders). Longer reminders synced from Google or Outlook ("1 week before") or set through the API fire too, up to four weeks ahead.
 * The notification's **title is the event name** (with its category emoji). The body is "In 30 minutes · 4:00 PM", then 📍 location, 👥 who, 🗓 calendar and a short note. Long-press to see all of it.
 * With travel time and **remind before leave**, the first line reads "Leave by … for … · starts …".
 * Tapping the notification opens that event in the calendar.
@@ -94,11 +107,12 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 
 ## Live Activities (Kinwall app for iPhone)
 
-In the Kinwall app for iPhone, some things also show on the Lock Screen and in the Dynamic Island while they're happening: a [cooking timer](meals.md#start-cooking), a [shopping trip](lists.md#shopping-mode), and the next leave-by or start-prep time for the person the phone belongs to. There's no Kinwall setting for them:
+In the Kinwall app for iPhone, some things also show on the Lock Screen and in the Dynamic Island while they're happening: a [cooking timer](meals.md#start-cooking), a [shopping trip](lists.md#shopping-mode), and the next leave-by or start-prep time for the person the phone belongs to. Timers and trips appear when started; event following is an explicit personal choice:
 
 * A cooking timer or a shopping trip shows when you start one.
 * A leave-by or start-prep countdown follows the reminders: it shows only on a phone that belongs to someone who has [transition reminders](../settings/family.md#transition-reminders) on, and with the app's notifications allowed. It starts at their first transition reminder and ends when the event starts.
 * A medicine that's due shows on the person's own phone. A grown-up can also see the kids' due doses on their own phone with **Show the kids' doses on this phone** (off by default): see [Medications → On the Lock Screen](medications.md#on-the-lock-screen).
+* A selected timed event can stay on your phone before and during it: open the event and choose **Follow this event**. See [Follow an event](calendar.md#follow-an-event-on-your-phone). This works without transition reminders and during night hours.
 * To turn them all off, go to iPhone **Settings → Kinwall → Live Activities**. The Notifications section in the app's Settings says whether they're on.
 * In the Kinwall app for Android they show as ongoing notifications instead. Turn them off in Android **Settings → Apps → Kinwall → Notifications**; the Notifications section says whether they're on.
 * On Android, medicine reminders can come through Do Not Disturb: see [Medications → Reminders](medications.md#reminders).
@@ -108,7 +122,16 @@ In the Kinwall app for iPhone, some things also show on the Lock Screen and in t
 * **iPhone / iPad**: needs **iOS 16.4 or later** and Kinwall **added to the Home Screen** (Share → Add to Home Screen), opened from there. Safari tabs can't receive push at all. Settings says so when it detects Safari, and the **Add Kinwall to your Home Screen** card shows how (see [Put it on the wall](../getting-started/put-it-on-the-wall.md)).
 * **Android**: works in Chrome, Firefox or Samsung Internet, installed or not. The status-bar icon is a single-color badge.
 * **Desktop**: any browser with Push API support.
-* A device whose push subscription has expired (the push service answers 404/410) is removed automatically. Turn notifications on again on that device.
+* An expired browser push subscription (404/410) or retired native token (APNs retirement or FCM `UNREGISTERED`) is removed automatically. Temporary delivery failures keep the subscription. Turn notifications on again if it was removed.
+
+### Android push
+
+Firebase-enabled Android app builds can receive new-chore pushes when the server has
+[FCM configured](../self-hosting/configuration.md#android-push-fcm). Turn on **New chores** here;
+its Android channel controls sound and presentation separately from the daily **Chores** channel.
+Tapping opens Chores for the matching family, with no Done action. Ordinary Android builds retain
+local reminders and do not poll for new chores. Delivery depends on phone permissions, channel
+settings, network and Android battery/force-stop restrictions.
 
 ## How often it checks
 

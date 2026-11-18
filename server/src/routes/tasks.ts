@@ -311,9 +311,11 @@ tasksRoutes.openapi(
   async (c) => {
     const { listId } = c.req.valid('param');
     const body = c.req.valid('json');
-    const list = await c.env.DB.prepare('SELECT kind FROM lists WHERE id = ?').bind(listId).first<{ kind: string }>();
+    const list = await c.env.DB.prepare('SELECT kind, purpose FROM lists WHERE id = ?').bind(listId).first<{ kind: string; purpose: string | null }>();
     if (!list) return c.json({ error: 'list not found' }, 404);
     if (list.kind !== 'todo') return c.json({ error: 'Only to-do lists sync with to-do apps.' }, 400);
+    // Food's use-by dates aren't to-dos: a pantry list doesn't sync.
+    if (list.purpose === 'pantry') return c.json({ error: 'Pantry lists don’t sync with to-do apps.' }, 400);
     if (!body.remoteId && !body.newListName) return c.json({ error: 'Pick a list, or name a new one.' }, 400);
     const account = await c.env.DB.prepare('SELECT * FROM task_accounts WHERE id = ?').bind(body.accountId).first<TaskAccountRow>();
     if (!account) return c.json({ error: 'account not found' }, 404);

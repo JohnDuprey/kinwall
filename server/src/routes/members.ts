@@ -98,17 +98,13 @@ async function pointsFor(db: KinwallDb, memberId: string, tz: string, weekStart:
 
 // All members' today/week points in one query (grouped + conditional SUM) instead of two
 // queries per member - what GET /api/members uses instead of pointsFor() in a loop. Balances ride
-// the same batch, so it stays one round trip. Binds ?1 today, ?2 week start: only this week's rows
-// are read (through the date indexes). Chore points plus bonus points (routes/bonus-points.ts) by
-// the day they count on; check-ins and spending aren't period points.
+// the same batch, so it stays one round trip. Binds ?1 today, ?2 week start: only this week's daily
+// totals are read. Chore points plus bonus points (routes/bonus-points.ts) by the day they count on,
+// kept per member and day by migration 0139's triggers; check-ins and spending aren't period points.
 export const PERIOD_POINTS_SQL = `SELECT member_id,
                 COALESCE(SUM(CASE WHEN date = ?1 THEN points ELSE 0 END), 0) AS today,
                 COALESCE(SUM(points), 0) AS week
-         FROM (SELECT cc.member_id AS member_id, cc.date AS date, cc.points_awarded AS points
-                 FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id
-                 WHERE cc.member_id IS NOT NULL AND cc.date >= ?2 AND cc.date <= ?1
-               UNION ALL
-               SELECT member_id, ref, amount FROM point_entries WHERE reason = 'bonus' AND ref >= ?2 AND ref <= ?1)
+         FROM member_daily_points WHERE date >= ?2 AND date <= ?1
          GROUP BY member_id`;
 
 async function pointsByMember(db: KinwallDb, tz: string, weekStart: 0 | 1): Promise<Map<string, Points>> {
@@ -402,9 +398,11 @@ membersRoutes.openapi(
       .filter((cal) => cal.after.length !== cal.before.length) // the LIKE above can false-positive on a substring match
       .map((cal) => c.env.DB.prepare('UPDATE calendars SET member_ids = ? WHERE id = ?').bind(JSON.stringify(cal.after), cal.id));
     // A device owned by this member becomes a shared one (still locked; an admin can re-assign it).
-    // Their tracker entries stay, under their name ("Leo (removed)"); the FK then clears member_id.
+    // Their tracker entries and school records stay, under their name ("Leo (removed)"); the FK then clears member_id.
     await c.env.DB.batch<unknown>([
       c.env.DB.prepare('UPDATE tracker_entries SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?').bind(id, id),
+      // Their school records stay the same way: logged time, grades and report cards (school.ts).
+      ...['school_logs', 'school_grades', 'school_report_cards'].map((table) => c.env.DB.prepare(`UPDATE ${table} SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?`).bind(id, id)),
       c.env.DB.prepare('DELETE FROM photos WHERE avatar = 1 AND member_id = ?').bind(id), // their profile picture
       c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates,
       c.env.DB.prepare('UPDATE meals SET eater_ids = (SELECT json_group_array(value) FROM json_each(meals.eater_ids) WHERE value != ?) WHERE eater_ids LIKE ?').bind(id, `%${id}%`), c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id),

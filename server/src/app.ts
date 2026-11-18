@@ -1,5 +1,9 @@
+import { weeklyPlanningRoutes } from './routes/weekly-planning.ts';
+import { runEventLiveActivities } from './event-live-activities.ts';
+import { eventFollowsRoutes } from './routes/event-follows.ts';
 import { runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { announcementsRoutes } from './routes/announcements.ts';
+import { inboxRoutes } from './routes/inbox.ts';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
@@ -33,6 +37,7 @@ import { restaurantRoutes } from './routes/restaurants.ts';
 import { recipeShareRoutes } from './routes/recipe-share.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
 import { listsRoutes } from './routes/lists.ts';
+import { pantryRoutes } from './routes/pantry.ts';
 import { keysRoutes } from './routes/keys.ts';
 import { passkeysRoutes } from './routes/passkeys.ts';
 import { recoveryRoutes } from './routes/recovery.ts';
@@ -44,6 +49,7 @@ import { mcpOAuthRoutes } from './routes/mcp-oauth.ts';
 import { revRoutes } from './routes/rev.ts';
 import { nightScreenRoutes } from './routes/night-screen.ts';
 import { upkeepRoutes } from './routes/upkeep.ts';
+import { schoolRoutes } from './routes/school.ts';
 import { dataRoutes } from './routes/data.ts';
 import { notesRoutes } from './routes/notes.ts';
 import { contactsRoutes } from './routes/contacts.ts';
@@ -175,6 +181,12 @@ export function createApp() {
       try { await runMedicineLiveActivities(c.env); } catch { /* next reminder tick retries; never log health bodies */ }
     }
   });
+  app.use('/api/*', async (c,next) => {
+    await next();
+    if(c.res.status<400 && !['GET','HEAD','OPTIONS'].includes(c.req.method) && /^\/api\/(events(?:\/|$)|settings$|members(?:\/|$)|keys(?:\/|$)|me\/owner$|live-activities\/tokens$)/.test(c.req.path)) {
+      try { await runEventLiveActivities(c.env); } catch { /* reminder tick retries */ }
+    }
+  });
   app.use('/api/*', bodyLimits); // after auth: nobody unauthenticated gets a big upload buffered
   app.use('/mcp', defaultLimit);
   app.use('/oauth/*', defaultLimit);
@@ -187,6 +199,7 @@ export function createApp() {
   app.route('/', revRoutes);
   app.route('/', nightScreenRoutes);
   app.route('/', upkeepRoutes);
+  app.route('/', schoolRoutes);
   app.route('/', settingsRoutes);
   app.route('/', quietPinRoutes);
   app.route('/', appearanceRoutes);
@@ -208,6 +221,8 @@ export function createApp() {
   app.route('/', restaurantRoutes);
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
+  app.route('/', pantryRoutes);
+  app.route('/', weeklyPlanningRoutes);
   app.route('/', notesRoutes);
   app.route('/', contactsRoutes);
   app.route('/', stickersRoutes);
@@ -233,6 +248,7 @@ export function createApp() {
   app.route('/', newscastRoutes);
   app.route('/', pollsRoutes);
   app.route('/', announcementsRoutes);
+  app.route('/', inboxRoutes(app)); // sorting adds the task, event or note through their own routes
   app.route('/', outingsRoutes);
   app.route('/', outingFeedsRoutes);
   app.route('/', pluginsRoutes);
@@ -242,6 +258,7 @@ export function createApp() {
   app.route('/', recoveryRoutes);
   app.route('/', pairRoutes);
   app.route('/', webhooksRoutes);
+  app.route('/', eventFollowsRoutes);
   app.route('/', liveActivitiesRoutes);
   app.route('/', pushRoutes);
   app.route('/', dataRoutes);

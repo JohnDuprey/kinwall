@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { goalPeriod, readChoreGoal, shiftGoalDate } from '../chore-goal.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
@@ -111,7 +112,7 @@ leaderboardRoutes.openapi(
     const windowFrom = addDaysStr(today, -STREAK_LOOKBACK_DAYS);
 
     const { results: members } = await c.env.DB.prepare('SELECT id, name, color, avatar, sort FROM members ORDER BY sort, name').all<MemberRow>();
-    const { results: chores } = await c.env.DB.prepare('SELECT * FROM chores WHERE active = 1').all<ChoreRow>();
+    const { results: chores } = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`).all<ChoreRow>();
     const { results: completions } = await c.env.DB.prepare("SELECT chore_id, date, member_id, points_awarded FROM chore_completions WHERE date >= ? AND date <= ? AND status = 'approved'")
       .bind(windowFrom, today)
       .all<CompletionRow>();

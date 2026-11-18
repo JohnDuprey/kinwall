@@ -1,12 +1,15 @@
+import { useBackClose } from './backStack.ts'
+import { leaveRoutine } from './pageNavigation.ts'
 import { t, tn } from './i18n.ts'
 import { useRoutineMode } from './useRoutineMode.ts'
 
 export default function RoutineMode() {
   const { children, parentDevice, picked, setPicked, memberId, state, error, native, setNative, settings } = useRoutineMode()
+  useBackClose(() => leaveRoutine())
   const schoolLinks = state?.schoolLinkDomains ?? state?.allowedWebDomains ?? []
   if (!settings.features.chores) return <div className="content"><p>{t('Turn on chores to use routine mode.')}</p></div>
   return <div className="content scroll-y"><div className="routine-page">
-    <button type="button" className="btn btn-secondary routine-back" onClick={() => { location.hash = '#/chores' }}>{t('Back to chores')}</button>
+    <button type="button" className="btn btn-secondary routine-back" onClick={() => leaveRoutine()}>{t('Back')}</button>
     <h1>{t('Free time')}</h1>
     {native?.simulator && <p className="chip-static">{t('Simulator preview — apps are not blocked')}</p>}
     <p>{t('Finish today’s required chores to unlock the apps your family has chosen.')}</p>

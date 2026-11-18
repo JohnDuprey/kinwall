@@ -350,3 +350,57 @@ test('register options: authenticator choice sets attachment (+ hints for cross-
   const bad = await admin('/api/passkeys/register/options', { method: 'POST', body: JSON.stringify({ authenticator: 'usb' }) });
   assert.equal(bad.status, 400);
 });
+
+
+test('passkey ceremonies request the user verification enforced by the server', async () => {
+  const admin = makeApp(makeEnv());
+  for (const authenticator of [undefined, 'platform', 'cross-platform']) {
+    const res = await admin('/api/passkeys/register/options', { method: 'POST', body: JSON.stringify({ authenticator }) });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json() as any).authenticatorSelection.userVerification, 'required');
+  }
+  const res = await admin('/api/passkeys/login/options', { method: 'POST' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json() as any).userVerification, 'required');
+});
+
+test('real verifier accepts a synced credential across clients and rejects invalid assertions', async () => {
+  const { encodeCBOR } = await import('@levischuck/tiny-cbor');
+  const env = makeEnv();
+  const pair = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const publicKey = encodeCBOR(new Map<number, number | Uint8Array>([[1, 3], [3, -257], [-1, new Uint8Array(Buffer.from(jwk.n!, 'base64url'))], [-2, new Uint8Array(Buffer.from(jwk.e!, 'base64url'))]]));
+  const id = Buffer.from('synced-test-credential').toString('base64url');
+  await env.DB.prepare('INSERT INTO passkeys (id, credential_id, public_key, counter, transports, name, created_at) VALUES (?,?,?,?,?,?,?)')
+    .bind('synced', id, Buffer.from(publicKey).toString('base64url'), 0, '[]', 'Alex', new Date().toISOString()).run();
+  const clients = [makeApp(env, null), makeApp(env, null)];
+  const assertion = async (challenge: string, flags = 0x1d, origin = 'http://localhost:8080', counter = 0) => {
+    const data = Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge, origin }));
+    const auth = Buffer.alloc(37);
+    auth.set(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('localhost'))));
+    auth[32] = flags; // presence, verification, backup eligibility and backup state
+    auth.writeUInt32BE(counter, 33);
+    const signed = Buffer.concat([auth, Buffer.from(await crypto.subtle.digest('SHA-256', data))]);
+    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', pair.privateKey, signed);
+    return { id, rawId: id, type: 'public-key', clientExtensionResults: {}, response: { clientDataJSON: data.toString('base64url'), authenticatorData: auth.toString('base64url'), signature: Buffer.from(signature).toString('base64url') } };
+  };
+  const options = async () => (await (await clients[0]('/api/passkeys/login/options', { method: 'POST' })).json() as any).challenge;
+  const verify = (client: typeof clients[number], response: unknown) => client('/api/passkeys/login/verify', { method: 'POST', body: JSON.stringify({ response }) });
+  for (const client of clients) {
+    const response = await assertion(await options());
+    const res = await verify(client, response);
+    assert.equal(res.status, 200);
+    assert.equal((await makeApp(env, (await res.json() as any).key)('/api/me')).status, 200);
+    assert.equal((await verify(client, response)).status, 400, 'challenge is single use');
+  }
+  const before = (await env.DB.prepare('SELECT COUNT(*) AS n FROM api_keys').first<{ n: number }>())!.n;
+  for (const response of [await assertion(await options(), 0x19), await assertion(await options(), 0x1d, 'https://wrong.example')]) {
+    assert.equal((await verify(clients[0], response)).status, 401);
+  }
+  const corrupted = await assertion(await options());
+  corrupted.response.signature = Buffer.alloc(256).toString('base64url');
+  assert.equal((await verify(clients[0], corrupted)).status, 401);
+  await env.DB.prepare('UPDATE passkeys SET counter = 2 WHERE id = ?').bind('synced').run();
+  assert.equal((await verify(clients[0], await assertion(await options(), 0x1d, 'http://localhost:8080', 2))).status, 401, 'positive counters must increase');
+  assert.equal((await env.DB.prepare('SELECT COUNT(*) AS n FROM api_keys').first<{ n: number }>())!.n, before);
+});

@@ -34,6 +34,7 @@ export type FontChoice = Exclude<Typeface, 'default'>
 export type LockedView = 'week' | 'day' | 'month' | 'schedule' | 'board' | 'newscast'
 export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale'>> & {
   density?: DeviceDensity // 'icons' (icon-first) exists per device only
+  weeklyPlannerHiddenUntil?: string // 'always', or the family date when the Home invitation returns
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: Typeface // this device's typeface ('default' = Nunito); absent = the family's
   timeFormat?: '12' | '24' // this device's clock times; absent = the family's (timeFormat.ts)

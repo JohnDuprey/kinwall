@@ -1,3 +1,9 @@
+import { schoolworkVisibleSql } from './schoolwork.ts';
+import { classifyDay, loadSchoolDays, schoolworkOff } from './school-days.ts';
+import { dueTravel, travelLegs, type TravelReminder } from './school-reminders.ts';
+import { revokeAndroidGateways } from './android-push-gateway.ts';
+import { runEventLiveActivities } from './event-live-activities.ts';
+import { eventPlans } from './routes/event-follows.ts';
 import { activityPreferences, runMedicineLiveActivities } from './medicine-live-activities.ts';
 import { MED_GRACE_MS, REFILL_REMIND_AT, medicineReminderTimes } from './medicine-reminder-times.ts';
 import { goalProgressFor } from './chore-goals.ts';
@@ -36,6 +42,7 @@ import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from '
 import { readOutings } from './routes/outings.ts';
 import { dueReminders, type OutingReminder } from './outing-reminders.ts';
 import { publish } from './bus.ts';
+import { clearOldChecked } from './checked-cleanup.ts';
 import { addSupplies, handOutChore, readJobs, readThings, suppliesList, type UpkeepJob } from './upkeep.ts';
 import { daysBetween, dueNotes, suppliesDue, type UpkeepNote } from './upkeep-rules.ts';
 
@@ -47,7 +54,10 @@ export const DEFAULT_PUSH_PREFS = {
   morningCheckInTime: '07:30',
   choreNudge: false,
   choreNudgeTime: '08:00',
+  choreNudgeAnyone: false,
+  newChores: false,
   listUpdates: false,
+  schoolReminders: true, // School: before the bus and a grown-up's drop-off or pickup (notify.ts runSchoolTravel)
   outingReminders: true, // Outings: heads-ups for ⭐ outings, ticket dates, last chance (notify.ts runOutings)
   upkeepReminders: true, // Home upkeep: jobs coming up, due and late, warranties ending (notify.ts runUpkeep)
   medicationNames: false, // medicine names in medication reminders on this device (push text shows on lock screens)
@@ -58,6 +68,12 @@ const LOOKBACK_MS = 10 * 60 * 1000; // a missed tick still fires once
 // offers (up to 1 day before) with slack for all-day/timezone edge cases. Revisit if a longer
 // reminder offset is ever added.
 const SEARCH_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+// Reminders go up to four weeks before (EventInputSchema's 40320 minutes; Google's "1 week before"
+// syncs in too), plus up to 10 hours of travel when they count back from leaving. Events whose
+// reminders reach past a day are also read that far ahead (a few rows: most reminders are short).
+const LONG_REMINDER_MINUTES = 1440;
+const HAS_LONG_REMINDER = "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(reminders) AND json_type(reminders) = 'array' THEN reminders ELSE '[]' END) WHERE value > ?)";
+const FARTHEST_REMINDER_MS = (40320 + 600) * 60 * 1000 + 24 * 60 * 60 * 1000;
 
 // Time-of-day triggers (daily summary, chore nudge) fire when their configured HH:MM falls inside
 // (windowStart, now], not on an exact-minute match - a tick can land at any second past the tick
@@ -143,7 +159,7 @@ export async function loadSubs(db: KinwallDb, where = '', ...binds: unknown[]): 
         (SELECT id FROM api_keys WHERE oauth_grant_id = s.oauth_grant_id ORDER BY created_at DESC, rowid DESC LIMIT 1))
       LEFT JOIN members o ON o.id = k.owner
       ${where ? `WHERE (${where}) AND` : 'WHERE'}
-        (s.endpoint NOT LIKE 'apns:%' OR (k.id IS NOT NULL AND
+        ((s.endpoint NOT LIKE 'apns:%' AND s.endpoint NOT LIKE 'fcm:%') OR (k.id IS NOT NULL AND
           (k.expires_at IS NULL OR k.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') OR EXISTS
             (SELECT 1 FROM oauth_refresh_tokens r WHERE r.grant_id = s.oauth_grant_id
               AND r.used_at IS NULL AND r.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')))))`);
@@ -245,14 +261,13 @@ export async function openNote<T extends { id: string; kind: string } & NoteText
 /** Seals medicine notes still in plaintext (written before sealing, or by an older server mid-deploy),
  * like sealHealthEntries: a compare-and-swap UPDATE per row, a batch per 50, safe to run twice at
  * once; without a key it waits. createKinwall runs it once per server instance. */
+export const UNSEALED_NOTES_SQL = "SELECT id, kind, title, body, at FROM notifications WHERE kind = 'medication' AND id > ? AND substr(title, 1, 7) != 'enc:v1:' ORDER BY id LIMIT 50";
 export async function sealMedicationNotes(env: EncryptionEnv & { DB: KinwallDb }): Promise<number> {
   if (!env.ENCRYPTION_KEY) return 0;
   let after = '';
   let sealed = 0;
   for (;;) {
-    const { results } = await env.DB.prepare(
-      "SELECT id, kind, title, body, at FROM notifications WHERE kind = 'medication' AND id > ? AND substr(title, 1, 7) != 'enc:v1:' ORDER BY id LIMIT 50",
-    ).bind(after).all<{ id: string; kind: string } & NoteText>();
+    const { results } = await env.DB.prepare(UNSEALED_NOTES_SQL).bind(after).all<{ id: string; kind: string } & NoteText>();
     if (!results.length) return sealed;
     const updates = await Promise.all(results.map(async (r) => {
       const s = await sealNote(env, r.id, r);
@@ -360,14 +375,46 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const [calsRes, eventsRes, openRes, categoriesRes, membersRes, travelRes, mealsRes] = await db.batch<unknown>([
+  // A long household default reaches every event without its own reminders: those can't be indexed, so
+  // that (rare) family scans the four weeks.
+  const longDefault = defaultReminders.some((m) => m > LONG_REMINDER_MINUTES);
+  const [calsRes, eventsRes, openRes, farRes, categoriesRes, membersRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     ...eventRowsStmts(db, ENABLED, [], from, to),
+    // The GLOB (reminders holding a number of 1000 or more, a superset of the long ones) must match
+    // idx_events_long_reminders' WHERE (migrations/0145) exactly, or SQLite scans the four weeks.
+    db.prepare(longDefault
+      ? `SELECT * FROM events WHERE calendar_id ${ENABLED} AND start >= ? AND start < ? AND (reminders IS NULL OR ${HAS_LONG_REMINDER})`
+      : `SELECT * FROM events WHERE calendar_id ${ENABLED} AND start >= ? AND start < ? AND reminders GLOB '*[0-9][0-9][0-9][0-9]*' AND ${HAS_LONG_REMINDER}`).bind(to.toISOString().slice(0, 10), new Date(now.getTime() + FARTHEST_REMINDER_MS).toISOString(), LONG_REMINDER_MINUTES),
     db.prepare('SELECT id, name, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
-    // Synced events keep travel time here, not on the row (see migration 0019).
-    db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides'),
-    mealLinksQuery(db),
+  ]);
+  const events = eventRowsFrom([eventsRes, openRes, farRes]);
+  const effectiveOf = (row: EventRow): number[] => {
+    let reminders: number[] | null = null;
+    if (row.reminders) {
+      try {
+        reminders = JSON.parse(row.reminders);
+      } catch {
+        reminders = null;
+      }
+    }
+    // [] = turned off on the event: no regular reminders (transition reminders are per person).
+    return reminders ?? defaultReminders ?? [];
+  };
+  // How far ahead an event's reminders reach: its longest one, with room for travel, at least `to`.
+  const reachOf = (effective: number[]) =>
+    Math.min(now.getTime() + FARTHEST_REMINDER_MS, Math.max(to.getTime(), now.getTime() + (Math.max(0, ...effective.filter(Number.isFinite)) + 600) * 60000 + 24 * 60 * 60 * 1000));
+  const far = new Date(Math.max(to.getTime(), ...events.map((row) => reachOf(effectiveOf(row)))));
+  const refs = JSON.stringify(events.map(row => ({ calendarId: row.calendar_id, externalId: row.external_id })));
+  // Read links for the same candidates as the reminder loop. Hidden/filter resolution can run
+  // alongside this batch and reuses the event rows, without reading calendar history again.
+  const [[travelRes, mealsRes], hidden] = await Promise.all([
+    db.batch<unknown>([
+      db.prepare("SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides WHERE (calendar_id, external_id) IN (SELECT value->>'calendarId', value->>'externalId' FROM json_each(?))").bind(refs),
+      mealLinksQuery(db, events.map(row => row.id)),
+    ]),
+    hiddenInstanceKeys(db, from, far, events),
   ]);
   const travelOverrides = new Map(
     (travelRes.results as unknown as { calendar_id: string; external_id: string; travel_minutes: number | null; remind_before_leave: number }[]).map((r) => [`${r.calendar_id}\u0000${r.external_id}`, r]),
@@ -377,10 +424,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const categoryRows = categoriesRes.results as unknown as { id: string; name: string; emoji: string | null }[];
   const categoryEmojis = new Map(categoryRows.map((c) => [c.id, c.emoji]));
   const categoryText = new Map(categoryRows.map((c) => [c.id, `${c.name} ${c.emoji ?? ''}`.trim()]));
-  const events = eventRowsFrom([eventsRes, openRes]);
   const meals = parseMealLinks(mealsRes.results);
-  // Hidden and filtered-out events get no reminders, transition warnings or Live Activities.
-  const hidden = await hiddenInstanceKeys(db, from, to, events);
 
   // leadMinutes: travel time when the event reminds before leaving - reminders then count back from
   // the leave-by time (start - travel) instead of the start.
@@ -398,16 +442,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     let memberIds = parseMemberIds(row.member_ids);
     if (memberIds.length === 0) memberIds = parseMemberIds(cal.member_ids);
 
-    let reminders: number[] | null = null;
-    if (row.reminders) {
-      try {
-        reminders = JSON.parse(row.reminders);
-      } catch {
-        reminders = null;
-      }
-    }
-    // [] = turned off on the event: no regular reminders (transition reminders are per person).
-    const effective = reminders ?? defaultReminders ?? [];
+    const effective = effectiveOf(row);
+    const until = new Date(reachOf(effective));
 
     const travel = cal.kind === 'local' ? row : row.external_id ? travelOverrides.get(`${cal.id}\u0000${row.external_id}`) : undefined;
     // A free event (busy = 0) keeps its own reminders, but no leave-by, transition warnings or Live Activity.
@@ -421,9 +457,9 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     });
 
     if (cal.kind === 'local' && row.rrule) {
-      for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
+      for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, until)) {
         if (hidden.has(instanceKey(row.id, inst.start))) continue;
-        if (!free) occurrences.push(occ(inst.start));
+        if (!free && Date.parse(inst.start) < to.getTime()) occurrences.push(occ(inst.start));
         for (const minutes of effective) {
           candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
         }
@@ -431,8 +467,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
       continue;
     }
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
-    if (startMs < from.getTime() || startMs >= to.getTime() || hidden.has(instanceKey(row.id, row.start))) continue;
-    if (!free) occurrences.push(occ(row.start));
+    if (startMs < from.getTime() || startMs >= until.getTime() || hidden.has(instanceKey(row.id, row.start))) continue;
+    if (!free && startMs < to.getTime()) occurrences.push(occ(row.start));
     for (const minutes of effective) {
       candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
     }
@@ -618,7 +654,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   };
 
   // End the ones that are over (sent or not, the token is done).
-  for (const t of tokens.filter((x) => x.kind === 'update' && !x.activity.startsWith('medication:') && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
+  for (const t of tokens.filter((x) => x.kind === 'update' && !x.activity.startsWith('medication:') && !x.activity.startsWith('event:') && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
     await send(t, { timestamp: unixSeconds(now.getTime()), event: 'end', 'dismissal-date': unixSeconds(now.getTime()) });
     await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();
   }
@@ -629,6 +665,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
     const first = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat)[0] : undefined;
     const devices = tokens.filter((t) => t.kind === 'start' && t.owner === m.id && activityPreferences(t.preferences).leaveBy);
     if (!first || !devices.length) continue;
+    const following = devices.some(t=>activityPreferences(t.preferences).events) ? await eventPlans(db,m.id,new Date(now.getTime()-8*3600000),new Date(now.getTime()+48*3600000)) : [];
     for (const occ of occurrences) {
       if (occ.allDay || !memberMatch([m.id], occ.prepFor)) continue;
       const lead = cfg.leaveBy ? occ.travelMinutes : 0;
@@ -639,6 +676,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
       const activity = key(occ);
       const { content, alert } = shown(occ, m, target);
       for (const t of devices) {
+        if(activityPreferences(t.preferences).events && following.some(p=>p.eventId===occ.eventId && Date.parse(p.startsAt)===Date.parse(occ.start))) continue;
         // Already showing (the app started it, or an earlier push did and registered its token).
         if (tokens.some((u) => u.kind === 'update' && u.device === t.device && u.activity === activity)) continue;
         const sentKey = `la:${t.device}:${activity}`;
@@ -665,72 +703,77 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
   const targets: (PushSubRow | null)[] = subs.filter((s) => subPrefs(s).dailySummary && timeInWindow(subPrefs(s).summaryTime, tz, windowStart, now));
   if (feedTime(subs, 'dailySummary', 'summaryTime', tz, windowStart, now)) targets.push(null);
 
-  let hidden: Set<string> | undefined; // read once, for the first target that needs it
+  if (!targets.length) return;
+  const dayStart = new Date(`${today}T00:00:00Z`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const mark = (r: { title: string; priority: string }) => `${r.priority === 'urgent' ? '‼️ ' : r.priority === 'high' ? '⭐ ' : ''}${r.title}`;
+  // One snapshot per tick, loaded only when an unsent target needs it. Calendar membership,
+  // goal progress and recurrence expansion do not depend on the recipient or their language.
+  const load = async () => {
+    const [eventsRes, openRes, choresRes, linkedRes, dueRes, mealsRes, calendarsRes] = await db.batch<unknown>([
+      ...eventRowsStmts(db, ENABLED, [], dayStart, dayEnd),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`),
+      // Urgent/important items first (so they make the top 3) and marked.
+      db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
+      // Food on a pantry list isn't a to-do: its use-by date stays out of the summary.
+      db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? AND list_id NOT IN (SELECT id FROM lists WHERE purpose = 'pantry') ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
+      db.prepare("SELECT slot, title FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
+      db.prepare('SELECT id, member_ids FROM calendars WHERE enabled = 1'),
+    ]);
+    const events = eventRowsFrom([eventsRes, openRes]);
+    const calendarMembers = new Map((calendarsRes.results as { id: string; member_ids: string }[]).map(cal => [cal.id, parseMemberIds(cal.member_ids)]));
+    const [hidden, goalStates] = await Promise.all([
+      hiddenInstanceKeys(db, dayStart, dayEnd, events),
+      goalProgressFor(db, choresRes.results as ChoreRow[], today),
+    ]);
+    const visibleEvents = events.flatMap(row => {
+      const own = parseMemberIds(row.member_ids);
+      const memberIds = own.length ? own : calendarMembers.get(row.calendar_id) ?? [];
+      let count = 0;
+      if (row.rrule) {
+        count = expand(row.rrule, row.start, row.end, !!row.all_day, tz, dayStart, dayEnd).filter(i => !hidden.has(instanceKey(row.id, i.start))).length;
+      } else {
+        const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
+        const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
+        if (endMs > dayStart.getTime() && startMs < dayEnd.getTime() && !hidden.has(instanceKey(row.id, row.start))) count = 1;
+      }
+      return count ? [{ row, memberIds, count }] : [];
+    });
+    const linked = new Map<string, string[]>();
+    for (const r of features.lists ? linkedRes.results as { event_id: string; title: string; priority: string }[] : []) {
+      linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
+    }
+    const noSchool = await schoolworkOff(db, today, today, choresRes.results as ChoreRow[]);
+    const chores = (choresRes.results as ChoreRow[]).filter(row => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full && !noSchool(row, today));
+    return { events: visibleEvents, linked, chores, meals: mealsRes.results as { slot: string; title: string }[], due: dueRes.results as { title: string; priority: string; member_id: string | null }[] };
+  };
+  let data: Awaited<ReturnType<typeof load>> | undefined;
   const fam = await familyLang(db);
   for (const sub of targets) {
     const key = sub ? `sum:${sub.id}:${today}` : `feed:sum:${today}`;
     if (await alreadySent(db, key)) continue;
+    data ??= await load();
     const { t, tn } = words(sub ? sub.lang : fam);
-
-    const dayStart = new Date(`${today}T00:00:00Z`);
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const [eventsRes, openRes, choresRes, linkedRes, dueRes, mealsRes] = await db.batch<unknown>([
-      ...eventRowsStmts(db, ENABLED, [], dayStart, dayEnd),
-      db.prepare('SELECT * FROM chores WHERE active = 1'),
-      // Urgent/important items first (so they make the top 3) and marked.
-      db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
-      db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
-      db.prepare("SELECT slot, title FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
-    ]);
-    const mark = (r: { title: string; priority: string }) => `${r.priority === 'urgent' ? '‼️ ' : r.priority === 'high' ? '⭐ ' : ''}${r.title}`;
     const top3 = (titles: string[]) => titles.slice(0, 3).join(', ') + (titles.length > 3 ? ` ${t('+{n} more', { n: titles.length - 3 })}` : '');
-    const linked = new Map<string, string[]>();
-    for (const r of features.lists ? linkedRes.results as unknown as { event_id: string; title: string; priority: string }[] : []) {
-      linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
-    }
-    const events = eventRowsFrom([eventsRes, openRes]);
-    hidden ??= await hiddenInstanceKeys(db, dayStart, dayEnd, events);
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
     const todaysTitles: string[] = [];
     const todo: string[] = []; // "• Soccer — cleats, water" for today's events with open linked items
-    const addTodo = (row: EventRow) => {
-      const items = linked.get(row.id);
-      if (items) todo.push(`• ${row.title} — ${top3(items)}`);
-    };
     let eventCount = 0;
-    for (const row of events) {
-      let memberIds = parseMemberIds(row.member_ids);
-      const cal = await db.prepare('SELECT member_ids FROM calendars WHERE id = ?').bind(row.calendar_id).first<{ member_ids: string }>();
-      if (memberIds.length === 0 && cal) memberIds = parseMemberIds(cal.member_ids);
+    for (const { row, memberIds, count } of data.events) {
       if (!memberMatch(deviceMemberIds, memberIds)) continue;
-      if (row.rrule) {
-        const insts = expand(row.rrule, row.start, row.end, !!row.all_day, tz, dayStart, dayEnd).filter((i) => !hidden!.has(instanceKey(row.id, i.start)));
-        if (insts.length > 0) {
-          eventCount += insts.length;
-          todaysTitles.push(row.title);
-          addTodo(row);
-        }
-        continue;
-      }
-      const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
-      const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
-      if (endMs > dayStart.getTime() && startMs < dayEnd.getTime() && !hidden.has(instanceKey(row.id, row.start))) {
-        eventCount++;
-        todaysTitles.push(row.title);
-        addTodo(row);
-      }
+      eventCount += count;
+      todaysTitles.push(row.title);
+      const items = data.linked.get(row.id);
+      if (items) todo.push(`• ${row.title} — ${top3(items)}`);
     }
-    const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
-    const chores = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full);
     const first = todaysTitles.slice(0, 2).join(', ') + (todaysTitles.length > 2 ? '…' : '');
-    const counts = [tn(eventCount, '{n} event', '{n} events'), ...(features.chores ? [tn(chores.length, '{n} chore', '{n} chores')] : [])];
+    const counts = [tn(eventCount, '{n} event', '{n} events'), ...(features.chores ? [tn(data.chores.length, '{n} chore', '{n} chores')] : [])];
     let body = `${counts.join(' · ')}${first ? ` — ${first}` : ''}`;
-    const meals = mealsRes.results as { slot: string; title: string }[];
     const slots: Record<string, string> = { breakfast: t('Breakfast'), lunch: t('Lunch'), dinner: t('Dinner'), snack: t('Snack') };
-    if (features.meals && meals.length) body += `\n${t('Meals: {list}', { list: top3(meals.map((m) => `${slots[m.slot] ?? m.slot} · ${m.title}`)) })}`;
+    if (features.meals && data.meals.length) body += `\n${t('Meals: {list}', { list: top3(data.meals.map(m => `${slots[m.slot] ?? m.slot} · ${m.title}`)) })}`;
     if (todo.length) body += `\n${t("To do for today's events:")}\n${todo.join('\n')}`;
     // List items due today (any list), for this device's members like the chore nudge.
-    const due = features.lists ? (dueRes.results as unknown as { title: string; priority: string; member_id: string | null }[]).filter((r) => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];
+    const due = features.lists ? data.due.filter(r => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];
     if (due.length) body += `\n${t('Due today: {list}', { list: top3(due.map(mark)) })}`;
     if (sub) await sendToSub(env, db, sub, { title: t('Today'), body, url: '/' });
     else await recordNotification(db, { kind: 'summary', title: t('Today'), body, url: '/', source: 'system', at: now });
@@ -746,24 +789,27 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
   if (targets.length === 0) return;
 
   const [choresRes, completionsRes] = await db.batch<unknown>([
-    db.prepare('SELECT * FROM chores WHERE active = 1'),
+    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`),
     db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
   ]);
   const chores = choresRes.results as unknown as ChoreRow[];
   const done = new Set((completionsRes.results as unknown as { chore_id: string }[]).map((r) => r.chore_id));
   const goalStates = await goalProgressFor(db, chores, today);
-  const dueToday = chores.filter((c) => dueOnDate(c, today, tz) && !done.has(c.id) && !goalStates.get(c.id)?.full);
+  const noSchool = await schoolworkOff(db, today, today, chores);
+  const dueToday = chores.filter((c) => dueOnDate(c, today, tz) && !done.has(c.id) && !goalStates.get(c.id)?.full && !noSchool(c, today));
   const fam = await familyLang(db);
 
   for (const sub of targets) {
     const key = sub ? `nudge:${sub.id}:${today}` : `feed:nudge:${today}`;
     if (await alreadySent(db, key)) continue;
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
-    const mine = dueToday.filter((c) => memberMatch(deviceMemberIds, c.member_id ? [c.member_id] : []));
+    const mine = dueToday.filter((c) => c.member_id
+      ? memberMatch(deviceMemberIds, [c.member_id])
+      : !sub || subPrefs(sub).choreNudgeAnyone === true);
     if (mine.length === 0) continue;
     const titles = mine.slice(0, 3).map((c) => c.title).join(', ');
     const { tn } = words(sub ? sub.lang : fam);
-    const payload = { title: tn(mine.length, '{n} chore left today', '{n} chores left today'), body: titles, url: '/chores' };
+    const payload = { title: tn(mine.length, '{n} chore left today', '{n} chores left today'), body: titles, url: '/chores', tag: `chore:daily:${today}` };
     if (sub) await sendToSub(env, db, sub, payload);
     else await recordNotification(db, { kind: 'chore', ...payload, memberIds: [...new Set(mine.flatMap((c) => (c.member_id ? [c.member_id] : [])))], source: 'system', at: now });
     await markSent(db, key, now);
@@ -793,6 +839,25 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
       for (const sub of (await loadSubs(env.DB, ...notBy(by))).filter((s) => subPrefs(s).listUpdates)) await sendToSub(env, env.DB, sub, payload);
     })(),
   );
+}
+
+/** One notification when a chore is created, including handing one out from the library. */
+export function notifyChoreCreated(env: Env, execCtx: WaitCtx | undefined, chore: ChoreRow, by: ChangedBy, owners: (string | null)[] = [chore.member_id]): void {
+  if (!chore.active) return;
+  waitUntil(execCtx, (async () => {
+    if (!(await readFeatures(env.DB)).chores) return;
+    // Anyone (null) is no one in particular: it matches every device that follows Anyone chores.
+    const memberIds = owners.includes(null) ? [] : owners as string[];
+    const payload = perLang((lang) => {
+      const { t } = words(lang);
+      return { title: t('New chore'), body: chore.title, url: '/#/chores', tag: `chore:new:${chore.id}` };
+    });
+    const { title, body, url } = payload(await familyLang(env.DB));
+    await recordNotification(env.DB, { kind: 'chore', title, body, url, memberIds, source: 'system', by });
+    for (const sub of await loadSubs(env.DB, ...notBy(by))) {
+      if (subPrefs(sub).newChores && memberMatch(parseMemberIds(sub.member_ids), memberIds)) await sendToSub(env, env.DB, sub, payload);
+    }
+  })());
 }
 
 // Evening check (Temp check), at a person's eveningTime (household time), one push a day to devices
@@ -1097,6 +1162,80 @@ async function runLibraryDue(env: Env, db: KinwallDb, now: Date, tz: string, win
   }
 }
 
+// School travel (school-reminders.ts): before the bus and a grown-up's drop-off or pickup on a kid's
+// school days and half days, once per bus or grown-up and time, sent from its lead time until the time.
+// The bus: in the bell for the kids and grown-ups, pushed to grown-ups' devices and the riding kids'
+// own; a grown-up's leg: theirs (all grown-ups' devices when they have none of their own). Where
+// "School reminders" is on. Devices with the leave-by Live Activity also get a countdown to it.
+// Not held at night: a bus at 7:00 can't wait for night hours to end.
+async function runSchoolTravel(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
+  const today = todayInTz(tz, now);
+  const [{ kids, settings }, kidRes, peopleRes] = await Promise.all([
+    loadSchoolDays(db, today, today),
+    db.prepare("SELECT member_id, to_school_by, to_school_time, from_school_by, from_school_time, half_from_school_time FROM school_kids WHERE mode = 'enrolled'").all<{ member_id: string; to_school_by: string | null; to_school_time: string | null; from_school_by: string | null; from_school_time: string | null; half_from_school_time: string | null }>(),
+    db.prepare('SELECT id, name, grown_up, language FROM members').all<{ id: string; name: string; grown_up: number; language: string | null }>(),
+  ]);
+  const kinds = new Map([...kids].map(([id, k]) => [id, classifyDay(k, today, settings.rules, tz).kind]));
+  const legs = travelLegs(kidRes.results.map(r => ({ memberId: r.member_id, toSchoolBy: r.to_school_by, toSchoolTime: r.to_school_time, fromSchoolBy: r.from_school_by, fromSchoolTime: r.from_school_time, halfFromSchoolTime: r.half_from_school_time })), kinds, today, { bus: settings.busMinutes, pickup: settings.pickupMinutes });
+  const hhmm = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+  const due = dueTravel(legs, hhmm);
+  if (!due.length) return;
+  const people = new Map(peopleRes.results.map(m => [m.id, m]));
+  const grownUps = peopleRes.results.filter(m => m.grown_up).map(m => m.id);
+  const fam = await familyLang(db);
+  for (const leg of due) {
+    const at = zonedTimeToUtc({ y: Number(today.slice(0, 4)), mo: Number(today.slice(5, 7)) - 1, d: Number(today.slice(8, 10)), h: Number(leg.time.slice(0, 2)), mi: Number(leg.time.slice(3, 5)), s: 0 }, tz);
+    const time = formatTime(at.toISOString(), { tz, h12 });
+    const text = (lang: Lang) => {
+      const { t } = words(lang);
+      const names = new Intl.ListFormat(lang, { type: 'conjunction' }).format(leg.kidIds.map(id => people.get(id)?.name.split(' ')[0] ?? ''));
+      if (leg.by === 'bus') return leg.leg === 'to'
+        ? { title: t('🚌 Bus at {time}', { time }), body: t('Time to get {names} to the bus stop.', { names }) }
+        : leg.half ? { title: t('🚌 Early release: bus drop-off at {time}', { time }), body: t('{names} will be home early today.', { names }) }
+        : { title: t('🚌 Bus drop-off at {time}', { time }), body: t('{names} will be home soon.', { names }) };
+      return leg.leg === 'to'
+        ? { title: t('School drop-off at {time}', { time }), body: t('Take {names} to school.', { names }) }
+        : leg.half ? { title: t('Early release: pickup at {time}', { time }), body: t('Pick up {names} from school.', { names }) }
+        : { title: t('School pickup at {time}', { time }), body: t('Pick up {names} from school.', { names }) };
+    };
+    const claimed = await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(leg.key, now.toISOString()).run();
+    if (!claimed.meta.changes) continue;
+    const bus = leg.by === 'bus';
+    const own = bus ? leg.kidIds : [leg.by];
+    const subs = await loadSubs(db, "k.owner IN (SELECT value FROM json_each(?1)) OR (k.scope = 'admin' AND (k.owner IS NULL OR k.owner NOT IN (SELECT id FROM members WHERE grown_up = 0)))", JSON.stringify(own));
+    // A grown-up's leg goes to their own devices, or every grown-up's when they have none.
+    const mine = bus ? subs : subs.filter(x => x.delivery_owner === leg.by);
+    const to = bus || !mine.length ? subs : mine;
+    await recordNotification(db, { kind: 'reminder', ...text(fam), url: '/#/school', memberIds: bus ? [...leg.kidIds, ...grownUps] : [leg.by], source: 'system', at: now });
+    for (const sub of to.filter(x => subPrefs(x).schoolReminders)) await sendToSub(env, db, sub, (lang) => ({ ...text(lang), url: '/#/school', tag: leg.key }));
+    await startSchoolActivity(env, db, now, leg, at, to.map(x => x.delivery_owner ?? null), bus || !mine.length, text);
+  }
+}
+
+/** The leave-by Live Activity, counting down to the bus or the pickup, on devices that show one. */
+async function startSchoolActivity(env: Env, db: KinwallDb, now: Date, leg: TravelReminder, at: Date, owners: (string | null)[], parents: boolean, text: (lang: Lang) => { title: string; body: string }): Promise<void> {
+  if (!await nativePushConfigured(env)) return;
+  const { results: tokens } = await db.prepare("SELECT t.id, t.device, t.kind, t.activity, t.token, t.preferences, COALESCE(k.owner, g.owner) AS owner, COALESCE(k.scope, g.scope) AS scope FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id")
+    .all<{ id: string; device: string; kind: string; activity: string; token: string; preferences: string; owner: string | null; scope: string | null }>();
+  const kidIds = new Set((await db.prepare('SELECT id FROM members WHERE grown_up = 0').all<{ id: string }>()).results.map(m => m.id));
+  const activity = leg.key, ends = at.getTime() + LIVE_GRACE_MS;
+  const fam = await familyLang(db);
+  for (const t of tokens.filter(x => x.kind === 'start' && activityPreferences(x.preferences).leaveBy && (owners.includes(x.owner) || (parents && x.scope === 'admin' && !(x.owner && kidIds.has(x.owner)))))) {
+    if (tokens.some(u => u.kind === 'update' && u.device === t.device && u.activity === activity)) continue;
+    const sentKey = `la:${t.device}:${activity}`;
+    if (await alreadySent(db, sentKey)) continue;
+    const { title, body } = text(fam);
+    const res = await sendNativeLiveActivity(env, await unseal(env, t.token, `live-activity-token:${t.id}`), {
+      timestamp: unixSeconds(now.getTime()), event: 'start', 'attributes-type': 'KinwallActivityAttributes',
+      attributes: { kind: 'leave', name: title, activity, endsAt: swiftDate(ends) },
+      'content-state': { title, detail: body, date: swiftDate(at.getTime()), count: 0, done: false },
+      'stale-date': unixSeconds(at.getTime()), alert: { title, body },
+    });
+    if (res.gone) await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();
+    if (res.ok || res.gone) await markSent(db, sentKey, now);
+  }
+}
+
 // Outings (routes/outings.ts, outing-reminders.ts): from OUTINGS_AT (household) on, the day's
 // heads-ups, ticket and last-chance notes, each once by its key; "on sale now" as soon as that time
 // comes. Held through quiet hours (the caller skips the tick), so a held note goes out after.
@@ -1282,12 +1421,18 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // by name, never its data, and the others still run. The window doesn't move past a failed
   // time-of-day part (`windowed`), so the next tick retries it; each send is claimed once, so nothing repeats.
   let retry = false;
+  // On a host that counts rows read, a part reading 100+ is logged by name (approximate: the tick's
+  // calendar sync runs alongside and its reads can land in a part's count).
   const part = async (name: string, run: () => Promise<unknown>, windowed = false) => {
+    const before = env.DB.rowsRead;
     try { await run(); } catch (e) { retry ||= windowed; console.error(`${name} skipped:`, e instanceof Error ? e.name : 'error'); }
+    const rows = before === undefined ? 0 : env.DB.rowsRead! - before;
+    if (rows >= 100) console.log(JSON.stringify({ message: 'rows read', what: `notifications: ${name}`, rows }));
   };
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
   const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
+  await part('event live activities', () => runEventLiveActivities(env,now));
   await part('event reminders', () => runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold));
   const features = await readFeatures(env.DB);
   await part('daily summary', () => runDailySummary(env, env.DB, now, tz, subs, windowStart, features), true);
@@ -1304,12 +1449,19 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
     await part('discard disabled medicine retries', async () => env.DB.prepare('DELETE FROM push_retries').run());
   }
   await part('medicine live activities', () => runMedicineLiveActivities(env, now));
+  if (features.school) await part('school travel', () => runSchoolTravel(env, env.DB, now, tz, h12)); // not held: the bus comes at its time
   if (features.outings && !hold) await part('outing reminders', () => runOutings(env, env.DB, now, tz, h12)); // held at night: sent once it's over
   if (features.upkeep && !hold) await part('home upkeep', () => runUpkeep(env, env.DB, now, tz, _execCtx)); // held at night too
   if (!hold) await part('calendar reconnect', () => runCalendarReconnect(env, env.DB, now)); // held at night: the Board's banner shows it meanwhile
   if (!hold) await part('to-do list reconnect', () => runTaskLinkReconnect(env, env.DB, now)); // held at night too: the list shows its warning meanwhile
   await part('prune', () => pruneSentNotifications(env.DB, now));
+  if (features.lists) await part('clear old ticked items', async () => { for (const id of await clearOldChecked(env.DB, now)) publish(env, _execCtx, 'list.changed', { id }); });
   if (!retry) await setTickWindowEnd(env.DB, now);
+  // Retired capabilities are housekeeping, never a prerequisite for time-sensitive alerts.
+  // Hosts with waitUntil can finish the alarm while the bounded cleanup batch is in flight.
+  const cleanup = part('android gateway cleanup', () => revokeAndroidGateways(env, now.getTime()));
+  if (_execCtx) _execCtx.waitUntil(cleanup);
+  else await cleanup;
 }
 
 // Chore approval (routes/chores.ts), sent right away rather than on the tick: "Leo finished Make

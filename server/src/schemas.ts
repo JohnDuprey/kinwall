@@ -247,6 +247,16 @@ export const TIDBIT_SOURCES = ['quotes', 'facts', 'tips', 'onthisday', 'trivia']
 export const TIP_CATEGORIES = ['routines', 'focus', 'organizing', 'feelings', 'sensory', 'communication'] as const;
 export const FACT_CATEGORIES = ['animals', 'space', 'science', 'body', 'plants', 'words'] as const;
 export const ON_THIS_DAY_KINDS = ['holidays', 'births', 'events'] as const;
+// School days (school-days.ts): the words that make a school calendar's event a day off, a half day or
+// the last day, and how long before the bus or a pickup its reminder goes out (null: none).
+export const SchoolSettingsSchema = z
+  .object({
+    rules: z.array(z.object({ words: z.string().trim().min(1).max(60), kind: z.enum(['off', 'half', 'last']) })).max(60),
+    busMinutes: z.number().int().min(1).max(120).nullable(),
+    pickupMinutes: z.number().int().min(1).max(120).nullable(),
+  })
+  .openapi('SchoolSettings', { description: "School's day rules (an event whose title holds the words makes its days a day off, a half day or the last day) and reminder lead times before the bus and a grown-up's pickup or drop-off (null: no reminder)." });
+
 export const TidbitSettingsSchema = z
   .object({
     sources: z.array(z.enum(TIDBIT_SOURCES)).max(TIDBIT_SOURCES.length), // [] = no card on the Board
@@ -299,9 +309,11 @@ export const FeaturesSchema = z
     meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
     newscast: z.boolean().default(true), // Home's Newscast tab: GET /api/newscast and its routes answer 404 while off
     announcements: z.boolean().default(true), // Scheduled family messages on the Board
+    inbox: z.boolean().default(true), // The quick-capture inbox (parents): /api/inbox and its routes answer 404 while off
     polls: z.boolean().default(true), // Family polls: /api/polls and its routes answer 404 while off, no poll notifications
     outings: z.boolean().default(true), // Outings: /api/outings and its routes answer 404 while off, no outing reminders
     upkeep: z.boolean().default(true), // Home upkeep: /api/upkeep and its routes answer 404 while off, no upkeep notes, chores or supplies
+    school: z.boolean().default(false), // School: /api/school and its routes answer 404 while off. The one switch that starts off: most families don't need it
     checkIns: z.boolean().default(true), // Temp check, goal checks, the energy battery, journals, Insights: no check-in, goal or battery notifications and no check-in points while off
   })
   .openapi('Features');
@@ -357,6 +369,7 @@ export const SettingsSchema = z
     defaultReminderMinutes: z.array(z.number()),
     lateCompletionCredit: z.number(), // percent of a chore's points earned when it's completed for a past day
     streakGraceDays: z.number(), // missed days per rolling 7 a streak survives (see computeStreak)
+    clearCheckedAfterDays: z.number().openapi({ description: 'Days a ticked item stays on a grocery or shopping list before Kinwall clears it (1-30, 7 unless changed). Other list types keep ticked items.' }),
     checkInPoints: z.number(), // points for the daily check-in (reading your day to the end); 0 = off
     leaderboardEnabled: z.boolean(), // false: clients hide the leaderboard and rank badges (the API still answers)
     stickersEnabled: z.boolean(), // false: clients hide the sticker book and the shop refuses purchases
@@ -366,6 +379,7 @@ export const SettingsSchema = z
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
+    school: SchoolSettingsSchema,
     nightLook: NightLookSchema.openapi({ description: "What wall screens show during night hours, unless a screen picks its own on the device." }),
     boardPresets: z.array(BoardPresetSchema).openapi({ description: "Board layouts a parent saved for the family; each screen picks one (or a built-in one, or its own) on the device." }),
     features: FeaturesSchema,
@@ -417,6 +431,7 @@ export const SettingsPatchSchema = z
     defaultReminderMinutes: z.array(z.number()).optional(),
     lateCompletionCredit: z.number().int().min(0).max(100).optional(),
     streakGraceDays: z.number().int().min(0).max(3).optional(),
+    clearCheckedAfterDays: z.number().int().min(1).max(30).optional(),
     checkInPoints: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(5), z.literal(10)]).optional(),
     leaderboardEnabled: z.boolean().optional(),
     stickersEnabled: z.boolean().optional(),
@@ -426,13 +441,16 @@ export const SettingsPatchSchema = z
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
     tidbits: TidbitSettingsSchema.optional(),
+    school: SchoolSettingsSchema.optional(),
     nightLook: NightLookSchema.optional(),
     boardPresets: z
       .array(BoardPresetSchema)
       .max(MAX_BOARD_PRESETS)
       .refine((l) => new Set(l.map((x) => x.id)).size === l.length, 'preset ids must be unique')
       .optional(), // the whole list
-    features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
+    // admin keys only (a display key gets 403). School has no default here: a client from before it
+    // leaves it out, and the saved switch stays (settings.ts settingsWrites merges over what's saved).
+    features: FeaturesSchema.extend({ school: z.boolean().optional() }).optional(),
     defaultGroceryStore: z.string().trim().max(60).nullable().optional(), // null clears it
     defaultShoppingStore: z.string().trim().max(60).nullable().optional(),
     mealTimes: MealTimesSchema.optional(),
@@ -612,14 +630,25 @@ export const ChoreSchema = z
     approveTimedPlay: z.boolean().openapi({ description: "Activity chores: completion by timed play also waits for a parent's OK (it auto-approves otherwise)." }),
     libraryId: z.string().nullable().openapi({ description: 'The chore library item it was made from (see /api/chore-library), if any. Its completions count as that item\'s "last done".' }),
     timerMinutes: z.number().nullable().openapi({ description: 'Timer length in minutes ("Practice piano - 20 min"): Start on the chore runs the app\'s timer this long, and when it rings it offers to mark the chore done. null = no timer.' }),
+    category: z.string().nullable().default(null),
+    ongoing: z.boolean().default(false).openapi({ description: 'An optional shared responsibility that stays available after each completion. Each tick creates a separate history chore (sourceId), with its own points and approval.' }),
+    sourceId: z.string().nullable().default(null).openapi({ description: 'Ongoing responsibility this completion record belongs to. Read only.' }),
+    schoolSubjectId: z.string().nullable().default(null).openapi({ description: 'Schoolwork: the School subject. Ticking it off (once approved) logs schoolMinutes of school time under it.' }),
+    schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().default(null).openapi({ description: 'Schoolwork: what kind; null for an ordinary chore.' }),
+    schoolMinutes: z.number().int().nullable().default(null).openapi({ description: 'Schoolwork: minutes logged when it is ticked off (default the timer, else 30).' }),
+    schoolDaysOff: z.boolean().default(false).openapi({ description: "Schoolwork: still due on the kid's days off and in summer (homework over a break). Otherwise it's left out on days with no school." }),
+    groupId: z.string().nullable().default(null).openapi({ description: 'Set on a chore for several people: each has their own copy, and the copies share this id. Editing one changes them all (except memberId and sort); deleting one deletes them all.' }),
   })
   .openapi('Chore');
 
 export const ChoreInputSchema = z
   .object({
+    category: z.string().trim().min(1).max(80).nullable().optional(),
+    ongoing: z.boolean().optional(),
     title: z.string().min(1),
     emoji: EmojiSchema.nullable().optional(),
     memberId: z.string().nullable().optional(),
+    memberIds: z.array(z.string()).max(100).optional().openapi({ description: 'Several people, each with their own copy to tick off (linked by groupId); [] for Anyone. Replaces memberId. On an update, the chore\'s whole group becomes exactly these people: copies are kept, added or deleted.' }),
     points: z.number().optional(),
     repeatGoal: ChoreGoalSchema.nullable().optional(),
     rrule: z.string().nullable().optional(),
@@ -634,6 +663,10 @@ export const ChoreInputSchema = z
     approveTimedPlay: z.boolean().optional(),
     libraryId: z.string().nullable().optional().openapi({ description: 'Create only: the chore library item this chore is made from (e.g. a repeating version of it).' }),
     timerMinutes: z.number().int().min(1).max(240).nullable().optional().openapi({ description: 'Timer length in minutes, 1-240; null for no timer.' }),
+    schoolSubjectId: z.string().nullable().optional().openapi({ description: 'Schoolwork: a School subject id; null makes it an ordinary chore again.' }),
+    schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().optional(),
+    schoolMinutes: z.number().int().min(1).max(1440).nullable().optional(),
+    schoolDaysOff: z.boolean().optional(),
   })
   .openapi('ChoreInput');
 
@@ -675,6 +708,13 @@ export const ListCatalogSchema = z.enum(['groceries', 'shopping']).openapi({
   description: "A shopping list's type: groceries (food and household groceries; meals add ingredients here) or shopping (hardware store, department store...). Each has its own catalog of remembered items, places and categories. Given on shopping lists only (null on others); a new shopping list without one is groceries when its name looks like groceries (Groceries, Grocery, Food, Supermarket, Market, Produce, Pantry), else shopping.",
 });
 
+export const ListKindSchema = z.enum(['todo', 'shopping', 'reusable']);
+// What a to-do list is for (0143). pantry: food at home. kind stays 'todo' (as groceries and shopping
+// both stay kind 'shopping') so apps that only know three kinds keep working and show it as a to-do list.
+export const ListPurposeSchema = z.enum(['pantry']).openapi({
+  description: "What a to-do list is for. pantry: food the family has at home. An item's dueDate is its use-by date and its category is where it's kept (e.g. Fridge, Freezer, Pantry); checking it off means it's used up. kind stays todo, so a client that doesn't know purpose shows it as a to-do list. null on every other list.",
+});
+
 /** Who did something on a list: a family member (memberId), or a device or app that is nobody's
  * (label: a wall screen's name such as "Kitchen wall", an automation key's name, or "Assistant" for a
  * connected app). Exactly one of the two is set; the field is null when nobody is known. */
@@ -688,7 +728,9 @@ export const ListSchema = z
     name: z.string(),
     emoji: z.string().nullable(),
     color: z.string().nullable(),
-    kind: z.enum(['todo', 'shopping', 'reusable']),
+    kind: ListKindSchema,
+    purpose: ListPurposeSchema.nullable(),
+    restock: z.boolean().openapi({ description: "Pantry lists: checking an item off (used up) adds it to the family's default Groceries list (else the first one), unless an item of that name is already open there; unticking it takes that grocery item back off while it isn't ticked. false on every other list." }),
     memberIds: z.array(z.string()),
     groupBy: ListGroupBySchema,
     sortBy: ListSortBySchema, // item order within each group
@@ -710,7 +752,9 @@ export const ListSchema = z
 export const ListInputSchema = z
   .object({
     name: z.string().min(1).max(200),
-    kind: z.enum(['todo', 'shopping', 'reusable']),
+    kind: ListKindSchema,
+    purpose: ListPurposeSchema.nullable().optional().openapi({ description: 'pantry (with kind todo) makes a pantry list. Left out or null: none.' }),
+    restock: z.boolean().optional().openapi({ description: 'Pantry lists: add used-up food to the grocery list (see List.restock). Default false; ignored on other lists.' }),
     emoji: EmojiSchema.nullable().optional(),
     color: z.string().max(50).nullable().optional(),
     memberIds: z.array(z.string()).max(100).optional(),
@@ -726,7 +770,9 @@ export const ListPatchSchema = z
     name: z.string().min(1).max(200).optional(),
     emoji: EmojiSchema.nullable().optional(),
     color: z.string().max(50).nullable().optional(),
-    kind: z.enum(['todo', 'shopping', 'reusable']).optional(),
+    kind: ListKindSchema.optional(),
+    purpose: ListPurposeSchema.nullable().optional().openapi({ description: 'pantry makes a to-do list a pantry list; null makes it a plain to-do list. Left out: kept while the list stays a to-do list.' }),
+    restock: z.boolean().optional().openapi({ description: 'Pantry lists: add used-up food to the grocery list (see List.restock). A list that stops being a pantry list turns it off.' }),
     memberIds: z.array(z.string()).max(100).optional(),
     groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
@@ -765,12 +811,12 @@ export const ListItemSchema = z
     notes: z.string().nullable(),
     quantity: z.string().nullable(),
     store: z.string().nullable(),
-    category: z.string().nullable(),
+    category: z.string().nullable().openapi({ description: 'Shopping lists: the department (e.g. "Dairy"). Pantry lists (purpose pantry): where it is kept (e.g. "Fridge", "Freezer", "Pantry").' }),
     aisle: z.string().nullable().openapi({ description: 'Where in the store, e.g. "Aisle 4" or "Back wall".' }),
     memberId: z.string().nullable(),
     forMemberIds: z.array(z.string()).openapi({ description: 'Who the item is for (member ids), e.g. a gift or a watch band for Maya; [] = for everyone. Separate from memberId, who it is assigned to.' }),
     onSale: z.boolean().openapi({ description: 'On sale this trip (shopping lists). Cleared when the item is checked off.' }),
-    dueDate: z.string().nullable(),
+    dueDate: z.string().nullable().openapi({ description: 'YYYY-MM-DD. On a pantry list (purpose pantry), the use-by (or best-by) date: before today (household timezone) it counts as overdue, i.e. expired.' }),
     eventId: z.string().nullable(), // linked calendar event (series id for a recurring local event)
     priority: ListItemPrioritySchema, // open urgent/high items sort first, low last (see ListSortBySchema)
     done: z.boolean(),
@@ -811,7 +857,7 @@ const ListItemInputSchema = z.object({
   eventId: z.string().nullable().optional(),
   priority: ListItemPrioritySchema.optional(),
   steps: z.array(StepTitleSchema).max(100).optional(), // step titles, in order
-  // Scanned (shopping lists): remembered as this item's name for the barcode, not stored on the item.
+  // Scanned (shopping and pantry lists): remembered as this item's name for the barcode, not stored on the item.
   barcode: BarcodeSchema.optional(),
 });
 
@@ -852,6 +898,56 @@ export const ListGroupSchema = z
     sort: z.number(),
   })
   .openapi('ListGroup');
+
+// Pantry (routes/pantry.ts, pantry.ts): open items on pantry lists and recipes that use up what's expiring.
+export const UseByStatusSchema = z.enum(['expired', 'today', 'soon', 'later']).openapi({
+  description: 'expired: its use-by date has passed; today; soon: within 3 days; later. Days are in the household timezone.',
+});
+export const PantryItemSchema = z
+  .object({
+    id: z.string().openapi({ description: 'The list item id (PATCH /api/lists/{listId}/items/{id} with done: true marks it used up).' }),
+    listId: z.string(),
+    listName: z.string(),
+    title: z.string(),
+    quantity: z.string().nullable(),
+    kept: z.string().nullable().openapi({ description: "Where it's kept (the item's category), e.g. Fridge." }),
+    useBy: z.string().nullable().openapi({ description: 'YYYY-MM-DD (the item\'s dueDate), or null when none is set.' }),
+    daysLeft: z.number().int().nullable().openapi({ description: 'Days until the use-by date: 0 today, negative once past it; null without a date.' }),
+    status: UseByStatusSchema.nullable(),
+  })
+  .openapi('PantryItem');
+export const PantryQuerySchema = z.object({
+  days: z.string().regex(/^\d{1,3}$/, 'a whole number of days').transform(Number).refine((n) => n <= 365, 'at most 365').optional()
+    .openapi({ type: 'integer', description: 'Expiring means a use-by date within this many days of today (0: today and anything past it). Default 7, at most 365.' }),
+  listId: z.string().optional().openapi({ description: 'Only this pantry list (default: every unarchived pantry list). 404 when it is not a pantry list, or is archived.' }),
+});
+export const PantryExpiringSchema = z
+  .object({
+    today: z.string().openapi({ description: "The household's today, YYYY-MM-DD." }),
+    days: z.number().int(),
+    items: z.array(PantryItemSchema).openapi({ description: 'Open pantry items with a use-by date within `days`, soonest (and expired) first.' }),
+  })
+  .openapi('PantryExpiring');
+const PantryUseSchema = PantryItemSchema.extend({ ingredient: z.string().openapi({ description: "The recipe's ingredient it matched." }) }).openapi('PantryUse');
+export const PantrySuggestionsQuerySchema = PantryQuerySchema.extend({
+  limit: z.string().regex(/^\d{1,2}$/, 'a whole number').transform(Number).refine((n) => n >= 1 && n <= 50, 'between 1 and 50').optional()
+    .openapi({ type: 'integer', description: 'How many recipes, 1-50. Default 10.' }),
+});
+export const PantrySuggestionsSchema = z
+  .object({
+    today: z.string(),
+    days: z.number().int(),
+    expiring: z.array(PantryItemSchema).openapi({ description: 'What to use within `days`, soonest first.' }),
+    suggestions: z.array(z.object({
+      recipe: z.object({ id: z.string(), name: z.string(), imageUrl: z.string().nullable(), totalMinutes: z.number().nullable(), rating: z.number().nullable().openapi({ description: 'Family average stars, 1-5.' }) }),
+      score: z.number().openapi({ description: 'Higher is better: each expiring item it uses counts 1 / (1 + days left) (today or past: 1), plus 0.1 per other pantry item, minus 0.02 per missing ingredient.' }),
+      uses: z.array(PantryUseSchema).openapi({ description: 'The expiring items it uses, soonest first.' }),
+      alsoHave: z.array(PantryUseSchema).openapi({ description: 'Other pantry items it uses (not expiring within `days`).' }),
+      missing: z.array(z.string()).openapi({ description: "Its ingredients the pantry doesn't have (salt, pepper, oil and water are assumed)." }),
+    })).openapi({ description: "The family's meal recipes (not basics or archived ones) that use at least one expiring item, best first." }),
+    unmatched: z.array(PantryItemSchema).openapi({ description: 'Expiring items none of the suggested recipes use: ideas wanted.' }),
+  })
+  .openapi('PantrySuggestions');
 
 // GET /api/lists/{id}?store=X: the list as shopped at that store.
 export const ListTripSchema = z
@@ -1076,7 +1172,10 @@ export const PushSubscriptionPrefsSchema = z
     morningCheckInTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).refine(value => value < '12:00', 'Choose a time before noon').openapi({ description: 'Household time, before noon; held during night hours until noon.' }),
     choreNudge: z.boolean(),
     choreNudgeTime: z.string().regex(HHMM_RE),
+    choreNudgeAnyone: z.boolean().optional().openapi({ description: 'Include Anyone chores in this device’s daily chore reminder; off by default. Does not filter the household feed.' }),
+    newChores: z.boolean().optional().openapi({ description: 'Push when a new active chore is assigned to a followed member or Anyone, including library assignments. Off by default. Excludes the person and device that created it.' }),
     listUpdates: z.boolean(),
+    schoolReminders: z.boolean().default(true).openapi({ description: "School: before the bus and a grown-up's drop-off or pickup, on school days." }),
     outingReminders: z.boolean().default(true).openapi({ description: 'Outings: heads-ups for ⭐ outings, ticket dates and last chances.' }),
     upkeepReminders: z.boolean().default(true).openapi({ description: 'Home upkeep: jobs coming up, due and late, and warranties ending.' }),
     medicationNames: z.boolean().openapi({ description: 'Medicine names and doses in medication reminders on this device (off: "Time for Leo\'s medicine" only; push text shows on lock screens).' }),
@@ -1538,10 +1637,21 @@ export const BoardSchema = z
     items: z.array(SnapshotItemSchema), // anyone's open items due by `to` (incl. overdue), plus undated urgent/high
     chores: z.array(
       z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number(), pending: z.number() }), // pending: of remaining, ticked and waiting for a parent's OK
-    ),
+    ).openapi({ description: "Each person's chores today, not counting schoolwork." }),
+    schoolwork: z.array(
+      z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number(), pending: z.number() }),
+    ).openapi({ description: "Each kid's schoolwork today (School), counted like chores. Empty while School is off." }),
     // Today's chores with a start time or a timer, each on its own: the Board's Today card shows them as rows among the day's events.
     timedChores: z.array(
-      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean() }),
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean(), school: z.boolean().openapi({ description: 'Schoolwork (opens School).' }) }),
+    ),
+    // Today's other open chores and schoolwork (no start time or timer), schoolwork first: the Board's Today card fills spare room with them.
+    otherChores: z.array(
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), dueTime: z.string().nullable(), timerMinutes: z.number().nullable(), done: z.boolean(), pending: z.boolean(), school: z.boolean() }),
+    ),
+    // Late chores from the last 7 days, not ticked, oldest first: a one-off's day, or a repeating chore's last time before today (not a goal chore). Tick one off for its `date`.
+    overdueChores: z.array(
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), memberId: z.string().nullable(), points: z.number(), date: z.string() }),
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
     meals: z.array(MealSchema),

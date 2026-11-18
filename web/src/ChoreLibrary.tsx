@@ -85,11 +85,11 @@ export function ChoreLibrarySheet({ onClose, onAssigned, onRepeat }: { onClose: 
                   <span>
                     {item.title}
                     <small>{t('{n} pts', { n: item.points })} · {libraryStatus(item, today, nameOf)}</small>
-                    {dueIsh && <small className="lib-due">⏰ {t('Due-ish')}</small>}
+                    {dueIsh && <small className="lib-due">⏰ {t('Due again soon')}</small>}
                   </span>
                 </button>
                 {item.timesAssigned > 0 && !item.open && (
-                  <button type="button" className="btn btn-secondary lib-again" onClick={() => again(item)} aria-label={t('Again: {title} for {name} today', { title: item.title, name: nameOf(item.lastMemberId) })}>{t('Again · {name}', { name: nameOf(item.lastMemberId) })}</button>
+                  <button type="button" className="btn btn-secondary lib-again" onClick={() => again(item)} aria-label={t('Give {title} to {name} again today', { title: item.title, name: nameOf(item.lastMemberId) })}>{t('Give to {name} again', { name: nameOf(item.lastMemberId) })}</button>
                 )}
               </li>
             ))}
@@ -240,7 +240,7 @@ export function LibraryEditSheet({ item, onClose, onSaved }: { item: LibraryChor
         <label htmlFor="lib-checklist">{t('Checklist (optional)')}</label>
         <select id="lib-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
           <option value="">{t('None')}</option>
-          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
+          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
         </select>
       </div>
       <div className="field">

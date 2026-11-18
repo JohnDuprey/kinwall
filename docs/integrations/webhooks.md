@@ -24,6 +24,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `calendar.synced` | A calendar finished syncing and something changed, or you pressed Sync now (includes `error` on failure; a background sync repeating the same error doesn't send it again). |
 | `events.changed` | Events were created, edited or deleted, including by a sync that brought in changes. |
 | `chore.changed` | A chore is added, edited or deleted, or a parent resets the play time of an [activity chore](../using/chores.md#activity-chores). |
+| `chore.dismissal.changed` | A parent dismisses a late date as not done or restores it. `data`: `{ choreId, date, dismissed }`. No points or completion event. |
 | `chore.completed` | A chore is marked done for a date (for a chore that needs a parent's OK, when it's approved). `data`: `{ id, date, title, memberId, points }`. `memberId` is who gets the credit (for an Anyone chore, the person it was ticked off for, or `null`), and `points` is what was awarded, so late completions show the reduced amount. |
 | `chore.uncompleted` | A completion is undone. `data`: `{ id, date, title, memberId }`. |
 | `chore.pending` | A chore that needs a [parent's OK](../using/chores.md#parent-approval) was ticked on a wall screen or kid's device and is waiting. `data`: `{ id, date, title, memberId }`. `chore.completed` follows when a parent approves it. |
@@ -52,11 +53,13 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `plugin.action` | An [activity action](../contributing/plugins.md#actions) was queued, like a spelling list for Spelling practice. `data`: `{ id, pluginId, memberId, action }` (`memberId` is `null` for the family's shared data), never the input. |
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
+| `weekly-plan.changed` | A shared [weekly plan](../using/weekly-planning.md) draft is saved or applied. `data`: `{ weekStart }` (or `{ imported }` after import), never the draft choices. Adding meals or to-dos also sends their ordinary change events. |
 | `meal.changed` | A meal is planned, edited or deleted, or someone's order for it changed. `data`: `{ id }`. |
 | `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too, or by an [import from a phone](../using/meals.md#add-restaurants-from-your-phone) that changed something), archived or deleted. `data`: `{ id }`. |
 | `upkeep.changed` | A [home upkeep](../using/upkeep.md) job, thing, area or Done was added, changed or deleted, a job was snoozed or skipped, or a file was added or removed. `data`: `{ id, kind }` (`kind`: `job`, `thing`, `area` or `log`; plus `deleted: true`). |
 | `upkeep.done` | An upkeep job was marked done (also when a kid ticks off its chore). `data`: `{ id, jobId, thingId, title, doneOn, memberId }`, where `id` is the Done; never the cost, reading or notes. |
 | `upkeep.due` | The morning's heads-up, due or late note went out for an upkeep job, once per job and due date. `data`: `{ jobId, title, dueOn, status }` (`soon`, `due` or `overdue`). Enough for "flash the hall light". |
+| `school.changed` | [School](../using/school.md) time was logged, changed, approved or deleted, or a subject or a kid's school settings changed. `data`: `{ id, kind }` (`kind`: `log`, `subject`, `kid` or `day` (a marked day, with its `date`); plus `deleted: true`, `approved: true`, or for a new log `memberIds` and `pending`). |
 | `outing.changed` | An [outing](../using/outings.md) or place was added, changed, marked (👀 / ⭐), put on the calendar or deleted, or its categories changed. `data`: `{ id }` (or `{ categoryId }`), never who marked what. |
 | `poll.changed` | A [family poll](../using/polls.md) was started, voted in, closed, linked to a meal or deleted. `data`: `{ id, status }` (`open`, `closed` with `winnerOptionId`, or `deleted`), never who voted for what. |
 | `display.paired` | A wall display was paired. |
@@ -97,6 +100,10 @@ const ok = timingSafeEqual(Buffer.from(expected), Buffer.from(req.headers['x-kin
 These events advance the `chores` revision. They are distinct from purchased reward events such as
 `reward.redeemed`; an existing Home Assistant automation for purchased rewards will not run just
 because someone reaches a milestone. No new Home Assistant entities or native widgets are added.
+
+### Inbox
+
+`inbox.changed` is emitted when a thought is jotted down, sorted, cleared or put back, with `{id}` (never its words). Import emits `{imported}` with the restored count. Sorting also emits what was made (`list.item.changed`, `events.changed` or `announcement.changed`). Turning the feature off prevents inbox changes and their webhooks.
 
 ### Family announcements
 

@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import Sheet from './Sheet.tsx'
-import { CheckIcon, ChevronRight } from './icons.tsx'
+import { CheckIcon, ChevronRight, PlusIcon } from './icons.tsx'
 import { pickMatches, pickSummary, type Pickable } from './pick.ts'
 import { lang, t } from './i18n.ts'
 
@@ -12,8 +12,9 @@ export const PickSwatch = ({ color }: { color: string }) => <span className="pic
 /** Choosing from a list in a sheet, instead of a long or multiple <select>: a row that shows the
  * current choice and opens a sheet of checkable rows (like the meal sheet's recipe picker).
  * Single choice picks and closes; multiple toggles, with Clear and Done. Search shows for long
- * lists. `top` rows (a detected timezone) are listed first, with the rest in `options` order. */
-export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = t('Search'), none = t('None'), summary }: {
+ * lists. `top` rows (a detected timezone) are listed first, with the rest in `options` order.
+ * `add`: a first row to make a new one ("New school…"); it closes the sheet and hands over the search text. */
+export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = t('Search'), none = t('None'), summary, add }: {
   id?: string
   label: string // what the row is for, read with its value: "Categories: Medical, School"
   title?: string
@@ -25,6 +26,7 @@ export default function PickField({ id, label, title = label, options: given, va
   placeholder?: string
   none?: string // what an empty choice says
   summary?: string // the row's text, when the options' labels don't say it best
+  add?: { label: string; onAdd: (query: string) => void }
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -57,6 +59,7 @@ export default function PickField({ id, label, title = label, options: given, va
         {searchable && <div className="field"><input type="search" aria-label={t('Search {what}', { what: lang() === 'de' ? title : title.toLocaleLowerCase() })} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); choose(shown[0].value) } }} /></div>}
         <div className="sheet-links">
+          {add && <button type="button" className="sheet-link pick-add" onClick={() => { const q = query.trim(); close(); add.onAdd(q) }}><PlusIcon aria-hidden="true" /><span>{add.label}</span></button>}
           {shown.map(o => {
             const on = value.includes(o.value)
             return <button key={o.value} type="button" className="sheet-link" aria-pressed={on} onClick={() => choose(o.value)}>
@@ -64,7 +67,7 @@ export default function PickField({ id, label, title = label, options: given, va
             </button>
           })}
         </div>
-        {!shown.length && <p className="state-card">{options.length ? t('Nothing matches') : t('Nothing to choose yet')}</p>}
+        {!shown.length && !add && <p className="state-card">{options.length ? t('Nothing matches') : t('Nothing to choose yet')}</p>}
       </div>
     </Sheet>}
   </>

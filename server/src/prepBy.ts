@@ -30,13 +30,13 @@ export type EventMeal = { id: string; status: 'planned' | 'prepared'; mealKind: 
 type LinkRow = { event_id: string; event_start: 'meal' | 'cooking' | null; cook: string | null; snapshot: string | null; total_minutes: number | null; prep_minutes: number | null; steps: string | null; meal_title: string;
   meal_id: string; status: EventMeal['status']; meal_kind: EventMeal['mealKind']; restaurant_id: string | null; eater_ids: string | null; orders: number };
 
-/** Every event a meal is linked to, as one statement (for a caller's db.batch; read with parseMealLinks). */
-export const mealLinksQuery = (db: KinwallDb) =>
+/** Meal links for the matching event ids (one JSON parameter; read with parseMealLinks). */
+export const mealLinksQuery = (db: KinwallDb, eventIds: string[]) =>
   db.prepare(
     'SELECT m.calendar_event_id AS event_id, m.title AS meal_title, m.calendar_event_start AS event_start, m.assignee_member_id AS cook, m.recipe_snapshot AS snapshot, r.total_minutes, r.prep_minutes, r.steps, ' +
       "m.id AS meal_id, m.status, m.meal_kind, m.restaurant_id, m.eater_ids, (SELECT count(*) FROM meal_orders o WHERE o.meal_id = m.id AND o.items != '[]') AS orders " +
-      'FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id WHERE m.calendar_event_id IS NOT NULL',
-  );
+      'FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id WHERE m.calendar_event_id IS NOT NULL AND m.calendar_event_id IN (SELECT value FROM json_each(?))',
+  ).bind(JSON.stringify(eventIds));
 
 /** Event id -> how its prep time is worked out, and who cooks. */
 export function parseMealLinks(rows: unknown[]): Map<string, MealLink> {

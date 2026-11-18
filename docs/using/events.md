@@ -9,13 +9,14 @@ Tap an event to open its sheet. It shows:
 * **When**: the date and time range, or "All day". Multi-day all-day events show their date range.
 * **Location**: a link. If the location contains a URL (a video-call link), that URL opens. A street address opens Apple Maps on Apple devices and Google Maps elsewhere. Obviously virtual places ("Zoom", "Teams", "online", "TBD") stay plain text.
 * **Repeats**, if the event recurs.
+* **Calendar**: the name of the calendar the event is on.
 * **Category**: "🎂 Birthdays". See [Categories](categories.md).
-* **Reminder**: "🔔 30 min before". "· default" is added when it comes from the household default.
+* **Reminder**: "🔔 30 min before", or "🔔 At the start" for one at the start time (Google's "At time of event"). "· default" is added when it comes from the household default.
 * **Family member chips**: tap to tag or untag people. See [Members on events](#members-on-events).
 * **Notes**: the event's own notes (its description), as plain text with its line breaks. Links in them open in a new tab. See [Event notes](#event-notes).
 * **Tasks**: list items linked to this event. See [Linked tasks](#linked-tasks).
 * **Discussion**: the family's back-and-forth on this event, separate from its notes. See [Discussion](#discussion).
-* **Make it a health visit**, on parents' devices and a grown-up's own device when the Health tracker is on: a Health visit filled in from the event and linked to it. Once there is one, this reads **Health visit: Checkup · Maya** and opens it. Never on a wall screen or a kid's device. See [Trackers](trackers.md#health).
+* **Make it a health visit**, on parents' devices and a grown-up's own device when the Health tracker is on: a Health visit filled in from the event and linked to it. Once there is one, this reads **Health visit: Checkup · Maya** and opens it. Never on a wall screen or a kid's device. See [Trackers](trackers.md#health-).
 * **Hide…**, on parents' devices: hide this event, every one in its series, or every event like it, from the whole family. See [Hiding events](calendar.md#hiding-events). A hidden event (with the calendar's **Show hidden** eye on) says "Hidden" with **Show again** instead.
 * **Edit**, and **Delete event** at the bottom of the sheet, only on writable calendars this device may change (see [Who can change events](#who-can-change-events)). Delete asks first. An event from Google or Outlook is deleted there too.
 

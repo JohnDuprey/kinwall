@@ -26,3 +26,13 @@ export function dateKey(d: Date) {
 export function todayKeyInTz(tz: string) {
   return zonedDayKey(new Date().toISOString(), tz)
 }
+
+/** An all-day event's last day (its end date is exclusive), or null for a one-day event. Plain
+ * date math in UTC, so the device's zone never moves it (local midnight is the day before in UTC
+ * east of Greenwich). */
+export function allDayLastDay(start: string, end: string): string | null {
+  const last = new Date(`${end}T12:00:00Z`)
+  last.setUTCDate(last.getUTCDate() - 1)
+  const key = last.toISOString().slice(0, 10)
+  return key > start ? key : null
+}

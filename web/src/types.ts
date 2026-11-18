@@ -58,6 +58,7 @@ export interface Settings {
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives
+  clearCheckedAfterDays: number // 1-30: ticked items leave grocery and shopping lists after this many days
   checkInPoints: number // daily check-in points (0 = off; 1, 2, 3, 5 or 10)
   leaderboardEnabled: boolean // false: hide the leaderboard, crowns and rank badges
   stickersEnabled: boolean // false: hide the sticker book (and the shop refuses purchases)
@@ -67,6 +68,7 @@ export interface Settings {
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
   tidbits: TidbitSettings // the Board's quote / fact card
+  school?: SchoolSettings // School's day rules and reminder times (school-days.ts)
   nightLook: NightLook // what wall screens show during night hours unless a screen picks its own (saverSources.ts)
   boardPresets: BoardPreset[] // Board layouts a parent saved for the family (boardLayout.ts)
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
@@ -92,6 +94,7 @@ export interface NightLook {
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */
 export interface Features {
   announcements: boolean // Scheduled family banners on the Board
+  inbox: boolean // The quick-capture inbox at the top of a parent's screen
 
   chores: boolean // Chores tab, points, rewards, sticker book, chore nudges (the leaderboard, sticker shop and rewards have their own switches too)
   lists: boolean // Lists tab, "Due soon", an event's linked items, list-update notifications
@@ -109,8 +112,40 @@ export interface Features {
   polls: boolean // Family polls: the Board card, the Polls sheet, poll notifications (their routes answer 404 while off)
   outings: boolean // Outings: the tab, the Board's Outings button and its reminders (their routes answer 404 while off)
   upkeep: boolean // Home upkeep: the tab, its jobs in Due soon, its reminders, chores and supplies (on unless turned off; its routes answer 404 while off)
+  school: boolean // School: the tab and its routes (off until a family turns it on; its routes answer 404 while off)
   checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
+
+// School (server: routes/school.ts). One save for several kids is one log per kid, sharing groupId.
+export interface SchoolSubject { id: string; name: string; emoji: string | null; color: string; sort: number; archived: boolean; goalHours?: number | null }
+export type SchoolMode = 'home' | 'enrolled'
+export type SchoolKind = 'lesson' | 'homework' | 'test' | 'project'
+export interface SchoolKid {
+  memberId: string; mode: SchoolMode; grade: string | null; approveLogs: boolean
+  toSchoolBy?: string | null; toSchoolTime?: string | null; fromSchoolBy?: string | null; fromSchoolTime?: string | null // getting there and home: 'bus' or a grown-up's id, and when
+  dayStart: string | null; dayEnd: string | null; schoolDays: number[] // school hours ("HH:MM") on these weekdays, 0 = Sunday
+  yearStart?: string // their school year starts, "MM-DD"; it runs to the day before it comes round again
+  yearGoalHours?: number | null; yearGoalDays?: number | null; dailyGoalMinutes?: number | null // records: a school year's hours and days, a school day's minutes
+  teacherEmail?: string | null; teacherLink?: string | null // how to reach the teacher (parents' devices only: null elsewhere)
+  calendarIds: string[]; schoolContactId?: string | null; teacherName?: string | null; contactIds: string[]; terms: number // the school's and district's calendars, the school (Contacts) and their teacher, other contacts, report card terms a year
+  halfDayEnd?: string | null; halfFromSchoolTime?: string | null // a half day (early release): school ends, and the bus or pickup home
+  lastDay?: string | null // the last day of school ("YYYY-MM-DD") when their calendars don't say
+}
+/** A kid's day (server: school-days.ts): school, a half day, or none. */
+export type SchoolDayKind = 'school' | 'half' | 'off' | 'weekend' | 'summer'
+export interface SchoolDay { memberId: string; date: string; kind: SchoolDayKind; reason: string | null; last: boolean; marked: boolean }
+export interface SchoolDays { days: SchoolDay[]; left: { memberId: string; lastDay: string; left: number }[] }
+export type SchoolDayRule = { words: string; kind: 'off' | 'half' | 'last' }
+/** settings.school: the day rules, and how long before the bus or a pickup its reminder goes out (null: none). */
+export interface SchoolSettings { rules: SchoolDayRule[]; busMinutes: number | null; pickupMinutes: number | null }
+export type SchoolKidInput = Partial<Omit<SchoolKid, 'memberId' | 'mode'>> & { mode: SchoolMode }
+/** A report card grade (parents only). year: the school year's first calendar year (2026 = 2026–27). */
+export interface SchoolGrade { id: string; memberId: string | null; formerMember?: string | null; year: number; term: number; subjectId: string; grade: string; updatedAt: string }
+export interface SchoolLog { id: string; groupId: string; memberId: string | null; formerMember?: string | null; subjectId: string | null; date: string; minutes: number; title: string | null; notes: string | null; pending: boolean; createdBy: string | null; createdAt: string; updatedAt: string; choreId?: string | null; choreDate?: string | null; photoId?: string | null }
+export interface SchoolLogInput { memberIds: string[]; subjectId?: string | null; date?: string; minutes: number; title?: string | null; notes?: string | null; photoId?: string | null }
+/** A kid's school year, July 1 to June 30 (GET /api/school/records, parents only). */
+export interface SchoolRecords { year: number; from: string; to: string; minutes: number; days: number; bySubject: { subjectId: string | null; minutes: number }[]; byMonth: { month: string; minutes: number; days: number }[]; photos: { photoId: string; logId: string; date: string; title: string | null; subjectId: string | null }[]; reportCards: { term: number; photoId: string }[] }
+export interface SchoolSummary { from: string; to: string; rows: { memberId: string; subjectId: string | null; minutes: number }[] }
 
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
 export type TrackerKind = 'reading' | 'memory' | 'health'
@@ -309,7 +344,7 @@ export type DoseStatus = 'taken' | 'skipped' | 'due' | 'missed' | 'upcoming'
 /** GET /api/medications/due: the Take now cards. name/dose null on a shared wall with names off ("Meds"). */
 /** time: 'HH:MM', or 'wake' for "When I start my day" (startedAt: when their day started, null if the latest time came first). until: when its late window closes. */
 export interface DueDose { medicationId: string; memberId: string; date: string; time: string; dueAt: string; startedAt: string | null; until: string; name: string | null; dose: string | null }
-export interface MedicationsDue { names: boolean; doses: DueDose[] }
+export interface MedicationsDue { names: boolean; doses: DueDose[]; checkedAt?: string; recheckAt?: string }
 export interface MedicationDose { medicationId: string; date: string; time: string; status: DoseStatus; startedAt: string | null; at: string | null; late: boolean; by: string | null; edited: boolean; snoozedUntil: string | null }
 /** GET /api/members/{id}/medications: their own device and parents' devices only. days oldest first. */
 export interface MedicationHistory {
@@ -394,7 +429,10 @@ export const REMINDER_OPTIONS: { value: string; label: string; minutes: number[]
 export function reminderLabel(minutes: number[] | null | undefined): string | null {
   if (!minutes || minutes.length === 0) return null
   const one = (m: number) => m % 1440 === 0 ? tn(m / 1440, '{n} day', '{n} days') : m % 60 === 0 ? tn(m / 60, '{n} hour', '{n} hours') : tn(m, '{n} min', '{n} min')
-  return t('{times} before', { times: [...new Set(minutes)].sort((a, b) => a - b).map(one).join(', ') })
+  // 0 is a reminder at the start time (Google's "At time of event"), not "0 days before".
+  const before = [...new Set(minutes)].filter(m => m > 0).sort((a, b) => a - b).map(one).join(', ')
+  if (!minutes.includes(0)) return t('{times} before', { times: before })
+  return before ? t('At the start and {times} before', { times: before }) : t('At the start')
 }
 
 export interface Category {
@@ -418,6 +456,9 @@ export const CATEGORY_PRESETS: { name: string; emoji: string; keywords: string[]
 ]
 
 export interface Chore {
+  category?: string | null
+  ongoing?: boolean
+  sourceId?: string | null
   id: string
   title: string
   emoji: string
@@ -436,6 +477,13 @@ export interface Chore {
   approveTimedPlay?: boolean // activity chores: timed play waits for an OK too (auto-approves otherwise)
   libraryId?: string | null // made from this chore library item
   timerMinutes?: number | null // Start runs the app's timer this long (ChoreTimer.tsx)
+  groupId?: string | null // a chore for several people: one linked copy each, edited and deleted together
+  memberIds?: string[] // create/update only: the people who each get a copy; [] = Anyone
+  // Schoolwork (School.tsx): ticking it off logs schoolMinutes of school time under its subject.
+  schoolSubjectId?: string | null
+  schoolKind?: SchoolKind | null
+  schoolMinutes?: number | null
+  schoolDaysOff?: boolean // still due on the kid's days off and in summer (homework over a break)
 }
 
 /** A saved chore in the chore library (server: routes/chore-library.ts). Parent devices only. */
@@ -764,6 +812,8 @@ export interface Webhook {
 export type WebhookWithSecret = Webhook & { secret: string }
 
 export type ListKind = 'todo' | 'shopping' | 'reusable'
+/** What a to-do list is for (older servers leave it out). pantry: food at home, where an item's dueDate is its use-by date and its category where it's kept. */
+export type ListPurpose = 'pantry'
 /** A shopping list's type (and its catalog): Groceries or other Shopping. */
 export type ListCatalog = 'groceries' | 'shopping'
 export type ListGroupBy = 'store' | 'category' | 'aisle' | 'none' // aisle: shopping lists only
@@ -775,6 +825,8 @@ export interface List {
   emoji: string | null
   color: string | null
   kind: ListKind
+  purpose?: ListPurpose | null // to-do lists: pantry (kind stays todo, so older apps show a to-do list)
+  restock?: boolean // pantry lists: checking food off adds it to the grocery list (older servers leave it out)
   memberIds: string[] // owners; [] = whole family
   groupBy: ListGroupBy
   sortBy: ListSortBy // item order within each group
@@ -789,6 +841,22 @@ export interface List {
   overdueCount?: number // computed: open items due before today (older servers leave it out)
   lastDoneAt?: string | null // reusable lists: last reset with something ticked, or its chore done (older servers leave it out)
   lastDoneBy?: Actor | null
+}
+
+/** GET /api/pantry/*: an open pantry item with how long it keeps (days in the household's calendar). */
+export type UseByStatus = 'expired' | 'today' | 'soon' | 'later'
+export interface PantryItem {
+  id: string; listId: string; listName: string; title: string; quantity: string | null
+  kept: string | null // where it's kept (the item's category)
+  useBy: string | null; daysLeft: number | null; status: UseByStatus | null
+}
+export type PantryUse = PantryItem & { ingredient: string }
+/** GET /api/pantry/suggestions: recipes that use up what's expiring, best first. */
+export interface PantrySuggestions {
+  today: string; days: number
+  expiring: PantryItem[]
+  suggestions: { recipe: { id: string; name: string; imageUrl: string | null; totalMinutes: number | null; rating: number | null }; score: number; uses: PantryUse[]; alsoHave: PantryUse[]; missing: string[] }[]
+  unmatched: PantryItem[] // expiring items no suggested recipe uses
 }
 
 /** Who did something on a list: a family member, or a device or app that is nobody's ("Kitchen wall", "Assistant"). */
@@ -959,7 +1027,7 @@ export interface ListItemInput {
   eventId?: string | null
   priority?: ListItemPriority
   steps?: string[] // step titles, in order
-  barcode?: string // scanned: remembered as this item's name for the barcode (shopping lists)
+  barcode?: string // scanned: remembered as this item's name for the barcode (shopping and pantry lists)
 }
 /** GET /api/lists/{id}/barcodes/{code}: what the family called it last time, else Open Food Facts. */
 export interface BarcodeLookup { title: string; source: 'family' | 'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts' | 'openpetfoodfacts' }
@@ -994,8 +1062,11 @@ export interface PushSubscriptionPrefs {
   morningCheckIn?: boolean
   morningCheckInTime?: string
   choreNudge: boolean
+  choreNudgeAnyone?: boolean
+  newChores?: boolean
   choreNudgeTime: string
   listUpdates: boolean
+  schoolReminders?: boolean // School: before the bus and a grown-up's drop-off or pickup (on unless turned off)
   outingReminders?: boolean // Outings: heads-ups for ⭐ outings, ticket dates and last chances (on unless turned off)
   upkeepReminders?: boolean // Home upkeep: jobs coming up, due and late, warranties ending (on unless turned off)
   medicationNames: boolean // medicine names in medication reminders on this device (off: generic text)
@@ -1052,8 +1123,10 @@ export interface Snapshot {
   checkedIn: boolean // checked in today
   checkInPoints: number // what checking in earns; 0 = off
 }
+/** A chore whose day passed without a tick (for a repeating one, its last time); ticking it off uses its `date`. */
+export interface OverdueChore { id: string; title: string; emoji: string | null; memberId: string | null; points: number; date: string }
 /** GET /api/board?days=N - the whole family's bulletin board, today through `to`. */
-export interface TimedChore { id: string; title: string; emoji: string | null; memberId: string | null; dueTime: string | null; timerMinutes: number | null; done: boolean; pending: boolean }
+export interface TimedChore { id: string; title: string; emoji: string | null; memberId: string | null; dueTime: string | null; timerMinutes: number | null; done: boolean; pending: boolean; school?: boolean }
 
 export interface Board {
   today: string
@@ -1064,6 +1137,9 @@ export interface Board {
   items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
   chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number; pending?: number }[]
   timedChores?: TimedChore[] // today's chores with a start time or a timer: rows of their own on Today
+  otherChores?: TimedChore[] // today's other open chores and schoolwork, no time: Today fills spare room with them
+  schoolwork?: Board['chores'] // each kid's schoolwork today, counted like chores (not in `chores`)
+  overdueChores?: OverdueChore[] // late chores from the last 7 days, not ticked, oldest first: a one-off's day or a repeating chore's last time (an older server sends none)
   birthdays: SnapshotBirthday[]
   meals: Meal[] // today through `to`; [] while Meals is off
   booksDue: { id: string; title: string; borrowedFrom: string; dueOn: string; date: string; overdue: boolean }[] // borrowed library books due back; date: the board day (overdue ones show today)

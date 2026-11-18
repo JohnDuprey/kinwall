@@ -5,10 +5,12 @@ import { deviceOwner, ownDevice, requestKey, resolveKey, sha256Hex } from '../au
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey } from '../webpush.ts';
 import { nativeEndpoint, sendPush } from '../push-delivery.ts';
+import { AndroidGatewayInput, androidPushStatus, verifyAndroidGateway } from '../android-push-gateway.ts';
+import { fcmOrigin, validFcmToken } from '../fcm.ts';
 import { nativePushStatus } from '../native-push.ts';
 import { GatewayInput, gatewayAad, verifyGateway } from '../push-gateway.ts';
 import type { Context } from 'hono';
-import { encrypt } from '../crypto.ts';
+import { decrypt, encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
 import { DEFAULT_PUSH_PREFS, MED_LATE, openNote, pushToMembers, recordNotification } from '../notify.ts';
 import { medicationFeedFilter } from './medications.ts';
@@ -33,6 +35,8 @@ type PushSubRow = {
   last_success_at: string | null;
   gateway_credential: string | null;
   gateway_expires_at: number | null;
+  gateway_fingerprint: string | null;
+  gateway_server: string | null;
 };
 
 function toApi(row: PushSubRow) {
@@ -89,15 +93,68 @@ pushRoutes.openapi(createRoute({
   const gatewayExpiresAt = body.gateway ? gatewayExpiry : keepGateway ? existing.gateway_expires_at : null;
   const kid = await deviceOwner(c);
   const prefs = { ...DEFAULT_PUSH_PREFS, ...(existing ? JSON.parse(existing.prefs) : {}), eventReminders: false };
+  const memberIds = JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []);
+  // The app re-registers on every resume: when nothing changed, answer without writing (hosted
+  // pays per row written and re-plans reminders after any write).
+  if (existing && existing.endpoint === endpoint && existing.device_name === body.deviceName && existing.prefs === JSON.stringify(prefs)
+    && JSON.stringify(parseMemberIds(existing.member_ids)) === memberIds && await sameGateway(c.env, existing, body.gateway, gatewayExpiresAt)) {
+    return c.json({ ...await nativePushStatus(c.env, token, 'alert'), subscription: toApi(existing) }, 200);
+  }
   // The same physical phone may sign in again. Move its token out of the previous sign-in so
   // it cannot receive two copies, or continue receiving the previous person's notifications.
   await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND id != ?').bind(endpoint, id).run();
   await c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at,gateway_credential,gateway_expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs,gateway_credential=excluded.gateway_credential,gateway_expires_at=excluded.gateway_expires_at')
     .bind(id, keyId, grant, endpoint, '', await encrypt(c.env, token, id), body.deviceName,
-      JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []),
-      JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
+      memberIds, JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt).run();
   const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
   return c.json({ ...await nativePushStatus(c.env, token, 'alert'), subscription: toApi(row!) }, 200);
+});
+
+/** Whether a re-registration leaves the stored gateway as it is: none sent (kept), none sent to
+ * clear an absent one, or the same credential and expiry (stored encrypted, so compared opened). */
+async function sameGateway(env: Env, row: PushSubRow, sent: { credential: string } | null | undefined, expiresAt: number | null | undefined): Promise<boolean> {
+  if (sent === undefined) return true;
+  if (sent === null) return row.gateway_credential === null;
+  if (!row.gateway_credential || row.gateway_expires_at !== expiresAt) return false;
+  return (await decrypt(env, row.gateway_credential, gatewayAad(row.id)).catch(() => null)) === sent.credential;
+}
+
+pushRoutes.openapi(createRoute({
+  method: 'put', path: '/api/push/android', tags: ['Push'], security: [{ Bearer: [] }],
+  summary: 'Register this Android device for FCM; preserve preferences and replace rotated tokens',
+  request: { body: { content: { 'application/json': { schema: z.object({ token: z.string().max(4096).refine(validFcmToken, 'Expected an opaque FCM token'), deviceName: z.string().min(1).max(100).default('Android'), gateway: AndroidGatewayInput.nullable().optional() }).strict() } } } },
+  responses: {
+    200: { description: 'Full native alert capability, not confirmation of device delivery; event reminders remain local', content: { 'application/json': { schema: NativePushStatusSchema.extend({ gatewayAvailable: z.boolean(), gatewayServer: z.string().nullable().openapi({ description: "This server's canonical origin (PUBLIC_URL, else the saved public address), which the app enrolls with at the push gateway; null when neither is set." }), subscription: PushSubscriptionSchema }) } } },
+    400: { description: 'not a device key', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+}), async c => {
+  const key = await requestKey(c);
+  if (!key?.id) return c.json({ error: 'register from a device key' }, 400);
+  const grant = await grantFor(c);
+  const keyId = grant ? null : key.id;
+  const { token, deviceName, gateway } = c.req.valid('json');
+  const gatewayExpiry = gateway ? await verifyAndroidGateway(c.env, gateway.credential, token) : null;
+  if (gateway && !gatewayExpiry) return c.json({ error: 'Push gateway registration could not be verified' }, 400);
+  const endpoint = `fcm:${await sha256Hex(token)}`;
+  const existing = await c.env.DB.prepare("SELECT * FROM push_subscriptions WHERE endpoint LIKE 'fcm:%' AND (api_key_id = ? OR oauth_grant_id = ?) ORDER BY created_at DESC LIMIT 1").bind(keyId, grant).first<PushSubRow>();
+  const id = existing?.id ?? `android:${await sha256Hex(grant ? `grant:${grant}` : `key:${keyId}`)}`;
+  const kid = await deviceOwner(c);
+  const prefs = { ...DEFAULT_PUSH_PREFS, ...(existing ? JSON.parse(existing.prefs) : {}), eventReminders: false };
+  const auth = await encrypt(c.env, token, id);
+  const keepGateway = gateway === undefined && existing?.endpoint === endpoint;
+  const gatewayCredential = gateway ? await encrypt(c.env, gateway.credential, gatewayAad(id)) : keepGateway ? existing.gateway_credential : null;
+  const gatewayExpiresAt = gateway ? gatewayExpiry : keepGateway ? existing.gateway_expires_at : null;
+  const gatewayFingerprint = gateway ? await sha256Hex(gateway.credential) : keepGateway ? existing.gateway_fingerprint : null;
+  const gatewayServer = gateway ? await fcmOrigin(c.env) : keepGateway ? existing.gateway_server : null;
+  // Token renewal is an upsert of the same device, not a reset of its choices. Signing in
+  // again transfers the destination away from the previous person without copying their prefs.
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND id != ?').bind(endpoint, id),
+    c.env.DB.prepare('INSERT INTO push_subscriptions (id,api_key_id,oauth_grant_id,endpoint,p256dh,auth,device_name,member_ids,prefs,created_at,gateway_credential,gateway_expires_at,gateway_fingerprint,gateway_server) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,auth=excluded.auth,device_name=excluded.device_name,member_ids=excluded.member_ids,prefs=excluded.prefs,gateway_credential=excluded.gateway_credential,gateway_expires_at=excluded.gateway_expires_at,gateway_fingerprint=excluded.gateway_fingerprint,gateway_server=excluded.gateway_server')
+      .bind(id, keyId, grant, endpoint, '', auth, deviceName, JSON.stringify(kid ? [kid] : existing ? parseMemberIds(existing.member_ids) : []), JSON.stringify(prefs), existing?.created_at ?? new Date().toISOString(), gatewayCredential, gatewayExpiresAt, gatewayFingerprint, gatewayServer),
+  ]);
+  const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
+  return c.json({ ...await androidPushStatus(c.env, token), subscription: toApi(row!) }, 200);
 });
 
 pushRoutes.openapi(
@@ -154,10 +211,12 @@ pushRoutes.openapi(
     // existing id - ON CONFLICT keeps the old id, not the fresh one in VALUES.
     const existing = await c.env.DB.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').bind(body.subscription.endpoint).first<{ id: string }>();
     const id = existing?.id ?? crypto.randomUUID();
-    // At most MAX_SUBS_PER_KEY per device key: a new one replaces that key's oldest.
+    // At most MAX_SUBS_PER_KEY browsers per device key: a new one replaces that key's oldest. Only
+    // this key's browser sign-ups count (the server's own admin key has no id, like the Kinwall
+    // app's phones, so without the grant and endpoint checks it would evict those).
     if (!existing) {
       await c.env.DB.prepare(
-        'DELETE FROM push_subscriptions WHERE id IN (SELECT id FROM push_subscriptions WHERE api_key_id IS ? ORDER BY created_at DESC, id LIMIT -1 OFFSET ?)',
+        "DELETE FROM push_subscriptions WHERE id IN (SELECT id FROM push_subscriptions WHERE api_key_id IS ? AND oauth_grant_id IS NULL AND endpoint LIKE 'https:%' ORDER BY created_at DESC, id LIMIT -1 OFFSET ?)",
       ).bind(resolved?.id ?? null, MAX_SUBS_PER_KEY - 1).run();
     }
     const [p256dh, auth] = await Promise.all([encrypt(c.env, body.subscription.keys.p256dh, id), encrypt(c.env, body.subscription.keys.auth, id)]);

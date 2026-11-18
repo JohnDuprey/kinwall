@@ -1,10 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
+import type { Env } from '../env.ts';
 import { createRouter } from '../router.ts';
 import { requestKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { readFeatures } from './settings.ts';
-import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema, announcementApi, readAnnouncements, type AnnouncementRow } from '../announcements.ts';
+import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema, announcementApi, readAnnouncements, type Announcement, type AnnouncementRow } from '../announcements.ts';
 
 export const announcementsRoutes = createRouter();
 const json = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
@@ -30,14 +32,19 @@ announcementsRoutes.openapi(createRoute({
   method: 'post', path: '/api/announcements', tags: ['Announcements'], summary: 'Create a scheduled family announcement (parents). Timestamps require UTC or an explicit offset; expiresAt must be after startsAt.', security: [{ Bearer: [] }],
   request: { body: json(AnnouncementInputSchema) }, responses: { 201: { description: 'Created', ...json(AnnouncementSchema) }, ...errors },
 }), async c => {
-  const input = c.req.valid('json');
+  const made = await createAnnouncement(c, c.req.valid('json'));
+  return 'error' in made ? c.json({ error: made.error }, 400) : c.json(made, 201);
+});
+/** POST /api/announcements, and the inbox's notes (made with the thought's own id, so an interrupted
+ * sort can find what it made). */
+export async function createAnnouncement(c: Context<{ Bindings: Env }>, input: z.infer<typeof AnnouncementInputSchema>, id: string = crypto.randomUUID()): Promise<Announcement | { error: string }> {
   const b = { ...input, startsAt: new Date(input.startsAt).toISOString(), expiresAt: new Date(input.expiresAt).toISOString() };
-  if (b.expiresAt <= b.startsAt) return c.json({ error: 'Choose an expiration after the announcement starts.' }, 400);
-  const id = crypto.randomUUID(), now = new Date().toISOString();
+  if (b.expiresAt <= b.startsAt) return { error: 'Choose an expiration after the announcement starts.' };
+  const now = new Date().toISOString();
   await c.env.DB.prepare('INSERT INTO announcements (id, title, details, starts_at, expires_at, priority, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, b.title, b.details, b.startsAt, b.expiresAt, b.priority, now, now).run();
   emit(c, 'announcement.changed', { id });
-  return c.json({ ...b, id, createdAt: now, updatedAt: now }, 201);
-});
+  return { ...b, id, createdAt: now, updatedAt: now };
+}
 announcementsRoutes.openapi(createRoute({
   method: 'patch', path: '/api/announcements/{id}', tags: ['Announcements'], summary: 'Edit a family announcement (parents). The resulting visibility window must be valid.', security: [{ Bearer: [] }],
   request: { params: z.object({ id: z.string() }), body: json(AnnouncementPatchSchema) }, responses: { 200: { description: 'Updated', ...json(AnnouncementSchema) }, ...errors },

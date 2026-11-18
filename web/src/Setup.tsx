@@ -1,3 +1,4 @@
+import { handOffPasskeyStep, readSetupResume, saveResume } from './setupResume.ts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HelpButton } from './Help.tsx'
 import { api, ApiError, setKey } from './api.ts'
@@ -17,9 +18,9 @@ import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { connectCalendar, ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
-import { cardOn, defaultGrownUp, FEATURE_CARDS, freshHandoff, landOn, nextStep, ownerChoices, prevStep, progressSteps, resumeFor, setupErrorText, suggestedFeatures, toggleCard } from './setupSteps.ts'
+import { cardOn, defaultGrownUp, FEATURE_CARDS, landOn, nextStep, ownerChoices, prevStep, progressSteps, resumeFor, setupErrorText, suggestedFeatures, toggleCard } from './setupSteps.ts'
 import { FEATURE_ROWS } from './featureConfig.ts'
-import type { SetupResume, Step } from './setupSteps.ts'
+import type { Step } from './setupSteps.ts'
 import './setup.css'
 import { Brand } from './Brand.tsx'
 import { ChipFace } from './Face'
@@ -28,32 +29,10 @@ import { rich } from './rich.tsx'
 
 /** A translated sentence with React nodes (bold words, a link) for its {placeholders}. */
 
-// Persisted across the OAuth start->callback round trip (Google/Outlook connect from the
-// Calendars step), which reloads the page. Only the step and role are stored, never a key.
-const RESUME_KEY = 'kinwall.setupResume'
 /** Wizard error copy: friendly words for the status, never the server's own text. */
 const oops = (e: unknown, fallback: string) => setupErrorText(e instanceof ApiError ? e.status : undefined, fallback)
 /** Calendar forms keep the reason a feed or provider was refused (a bad link, a rejected login). */
 const calendarOops = (e: unknown, fallback: string) => e instanceof ApiError && (e.status === 400 || e.status === 502) ? e.message : oops(e, fallback)
-// A new tab doesn't share sessionStorage, so the passkey step's "open in its own tab" hands its
-// place over through localStorage once; the new tab picks it up and clears it. Never a key.
-const HANDOFF_KEY = 'kinwall.setupHandoff'
-export function readSetupResume(): SetupResume | null {
-  try {
-    const handoff = freshHandoff(localStorage.getItem(HANDOFF_KEY), Date.now())
-    localStorage.removeItem(HANDOFF_KEY) // used once, or stale: either way gone
-    if (handoff) sessionStorage.setItem(RESUME_KEY, JSON.stringify(handoff))
-    const raw = sessionStorage.getItem(RESUME_KEY)
-    return raw ? JSON.parse(raw) as SetupResume : null
-  } catch { return null }
-}
-const handOffPasskeyStep = () => { try { localStorage.setItem(HANDOFF_KEY, JSON.stringify({ step: 'passkey', deviceRole: 'admin', at: Date.now() })) } catch { /* ignore */ } }
-function saveResume(r: SetupResume | null) {
-  try {
-    if (r) sessionStorage.setItem(RESUME_KEY, JSON.stringify(r))
-    else { sessionStorage.removeItem(RESUME_KEY); localStorage.removeItem(HANDOFF_KEY) } // setup done here: drop an unused handoff too
-  } catch { /* ignore */ }
-}
 /** A new family claimed from this browser: drop everything it kept (all `kinwall.` keys) for an
  * earlier family at the same address, e.g. a reinstalled server. Otherwise its board layout,
  * "show only" member, locked view and filters carry over, some pointing at members that no longer
@@ -65,8 +44,6 @@ async function forgetEarlierFamily() {
   await clearOffline().catch(() => {})
   setDeviceAppearance({})
 }
-/** Claimed but no passkey yet on a host that requires one (see App.tsx): reopen at that step. */
-export const resumeAtPasskey = () => saveResume({ step: 'passkey', deviceRole: 'admin' })
 
 const CHORE_TEMPLATES = [
   { emoji: '🛏️', title: msg('Make bed'), points: 1, rrule: 'FREQ=DAILY' },

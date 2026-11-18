@@ -184,15 +184,22 @@ export function applyListOps<I extends ItemLike, D extends DetailLike<I>>(detail
   return { ...detail, items, list: { ...detail.list, itemCount: items.length, openCount: items.filter(i => !i.done).length } }
 }
 
-interface ChoreLike { id: string; completed: boolean; completedBy: string | null }
+interface ChoreLike { id: string; completed: boolean; completedBy: string | null; ongoing?: boolean; sourceId?: string | null }
 /** A day's chores with queued ticks and unticks for that day applied. */
 export function applyChoreOps<C extends ChoreLike>(chores: C[], date: string, queued: Op[]): C[] {
   let out = chores
   for (const op of queued) {
     const m = /^api\/chores\/([^/]+)\/complete(?:\?date=(.+))?$/.exec(op.path)
     if (!m) continue
-    const body = op.body as { date?: string; memberId?: string } | undefined
+    const body = op.body as { date?: string; memberId?: string; operationId?: string } | undefined
     if ((op.method === 'POST' ? body?.date : m[2]) !== date) continue
+    const source = out.find(c => c.id === m[1] && c.ongoing)
+    if (source && op.method === 'POST' && body?.operationId) {
+      const id = `${source.id}:${body.operationId}`
+      if (!out.some(c => c.id === id)) out = [...out, { ...source, id, ongoing: false, sourceId: source.id, completed: true, completedBy: body.memberId ?? null }]
+      continue
+    }
+    out = out.filter(c => !(op.method === 'DELETE' && c.id === m[1] && c.sourceId))
     out = out.map(c => c.id !== m[1] ? c : op.method === 'POST'
       ? { ...c, completed: true, completedBy: body?.memberId ?? c.completedBy }
       : { ...c, completed: false, completedBy: null })

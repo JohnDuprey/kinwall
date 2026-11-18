@@ -1,0 +1,67 @@
+name: Discord forum sync
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Enable writes for this manual run (otherwise preview only)'
+        type: boolean
+        default: false
+      initialize:
+        description: 'Allow initialization of an existing empty storage release, after inspection'
+        type: boolean
+        default: false
+      retry_operation:
+        description: 'Pending operation key to retry ONLY after confirming the destination is absent'
+        type: string
+        default: ''
+permissions:
+  contents: read
+# All branches/manual runs share one writer; interrupted runs retain remote pending intents.
+concurrency:
+  group: discord-forum-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: >-
+      (github.event_name == 'workflow_dispatch' || vars.DISCORD_SYNC_ENABLED == 'true') &&
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      # Issue bodies/comments never supply commands, paths, refs, or executable code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24 }
+      - run: node --test tools/discord-sync/test/*.test.mjs
+      - name: Reconcile forum and issues
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_SYNC_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID }}
+          DISCORD_FORUM_ID: ${{ vars.DISCORD_FORUM_ID }}
+          DISCORD_SYNC_LABEL: discord
+          SYNC_DATA_DIR: ${{ runner.temp }}/discord-sync
+          SYNC_TAG_MAP: ${{ vars.DISCORD_SYNC_TAG_MAP || '{}' }}
+          DISCORD_DEFAULT_TAG: ${{ vars.DISCORD_DEFAULT_TAG }}
+          SYNC_RELATED_ISSUES: ${{ vars.DISCORD_SYNC_RELATED_ISSUES || '{}' }}
+          SYNC_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
+          SYNC_INITIALIZE: ${{ inputs.initialize }}
+          SYNC_RETRY_OPERATION: ${{ inputs.retry_operation }}
+        run: |
+          args=()
+          if [ "$SYNC_APPLY" = "true" ]; then args+=(--apply); fi
+          if [ "$SYNC_INITIALIZE" = "true" ]; then args+=(--initialize); fi
+          if [ -n "$SYNC_RETRY_OPERATION" ]; then args+=(--retry-operation "$SYNC_RETRY_OPERATION" --confirm-absent); fi
+          node tools/discord-sync/actions.mjs "${args[@]}"

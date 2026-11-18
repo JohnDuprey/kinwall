@@ -6,6 +6,10 @@ An admin can turn off **Check-ins & journal** in **Settings → General** (tap *
 
 Open it with **Journal** in the menu on a person's own device (under **More** on a phone), **Open the journal** on their [profile](profiles.md), or by tapping the evening goal check push.
 
+Use **Back** at the top to return to the screen you opened the journal from. Your browser's
+Back button and the app's Back button work too. A direct link uses Home as the fallback for
+the on-screen Back button. If an entry is open, Back closes the entry first.
+
 ## What's in it
 
 Days, newest first. Each day shows what was recorded:
@@ -18,7 +22,7 @@ On evenings with a goal, today's **Goal check** waits at the top until they answ
 
 ## Writing an entry
 
-Tap **+ New entry**, write what happened (up to 2,000 characters), pick a mood if you like and change the day if it's about another one. **Save**. Tap an entry to change it; **More… → Delete entry** removes it.
+Tap **+ New entry**, write what happened (up to 2,000 characters), pick a mood if you like and change the day if it's about another one. **Save**. Tap an entry to change it; **More… → Delete entry** removes it after asking.
 
 ## Who can open it
 

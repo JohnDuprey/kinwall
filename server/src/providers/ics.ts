@@ -2,7 +2,8 @@
 // calendar", iCloud public calendar, or any plain .ics URL).
 import ICAL from 'ical.js';
 import { zonedTimeToUtc } from '../recurrence.ts';
-import { feedFetch, type FeedEnv } from '../outbound.ts';
+import { FEED_TIMEOUT_MS, MAX_FEED_BYTES, feedFetch, readCapped, type FeedEnv } from '../outbound.ts';
+import { stored } from '../i18n.ts';
 import { notesText } from './notes.ts';
 import type { NormalizedEvent, Provider, ProviderCtx } from './types.ts';
 
@@ -14,9 +15,27 @@ function isFloating(t: ICAL.Time): boolean {
   return t.zone === ICAL.Timezone.localTimezone;
 }
 
-function resolveDate(t: ICAL.Time, tz: string): Date {
-  if (t.isDate || !isFloating(t)) return t.toJSDate();
-  return zonedTimeToUtc({ y: t.year, mo: t.month - 1, d: t.day, h: t.hour, mi: t.minute, s: t.second }, tz);
+// `as`: the property the time came from, when it isn't `t` itself (a repeat's occurrence carries no
+// TZID of its own, the series' DTSTART/DTEND does).
+function resolveDate(t: ICAL.Time, tz: string, as: ICAL.Time = t): Date {
+  // A date (all-day) is UTC midnight of that date, which isoDate reads back unchanged. toJSDate()
+  // would give the process's local midnight, a day early once the host's TZ is east of UTC.
+  if (t.isDate) return new Date(Date.UTC(t.year, t.month - 1, t.day));
+  if (!isFloating(t)) return t.toJSDate();
+  return zonedTimeToUtc({ y: t.year, mo: t.month - 1, d: t.day, h: t.hour, mi: t.minute, s: t.second }, namedZone(as) ?? tz);
+}
+
+// A TZID with no VTIMEZONE in the feed leaves the time floating in ical.js, though the feed named
+// its zone: use that zone when it's one Intl knows (an IANA name), else the household's. ical.js
+// keeps such a TZID on the time's untyped `timezone` field.
+function namedZone(t: ICAL.Time): string | null {
+  const tzid = (t as ICAL.Time & { timezone?: unknown }).timezone;
+  if (typeof tzid !== 'string' || !tzid) return null;
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: tzid }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
 }
 
 // Cheap pre-filter run on the raw ICS text before ical.js ever parses it, so a large feed
@@ -115,6 +134,10 @@ export async function icsFingerprint(icsText: string): Promise<string> {
   return sha256Hex(stripped);
 }
 
+// About 55 years of a daily repeat (each costs microseconds), so a long-running series still
+// reaches today while a hostile feed can't spin forever.
+const MAX_SKIPPED_OCCURRENCES = 20000;
+
 // Shared by caldav.ts so recurrence expansion isn't duplicated: CalDAV objects are plain
 // iCalendar text (one VEVENT series per object, but a full VCALENDAR can also contain many).
 //
@@ -196,15 +219,27 @@ export async function expandICS(
     }
     let next: ICAL.Time | null;
     let guard = 0;
-    // ponytail: hard iteration cap, upgrade to CPU-time based cutoff if a feed abuses this
-    while (guard++ < 5000 && (next = iterator.next())) {
-      if (next.toJSDate().getTime() >= to.getTime()) break;
+    let skipped = 0;
+    // The iterator starts at DTSTART, so a series running for years walks its whole past first.
+    // Occurrences that ended well before the window are passed over without reading their details
+    // (cheap), under their own, larger cap; a week's slack keeps one moved (RECURRENCE-ID) into it.
+    const span = event.endDate.toJSDate().getTime() - event.startDate.toJSDate().getTime();
+    const skipBefore = from.getTime() - Math.max(0, span) - 7 * 24 * 60 * 60 * 1000;
+    // ponytail: hard iteration caps, upgrade to CPU-time based cutoff if a feed abuses this
+    while (guard < 5000 && (next = iterator.next())) {
+      const at = next.toJSDate().getTime();
+      if (at >= to.getTime()) break;
+      if (at < skipBefore) {
+        if (++skipped >= MAX_SKIPPED_OCCURRENCES) break;
+        continue;
+      }
+      guard++;
       const details = event.getOccurrenceDetails(next);
       const item = details.item;
       const cancelled = isCancelled(item.component);
       if (cancelled && !keep) continue;
-      const startD = resolveDate(details.startDate, tz);
-      const endD = resolveDate(details.endDate, tz);
+      const startD = resolveDate(details.startDate, tz, item.startDate);
+      const endD = resolveDate(details.endDate, tz, item.endDate);
       if (endD <= from) continue;
       const allDay = details.startDate.isDate;
       results.push({
@@ -289,10 +324,8 @@ function isoDate(d: Date): string {
 }
 
 async function fetchIcs(env: FeedEnv, url: string): Promise<string> {
-  const httpUrl = url.replace(/^webcal:\/\//i, 'https://');
-  const res = await feedFetch(env, httpUrl);
-  if (!res.ok) throw new Error(`ICS feed fetch failed (HTTP ${res.status})`);
-  return res.text();
+  const res = await fetchIcsConditional(env, url, null, null);
+  return res.notModified ? '' : res.text; // no validators sent, so never a 304
 }
 
 export type ConditionalFetchResult =
@@ -301,15 +334,25 @@ export type ConditionalFetchResult =
 
 // Used by sync.ts's chunked sync tick: If-None-Match / If-Modified-Since so an unchanged feed
 // costs one cheap round trip instead of a full fetch + parse + event replace.
-export async function fetchIcsConditional(env: FeedEnv, url: string, etag: string | null, lastModified: string | null): Promise<ConditionalFetchResult> {
+// Stops at MAX_FEED_BYTES and FEED_TIMEOUT_MS (`timeoutMs` is for tests).
+export async function fetchIcsConditional(env: FeedEnv, url: string, etag: string | null, lastModified: string | null, timeoutMs = FEED_TIMEOUT_MS): Promise<ConditionalFetchResult> {
   const httpUrl = url.replace(/^webcal:\/\//i, 'https://');
   const headers: Record<string, string> = {};
   if (etag) headers['If-None-Match'] = etag;
   if (lastModified) headers['If-Modified-Since'] = lastModified;
-  const res = await feedFetch(env, httpUrl, { headers });
-  if (res.status === 304) return { notModified: true };
-  if (!res.ok) throw new Error(`ICS feed fetch failed (HTTP ${res.status})`);
-  return { notModified: false, text: await res.text(), etag: res.headers.get('etag'), lastModified: res.headers.get('last-modified') };
+  const signal = AbortSignal.timeout(timeoutMs);
+  let res: Response, bytes: Uint8Array | null;
+  try {
+    res = await feedFetch(env, httpUrl, { headers, signal });
+    if (res.status === 304) return { notModified: true };
+    if (!res.ok) { await res.body?.cancel(); throw new Error(`ICS feed fetch failed (HTTP ${res.status})`); }
+    bytes = await readCapped(res, MAX_FEED_BYTES);
+  } catch (err) {
+    if (signal.aborted) throw new Error(stored('error', 'The calendar took longer than {n} seconds to download.', { n: Math.round(timeoutMs / 1000) }));
+    throw err;
+  }
+  if (!bytes) throw new Error(stored('error', 'The calendar is larger than {n} MB.', { n: MAX_FEED_BYTES / 1024 / 1024 }));
+  return { notModified: false, text: new TextDecoder().decode(bytes), etag: res.headers.get('etag'), lastModified: res.headers.get('last-modified') };
 }
 
 export const provider: Provider = {

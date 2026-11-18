@@ -4,6 +4,8 @@
 // this page says so kindly. A private journal (server: journal-privacy.ts) shows its words only on a
 // device that belongs to them; others see each day's mood and a gentle "Private" instead, and a
 // parent's device that belongs to no one can say "This is my device" to read its owner's own.
+import { useBackClose } from './backStack.ts'
+import { leaveJournal } from './pageNavigation.ts'
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -12,6 +14,7 @@ import { dayName } from './Snapshot.tsx'
 import { SLEEP } from './tempCheck.ts'
 import { JOURNAL_TEXT_MAX, MOODS, outcomeOf, privacyLine } from './journal.ts'
 import GoalFollowUp from './GoalFollowUp.tsx'
+import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import type { Journal as JournalData, JournalDay, JournalEntry, Member } from './types.ts'
 import { Face } from './Face'
@@ -30,6 +33,8 @@ export default function Journal({ memberId }: { memberId?: string }) {
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<JournalEntry | 'new' | null>(null)
   const [tick, setTick] = useState(0)
+  useBackClose(() => leaveJournal())
+  const back = <div><button type="button" className="btn btn-secondary profile-link" onClick={() => leaveJournal()}>{t('Back')}</button></div>
   const today = todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
 
   useEffect(() => {
@@ -41,7 +46,7 @@ export default function Journal({ memberId }: { memberId?: string }) {
     return () => { canceled = true }
   }, [member?.id, refreshTick, tick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!member) return <div className="state-card">{t('No one in the family yet.')}</div>
+  if (!member) return <div className="profile profile-narrow scroll-y">{back}<div className="state-card">{t('No one in the family yet.')}</div></div>
   const shown = data?.memberId === member.id ? data : null
   const privacy = shown?.privacy
   const locked = !!privacy?.on && !privacy.mine // a private journal on someone else's device: no new entries here
@@ -64,6 +69,7 @@ export default function Journal({ memberId }: { memberId?: string }) {
 
   return (
     <div className="profile profile-narrow journal scroll-y" style={{ ['--m' as string]: member.color }}>
+      {back}
       <section className="profile-top">
         <div className="profile-hero">
           <Face m={member} className="profile-avatar" aria-hidden="true" />
@@ -145,6 +151,7 @@ function Day({ day, today, onEdit }: { day: JournalDay; today: string; onEdit: (
 
 function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member; entry: JournalEntry | null; today: string; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
+  const dialog = useDialog()
   const [date, setDate] = useState(entry?.date ?? today)
   const [text, setText] = useState(entry?.text ?? '')
   const [mood, setMood] = useState(entry?.mood ?? '')
@@ -159,6 +166,7 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
   }
   const more = async (action: string) => {
     if (action !== 'delete' || !entry) return
+    if (!await dialog.confirm({ title: t('Delete this entry?'), body: t('It is deleted for good.'), confirmLabel: t('Delete'), danger: true })) return
     try { await api.deleteJournalEntry(member.id, entry.id); toast(t('Entry deleted')); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't delete that"), true) }
   }

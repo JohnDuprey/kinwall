@@ -1,3 +1,24 @@
+import m0149 from '../migrations/0149_chore_dismissals.sql';
+import m0150 from '../migrations/0150_school.sql';
+import m0151 from '../migrations/0151_schoolwork.sql';
+import m0152 from '../migrations/0152_school_enrolled.sql';
+import m0153 from '../migrations/0153_school_records.sql';
+import m0154 from '../migrations/0154_school_days.sql';
+import m0148 from '../migrations/0148_recipe_cooking_index.sql';
+import m0147 from '../migrations/0147_inbox.sql';
+import m0146 from '../migrations/0146_weekly_planning.sql';
+import m0145 from '../migrations/0145_events_long_reminders_index.sql';
+import m0144 from '../migrations/0144_chore_organisation.sql';
+import m0143 from '../migrations/0143_list_purpose.sql';
+import m0141 from '../migrations/0141_android_push_gateway.sql';
+import m0142 from '../migrations/0142_chore_groups.sql';
+import m0140 from '../migrations/0140_meal_event_index.sql';
+import m0139 from '../migrations/0139_daily_points.sql';
+import m0138 from '../migrations/0138_list_reads.sql';
+import m0137 from '../migrations/0137_refresh_reads.sql';
+import m0136 from '../migrations/0136_read_hotspots.sql';
+import m0135 from '../migrations/0135_chores_member_index.sql';
+import m0134 from '../migrations/0134_event_follows.sql';
 import m0132 from '../migrations/0132_announcements.sql';
 import m0133 from '../migrations/0133_medicine_live_activities.sql';
 import m0130 from '../migrations/0130_routine_enrollment.sql';
@@ -269,4 +290,25 @@ export const MIGRATIONS: Migration[] = [
   { name: '0131_routine_chore_names.sql', sql: m0131 },
   { name: '0132_announcements.sql', sql: m0132 },
   { name: '0133_medicine_live_activities.sql', sql: m0133 },
+  { name: '0134_event_follows.sql', sql: m0134 },
+  { name: '0135_chores_member_index.sql', sql: m0135 },
+  { name: '0136_read_hotspots.sql', sql: m0136 },
+  { name: '0137_refresh_reads.sql', sql: m0137 },
+  { name: '0138_list_reads.sql', sql: m0138 },
+  { name: '0139_daily_points.sql', sql: m0139 },
+  { name: '0140_meal_event_index.sql', sql: m0140 },
+  { name: '0141_android_push_gateway.sql', sql: m0141 },
+  { name: '0142_chore_groups.sql', sql: m0142 },
+  { name: '0143_list_purpose.sql', sql: m0143 },
+  { name: '0144_chore_organisation.sql', sql: m0144 },
+  { name: '0145_events_long_reminders_index.sql', sql: m0145 },
+  { name: '0146_weekly_planning.sql', sql: m0146 },
+  { name: '0147_inbox.sql', sql: m0147 },
+  { name: '0148_recipe_cooking_index.sql', sql: m0148 },
+  { name: '0149_chore_dismissals.sql', sql: m0149 },
+  { name: '0150_school.sql', sql: m0150 },
+  { name: '0151_schoolwork.sql', sql: m0151 },
+  { name: '0152_school_enrolled.sql', sql: m0152 },
+  { name: '0153_school_records.sql', sql: m0153 },
+  { name: '0154_school_days.sql', sql: m0154 },
 ];

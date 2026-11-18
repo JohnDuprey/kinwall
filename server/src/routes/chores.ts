@@ -1,4 +1,6 @@
-import { parseFeatures } from './settings.ts';
+import { schoolworkVisibleSql } from '../schoolwork.ts';
+import { schoolworkOff } from '../school-days.ts';
+import { readFeatures, parseFeatures } from './settings.ts';
 import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
@@ -14,14 +16,18 @@ import { goalProgressFor } from '../chore-goals.ts';
 import type { ChoreGoal } from '../chore-goal.ts';
 import { ChoreDateCountSchema, ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
-import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
-import { notifyChoreApproval } from '../notify.ts';
+import { actorOf, changedBy, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
+import { notifyChoreApproval, notifyChoreCreated } from '../notify.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
 import { logFromChore, savePendingChore, unlogFromChore, type DoneInput } from '../upkeep.ts';
+import { schoolFromChore, unschoolFromChore } from './school.ts';
 
 export const choresRoutes = createRouter();
 
 export type ChoreRow = {
+  category?: string | null;
+  ongoing?: number;
+  source_id?: string | null;
   id: string;
   title: string;
   emoji: string | null;
@@ -42,6 +48,11 @@ export type ChoreRow = {
   archived?: number; // deleted after it was done: kept for its history (migration 0050)
   library_id?: string | null; // made from a chore library item (migration 0082)
   timer_minutes?: number | null; // Start on the chore runs the app's timer this long (migration 0110)
+  group_id?: string | null; // one linked copy per person of a chore for several people (migration 0142)
+  school_subject_id?: string | null; // schoolwork (migration 0151): ticking it logs school time
+  school_kind?: string | null;
+  school_minutes?: number | null;
+  school_days_off?: number | null;
 };
 
 export function toApi(row: ChoreRow) {
@@ -64,6 +75,14 @@ export function toApi(row: ChoreRow) {
     approveTimedPlay: !!row.approve_timed_play,
     libraryId: row.library_id ?? null,
     timerMinutes: row.timer_minutes ?? null,
+    groupId: row.group_id ?? null,
+    category: row.category ?? null,
+    ongoing: !!row.ongoing,
+    sourceId: row.source_id ?? null,
+    schoolSubjectId: row.school_subject_id ?? null,
+    schoolKind: (row.school_kind ?? null) as 'lesson' | 'homework' | 'test' | 'project' | null,
+    schoolMinutes: row.school_minutes ?? null,
+    schoolDaysOff: !!row.school_days_off,
   };
 }
 
@@ -83,6 +102,12 @@ async function checkList(c: { env: Env }, listId: string | null | undefined): Pr
   return row ? null : 'unknown list';
 }
 
+async function checkMembers(c: { env: Env }, memberIds: string[] | undefined): Promise<string | null> {
+  if (!memberIds?.length) return null;
+  const row = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM members WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(memberIds)).first<{ n: number }>();
+  return row?.n === memberIds.length ? null : 'unknown member';
+}
+
 async function checkLibrary(c: { env: Env }, libraryId: string | null | undefined): Promise<string | null> {
   if (!libraryId) return null;
   const row = await c.env.DB.prepare('SELECT id FROM chore_library WHERE id = ?').bind(libraryId).first();
@@ -90,13 +115,77 @@ async function checkLibrary(c: { env: Env }, libraryId: string | null | undefine
 }
 
 /** Writes a new chore row (POST /api/chores, and assigning from the chore library). */
-export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
-  await db
+function choreInsert(db: Env['DB'], row: ChoreRow) {
+  return db
     .prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes, school_days_off) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null)
-    .run();
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null, row.group_id ?? null, row.category ?? null, row.ongoing ?? 0, row.source_id ?? null, row.school_subject_id ?? null, row.school_kind ?? null, row.school_minutes ?? null, row.school_days_off ?? 0);
+}
+
+async function checkSubject(c: { env: Env }, subjectId: string | null | undefined): Promise<string | null> {
+  if (!subjectId) return null;
+  if (!(await readFeatures(c.env.DB)).school) return stored('error', 'School is turned off in Settings → General → Features');
+  return (await c.env.DB.prepare('SELECT id FROM school_subjects WHERE id = ?').bind(subjectId).first()) ? null : 'unknown school subject';
+}
+
+export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
+  await choreInsert(db, row).run();
+}
+
+/** Used by direct creation, library assignments and people added to a chore; imports and other edits
+ * stay silent. A chore for several people is one notification for all of them. */
+export async function announceNewChore(c: Context<{ Bindings: Env }>, row: ChoreRow, memberIds?: (string | null)[]): Promise<void> {
+  if (row.active) notifyChoreCreated(c.env, execCtx(c), row, await changedBy(c), memberIds);
+}
+
+/** Deletes a chore, or archives one that was ever done: it leaves every list, but its completions and
+ * the points earned from them stay. False when there's no such chore. */
+async function removeChore(db: KinwallDb, id: string): Promise<boolean> {
+  // A tick still waiting for a parent's OK goes (nothing was earned); approved ones are history,
+  // so a chore that has any is archived rather than deleted, and all-time counts don't drop.
+  await db.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND status = 'pending' AND EXISTS (SELECT 1 FROM chores WHERE id = ? AND archived = 0)").bind(id, id).run();
+  const archived = await db.prepare('UPDATE chores SET archived = 1, active = 0 WHERE id = ? AND archived = 0 AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = chores.id)').bind(id).run();
+  const result = archived.meta.changes ? archived : await db.prepare('DELETE FROM chores WHERE id = ? AND archived = 0').bind(id).run();
+  return result.meta.changes > 0;
+}
+
+/** The copies of `row`'s group (just `row` when it has none), `row` first. */
+async function groupOf(db: KinwallDb, row: ChoreRow): Promise<ChoreRow[]> {
+  if (!row.group_id) return [row];
+  const { results } = await db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND group_id = ? AND archived = 0 AND id <> ? ORDER BY sort, created_at`).bind(row.group_id, row.id).all<ChoreRow>();
+  return [row, ...results];
+}
+
+/** Makes `row`'s group exactly `memberIds` ([] = Anyone): copies of people who stay are kept, copies of
+ * people who leave go to people who join (so `row` itself always stays), then the rest are added or
+ * removed. One person is a plain chore again. Returns the copies and the people added. */
+async function regroup(db: KinwallDb, row: ChoreRow, memberIds: string[]): Promise<{ rows: ChoreRow[]; added: ChoreRow[] }> {
+  const owners: (string | null)[] = memberIds.length ? memberIds : [null];
+  const kept = new Map<string | null, ChoreRow>();
+  const spare: ChoreRow[] = [];
+  for (const r of await groupOf(db, row)) {
+    if (owners.includes(r.member_id) && !kept.has(r.member_id)) kept.set(r.member_id, r);
+    else spare.push(r);
+  }
+  // A spare copy is reused only for someone without one; `row` comes first, so it's the one reused.
+  const groupId = owners.length > 1 ? row.group_id ?? crypto.randomUUID() : null;
+  const rows: ChoreRow[] = [];
+  const added: ChoreRow[] = [];
+  for (const m of owners) {
+    const r = kept.get(m) ?? spare.shift();
+    if (r) {
+      await db.prepare('UPDATE chores SET member_id = ?, group_id = ? WHERE id = ?').bind(m, groupId, r.id).run();
+      rows.push({ ...r, member_id: m, group_id: groupId });
+    } else {
+      const n: ChoreRow = { ...row, id: crypto.randomUUID(), member_id: m, group_id: groupId, archived: 0 };
+      await insertChore(db, n);
+      rows.push(n);
+      added.push(n);
+    }
+  }
+  for (const r of spare) await removeChore(db, r.id);
+  return { rows, added };
 }
 
 choresRoutes.openapi(
@@ -109,7 +198,7 @@ choresRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(ChoreSchema) } } } },
   }),
   async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT * FROM chores WHERE archived = 0 ORDER BY sort, created_at').all<ChoreRow>();
+    const { results } = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND archived = 0 AND source_id IS NULL ORDER BY sort, created_at`).all<ChoreRow>();
     return c.json(results.map(toApi), 200);
   },
 );
@@ -124,7 +213,7 @@ choresRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: ChoreInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule, unknown list, plugin or library chore', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list, plugin, library chore or member', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -137,8 +226,12 @@ choresRoutes.openapi(
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
     const neverError = await choreRepeatError(c.env.DB, body.rrule, body.dueDate);
     if (neverError) return c.json({ error: neverError }, 400);
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId));
+    const memberIds = body.memberIds && [...new Set(body.memberIds)];
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId)) ?? (await checkSubject(c, body.schoolSubjectId)) ?? (await checkMembers(c, memberIds ?? (body.memberId ? [body.memberId] : undefined)));
     if (listError) return c.json({ error: listError }, 400);
+    const owners: (string | null)[] = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null];
+    if (body.ongoing && (owners.some(m => m !== null) || body.repeatGoal || body.pluginId || body.rrule)) return c.json({ error: 'Ongoing chores must be for Anyone, without a repeat schedule, goal or activity.' }, 400);
+    const groupId = owners.length > 1 ? crypto.randomUUID() : null;
     const row: ChoreRow = {
       id: crypto.randomUUID(),
       title: body.title,
@@ -159,10 +252,40 @@ choresRoutes.openapi(
       approve_timed_play: body.approveTimedPlay ? 1 : 0,
       library_id: body.libraryId ?? null,
       timer_minutes: body.timerMinutes ?? null,
+      group_id: groupId,
+      category: body.category ?? null,
+      ongoing: body.ongoing ? 1 : 0,
+      school_subject_id: body.schoolSubjectId ?? null,
+      school_kind: body.schoolSubjectId ? body.schoolKind ?? 'lesson' : null,
+      school_minutes: body.schoolSubjectId ? body.schoolMinutes ?? null : null,
+      school_days_off: body.schoolSubjectId && body.schoolDaysOff ? 1 : 0,
     };
-    await insertChore(c.env.DB, row);
+    const rows = owners.map((m, i) => ({ ...row, id: i ? crypto.randomUUID() : row.id, member_id: m }));
+    for (const r of rows) await insertChore(c.env.DB, r);
+    await announceNewChore(c, row, owners);
     emit(c, 'chore.changed', { id: row.id });
-    return c.json(toApi(row), 201);
+    return c.json(toApi(rows[0]), 201);
+  },
+);
+
+choresRoutes.openapi(
+  createRoute({
+    method: 'post', path: '/api/chores/order', tags: ['Chores'],
+    summary: 'Set manual order for chore definitions; linked copies keep their own order (parent devices only)',
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: z.object({ ids: z.array(z.string()).min(1).max(500).refine(ids => new Set(ids).size === ids.length, 'duplicate chore ids') }) } } } },
+    responses: {
+      200: { description: 'ordered', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      400: { description: 'unknown or duplicate chore ids', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async c => {
+    const { ids } = c.req.valid('json');
+    const found = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM chores WHERE ${schoolworkVisibleSql()} AND archived = 0 AND source_id IS NULL AND id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(ids)).first<{ n: number }>();
+    if (Number(found?.n) !== ids.length) return c.json({ error: 'unknown chore' }, 400);
+    await c.env.DB.batch(ids.map((id, i) => c.env.DB.prepare('UPDATE chores SET sort = ? WHERE id = ?').bind(i + 1, id)));
+    emit(c, 'chore.changed', {});
+    return c.json({ ok: true }, 200);
   },
 );
 
@@ -176,7 +299,7 @@ choresRoutes.openapi(
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ChoreInputSchema.omit({ libraryId: true }).partial() } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule, unknown list or unknown plugin', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list, unknown plugin or unknown member', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -184,9 +307,10 @@ choresRoutes.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId));
+    const memberIds = body.memberIds && [...new Set(body.memberIds)];
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkSubject(c, body.schoolSubjectId)) ?? (await checkMembers(c, memberIds ?? (body.memberId ? [body.memberId] : undefined)));
     if (listError) return c.json({ error: listError }, 400);
-    const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0').bind(id).first<ChoreRow>();
+    const existing = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND id = ? AND archived = 0 AND source_id IS NULL`).bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     const goal = body.repeatGoal !== undefined ? body.repeatGoal : readChoreGoal(existing.repeat_goal);
     if (goal) {
@@ -201,10 +325,12 @@ choresRoutes.openapi(
     if (neverError) return c.json({ error: neverError }, 400);
     const updated: ChoreRow = {
       ...existing,
+      category: body.category !== undefined ? body.category : existing.category ?? null,
+      ongoing: body.ongoing !== undefined ? Number(body.ongoing) : existing.ongoing ?? 0,
       repeat_goal: goal ? JSON.stringify(goal) : null,
       title: body.title ?? existing.title,
       emoji: body.emoji !== undefined ? body.emoji : existing.emoji,
-      member_id: body.memberId !== undefined ? body.memberId : existing.member_id,
+      member_id: body.memberId !== undefined && !memberIds ? body.memberId : existing.member_id,
       points: body.points ?? existing.points,
       rrule: body.rrule !== undefined ? body.rrule : existing.rrule,
       due_date: body.dueDate !== undefined ? body.dueDate : existing.due_date,
@@ -216,15 +342,49 @@ choresRoutes.openapi(
       needs_approval: body.needsApproval !== undefined ? (body.needsApproval === null ? null : body.needsApproval ? 1 : 0) : existing.needs_approval ?? null,
       approve_timed_play: body.approveTimedPlay !== undefined ? (body.approveTimedPlay ? 1 : 0) : existing.approve_timed_play ?? 0,
       timer_minutes: body.timerMinutes !== undefined ? body.timerMinutes : existing.timer_minutes ?? null,
+      school_subject_id: body.schoolSubjectId !== undefined ? body.schoolSubjectId : existing.school_subject_id ?? null,
+      school_kind: body.schoolKind !== undefined ? body.schoolKind : existing.school_kind ?? null,
+      school_minutes: body.schoolMinutes !== undefined ? body.schoolMinutes : existing.school_minutes ?? null,
+      school_days_off: body.schoolDaysOff !== undefined ? (body.schoolDaysOff ? 1 : 0) : existing.school_days_off ?? 0,
     };
+    if (!updated.school_subject_id) { updated.school_kind = null; updated.school_minutes = null; updated.school_days_off = 0; } else updated.school_kind ??= 'lesson';
+    const owners = memberIds ?? [updated.member_id];
+    if (updated.ongoing && (owners.some(m => m !== null) || goal || updated.plugin_id || updated.rrule)) return c.json({ error: 'Ongoing chores must be for Anyone, without a repeat schedule, goal or activity.' }, 400);
+    if (updated.ongoing && !existing.ongoing) {
+      const { results } = await c.env.DB.prepare('SELECT date FROM chore_completions WHERE chore_id = ?').bind(id).all<{ date: string }>();
+      if (results.length) await c.env.DB.batch(results.flatMap(tick => {
+        const historyId = crypto.randomUUID();
+        return [
+          choreInsert(c.env.DB, { ...existing, id: historyId, source_id: id, group_id: null, ongoing: 0, active: 0, rrule: null, repeat_goal: null, due_date: tick.date, due_time: null, plugin_id: null, timer_minutes: null }),
+          c.env.DB.prepare('UPDATE chore_completions SET chore_id = ? WHERE chore_id = ? AND date = ?').bind(historyId, id, tick.date),
+        ];
+      }));
+    }
     updated.plugin_minutes = updated.plugin_id ? body.pluginMinutes ?? existing.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null;
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=?, category=?, ongoing=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, updated.category ?? null, updated.ongoing ?? 0, id)
       .run();
+    // The other copies of a chore for several people follow, keeping their own person and order.
+    if (existing.group_id) {
+      await c.env.DB.prepare(
+        'UPDATE chores SET title=?, emoji=?, points=?, rrule=?, due_date=?, due_time=?, active=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=?, timer_minutes=?, repeat_goal=?, category=? WHERE group_id=? AND id<>? AND archived=0',
+      )
+        .bind(updated.title, updated.emoji, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, updated.timer_minutes, updated.repeat_goal ?? null, updated.category ?? null, existing.group_id, id)
+        .run();
+    }
+    // Schoolwork fields, for this chore and its copies (a statement of its own keeps the two above as they were).
+    await c.env.DB.prepare('UPDATE chores SET school_subject_id = ?, school_kind = ?, school_minutes = ?, school_days_off = ? WHERE id = ? OR (group_id = ? AND archived = 0)')
+      .bind(updated.school_subject_id ?? null, updated.school_kind ?? null, updated.school_minutes ?? null, updated.school_days_off ?? 0, id, existing.group_id ?? null).run();
+    let result = updated;
+    if (memberIds) {
+      const { rows, added } = await regroup(c.env.DB, updated, memberIds);
+      if (added.length) await announceNewChore(c, added[0], added.map((r) => r.member_id));
+      result = rows.find((r) => r.id === id) ?? rows[0];
+    }
     emit(c, 'chore.changed', { id });
-    return c.json(toApi(updated), 200);
+    return c.json(toApi(result), 200);
   },
 );
 
@@ -233,7 +393,7 @@ choresRoutes.openapi(
     method: 'delete',
     path: '/api/chores/{id}',
     tags: ['Chores'],
-    summary: 'Delete a chore. One that was ever done is archived instead: it leaves every list, but its completions and the points earned from them stay.',
+    summary: 'Delete a chore, and every copy of a chore for several people (groupId). One that was ever done is archived instead: it leaves every list, but its completions and the points earned from them stay.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: {
@@ -243,12 +403,9 @@ choresRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    // A tick still waiting for a parent's OK goes (nothing was earned); approved ones are history,
-    // so a chore that has any is archived rather than deleted, and all-time counts don't drop.
-    await c.env.DB.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND status = 'pending' AND EXISTS (SELECT 1 FROM chores WHERE id = ? AND archived = 0)").bind(id, id).run();
-    const archived = await c.env.DB.prepare('UPDATE chores SET archived = 1, active = 0 WHERE id = ? AND archived = 0 AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = chores.id)').bind(id).run();
-    const result = archived.meta.changes ? archived : await c.env.DB.prepare('DELETE FROM chores WHERE id = ? AND archived = 0').bind(id).run();
-    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    const row = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND id = ? AND archived = 0 AND source_id IS NULL`).bind(id).first<ChoreRow>();
+    if (!row) return c.json({ error: 'not found' }, 404);
+    for (const r of await groupOf(c.env.DB, row)) await removeChore(c.env.DB, r.id);
     emit(c, 'chore.changed', { id });
     return c.json({ ok: true }, 200);
   },
@@ -299,6 +456,9 @@ export async function choreRepeatError(db: KinwallDb, rrule: string | null | und
 /** The days from `from` to `to` (inclusive, YYYY-MM-DD) a chore is due, in one expansion - what
  * a scan over many days (the streak) uses instead of dueOnDate per day. */
 export function dueDates(row: ChoreRow, from: string, to: string, tz: string): Set<string> {
+  // Optional responsibilities do not become overdue or break a routine's streak.
+  // Their history is displayed explicitly on Chores, rather than becoming new scheduled work.
+  if (row.ongoing || row.source_id) return new Set();
   if (!row.rrule) return new Set(row.due_date && row.due_date >= from && row.due_date <= to ? [row.due_date] : []);
   // The creation *day* in the household tz: created_at is UTC, so an evening chore west of UTC
   // would otherwise anchor on tomorrow and not show up until then.
@@ -317,14 +477,15 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
 export const ChoreCountQuerySchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine(q => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 30 * 86400000, 'choose an ordered range of at most 31 days');
 choresRoutes.openapi(createRoute({
   method: 'get', path: '/api/chores/counts', tags: ['Chores'], security: [{ Bearer: [] }],
-  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Chores off returns an empty list.',
+  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is not counted. Chores off returns an empty list.',
   request: { query: ChoreCountQuerySchema },
   responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
 }), async c => {
   const { from, to } = c.req.valid('query'), db = c.env.DB;
   const [settingsRes, choresRes] = await db.batch<unknown>([
     db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features')"),
-    db.prepare('SELECT * FROM chores WHERE active = 1 AND archived = 0 ORDER BY sort, created_at'),
+    // The Chores tab's date strip: schoolwork lives in School, so it isn't counted here.
+    db.prepare(`SELECT * FROM chores WHERE school_subject_id IS NULL AND school_kind IS NULL AND active = 1 AND archived = 0 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE school_subject_id IS NULL AND school_kind IS NULL AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date BETWEEN ? AND ?) ORDER BY sort, created_at`).bind(from, to),
   ]);
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
   if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);
@@ -344,7 +505,8 @@ choresRoutes.openapi(createRoute({
   const counts = new Map<string, z.infer<typeof ChoreDateCountSchema>>();
   for (const row of rows) {
     const done = completions.get(row.id) ?? [], goal = readChoreGoal(row.repeat_goal);
-    for (const date of dueDates(row, from, to, tz)) {
+    const dates = row.source_id ? done.filter(d => d.date >= from && d.date <= to).map(d => d.date) : dueDates(row, from, to, tz);
+    for (const date of dates) {
       const completion = done.find(d => d.date === date);
       if (goal && row.due_date && !completion) {
         const period = goalPeriod(goal, row.due_date, date);
@@ -378,7 +540,7 @@ choresRoutes.openapi(
     // tz, chores and completions are all independent reads - one batch, one round trip.
     const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes, rejectionsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
-      c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
+      c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date = ?) ORDER BY sort, created_at`).bind(date),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
       // Checklist progress per chore: the linked list's items owned by the chore's member plus
       // unassigned ones (an "anyone" chore sees the whole list), so one list can back a routine
@@ -398,8 +560,11 @@ choresRoutes.openapi(
     const chores = choresRes.results as unknown as ChoreRow[];
     const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string; status: string }[];
 
-    const due = chores.filter((row) => dueOnDate(row, date, tz));
     const byChore = new Map(completions.map((row) => [row.chore_id, row]));
+    const scheduled = chores.filter(row => row.source_id ? byChore.has(row.id) : row.ongoing ? !row.archived && date >= (row.due_date ?? todayInTz(tz, new Date(row.created_at))) : dueOnDate(row, date, tz));
+    // Schoolwork on a kid's day with no school is left out, unless it was already ticked off that day.
+    const noSchool = await schoolworkOff(c.env.DB, date, date, scheduled);
+    const due = scheduled.filter(row => byChore.has(row.id) || !noSchool(row, date));
     const goals = await goalProgressFor(c.env.DB, due, date);
 
     return c.json(
@@ -426,7 +591,7 @@ choresRoutes.openapi(
 );
 
 /** How far back a wall screen or a kid's device can tick a chore (it may also be a day ahead of the household's today). */
-const DISPLAY_DAYS_BACK = 7;
+export const DISPLAY_DAYS_BACK = 7;
 const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 
 // Points a completion earns: full on the day (or ahead of it), `creditPercent` of them when it's
@@ -446,12 +611,53 @@ export function lateCompletionPoints(points: number, late: boolean, creditPercen
  * when that gates it, 'not found', or { blocked } when a member's own device tries it for
  * someone else (their chore, crediting them, or taking over their completion).
  */
-export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false, upkeepInput?: DoneInput): Promise<boolean | 'pending' | number | 'not found' | { blocked: string } | { notDue: string }> {
+type CompletionResult = boolean | 'pending' | number | 'not found' | { blocked: string } | { notDue: string };
+type OngoingOperation = { operationId?: string; completionId?: string };
+
+/** A chore's checklist: its kind and the open items for `forMember` plus unassigned ones. */
+async function checklistOf(c: Context<{ Bindings: Env }>, listId: string, forMember: string | null): Promise<{ kind: string; remaining: number } | null> {
+  const list = await c.env.DB.prepare(
+    'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
+  )
+    .bind(forMember, forMember, listId)
+    .first<{ kind: string; remaining: number }>();
+  return list && { kind: list.kind, remaining: Number(list.remaining) };
+}
+
+/** Snapshot one optional responsibility tick; retries reuse the same ordinary completion. */
+async function completeOngoing(c: Context<{ Bindings: Env }>, source: ChoreRow, date: string, memberId: string | undefined, operation: OngoingOperation): Promise<CompletionResult> {
+  const id = source.id;
+  // The queued operation keeps this id across retries. Scope it to this definition so an
+  // operation cannot overwrite another responsibility's history, even with the same token.
+  const completionId = `${id}:${operation.operationId ?? crypto.randomUUID()}`;
+  const prior = await c.env.DB.prepare('SELECT c.id, c.due_date, cc.status, cc.member_id AS done_by FROM chores c LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.date = ? WHERE c.id = ?').bind(date, completionId).first<{ id: string; due_date: string; status: string | null; done_by: string | null }>();
+  if (prior && prior.due_date !== date) return { notDue: stored('error', 'That tick belongs to another date.') };
+  if (prior?.status) {
+    const blocked = await ownerBlock(c, memberId, null, prior.done_by);
+    if (blocked) return { blocked };
+    operation.completionId = completionId;
+    return prior.status === 'pending' ? 'pending' : true;
+  }
+  if (!prior) {
+    // Check the checklist before writing the snapshot, so a blocked tap leaves nothing behind.
+    if (source.list_id) {
+      const remaining = (await checklistOf(c, source.list_id, memberId ?? (await ownDevice(c)) ?? null))?.remaining ?? 0;
+      if (remaining > 0) return remaining;
+    }
+    // A concurrent replay can insert the same snapshot; only that id is ignored.
+    await c.env.DB.prepare('INSERT OR IGNORE INTO chores (id, title, emoji, member_id, points, due_date, active, sort, created_at, list_id, needs_approval, library_id, category, source_id) VALUES (?,?,?,NULL,?,?,0,?,?,?,?,?,?,?)')
+      .bind(completionId, source.title, source.emoji, source.points, date, source.sort, new Date().toISOString(), source.list_id ?? null, source.needs_approval ?? null, source.library_id ?? null, source.category ?? null, id).run();
+  }
+  operation.completionId = completionId;
+  return completeChore(c, completionId, date, memberId);
+}
+
+export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false, upkeepInput?: DoneInput, operation: OngoingOperation = {}): Promise<CompletionResult> {
   // A member's own device credits them when no one is named (an Anyone chore, like the app does).
   memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      'SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days, (SELECT enabled FROM plugins WHERE id = c.plugin_id) AS plugin_enabled, (SELECT id FROM upkeep_jobs WHERE handed_chore_id = c.id) AS upkeep_job FROM chores c WHERE c.id = ? AND c.archived = 0',
+      `SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days, (SELECT enabled FROM plugins WHERE id = c.plugin_id) AS plugin_enabled, (SELECT id FROM upkeep_jobs WHERE handed_chore_id = c.id) AS upkeep_job FROM chores c WHERE ${schoolworkVisibleSql("c")} AND c.id = ? AND c.archived = 0`,
     ).bind(memberId ?? null, date, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);
@@ -466,9 +672,10 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   // Points are counted per day ticked, so a day has to be one the chore is really due on; and a
   // wall screen or kid's device only ticks around today (a parent's device can fix up older days).
   // A one-off with no day set (made through the API) is done once, on whichever day.
-  const due = chore.rrule || chore.due_date ? dueOnDate(chore, date, tz) : !Number(chore.other_days);
-  if (!chore.active || !due) return { notDue: stored('error', "This chore isn't due on that day.") };
+  const due = chore.ongoing ? date >= (chore.due_date ?? todayInTz(tz, new Date(chore.created_at))) : chore.source_id ? chore.due_date === date : chore.rrule || chore.due_date ? dueOnDate(chore, date, tz) : !Number(chore.other_days);
+  if ((!chore.active && !chore.source_id) || !due) return { notDue: stored('error', "This chore isn't due on that day.") };
   if (display && (date < shiftDay(today, -DISPLAY_DAYS_BACK) || date > shiftDay(today, 1))) return { notDue: stored('error', "From this device a chore can be ticked for the last {n} days. Older days are for a parent's device.", { n: DISPLAY_DAYS_BACK }) };
+  if (chore.ongoing) return completeOngoing(c, chore, date, memberId, operation);
   // So does a grown-up's own full-access device (their phone), which otherwise acts for anyone.
   if (!memberId && !chore.member_id) memberId = (await ownDevice(c)) ?? undefined;
   // The checklist gates completion: the list's items for this chore's member (or whoever is
@@ -476,12 +683,8 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   const forMember = chore.member_id ?? memberId ?? null;
   let checklistKind: string | null = null;
   if (chore.list_id) {
-    const list = await c.env.DB.prepare(
-      'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
-    )
-      .bind(forMember, forMember, chore.list_id)
-      .first<{ kind: string; remaining: number }>();
-    if (list && Number(list.remaining) > 0) return Number(list.remaining);
+    const list = await checklistOf(c, chore.list_id, forMember);
+    if (list && list.remaining > 0) return list.remaining;
     checklistKind = list?.kind ?? null;
   }
   // Parent devices (admin keys) are approved straight away. Timed play follows the chore's own
@@ -502,7 +705,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   const capacityArgs = period && goal ? [id, date, id, chore.due_date! > period.from ? chore.due_date! : period.from, period.to, goal.times] : [];
   const [writtenRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) SELECT ?,?,?,?,?,?,?${capacity} ON CONFLICT(chore_id, date) DO ${timedPlay ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
+      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) SELECT ?,?,?,?,?,?,?${capacity} ON CONFLICT(chore_id, date) DO ${timedPlay || chore.source_id ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
     ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved', ...capacityArgs),
     c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ? AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?)').bind(id, date, id, date), // ticked again: the "Not yet" note goes
   ]);
@@ -515,6 +718,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
     emit(c, 'list.changed', { id: chore.list_id });
   }
   if (written.status === 'pending') {
+    if (chore.school_subject_id) await unschoolFromChore(c, id, date);
     if (chore.upkeep_job) await savePendingChore(c.env.DB, id, date, { doneOn: date, createdBy: who, createdKeyId: (await requestKey(c))?.id ?? null, ...upkeepInput });
     emit(c, 'chore.pending', { id, date, title: chore.title, memberId: who });
     const name = who ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(who).first<{ name: string }>())?.name : null;
@@ -531,6 +735,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
   emit(c, 'chore.completed', { id, date, title: chore.title, memberId: who, points: written.points_awarded });
   if (chore.upkeep_job) await upkeepDone(c, id, date, who, upkeepInput); // a kid's upkeep chore (upkeep.ts): logs the job
+  if (chore.school_subject_id) await schoolFromChore(c, chore, date, who); // schoolwork: logs its school time
   return true;
 }
 
@@ -557,10 +762,10 @@ choresRoutes.openapi(
     security: [{ Bearer: [] }],
     request: {
       params: z.object({ id: z.string() }),
-      body: { content: { 'application/json': { schema: z.object({ date: MealDateSchema, memberId: z.string().optional() }) } } },
+      body: { content: { 'application/json': { schema: z.object({ date: MealDateSchema, memberId: z.string().optional(), operationId: z.string().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/).optional() }) } } },
     },
     responses: {
-      200: { description: 'ok; pending: true when it waits for a parent\'s OK', content: { 'application/json': { schema: z.object({ ok: z.boolean(), pending: z.boolean() }) } } },
+      200: { description: 'ok; pending: true when it waits for a parent\'s OK', content: { 'application/json': { schema: z.object({ ok: z.boolean(), pending: z.boolean(), completionId: z.string().optional() }) } } },
       400: { description: "not a date, a day the chore isn't due on (or it's paused), or from a wall screen or kid's device a day more than a week back or more than a day ahead", content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: "this device belongs to someone else", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
@@ -569,12 +774,13 @@ choresRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const { date, memberId } = c.req.valid('json');
-    const r = await completeChore(c, id, date, memberId);
+    const { date, memberId, operationId } = c.req.valid('json');
+    const operation: OngoingOperation = { operationId };
+    const r = await completeChore(c, id, date, memberId, false, undefined, operation);
     if (r === 'not found') return c.json({ error: 'not found' }, 404);
     if (typeof r === 'object') return 'blocked' in r ? c.json({ error: r.blocked }, 403) : c.json({ error: r.notDue }, 400);
     if (typeof r === 'number') return c.json({ error: `Checklist not finished (${r} left)`, remaining: r }, 409);
-    return c.json({ ok: true, pending: r === 'pending' }, 200);
+    return c.json({ ok: true, pending: r === 'pending', ...(operation.completionId ? { completionId: operation.completionId } : {}) }, 200);
   },
 );
 
@@ -583,26 +789,35 @@ choresRoutes.openapi(
     method: 'delete',
     path: '/api/chores/{id}/complete',
     tags: ['Chores'],
-    summary: 'Undo a chore completion for a date',
+    summary: 'Undo a chore completion for a date (schoolwork is unavailable while School is off)',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), query: z.object({ date: MealDateSchema }) },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      404: { description: 'School is turned off', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: "from a wall screen or kid's device, a day more than a week back or more than a day ahead", content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: 'this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { date } = c.req.valid('query');
-    const chore = await c.env.DB.prepare('SELECT title, member_id, (SELECT member_id FROM chore_completions WHERE chore_id = chores.id AND date = ?) AS done_by FROM chores WHERE id = ?')
+    const chore = await c.env.DB.prepare(`SELECT title, member_id, ${schoolworkVisibleSql()} AS school_visible, (SELECT member_id FROM chore_completions WHERE chore_id = chores.id AND date = ?) AS done_by FROM chores WHERE id = ?`)
       .bind(date, id)
-      .first<{ title: string; member_id: string | null; done_by: string | null }>();
+      .first<{ title: string; member_id: string | null; done_by: string | null; school_visible: number }>();
+    if (chore && !chore.school_visible) return c.json({ error: 'not found' }, 404);
     const blocked = await ownerBlock(c, chore?.member_id, chore?.done_by);
     if (blocked) return c.json({ error: blocked }, 403);
+    // Undoing follows the tick's window: a wall screen or kid's device can't wipe older days (and their points).
+    if ((await requestKey(c))?.scope === 'display') {
+      const today = todayInTz((await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone());
+      if (date < shiftDay(today, -DISPLAY_DAYS_BACK) || date > shiftDay(today, 1)) return c.json({ error: stored('error', "From this device a chore can be ticked for the last {n} days. Older days are for a parent's device.", { n: DISPLAY_DAYS_BACK }) }, 400);
+    }
     await c.env.DB.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).run();
     emit(c, 'chore.uncompleted', { id, date, title: chore?.title ?? null, memberId: chore?.member_id ?? null });
     const upkeepJob = await unlogFromChore(c.env.DB, id, date); // a kid's upkeep chore: its Done goes too
     if (upkeepJob) emit(c, 'upkeep.changed', { id: upkeepJob, kind: 'job' });
+    await unschoolFromChore(c, id, date); // schoolwork: its school time goes too
     return c.json({ ok: true }, 200);
   },
 );
@@ -636,7 +851,7 @@ function approvalPoints(row: PendingRow, s: { tz: string; credit: number }): num
 }
 
 export const PENDING_SQL =
-  "SELECT cc.chore_id, c.title, c.emoji, cc.date, cc.member_id, cc.completed_at, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.status = 'pending'";
+  `SELECT cc.chore_id, c.title, c.emoji, cc.date, cc.member_id, cc.completed_at, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE ${schoolworkVisibleSql('c')} AND cc.status = 'pending'`;
 
 choresRoutes.openapi(
   createRoute({
@@ -680,6 +895,8 @@ choresRoutes.openapi(
     if (res.meta.changes === 0) return c.json({ error: 'nothing waiting for approval' }, 404);
     emit(c, 'chore.completed', { id, date, title: row.title, memberId: row.member_id, points });
     await upkeepDone(c, id, date, row.member_id);
+    const chore = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND id = ?`).bind(id).first<ChoreRow>();
+    if (chore?.school_subject_id) await schoolFromChore(c, chore, date, row.member_id, true);
     return c.json({ ok: true, points }, 200);
   },
 );
@@ -725,3 +942,36 @@ choresRoutes.openapi(
     return c.json({ ok: true }, 200);
   },
 );
+
+// Dismiss only the missed occurrence, never complete it or change its future schedule.
+choresRoutes.openapi(createRoute({
+  method: 'put', path: '/api/chores/{id}/dismissal', tags: ['Chores'],
+  summary: 'Dismiss a late chore as not done, or undo that dismissal (parent only)',
+  security: [{ Bearer: [] }],
+  request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: z.object({ date: MealDateSchema, dismissed: z.boolean() }) } } } },
+  responses: {
+    200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } } },
+    400: { description: 'not a late occurrence', content: { 'application/json': { schema: ErrorSchema } } },
+    404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    409: { description: 'already completed', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+}), async c => {
+  const { id } = c.req.valid('param');
+  const { date, dismissed } = c.req.valid('json');
+  const chore = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND id = ?`).bind(id).first<ChoreRow>();
+  if (!chore) return c.json({ error: 'not found' }, 404);
+  if (dismissed) {
+    const tz = (await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
+    const today = todayInTz(tz);
+    if (!chore.active || chore.archived || chore.ongoing || chore.repeat_goal || date < shiftDay(today, -DISPLAY_DAYS_BACK) || date >= today || !dueOnDate(chore, date, tz)) {
+      return c.json({ error: stored('error', 'Only a missed chore from the last seven days can be dismissed.') }, 400);
+    }
+    const completed = await c.env.DB.prepare('SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).first();
+    if (completed) return c.json({ error: stored('error', 'This chore has already been ticked off.') }, 409);
+    await c.env.DB.prepare('INSERT OR IGNORE INTO chore_dismissals (chore_id, date, dismissed_at) VALUES (?, ?, ?)').bind(id, date, new Date().toISOString()).run();
+  } else {
+    await c.env.DB.prepare('DELETE FROM chore_dismissals WHERE chore_id = ? AND date = ?').bind(id, date).run();
+  }
+  await emit(c, 'chore.dismissal.changed', { choreId: id, date, dismissed });
+  return c.json({ ok: true as const }, 200);
+});

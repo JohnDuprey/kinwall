@@ -254,3 +254,25 @@ test('basics groceries: MCP apply_meal_projection takes the answers', async () =
   assert.equal(result.added, 3);
   assert.ok(!(await items()).some((i: any) => i.title.startsWith('Taco seasoning')));
 });
+
+test('recipe cooking history counts only prepared meals across dates and follows edits and deletes', async () => {
+  const { json } = fixture();
+  const recipe = await json('/api/recipes', 'POST', { name: 'Soup' });
+  const other = await json('/api/recipes', 'POST', { name: 'Rice' });
+  const make = (date: string, status: string) => json('/api/meals', 'POST', { date, slot: 'dinner', mealKind: 'recipe', recipeId: recipe.id, status });
+  const first = await make('2025-01-01', 'prepared');
+  const latest = await make('2026-10-01', 'prepared');
+  await make('2026-11-01', 'planned');
+  let read = await json(`/api/recipes/${recipe.id}`);
+  assert.equal(read.cookedCount, 2);
+  assert.equal(read.lastCookedDate, '2026-10-01');
+  assert.equal((await json(`/api/recipes/${other.id}`)).cookedCount, 0);
+  assert.equal((await json(`/api/recipes/${other.id}`)).lastCookedDate, null);
+  assert.equal((await json('/api/recipes')).find((r: any) => r.id === recipe.id).cookedCount, 2);
+  await json(`/api/meals/${latest.id}`, 'PATCH', { status: 'planned' });
+  read = await json(`/api/recipes/${recipe.id}`);
+  assert.equal(read.cookedCount, 1);
+  assert.equal(read.lastCookedDate, '2025-01-01');
+  await json(`/api/meals/${first.id}`, 'DELETE');
+  assert.equal((await json(`/api/recipes/${recipe.id}`)).cookedCount, 0);
+});

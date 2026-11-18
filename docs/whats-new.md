@@ -4,11 +4,185 @@ The full list of changes in every version is in the [changelog](https://github.c
 
 ## Coming in the next version
 
+### Highlights
+
+* **School**: a new place for what each kid learns, for kids who are homeschooled and kids who
+  go to a school. Log time by subject for one kid or several at once; add lessons, homework, tests
+  and projects that kids tick off like chores (with the same repeat options, and optional points);
+  see each kid's school day with their bus or pickup, school hours, the school's and district's
+  calendars, lunch and teacher. Days off, early release and the last day of school come from those
+  calendars (or a grown-up marks one), with early release times and a countdown to summer; bus and
+  pickup reminders go out once for kids on the same bus, with a Lock Screen countdown on iPhone.
+  Grown-ups get report card grades, records of a school year against hour and day
+  goals, a photo portfolio and a printable year-end report. Time a kid logs can wait for a
+  grown-up's OK. School starts off: turn it on in Settings → General → Features. See
+  [School](using/school.md).
+
+## 1.4.0
+
+Catch a thought before it slips away, then look over the week together and get ready for what's
+coming. Keep track of the food you have and find meals to use it up, with easier ways to share
+and organize chores.
+
+### Highlights
+
+* **An inbox for passing thoughts**: jot down "Permission slip for Friday" without picking a
+  date, person or list first. Later, turn it into a task, calendar event or note on the family
+  board. It stays in the inbox until you've added it, and cleared thoughts can be brought back.
+  See [Inbox](using/inbox.md).
+* **Plan the week**: open it from Home or Calendar to see next week's events, dinners, to-dos
+  and home upkeep together. Pick meals, swap a planned dinner or leave one open on purpose, and
+  add preparation tasks linked to an event. Save a shared draft, then review what to add to the
+  week. See [Plan the week](using/weekly-planning.md).
+* **Pantry lists**: keep food at home on its own list, with use-by dates and where it's kept.
+  Scan barcodes in the Kinwall phone app, see what needs using first, and optionally have used-up
+  food added to your grocery list when you check it off. See [Lists](using/lists.md#pantry).
+* **Use it up**: the meal planner suggests your own recipes for food that expires soon, showing
+  what you have and what you'd still need. Open a recipe or plan it for dinner. A connected AI
+  assistant can help with ideas too. See [Meals](using/meals.md#use-it-up).
+* **Chores for several people**: give each person their own copy of a chore in one go. Everyone
+  ticks theirs off and earns their own points; editing the chore changes all the linked copies.
+  See [Chores](using/chores.md#chores-for-several-people).
+* **Chores in your order**: drag chores into place or use the up and down buttons, and give them
+  categories such as Kitchen or Garden to find them more easily. See
+  [Chores](using/chores.md#putting-chores-in-order).
+* **Ongoing responsibilities**: keep jobs like putting a wash on available for anyone to do
+  again, even on the same day. Each completion earns its own points and can need a parent's OK,
+  without adding unfinished daily work or breaking streaks. See
+  [Chores](using/chores.md#ongoing-responsibilities).
+* **Catch up on late chores**: the Board keeps missed chores in reach for seven days, including
+  the most recent missed time for a repeating chore. Open the late list to finish one for the day
+  it was due; a chore with an unfinished checklist opens that checklist first. Parents can also
+  choose **Not done**, with Undo, to remove that missed day without awarding points or changing
+  future repeats. See
+  [Chores](using/chores.md#late-chores).
+* **Today at a glance**: on a wall or a tablet, medicine, chores, free time, to-dos,
+  an open poll and the list counts sit on one line above the cards, so the Today card keeps its
+  whole column for the day's events. What doesn't fit opens from **+N more**. See
+  [Board view](using/calendar.md#board-view).
+
+### Everything else
+
+* Recipe pickers share search, sorting and cooking-history filters. Find favorites, top-rated
+  recipes, meals you cook often or something you have never cooked. See
+  [Meals](using/meals.md#planning-the-week).
+* Planning has a visible **Close** button on every step, asks before discarding unsaved changes,
+  and fits the Calendar toolbar on phones. Hide the Home planning prompt for today, this week
+  or until you bring it back; planning stays available in Calendar.
+* The Board fits its available space more reliably, keeps late chores reachable and stops rows
+  flickering between the card and **More**. On wide screens, approvals sit below the chore
+  columns. Inbox and notification badges line up.
+* Meals puts planned meals first on phones. Cooking instructions are easier to read on a wall,
+  eating-out order actions are easier to find, and ingredients already on the grocery list
+  start unticked when choosing what to add. **Plan meal** starts on the day you're looking at.
+* Removing a book from the library, deleting a journal entry or removing an upkeep file asks
+  first. **Share recipe** explains who can see a recipe and makes a link only when you tap
+  **Make a link**.
+* Chore repeat and due-date choices are easier to find, with less-used options under
+  **More options**. Rewards appear before milestones, and everyday labels and passkey errors use
+  clearer words.
+* Settings cards have clearer names, such as **Language on this device** and **Appearance for
+  the family**, and search finds settings by everyday words such as "quiet hours" or "font".
+* Leaving Free time or a journal takes you back to where you opened it. Open Free time from
+  Home, and Back returns to Home instead of Chores.
+* Event details show which calendar an event comes from. Calendar and Chores views showing today
+  move to the new day after midnight; a date you picked stays put.
+* Calendar feeds handle older repeating events and timezones more reliably, including all-day
+  events on servers in another timezone. Reminders set more than two days ahead now arrive.
+* Cooking steps such as "1 hour 15 minutes" make one timer, and short timers show their actual
+  duration.
+* Clearer icons throughout the app, fixes for lists switching or saving their settings, and
+  edited contact phone numbers saving correctly. Coloring pages and profile pictures no longer
+  turn up as memories.
+* Notification settings explain why the phone app's push notifications are off. Fixes also keep
+  browser notification registrations from displacing the phone app's registrations.
+* A passkey saved in a password manager such as 1Password signs in from your other browsers and
+  devices too, at the same Kinwall address. See
+  [Sign-in and security](using/sign-in-and-security.md).
+* Security fixes for passkeys, connected-app sign-in, device pairing and activity updates.
+* Less database work for long event reminders and phone notification registration, and faster
+  recipe matching for the pantry.
+
+### Upgrading
+
+See [Updating](self-hosting/updating.md). The database updates itself on first start. Existing
+lists and chores keep their types and schedules; pantry lists and ongoing responsibilities are
+choices you turn on. Turning a synced to-do list into a pantry list stops its to-do-app sync.
+
+Weekly planning is for parents. Its drafts are shared between parents and included in backups;
+**Save draft** keeps choices without adding anything, while **Add to the week** applies the
+reviewed meals and preparation tasks. Preparation tasks have due dates, not timed alerts.
+
+Inbox is for parents and included in backups. It starts on; turn it off under
+**Settings → General → Features → Inbox** if you don't need it. Capturing a thought doesn't
+notify anyone. Turning one into a note on the family board makes that note visible on Home.
+English day words such as "Friday" can suggest a date to check before adding an event or task.
+
+Self-hosted Android push enrollment also needs the Kinwall Android app update that names the
+server's public address (version 1.4.0); install it when it reaches your test channel. The phone apps are available as test builds through TestFlight and Google Play testing,
+not yet as public store listings; see [Native apps](integrations/mcp.md#native-apps).
+
+If you use the REST API or MCP: linked chores change together when edited or deleted, and ongoing
+chores return a separate completion ID for each tick. See
+[REST API](integrations/rest-api.md#chore-organization) and
+[MCP](integrations/mcp.md#chore-organization) for the new fields and retry behavior. Calendar feed
+downloads now have a 20 MB limit and a 30-second timeout.
+
+## 1.3.0
+
+Kinwall now looks after the house too, keeps kids' screen time tied to their chores, and its
+phone apps get real push notifications, even from a server you run yourself.
+
+### Highlights
+
 * **Home upkeep**: a new **Upkeep** tab for the jobs that come round every few months or years:
   the furnace filter, smoke alarms, the gutters, the oil change. Each job repeats from the last time
   it was done or on set dates, reminds you before it's due, and keeps a history of who did it and
   what it cost. Keep each thing's model, part sizes, warranty and receipts, give a job to a kid as a
-  chore with points, and have its supplies go on the shopping list. See [Home upkeep](using/upkeep.md).
+  chore with points (Done then waits for a grown-up's OK like any chore), and have its supplies go
+  on the shopping list. See [Home upkeep](using/upkeep.md).
+* **Routine mode** (preview, iPad and iPhone): a parent sets when a kid's day starts and when free
+  time ends, and the chores that come first. Until they're done and approved, only the apps and
+  websites you allow open, like school links, and the kid sees what's left on a free-time page.
+  See [Routine mode](using/routine-mode.md).
+* **Real push on iPhone and Android**: notifications from the Kinwall apps arrive even when the
+  app is closed. A self-hosted server sends them through the Kinwall push gateway, with no Apple or
+  Google keys to set up. See [Push gateway](self-hosting/configuration.md#push-gateway).
+* **Live Activities on iPhone**: follow an event, a medicine dose or a timer on the Lock Screen.
+  See [Notifications](using/notifications.md#live-activities-kinwall-app-for-iphone).
+* **Medications** are organized around today and history, with alarms for reminders and a second
+  try when an alert doesn't get through. See [Medications](using/medications.md).
+* **Reward milestones**: earn a reward without spending points, like "Earn 100 points → pick the
+  family movie". See
+  [Rewards](using/rewards.md#reward-milestones).
+* **Chores repeat your way**: custom schedules, more than one day a month, and flexible goals. The
+  date strip shows what's unfinished, and devices hear about a new chore right away. See
+  [Chores](using/chores.md).
+* **Scheduled announcements**: write one now, and it shows up on the board when it starts and
+  goes away when it ends. See
+  [Family announcements](using/announcements.md).
+
+### Everything else
+
+* Overnight events show on every day they cover, and outings can add visits that last several days.
+* Ticked items on grocery and shopping lists can clear themselves after a time you pick.
+* An optional morning check-in reminder, names for paired devices and API keys, and a switch to
+  hide the status bar in the phone apps.
+* Reminders for "Anyone" chores are now opt-in.
+* Faster: Kinwall starts quicker and reads much less from the database.
+* Fixes for the Nest Hub layout, routine labels at large text sizes, duplicate Live Activities and
+  an outing's sheet that wouldn't stay closed. See the
+  [changelog](https://github.com/JohnDuprey/kinwall/blob/main/CHANGELOG.md).
+
+### Upgrading
+
+Updates install like any other: see [Updating](self-hosting/updating.md). The database updates
+itself on first start. If you use the REST API: push registration and Live Activity routes now
+answer with `{push, delivery, gatewayExpiresAt?}` instead of `nativePushReady`, and undoing an
+upkeep job works only from the device that did it (or a parent's).
+
+## 1.2.0
+
 * **Calendar has its own place** in the navigation, right after Home, with **Day | Week | Month |
   Schedule** in one switch (3 Day on a phone). Home is now **Board | Newscast**, and the Board's
   layouts moved into **Layout and filter** (the sliders on its toolbar), together with the category

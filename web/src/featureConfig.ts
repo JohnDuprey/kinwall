@@ -12,6 +12,7 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'notes', section: 'Everyday', label: msg('Notes'), sub: msg('Discussions on events and list items. An item’s own notes still show.') },
   { key: 'messages', section: 'Everyday', label: msg('Family messages'), sub: msg('Sending a message from the bell. Messages already sent still show.') },
   { key: 'announcements', section: 'Everyday', label: msg('Family announcements'), sub: msg('Scheduled messages at the top of the Board. They appear and disappear at the times you choose.') },
+  { key: 'inbox', section: 'Everyday', label: msg('Inbox'), sub: msg('A place at the top of a parent’s screen to jot something down, then make it a task, an event or a note later.') },
   { key: 'polls', section: 'Everyday', label: msg('Family polls'), sub: msg('Polls everyone votes in, like “Which movie tonight?”, on the Board and in the bell. With Meals on, choices can be recipes and a poll can plan the meal.') },
   { key: 'checkIns', section: 'Everyday', label: msg('Check-ins & journal'), sub: msg('Temp check, goal checks, the energy battery, journals and Insights. Who gets them is set per person in Family.') },
   { key: 'meals', section: 'Spaces', label: msg('Meals'), sub: msg('The Meals tab with recipes, cooking mode, the restaurant binder, order nights and the week’s plan, and today’s meals on the Board and in the daily summary.') },
@@ -23,5 +24,6 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'photos', section: 'Spaces', group: msg('Activities'), label: msg('Photos'), sub: msg('Family photos in Activities, Newscast and memories, and on the Board and Night screen. Google Photos and nature pictures still show.') },
   { key: 'contacts', section: 'Spaces', label: msg('Contacts'), sub: msg('The household contacts directory.') },
   { key: 'upkeep', section: 'Spaces', label: msg('Home upkeep'), sub: msg('The things you look after, the jobs that keep them working and when each was last done. Reminders, kids’ upkeep chores and supplies for the shopping list.') },
+  { key: 'school', section: 'Spaces', label: msg('School'), sub: msg('Subjects, which kids are in school, and the time each kid spends learning, for homeschooled kids and kids who go to school. Off until you turn it on.') },
   { key: 'newscast', section: 'Spaces', label: msg('Newscast'), sub: msg('Home’s Newscast tab: chores done, rewards, photos and drawings, books, memories, birthdays and announcements, with reactions.') },
 ]

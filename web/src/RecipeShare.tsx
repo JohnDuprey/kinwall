@@ -18,7 +18,7 @@ export default function RecipeShare({ recipe }: { recipe: Recipe }) {
   const [busy, setBusy] = useState(false)
   const start = async () => {
     setBusy(true)
-    try { const made = await api.shareRecipe(recipe.id); setShare({ url: made.url, createdAt: made.createdAt }); setOpen(true) }
+    try { const made = await api.shareRecipe(recipe.id); setShare({ url: made.url, createdAt: made.createdAt }) }
     catch (e) { toast(e instanceof Error ? e.message : t('Could not make a link.'), true) }
     finally { setBusy(false) }
   }
@@ -39,24 +39,28 @@ export default function RecipeShare({ recipe }: { recipe: Recipe }) {
   const sees = t("Anyone with this link can see {name}: its photo, ingredients and steps. Not your family's names, ratings, meals or notes.").split('{name}')
   return <>
     <div className="sheet-links">
-      <button type="button" className="sheet-link" disabled={busy} onClick={() => void start()}>
+      <button type="button" className="sheet-link" onClick={() => setOpen(true)}>
         <LinkIcon /><span>{t('Share recipe')}<small>{share ? t('Shared: anyone with the link can see it') : t('Make a link anyone can open')}</small></span><ChevronRight />
       </button>
     </div>
-    {open && share && <Sheet title={t('Share recipe')} onClose={() => setOpen(false)} dismissable={!busy} actions={<>
+    {open && <Sheet title={t('Share recipe')} onClose={() => setOpen(false)} dismissable={!busy} actions={share ? <>
       <select className="settings-select actions-select" aria-label={t('Sharing actions')} value="" disabled={busy} onChange={e => { if (e.target.value === 'stop') void stop() }}>
         <option value="" disabled hidden>{t('More…')}</option>
         <option value="stop">{t('Stop sharing…')}</option>
       </select>
       <button type="button" className={`btn ${canShare ? 'btn-secondary' : 'btn-primary'}`} onClick={() => void copy()}>{t('Copy link')}</button>
       {canShare && <button type="button" className="btn btn-primary" onClick={() => void send()}>{t('Share')}</button>}
-    </>}>
+    </> : undefined}>
       <p>{sees[0]}<strong>{recipe.name}</strong>{sees[1]}</p>
+      {!share ? <>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void start()}>{t('Make a link')}</button>
+      </> : <>
       <div className="field">
         <label htmlFor={id}>{t('Link')}</label>
         <input id={id} type="url" readOnly value={share.url} onFocus={e => e.target.select()} />
       </div>
       <p className="field-hint">{t('They can save it to their own Kinwall from the page.')}</p>
+      </>}
     </Sheet>}
   </>
 }

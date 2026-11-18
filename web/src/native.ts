@@ -144,7 +144,7 @@ function postAppearance(a: AppAppearance) {
   try { app.postMessage({ type: 'appearance', ...a }) } catch { /* not in the app */ }
 }
 
-export type AppActivityKind = 'cooking' | 'shopping' | 'leaveBy' | 'medication'
+export type AppActivityKind = 'cooking' | 'shopping' | 'leaveBy' | 'medication' | 'event'
 // undefined: not told since this page loaded (so the first end always goes, in case the app still
 // shows one from before a reload); '': ended.
 const lastActivity: Partial<Record<AppActivityKind, string>> = {}
@@ -312,14 +312,39 @@ export function tellAppStopSpeaking() {
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'stopSpeaking' }) } catch { /* not in the app */ }
 }
 
-/** Native APNs is available only in an entitled iOS build. Tokens never cross this bridge. */
+/** Native push needs an entitled iOS or Firebase-enabled Android build. Tokens never cross this bridge. */
 export function appNativePush(): boolean {
   return (window as Window & { kinwallNative?: { nativePush?: boolean } }).kinwallNative?.nativePush === true
 }
 export function appPushReady(): boolean {
   return (window as Window & { kinwallNative?: { pushReady?: boolean } }).kinwallNative?.pushReady === true
 }
+/** Why the app's push stayed off (kinwall-mobile's PushProblem), or null: older apps don't say. */
+export function appPushProblem(): 'address' | 'device' | 'server' | null {
+  const p = (window as Window & { kinwallNative?: { pushProblem?: unknown } }).kinwallNative?.pushProblem
+  return p === 'address' || p === 'device' || p === 'server' ? p : null
+}
 export function setAppPushEnabled(on: boolean) {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'nativePush', on })
+}
+
+/** Event schedules are personal. New shells schedule Android alarms and register iPhone pushes. */
+export function tellAppEventActivities(schedule:{enabled:boolean;plans:import('../../server/src/event-activity-plan.ts').EventActivity[]}) {
+ const w=window as Window & {webkit?:{messageHandlers?:{kinwall?:{postMessage:(m:unknown)=>void}}}}
+ try {w.webkit?.messageHandlers?.kinwall?.postMessage({type:'eventActivities',schedule})}catch{/* outside the app */}
+}
+
+export function appEventActivitiesSupported():boolean {
+ return typeof window !== 'undefined' && (window as Window & {kinwallNative?:{eventActivitiesSupported?:boolean}}).kinwallNative?.eventActivitiesSupported === true
+}
+
+/** Local reminder preference advertised by current shells; older shells cannot change it. */
+export function appChoreNudgeAnyone(): boolean | null {
+  const value = (window as Window & { kinwallNative?: { choreNudgeAnyone?: unknown } }).kinwallNative?.choreNudgeAnyone
+  return typeof value === 'boolean' ? value : null
+}
+export function setAppChoreNudgeAnyone(on: boolean) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'choreNudgeAnyone', on })
 }

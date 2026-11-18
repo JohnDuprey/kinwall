@@ -1,3 +1,4 @@
+import { ApiError } from './apiError.ts'
 import { msg, t, tm } from './i18n.ts'
 
 /** A server error with no words of its own (a proxy's 502 page, a bare status line): calm and plain,
@@ -23,4 +24,14 @@ const LOAD_ERRORS: Record<string, string> = {
   restaurants: msg("Couldn't load restaurants. Check your connection."),
   'the board': msg("Couldn't load the board. Check your connection."),
   'the meal plan': msg("Couldn't load the meal plan. Check your connection."),
+}
+
+/** Plain words for a passkey failure: the browser's own text ("The operation either timed out or was
+ * not allowed…") never reaches a person. Our own server's messages are already plain. */
+export function passkeyErrorText(e: unknown): string {
+  if (e instanceof ApiError) return e.message
+  const name = e instanceof Error ? e.name : ''
+  if (name === 'NotAllowedError' || name === 'AbortError') return t('That was cancelled or timed out. Try again.')
+  if (name === 'InvalidStateError') return t('This device already has a passkey for Kinwall.')
+  return t("Couldn't use the passkey. Try again.")
 }

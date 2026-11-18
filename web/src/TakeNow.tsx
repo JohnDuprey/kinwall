@@ -3,6 +3,7 @@
 // on the Board it's one of the count tiles (TakeNowTile), which opens the list in a sheet. The server decides what this device may see: a shared wall gets
 // everyone's doses as "Meds" unless the family turned names on, a person's own device only theirs.
 import { useEffect, useRef, useState } from 'react'
+import { dueRecheckDelay } from './dueRecheck.ts'
 import { doseChanges, sameDose } from './doseChanges.ts'
 import { api, ApiError, PUSH_SUB_ID_KEY } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -19,26 +20,26 @@ import type { DueDose, MedicationsDue } from './types.ts'
 import { Face } from './Face'
 import { t } from './i18n.ts'
 
-const RECHECK_MS = 60_000 // a dose shows up at its time without waiting for the next refresh
+const ACTIVITY_CLOCK_MS = 60_000 // local Live Activity display clock; no network request
 
-// The board's tile and the phone app's Live Activity both ask, at the same moments (a refresh, the
-// top of each minute): they share one request.
-let dueRequest: { revision: number; request: Promise<MedicationsDue> } | null = null
+// The Board and native Live Activity share requests when their deadlines or refreshes coincide.
+type TimedMedicationsDue = MedicationsDue & { receivedAt: number }
+let dueRequest: { revision: number; request: Promise<TimedMedicationsDue> } | null = null
 const fetchDue = () => {
   if (!dueRequest || !doseChanges.current(dueRequest.revision)) {
-    const read = { revision: doseChanges.revision, request: api.getMedicationsDue() }
+    const read = { revision: doseChanges.revision, request: api.getMedicationsDue().then(d => ({ ...d, receivedAt: Date.now() })) }
     dueRequest = read
     read.request.finally(() => { if (dueRequest === read) dueRequest = null }).catch(() => {})
   }
   return dueRequest
 }
 
-/** Today's due doses for this device, refetched on each refresh and at the top of every minute
+/** Today's due doses for this device, refetched on changes and at the server's next deadline
  * while the screen is showing. The Board uses it to know whether to show its Take now tile; `drop`
  * removes a dose once it's marked. */
 export function useDueDoses() {
   const { settings, refreshTick } = useApp()
-  const [due, setDue] = useState<MedicationsDue | null>(null)
+  const [due, setDue] = useState<TimedMedicationsDue | null>(null)
   const [tick, setTick] = useState(0)
   const on = settings.medications
   useEffect(() => {
@@ -54,13 +55,11 @@ export function useDueDoses() {
   }), [])
   useEffect(() => {
     if (!on) return
-    let t: ReturnType<typeof setTimeout>
-    const next = () => { t = setTimeout(() => { if (document.visibilityState !== 'hidden') setTick(x => x + 1); next() }, RECHECK_MS - Date.now() % RECHECK_MS) }
+    const timer = setTimeout(() => { if (document.visibilityState !== 'hidden') setTick(x => x + 1) }, dueRecheckDelay(due, Date.now()))
     const onVis = () => { if (document.visibilityState === 'visible') setTick(x => x + 1) }
-    next()
     document.addEventListener('visibilitychange', onVis)
-    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', onVis) }
-  }, [on])
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVis) }
+  }, [on, due, tick])
   const drop = (d: DueDose) => setDue(x => x && { ...x, doses: x.doses.filter(y => key(y) !== key(d)) })
   return { doses: on && due ? due.doses : [], drop }
 }
@@ -85,7 +84,7 @@ export function MedicationLiveActivity() {
     return () => window.removeEventListener(MED_NAMES_EVENT, on)
   }, [])
   const [now, setNow] = useState(() => Date.now())
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), RECHECK_MS); return () => clearInterval(t) }, [])
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ACTIVITY_CLOCK_MS); return () => clearInterval(t) }, [])
   useEffect(() => {
     let id: string | null = null
     try { id = localStorage.getItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked: generic */ }

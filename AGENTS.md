@@ -57,7 +57,7 @@ lowercase, no period, under ~72 characters. The body says why when that isn't ob
 
 - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `style`, `chore`, `ci`, `build`.
 - Scopes are areas of the app: `board`, `calendar`, `chores`, `rewards`, `lists`, `meals`,
-  `recipes`, `notes`, `snapshot`, `journal`, `insights`, `trackers`, `medications`, `contacts`, `newscast`, `polls`, `outings`, `upkeep`, `settings`, `mcp`, `sync`, `auth`, `server`, `web`, `docs`, `ha`.
+  `recipes`, `notes`, `snapshot`, `inbox`, `journal`, `insights`, `trackers`, `medications`, `contacts`, `newscast`, `polls`, `outings`, `upkeep`, `school`, `settings`, `mcp`, `sync`, `auth`, `server`, `web`, `docs`, `ha`.
 - Breaking changes (API, MCP tools, export format, settings) get `!` and a `BREAKING CHANGE:` footer.
 - One logical change per commit. Tests and docs go in the same commit as the change.
 - CI checks every new commit (`.github/check-commits.sh`), and a failing check blocks the hosted
@@ -117,8 +117,10 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
 
 - Examples, fixtures, screenshots and the demo use the demo family only: "Our Family" with Alex,
   Sam, Maya and Leo. Never real names, addresses or photos.
-- Don't name competing family-calendar products anywhere public. Services Kinwall imports from or
-  syncs with (Google, HelloFresh, stores) are fine to name.
+- Kinwall-authored public copy (docs, website, release notes) must not name competing family-calendar
+  products. Services Kinwall imports from or syncs with (Google, HelloFresh, stores) are fine to name.
+  Community discussions and imported user posts preserve participants' wording, including product
+  names; do not apply the authored-copy rule as a filter to Discord/GitHub conversations.
 - Never commit secrets, API keys or tokens; tests use obvious fakes.
 
 ## Health data

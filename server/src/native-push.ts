@@ -22,7 +22,7 @@ export async function nativePushConfigured(env: NativePushEnv): Promise<boolean>
   if (env.NATIVE_PUSH_SEND || apnsConfigured(env)) return true;
   if (!env.DB) return false;
   const now = Date.now();
-  return !!await env.DB.prepare("SELECT 1 FROM push_subscriptions WHERE gateway_credential LIKE 'v1:%' AND gateway_expires_at>? UNION ALL SELECT 1 FROM live_activity_tokens WHERE gateway_credential LIKE 'v1:%' AND gateway_expires_at>? LIMIT 1")
+  return !!await env.DB.prepare("SELECT 1 FROM push_subscriptions WHERE endpoint LIKE 'apns:%' AND gateway_credential LIKE 'v1:%' AND gateway_expires_at>? UNION ALL SELECT 1 FROM live_activity_tokens WHERE gateway_credential LIKE 'v1:%' AND gateway_expires_at>? LIMIT 1")
     .bind(now, now).first();
 }
 

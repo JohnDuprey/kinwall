@@ -6,7 +6,7 @@ The **Meals** tab answers two questions: what are we eating this week, and what 
 
 The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day, showing only the slots with something planned and one **Plan a meal** row for the day (it plans dinner when that's free, else the first open slot).
 
-Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with **What's for dinner?** (or breakfast, lunch or snack): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
+Tap **+** in a slot (or **Plan meal**) to add a meal. **Plan meal** starts on the day you're looking at (today in this week's view) in its first empty slot, and the sheet starts with **What's for dinner on Tuesday?** (or breakfast, lunch or snack, and the day): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
 
 * **What are we eating?**: **A recipe** (from the library), **Something else** (just a name) or **Eating out** (like "Pizza place"). Change it here if you picked the wrong one.
 * For eating out, **Restaurant** picks a place from the [binder](#restaurants) (its name becomes the meal's name) or **Somewhere else**, and **How** is **Eating there**, **Pickup** or **Delivery**. A night from the binder gets everyone's [orders](#ordering-together).
@@ -14,7 +14,10 @@ Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with **Wh
 * **Meal name**, then **Date** and **Meal** (breakfast, lunch, dinner or snack, filled in from the slot you tapped).
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field) and **Cooking** (who's making it). Eating out has only the time: who's eating is who gets asked for their order, and a place that isn't in the binder can have an optional website.
 * **Who's eating**: **Everyone** (nobody picked), or tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
+* For eating out, the order actions (**Add orders**, **Ask for orders**, **Mark ordered**) sit at the top of an existing meal, and **Mark ordered** replaces the Status choice.
 * **Status**: **Planned** or **Cooked** (**Ordered** when eating out). A cooked meal shows dashed. Then **Notes**.
+
+Use **Cooking history** to show **Cooked** or **Never cooked**, and **Sort** for name, favorites, top rated, date added (newest or oldest first), most cooked or last cooked. These choices also appear in the first meal chooser, week planner, poll recipe picker and recipe library. The week planner starts with **Use food soon first**, keeping pantry suggestions at the top until you choose another sort. Cooking history counts linked meals marked **Cooked** across all dates; planned meals do not count. **Last cooked** uses the meal’s date, not when you tapped the button.
 
 Only recipe meals add to the grocery list; something else and eating out don't.
 
@@ -75,7 +78,7 @@ A recipe with steps has a **Start cooking** button near the top of its view. It 
 
 **This step's ingredients** lists the ingredients the step mentions, for the servings you picked in the recipe view. On a wide screen held sideways they're under the step's photo, beside the text; on a phone or a screen held upright they come after the step's text, and a phone keeps the photo short, so the instruction and its timers are in view without scrolling. **All ingredients** shows the whole list without leaving the step.
 
-A step's title shows above its text. When a step comes with its own timers (an imported meal kit's "Chicken · 25 min"), those are its timer buttons, named. Otherwise, when a step mentions a time ("10 minutes", "1 hour", "5-7 min"), tap its timer to start it. A timer without a name takes one from the words around it: "simmer 18-20 minutes" is **Simmer · 18–20 min**, "Rest off the heat for 5 minutes" is **Rest · 5 min**. A range ("5–6 min", "Sear 2–3 min per side") is one timer for both ends: it says **Check at 5 min · done by 6**, gives a short, soft chime at 5 with **Check it**, then counts the last minute (**Up to 1 min more**) and rings as usual at 6. Tap **Ready** when it's ready sooner. A meal kit's timer counts as a range when its step's text gives one that starts at the timer's time ("Roast 15–20 min" with a 15-minute timer). Running timers stay in a bar at the top as you move between steps, with the time left in big numbers, and you can run several at once. They're the same [timers](timers.md) as the header's: each has **Pause**, **Reset** and **×** (with **Undo**), they ring with a red banner and a beep until you tap **OK**, and they keep running (and ring) after you close cooking mode, with the time left on the header's timer button.
+A step's title shows above its text. When a step comes with its own timers (an imported meal kit's "Chicken · 25 min"), those are its timer buttons, named. Otherwise, when a step mentions a time ("10 minutes", "1 hour", "5-7 min", "1 hour 15 minutes"), tap its timer to start it. Hours and minutes together are one timer (**1 hr 15 min**). A timer without a name takes one from the words around it: "simmer 18-20 minutes" is **Simmer · 18–20 min**, "Rest off the heat for 5 minutes" is **Rest · 5 min**. A range ("5–6 min", "Sear 2–3 min per side") is one timer for both ends: it says **Check at 5 min · done by 6**, gives a short, soft chime at 5 with **Check it**, then counts the last minute (**Up to 1 min more**) and rings as usual at 6. Tap **Ready** when it's ready sooner. A meal kit's timer counts as a range when its step's text gives one that starts at the timer's time ("Roast 15–20 min" with a 15-minute timer). Running timers stay in a bar at the top as you move between steps, with the time left in big numbers, and you can run several at once. They're the same [timers](timers.md) as the header's: each has **Pause**, **Reset** and **×** (with **Undo**), they ring with a red banner and a beep until you tap **OK**, and they keep running (and ring) after you close cooking mode, with the time left on the header's timer button.
 
 In the Kinwall app for iPhone, a running timer is also a Live Activity on the Lock Screen and in the Dynamic Island: the recipe, the timer's name and step, and a countdown ("+1 more" when several are running). When it's up it says "Done: Rice", and it goes away when you tap **OK**. A paused timer isn't on the Lock Screen until you resume it.
 
@@ -106,7 +109,7 @@ When you plan a recipe, the meal keeps its own copy of the ingredients. Editing,
 
 ### Sharing a recipe
 
-To send a recipe to someone outside the family, open it and tap **Share recipe** (parents' devices only). Kinwall makes a link like `https://your-kinwall/r/…` (your Kinwall address) and shows it with **Copy link** and, on phones and tablets, **Share**. Tapping **Share recipe** again shows the same link.
+To send a recipe to someone outside the family, open it and tap **Share recipe** (parents' devices only). The sheet explains who can see it; tap **Make a link** and Kinwall makes a link like `https://your-kinwall/r/…` (your Kinwall address) and shows it with **Copy link** and, on phones and tablets, **Share**. Tapping **Share recipe** again shows the same link. Nothing is shared until you tap **Make a link**.
 
 The link opens a simple page that works in any browser, no Kinwall needed: the recipe's name, photo, description, servings (or, for a basic, how much it makes) and times, ingredients (amounts as in Kinwall, like "1½ cups"), numbered steps (with their photos) and its source link, with "Shared from Kinwall" at the bottom (linking to kinwall.family). It follows the viewer's light or dark setting, and printing it leaves out the save form. Recipe apps and websites that read recipe links can import it too (with the standard recipe data: ingredients as lines of text, and steps with their titles and photos). Under the recipe, **Save to my Kinwall** asks for the other family's Kinwall address (like `theirfamily.kinwall.family`, or their own server's), then opens their Kinwall's **Import from a link** with the recipe ready to save. The browser remembers that address for next time.
 
@@ -316,12 +319,34 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 * containers and handfuls: cans, jars, packages, bunches, pinches, handfuls;
 * anything with a quantity note ("15 oz cans"), or no quantity at all ("to taste").
 
+## Use it up
+
+![Use it up above the week planner: six foods to use this week, one past its date, and three recipes that use them with Plan it](../screenshots/ipad-use-it-up.png)
+
+When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** above the week (on a phone's Day view it sits below the day's meals):
+
+* What to use this week, soonest first: "Spinach (expired)", "Chicken breast (tomorrow)", "Greek yogurt (Tue)". Past its date is marked **⚠** and counted ("1 past its date"), so you can check it before cooking.
+* Up to three of your recipes that use those things up, best first, each with what it uses ("Uses Spinach (today), Chicken breast (tomorrow)") and what you'd still need ("Needs Garlic", or "You have everything"). **Show more recipes** lists the rest.
+* Tap a recipe to open it. **Plan it** (grown-ups) opens a new dinner for today with that recipe, ready to change the day or slot.
+* Food none of your recipes use is listed at the bottom ("No recipe uses Strawberries yet."). Ask an AI assistant connected over [MCP](../integrations/mcp.md) for ideas: its **Use it up** prompt, or just "what should we make with what's expiring?"
+
+How recipes are picked:
+
+* Only meals count, not [basics](#basics) or archived recipes.
+* A recipe ranks higher the more expiring food it uses and the sooner that food expires: something to use today counts most, tomorrow half as much, and so on. Using other things you have helps a little, and each missing ingredient costs a little.
+* Names match when they're the same food, in any case or plural: "Chicken" matches "chicken thighs", "Tomatoes" matches "cherry tomatoes", "Spinach" matches "fresh baby spinach". A different food doesn't match: "Milk" isn't "coconut milk", "Garlic" isn't "garlic powder", "Potatoes" aren't "sweet potatoes", "Beans" aren't "green beans".
+* Each ingredient uses up one thing: with chicken breasts and chicken thighs in the fridge, "Chicken" counts the one that expires first.
+* Salt, pepper, oil and water are assumed: they're never listed as missing and never use anything up ("salt and pepper" doesn't use your peppers).
+* Meal-kit ingredients that ship in the box (**in the kit**) are never listed as missing.
+
+The card hides when nothing expires this week, and while **Lists** is turned off.
+
 ## Adding to the grocery list
 
 **Groceries** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
 
 1. Pick the range and a grocery list. Only [Groceries lists](lists.md#list-types) can take ingredients (not Shopping lists like the hardware store). If you have just one, it's already chosen; with several, Kinwall picks the one this device used last. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
-2. Untick what you already have (salt, rice in the pantry). Meal-kit ingredients that ship in the box (**in the kit**) start unticked.
+2. Untick what you already have (salt, rice in the pantry). Meal-kit ingredients that ship in the box (**in the kit**) and ingredients that match something already on the list start unticked.
 3. Tap **Add … items to list**. Optionally, each new item gets a note with the meals it's for.
 4. When some of the meals use a [basic](#basics) you make yourself, one sheet asks **Made already?** with a choice for each basic ("Taco seasoning: made already?"): **Made already** leaves it off the list, **Add its ingredients** (the default) adds what goes into it instead of the basic itself, as its recipe writes it (not scaled), once for the whole range even when several meals use it, each with a note saying which basic it's for. Unticking a basic in the preview skips the question for it. Once its ingredients are on the list, adding the range again doesn't ask or add them again.
 
@@ -368,6 +393,8 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | Method | Path | Does |
 |---|---|---|
 | `GET` | `/api/recipes?search=&category=&archived=&kind=` | Recipes with their ingredients; `kind=basic` or `kind=meal` lists only those. |
+| `GET` | `/api/pantry/expiring?days=&listId=` | Open items on pantry lists with a use-by date within `days` (default 7, 0 to 365; 0 is today and anything past), soonest first: `{ today, days, items: [{ id, listId, listName, title, quantity, kept, useBy, daysLeft, status }] }`. `status` is `expired`, `today`, `soon` (within 3 days) or `later`; `kept` is where it's kept. `listId` limits it to one pantry list (`404` for any other list, or an archived one). |
+| `GET` | `/api/pantry/suggestions?days=&limit=&listId=` | [Use it up](#use-it-up): `{ today, days, expiring, suggestions, unmatched }`. Each suggestion is `{ recipe: { id, name, imageUrl, totalMinutes, rating }, score, uses, alsoHave, missing }`: `uses` are the expiring items it uses (with the `ingredient` each matched), `alsoHave` other pantry items it uses, `missing` its other ingredient names. `unmatched` are expiring items no suggested recipe uses. `limit` 1 to 50 (default 10). |
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
 | `POST` | `/api/recipes/{id}/link-uses` | For a basic: link the other recipes' unlinked ingredient lines that name it `{ linked }` (admin). 400 for a meal. |

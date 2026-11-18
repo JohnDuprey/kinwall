@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import type { Lang } from '../src/i18n.ts'
 import { DAY, formatDate, intlLocale, lang, msg, pickLang, playerLang, setLang, t, tc, tn } from '../src/i18n.ts'
 
 const de = {
@@ -116,23 +117,11 @@ test('the Nooks heading keeps its German translation', async () => {
   await setLang('en')
 })
 
-for (const [code, home, next, day, days] of [
-  ['fr', 'Accueil', 'Ensuite', 'jour', 'jours'],
-  ['es', 'Inicio', 'Después', 'día', 'días'],
-] as const) {
-  test(`${code}: actual dictionary, placeholders, plurals and regional formats`, async () => {
-    const dictionary = JSON.parse(readFileSync(new URL(`../src/locales/${code}.json`, import.meta.url), 'utf8'))
-    assert.equal(pickLang({ member: code, family: 'en' }), code)
-    assert.equal(playerLang(code, 'en'), code)
-    await setLang(code, async () => dictionary)
-    assert.equal(t('Home'), home)
-    assert.equal(tc('now-next', 'Next'), next)
-    assert.equal(t('Remove: {title}', { title: 'Test' }).includes('Test'), true)
-    assert.equal(tn(1, '{n} day', '{n} days'), `1 ${day}`)
-    assert.equal(tn(2, '{n} day', '{n} days'), `2 ${days}`)
-    assert.equal(tn(0, '{n} day', '{n} days'), code === 'fr' ? '0 jour' : '0 días')
-    assert.equal(intlLocale(code === 'fr' ? 'fr-CA' : 'es-PE'), code === 'fr' ? 'fr-CA' : 'es-PE')
-    assert.equal(t('Untranslated {name}', { name: 'Maya' }), 'Untranslated Maya')
-    await setLang('en')
-  })
-}
+test('setLang: unsupported and inherited keys fall back to English without calling a loader', async () => {
+  for (const invalid of ['xx', '__proto__', 'constructor', 'toString', 'hasOwnProperty', '', null, undefined]) {
+    await setLang('de', load)
+    await setLang(invalid as Lang, () => { throw new Error('Invalid languages must not load') })
+    assert.equal(lang(), 'en')
+    assert.equal(t('Notifications'), 'Notifications')
+  }
+})

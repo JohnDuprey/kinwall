@@ -1,3 +1,4 @@
+import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { readChoreGoal } from '../chore-goal.ts';
 // Insights (#/insights/<id>) and the energy battery (battery.ts, GET /api/members/{id}/battery): a person's check-ins over time (sleep, feelings, goals and how they
 // went, journal entry counts and moods) next to what Kinwall already knows (chores done, activity
@@ -215,7 +216,7 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
   const to = addDays(today, FORECAST_DAYS);
   const [checks, chores, done] = await env.DB.batch<unknown>([
     env.DB.prepare('SELECT * FROM temp_checks WHERE member_id = ? AND date BETWEEN ? AND ?').bind(memberId, from, to),
-    env.DB.prepare('SELECT * FROM chores WHERE active = 1 AND member_id = ?').bind(memberId),
+    env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND member_id = ?`).bind(memberId),
     env.DB.prepare('SELECT cc.chore_id, cc.date, cc.member_id, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.date BETWEEN ? AND ?').bind(from, to),
   ]);
   const days = new Map<string, BatteryInput>();

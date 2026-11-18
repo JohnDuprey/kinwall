@@ -15,7 +15,7 @@ const MIN = 60000
 
 // ---- Timers (timers.ts: quick timers and cooking mode's) ----
 
-export type ActivityTimer = { label: string; title?: string; detail?: string; endsAt: number; done: boolean; paused?: boolean; seconds?: number; check?: number }
+export type ActivityTimer = { label: string; title?: string; detail?: string; endsAt: number; done: boolean; paused?: boolean; seconds?: number; check?: number; id?: number; left?: number; nativeRevision?: string; checked?: boolean }
 type Alarm = { at: number; title: string; body: string }
 /** The app's "cooking" activity, whatever the timer is for: `recipe` is what it's for (a quick
  * timer's is "Timer"), `step` its detail. `alarms`: every running timer's finish, for the app to
@@ -25,6 +25,8 @@ type Alarm = { at: number; title: string; body: string }
  * rings there and ignores the check. */
 export type TimerActivity = {
   recipe: string; timer: string; step: string; endsAt: number; done: boolean; more: number; alarms: Alarm[]; checks: Alarm[]
+  timerId?: number; left?: number; nativeRevision?: string
+  timers?: (ActivityTimer & { alarmTitle: string; alarmBody: string; checkTitle: string })[]
   check?: { at: number; before: string; after: string }
 }
 
@@ -33,10 +35,10 @@ export const timerName = (label: string) => label.split(' · ')[0]
 
 /** The soonest running timer, with how many others are on; once none is running, the one that
  * rang ("Done: Rice") until it's dismissed. Null when there are none. */
-export function timerActivity(timers: ActivityTimer[]): TimerActivity | null {
-  // A paused timer isn't counting down, so it's not on the Lock Screen and doesn't ring.
+export function timerActivity(timers: ActivityTimer[], controls = false): TimerActivity | null {
+  // A paused timer stays available for Start, but contributes no alarms.
   const running = timers.filter(x => !x.done && !x.paused).sort((a, b) => a.endsAt - b.endsAt)
-  const shown = running[0] ?? timers.filter(x => x.done).sort((a, b) => b.endsAt - a.endsAt)[0]
+  const shown = (controls ? timers.find(x => !x.done && x.paused) : undefined) ?? running[0] ?? timers.filter(x => x.done).sort((a, b) => b.endsAt - a.endsAt)[0]
   if (!shown) return null
   const title = (x: ActivityTimer) => x.title ?? t('Timer')
   const body = (x: ActivityTimer) => [title(x), x.detail].filter(Boolean).join(' · ')
@@ -45,6 +47,16 @@ export function timerActivity(timers: ActivityTimer[]): TimerActivity | null {
   const after = (x: ActivityTimer) => x.check !== undefined && x.seconds !== undefined ? (x.seconds - x.check) * 1000 : null
   const checks = running.filter(x => after(x) !== null).map(x => ({ at: x.endsAt - after(x)!, title: t('Check it: {timer}', { timer: timerName(x.label) }), body: body(x) }))
   const a: TimerActivity = { recipe: title(shown), timer: timerName(shown.label), step: shown.detail ?? '', endsAt: shown.endsAt, done: shown.done, more: running.filter(x => x !== shown).length, alarms, checks }
+  if (controls) {
+    a.timerId = shown.id
+    a.left = shown.left
+    a.nativeRevision = shown.nativeRevision
+  }
+  // Optional: older shells ignore this; older pages simply get no native button.
+  if (controls && timers.every(x => x.id !== undefined && x.seconds !== undefined)) a.timers = timers.map(x => ({ ...x, title: title(x),
+    alarmTitle: t("Time's up: {timer}", { timer: timerName(x.label) }), alarmBody: body(x),
+    checkTitle: t('Check it: {timer}', { timer: timerName(x.label) }),
+  }))
   const rest = after(shown)
   if (!shown.done && rest !== null) a.check = { at: shown.endsAt - rest, before: t('Check at {time}', { time: clock(shown.check! * 1000) }), after: t('Check now · up to {time} more', { time: clock(rest) }) }
   return a

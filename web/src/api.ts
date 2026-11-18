@@ -1,4 +1,6 @@
+import type { PlanningDraft, WeeklyPlanning } from './weekly-planning.ts'
 import type { Announcement, AnnouncementInput, Announcements } from './announcements.ts';
+import type { InboxItem, InboxSort } from './inbox.ts';
 import { lang, msg, t, tm, type Lang } from './i18n.ts'
 import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
@@ -14,8 +16,9 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolDays, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
-import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink } from './types.ts'
+import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   Milestone, MilestoneInput, StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -27,6 +30,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, Pl
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
 const milestonePath = (id?: string) => ['api', 'reward-milestones', ...(id ? [encodeURIComponent(id)] : [])].join('/')
+const demoFollows = new Map<string,{enabled:boolean;minutes:number;scope:'occurrence'|'series'}>()
 export const MOCK = import.meta.env.VITE_MOCK === '1'
 doseChanges.listen(tellAppDoseChanged)
 /** This device's push subscription id (Settings → This display → Notifications), for its own prefs. */
@@ -87,6 +91,15 @@ export function setAdminKey(key: string) {
 export function clearAdminKey() {
   try { sessionStorage.removeItem(ADMIN_KEY_STORAGE) } catch { /* ignore */ }
 }
+/** A typed-in admin key, held for this session only once the server says it's an admin key (a
+ * wrong key, or a display key, is dropped again, so nothing acts on it for the next 5 minutes). */
+export async function verifyAdminKey(key: string): Promise<void> {
+  setAdminKey(key)
+  try {
+    const me = await api.checkAdminKey()
+    if (me.scope !== 'admin') throw new ApiError(403, t('That key is not admin-scoped'))
+  } catch (e) { clearAdminKey(); throw e }
+}
 
 // An <img src> can't send a header, so its credential rides in the URL, where it lands in history
 // and access logs. The server takes only a media token there (auth.ts mediaTokenFor), never the
@@ -136,13 +149,8 @@ function mediaUrl(path: string, more = ''): string {
   return saved?.token ? apiUrl(`${path}?key=${encodeURIComponent(saved.token)}${more}`) : ''
 }
 
-export class ApiError extends Error {
-  status: number
-  constructor(status: number, message: string) {
-    super(message)
-    this.status = status
-  }
-}
+export { ApiError } from './apiError.ts'
+import { ApiError } from './apiError.ts'
 
 // Server may be mounted under a sub-path (e.g. Home Assistant ingress); resolve API paths
 // (no leading slash) against the page's own base rather than assuming the origin root.
@@ -191,7 +199,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = msg("You're offline. This will work when you're back online.")
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|announcements|outings|outing-categories|outing-feeds|upkeep|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|announcements|inbox|outings|outing-categories|outing-feeds|upkeep|school|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -267,6 +275,10 @@ async function req<T>(path: string, { quiet, ...opts }: RequestInit & { useAdmin
 }
 
 async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean }): Promise<T> {
+  if (MOCK && /^api\/weekly-plan([/?]|$)/.test(path)) {
+    const { mockWeeklyPlanningRequest } = await import('./mock-weekly-planning.ts')
+    return mockWeeklyPlanningRequest(path, opts) as Promise<T>
+  }
   if (MOCK && /^api\/(meals|recipes|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
@@ -279,9 +291,17 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockUpkeepRequest } = await import('./mock-upkeep.ts')
     return mockUpkeepRequest(path, opts) as Promise<T>
   }
+  if (MOCK && /^api\/school([/?]|$)/.test(path)) {
+    const { mockSchoolRequest } = await import('./mock-school.ts')
+    return mockSchoolRequest(path, opts) as Promise<T>
+  }
   if (MOCK && /^api\/announcements([/?]|$)/.test(path)) {
     const { mockAnnouncementRequest } = await import('./mock-announcements.ts')
     return mockAnnouncementRequest(path, opts) as Promise<T>
+  }
+  if (MOCK && /^api\/inbox([/?]|$)/.test(path)) {
+    const { mockInboxRequest } = await import('./mock-inbox.ts')
+    return mockInboxRequest(path, opts) as Promise<T>
   }
   if (MOCK && /^api\/polls([/?]|$)/.test(path)) {
     const { mockPollRequest } = await import('./mock-polls.ts')
@@ -333,6 +353,9 @@ const qs = (q: Record<string, string | undefined>) => { const p = new URLSearchP
 const routinePath = (id: string) => ['api', 'routine-mode', U(id)].join('/')
 
 export const api = {
+  getWeeklyPlanning: (weekStart?: string) => get<WeeklyPlanning>('api/weekly-plan' + qs({ weekStart })),
+  saveWeeklyDraft: (weekStart: string, revision: number, draft: PlanningDraft) => put<WeeklyPlanning>('api/weekly-plan/' + encodeURIComponent(weekStart), { revision, draft }),
+  applyWeeklyPlan: (weekStart: string, input: { revision: number; sourceVersion: number; requestId: string; draft: PlanningDraft }) => post<WeeklyPlanning>('api/weekly-plan/' + encodeURIComponent(weekStart) + '/apply', input),
   getRoutineMode: (id: string) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id)) : get<import('./routineMode.ts').RoutineState>(routinePath(id)),
   setRoutineMode: (id: string, policy: import('./routineMode.ts').RoutinePolicy) => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutine(id, policy)) : put<import('./routineMode.ts').RoutinePolicy>(routinePath(id), policy),
   getRoutineDevices: (id: string): Promise<import('./routineDevices.ts').RoutineDevices> => MOCK ? import('./mock-routine.ts').then(m => m.mockRoutineDevices(id)) : get<import('./routineDevices.ts').RoutineDevices>(['api', 'routine-mode', U(id), 'devices'].join('/')),
@@ -375,6 +398,11 @@ export const api = {
   getEventMeal: async (eventId: string): Promise<{ meal: Meal | null }> => MOCK ? (await import('./mock-meals.ts')).mockEventMeal(eventId) : get(`api/events/${encodeURIComponent(eventId)}/meal`),
   getAnnouncements: (status: 'active' | 'all' = 'active') => get<Announcements>('api/announcements?status=' + status),
   createAnnouncement: (body: AnnouncementInput) => post<Announcement>('api/announcements', body),
+  // The quick-capture inbox (parents): sorting makes the task, event or note on the server.
+  getInbox: () => get<{ items: InboxItem[] }>('api/inbox'),
+  addToInbox: (body: { id: string; text: string }) => post<InboxItem>('api/inbox', body),
+  setInboxStatus: (id: string, status: 'open' | 'cleared') => patch<InboxItem>('api/inbox/' + U(id), { status }),
+  sortInboxItem: (id: string, body: InboxSort) => post<InboxItem>('api/inbox/' + U(id) + '/sort', body),
   updateAnnouncement: (id: string, body: Partial<AnnouncementInput>) => patch<Announcement>('api/announcements/' + U(id), body),
   deleteAnnouncement: (id: string) => del<{ ok: boolean }>('api/announcements/' + U(id)),
   getPolls: (status?: Poll['status']) => get<Poll[]>(`api/polls${status ? `?status=${status}` : ''}`),
@@ -384,6 +412,27 @@ export const api = {
   closePoll: (id: string, optionId?: string) => post<Poll>(`api/polls/${encodeURIComponent(id)}/close`, { optionId }),
   updatePoll: (id: string, body: { question?: string; mealId?: string | null }) => patch<Poll>(`api/polls/${encodeURIComponent(id)}`, body),
   deletePoll: (id: string) => del<{ ok: boolean }>(`api/polls/${encodeURIComponent(id)}`),
+  // School (routes/school.ts). Walls and kids' devices read and log; the rest is for parents.
+  getSchoolSubjects: (archived = false) => get<SchoolSubject[]>('api/school/subjects' + (archived ? '?archived=all' : '')),
+  createSchoolSubject: (body: { name: string; emoji?: string | null; color: string }) => post<SchoolSubject>('api/school/subjects', body),
+  updateSchoolSubject: (id: string, body: Partial<Omit<SchoolSubject, 'id'>>) => patch<SchoolSubject>('api/school/subjects/' + U(id), body),
+  deleteSchoolSubject: (id: string) => del<{ ok: boolean }>('api/school/subjects/' + U(id)),
+  getSchoolKids: () => get<SchoolKid[]>('api/school/kids'),
+  putSchoolKid: (memberId: string, body: SchoolKidInput) => put<SchoolKid>('api/school/kids/' + U(memberId), body),
+  getSchoolGrades: (memberId: string, year: number) => get<SchoolGrade[]>('api/school/grades' + qs({ memberId, year: String(year) })),
+  putSchoolGrade: (body: { memberId: string; year: number; term: number; subjectId: string; grade: string }) => put<SchoolGrade | null>('api/school/grades', body),
+  getSchoolDays: (from: string, to: string) => get<SchoolDays>('api/school/days' + qs({ from, to })),
+  markSchoolDay: (memberId: string, date: string, kind: 'school' | 'half' | 'off' | null) => put<{ ok: boolean }>('api/school/days/' + U(memberId) + '/' + U(date), { kind }),
+  getSchoolTermsUsed: (memberId: string) => get<{ highestTerm: number }>('api/school/kids/' + U(memberId) + '/terms-used'),
+  deleteSchoolKid: (memberId: string) => del<{ ok: boolean }>('api/school/kids/' + U(memberId)),
+  getSchoolLogs: (q: { from?: string; to?: string; pending?: boolean } = {}) => get<SchoolLog[]>('api/school/logs' + qs({ from: q.from, to: q.to, pending: q.pending ? '1' : undefined })),
+  logSchool: (body: SchoolLogInput) => post<{ logs: SchoolLog[] }>('api/school/logs', body),
+  getSchoolRecords: (memberId: string, year: number) => get<SchoolRecords>('api/school/records' + qs({ memberId, year: String(year) })),
+  putSchoolReportCard: (body: { memberId: string; year: number; term: number; photoId: string | null }) => put<{ ok: boolean }>('api/school/report-cards', body),
+  updateSchoolLog: (id: string, body: Partial<Pick<SchoolLog, 'subjectId' | 'date' | 'minutes' | 'title' | 'notes' | 'photoId'>>, all = false) => patch<{ logs: SchoolLog[] }>('api/school/logs/' + U(id) + (all ? '?all=1' : ''), body),
+  approveSchoolLog: (id: string, all = false) => post<{ ok: boolean }>('api/school/logs/' + U(id) + '/approve' + (all ? '?all=1' : '')),
+  deleteSchoolLog: (id: string, all = false) => del<{ ok: boolean }>('api/school/logs/' + U(id) + (all ? '?all=1' : '')),
+  getSchoolSummary: (from: string, to: string) => get<SchoolSummary>('api/school/summary' + qs({ from, to })),
   // Home upkeep (routes/upkeep.ts). A wall or kid's device gets its own jobs and no costs or files.
   getUpkeepJobs: (status?: string) => get<UpkeepJob[]>('api/upkeep/jobs' + qs({ status })),
   getArchivedUpkeepJobs: () => get<UpkeepJob[]>('api/upkeep/jobs?archived=true'),
@@ -568,6 +617,12 @@ export const api = {
   oauthStart: (kind: 'google' | 'microsoft') => MOCK ? Promise.reject(new Error(t("The demo doesn't connect to Google or Microsoft."))) : post<{ url: string }>(`api/oauth/${kind}/start`, undefined, true),
 
   // includeHidden (parents' devices): also the events the family doesn't see, each with `hidden` saying why.
+  getEventFollow: (id:string,occurrenceStart?:string|null) => MOCK ? Promise.resolve(demoFollows.get(`${id}:${occurrenceStart??''}`) ?? {enabled:false,minutes:15,scope:'occurrence' as const}) : get<{enabled:boolean;minutes:number;scope:'occurrence'|'series'}>(['api','events',encodeURIComponent(id),'follow'].join('/')+'?'+new URLSearchParams(occurrenceStart?{occurrenceStart}:{})),
+  setEventFollow: (id:string,choice:{enabled:boolean;minutes:number;scope:'occurrence'|'series';occurrenceStart?:string|null;showNow?:boolean}) => {
+    if(MOCK){const saved={enabled:choice.enabled,minutes:choice.minutes,scope:choice.scope};demoFollows.set(`${id}:${choice.occurrenceStart??''}`,saved);return Promise.resolve(saved)}
+    return put<{enabled:boolean;minutes:number;scope:'occurrence'|'series'}>(['api','events',encodeURIComponent(id),'follow'].join('/'),choice)
+  },
+  getEventActivities: () => MOCK ? Promise.resolve({enabled:false,plans:[] as import('../../server/src/event-activity-plan.ts').EventActivity[]}) : get<{enabled:boolean;plans:import('../../server/src/event-activity-plan.ts').EventActivity[]}>('api/event-activities'),
   getEvents: (from: string, to: string, memberId?: string, calendarId?: string, includeHidden?: boolean) => {
     if (MOCK) return mock.getEvents(from, to, calendarId, includeHidden)
     const q = new URLSearchParams({ from, to })
@@ -593,8 +648,10 @@ export const api = {
   getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date)
     : Promise.all([get<ChoreDay[]>(`api/chores/day?date=${date}`), outboxReady()]).then(([c]) => applyChoreOps(c, date, pendingOps(outboxTag()))),
   // useAdmin: the setup wizard's starter chores on a device that just claimed a display-scope key.
+  getChores: () => MOCK ? mock.getChores() : get<Chore[]>('api/chores'),
   createChore: (body: Partial<Chore>, useAdmin?: boolean) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body, useAdmin),
   updateChore: (id: string, body: Partial<Chore>) => MOCK ? mock.updateChore(id, body) : patch<Chore>(`api/chores/${id}`, body),
+  orderChores: (ids: string[]) => MOCK ? mock.orderChores(ids) : post('api/chores/order', { ids }),
   deleteChore: (id: string) => MOCK ? mock.deleteChore(id) : del(`api/chores/${id}`),
   // The chore library: parent devices only (the server answers 403 to wall screens and kids' devices).
   getChoreLibrary: () => MOCK ? mock.getChoreLibrary() : get<LibraryChore[]>('api/chore-library'),
@@ -602,8 +659,10 @@ export const api = {
   updateLibraryChore: (id: string, body: LibraryChoreInput) => MOCK ? mock.updateLibraryChore(id, body) : patch<LibraryChore>(`api/chore-library/${id}`, body),
   deleteLibraryChore: (id: string) => MOCK ? mock.deleteLibraryChore(id) : del(`api/chore-library/${id}`),
   assignLibraryChore: (id: string, body: { date: string; memberId?: string | null; rrule?: string | null }) => MOCK ? mock.assignLibraryChore(id, body) : post<Chore>(`api/chore-library/${id}/assign`, body),
+  setChoreDismissed: (id: string, date: string, dismissed: boolean) =>
+    MOCK ? mock.setChoreDismissed(id, date, dismissed) : put(`./api/chores/${encodeURIComponent(id)}/dismissal`, { date, dismissed }),
   completeChore: (id: string, date: string, memberId?: string) =>
-    MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId }),
+    MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId, operationId: crypto.randomUUID() }),
   uncompleteChore: (id: string, date: string) =>
     MOCK ? mock.uncompleteChore(id, date) : del(`api/chores/${id}/complete?date=${date}`),
   // Parent approval (parent devices only).
@@ -774,6 +833,8 @@ export const api = {
   removeSticker: (memberId: string, id: string) => MOCK ? mock.removeSticker(memberId, id) : del(`api/stickers/scrapbook/${memberId}/${id}`),
 
   getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),
+  // Food to use soon on pantry lists, and the family's recipes that use it up (best first).
+  getPantrySuggestions: (days = 7) => MOCK ? mock.getPantrySuggestions(days) : get<PantrySuggestions>('api/pantry/suggestions' + qs({ days: String(days) })),
   createList: (body: Partial<List>) => MOCK ? mock.createList(body) : post<List>('api/lists', body),
   // Queued changes show on top of what the server (or the offline copy) says.
   // store: on a one-store trip, also the other list type's items for that store (alsoAtStore).
@@ -838,7 +899,7 @@ export const api = {
   queueDeleteListItem: async (listId: string, itemId: string): Promise<Op | null> =>
     MOCK ? (await mock.deleteListItem(listId, itemId), null) : queue('DELETE', `api/lists/${listId}/items/${itemId}`),
   queueCompleteChore: async (id: string, date: string, memberId?: string): Promise<unknown> =>
-    MOCK ? mock.completeChore(id, date, memberId) : queue('POST', `api/chores/${id}/complete`, { date, memberId }),
+    MOCK ? mock.completeChore(id, date, memberId) : queue('POST', `api/chores/${id}/complete`, { date, memberId, operationId: crypto.randomUUID() }),
   queueUncompleteChore: async (id: string, date: string): Promise<unknown> =>
     MOCK ? mock.uncompleteChore(id, date) : queue('DELETE', `api/chores/${id}/complete?date=${date}`),
   // Checkout / Reset: only itemIds (still checked) when given, so a tick made meanwhile isn't swept up.

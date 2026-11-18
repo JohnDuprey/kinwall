@@ -68,3 +68,16 @@ test('medicine retries: a direct host does not enqueue gateway retries from stal
   await enqueueMedicinePush({ ...env, NATIVE_PUSH_SEND: async () => ({ ok: false, gone: false }) },sub,payload,'snapshot',now);
   assert.equal(await DB.prepare('SELECT * FROM push_retries').first(),null);
 });
+
+test('medicine retries: Android failures are retryable even on hosts with Apple adapters; rotation cancels stale text', async () => {
+  const { DB, env, sub, payload, now } = fixture();
+  const android = { ...sub, endpoint: 'fcm:' + 'a'.repeat(64), gateway_credential: null };
+  await enqueueMedicinePush({ ...env, NATIVE_PUSH_SEND: async () => ({ ok: false, gone: false }) }, android, payload, 'snapshot', now);
+  const pending = await DB.prepare('SELECT * FROM push_retries').first<any>();
+  assert.ok(pending); assert.ok(!JSON.stringify(pending).includes(payload.body));
+  let attempts = 0;
+  await retryMedicinePushes(env, [android], 'snapshot', now + 60000, async () => { attempts++; return { ok: false, gone: false }; });
+  assert.equal(attempts, 1);
+  await retryMedicinePushes(env, [{ ...android, auth: 'rotated-encrypted-token' }], 'snapshot', now + 120000, async () => assert.fail('retired destination'));
+  assert.equal(await DB.prepare('SELECT * FROM push_retries').first(), null);
+});

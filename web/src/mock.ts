@@ -1,4 +1,5 @@
 import { goalPeriod } from './choreGoal.ts'
+import { ApiError } from './apiError.ts'
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import { scheduleDates } from './choreSchedule.ts'
 import { stepsToDial, stepsToWords, telUri } from './dialSteps.ts'
@@ -14,6 +15,9 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { expiryStatus } from './pantry.ts'
+import type { PantryItem, PantrySuggestions } from './types.ts'
+import type { Recipe } from './meal-types.ts'
 import { mealWeek, moveMealDate } from './meal-date.ts'
 import { setLogDay } from './reading.ts'
 import { DEMO_DRAWINGS, drawingPhoto } from './mock-drawings.ts'
@@ -26,8 +30,9 @@ import { emptyContact } from './contact-types.ts'
 import { duplicateScore, parseVCards } from './vcard.ts'
 
 const uid = () => crypto.randomUUID()
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = () => dateKey(new Date()) // the local day, like the app's (not UTC's, a day ahead in a US evening)
 
+const choreDismissals = new Set<string>()
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
 const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen' | 'drainedOpen' | 'lastNight'>>() // `${memberId}:${date}`
@@ -100,7 +105,11 @@ for (let n = 1; n <= 6; n++) {
   if (n !== 1) medLog.set(`med2:${demoDay(-n)}`, { '08:00': { status: 'taken', at, by: "Sam's phone" } }) // yesterday: not marked
   medLog.set(`med3:${demoDay(-n)}`, { wake: { startedAt: startedAt(n), status: 'taken', at: startedAt(n), by: "Sam's phone" } })
 }
-medLog.set(`med3:${demoDay(0)}`, { wake: { startedAt: startedAt(0) } })
+// Today's doses are taken already, so the demo's Board has no Take now waiting (a new dose added in the demo shows it).
+const takenAt = new Date(Math.min(Date.now(), new Date().setHours(8, 5, 0, 0))).toISOString()
+medLog.set(`med1:${demoDay(0)}`, { '08:00': { status: 'taken', at: takenAt, by: 'Kitchen wall' } })
+medLog.set(`med2:${demoDay(0)}`, { '08:00': { status: 'taken', at: takenAt, by: "Sam's phone" } })
+medLog.set(`med3:${demoDay(0)}`, { wake: { startedAt: startedAt(0), status: 'taken', at: startedAt(0), by: "Sam's phone" } })
 const doseStatus = (date: string, e: MockDose | undefined): DoseStatus => e?.status ?? (date < dateKey(new Date()) ? 'missed' : 'due')
 const bump = () => { reconcileMockMilestones(); rev++ }
 
@@ -139,6 +148,7 @@ const settings: Settings = {
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
   lateCompletionCredit: 50,
   streakGraceDays: 1,
+  clearCheckedAfterDays: 7,
   checkInPoints: 3, // on in the demo so the daily check-in can be tried
   leaderboardEnabled: true,
   stickersEnabled: true,
@@ -152,8 +162,14 @@ const settings: Settings = {
   temperatureUnit: 'fahrenheit',
   boardPresets: [],
   nightLook: { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null },
+  // The server's default day rules and reminder times (school-days.ts defaultDayRules).
+  school: { busMinutes: 10, pickupMinutes: 15, rules: [
+    ...['No School', 'No Classes', 'Schools Closed', 'Holiday', 'Recess', 'Break', 'Vacation', 'In-Service', 'Inservice', 'Professional Development', 'Teacher Workday'].map(words => ({ words, kind: 'off' as const })),
+    ...['Early Release', 'Early Dismissal', 'Half Day', 'Noon Dismissal'].map(words => ({ words, kind: 'half' as const })),
+    ...['Last Day of School', 'Last Day for Students'].map(words => ({ words, kind: 'last' as const })),
+  ] },
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, polls: true, outings: true, upkeep: true, checkIns: true },
+  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true },
   newscastNotFeatured: [],
   newscastPostingPaused: [],
 }
@@ -364,7 +380,7 @@ function fromNow(min: number) {
 function dateOnly(daysFromToday: number) {
   const d = new Date()
   d.setDate(d.getDate() + daysFromToday)
-  return d.toISOString().slice(0, 10)
+  return dateKey(d) // the local day, not UTC's
 }
 
 // seriesId/memberScope: mock data has no synced recurring events, so every fixture is 'none'/null
@@ -472,11 +488,21 @@ const chores: Chore[] = [
 ]
 // One-time examples: the completed chore is history; the future one can become a name requirement.
 chores.push(
+  { id: 'ch-late', title: 'Wash the car', emoji: '🚗', memberId: 'm2', points: 10, rrule: null, dueDate: dateOnly(1), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch-once-done', title: 'Return library books', emoji: '📚', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(-1), dueTime: null, active: true, sort: 10, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch-once-next', title: 'Clean your room', emoji: '🧹', memberId: 'm3', points: 5, rrule: null, dueDate: dateOnly(2), dueTime: null, active: true, sort: 11, listId: null, pluginId: null, pluginMinutes: null },
 )
+// A chore for two people: each has their own linked copy to tick off.
+chores.push({ id: 'ch-wash', title: 'Put a wash on', emoji: '🧺', memberId: null, points: 5, ongoing: true, category: 'Household', rrule: null, dueDate: dateKey(new Date()), dueTime: null, active: true, sort: 14, listId: null, pluginId: null, pluginMinutes: null })
+for (const c of chores) if (c.title === 'Set the table' || c.title === 'Empty dishwasher') c.category = 'Kitchen'
+for (const [id, memberId] of [['ch-table-maya', 'm3'], ['ch-table-leo', 'm4']]) chores.push({ id, title: 'Set the table', emoji: '🍽️', memberId, points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 12, listId: null, pluginId: null, pluginMinutes: null, groupId: 'g-table', category: 'Kitchen' })
 const completions = new Map<string, { completedAt: string; memberId: string | null; pending?: boolean; points?: number }>() // key `${choreId}:${date}`; points: what it earned
 completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), memberId: 'm3', points: 5 })
+// Every repeating chore was done its last time, so the demo's Board opens with nothing late.
+for (const c of chores.filter(x => x.rrule && !x.repeatGoal)) {
+  const n = [1, 2, 3, 4, 5, 6, 7].find(n => dueOn(c, dateOnly(-n)))
+  if (n) completions.set(`${c.id}:${dateOnly(-n)}`, { completedAt: at(-n, 18), memberId: c.memberId, points: c.points })
+}
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
 // parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
 const SUGGESTIONS_KEY = 'kinwall.demoSuggestions'
@@ -539,6 +565,8 @@ const libraryRow = (body: LibraryChoreInput, from?: Chore): DemoLibrary => ({
   notes: body.notes?.trim() || null, createdAt: new Date().toISOString(), seenDone: null, seenMember: null, seenTimes: 0,
 })
 
+/** Pantry item id → the grocery item restock added for it (the server's restock_item_id). */
+const restocked = new Map<string, string>()
 const lists: List[] = [
   { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
@@ -546,6 +574,7 @@ const lists: List[] = [
   { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4,
     lastDoneAt: new Date(Date.now() - 4 * 86_400_000 - 2 * 3_600_000).toISOString(), lastDoneBy: { memberId: 'm3' } },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
+  { id: 'l7', name: 'Kitchen', emoji: '🥫', color: '#7ED9A6', kind: 'todo', purpose: 'pantry', restock: true, catalog: null, memberIds: [], groupBy: 'category', sortBy: 'due', keepChecked: false, sort: 6, archived: false, createdAt: new Date().toISOString(), itemCount: 9, openCount: 8 },
   { id: 'l6', name: 'Bedtime', emoji: '🌙', color: '#7AB8FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 5, archived: false, createdAt: new Date().toISOString(), itemCount: 6, openCount: 4 },
 ]
 type SeedItem = Omit<ListItem, 'priority' | 'steps' | 'stepsDone' | 'stepsTotal' | 'aisle'> & { priority?: ListItem['priority']; steps?: string[] | ListItemStep[]; aisle?: string | null }
@@ -563,8 +592,8 @@ let listItems: ListItem[] = ([
   { id: 'li3', listId: 'l1', title: 'Bread', notes: null, quantity: null, store: 'Neighborhood market', aisle: 'Bakery', category: 'Bakery', memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', onSale: true, store: 'Neighborhood market', aisle: 'Produce', category: 'Produce', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), priority: 'low', updatedAt: new Date().toISOString() },
   { id: 'li5', listId: 'l1', title: 'Paper towels', notes: null, quantity: '12 rolls', store: 'Warehouse club', aisle: 'Aisle 14', category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
-  { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: todayISO(), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(-3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
+  { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: inDays(3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(9), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
   { id: 'li8', listId: 'l2', title: 'Book dentist appointment', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li13', listId: 'l2', title: 'Pack shin guards + water bottle', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: 'e1', done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li17', listId: 'l2', title: 'Rake the leaves', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: inDays(1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso(), addedBy: { label: 'Todoist' } },
@@ -573,7 +602,7 @@ let listItems: ListItem[] = ([
   { id: 'li10', listId: 'l3', title: 'Sleeping bags', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li11', listId: 'l3', title: 'Flashlight', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li12', listId: 'l3', title: 'Bug spray', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li15', listId: 'l4', title: 'Tidy the couch and put every blanket back in the basket by the window', notes: 'The gray throw goes in the hall closet, not the basket.', quantity: null, store: null, category: null, memberId: 'm3', dueDate: todayISO(), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso(), priority: 'urgent',
+  { id: 'li15', listId: 'l4', title: 'Tidy the couch and put every blanket back in the basket by the window', notes: 'The gray throw goes in the hall closet, not the basket.', quantity: null, store: null, category: null, memberId: 'm3', dueDate: inDays(5), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso(), priority: 'urgent',
     steps: [{ id: uid(), title: 'Fold the blankets', done: true, sort: 0 }, { id: uid(), title: 'Fluff the cushions', done: false, sort: 1 }, { id: uid(), title: 'Find the remote', done: false, sort: 2 }] },
   { id: 'li16', listId: 'l4', title: 'Toys back in their bins', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: inDays(2), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso(),
     steps: ['Blocks in the red bin', 'Cars in the blue bin', 'Books on the shelf', 'Stuffies on the bed', 'Check under the couch'] },
@@ -591,6 +620,16 @@ let listItems: ListItem[] = ([
   { id: 'li-bed3', listId: 'l6', title: 'Pack backpack for tomorrow', notes: null, quantity: null, store: null, category: null, memberId: 'm3', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
   { id: 'li-bed4', listId: 'l6', title: 'Pick a bedtime story', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
   { id: 'li-bed5', listId: 'l6', title: 'Lights out', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso() },
+  // The pantry: what's in the fridge, freezer and cupboard, and when to use it by.
+  { id: 'lp1', listId: 'l7', title: 'Spinach', notes: null, quantity: '1 bag', store: null, category: 'Fridge', memberId: null, dueDate: inDays(-1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp2', listId: 'l7', title: 'Broccoli', notes: null, quantity: '1 head', store: null, category: 'Fridge', memberId: null, dueDate: inDays(0), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp3', listId: 'l7', title: 'Chicken breast', notes: null, quantity: '1.5 lb', store: null, category: 'Fridge', memberId: null, dueDate: inDays(1), eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp4', listId: 'l7', title: 'Greek yogurt', notes: null, quantity: '32 oz', store: null, category: 'Fridge', memberId: null, dueDate: inDays(2), eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp5', listId: 'l7', title: 'Strawberries', notes: null, quantity: null, store: null, category: 'Fridge', memberId: null, dueDate: inDays(3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp6', listId: 'l7', title: 'Milk', notes: null, quantity: '½ gal', store: null, category: 'Fridge', memberId: null, dueDate: inDays(6), eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp7', listId: 'l7', title: 'Rice', notes: null, quantity: '2 lb', store: null, category: 'Pantry', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 6, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp8', listId: 'l7', title: 'Frozen peas', notes: null, quantity: '1 bag', store: null, category: 'Freezer', memberId: null, dueDate: inDays(60), eventId: null, done: false, doneAt: null, doneBy: null, sort: 7, createdAt: iso(), updatedAt: iso() },
+  { id: 'lp9', listId: 'l7', title: 'Bananas', notes: null, quantity: null, store: null, category: 'Pantry', memberId: null, dueDate: inDays(-2), eventId: null, done: true, doneAt: iso(), doneBy: 'm2', sort: 8, createdAt: iso(), updatedAt: iso() },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
 // Who added and checked off what (the item sheet's "Added by" line): kids add snacks, the wall adds
@@ -952,7 +991,7 @@ function mockNewscast(q: { days?: number; before?: string }): Newscast {
 }
 
 const milestones: Milestone[] = [
-  { id: 'ms1', title: 'Movie night', emoji: '🍿', reward: 'Pick the family movie', metric: 'points', target: 100, active: true, createdAt: '2026-01-01T00:00:00Z', members: [
+  { id: 'ms1', title: '100-point club', emoji: '🍿', reward: 'Pick the family movie', metric: 'points', target: 100, active: true, createdAt: '2026-01-01T00:00:00Z', members: [
     { memberId: 'm3', startedAt: '2026-01-01T00:00:00Z', progress: 65, earnedAt: null, givenAt: null },
     { memberId: 'm4', startedAt: '2026-01-01T00:00:00Z', progress: 40, earnedAt: null, givenAt: null },
   ] },
@@ -987,6 +1026,18 @@ let mockKeys: ApiKey[] = [
   { id: 'k2', name: "Leo's tablet", prefix: 'kw_cd34', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'm4', kind: 'kid' },
   { id: 'k3', name: 'Widgets on Android', prefix: 'kw_ef56', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'm4', kind: 'widgets', parentKeyId: 'k2' },
 ]
+
+// The feature switches outlive a reload in this tab (sessionStorage), so turning one on (School starts
+// off) doesn't undo itself; the rest of the demo starts fresh each time.
+const boardCounts = (list: Chore[], owners: (string | null)[], today: string) => owners.map(id => {
+  const mine = list.filter(c => c.memberId === id)
+  const m = members.find(x => x.id === id)
+  return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`) || !!completions.get(`${c.id}:${today}`)?.pending).length }
+}).filter(c => c.total > 0)
+const schoolworkVisible = (c: Chore) => !(c.schoolSubjectId || c.schoolKind) || !!settings.features.school
+const FEATURES_KEY = 'kinwall.demoFeatures'
+try { Object.assign(settings.features, JSON.parse(sessionStorage.getItem(FEATURES_KEY) ?? '{}')) } catch { /* starts with the defaults */ }
+const saveDemoFeatures = () => { try { sessionStorage.setItem(FEATURES_KEY, JSON.stringify(settings.features)) } catch { /* the demo just forgets on reload */ } }
 
 export const mock = {
   getContacts: async () => contacts.map(c => ({ ...c, phones: [...c.phones], emails: [...c.emails] })),
@@ -1069,6 +1120,7 @@ export const mock = {
   getSettings: async (): Promise<Settings> => ({ ...settings }),
   updateSettings: async (patch: Partial<Settings>) => {
     Object.assign(settings, patch)
+    if (patch.features) saveDemoFeatures()
     if (settings.darkWithNight && settings.quietFrom && settings.quietTo) Object.assign(settings, { darkFrom: settings.quietFrom, darkTo: settings.quietTo }) // like the server
     bump(); return { ...settings }
   },
@@ -1211,7 +1263,8 @@ export const mock = {
       return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: e?.startedAt ?? new Date().toISOString(), startedAt: e?.startedAt ?? null, until: new Date(now + 3 * 3_600_000).toISOString(), name: m.name, dose: m.dose }]
     }) : [])
     const order = (id: string) => members.findIndex(x => x.id === id)
-    return { names: true, doses: doses.sort((a, b) => order(a.memberId) - order(b.memberId) || a.time.localeCompare(b.time)) }
+    const recheckAt = new Date(Math.min(new Date().setHours(24, 0, 0, 0), ...doses.map(d => Date.parse(d.until)), ...[...medLog.values()].flatMap(log => Object.values(log).map(e => e.snoozedUntil ? Date.parse(e.snoozedUntil) : Infinity).filter(at => at > now))))
+    return { checkedAt: new Date(now).toISOString(), recheckAt: recheckAt.toISOString(), names: true, doses: doses.sort((a, b) => order(a.memberId) - order(b.memberId) || a.time.localeCompare(b.time)) }
   },
   markDose: async (medicationId: string, b: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' | 'unmark'; at?: string }): Promise<MedicationDose> => {
     const log = medLog.get(`${medicationId}:${b.date}`) ?? {}
@@ -1377,12 +1430,12 @@ export const mock = {
   getHiddenEvents: async (calendarId: string): Promise<HiddenEvent[]> => hiddenEvents.filter(h => h.calendarId === calendarId).sort((a, b) => a.start.localeCompare(b.start)).map(({ key: _, ...h }) => h),
   showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
-  getRoutineChores: async (memberId: string) => chores.filter(chore => chore.active && chore.memberId === memberId && (chore.rrule || chore.repeatGoal || ![...completions].some(([key, value]) => key.startsWith(`${chore.id}:`) && !value.pending))).map(chore => ({ id: chore.id, title: chore.title, oneTime: !chore.rrule && !chore.repeatGoal })),
+  getRoutineChores: async (memberId: string) => chores.filter(chore => schoolworkVisible(chore) && chore.active && chore.memberId === memberId && (chore.rrule || chore.repeatGoal || ![...completions].some(([key, value]) => key.startsWith(`${chore.id}:`) && !value.pending))).map(chore => ({ id: chore.id, title: chore.title, oneTime: !chore.rrule && !chore.repeatGoal })),
   getChoreCounts: async (from: string, to: string): Promise<ChoreDateCount[]> => {
     const counts: ChoreDateCount[] = []
     for (let date = from; date <= to; date = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
       const grouped = new Map<string | null, ChoreDateCount>()
-      for (const c of chores.filter(c => c.active && dueOn(c, date))) {
+      for (const c of chores.filter(c => !c.schoolSubjectId && !c.schoolKind && c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : dueOn(c, date)))) {
         const comp = completions.get(`${c.id}:${date}`)
         if (!comp && mockGoalProgress(c, date)?.full) continue
         const count = grouped.get(c.memberId) ?? { date, memberId: c.memberId, total: 0, remaining: 0, pending: 0 }
@@ -1397,7 +1450,7 @@ export const mock = {
   },
   getChoresDay: async (date: string): Promise<ChoreDay[]> => {
     const plugins = await installedPlugins()
-    return chores.filter(c => c.active && dueOn(c, date)).map(c => {
+    return chores.filter(c => schoolworkVisible(c) && c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : c.ongoing ? date >= (c.dueDate ?? dateKey(new Date())) : dueOn(c, date))).map(c => {
       const comp = completions.get(`${c.id}:${date}`)
       const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
       const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
@@ -1406,15 +1459,39 @@ export const mock = {
       return { ...c, goalProgress: mockGoalProgress(c, date), completed: !!comp && !comp.pending, pending: !!comp?.pending, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
     })
   },
-  createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null }
-    chores.push(nc); bump(); return nc
+  getChores: async () => chores.filter(c => schoolworkVisible(c) && !c.sourceId).map(c => ({ ...c })),
+  createChore: async ({ memberIds, ...body }: Partial<Chore>) => {
+    const owners = memberIds ? (memberIds.length ? memberIds : [null]) : [body.memberId ?? null]
+    const groupId = owners.length > 1 ? uid() : null
+    const made = owners.map(memberId => ({ schoolSubjectId: body.schoolSubjectId ?? null, schoolKind: body.schoolSubjectId ? body.schoolKind ?? 'lesson' : null, schoolMinutes: body.schoolSubjectId ? body.schoolMinutes ?? null : null, category: body.category ?? null, ongoing: body.ongoing ?? false, id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId, points: body.points ?? 5, repeatGoal: body.repeatGoal ?? null, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null, timerMinutes: body.timerMinutes ?? null, groupId }))
+    chores.push(...made); bump(); return made[0]
   },
-  updateChore: async (id: string, patch: Partial<Chore>) => {
+  // Like the server: the copies of a chore for several people follow, and memberIds sets who has one.
+  updateChore: async (id: string, { memberIds, ...patch }: Partial<Chore>) => {
     const c = chores.find(x => x.id === id); if (!c) throw new Error('not found')
-    Object.assign(c, patch); bump(); return c
+    const { memberId: _m, sort: _s, ...shared } = patch
+    for (const x of chores) if (x === c || (c.groupId && x.groupId === c.groupId)) Object.assign(x, x === c ? patch : shared)
+    if (memberIds) {
+      const owners = memberIds.length ? memberIds : [null]
+      const group = chores.filter(x => x === c || (c.groupId && x.groupId === c.groupId)).sort((a, b) => Number(b === c) - Number(a === c))
+      const groupId = owners.length > 1 ? c.groupId ?? uid() : null
+      const kept = owners.map(m => group.find(x => x.memberId === m))
+      const spare = group.filter(x => !kept.includes(x))
+      owners.forEach((m, i) => {
+        const x = kept[i] ?? spare.shift()
+        if (x) Object.assign(x, { memberId: m, groupId })
+        else chores.push({ ...c, id: uid(), memberId: m, groupId })
+      })
+      for (const x of spare) chores.splice(chores.indexOf(x), 1)
+    }
+    bump(); return c
   },
-  deleteChore: async (id: string) => { const i = chores.findIndex(x => x.id === id); if (i >= 0) chores.splice(i, 1); bump() },
+  orderChores: async (ids: string[]) => { ids.forEach((id, i) => { const c = chores.find(x => x.id === id); if (c) c.sort = i + 1 }); bump(); return { ok: true } },
+  deleteChore: async (id: string) => {
+    const c = chores.find(x => x.id === id)
+    for (const x of chores.filter(x => x === c || (c?.groupId && x.groupId === c.groupId))) chores.splice(chores.indexOf(x), 1)
+    bump()
+  },
   getChoreLibrary: async () => library.map(libraryView).sort((a, b) => a.title.localeCompare(b.title)),
   createLibraryChore: async (body: LibraryChoreInput) => {
     const from = body.fromChoreId ? chores.find(c => c.id === body.fromChoreId) : undefined
@@ -1436,13 +1513,23 @@ export const mock = {
     const c: Chore = { id: uid(), title: l.title, emoji: l.emoji ?? '⭐', memberId: body.memberId !== undefined ? body.memberId : l.memberId, points: l.points, rrule: body.rrule ?? null, dueDate: body.date, dueTime: null, active: true, sort: chores.length, listId: l.listId, pluginId: null, pluginMinutes: null, needsApproval: l.needsApproval, libraryId: l.id }
     chores.push(c); bump(); return c
   },
+  setChoreDismissed: async (id: string, date: string, dismissed: boolean) => {
+    const key = `${id}:${date}`
+    if (dismissed) choreDismissals.add(key); else choreDismissals.delete(key)
+    rev++; return { ok: true }
+  },
   completeChore: async (id: string, date: string, memberId?: string) => {
-    const c = chores.find(x => x.id === id)
+    let c = chores.find(x => x.id === id)
+    if (c && !schoolworkVisible(c)) throw new ApiError(404, 'not found')
+    if (c?.ongoing) {
+      const record = { ...c, id: `${c.id}:${uid()}`, ongoing: false, sourceId: c.id, dueDate: date, dueTime: null, timerMinutes: null, rrule: null, groupId: null }
+      chores.push(record); c = record; id = record.id
+    }
     if (c && !completions.has(`${id}:${date}`) && mockGoalProgress(c, date)?.full) throw new Error('This goal is full for this interval.')
     if (c?.listId) {
       const mine = (i: ListItem) => i.listId === c.listId && (!c.memberId || !i.memberId || i.memberId === c.memberId)
       const open = listItems.filter(i => mine(i) && !i.done)
-      if (open.length) throw new Error(`Checklist not finished (${open.length} left)`)
+      if (open.length) throw new ApiError(409, `Checklist not finished (${open.length} left)`) // like the server
       if (lists.find(l => l.id === c.listId)?.kind === 'reusable') listItems = listItems.map(i => mine(i) ? { ...i, done: false, doneAt: null, doneBy: null } : i)
     }
     // Like the server: off a parent's device, an activity chore whose activity is gone waits for an OK.
@@ -1455,11 +1542,16 @@ export const mock = {
     if (prev && !prev.pending) credit(prev.memberId, -(prev.points ?? 0), date)
     credit(who, points, date)
     completions.set(key, { completedAt: new Date().toISOString(), memberId: who, pending, points }); bump()
+    if (c?.schoolSubjectId && !pending) (await import('./mock-school.ts')).logFromChore(c, date, who) // like the server: schoolwork logs its time
+    return { ok: true, pending } // like the server's answer
   },
   uncompleteChore: async (id: string, date: string) => {
+    const chore = chores.find(c => c.id === id)
+    if (chore && !schoolworkVisible(chore)) throw new ApiError(404, 'not found')
     const key = `${id}:${date}`, prev = completions.get(key)
     if (prev && !prev.pending) credit(prev.memberId, -(prev.points ?? 0), date)
     completions.delete(key); bump()
+    if (chores.find(x => x.id === id)?.schoolSubjectId) (await import('./mock-school.ts')).unlogFromChore(id, date)
   },
   getChoreSuggestions: async (memberId?: string): Promise<ChoreSuggestion[]> => {
     const own = mock.demoKid()
@@ -1732,6 +1824,27 @@ export const mock = {
   },
 
   getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort(byListOrder),
+  // Simple demo ingredient matches; the server handles food matching and recipe ranking.
+  getPantrySuggestions: async (days = 7): Promise<PantrySuggestions> => {
+    const today = dateKey(new Date())
+    const pantryIds = new Set(lists.filter(l => l.kind === 'todo' && l.purpose === 'pantry' && !l.archived).map(l => l.id))
+    const pantry: PantryItem[] = listItems.filter(i => pantryIds.has(i.listId) && !i.done).map(i => {
+      const when = expiryStatus(i.dueDate, today)
+      return { id: i.id, listId: i.listId, listName: lists.find(l => l.id === i.listId)!.name, title: i.title, quantity: i.quantity, kept: i.category, useBy: i.dueDate, daysLeft: when?.daysLeft ?? null, status: when?.status ?? null }
+    }).sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity) || a.title.localeCompare(b.title))
+    const expiring = pantry.filter(i => i.daysLeft !== null && i.daysLeft <= days)
+    const { mockMealRequest } = await import('./mock-meals.ts')
+    const recipes = await mockMealRequest('api/recipes', {}) as Recipe[]
+    const suggestions = recipes.filter(r => !r.archived && r.kind !== 'basic').flatMap(recipe => {
+      const uses = expiring.flatMap(item => {
+        const ingredient = recipe.ingredients.find(i => i.name.toLowerCase().includes(item.title.toLowerCase()))
+        return ingredient ? [{ ...item, ingredient: ingredient.name }] : []
+      })
+      return uses.length ? [{ recipe: { id: recipe.id, name: recipe.name, imageUrl: recipe.imageUrl ?? null, totalMinutes: recipe.totalMinutes ?? null, rating: recipe.rating?.average ?? null }, score: 1, uses, alsoHave: [], missing: [] }] : []
+    }).slice(0, 10)
+    const used = new Set(suggestions.flatMap(s => s.uses.map(u => u.id)))
+    return { today, days, expiring, suggestions, unmatched: expiring.filter(i => !used.has(i.id)) }
+  },
   reorderLists: async (ids: string[]) => {
     reorderWithin(lists, ids).forEach((id, i) => { lists.find(l => l.id === id)!.sort = i })
     bump(); return { ok: true }
@@ -1739,7 +1852,7 @@ export const mock = {
   createList: async (body: Partial<List>): Promise<List> => {
     const nl: List = {
       id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
-      kind: body.kind ?? 'todo', catalog: body.kind === 'shopping' ? body.catalog ?? 'groceries' : null, memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      kind: body.kind ?? 'todo', purpose: body.kind === 'todo' || !body.kind ? body.purpose ?? null : null, restock: (body.kind === 'todo' || !body.kind) && body.purpose === 'pantry' && !!body.restock, catalog: body.kind === 'shopping' ? body.catalog ?? 'groceries' : null, memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : body.purpose === 'pantry' ? 'category' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : body.purpose === 'pantry' ? 'due' : 'manual'),
       keepChecked: body.keepChecked ?? body.kind !== 'todo',
       sort: Math.max(-1, ...lists.map(l => l.sort)) + 1, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
     }
@@ -1772,7 +1885,16 @@ export const mock = {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
     // One default per shopping type, like the server.
     if (patch.isDefault) for (const o of lists) if (o.id !== id && o.kind === 'shopping' && (o.catalog ?? 'groceries') === (l.catalog ?? 'groceries')) o.isDefault = false
-    Object.assign(l, patch, patch.kind && patch.kind !== 'shopping' ? { catalog: null } : patch.kind === 'shopping' && !l.catalog ? { catalog: patch.catalog ?? 'groceries' } : {}); bump(); return l
+    // Like the server: becoming or leaving a pantry list takes that view; only a to-do list is one.
+    const wasPantry = l.purpose === 'pantry'
+    Object.assign(l, patch, patch.kind && patch.kind !== 'shopping' ? { catalog: null } : patch.kind === 'shopping' && !l.catalog ? { catalog: patch.catalog ?? 'groceries' } : {})
+    if (l.kind !== 'todo') l.purpose = null
+    if (l.purpose !== 'pantry') l.restock = false
+    if ((l.purpose === 'pantry') !== wasPantry) {
+      const view: Pick<List, 'groupBy' | 'sortBy'> = l.purpose === 'pantry' ? { groupBy: 'category', sortBy: 'due' } : l.kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : { groupBy: 'none', sortBy: 'manual' }
+      Object.assign(l, { groupBy: patch.groupBy ?? view.groupBy, sortBy: patch.sortBy ?? view.sortBy }) // unless the request sets them
+    }
+    bump(); return l
   },
   deleteList: async (id: string) => {
     const i = lists.findIndex(x => x.id === id); if (i >= 0) lists.splice(i, 1)
@@ -1814,6 +1936,22 @@ export const mock = {
       if (patch.aisle) { seenAt(i.title, aisleStore, patch.aisle, listId); remembered.at(-1)!.updatedAt = iso() }
       const planned = patch.store !== undefined ? patch.store : i.store
       if (planned && planned !== aisleStore) delete patch.aisle
+    }
+    // Like the server: a pantry list with restock on puts used-up food on the grocery list (default,
+    // else first), unless it's open there already; unticking takes back the one it added, if not bought.
+    const from = lists.find(l => l.id === listId)
+    if (patch.done !== undefined && !!patch.done !== i.done && from?.purpose === 'pantry' && from.restock) {
+      if (patch.done) {
+        const target = lists.filter(l => l.kind === 'shopping' && (l.catalog ?? 'groceries') === 'groceries' && !l.archived).sort((a, b) => Number(!!b.isDefault) - Number(!!a.isDefault) || byListOrder(a, b))[0]
+        if (target && !listItems.some(x => x.listId === target.id && !x.done && itemKey(x.title) === itemKey(i.title))) {
+          const [added] = await mock.addListItems(target.id, { title: i.title })
+          restocked.set(i.id, added.id)
+        }
+      } else if (restocked.has(i.id)) {
+        const back = listItems.find(x => x.id === restocked.get(i.id) && !x.done)
+        if (back) { listItems = listItems.filter(x => x !== back); recomputeListCounts(back.listId) }
+        restocked.delete(i.id)
+      }
     }
     if (patch.done !== undefined) {
       i.doneAt = patch.done ? new Date().toISOString() : null
@@ -2048,7 +2186,7 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
   const all = eventsThrough(last)
   const mine = all.filter(e => !isBday(e) && (e.memberIds.length === 0 || e.memberIds.includes(memberId)))
   const birthdays = birthdaysOn(dates, all)
-  const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date) && (!mockGoalProgress(c, date)?.full || completions.has(`${c.id}:${date}`)))
+  const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => schoolworkVisible(c) && c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date) && (!mockGoalProgress(c, date)?.full || completions.has(`${c.id}:${date}`)))
     .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date, done: completions.has(`${c.id}:${date}`), doneBy: completions.get(`${c.id}:${date}`)?.memberId ?? null, shared: !c.memberId })))
   const open = settings.features.lists ? openItems(today, i => i.memberId === memberId) : []
   const items = open.filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent')
@@ -2104,6 +2242,7 @@ function mockGoalProgress(c: Chore, date: string) {
 }
 
 function dueOn(c: Chore, d: string) {
+  if (c.ongoing || c.sourceId) return false
   if (!c.rrule) return c.dueDate === d
   return scheduleDates(c.rrule, c.dueDate ?? dateOnly(-28), d, 1)[0] === d
 }
@@ -2111,7 +2250,8 @@ function dueOn(c: Chore, d: string) {
 /** Open, unarchived list items, soonest due first (so overdue leads), undated last. */
 function openItems(today: string, keep: (i: ListItem) => boolean) {
   const rank = { urgent: 0, high: 1, normal: 2, low: 3 }
-  return listItems.filter(i => keep(i) && !i.done && !lists.find(l => l.id === i.listId)?.archived)
+  // Like the server: food on a pantry list isn't a to-do, so its use-by date stays off the Board and snapshots.
+  return listItems.filter(i => { const l = lists.find(x => x.id === i.listId); return keep(i) && !i.done && !l?.archived && l?.purpose !== 'pantry' })
     .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || rank[a.priority] - rank[b.priority])
     .map(i => { const l = lists.find(x => x.id === i.listId)!; return { ...i, listName: l.name, listEmoji: l.emoji ?? null, overdue: !!i.dueDate && i.dueDate < today } })
 }
@@ -2136,22 +2276,29 @@ function mockBoard(days: number): Board {
   const to = dates[dates.length - 1]
   const all = eventsThrough(to)
   const birthdays = birthdaysOn(dates, all)
-  const todays = chores.filter(c => c.active && dueOn(c, today) && (!mockGoalProgress(c, today)?.full || completions.has(`${c.id}:${today}`)))
+  const todays = chores.filter(c => schoolworkVisible(c) && c.active && dueOn(c, today) && (!mockGoalProgress(c, today)?.full || completions.has(`${c.id}:${today}`)))
   const owners = [...members.map(m => m.id), null]
   return {
     today, to, generatedAt: new Date().toISOString(),
     weather: mockWeather(dates),
     events: all.filter(e => !isBday(e)),
     items: !settings.features.lists ? [] : openItems(today, () => true).filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent'),
-    chores: !settings.features.chores ? [] : owners.map(id => {
-      const mine = todays.filter(c => c.memberId === id)
-      const m = members.find(x => x.id === id)
-      return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`) || !!completions.get(`${c.id}:${today}`)?.pending).length }
-    }).filter(c => c.total > 0),
+    // Like the server: today's other open chores and schoolwork, schoolwork first, for Today's spare room.
+    otherChores: !settings.features.chores ? [] : todays.filter(c => !c.dueTime && !c.timerMinutes && !c.ongoing && !completions.has(`${c.id}:${today}`))
+      .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: null, timerMinutes: null, done: false, pending: false, school: !!c.schoolKind }))
+      .sort((a, b) => Number(b.school) - Number(a.school)),
+    // Like the server: chores and schoolwork counted apart.
+    chores: !settings.features.chores ? [] : boardCounts(todays.filter(c => !c.schoolKind), owners, today),
+    schoolwork: !settings.features.chores ? [] : boardCounts(todays.filter(c => !!c.schoolKind), owners, today),
     timedChores: !settings.features.chores ? [] : todays.filter(c => c.dueTime || c.timerMinutes).map(c => {
       const comp = completions.get(`${c.id}:${today}`)
-      return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending }
+      return { id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, dueTime: c.dueTime, timerMinutes: c.timerMinutes ?? null, done: !!comp && !comp.pending, pending: !!comp?.pending, school: !!c.schoolKind }
     }),
+    // Like the server: a one-off past its day, or a repeating chore's last time before today (not a goal), in the last 7 days.
+    overdueChores: !settings.features.chores ? [] : chores.filter(c => !c.schoolKind && c.active).flatMap(c => {
+      const date = !c.rrule ? c.dueDate : c.repeatGoal ? null : [1, 2, 3, 4, 5, 6, 7].map(n => inDays(-n)).find(d => dueOn(c, d))
+      return date && date >= inDays(-7) && date < today && !completions.has(`${c.id}:${date}`) && !choreDismissals.has(`${c.id}:${date}`) ? [{ id: c.id, title: c.title, emoji: c.emoji, memberId: c.memberId, points: c.points, date }] : []
+    }).sort((a, b) => a.date.localeCompare(b.date)),
     birthdays,
     meals: [], // api.ts adds the demo menu (mock-meals.ts)
     booksDue: bookLibrary.filter(b => b.borrowedFrom && b.dueOn && !b.returnedOn && b.dueOn <= to)
@@ -2192,7 +2339,7 @@ export const mockPlugins = {
     const date = dateKey(new Date()), key = `${date}:${member}:${id}`
     const total = Math.min((playtime.get(key) ?? 0) + Math.min(Math.floor(seconds), 60), 4 * 3600)
     playtime.set(key, total)
-    return chores.filter(c => c.active && c.pluginId === id && (c.memberId === member || !c.memberId)).map(c => {
+    return chores.filter(c => schoolworkVisible(c) && c.active && c.pluginId === id && (c.memberId === member || !c.memberId)).map(c => {
       const needSeconds = (c.pluginMinutes ?? 5) * 60
       let completed = completions.has(`${c.id}:${date}`), justCompleted = false
       if (!completed && total >= needSeconds) { completions.set(`${c.id}:${date}`, { completedAt: new Date().toISOString(), memberId: member, points: c.points }); credit(member, c.points, date); bump(); completed = justCompleted = true }

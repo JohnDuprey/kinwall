@@ -1,6 +1,8 @@
 import { activeAnnouncements, type Announcement } from './announcements.ts'
 const now = Date.now(), iso = (ms: number) => new Date(ms).toISOString()
-let items: Announcement[] = [{ id: 'demo-announcement', title: 'Library books tomorrow', details: 'Put your library books by the door tonight so they are ready for school.', priority: 'important', startsAt: iso(now - 3600000), expiresAt: iso(now + 86400000), createdAt: iso(now), updatedAt: iso(now) }]
+// Scheduled for tomorrow morning, so the demo's Board opens without a banner; the Announcements sheet lists it.
+const tomorrowAt = (h: number) => { const d = new Date(now + 86_400_000); d.setHours(h, 0, 0, 0); return d.getTime() }
+let items: Announcement[] = [{ id: 'demo-announcement', title: 'Library books today', details: 'Grab your library books by the door on the way to school.', priority: 'important', startsAt: iso(tomorrowAt(6)), expiresAt: iso(tomorrowAt(15)), createdAt: iso(now), updatedAt: iso(now) }]
 export async function mockAnnouncementRequest(path: string, options: RequestInit) {
   const url = new URL(path, 'https://demo.invalid'), id = url.pathname.split('/')[3], method = options.method ?? 'GET'
   const body = options.body ? JSON.parse(String(options.body)) : {}

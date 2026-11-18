@@ -1,30 +1,27 @@
+import { openJournal } from './pageNavigation.ts'
 import { holdAwake } from './wakeLock.ts'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, lazy, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { navRailFit } from './navRailFit.ts'
 import { hashPath } from './hashQuery.ts'
 import { encode } from 'uqr'
-import RoutineMode from './RoutineMode.tsx'
-import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
+import { api, checkKey, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, verifyAdminKey, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { rewardsOn, trackerKinds } from './types.ts'
-import { BookIcon, CalendarIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon, TicketIcon, WrenchIcon } from './icons.tsx'
+import { BookIcon, CalendarIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon, TicketIcon, WrenchIcon, SchoolIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
-import Lists from './Lists.tsx'
 import Contacts from './Contacts.tsx'
-import Meals from './Meals.tsx'
 import Outings from './Outings.tsx'
 import Upkeep from './Upkeep.tsx'
+import School from './School.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { pinnedNow } from './getStuffDone.ts'
 import Trackers from './Trackers.tsx'
-import Activities, { shownActivities } from './Activities.tsx'
-import Rewards from './Rewards.tsx'
-import SettingsView, { DeviceKindSelect } from './Settings.tsx'
-import AuthorizeScreen from './Authorize.tsx'
-import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
+import { shownActivities } from './activityConfig.ts'
+import { DeviceKindSelect } from './settingsControls.tsx'
+import { readSetupResume, resumeAtPasskey } from './setupResume.ts'
 import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme, type LockedView } from './useTheme.ts'
@@ -38,6 +35,7 @@ import { announce } from './a11y.tsx'
 import { DialogProvider, useDialog } from './dialog.tsx'
 import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
+const InboxButton = lazy(() => import('./Inbox.tsx')) // the quick-capture inbox, parents only
 import { InstallNudge } from './Install.tsx'
 import { latestOnly } from './latest.ts'
 import { appPlatform, inNativeApp, tellAppHere, tellAppLeaveDemo, tellAppNight, tellAppSignedOut } from './native.ts'
@@ -46,10 +44,6 @@ import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver
 import { TimerButton, TimerHost } from './Timers.tsx'
 import { CLOCK_SPOTS, nextSpot, spotStyle, type Spot } from './nightClock.ts'
 import SnapshotSheet from './Snapshot.tsx'
-import Profile from './Profile.tsx'
-import Journal from './Journal.tsx'
-import Insights from './Insights.tsx'
-import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
 import { MedicationLiveActivity } from './TakeNow.tsx'
@@ -66,6 +60,35 @@ import { Face, FacePic } from './Face'
 import { useBackClose } from './backStack.ts'
 import { rich } from './rich.tsx'
 
+// Shared import functions let native web views prepare their screens after startup too;
+// they cannot rely on a service worker for offline navigation.
+const screenLoaders = {
+  RoutineMode: () => import('./RoutineMode.tsx'),
+  Lists: () => import('./Lists.tsx'),
+  Meals: () => import('./Meals.tsx'),
+  Activities: () => import('./Activities.tsx'),
+  Rewards: () => import('./Rewards.tsx'),
+  SettingsView: () => import('./Settings.tsx'),
+  AuthorizeScreen: () => import('./Authorize.tsx'),
+  Setup: () => import('./Setup.tsx'),
+  Profile: () => import('./Profile.tsx'),
+  Journal: () => import('./Journal.tsx'),
+  Insights: () => import('./Insights.tsx'),
+  Medications: () => import('./Medications.tsx'),
+}
+const RoutineMode = lazy(screenLoaders.RoutineMode)
+const Lists = lazy(screenLoaders.Lists)
+const Meals = lazy(screenLoaders.Meals)
+const Activities = lazy(screenLoaders.Activities)
+const Rewards = lazy(screenLoaders.Rewards)
+const SettingsView = lazy(screenLoaders.SettingsView)
+const AuthorizeScreen = lazy(screenLoaders.AuthorizeScreen)
+const Setup = lazy(screenLoaders.Setup)
+const Profile = lazy(screenLoaders.Profile)
+const Journal = lazy(screenLoaders.Journal)
+const Insights = lazy(screenLoaders.Insights)
+const Medications = lazy(screenLoaders.Medications)
+
 /** A translated sentence with React nodes (bold names) for its {placeholders}. */
 
 const NAV_ITEMS = [
@@ -77,6 +100,7 @@ const NAV_ITEMS = [
   { key: 'meals', href: '#/meals', label: msg('Meals'), Icon: MealIcon },
   { key: 'outings', href: '#/outings', label: msg('Outings'), Icon: TicketIcon },
   { key: 'upkeep', href: '#/upkeep', label: msg('Upkeep'), Icon: WrenchIcon },
+  { key: 'school', href: '#/school', label: msg('School'), Icon: SchoolIcon },
   { key: 'trackers', href: '#/trackers', label: msg('Trackers'), Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: msg('Activities'), Icon: BrushIcon },
   // After the everyday views, so a phone's bottom bar keeps its four and Rewards sits under More.
@@ -85,7 +109,7 @@ const NAV_ITEMS = [
 ] as const
 
 /** The nav's "nooks": areas of their own with several parts inside. Only a heading in the phone's More list. */
-const NOOKS = new Set(['meals', 'outings', 'upkeep', 'trackers', 'activities'])
+const NOOKS = new Set(['meals', 'outings', 'upkeep', 'school', 'trackers', 'activities'])
 
 type NavItem = { key: string; href: string; label: string; Icon: (p: object) => ReactNode }
 
@@ -95,7 +119,7 @@ type NavItem = { key: string; href: string; label: string; Icon: (p: object) => 
  * member's own device gets "Me" (their profile): after Chores on a kid's device (`kid`), so it stays
  * on a phone's bottom bar, after Lists on a grown-up's (meSlot), and "Journal" while check-ins are on. */
 function navItems(s: Settings, me?: Member | null, plugins = false, lock?: LockedView, kid = false): NavItem[] {
-  const items: NavItem[] = NAV_ITEMS.filter(i => !lockedOut(i.key, lock)).filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'outings' ? s.features.outings !== false : i.key === 'upkeep' ? s.features.upkeep !== false : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
+  const items: NavItem[] = NAV_ITEMS.filter(i => !lockedOut(i.key, lock)).filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'outings' ? s.features.outings !== false : i.key === 'upkeep' ? s.features.upkeep !== false : i.key === 'school' ? !!s.features.school : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
   if (me) items.splice(meSlot(items.map(i => i.key), kid), 0, { key: 'profile', href: `#/profile/${me.id}`, label: msg('Me'), Icon: () => me.picture ? <Face m={me} className="nav-me nav-me-pic" aria-hidden="true" /> : <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
   if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: msg('Journal'), Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
@@ -112,7 +136,7 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined, 
   if (section === 'medications' && !s.medications) return rest
   if ((section === 'journal' || section === 'insights') && !s.features.checkIns) return rest
   if (section === 'activities' && sub === 'plugin') return null // an activity chore's play link works whatever else is on
-  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'outings' || section === 'upkeep' || section === 'trackers' || section === 'activities') {
+  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'outings' || section === 'upkeep' || section === 'school' || section === 'trackers' || section === 'activities') {
     if (!navItems(s, null, plugins !== false).some(i => i.key === section)) return rest
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) && !(sub === 'library' && on.includes('reading')) ? `#/trackers/${on[0]}` : null } // the library comes with Reading
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
@@ -169,7 +193,7 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
         <div className="nav-rail-btn"><MoreIcon /><span>{t('More')}</span></div>
       </div>}
       {shown.map(item => (
-        <a key={item.key} href={item.href} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${tm(item.label)}` : <span>{tm(item.label)}</span>}{badge(item.key)}</a>
+        <a key={item.key} href={item.href} onClick={item.key === 'journal' ? openJournal : undefined} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${tm(item.label)}` : <span>{tm(item.label)}</span>}{badge(item.key)}</a>
       ))}
       {overflow && (
         <button className={`${btn} ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
@@ -184,7 +208,7 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
               {/* "Nooks": the spaces with several parts inside (Meals, Outings, Trackers, Activities) get a heading. */}
               {NOOKS.has(item.key) && !NOOKS.has(rest[i - 1]?.key ?? '') && <h3 className="more-heading">{t('Nooks')}</h3>}
               <a className={`more-row ${tab === item.key ? 'active' : ''} ${!NOOKS.has(item.key) && NOOKS.has(rest[i - 1]?.key ?? '') ? 'more-after-group' : ''}`} href={item.href} aria-current={tab === item.key ? 'page' : undefined}
-                onClick={() => setMore(false)}>
+                onClick={e => { setMore(false); if (item.key === 'journal') openJournal(e) }}>
                 <item.Icon /> <span>{tm(item.label)}</span>{badge(item.key)}
               </a>
             </Fragment>))}
@@ -447,8 +471,9 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
         <h1>{t('Welcome home 👋')}</h1>
         <p>{t('Paste the key a parent made for this device under Settings → Access.')}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Key')}</label>
+          <label htmlFor="gate-key">{t('Key')}</label>
           <input
+            id="gate-key"
             type="password"
             value={value}
             onChange={e => setValue(e.target.value)}
@@ -491,8 +516,9 @@ function RecoveryCodeGate({ onKey, onBack }: { onKey: (banner?: string) => void;
         <h1>{t('Use a recovery code')}</h1>
         <p>{t('Enter one of the codes you saved when you set up Kinwall. Each code works once.')}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Recovery code')}</label>
+          <label htmlFor="recovery-code">{t('Recovery code')}</label>
           <input
+            id="recovery-code"
             type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false} autoFocus
             placeholder="XXXX-XXXX-XXXX"
             style={{ fontFamily: 'ui-monospace, monospace' }}
@@ -719,10 +745,8 @@ function PairPhoneScreen({ code }: { code: string }) {
   const unlockAdmin = async () => {
     if (!adminKeyValue.trim()) return
     setBusy(true); setError('')
-    setAdminKey(adminKeyValue.trim())
     try {
-      const me = await api.checkAdminKey()
-      if (me.scope !== 'admin') throw new ApiError(403, t('That key is not admin-scoped'))
+      await verifyAdminKey(adminKeyValue.trim())
       setIsAdmin(true)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('Admin key rejected'))
@@ -751,7 +775,7 @@ function PairPhoneScreen({ code }: { code: string }) {
       await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setDone(true)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('Could not pair display'))
+      setError(e instanceof ApiError ? e.message : t("Couldn't add the device"))
     } finally {
       setBusy(false)
     }
@@ -777,13 +801,13 @@ function PairPhoneScreen({ code }: { code: string }) {
         <h1>{t("Add a wall screen or kid's device")}</h1>
         <p>{t("Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Code')}</label>
-          <input type="text" value={code} readOnly
+          <label htmlFor="pair-code">{t('Code')}</label>
+          <input id="pair-code" type="text" value={code} readOnly
             style={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.12em', textAlign: 'center' }} />
         </div>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Name')}</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("Kitchen wall, Maya's tablet…")} />
+          <label htmlFor="pair-name">{t('Name')}</label>
+          <input id="pair-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("Kitchen wall, Maya's tablet…")} />
         </div>
         {isAdmin && (
           <div className="field" style={{ textAlign: 'left' }}>
@@ -794,8 +818,8 @@ function PairPhoneScreen({ code }: { code: string }) {
         )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
           <div className="field" style={{ textAlign: 'left' }}>
-            <label>{t('Admin key')}</label>
-            <input type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)}
+            <label htmlFor="pair-admin-key">{t('Admin key')}</label>
+            <input id="pair-admin-key" type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder={t('Admin API key')} autoFocus />
           </div>
         )}
@@ -867,8 +891,8 @@ function AdminSetupScreen({ token }: { token: string }) {
         <h1>{t('Create your Kinwall passkey')}</h1>
         <p>{t("Use Face ID, Touch ID, or your device's screen lock to become the admin for this Kinwall.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
-          <label>{t('Name this passkey')}</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('My phone')} autoFocus />
+          <label htmlFor="passkey-name">{t('Name this passkey')}</label>
+          <input id="passkey-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('My phone')} autoFocus />
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
         <button className="btn btn-primary btn-block" onClick={create} disabled={busy || !name.trim()}>
@@ -991,6 +1015,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
         <div className="header-right">
           <OfflineIcon />
           <TimerButton />
+          {isAdmin && settings.features.inbox !== false && <Suspense fallback={null}><InboxButton /></Suspense>}
           <NotificationBell isAdmin={isAdmin} />
           {wall && <NightScreenButton />}
           <HelpButton />
@@ -1014,6 +1039,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
         <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
         <OfflineIcon />
         <TimerButton />
+        {isAdmin && settings.features.inbox !== false && <Suspense fallback={null}><InboxButton /></Suspense>}
         <NotificationBell isAdmin={isAdmin} />
         {wall && <NightScreenButton />}
         <HelpButton />
@@ -1134,8 +1160,17 @@ if (MOCK) document.documentElement.style.setProperty('--safe-t', appPlatform() =
 
 // Dialogs (confirm/prompt/alert) are available everywhere, the setup wizard and gates included.
 // Timers ring wherever the app is (Timers.tsx).
+function ScreenLoading() {
+  return <div className="state-card" role="status"><span className="spinner" aria-hidden="true" /> {t('Loading…')}</div>
+}
+
 export default function App() {
-  return <DialogProvider><KeyLinkGate>{urlKey => <AppRoutes urlKey={urlKey} />}</KeyLinkGate><TimerHost /></DialogProvider>
+  useEffect(() => {
+    if (!inNativeApp()) return
+    const timer = setTimeout(() => { void Promise.all(Object.values(screenLoaders).map(load => load().catch(() => {}))) }, 3000)
+    return () => clearTimeout(timer)
+  }, [])
+  return <DialogProvider><Suspense fallback={<div className="gate-screen"><ScreenLoading /></div>}><KeyLinkGate>{urlKey => <AppRoutes urlKey={urlKey} />}</KeyLinkGate></Suspense><TimerHost /></DialogProvider>
 }
 
 function AppRoutes({ urlKey }: { urlKey: string | null }) {
@@ -1178,7 +1213,10 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean; action?: ToastAction } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
   const [bannerMsg, setBannerMsg] = useState<string | null>(null)
-  const [loadError, setLoadError] = useState(false)
+  const [coreLoadError, setCoreLoadError] = useState(false)
+  const [membersLoadError, setMembersLoadError] = useState(false)
+  const [membersLoaded, setMembersLoaded] = useState(false)
+  const loadError = coreLoadError || membersLoadError
   // The key stopped working (revoked, or the app's sign-in lapsed while it slept). Inside the app,
   // the app takes it from here: it refreshes and reloads, or shows its own sign-in screen.
   const [rejected, setRejected] = useState(false)
@@ -1208,22 +1246,34 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const loadCore = useCallback(async () => {
     if (!hasKey) return
     try {
-      const [s, m, cats, me] = await freshCore(Promise.all([api.getSettings(), api.getMembers(), api.getCategories(), api.meStrict().catch(() => null)]))
+      const [s, cats, me] = await freshCore(Promise.all([api.getSettings(), api.getCategories(), api.meStrict().catch(() => null)]))
       // First-run default for a fresh household: no timezone set yet, so adopt this display's.
       const settings = s.timezone ? s : await api.adoptTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone).catch(() => s)
       setSettings(settings)
-      setMembers(m)
       setCategories(cats)
       if (me) { setOwner(me.owner ?? null); setOwnerLocks(!!me.locked); setParentDevice(me.scope === 'admin') }
-      setLoadError(false)
+      setCoreLoadError(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setRejected(true); setHasKey(false); return }
-      setLoadError(true)
+      setCoreLoadError(true)
     }
   }, [hasKey, freshCore])
 
-  // Settings, members (their points too) and categories: not after a change to a list alone.
-  useEffect(() => { loadCore() }, [loadCore, areaTicks.events, areaTicks.chores, manualTick])
+  // Chores change points, but not settings, categories or this device's identity.
+  const freshMembers = useRef(latestOnly()).current
+  const loadMembers = useCallback(async () => {
+    if (!hasKey) return
+    try {
+      setMembers(await freshMembers(api.getMembers()))
+      setMembersLoaded(true)
+      setMembersLoadError(false)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setRejected(true); setHasKey(false); return }
+      setMembersLoadError(true)
+    }
+  }, [hasKey, freshMembers])
+  useEffect(() => { loadCore() }, [loadCore, areaTicks.events, manualTick])
+  useEffect(() => { loadMembers() }, [loadMembers, areaTicks.events, areaTicks.chores, manualTick])
 
   // Queued (offline) changes reached the server: refresh every view so pending marks clear, and
   // say which ones the server refused (e.g. an item deleted on another device meanwhile).
@@ -1411,7 +1461,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // the pairing screen, so a signed-in phone never flashes "Pair this app".
   if (!hasKey && rejected && inNativeApp()) return <WaitForApp />
   if (!hasKey) return <PairingGate onKey={banner => { if (banner) setBannerMsg(banner); setHasKey(true) }} />
-  if (!settings) {
+  if (!settings || !membersLoaded) {
     return (
       <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} style={bootMarkStyle()} role="main">
         <Brand />
@@ -1440,7 +1490,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} wall={wall} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
+            <Suspense key={section} fallback={<ScreenLoading />}>
+              {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : section === 'school' ? <School /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
+            </Suspense>
           </main>
           {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>

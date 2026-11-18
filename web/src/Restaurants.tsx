@@ -25,7 +25,7 @@ export function RestaurantBinder({ restaurants, loaded, error, onRetry, onOpen }
   return <section role="tabpanel" aria-labelledby="meals-tab-restaurants">
     <div className="meals-toolbar">
       <div className="field meals-search"><label htmlFor="restaurant-search">{t('Find a restaurant')}</label><input id="restaurant-search" type="search" placeholder={t('Pizza, lo mein…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
-      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><select id="restaurant-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">{t('Restaurants')}</option><option value="archived">{t('Archived')}</option><option value="all">{t('All')}</option></select></div>
+      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><select id="restaurant-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">{t('Active')}</option><option value="archived">{t('Archived')}</option><option value="all">{t('All')}</option></select></div>
     </div>
     {error && <LoadError what="restaurants" error={error} onRetry={onRetry} />}
     {!loaded && !error ? <p role="status">{t('Loading restaurants…')}</p> : <>

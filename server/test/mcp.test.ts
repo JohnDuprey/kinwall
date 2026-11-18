@@ -84,9 +84,11 @@ test('mcp: tools/list returns the tools', async () => {
     'add_member',
     'add_note',
     'add_outing_to_calendar',
+    'add_to_inbox',
     'add_to_library',
     'add_tracker_entry',
     'apply_meal_projection',
+    'apply_weekly_plan',
     'approve_chore',
     'approve_chore_suggestion',
     'approve_reward',
@@ -134,7 +136,9 @@ test('mcp: tools/list returns the tools', async () => {
     'get_chore_counts',
     'get_contact',
     'get_event',
+    'get_event_follow',
     'get_event_items',
+    'get_expiring_food',
     'get_household',
     'get_leaderboard',
     'get_list',
@@ -145,8 +149,11 @@ test('mcp: tools/list returns the tools', async () => {
     'get_points',
     'get_recipe',
     'get_restaurant',
+    'get_school_grades',
+    'get_school_summary',
     'get_snapshot',
     'get_upkeep_job',
+    'get_weekly_plan',
     'import_contacts',
     'import_outing',
     'import_recipe',
@@ -162,6 +169,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_contact_categories',
     'list_contacts',
     'list_events',
+    'list_inbox',
     'list_library',
     'list_lists',
     'list_meals',
@@ -182,6 +190,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_upkeep_history',
     'list_upkeep_jobs',
     'list_upkeep_things',
+    'log_school',
     'log_upkeep_done',
     'mark_milestone_given',
     'mark_outing_interest',
@@ -198,10 +207,13 @@ test('mcp: tools/list returns the tools', async () => {
     'reset_activity_time',
     'run_activity_action',
     'save_color_scheme',
+    'save_weekly_plan_draft',
     'search_books',
     'send_notification',
+    'set_chore_dismissed',
     'set_color_scheme',
     'set_event_category',
+    'set_event_follow',
     'set_list_item_done',
     'set_meal_order',
     'set_medication_pharmacy',
@@ -209,6 +221,7 @@ test('mcp: tools/list returns the tools', async () => {
     'set_night_screen',
     'set_step_done',
     'set_store_aisle_order',
+    'suggest_meals_from_pantry',
     'suggest_outings',
     'uncomplete_chore',
     'update_announcement',
@@ -240,6 +253,7 @@ test('mcp: list_events and complete_chore round-trip against the sqlite adapter'
   const env = makeEnv();
   const { rest, mcp } = makeApp(env);
 
+  await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) }); // list_events dates are household days
   const member = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Max', color: '#ff0000' }) })).json() as any;
   const cal = await (await rest('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json() as any;
   await rest('/api/events', {
@@ -279,7 +293,7 @@ test('mcp: member name resolution - exact, ambiguous, and not found', async () =
   const notFound = await mcp('tools/call', { name: 'complete_chore', arguments: { choreId: chore.id, date: '2026-05-01', member: 'nobody' } });
   const notFoundBody = await notFound.json() as any;
   assert.equal(notFoundBody.result.isError, true);
-  assert.match(notFoundBody.result.content[0].text, /no member found/);
+  assert.match(notFoundBody.result.content[0].text, /No member found/);
 
   const exact = await mcp('tools/call', { name: 'complete_chore', arguments: { choreId: chore.id, date: '2026-05-01', member: 'Emma' } });
   const exactBody = await exact.json() as any;
@@ -319,6 +333,43 @@ test('mcp: create_list makes a list that add_list_items can then use by name', a
 
   const bad = await (await mcp('tools/call', { name: 'create_list', arguments: { name: 'X', members: ['nobody'] } })).json() as any;
   assert.equal(bad.result.isError, true);
+});
+
+test('mcp: a pantry list, what expires soonest, and recipes that use it up', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  const day = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return new Intl.DateTimeFormat('en-CA').format(d); };
+
+  const created = await call('create_list', { name: 'Kitchen', kind: 'pantry', emoji: '🥫', restock: true });
+  assert.equal(created.structuredContent.list.restock, true);
+  assert.equal(created.isError, undefined);
+  assert.deepEqual([created.structuredContent.list.kind, created.structuredContent.list.purpose], ['todo', 'pantry']);
+  assert.match(created.content[0].text, /Created pantry list/);
+  // Naming todo on a change makes it a plain to-do list.
+  assert.equal((await call('update_list', { list: 'Kitchen', kind: 'todo' })).structuredContent.list.purpose, null);
+  await call('update_list', { list: 'Kitchen', kind: 'pantry' });
+  await call('add_list_items', { listName: 'kitchen', items: [{ title: 'Spinach', dueDate: day(-1), category: 'Fridge' }, { title: 'Chicken', dueDate: day(2), quantity: '1 lb' }, { title: 'Yogurt', dueDate: day(20) }] });
+  await rest('/api/recipes', { method: 'POST', body: JSON.stringify({ name: 'Chicken and spinach', ingredients: [{ name: 'Chicken breast' }, { name: 'Spinach' }, { name: 'Garlic' }] }) });
+
+  const expiring = await call('get_expiring_food', {});
+  assert.equal(expiring.isError, undefined);
+  assert.deepEqual(expiring.structuredContent.items.map((i: any) => i.title), ['Spinach', 'Chicken']);
+  assert.match(expiring.content[0].text, /Spinach: expired .*, Fridge; Chicken \(1 lb\): use by/);
+  assert.deepEqual((await call('get_expiring_food', { days: 30, list: 'Kitchen' })).structuredContent.items.map((i: any) => i.title), ['Spinach', 'Chicken', 'Yogurt']);
+  assert.equal((await call('get_expiring_food', { list: 'Nowhere' })).isError, true);
+
+  const ideas = await call('suggest_meals_from_pantry', { days: 3 });
+  assert.equal(ideas.isError, undefined);
+  assert.deepEqual(ideas.structuredContent.suggestions.map((s: any) => s.recipe.name), ['Chicken and spinach']);
+  assert.match(ideas.content[0].text, /1\. Chicken and spinach: uses Spinach, Chicken; needs Garlic/);
+  assert.match((await call('suggest_meals_from_pantry', { days: 0, limit: 1 })).content[0].text, /Chicken and spinach/);
+
+  // The prompt asks the assistant to start from the suggestions and to ask before changing anything.
+  const prompts = await (await mcp('prompts/list', {})).json() as any;
+  assert.ok(prompts.result.prompts.some((p: any) => p.name === 'use_it_up'));
+  const prompt = await (await mcp('prompts/get', { name: 'use_it_up', arguments: { days: '3' } })).json() as any;
+  assert.match(prompt.result.messages[0].content.text, /suggest_meals_from_pantry with days 3/);
 });
 
 test('mcp: a display key calling an admin-only action gets isError, not a thrown error', async () => {
@@ -554,6 +605,9 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   const today = new Date().toISOString().slice(0, 10);
   const ev = (await call('create_event', { calendarId: cal.id, title: 'School play', start: `${today}T18:00:00Z`, end: `${today}T19:00:00Z`, members: ['ava'], reminders: [30] })).event;
   await call('get_household');
+  const week = await call('get_weekly_plan');
+  const weekDraft = await call('save_weekly_plan_draft', { weekStart: week.weekStart, revision: week.revision, draft: { dinners: [], prep: [] } });
+  await call('apply_weekly_plan', { weekStart: week.weekStart, revision: weekDraft.revision, sourceVersion: weekDraft.sourceVersion, requestId: crypto.randomUUID(), draft: weekDraft.draft });
   await call('list_events', { from: today });
   await call('get_event', { id: ev.id });
   await call('update_event', { id: ev.id, title: 'School play!' });
@@ -562,6 +616,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('update_category', { category: 'school', color: '#3366ff' });
   const chore = (await call('create_chore', { title: 'Feed cat', emoji: '🐱', member: 'ava', rrule: 'FREQ=DAILY', points: 2 })).chore;
   await call('update_chore', { choreId: chore.id, points: 3 });
+  await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ben', color: '#0000ff' }) });
+  const shared = (await call('create_chore', { title: 'Tidy up', members: ['ava', 'ben'], dueDate: today })).chore;
+  assert.ok(shared.groupId);
+  assert.equal((await call('update_chore', { choreId: shared.id, members: ['ben'] })).chore.groupId, null);
   await call('complete_chore', { choreId: chore.id, date: today });
   await call('list_chores', { date: today });
   const avaId = ((await (await rest('/api/members')).json()) as any[]).find((m) => m.name.toLowerCase() === 'ava').id;
@@ -628,6 +686,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal(urgent.priority, 'urgent');
   await call('update_list_item', { list: list.id, itemId: urgent.id, priority: 'low' });
   await call('get_list', { list: 'groceries' });
+  await call('create_list', { name: 'Pantry', kind: 'pantry' });
+  await call('add_list_items', { listName: 'pantry', items: [{ title: 'Milk', dueDate: today }] });
+  await call('get_expiring_food');
+  await call('suggest_meals_from_pantry');
   await call('list_lists');
   await call('send_notification', { title: 'Hi', body: 'Dinner' });
   await call('set_night_screen', { on: true });
@@ -666,6 +728,18 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('get_upkeep_job', { job: oil.id })).job.lastDone.doneOn, today);
   assert.equal((await call('delete_upkeep_job', { job: oil.id })).job.archived, true);
   assert.equal((await call('delete_upkeep_job', { job: oil.id, hard: true })).ok, true);
+  // School: off by default, so the tools refuse until it's on; then a log for a kid shows in the summary.
+  assert.equal((await mcp('tools/call', { name: 'get_school_summary', arguments: {} }).then((r) => r.json()) as any).result.isError, true);
+  const features = ((await (await rest('/api/settings')).json()) as any).features;
+  await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ features: { ...features, school: true } }) });
+  await rest(`/api/school/kids/${avaId}`, { method: 'PUT', body: JSON.stringify({ mode: 'home' }) });
+  assert.equal((await call('log_school', { kids: ['ava'], subject: 'math', minutes: 45, date: today })).logs[0].pending, false);
+  const school = await call('get_school_summary', { from: today, to: today, kid: 'Ava' });
+  await rest('/api/school/grades', { method: 'PUT', body: JSON.stringify({ memberId: avaId, year: 2026, term: 1, subjectId: 'ss-math', grade: 'A-' }) });
+  assert.deepEqual((await call('get_school_grades', { kid: 'ava', year: 2026 })).grades.map((g: any) => g.grade), ['A-']);
+  const test = (await call('create_chore', { title: 'Spelling test', member: 'ava', dueDate: today, subject: 'reading', schoolKind: 'test' })).chore;
+  assert.deepEqual([test.schoolSubjectId, test.schoolKind, test.points], ['ss-reading', 'test', 0]);
+  assert.deepEqual(school.rows.map((r: any) => [r.subjectId, r.minutes]), [['ss-math', 45]]);
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });
@@ -789,9 +863,9 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   await call('add_member', { name: 'Emmanuel', color: '#222222' });
   const mealInput = { date: '2026-09-21', slot: 'dinner', title: 'Pasta' };
   await fail('create_meal', { ...mealInput, member: 'Em' }, /multiple members/);
-  await fail('create_meal', { ...mealInput, member: 'Nobody' }, /no member found/);
+  await fail('create_meal', { ...mealInput, member: 'Nobody' }, /No member found/);
   const meal = (await call('create_meal', { ...mealInput, member: 'EMMA' })).structuredContent.meal;
-  await fail('update_meal', { id: meal.id, member: 'Nobody' }, /no member found/);
+  await fail('update_meal', { id: meal.id, member: 'Nobody' }, /No member found/);
   const recipe = (await call('create_recipe', { name: 'Pasta' })).structuredContent.recipe;
   const list = (await call('create_list', { name: 'Groceries', kind: 'shopping' })).structuredContent.list;
   await call('create_list', { name: 'Groceries weekend', kind: 'shopping' });
@@ -799,7 +873,7 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   const range = { from: '2026-09-21', to: '2026-09-27' };
   for (const name of ['get_meal_projection', 'apply_meal_projection']) {
     await fail(name, { ...range, listName: 'groc' }, /multiple lists/);
-    await fail(name, { ...range, listName: 'Missing' }, /no list found/);
+    await fail(name, { ...range, listName: 'Missing' }, /No list found/);
     await fail(name, { ...range, listName: 'Tasks' }, /active Groceries list not found/);
   }
   await fail('apply_meal_projection', range, /listId or listName is required/);
@@ -1050,7 +1124,7 @@ test('mcp: the library: add_to_library by title or ISBN, list_library searches a
   finally { globalThis.fetch = realFetch; }
   const listed = await call('list_library', { q: 'dahl' });
   assert.deepEqual(listed.structuredContent.books.map((b: any) => b.title), ['Matilda']);
-  assert.match((await call('list_library', {})).content[0].text, /2 book\(s\)/);
+  assert.match((await call('list_library', {})).content[0].text, /2 books/);
   assert.match((await call('add_to_library', { title: 'Holes', isbn: '9780142410370' })).content[0].text, /already/i);
 });
 
@@ -1131,7 +1205,7 @@ test('mcp: activity actions are listed, queued for a person by name, and their s
   const bad = await call('run_activity_action', { activity: 'spelling', member: 'Maya', action: 'addList', input: { words: ['x'] } });
   assert.equal(bad.isError, true);
   assert.match(bad.content[0].text, /title is required/);
-  assert.match((await call('run_activity_action', { activity: 'chess', action: 'addList' })).content[0].text, /no installed activity matching "chess"/);
+  assert.match((await call('run_activity_action', { activity: 'chess', action: 'addList' })).content[0].text, /No installed activity matching "chess"/);
   // Wall screens and kids' devices can't queue.
   const display = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json() as any;
   assert.equal((await call('run_activity_action', { activity: 'spelling', member: 'Maya', action: 'addList', input }, display.key)).isError, true);
@@ -1167,4 +1241,31 @@ test('mcp: reward milestones round-trip with schemas, parent access and feature 
   assert.equal((await invoke('update_reward_milestone', { milestoneId: id, active: false })).structuredContent.ok, true);
   await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ rewardsEnabled: false }) });
   assert.equal((await invoke('list_reward_milestones', {})).isError, true);
+});
+
+test('mcp: ongoing categories, order, repeat-safe ticks and history undo', async () => {
+  const { mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: unknown) => {
+    const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
+    assert.equal(body.result.isError, undefined, JSON.stringify(body.result));
+    return body.result.structuredContent;
+  };
+  const date = new Date().toISOString().slice(0, 10);
+  const { chore } = await call('create_chore', { title: 'Wash clothes', dueDate: date, ongoing: true, category: 'Household', sort: 2 });
+  assert.deepEqual([chore.ongoing, chore.category, chore.sort], [true, 'Household', 2]);
+  assert.equal((await call('update_chore', { choreId: chore.id, category: 'Kitchen' })).chore.category, 'Kitchen');
+  const first = await call('complete_chore', { choreId: chore.id, date, operationId: 'one' });
+  assert.ok(first.completionId);
+  assert.equal((await call('complete_chore', { choreId: chore.id, date, operationId: 'one' })).completionId, first.completionId);
+  await call('uncomplete_chore', { choreId: first.completionId, date });
+});
+
+test('mcp: add_to_inbox jots a thought down as said and list_inbox reads it back; display keys may not (as REST)', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  const added = await ok('add_to_inbox', { text: 'Permission slip for Friday' });
+  assert.equal(added.item.text, 'Permission slip for Friday');
+  assert.equal(added.item.status, 'open');
+  assert.deepEqual((await ok('list_inbox', {})).items.map((i: any) => i.text), ['Permission slip for Friday']);
+  assert.equal((await call('add_to_inbox', { text: 'x' }, displayKey)).isError, true);
+  assert.equal((await call('list_inbox', {}, displayKey)).isError, true);
 });

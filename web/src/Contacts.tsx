@@ -120,12 +120,13 @@ function Methods({ kind, methods, onChange }: { kind: keyof typeof METHODS; meth
   </fieldset>
 }
 
-export function ContactForm({ initial, categories, members, onClose, onSaved }: { initial: Contact | null; categories: ContactCategory[]; members: Member[]; onClose: () => void; onSaved: (contact: Contact) => void }) {
+/** `draft`: a new contact's starting fields (a school's name typed in a picker). */
+export function ContactForm({ initial, draft: start, categories, members, onClose, onSaved }: { initial: Contact | null; draft?: Partial<ContactInput>; categories: ContactCategory[]; members: Member[]; onClose: () => void; onSaved: (contact: Contact) => void }) {
   const { toast } = useApp()
   const id = useId()
   const [template, setTemplate] = useState('')
   const [form, setForm] = useState<ContactInput>(() => {
-    if (!initial) return emptyContact()
+    if (!initial) return { ...emptyContact(), ...start }
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...draft } = initial
     return draft
   })

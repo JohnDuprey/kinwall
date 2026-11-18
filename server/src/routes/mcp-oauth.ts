@@ -183,8 +183,8 @@ mcpOAuthRoutes.post('/oauth/register', async (c) => {
     return oauthError(c, 'invalid_client_metadata', 'body must be JSON');
   }
   const uris = Array.isArray(body.redirect_uris) ? body.redirect_uris.filter((u): u is string => typeof u === 'string') : [];
-  if (uris.length === 0 || uris.length > 5 || uris.some((u) => u.length > 500 || !redirectUriAllowed(u))) {
-    return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-5 https URLs, loopback http URLs, or reverse-domain app links (like com.example.app:/oauth), without fragments');
+  if (uris.length === 0 || uris.length > 10 || uris.some((u) => u.length > 500 || !redirectUriAllowed(u))) {
+    return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-10 https URLs, loopback http URLs, or reverse-domain app links (like com.example.app:/oauth), without fragments');
   }
   // The Kinwall app's link is its own: a client that uses it uses nothing else.
   if (uris.some(isDeviceAppLink) && !uris.every(isDeviceAppLink)) {
@@ -307,10 +307,12 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     const client = await getClient(db, row.client_id);
     if (!client) return oauthError(c, 'invalid_client', 'unknown client');
     const grantId = crypto.randomUUID();
+    // Claim the code in one statement first, so two exchanges landing together can't both pass.
+    const claimed = (await db.prepare('UPDATE oauth_codes SET grant_id = ? WHERE hash = ? AND grant_id IS NULL').bind(grantId, hash).run()).meta.changes;
+    if (!claimed) return oauthError(c, 'invalid_grant', 'code already used');
     await db.batch([
       // A family device only when it signed in on the Kinwall app's own link (auth.ts deviceAppGrant).
       db.prepare('INSERT INTO oauth_grants (id, client_id, scope, approved_by, created_at, owner, device_app) VALUES (?,?,?,?,?,?,?)').bind(grantId, client.id, row.scope, row.approved_by, now, row.owner, isDeviceAppLink(row.redirect_uri) ? 1 : 0),
-      db.prepare('UPDATE oauth_codes SET grant_id = ? WHERE hash = ?').bind(grantId, hash),
       db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').bind(new Date(Date.now() - 24 * 3600e3).toISOString()),
     ]);
     c.header('Cache-Control', 'no-store');

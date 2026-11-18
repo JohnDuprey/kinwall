@@ -1,10 +1,11 @@
+import { enterJournal } from './pageNavigation.ts'
 import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { AppNotification } from './types.ts'
 import { BellIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
-import { SendMessageForm } from './Settings.tsx'
+import { SendMessageForm } from './settingsControls.tsx'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { todayKeyInTz, zonedDayKey } from './date.ts'
@@ -79,7 +80,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
   const openSheet = () => { setSheetSeenAt(seenAt); markSeen(); setComposing(false); setOpen(true) }
   const closeSheet = () => { markSeen(); setOpen(false) } // anything that arrived while it was open was seen too
   const markAllRead = () => { setSheetSeenAt(new Date().toISOString()); announce(t('All notifications marked read')) }
-  const go = (n: AppNotification) => { if (!n.url) return; closeSheet(); location.hash = toHash(n.url) }
+  const go = (n: AppNotification) => { if (!n.url) return; closeSheet(); const hash = toHash(n.url); if (hash.split('?')[0].startsWith('#/journal/')) enterJournal(hash); else location.hash = hash }
   const remove = async (n: AppNotification) => {
     setItems(list => list.filter(x => x.id !== n.id))
     try { await api.deleteNotification(n.id); announce(t('Notification removed')) } catch { load() }

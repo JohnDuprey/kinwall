@@ -71,14 +71,14 @@ With one list of a type, its tile shows the list's emoji and name and opens it; 
 
 With only one or two of these tiles, they don't take a whole row: they sit on the Board's toolbar as buttons beside **Polls**, **Outings** and **Layout and filter** (**🛒 Groceries 1**, **🔨 Hardware store 4**), and the cards move up. When the toolbar is too tight for their names, each shows just its emoji and count, and when even that doesn't fit (a phone on its side with large text), **Polls** and **Outings** show just their icons too. A tablet standing up gives them a row under the toolbar; a phone on its side keeps them on the toolbar's row. Three or more stay a row of tiles, and so do they on a phone, whose toolbar has no room.
 
-Things about today follow right after today's events in the **Today** card (any spare room is at the bottom of the card), in this order:
+Things about today come in this order. On a wall or a tablet, they're one line of buttons above the cards, **Today at a glance** (on a wall or a tablet on its side, with the count tiles at its end instead of a row of their own); on a phone, they follow right after today's events in the **Today** card:
 
 * **💊 Take now**: medicine doses due now, with who; tap it to mark them in a sheet. Only while a dose is due, with [medication reminders](medications.md) on.
 * **✅ Chores**: how many of today's chores are left, with each person's avatar and count (a ✓ once they're done), or **All done ✓**. Tap it to go to Chores. Not with **Full lists**, where Chores today is its own card.
 * **📝 Due today**: to-dos due today and overdue ones (in red), and how many more are due later this week. Tap it to go to Lists, for the whole week. Not with **Full lists**, where Due soon is its own card.
 * **🗳 An open [family poll](polls.md)**: the question, its choices with who voted, and "3 of 4 voted". Tap it to vote.
 
-Today's events come first. Each of these shows whole when the card has room left under the events, and as one row ("🗳 Where are we eating Friday? · 3 of 4 voted") when it doesn't; on a phone or a board that scrolls they're always one row. They're always there, never cut off: when today is busy, the events show what fits and **+3 more** opens the rest. Today always keeps at least one of its events (two when there's room) with **+N more**: when the rows would crowd them out (a tablet on its side), these share small buttons that say what they count (**💊 3 to take**, **✅ 7 chores**, **📝 1 to-do due**, **🗳 3 of 4 voted**), on two lines if that still leaves Today one of its events, else one line of just the counts (💊 3, ✅ 7, 📝 1, 🗳 3/4); if even that's too tight the card grows. Phones never need these: their Today card grows instead. On a [layout](#board-layouts) without Today, Take now, Chores and Due soon stay tiles across the top, and a poll moves under the events in **Coming up** (or a slim strip above the cards without that either). A layout with the tiles row turned off leaves Take now, Chores and Due soon off, but still shows a poll in Today.
+On a wall or a tablet, each button says what it counts (**💊 3 to take**, **✅ 7 chores**, **⏰ 5 late chores**, **📝 3 to-dos due**, **🛒 Groceries 14**) and opens its screen or sheet. The ones that don't fit on the line go behind **+N more**, which opens them whole in a sheet; one too long for the space left goes there too, and the shorter ones after it still show. Each kid's free time is a button of its own. So the **Today** card keeps its whole column for the day's events. On a phone, each shows as one row under today's events ("🗳 Where are we eating Friday? · 3 of 4 voted"), and the card grows to fit them. On a [layout](#board-layouts) without Today, Take now, Chores and Due soon stay tiles across the top, and a poll moves under the events in **Coming up** (or a slim strip above the cards without that either). A layout with the tiles row turned off leaves Take now, Chores and Due soon off, but still shows a poll in Today.
 
 Below them are the cards:
 
@@ -115,7 +115,7 @@ On a cast screen such as a Nest Hub, the Board can shrink slightly to fit its ca
 
 Each screen can arrange its own Board. Under [Settings → This screen → Board layout](../settings/this-display.md#this-screen), pick a built-in layout (**Kids** with big text, **Kitchen** with meals up front, **Parents** with more on the screen, **Simple** with just the clock, a picture and today), one of the family's [presets](../settings/general.md#board-presets), or **Own layout** to make one just for this screen.
 
-To switch quickly, tap **Layout and filter** (the sliders at the end of Home's toolbar). Its **Layout on this screen** chips list the same layouts, with a line under them on the one picked, and the Board changes behind the sheet as you tap. **Own layout…** opens the editor the first time; once this screen has one, **Edit this screen's layout** shows. **Manage layouts** goes to Settings (to **Board presets** on a parent device, to **Board layout** under This screen otherwise). Under the layouts are the [categories](#filtering-by-category). On a screen locked under **Lock view**, the button is just the category filter, so a locked wall stays as set.
+To switch quickly, tap **Layout and filter** (the sliders at the end of Home's toolbar). Its **Layout on this screen** chips list the same layouts, with a line under them on the one picked, and the Board changes behind the sheet as you tap. **Own layout…** opens the editor the first time; once this screen has one, **Edit this screen's layout** shows. **Manage layouts** goes to Settings (to **Board presets** on a parent device, to **Board layout** under This screen otherwise). Under the layouts are the [categories](#by-category). On a screen locked under **Lock view**, the button is just the category filter, so a locked wall stays as set.
 
 The layout editor shows the Board as columns of cards (1 to 4 columns, up to 6 cards in each):
 
@@ -253,3 +253,46 @@ Who an event is for never depends on telling colors apart: the avatars always sh
 Tapping a reminder notification (or **View** in the bell) opens `#/calendar?event=<id>&at=<start>`: Calendar, on that day in its last view (Month switches to Schedule), with the event open. Close it and you're looking at the event's day.
 
 `#/home?checkin=<member id>` opens that person's day at their check-in, and `#/home?poll=<id>` (a new poll in the bell) opens that poll. See [Daily check-in](snapshot.md#daily-check-in).
+
+## Follow an event on your phone
+
+Open a timed event and choose **Follow this event** to show a personal countdown on your own
+phones. Following is off by default and does not change anyone else's choices or the source
+calendar. It also works with read-only imported calendars. Choose whose device this is in Settings
+first; shared wall screens cannot follow events for someone.
+
+Choose **Show countdown**: at the start, or 5, 15 (the default), 30, or 60 minutes before.
+If the event has travel or prep time, that lead time is the countdown's first target. After it,
+the countdown shows time until the event starts, then time until it ends. It closes at the end.
+A followed event replaces its own separate leave-by countdown. Other reminders stay as configured.
+Following works independently of transition reminders and, like ordinary event reminders, continues
+during night hours.
+
+For repeating events, choose **Just this event** or **Every occurrence** before saving. An individual
+occurrence's choice wins over the series choice. **Stop showing** on the activity stops following
+that occurrence without canceling the event or the series. If Android cannot reach Kinwall, it
+still hides the occurrence on that phone; other phones keep their choice until you change it in
+the app. **Show now** is available within an hour of the start, including while the event is underway.
+
+The activity can show the event's title and location on the Lock Screen. Tap it to open that exact
+event. If several followed events overlap, one in progress takes priority, then the next starting
+event. All-day events are excluded, and each countdown lasts at most eight hours. Edits update the
+activity; canceled, hidden, filtered, or disabled-calendar events stop showing.
+
+Use an updated Kinwall app. iPhone background starts require working Apple push and permission
+for notifications and Live Activities. Android uses scheduled ongoing notifications, with the Live
+Update presentation during the event on supported Android 16+ phones. Android schedules refresh
+when the app opens and during background refresh: changes made elsewhere may wait until the next
+refresh, and force-stopping the app prevents alarms until it is reopened. Offline phones can keep
+old details until they reconnect. Notification visibility and delivery remain controlled by the OS.
+
+A followed event has one Live Activity on each phone. Refreshing notification preferences does not
+start another copy. The updated iPhone app also removes older duplicate event cards when it opens
+or receives an activity update, retaining one running card and its working update token.
+
+## Plan the week
+
+Parents can open **Plan the week** in the Calendar toolbar, or the invitation on Home.
+Review the next full family week, choose dinners and event preparation, then save a shared
+draft or add the reviewed meals and to-dos. Dinners deliberately left open stay decided.
+See [Weekly planning](weekly-planning.md) for saving, conflict checks and the demo.

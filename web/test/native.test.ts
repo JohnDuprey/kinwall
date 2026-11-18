@@ -5,6 +5,26 @@ import { surfaces, statusBarColors } from '../src/native.ts'
 import { accentFill } from '../src/color.ts'
 import { SKINS } from '../src/skins.ts'
 
+test('Anyone chore reminders: older shells hide the option and current shells acknowledge the saved choice', async () => {
+  const { appChoreNudgeAnyone, setAppChoreNudgeAnyone } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown }
+  const sent: unknown[] = []
+  try {
+    g.window = { kinwallNative: { platform: 'android' } }
+    assert.equal(appChoreNudgeAnyone(), null)
+    for (const platform of ['ios', 'android']) {
+      const native = { platform, choreNudgeAnyone: false }
+      g.window = { kinwallNative: native, webkit: { messageHandlers: { kinwall: { postMessage: (m: unknown) => sent.push(m) } } } }
+      assert.equal(appChoreNudgeAnyone(), false)
+      setAppChoreNudgeAnyone(true)
+      assert.deepEqual(sent.at(-1), { type: 'choreNudgeAnyone', on: true })
+      assert.equal(appChoreNudgeAnyone(), false, 'wait for native persistence')
+      native.choreNudgeAnyone = true
+      assert.equal(appChoreNudgeAnyone(), true)
+    }
+  } finally { delete g.window }
+})
+
 const peach = SKINS.find(s => s.id === 'meadow')!
 
 test('status bar colors match the painted accent, including custom accents and Night', async () => {

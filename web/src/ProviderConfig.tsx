@@ -8,6 +8,7 @@ import type { Providers } from './types.ts'
 import { useDialog } from './dialog.tsx'
 import { appProviderReturn, inNativeApp } from './native.ts'
 import { t } from './i18n.ts'
+import { providerConsentUrl } from './providerConsent.ts'
 
 const LABEL = { google: 'Google', microsoft: 'Microsoft' } as const
 
@@ -20,7 +21,9 @@ export async function connectCalendar(kind: 'google' | 'microsoft', say: (m: str
     return
   }
   try {
-    location.href = (await api.oauthStart(kind)).url
+    const url = providerConsentUrl(kind, (await api.oauthStart(kind)).url)
+    if (!url) throw new Error(t("Couldn't start the {name} sign-in", { name: LABEL[kind] }))
+    location.href = url
   } catch (e) {
     say(e instanceof Error ? e.message : t("Couldn't start the {name} sign-in", { name: LABEL[kind] }))
   }

@@ -92,7 +92,7 @@ function RoutineSettingsForm({ memberId, childName, state, active, onSaved, onSt
   const seed = editor.seed
   // React onChange covers typing and committed picker changes. An earlier input event can
   // start a save before a native picker commits its controlled value.
-  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onChange={e => changed(e.currentTarget, ['textarea', 'input'].includes((e.target as HTMLElement).tagName.toLowerCase()) && (e.target as HTMLInputElement).type !== 'checkbox' ? 500 : 0)} onBlur={() => { void autosave.flush() }}>
+  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onChange={e => changed(e.currentTarget, ((e.target instanceof HTMLInputElement && e.target.type !== 'checkbox') || e.target instanceof HTMLTextAreaElement) ? 500 : 0)} onBlur={() => { void autosave.flush() }}>
     <fieldset className="routine-form-fields">
         <h3 className="routine-child-settings-title">{t('Settings for {name}', { name: childName })}</h3>
         <p role="status" className="settings-row-sub">{status.phase === 'pending' || status.phase === 'saving' ? t('Saving…') : status.phase === 'saved' ? t('Saved') : status.phase === 'error' || status.phase === 'invalid' ? t('Changes have not been saved.') : t('Changes save automatically.')}</p>

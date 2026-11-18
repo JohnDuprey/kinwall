@@ -38,3 +38,18 @@ test("a split on a kid's device takes the asker's share now, the rest on yes, an
   assert.equal(ledger.entries.filter(e => e.ref === again.id).reduce((n, e) => n + e.amount, 0), 0)
   store.delete('kinwall.demoKid')
 })
+
+test('ongoing demo chores stay available and keep separate points and history', async () => {
+  const leo = await balance('m4')
+  const c = await mock.createChore({ title: 'Wash clothes', ongoing: true, category: 'Household', points: 5, dueDate: today })
+  await mock.completeChore(c.id, today, 'm4')
+  await mock.completeChore(c.id, today, 'm4')
+  assert.equal(await balance('m4'), leo + 10)
+  const day = await mock.getChoresDay(today)
+  assert.equal(day.find(x => x.id === c.id)!.completed, false)
+  const history = day.filter(x => x.sourceId === c.id)
+  assert.equal(history.length, 2)
+  await mock.uncompleteChore(history[0].id, today)
+  assert.equal(await balance('m4'), leo + 5)
+  assert.equal((await mock.getChoresDay(today)).filter(x => x.sourceId === c.id).length, 1)
+})

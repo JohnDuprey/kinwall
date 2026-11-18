@@ -725,8 +725,9 @@ button.month-cell .month-daynum { flex: none; }
   text-align: center;
 }
 /* A toast with one action ("Event added" + View): the button is a light pill inside the dark one, 44px to tap. */
-.toast-with-action { display: flex; align-items: center; gap: 14px; padding: 4px 4px 4px 22px; white-space: nowrap; }
-.toast-action { flex: none; min-height: 44px; padding: 0 18px; border: none; border-radius: 999px; background: var(--bg); color: var(--text); font: inherit; font-weight: 800; }
+/* A long message wraps beside the button, so the action always stays on screen (e.g. a phone's Undo). */
+.toast-with-action { display: flex; align-items: center; gap: 14px; padding: 4px 4px 4px 22px; width: max-content; text-align: start; border-radius: 28px; }
+.toast-action { flex: none; white-space: nowrap; min-height: 44px; padding: 0 18px; border: none; border-radius: 999px; background: var(--bg); color: var(--text); font: inherit; font-weight: 800; }
 
 /* ---------- Sheet (bottom sheet modal) ---------- */
 .sheet-backdrop {
@@ -763,7 +764,8 @@ button.month-cell .month-daynum { flex: none; }
   flex-shrink: 0;
 }
 .sheet-title { font-size: 1.1875rem; font-weight: 800; }
-.sheet-body { padding: 4px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* Leave room above the first field for its outside focus ring, including increased contrast. */
+.sheet-body { padding: 6px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .sheet-actions { display: flex; gap: 10px; padding: 10px 20px 4px; flex-shrink: 0; }
 .sheet-actions .actions-select { flex: 1; min-width: 0; min-height: 48px; border-radius: 999px; font-weight: 800; }
 /* A sheet with little height left (the keyboard up on a phone on its side leaves ~170px): a fixed
@@ -784,6 +786,14 @@ button.month-cell .month-daynum { flex: none; }
    The app's own header, tabs, rail and add button give way, so the field and its Add/Save get the
    ~170-380px a phone or tablet on its side has left. They come back when the keyboard goes down. */
 :root[data-keyboard] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint) { display: none; }
+/* WebKit pans the visual viewport to a focused field while keeping the full page height.
+   Fit the main page to the visible area, as sheets do, and replace the hidden header's safe-area
+   space. A sticky list add bar then stays below the status strip and above the keyboard.
+   Android resizes the page instead, so both keyboard offsets are zero there. */
+:root[data-keyboard] .app-shell {
+  position: fixed; left: 0; right: 0; top: var(--kbd-top, 0px); bottom: var(--kbd, 0px);
+  height: auto; padding-top: var(--safe-t);
+}
 /* The keyboard covers the home indicator: a sheet's buttons sit right on it (or on the iPhone's ↑ ↓ ✓
    bar), with no strip of page between them. */
 :root[data-keyboard] .sheet .sheet-actions { padding-bottom: 6px; }
@@ -1083,6 +1093,19 @@ button.month-cell .month-daynum { flex: none; }
   overflow: hidden;
   transition: transform 0.12s ease, opacity 0.2s ease;
 }
+.chore-entry { display: grid; gap: 6px; min-width: 0; }
+.chore-category-name { color: var(--text-dim); font-size: 0.85em; padding-inline: 4px; overflow-wrap: anywhere; }
+.chore-order-actions { display: flex; gap: 6px; }
+.chore-order-actions .btn { min-height: 44px; min-width: 44px; flex: 1; padding: 6px; }
+/* Edit mode: Up/Down go under the card in a narrow column (tablet and wall columns), beside it once the
+   column has room (arrows only, words too when wider), so the card keeps its width. */
+@container chore-col (min-width: 300px) {
+  .chore-entry:has(.chore-order-actions) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .chore-entry:has(.chore-order-actions) > .chore-category-name { grid-column: 1 / -1; }
+  .chore-order-word { display: none; }
+}
+@container chore-col (min-width: 480px) { .chore-order-word { display: inline; } }
+.chore-category-filter { max-width: 360px; margin: 12px 0; }
 .chore-card:active { transform: scale(0.97); }
 .chore-card.done { background: var(--card-soft); } /* no opacity: done text keeps its contrast */
 .chore-card.done .chore-emoji { opacity: 0.5; }
@@ -1119,6 +1142,12 @@ button.month-cell .month-daynum { flex: none; }
 .chore-notyet { margin-top: 4px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: 0.8125rem; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
 .approve-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 12px; }
 .chores-scroll .approve-card { margin: 0 var(--pad) 12px; } /* in line with the leaderboard and columns, not edge to edge */
+/* Wall and tablet: a kid's chores come first. The parent-only approvals wait under the columns. */
+@media (min-width: 700px) and (min-height: 640px) {
+  .chores-scroll > .chore-columns { order: 1; }
+  .chores-scroll > .approve-card { order: 2; margin-top: 12px; }
+  .chores-scroll > .chore-category-filter { margin: 0 var(--pad) 4px; width: 100%; }
+}
 .approve-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 1rem; }
 .approve-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent-strong); color: #fff; font-size: 0.75rem; line-height: 22px; text-align: center; }
 .approve-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -1467,7 +1496,7 @@ button.month-cell .month-daynum { flex: none; }
 }
 .list-add-bar input {
   flex: 1; min-width: 0; min-height: var(--ctl-h); padding: 0 14px; border-radius: var(--radius-sm);
-  border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: 0.9375rem;
+  border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: max(1rem, 16px); /* prevent iPhone focus zoom */
 }
 .list-add-bar .icon-btn { width: var(--ctl-h); height: var(--ctl-h); background: var(--accent-strong); color: var(--accent-ink); flex-shrink: 0; }
 /* In a sheet, stick to the very top of the scroll area (over .sheet-body's 4px top padding) so rows
@@ -1541,7 +1570,7 @@ button.month-cell .month-daynum { flex: none; }
 .shop-row-body .list-from-tag { align-self: flex-start; margin-top: 2px; }
 /* A list's type: icon over the name, four across even on a phone. */
 .segmented.list-type-seg { width: 100%; border-radius: var(--radius-sm); }
-.segmented.list-type-seg button { flex: 1 1 0; min-width: 0; min-height: 56px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding-inline: 4px; border-radius: calc(var(--radius-sm) - 4px); font-size: 0.8125rem; }
+.segmented.list-type-seg button { flex: 1 1 0; min-width: 0; min-height: 56px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding-inline: 4px; border-radius: calc(var(--radius-sm) - 4px); font-size: 0.8125rem; line-height: 1.15; text-align: center; hyphens: auto; } /* five types on a phone: a long word (Wiederverwendbar) breaks rather than spilling into the next */
 .due-field { display: flex; gap: 8px; align-items: center; }
 .due-field input { flex: 1; min-width: 0; }
 .due-field .btn { flex: none; width: auto; min-height: 44px; }
@@ -1581,6 +1610,9 @@ button.month-cell .month-daynum { flex: none; }
 .list-item-sale { color: var(--accent-text); background: var(--accent-tint); }
 .list-item-due { color: var(--accent-text); }
 .list-item-due.overdue { color: var(--danger); font-weight: 800; }
+.list-item-due.use-soon { font-weight: 700; } /* a pantry item to use within 3 days: ⏳ and the words say it too */
+/* A due or use-by line keeps one height: the ⏳ and ⚠ marks come from a taller emoji font, which grew the row by 4px. */
+.list-item-due { line-height: 16px; }
 .list-overdue { color: var(--danger); font-weight: 800; white-space: nowrap; }
 
 .list-done-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 4px; }
@@ -2436,7 +2468,7 @@ a.activity-card:active { transform: scale(0.98); }
 .header .clock { white-space: nowrap; }
 .header-right .member-filter-row { min-width: 0; flex-shrink: 1; }
 @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
-.header-bell { position: relative; flex-shrink: 0; }
+.header-bell, .header-inbox { position: relative; flex-shrink: 0; }
 .header-right .icon-btn.header-timer-on { width: auto; padding: 0 12px 0 10px; gap: 6px; border-radius: 999px; display: inline-flex; align-items: center; }
 .header-timer-clock { font-weight: 800; font-variant-numeric: tabular-nums; }
 
@@ -2505,6 +2537,8 @@ a.activity-card:active { transform: scale(0.98); }
   background: var(--danger-fill); color: white; font-size: 0.75rem; font-weight: 800; line-height: 22px; text-align: center; /* not --danger: dark mode's light red is 2.3:1 under white */
   box-shadow: 0 0 0 2px var(--card);
 }
+/* Header counts share geometry; the inbox stays quiet rather than signaling an alert. */
+.inbox-badge { background: var(--text); color: var(--bg); }
 .notif-toolbar { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
 .notif-compose-btn { margin-right: auto; }
 .notif-row { display: flex; align-items: flex-start; gap: 4px; }
@@ -2530,7 +2564,7 @@ button.notif-item:active { transform: scale(0.99); }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .header-phone .header-right { gap: 6px; flex-shrink: 0; }
-.header-phone .header-bell, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
+.header-phone .header-bell, .header-phone .header-inbox, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
 /* Tablets standing up get the phone header a size up: bigger faces and name, the usual side padding. */
 @media (min-width: 601px) {
   .header-phone { padding: calc(var(--safe-t) + 14px) var(--pad) 6px; gap: 12px; }
@@ -2560,7 +2594,7 @@ button.notif-item:active { transform: scale(0.99); }
 .note-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 0.875rem; font-weight: 800; background: var(--bg-alt); color: var(--text-dim); flex-shrink: 0; }
 .note-name { font-weight: 800; font-size: 0.875rem; }
 .note-time { color: var(--text-dim); font-size: 0.75rem; font-weight: 700; }
-.note-edit { margin-left: auto; }
+.note-edit { margin-left: auto; min-width: 44px; }
 .note-body { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 600; }
 .note-body a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
 .note-form { display: flex; flex-direction: column; gap: 8px; }
@@ -2907,6 +2941,14 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-slot-words .board-slot-chip { flex: 1 1 auto; }
 .board-slot-words .board-slot-chip-long { display: inline; }
 .board-slot-words .board-routine-chip .board-slot-chip-long { white-space: normal; overflow-wrap: anywhere; }
+/* The wall or tablet Board's "Today at a glance" strip (Board.tsx StatusStrip): one line of chips with
+   their words; what doesn't fit goes behind +N more. The unseen copy measures each chip at its own width. */
+.board-status { position: relative; display: flex; gap: 8px; flex-wrap: nowrap; overflow: hidden; }
+.board-polls:has(> .board-status) { padding-bottom: 8px; } /* with the board's 4px top, the 12px the cards keep between them */
+.board-status-item { flex: none; display: flex; gap: 8px; }
+.board-status .board-slot-chip { flex: none; padding-inline: 14px; }
+.board-status .board-slot-chip-long, .board-status .board-routine-chip .board-slot-chip-long { white-space: nowrap; }
+.board-status-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; display: flex; gap: 8px; flex-wrap: nowrap; }
 /* Today's events that are over, folded into one quiet row under what's on now and next. */
 .board-earlier { width: 100%; min-height: 44px; justify-content: flex-start; color: var(--text-dim); font-weight: 700; }
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }
@@ -3068,6 +3110,8 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-event.past { opacity: 0.55; }
 /* A chore on the Board's Today card (Board.tsx ChoreLine): Start for its timer at the row's end. */
 .board-chore-line { align-items: center; text-decoration: none; } /* a link row, like its siblings: not underlined */
+/* Today's other chores fill room that's left on the wall (Board.tsx FitBody); the More sheet lists events only. */
+.board-sheet .board-filler { display: none; }
 .board-chore-line .snap-main { align-self: flex-start; }
 .chore-timer-start { flex: none; min-height: 44px; padding: 0 14px; }
 .chore-timer-left { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-text); }
@@ -3688,6 +3732,9 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-now-what { margin: 0; flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .meds-now-what strong { font-size: 1.0625rem; font-weight: 900; }
 .meds-now-what span { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
+.late-chore-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.late-chore-actions .btn { flex: none; min-height: 44px; }
+.late-chore-done { flex: none; } /* Late chores sheet (LateChores.tsx): rows share Take now's look */
 .meds-now-cheer { position: relative; margin: 0; min-height: 44px; display: flex; align-items: center; font-weight: 900; color: var(--text); }
 .meds-now-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .meds-now-actions .btn { min-height: 44px; padding: 8px 16px; flex: none; }
@@ -3932,6 +3979,14 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .calendar-toolbar .outings-btn.btn { grid-column: 4; }
   .calendar-toolbar:has(.outings-btn) .filter-btn { grid-column: 5; }
 }
+/* Quick-capture inbox (a demo-only preview, Inbox.tsx). Its header button sizes like the bell's. */
+.inbox-capture-row { display: flex; gap: 8px; }
+.inbox-capture-row input { flex: 1; min-width: 0; }
+.inbox-capture-row .btn { flex: none; }
+.inbox-list { display: flex; flex-direction: column; gap: 8px; }
+.inbox-list .sheet-link > .inbox-put-back { flex: none; color: var(--accent-text); font-size: 0.875rem; }
+.inbox-original { margin: 0 0 16px; font-weight: 700; overflow-wrap: anywhere; }
+.inbox-preview { margin-top: 20px; text-align: center; }
 /* The narrowest phones (an iPhone SE's 320px): the toolbar's gaps tighten so every button fits whole. */
 @media (max-width: 340px) {
   .calendar-toolbar { gap: 4px; }
@@ -4067,7 +4122,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 :root[data-density="compact"] .sheet { max-height: 93%; } /* more form, less backdrop; the backdrop still shows above */
 :root[data-density="compact"] .sheet-grabber { margin: 6px auto 2px; }
 :root[data-density="compact"] .sheet-header { padding: 2px 14px 4px; }
-:root[data-density="compact"] .sheet-body { padding: 2px 14px 10px; }
+:root[data-density="compact"] .sheet-body { padding: 6px 14px 10px; }
 :root[data-density="compact"] .sheet-actions { gap: 8px; padding: 6px 14px 0; }
 :root[data-density="compact"] .sheet-actions :is(.btn, .actions-select) { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .sheet-body .btn { min-height: 44px; padding: 8px 16px; }
@@ -4191,7 +4246,7 @@ html:root[data-cast] {
 @media (hover: hover) and (pointer: fine) {
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
-    .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
+    .list-item-check, .school-work-check, .meal-card, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item, .setup-check-row
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
@@ -4199,7 +4254,7 @@ html:root[data-cast] {
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-edit-btn,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
+    .activity-card, .school-work-main, .school-work.compact, button.school-plan-day, .school-kid-toggle, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the "off" track keeps its own inset ring). */
@@ -4303,6 +4358,10 @@ html:root[data-cast] {
 .board-scroll:has(> .board-announcements) { display: flex; flex-direction: column; }
 .board-announcements { flex: none; padding: 8px var(--pad) 0; }
 .board-announcements ~ .board { height: auto; flex: 1 0 480px; }
+/* The fixed board fits the room left: an explicit min-height, since the auto one is the cards' content, so unfit cards would stretch the grid. A scrolling board keeps its content height. */
+.board-scroll[data-fixed] > .board-announcements ~ .board { flex: 1 1 0; min-height: 480px; }
+/* With Today at a glance above the cards, the count tiles' row moved into it, so the cards need that much less height. */
+.board-scroll[data-fixed] > .board-polls:has(> .board-status) ~ .board { min-height: 424px; }
 .announcement-banner { display: flex; gap: 12px; padding: 16px; margin-bottom: 8px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); overflow-wrap: anywhere; }
 .announcement-important { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
 .announcement-icon { flex: none; font-size: 1.6rem; }
@@ -4323,3 +4382,115 @@ html:root[data-cast] {
 /* Existing Chores date chips: blank dates keep the same height; words/checks distinguish states. */
 .date-chore-count { min-height: 16px; margin-top: 3px; font-size: 0.6875rem; line-height: 1.25; font-weight: 800; color: var(--accent-text); white-space: nowrap; }
 .date-chores-done { color: var(--text-dim); }
+
+/* Parent-only weekly planning. */
+.weekly-invite { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin: 4px var(--pad) var(--gap); flex-shrink: 0; }
+.weekly-invite-copy { flex: 1; min-width: 0; }
+.weekly-invite .weekly-invite-dismiss { flex: none; order: 1; }
+.weekly-invite-icon { font-size: 28px; }
+.weekly-invite p { margin: 4px 0 0; color: var(--text-dim); font-size: .9rem; }
+.weekly-invite .btn { margin-left: auto; flex: none; }
+/* Wall and tablet on its side: the Board shares out what's left of the screen's height, so the chrome above it takes one slim line each. */
+@media (min-width: 880px) and (min-height: 640px), (max-height: 500px) and (orientation: landscape) {
+  .weekly-invite { padding: 6px 16px; gap: 12px; }
+  .weekly-invite .btn { min-height: 44px; padding-block: 4px; }
+  .weekly-invite-icon { font-size: 20px; }
+  .weekly-invite > div { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+  .weekly-invite p { margin: 0; }
+}
+@media (min-width: 880px) and (min-height: 640px) { .now-next { padding: 6px 14px; flex-direction: row; flex-wrap: wrap; gap: 2px 20px; } }
+:root .sheet:has(.weekly-plan) { width: min(100%, 1000px); max-width: 1000px; max-height: 94%; }
+.weekly-plan { max-width: 940px; margin: auto; }
+.weekly-note { color: var(--text-dim); font-size: .85rem; line-height: 1.5; }
+.weekly-steps { display: flex; gap: 18px; padding: 12px 0 22px; margin: 0; list-style: none; border-bottom: 1px solid var(--border); }
+.weekly-steps li { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: .85rem; flex: 1; }
+.weekly-steps li[aria-current] { color: var(--text); font-weight: 700; }
+.weekly-steps span { display: grid; place-items: center; background: var(--bg-alt); width: 28px; height: 28px; border-radius: 50%; flex: none; }
+.weekly-steps li[aria-current] span { background: var(--accent-strong); color: var(--accent-ink); }
+.weekly-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 20px 0 16px; }
+.weekly-heading h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); margin: 8px 0; letter-spacing: -.035em; }
+.weekly-heading p { color: var(--text-dim); margin: 0; line-height: 1.5; }
+.weekly-eyebrow { font-size: .8rem; font-weight: 650; color: var(--text-dim); }
+.weekly-family { display: flex; gap: 12px; }
+.weekly-family > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.weekly-highlight { display: flex; gap: 16px; padding: 20px; border-radius: 16px; background: var(--accent-soft); margin-bottom: 22px; }
+.weekly-highlight > span { font-size: 28px; }
+.weekly-highlight p { margin: 6px 0 0; line-height: 1.5; color: var(--text-dim); }
+.weekly-days { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.weekly-day, .weekly-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; min-width: 0; }
+.weekly-day-busy { border-color: var(--accent); background: var(--bg-alt); }
+.weekly-day h3, .weekly-card h3 { margin: 10px 0; font-size: 1.05rem; }
+.weekly-day p, .weekly-card p { color: var(--text-dim); line-height: 1.6; margin: 8px 0; }
+.weekly-decisions, .weekly-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.weekly-review .weekly-card:last-child { grid-column: 1 / -1; }
+.weekly-card .field { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.weekly-card select { width: 100%; min-height: 44px; }
+@media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
+  .weekly-invite { flex-wrap: wrap; gap: 12px; padding: 16px; }
+  .weekly-invite-icon { display: none; }
+  .weekly-invite-copy { flex-basis: calc(100% - 56px); }
+  .weekly-invite .btn { margin-left: 0; }
+  .weekly-invite .weekly-invite-dismiss { order: 0; align-self: flex-start; }
+  :root .sheet:has(.weekly-plan) { height: 100%; max-height: 100%; border-radius: 0; padding-top: var(--safe-t); }
+  .weekly-steps { gap: 6px; }
+  .weekly-steps li { font-size: .72rem; flex-direction: column; align-items: flex-start; }
+  .weekly-heading { flex-direction: column; align-items: flex-start; padding-top: 20px; }
+  .weekly-days, .weekly-decisions, .weekly-review { grid-template-columns: 1fr; }
+  .weekly-day { padding: 16px; }
+  .weekly-family { gap: 18px; }
+}
+@media (min-width: 701px) and (max-width: 850px) { .weekly-days { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Calendar keeps planning with its controls; Home keeps the small invitation. */
+.weekly-calendar-button { flex: none; min-height: 44px; white-space: nowrap; }
+.weekly-calendar-short { display: none; }
+@media (min-width: 961px) and (max-width: 1200px) {
+  .cal-toolbar:has(.weekly-calendar-button) { grid-template-columns: 1fr auto; }
+  .cal-toolbar:has(.weekly-calendar-button) .toolbar-end { grid-column: 2; grid-row: 1; }
+  .cal-toolbar:has(.weekly-calendar-button) .toolbar-nav { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 600px) {
+  .cal-toolbar:has(.weekly-calendar-button) > .view-switch { grid-column: 1 / 3; min-width: 0; }
+  .cal-toolbar .weekly-calendar-button { grid-column: 3; grid-row: 1; justify-self: end; min-height: 44px; padding: 8px 12px; }
+  .weekly-calendar-label { display: none; }
+  .weekly-calendar-short { display: inline; }
+  .cal-toolbar.no-switch .weekly-calendar-button { grid-column: 4; grid-row: 2; }
+  .cal-toolbar.no-switch:has(.weekly-calendar-button) .toolbar-nav { grid-column: 1 / 4; }
+  .weekly-invite { margin-inline: 14px; }
+}
+
+/* Planning uses the existing calendar, meal and list services. */
+.weekly-alert { padding: 16px; margin: 12px 0; border: 1px solid var(--danger); border-radius: var(--radius-sm); }
+.weekly-alert p { margin: 0 0 12px; }
+.weekly-prep { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+.weekly-prep > .btn { align-self: flex-start; flex: none; }
+.weekly-event-people { display: block; font-size: .8rem; }
+.weekly-recipe-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.weekly-recipe { flex: none; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 4px; white-space: normal; }
+.weekly-recipe span { font-size: .85rem; font-weight: 400; }
+.weekly-family { flex-wrap: wrap; max-width: 45%; }
+.sheet:has(.weekly-plan) .sheet-actions .btn { min-width: 0; }
+@media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
+  .weekly-family { max-width: 100%; }
+  .sheet:has(.weekly-plan) .sheet-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sheet:has(.weekly-plan) .sheet-actions .btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .sheet:has(.weekly-plan) .sheet-actions .btn { min-height: 44px; }
+}
+
+.weekly-swap-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.weekly-swap-actions .btn { min-height: 44px; }
+
+/* Picker fields follow the shared label/input layout, with room between the two dinner choices. */
+.weekly-meal-picker, .weekly-prep-picker { display: grid; gap: 20px; min-width: 0; }
+.weekly-meal-picker .field, .weekly-prep-picker .field { margin: 0; min-width: 0; }
+.weekly-picker-custom { display: grid; gap: 12px; }
+.weekly-picker-custom > .btn { justify-self: start; }
+.weekly-picker-recipes { border-top: 1px solid var(--border); padding-top: 20px; min-width: 0; }
+.weekly-meal-picker .weekly-recipe { border-radius: var(--radius-sm); padding: 14px 16px; min-height: 52px; }
+.weekly-prep-picker > h3, .weekly-prep-picker > p { margin: 0; }
+
+/* Keep recipe choices usable in narrow sheets and with the landscape keyboard open. */
+.recipe-picker > .recipe-browse-controls { margin-block: 16px; }
+.recipe-browse-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 16px 12px; }
+.recipe-browse-controls .field { min-width: 0; margin-bottom: 0; }
+.recipe-browse-controls select { width: 100%; }

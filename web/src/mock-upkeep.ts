@@ -1,5 +1,5 @@
 // In-memory Home upkeep for VITE_MOCK only (the server: routes/upkeep.ts). The demo family's house
-// (all made up): Alex changed the furnace filter in July, Sam's van is due an oil change, Leo tests
+// (all made up): Alex changes the furnace filter, Sam keeps up the van's oil changes, Leo tests
 // the smoke alarms for points, the gutters come round in spring and fall.
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
@@ -46,11 +46,12 @@ const entryBase = (id: string, jobId: string, title: string, doneOn: string, p: 
   choreId: null, createdBy: null, createdAt: stamp(doneOn), files: [], ...p,
 })
 let log: UpkeepEntry[] = [
-  entryBase('demo-log-1', 'demo-filter', 'Change the furnace filter', addDays(today, -95), { memberId: 'm1', costCents: 1800 }),
-  entryBase('demo-log-2', 'demo-oil', 'Oil change', addDays(today, -175), { memberId: 'm2', costCents: 5400, reading: 48210, readingUnit: 'mi', notes: 'Synthetic. Wipers next time.' }),
-  entryBase('demo-log-3', 'demo-smoke', 'Test the smoke alarms', addDays(today, -26), { memberId: 'm4' }),
+  entryBase('demo-log-1', 'demo-filter', 'Change the furnace filter', addDays(today, -40), { memberId: 'm1', costCents: 1800 }),
+  entryBase('demo-log-2', 'demo-oil', 'Oil change', addDays(today, -100), { memberId: 'm2', costCents: 5400, reading: 48210, readingUnit: 'mi', notes: 'Synthetic. Wipers next time.' }),
+  entryBase('demo-log-3', 'demo-smoke', 'Test the smoke alarms', addDays(today, -10), { memberId: 'm4' }),
+  entryBase('demo-log-6', 'demo-gutters', 'Clean the gutters', addDays(today, -25), { memberId: 'm1' }),
   entryBase('demo-log-4', 'demo-gutters', 'Clean the gutters', addDays(today, -190), { memberId: 'm1', notes: 'Downspout by the garage was clogged.' }),
-  entryBase('demo-log-5', 'demo-filter', 'Change the furnace filter', addDays(today, -190), { memberId: 'm1', costCents: 1800 }),
+  entryBase('demo-log-5', 'demo-filter', 'Change the furnace filter', addDays(today, -130), { memberId: 'm1', costCents: 1800 }),
 ]
 
 const STARTERS: UpkeepStarter[] = [

@@ -1,0 +1,142 @@
+/* School (School.tsx): each kid's week by subject, the log rows and the set-up sheet. Rows, faces
+   and headings come from meals.css and outings.css. */
+.school-row { display: flex; gap: 8px; align-items: stretch; }
+.school-row > .outing-row { flex: 1; min-width: 0; }
+.school-approve { flex: none; min-height: 44px; align-self: center; }
+.school-pending { font-weight: 800; color: var(--text); }
+.school-week { display: flex; align-items: center; gap: var(--gap); margin: 20px 0 12px; }
+.school-week strong { min-width: 9em; text-align: center; }
+.school-week .btn { flex: none; }
+.school-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--gap); align-items: start; margin: 20px 0 16px; }
+.school-week + .school-totals { margin-top: 0; }
+.school-total { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+.school-total-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.school-total-head .member-avatar { width: 40px; height: 40px; }
+.school-total-time { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.school-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--bg-alt); gap: 2px; }
+.school-bar i { display: block; height: 100%; flex-basis: 0; }
+.school-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.875rem; color: var(--text-dim); }
+.school-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.school-legend b { color: var(--text); font-variant-numeric: tabular-nums; }
+.school-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.school-download { flex: none; }
+.school-setup-kids, .school-subjects { display: grid; gap: 12px; margin-bottom: 16px; }
+.school-setup-kid { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.school-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.school-check input { width: 22px; height: 22px; flex: none; }
+.school-subject { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } /* on a phone, the hours and More go under the name */
+.school-subject > input[type="text"]:not(.school-subject-emoji) { flex: 1 1 9em; min-width: 0; }
+.school-subject > span { flex: 1; }
+.school-subject .btn, .school-subject .settings-select { flex: none; width: auto; }
+.school-subject input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 1px solid var(--control-edge); border-radius: 10px; background: var(--card); flex: none; }
+.school-subject-emoji { width: 3.2em; flex: none; text-align: center; }
+.school-subject-add { display: flex; gap: 8px; margin-bottom: 16px; }
+.school-subject-add input { flex: 1; min-width: 0; }
+.school-subject-add .btn { flex: none; }
+.school-waiting .outing-list { grid-template-columns: 1fr; }
+/* Schoolwork: a tick and the rest of the row (Today), or a compact one in a Week cell. */
+.school-today { display: grid; gap: 8px; }
+.school-work { display: flex; align-items: stretch; gap: 8px; background: var(--bg-alt); border-radius: var(--radius-sm); border-left: 4px solid var(--chip-color, var(--accent)); padding: 4px 8px 4px 6px; }
+.school-work-check { flex: none; width: 44px; height: 44px; align-self: center; border-radius: 50%; border: 2px solid var(--control-edge); background: var(--card); color: #fff; font-weight: 900; font-size: 1.1rem; display: grid; place-items: center; }
+.school-work.done .school-work-check { background: var(--success); border-color: var(--success); }
+.school-work-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 4px 0; text-align: left; color: inherit; font: inherit; }
+.school-work.done .outing-row-main strong { text-decoration: line-through; color: var(--text-dim); }
+.school-work.compact { align-items: center; gap: 6px; min-height: 44px; width: 100%; padding: 6px 8px 6px 6px; border-top: 0; border-right: 0; border-bottom: 0; color: inherit; font: inherit; text-align: left; }
+.school-work-mark { flex: none; width: 1.4em; text-align: center; font-weight: 900; }
+.school-work.compact.done .school-work-mark { color: var(--success); }
+.school-work-title { flex: 1; min-width: 0; font-size: 0.875rem; font-weight: 700; overflow-wrap: break-word; hyphens: auto; }
+.school-work.compact.done .school-work-title { text-decoration: line-through; color: var(--text-dim); }
+/* Room inside the scroller for the cells' shadow and today's outline, which it would clip; the negative margin keeps the grid aligned. */
+.school-plan-wrap { overflow-x: auto; padding: 4px 8px 12px; margin: -4px -8px 4px; }
+.school-plan { display: grid; gap: 8px; min-width: 760px; align-items: start; }
+.school-plan-day { text-align: center; font-size: 0.875rem; color: var(--text-dim); padding: 4px 0; }
+.school-plan-day.today { color: var(--text); }
+button.school-plan-day { background: none; border: none; font: inherit; font-weight: 700; min-height: 44px; border-radius: var(--radius-sm); }
+/* School days (school-days.ts): a day's label (no school, early release, summer, the last day) and the countdown. */
+.school-day-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8125rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg-alt); color: var(--text); max-width: 100%; overflow-wrap: anywhere; }
+.school-day-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.school-days-left { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
+.school-mark { flex: none; justify-self: start; }
+.school-plan-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.school-plan-list-head h2 { min-width: 0; }
+.school-plan-list-head .school-mark { padding: 0 14px; font-size: 0.875rem; }
+.school-plan-kid { display: flex; align-items: center; gap: 8px; font-weight: 800; align-self: center; }
+.school-plan-cell { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 6px; min-height: 96px; display: grid; gap: 6px; align-content: start; }
+.school-plan-cell.today { outline: 2px solid var(--accent); }
+/* Today's school day lines (hours, the school's calendar, lunch, school and teachers). */
+.school-day { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.9375rem; }
+.school-day li { display: block; padding-left: 1.9em; text-indent: -1.9em; } /* the emoji hangs; the words (and a phone number) wrap as one line of text */
+.school-day li > span[aria-hidden] { display: inline-block; width: 1.5em; margin-right: 0.4em; text-indent: 0; text-align: center; }
+.school-day a { color: inherit; font-weight: 700; white-space: nowrap; }
+/* Grades (parents only). */
+.school-grades { display: grid; gap: var(--gap); margin-top: 20px; }
+.school-grades-year { max-width: 220px; margin: 0; }
+.school-grades-wrap { overflow-x: auto; }
+.school-grades-table { border-collapse: collapse; width: 100%; }
+.school-grades-table th, .school-grades-table td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+.school-grades-table thead th { font-size: 0.8125rem; color: var(--text-dim); font-weight: 800; }
+.school-grades-table tbody th { font-weight: 700; white-space: nowrap; }
+.school-grades-table input { width: 100%; min-width: 4.5em; min-height: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.school-share { flex: none; }
+.school-plan-event { display: flex; gap: 4px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); padding: 2px 4px; overflow-wrap: break-word; }
+/* Records: totals and subjects against goals, months, the portfolio and report cards; Print. */
+.school-print-btn { margin-left: auto; flex: none; }
+.school-record { display: grid; gap: 14px; }
+.school-record-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--gap); }
+.school-record-totals .school-meter-label { font-size: 1.0625rem; }
+.school-record-subjects { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px var(--gap); }
+.school-meter { display: grid; gap: 4px; }
+.school-meter-label { display: flex; justify-content: space-between; gap: 8px; font-size: 0.9375rem; }
+.school-meter-label b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.school-meter-track { height: 10px; border-radius: 999px; background: var(--bg-alt); overflow: hidden; }
+.school-meter-track i { display: block; height: 100%; border-radius: 999px; }
+.school-record-months td, .school-record-months th { font-variant-numeric: tabular-nums; }
+.school-record h3 { margin: 6px 0 0; font-size: 1rem; }
+.school-portfolio { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.school-portfolio figure { margin: 0; display: grid; gap: 4px; align-content: start; }
+.school-portfolio img, .school-card-empty { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.school-card-empty { display: grid; place-items: center; color: var(--text-dim); font-size: 0.875rem; }
+.school-portfolio figcaption { font-size: 0.8125rem; color: var(--text-dim); }
+.school-card-add { flex: none; min-height: 44px; }
+.school-photo-pick { display: flex; align-items: center; gap: 12px; }
+.school-photo-pick img { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; }
+.school-photo-pick .btn { flex: none; }
+.school-subject-goal { width: 5.5em; flex: none; }
+.school-print { display: none; }
+@media print {
+  @page { margin: 14mm; }
+  body:has(.school-print) > :not(.school-print) { display: none !important; }
+  body:has(.school-print) { background: #fff !important; color: #000 !important; }
+  .school-print { display: block !important; font: 11pt system-ui, sans-serif; --bg-alt: #eee; --text-dim: #444; --border: #bbb; --accent: #333; }
+  .school-print h1 { font-size: 18pt; margin: 0 0 2mm; }
+  .school-print .school-portfolio { grid-template-columns: repeat(4, 1fr); }
+  .school-print figure { break-inside: avoid; }
+}
+/* Phones: the Approve button goes under its entry instead of squeezing it. */
+@media (max-width: 600px) {
+  .school-row { flex-direction: column; }
+  .school-approve { align-self: stretch; }
+}
+.school-stepper .stepper-value, .field .school-stepper .stepper-value { width: 3.5em; }
+.school-stepper span { min-width: 0; }
+.school-card-add { justify-self: start; width: auto; }
+/* The photo button is a <label> (it opens the file picker), inside a .field: keep it a button, not a field label. */
+.field label.school-card-add { display: inline-flex; align-items: center; margin: 0; font-size: 1rem; font-weight: 800; color: var(--text); text-transform: none; letter-spacing: normal; }
+/* Week on a phone or portrait tablet (School.tsx narrow): a list by day instead of the grid, too wide for seven columns. */
+.school-plan-list { display: grid; gap: 4px; margin-bottom: 16px; }
+.school-plan-list-day h2 { margin: 16px 0 8px; font-size: 1.0625rem; }
+.school-plan-list-day.today h2 small { color: var(--text-dim); font-weight: 700; }
+.school-plan-list-kid { display: grid; gap: 6px; background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 12px; margin-bottom: 8px; }
+/* The family's day rules (School.tsx DayRules): words as removable tags, and a row to add one. */
+.school-rule { gap: 6px; }
+.school-rule-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; margin-bottom: 16px; }
+.school-rule-add .btn { flex: none; }
+@media (max-width: 560px) { .school-rule-add { grid-template-columns: minmax(0, 1fr) auto; } .school-rule-add input { grid-column: 1 / -1; } }
+/* A kid's settings in Set up fold away (School.tsx SetupSheet): the header is the toggle, with a one-line summary. */
+.school-kid-toggle { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: -4px -6px; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; text-align: left; }
+.school-kid-name { flex: 1; min-width: 0; display: grid; }
+.school-kid-name .field-hint { overflow-wrap: anywhere; }
+.school-setup-kid.open .settings-acc-chevron { transform: rotate(180deg); }
+.school-setup-kid-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } /* minmax: a long calendar name cuts off (…), never widens the sheet */
+/* Early release's two times: inputs line up even when a label wraps (a longer translation). */
+.school-half-row { align-items: end; }

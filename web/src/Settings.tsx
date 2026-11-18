@@ -1,3 +1,4 @@
+import { DeviceKindSelect, SendMessageForm } from './settingsControls.tsx'
 import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import RoutineModeSettings from './RoutineModeSettings.tsx'
 import { AppContext, useApp } from './AppContext.tsx'
@@ -41,7 +42,7 @@ import { countDrawings } from './drawings-db.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { appNativePush, appPushReady, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
+import { appChoreNudgeAnyone, setAppChoreNudgeAnyone, appNativePush, appPushReady, appPushProblem, setAppPushEnabled, addAppTile, appKidDoses, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, appStatusBarHidden, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppKidDoses, setAppMedicineNames, setAppStatusBarHidden } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -52,7 +53,7 @@ import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
-import { filterSettings, linkTab, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
+import { filterSettings, linkTab, SEARCH_ALIASES, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
 import { Face } from './Face'
 import { PictureSheet } from './MemberPicture.tsx'
 import { EVENT_LENGTHS } from './eventEnd.ts'
@@ -343,10 +344,11 @@ function Section({ id, title, icon, summary, keywords, children }: { id?: string
     const searching = acc.words.length > 0
     const folds = busy
     const open = !folds || (searching ? !acc.shut.has(headingId) : acc.open.has(headingId))
+    // SEARCH_ALIASES (in data-keywords below) help a card match, but never show in "Inside:".
     const inside = searching ? (keywords ?? []).filter(k => matchesAll(acc.words, k)) : []
     return (
       <section className={folds ? `settings-section settings-acc${open ? ' open' : ''}` : 'settings-section'} id={id} aria-labelledby={`${headingId}-title`}
-        data-acc={headingId} data-title={title} data-keywords={keywords?.join(' · ')}>
+        data-acc={headingId} data-title={title} data-keywords={[...(keywords ?? []), ...(SEARCH_ALIASES[headingId] ?? [])].join(' · ')}>
         <H className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>
           {folds
             ? <button type="button" className="settings-acc-btn" aria-expanded={open} aria-controls={`${headingId}-body`} onClick={() => acc.toggle(headingId)}>
@@ -644,7 +646,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save settings'), true) }
   }
   return (
-    <Section id="appearance" title={t('Appearance')} icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS.map(x => tm(x))}>
+    <Section id="appearance" title={t('Appearance for the family')} icon={<PaletteIcon width={16} height={16} />} keywords={THEME_WORDS.map(x => tm(x))}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
         {t('For the whole family.')}{overridden.length > 0 && <> {t('This device changes some of it for itself, under Appearance on this device.')}</>}
       </p>
@@ -784,6 +786,15 @@ function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Setti
           </div>
         )
       })}
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label">{t('Clear ticked items after')}</div>
+          <div className="settings-row-sub">{t('Ticked items leave grocery and shopping lists after this long. Kinwall still remembers their stores and aisles.')}</div>
+        </div>
+        <select className="settings-select" aria-label={t('Clear ticked items after')} value={settings.clearCheckedAfterDays} onChange={e => save({ clearCheckedAfterDays: Number(e.target.value) })}>
+          {[...new Set([1, 2, 3, 7, 14, 30, settings.clearCheckedAfterDays])].sort((a, b) => a - b).map(n => <option key={n} value={n}>{tn(n, '{n} day', '{n} days')}</option>)}
+        </select>
+      </div>
     </Section>
   )
 }
@@ -882,11 +893,27 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeAnyone: false, choreNudgeTime: '08:00', newChores: false, listUpdates: false, schoolReminders: true, outingReminders: true, upkeepReminders: true, medicationNames: false }
+
+function AnyoneChoreReminder({ on, change }: { on: boolean; change: (on: boolean) => void }) {
+  return <div className="toggle-row">
+    <div><label id="push-anyone-label">{t('Include Anyone chores')}</label>
+      <div className="settings-row-sub" id="push-anyone-sub">{t('Remind me about shared chores anyone can do.')}</div></div>
+    <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="push-anyone-label" aria-describedby="push-anyone-sub" onClick={() => change(!on)}><span className="knob" /></button>
+  </div>
+}
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
  * per-device, not a household setting. */
+
+/** Why this app's push notifications are off, in words a family can act on. */
+function pushOffReason(problem: ReturnType<typeof appPushProblem>): string {
+  if (problem === 'address') return t("Push notifications need this server's Public URL. A grown-up can set it in Settings → Calendars → Calendar providers. Until then, this phone's own reminders stay on.")
+  if (problem === 'device') return t("This phone couldn't be verified for push notifications, so its own reminders stay on. Kinwall needs to come from the app store, on a phone that isn't rooted or jailbroken.")
+  if (problem === 'server') return t("The server didn't accept this phone for push notifications, so its own reminders stay on. Whoever runs your Kinwall server can check its log for the reason.")
+  return t('This server has not enabled push delivery for this app yet. Local reminders remain on.')
+}
 function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   // iPhone app: whether Live Activities are on (the app updates window.kinwallNative when it comes back).
   const [liveActivities, setLiveActivities] = useState(appLiveActivities)
@@ -900,6 +927,12 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   const kid = !parentDevice && meMemberId ? members.find(m => m.id === meMemberId && !m.grownUp) : undefined
   const [appNames, setAppNames] = useState(appMedicineNames) // in the app: this device's own choice (no push subscription)
   const [kidDoses, setKidDoses] = useState(appKidDoses)
+  const [anyoneChores, setAnyoneChores] = useState(appChoreNudgeAnyone)
+  useEffect(() => {
+    const update = () => setAnyoneChores(appChoreNudgeAnyone())
+    window.addEventListener('kinwallnative', update)
+    return () => window.removeEventListener('kinwallnative', update)
+  }, [])
   const grownUpPhone = parentDevice && !!members.find(m => m.id === meMemberId && m.grownUp) // a grown-up's own full-access phone
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
@@ -1008,7 +1041,12 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   if (inNativeApp() && !appNativePush()) {
     return <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
       {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
-      <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.")}</p>
+      <p className="settings-row-sub">{t("The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries and list updates still arrive in the bell at the top. Chore reminders are scheduled on this device when enabled.")}</p>
+      {settings.features.chores && anyoneChores !== null && <>
+        <p>{t('Chore reminder')}</p>
+        <AnyoneChoreReminder on={anyoneChores} change={setAppChoreNudgeAnyone} />
+        <p className="settings-row-sub">{appPlatform() === 'android' ? t('Turn on the Chores notification channel in Android Settings to receive the daily reminder at 8:00 AM.') : t('Turn on Chore reminder in iPhone Settings → Kinwall and choose a time.')}</p>
+      </>}
       {nativeDetails}
     </Section>
   }
@@ -1031,8 +1069,8 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   return (
     <Section id="notifications" title={t('Notifications')} icon={<BellIcon width={16} height={16} />}>
       {appNativePush() && <>
-        <p className="settings-row-sub">{t('Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through Apple push notifications.')}</p>
-        {sub && !appPushReady() && <p className="settings-row-sub">{t('This server has not enabled Apple push delivery yet. Local reminders remain on.')}</p>}
+        <p className="settings-row-sub">{t('Event reminders are scheduled on this device. Family messages and the reminders you choose below arrive through push notifications.')}</p>
+        {sub && !appPushReady() && <p className="settings-row-sub">{pushOffReason(appPushProblem())}</p>}
         {nativeDetails}
       </>}
       {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}
@@ -1072,9 +1110,24 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             </div>
             {prefs.choreNudge && <input type="time" aria-label={t('Chore reminder time')} value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
           </div>}
+          {settings.features.chores && prefs.choreNudge && <AnyoneChoreReminder on={prefs.choreNudgeAnyone === true} change={on => savePrefs({ choreNudgeAnyone: on })} />}
+          {settings.features.chores && <div className="toggle-row">
+            <div>
+              <label id="push-new-chores-label">{t('New chores')}</label>
+              <div className="settings-row-sub" id="push-new-chores-sub">{t('When a chore is added for the people you follow or Anyone. Skips chores you add yourself.')}</div>
+            </div>
+            <button className={`switch ${prefs.newChores ? 'on' : ''}`} role="switch" aria-checked={prefs.newChores === true} aria-labelledby="push-new-chores-label" aria-describedby="push-new-chores-sub" onClick={() => savePrefs({ newChores: !prefs.newChores })}><span className="knob" /></button>
+          </div>}
           {settings.features.lists && <div className="toggle-row">
             <label>{t('List updates')}</label>
             <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label={t('List updates')} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+          </div>}
+          {settings.features.school && <div className="toggle-row">
+            <div>
+              <label id="push-school-label">{t('School reminders')}</label>
+              <div className="settings-row-sub" id="push-school-sub">{t('Before the bus and before a school drop-off or pickup, on school days.')}</div>
+            </div>
+            <button className={`switch ${prefs.schoolReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.schoolReminders !== false} aria-labelledby="push-school-label" aria-describedby="push-school-sub" onClick={() => savePrefs({ schoolReminders: prefs.schoolReminders === false })}><span className="knob" /></button>
           </div>}
           {settings.features.outings !== false && <div className="toggle-row">
             <div>
@@ -1141,41 +1194,6 @@ function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: bo
         </div>
       ))}
     </Section>
-  )
-}
-
-/** "Send a message now": pushes to devices following the picked members and lands in everyone's
- * notification feed. Also opened from the header bell's sheet (Notifications.tsx). */
-export function SendMessageForm({ onSent }: { onSent?: () => void }) {
-  const { members, toast } = useApp()
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [memberIds, setMemberIds] = useState<string[]>([])
-  const [sending, setSending] = useState(false)
-  const send = async () => {
-    if (!title.trim() || !body.trim()) return
-    setSending(true)
-    try {
-      const result = await api.sendNotification({ title: title.trim(), body: body.trim(), memberIds: memberIds.length ? memberIds : undefined })
-      toast(tn(result.sent, 'Sent to {n} device', 'Sent to {n} devices'))
-      setTitle(''); setBody('')
-      onSent?.()
-    } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not send'), true) } finally { setSending(false) }
-  }
-  return (
-    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 10 }}>
-      <div className="settings-row-label">{t('Send a message')}</div>
-      <div className="field" style={{ margin: 0 }}>
-        <label>{t('Title')}</label>
-        <input type="text" aria-label={t('Title')} value={title} onChange={e => setTitle(e.target.value)} placeholder={t("Dinner's ready")} />
-      </div>
-      <div className="field" style={{ margin: 0 }}>
-        <label>{t('Message')}</label>
-        <input type="text" aria-label={t('Message')} value={body} onChange={e => setBody(e.target.value)} placeholder={t('Come to the kitchen 🍝')} />
-      </div>
-      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label={tc('message', 'To')} noneLabel={t('Everyone')} />
-      <button className="btn btn-primary" onClick={send} disabled={sending || !title.trim() || !body.trim()}>{t('Send now')}</button>
-    </div>
   )
 }
 
@@ -1425,7 +1443,7 @@ function LanguageSection() {
     try { await api.setMemberLanguage(me.id, next); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not save the language'), true) } finally { setSaving(false) }
   }
   return (
-    <Section id="language" title={t('Language')} keywords={['Language', 'Sprache', 'English', 'Deutsch']}>
+    <Section id="language" title={t('Language on this device')} keywords={['Language', 'Sprache', 'English', 'Deutsch']}>
       <div className="settings-row">
         <div>
           <label className="settings-row-label" htmlFor="language-select">{t('Language')}</label>
@@ -3101,7 +3119,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
 
   return (
     <Section id="passkeys" title={t('Parent devices')} icon={<KeyIcon width={16} height={16} />} keywords={[t('Passkeys')]}>
-      <p className="settings-row-sub">{t('Phones and computers that sign in with a passkey. Parents (admins) can change everything.')}</p>
+      <p className="settings-row-sub">{t('Phones and computers that sign in with a passkey. Parents can change everything.')}</p>
       {inFrame() && <p className="settings-row-sub">{t("Inside Home Assistant's panel, some browsers won't add a passkey.")} <a className="text-link" href={location.href} target="_blank" rel="noopener">{t('Open Kinwall in its own tab')}</a>{t(' to add one.')}</p>}
       {me.kind === 'session' && (
         <div className="settings-row">
@@ -3469,23 +3487,6 @@ export function OwnerSelect({ value, onChange, members, id, label }: { value: st
   )
 }
 
-/** "What is this device?" for a paired device: the family's wall screen or a kid's device (which
- * kid), in one picker. Never a grown-up's: whoever approves a code mustn't get a key that opens a
- * grown-up's private journal. Value: 'wall' or kid:memberId (wallScreen.ts deviceKindValue); ''
- * (only with `legacy`) for one paired before anyone said, or as a grown-up's (needs a fix). */
-export function DeviceKindSelect({ value, onChange, members, id, label, legacy }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string; legacy?: boolean }) {
-  const ctx = useContext(AppContext)
-  const list = members ?? ctx?.members ?? []
-  const kids = list.filter(m => !m.grownUp)
-  return (
-    <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      {legacy && <option value="" disabled>{t('Pick one')}</option>}
-      <option value="wall">🖼️ {t('Shared (whole family)')}</option>
-      {kids.length > 0 && <optgroup label={t("A kid's device")}>{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {t("{name}'s device", { name: m.name })}</option>)}</optgroup>}
-    </select>
-  )
-}
-
 // 'grownup': paired as a grown-up's before that was refused. It no longer opens their journal.
 const KIND_GROUPS: { kind: DeviceKind | null; title: string; sub?: string }[] = [
   { kind: 'grownup', title: msg('Needs a fix'), sub: msg("Paired as a grown-up's device, which isn't allowed any more: it no longer opens their journal. Make it a wall screen or a kid's device, or remove it and sign in there with a passkey.") },
@@ -3517,10 +3518,10 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
       await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setCode('')
       setAdding(false)
-      toast(t('Display paired'))
+      toast(t('Device added'))
       load()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : t('Could not pair display'), true)
+      toast(e instanceof ApiError ? e.message : t("Couldn't add the device"), true)
     } finally {
       setBusy(false)
     }
@@ -3542,7 +3543,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   }
   const revoke = async (k: ApiKey) => {
     if (!await dialog.confirm({ title: t('Remove "{name}"?', { name: k.name }), body: widgetsUnder(all, { keyId: k.id }).length ? t('It will be signed out and need pairing again. So will its widgets and Watch.') : t('It will be signed out and need pairing again.'), confirmLabel: t('Remove'), danger: true })) return
-    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t('Could not revoke display'), true) }
+    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't remove the device"), true) }
   }
 
   return (

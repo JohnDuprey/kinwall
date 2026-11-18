@@ -114,6 +114,8 @@ const DoseSchema = z
 const DueSchema = z
   .object({
     names: z.boolean().openapi({ description: 'false: a shared wall with names off; name and dose are null ("Meds").' }),
+    checkedAt: z.string().datetime().openapi({ description: 'Server time used for the answer.' }),
+    recheckAt: z.string().datetime().openapi({ description: 'Next dose start, visible snooze expiry, window end or household midnight. Refetch then, and on household changes.' }),
     doses: z.array(z.object({
       medicationId: z.string(), memberId: z.string(), date: z.string(), time: z.string().openapi({ description: 'HH:MM, or "wake".' }), dueAt: z.string(),
       startedAt: z.string().nullable(), until: z.string().openapi({ description: 'When its late window closes.' }), name: z.string().nullable(), dose: z.string().nullable(),
@@ -138,7 +140,7 @@ export const WAKE = 'wake'; // a "When I start my day" dose's key in the log and
 /** A dose time's key: its HH:MM, or WAKE. */
 export const timeKey = (t: DoseTime) => (typeof t === 'string' ? t : WAKE);
 const wakeOf = (m: Pick<Medication, 'times'>) => m.times.find((t) => typeof t !== 'string');
-export type MedRow = { id: string; member_id: string; data: string; created_at: string; updated_at: string };
+export type MedRow = { id: string; member_id: string; data: string; created_at: string; updated_at: string; log_revision?: number };
 type LogRow = { medication_id: string; date: string; log: string; updated_at: string };
 
 const dataAad = (id: string) => `${id}:data`;
@@ -150,14 +152,29 @@ export async function openMedication(env: EncryptionEnv & { DB: KinwallDb }, r: 
   // Times sealed before "When I start my day" are plain "HH:MM"; now { at } or { wake, latest }. Written back in the new shape.
   const times = (d.times as (string | { at: string } | { wake: true; latest: string })[]).map((t) => (typeof t === 'string' ? t : 'at' in t ? t.at : { wake: true as const, latest: t.latest }));
   const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, lateWindow: d.lateWindow ?? '3h', dosesLeft: null, refill: { ...NO_REFILL, ...d.refill }, refillRequest: d.refillRequest ?? null, createdAt: r.created_at, updatedAt: r.updated_at };
-  return withDosesLeft(env, m);
+  return withDosesLeft(env, m, r);
 }
-/** dosesLeft for a medicine with totalDoses: counts every taken dose in its log. */
-export async function withDosesLeft(env: EncryptionEnv & { DB: KinwallDb }, m: Medication): Promise<Medication> {
+// Only decrypted counts in memory, scoped to this database. The SQL counter changes for every
+// log write, including imports; ciphertext changes invalidate edits and recreated medicines too.
+const takenCounts = new WeakMap<KinwallDb, Map<string, { revision: number; data: string; key: string | undefined; count: Promise<number> }>>();
+/** dosesLeft for a counted course. History is opened once per log revision, never persisted unsealed. */
+export async function withDosesLeft(env: EncryptionEnv & { DB: KinwallDb }, m: Medication, row?: MedRow): Promise<Medication> {
   if (m.totalDoses == null) return { ...m, dosesLeft: null };
-  const { results } = await env.DB.prepare('SELECT * FROM medication_log WHERE medication_id = ?').bind(m.id).all<LogRow>();
-  const taken = (await Promise.all(results.map((r) => openLog(env, r)))).reduce((n, log) => n + Object.values(log).filter((e) => e.status === 'taken').length, 0);
-  return { ...m, dosesLeft: Math.max(0, m.totalDoses - taken) };
+  let cache = takenCounts.get(env.DB);
+  if (!cache) { cache = new Map(); takenCounts.set(env.DB, cache); }
+  let saved = cache.get(m.id);
+  if (!row || row.log_revision === undefined || saved?.revision !== row.log_revision || saved.data !== row.data || saved.key !== env.ENCRYPTION_KEY) {
+    const count = (async () => {
+      const { results } = await env.DB.prepare('SELECT * FROM medication_log WHERE medication_id = ?').bind(m.id).all<LogRow>();
+      return (await Promise.all(results.map((r) => openLog(env, r)))).reduce((n, log) => n + Object.values(log).filter((e) => e.status === 'taken').length, 0);
+    })();
+    saved = { revision: row?.log_revision ?? -1, data: row?.data ?? '', key: env.ENCRYPTION_KEY, count };
+    if (cache.size >= 128 && !cache.has(m.id)) cache.delete(cache.keys().next().value!);
+    cache.set(m.id, saved);
+    const entry = saved;
+    count.catch(() => { if (cache.get(m.id) === entry) cache.delete(m.id); });
+  }
+  return { ...m, dosesLeft: Math.max(0, m.totalDoses - await saved.count) };
 }
 export const sealLog = (env: EncryptionEnv, id: string, date: string, log: DoseLog) => seal(env, JSON.stringify(log), logAad(id, date));
 export const openLog = async (env: EncryptionEnv, r: LogRow): Promise<DoseLog> => JSON.parse(await unseal(env, r.log, logAad(r.medication_id, r.date)));
@@ -277,7 +294,7 @@ const OFF = { error: 'Medications are turned off (Settings → General → Featu
 
 /** Who's asking (see the top of the file), or why they may not. */
 /** The settings these routes use (parsed as routes/settings.ts readSettings does), by key: every open
- * screen asks GET /api/medications/due each minute, and readSettings reads every settings row (hosted
+ * screen asks GET /api/medications/due on changes and dose deadlines; readSettings reads every settings row (hosted
  * is billed per row read). */
 export async function medSettings(db: KinwallDb) {
   const { results } = await db
@@ -466,18 +483,23 @@ medicationsRoutes.openapi(
     const yesterday = addDays(g.today, -1);
     const logs = await loadLogs(c.env, meds.map((m) => m.id), yesterday, g.today);
     const now = Date.now();
+    let recheck = doseAt(addDays(g.today, 1), '00:00', g.tz);
     const doses = meds.flatMap((m) => [yesterday, g.today].flatMap((date) => (scheduledOn(m, date) ? m.times : []).flatMap((t) => {
       const time = timeKey(t);
       const e = logs.get(`${m.id}:${date}`)?.[time];
       const at = dueAt(t, date, g.tz, e);
       const end = windowEnd(m.lateWindow, date, at, g.tz);
       const mine = viewer ? e?.snoozedFor?.[viewer] : undefined;
-      if (doseStatus(at, end, e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now) || (mine && Date.parse(mine) > now)) return [];
+      if (e?.status) return [];
+      const start = Math.max(at, Date.parse(e?.snoozedUntil ?? '') || at, Date.parse(mine ?? '') || at);
+      if (start < end && start > now) recheck = Math.min(recheck, start);
+      if (doseStatus(at, end, e, now) !== 'due' || start > now) return [];
+      recheck = Math.min(recheck, end);
       return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date(at).toISOString(), startedAt: e?.startedAt ?? null, until: new Date(end).toISOString(), name: names ? m.name : null, dose: names ? m.dose : null }];
     })));
     const order = new Map((await c.env.DB.prepare('SELECT id FROM members ORDER BY sort, created_at').all<{ id: string }>()).results.map((r, i) => [r.id, i]));
     doses.sort((a, b) => a.dueAt.localeCompare(b.dueAt) || (order.get(a.memberId) ?? 0) - (order.get(b.memberId) ?? 0));
-    return c.json({ names, doses }, 200);
+    return c.json({ names, doses, checkedAt: new Date(now).toISOString(), recheckAt: new Date(recheck).toISOString() }, 200);
   },
 );
 

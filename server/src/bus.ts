@@ -8,7 +8,9 @@ import { queueTaskSync } from './tasks/sync.ts';
 import { refreshRoutineDevices, routineRefreshQuery, type RoutineRefreshSub } from './routine-refresh.ts';
 
 export type BusEventType =
+  | 'weekly-plan.changed'
   | 'announcement.changed'
+  | 'inbox.changed'
   | 'contact.changed'
   | 'contact.category.changed'
   | 'recipe.changed'
@@ -19,6 +21,7 @@ export type BusEventType =
   | 'calendar.synced'
   | 'events.changed'
   | 'chore.changed'
+  | 'chore.dismissal.changed'
   | 'chore.completed'
   | 'chore.uncompleted'
   | 'chore.pending'
@@ -51,6 +54,7 @@ export type BusEventType =
   | 'poll.changed'
   | 'outing.changed'
   | 'upkeep.changed'
+  | 'school.changed'
   | 'upkeep.done'
   | 'upkeep.due'
   | 'display.paired'
@@ -60,7 +64,7 @@ type WebhookRow = { id: string; url: string; events: string; secret: string };
 
 type RevArea = 'events' | 'lists' | 'chores';
 // Changes that can't touch events, calendars, members, lists or chores bump no area.
-const NO_AREA = new Set<BusEventType>(['announcement.changed', 'contact.changed', 'contact.category.changed', 'recipe.changed', 'restaurant.changed', 'outing.changed', 'upkeep.changed', 'upkeep.done', 'upkeep.due', 'journal.changed', 'tracker.changed', 'photo.changed', 'newscast.posted', 'newscast.changed', 'plugin.action']);
+const NO_AREA = new Set<BusEventType>(['announcement.changed', 'inbox.changed', 'contact.changed', 'contact.category.changed', 'recipe.changed', 'restaurant.changed', 'outing.changed', 'upkeep.changed', 'upkeep.done', 'upkeep.due', 'school.changed', 'journal.changed', 'tracker.changed', 'photo.changed', 'newscast.posted', 'newscast.changed', 'plugin.action']);
 
 /** Which per-area rev (GET /api/rev `revs`) a change bumps, so a sync client refetches only that
  * part. 'events' is everything else that isn't lists or chores (calendars, members, settings, meals). */

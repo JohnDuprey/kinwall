@@ -3,6 +3,7 @@
 // PairingGate/PairPhoneScreen, Settings) shares the same capability check and error handling.
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { api, ApiError } from './api.ts'
+import { passkeyErrorText } from './failureMessage.ts'
 import { t } from './i18n.ts'
 
 /** Unset = browser default (usually Face ID / Touch ID); 'cross-platform' = a hardware security
@@ -23,10 +24,8 @@ export function inFrame(): boolean {
 }
 
 function friendlyError(e: unknown): string {
-  if (e instanceof ApiError) return e.message
-  if (inFrame() && e instanceof Error && e.name !== 'AbortError') return t("Your browser won't add a passkey inside this panel. Open Kinwall in its own tab and add it there.")
-  if (e instanceof Error && e.name === 'NotAllowedError') return t('Cancelled.')
-  return e instanceof Error ? e.message : t('Passkey action failed.')
+  if (inFrame() && e instanceof Error && !(e instanceof ApiError) && e.name !== 'AbortError') return t("Your browser won't add a passkey inside this panel. Open Kinwall in its own tab and add it there.")
+  return passkeyErrorText(e)
 }
 
 /** Registers a new passkey. `token` authorizes registration from a device with no key yet (the

@@ -9,7 +9,7 @@ import type { KinwallDb } from '../db.ts';
 import { emit } from '../bus.ts';
 import { isValidRrule } from '../recurrence.ts';
 import { ChoreSchema, EmojiSchema, ErrorSchema } from '../schemas.ts';
-import { choreRepeatError, insertChore, toApi as choreToApi, type ChoreRow } from './chores.ts';
+import { announceNewChore, choreRepeatError, insertChore, toApi as choreToApi, type ChoreRow } from './chores.ts';
 
 export const choreLibraryRoutes = createRouter();
 
@@ -313,6 +313,7 @@ choreLibraryRoutes.openapi(
       library_id: id,
     };
     await insertChore(c.env.DB, row);
+    await announceNewChore(c, row);
     emit(c, 'chore.changed', { id: row.id, libraryId: id });
     return c.json(choreToApi(row), 201);
   },

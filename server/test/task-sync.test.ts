@@ -150,7 +150,7 @@ async function setup(tz = 'America/New_York') {
   globalThis.fetch = (async (input: unknown, init: RequestInit = {}) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.hostname === 'api.todoist.com') return todoist.handle(url, init);
-    if (url.hostname.endsWith('googleapis.com')) return google.handle(url, init);
+    if (['www.googleapis.com', 'tasks.googleapis.com', 'oauth2.googleapis.com'].includes(url.hostname)) return google.handle(url, init);
     if (url.hostname === 'graph.microsoft.com' || url.hostname === 'login.microsoftonline.com') return ms.handle(url, init);
     return new Response('', { status: 404 });
   }) as typeof fetch;
