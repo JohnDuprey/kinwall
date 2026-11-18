@@ -5,8 +5,8 @@ import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { addDayKeys } from './library.ts'
 import { ApiError } from './apiError.ts'
-import { DEFAULT_YEAR_START, schoolYearOf, schoolYearRange, weekOf } from './school.ts'
-import type { Chore, SchoolGrade, SchoolKid, SchoolLog, SchoolSubject } from './types.ts'
+import { DEFAULT_YEAR_START, onDay, schoolYearOf, schoolYearRange, weekOf } from './school.ts'
+import type { Chore, SchoolDay, SchoolDayKind, SchoolGrade, SchoolKid, SchoolLog, SchoolSubject } from './types.ts'
 
 const today = dateKey(new Date())
 const copy = <T,>(x: T): T => structuredClone(x)
@@ -17,9 +17,9 @@ let subjects: SchoolSubject[] = ([
   ['ss-history', 'History', '🏛️', '#B07A3B'], ['ss-art', 'Art', '🎨', '#A06BE0'], ['ss-music', 'Music', '🎵', '#3B9FC8'], ['ss-pe', 'PE', '⚽', '#E0A431'],
 ] as const).map(([id, name, emoji, color], sort) => ({ id, name, emoji, color, sort, archived: false }))
 
-const kidBase = { dayStart: null, dayEnd: null, schoolDays: [1, 2, 3, 4, 5], calendarId: null, schoolContactId: null, teacherName: null, teacherEmail: null, teacherLink: null, contactIds: [], terms: 3, yearGoalHours: null, yearGoalDays: null, dailyGoalMinutes: null, yearStart: DEFAULT_YEAR_START, toSchoolBy: null, toSchoolTime: null, fromSchoolBy: null, fromSchoolTime: null }
+const kidBase = { dayStart: null, dayEnd: null, schoolDays: [1, 2, 3, 4, 5], calendarIds: [] as string[], halfDayEnd: null, halfFromSchoolTime: null, lastDay: null, schoolContactId: null, teacherName: null, teacherEmail: null, teacherLink: null, contactIds: [], terms: 3, yearGoalHours: null, yearGoalDays: null, dailyGoalMinutes: null, yearStart: DEFAULT_YEAR_START, toSchoolBy: null, toSchoolTime: null, fromSchoolBy: null, fromSchoolTime: null }
 let kids: SchoolKid[] = [
-  { ...kidBase, memberId: 'm3', mode: 'enrolled', grade: '3rd', approveLogs: false, dayStart: '08:15', dayEnd: '15:05', calendarId: 'c2', schoolContactId: 'contact-school', teacherName: 'Ms. Okafor', teacherEmail: 'okafor@example.org', teacherLink: 'https://www.classdojo.com/', contactIds: [], yearStart: '08-24', toSchoolBy: 'bus', toSchoolTime: '07:35', fromSchoolBy: 'm1', fromSchoolTime: '15:05' },
+  { ...kidBase, memberId: 'm3', mode: 'enrolled', grade: '3rd', approveLogs: false, dayStart: '08:15', dayEnd: '15:05', calendarIds: ['c2'], halfDayEnd: '12:05', halfFromSchoolTime: '12:15', lastDay: `${schoolYearOf(today, '08-24') + 1}-06-11`, schoolContactId: 'contact-school', teacherName: 'Ms. Okafor', teacherEmail: 'okafor@example.org', teacherLink: 'https://www.classdojo.com/', contactIds: [], yearStart: '08-24', toSchoolBy: 'bus', toSchoolTime: '07:35', fromSchoolBy: 'm1', fromSchoolTime: '15:05' },
   { ...kidBase, memberId: 'm4', mode: 'home', grade: '1st', approveLogs: true, yearGoalHours: 600, yearGoalDays: 180, dailyGoalMinutes: 180 },
 ]
 // Maya's first-term report card (grownups only; the demo is a parent's device unless kinwall.demoKid says otherwise).
@@ -93,6 +93,11 @@ export async function mockSchoolRequest(path: string, options: RequestInit) {
     if (method === 'PATCH') { Object.assign(s, body); return copy(s) }
     subjects = subjects.filter(x => x.id !== id); logs.forEach(l => { if (l.subjectId === id) l.subjectId = null }); return { ok: true }
   }
+  if (what === 'days') {
+    // A grown-up's mark for a kid's day: PUT /api/school/days/{memberId}/{date}.
+    if (method === 'PUT') { const key = `${id}:${action}`; if (body.kind) marks[key] = body.kind; else delete marks[key]; return { ok: true } }
+    return schoolDays(q.get('from')!, q.get('to')!)
+  }
   if (what === 'kids') {
     if (action === 'terms-used') return { highestTerm: Math.max(0, ...grades.filter(g => g.memberId === id).map(g => g.term), ...cards.filter(c => c.memberId === id).map(c => c.term)) }
     if (method === 'GET') return copy(mock.demoKid() ? kids.map(k => ({ ...k, teacherEmail: null, teacherLink: null })) : kids) // like the server: parents' devices only
@@ -137,4 +142,33 @@ export async function mockSchoolRequest(path: string, options: RequestInit) {
   if (action === 'approve') { logs.filter(l => ids.includes(l.id)).forEach(l => { l.pending = false }); return { ok: true } }
   logs = logs.filter(l => !ids.includes(l.id))
   return { ok: true }
+}
+
+// School days, simplified from the server's school-days.ts: the family's day rules over each kid's
+// school calendars, a grown-up's marks, weekends, summer after the last day, and the countdown.
+let marks: Record<string, 'school' | 'half' | 'off'> = {}
+const norm = (x: string) => ` ${x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `
+async function schoolDays(from: string, to: string) {
+  const { rules } = (await mock.getSettings()).school ?? { rules: [] }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const all = await mock.getEvents(`${addDayKeys(today, -400)}T00:00:00Z`, `${addDayKeys(today, 400)}T00:00:00Z`)
+  const classify = (k: SchoolKid, d: string): SchoolDay => {
+    const found = (kind: string) => all.find(e => k.calendarIds.includes(e.calendarId) && onDay(e, d, tz) && rules.some(r => r.kind === kind && norm(e.title).includes(norm(r.words))))
+    const year = schoolYearRange(schoolYearOf(d, k.yearStart), k.yearStart)
+    const lastDay = k.lastDay && k.lastDay >= year.from && k.lastDay <= year.to ? k.lastDay : null
+    const base = { memberId: k.memberId, date: d, last: d === lastDay, reason: null, marked: false }
+    const mark = marks[`${k.memberId}:${d}`]
+    if (mark) return { ...base, kind: mark, marked: true }
+    if (lastDay && d > lastDay) return { ...base, kind: 'summer' }
+    if (!k.schoolDays.includes(new Date(`${d}T12:00:00`).getDay())) return { ...base, kind: 'weekend' }
+    const off = found('off'), half = found('half')
+    if (off) return { ...base, kind: 'off', reason: off.title }
+    return half ? { ...base, kind: 'half', reason: half.title } : { ...base, kind: 'school' as SchoolDayKind }
+  }
+  const days: SchoolDay[] = [], left: { memberId: string; lastDay: string; left: number }[] = []
+  for (const k of kids) {
+    for (let d = from; d <= to; d = addDayKeys(d, 1)) days.push(classify(k, d))
+    if (k.lastDay && k.lastDay >= today) { let n = 0; for (let d = today; d <= k.lastDay; d = addDayKeys(d, 1)) { const c = classify(k, d).kind; if (c === 'school' || c === 'half') n++ } left.push({ memberId: k.memberId, lastDay: k.lastDay, left: n }) }
+  }
+  return { days, left }
 }

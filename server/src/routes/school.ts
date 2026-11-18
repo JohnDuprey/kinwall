@@ -23,6 +23,7 @@ import { ErrorSchema } from '../schemas.ts';
 import { stored, words } from '../i18n.ts';
 import { readFeatures, readSettings } from './settings.ts';
 import { todayInTz } from './members.ts';
+import { classifyDay, lastDayOf, loadSchoolDays, schoolDaysLeft } from '../school-days.ts';
 
 export const schoolRoutes = createRouter();
 
@@ -45,7 +46,10 @@ export const SchoolKidSchema = z
     toSchoolBy: z.string().nullable().openapi({ description: 'How they get to school on schoolDays: "bus", or the id of the grown-up who drops them off.' }), toSchoolTime: z.string().nullable().openapi({ description: 'The bus picks them up, or the drop-off, "HH:MM".' }),
     fromSchoolBy: z.string().nullable().openapi({ description: 'How they get home: "bus", or the id of the grown-up who picks them up.' }), fromSchoolTime: z.string().nullable().openapi({ description: 'The bus drops them off, or the pickup, "HH:MM".' }),
     schoolDays: z.array(z.number().int()).openapi({ description: 'Weekdays school meets, 0 = Sunday (default Monday to Friday).' }),
-    calendarId: z.string().nullable().openapi({ description: "The calendar the school publishes (days off, early release): its events show on the kid's School day." }),
+    calendarIds: z.array(z.string()).openapi({ description: "The calendars the school and district publish (days off, early release): their events show on the kid's School day, and the family's day rules read them." }),
+    halfDayEnd: z.string().nullable().openapi({ description: 'A half day (early release) ends, "HH:MM".' }),
+    halfFromSchoolTime: z.string().nullable().openapi({ description: 'On a half day, the bus drops them off, or the pickup, "HH:MM".' }),
+    lastDay: z.string().nullable().openapi({ description: 'The last day of school, "YYYY-MM-DD", when their calendars don\'t say (a "Last Day of School" event).' }),
     schoolContactId: z.string().nullable().openapi({ description: 'Their school, a contact (the number to call, for the teacher too).' }),
     teacherName: z.string().nullable().openapi({ description: "Their teacher's name." }),
     teacherEmail: z.string().nullable().openapi({ description: "Their teacher's email. Parents' devices only (null on a wall or kid's device)." }),
@@ -61,7 +65,7 @@ const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 08:1
 const KidInputSchema = z.object({
   mode: z.enum(['home', 'enrolled']), grade: z.string().trim().max(30).nullable().optional(), approveLogs: z.boolean().optional(),
   dayStart: HHMM.nullable().optional(), dayEnd: HHMM.nullable().optional(), toSchoolBy: z.string().nullable().optional(), toSchoolTime: HHMM.nullable().optional(), fromSchoolBy: z.string().nullable().optional(), fromSchoolTime: HHMM.nullable().optional(), schoolDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
-  calendarId: z.string().nullable().optional(), schoolContactId: z.string().nullable().optional(), teacherName: z.string().trim().max(80).nullable().optional(), teacherEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal('')), teacherLink: z.string().trim().max(500).regex(/^https?:\/\//i, 'A link starting with http:// or https://').nullable().optional().or(z.literal('')), contactIds: z.array(z.string()).max(20).optional(), terms: z.number().int().min(1).max(12).optional(),
+  calendarIds: z.array(z.string()).max(10).optional(), halfDayEnd: HHMM.nullable().optional(), halfFromSchoolTime: HHMM.nullable().optional(), lastDay: DAY.nullable().optional(), schoolContactId: z.string().nullable().optional(), teacherName: z.string().trim().max(80).nullable().optional(), teacherEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal('')), teacherLink: z.string().trim().max(500).regex(/^https?:\/\//i, 'A link starting with http:// or https://').nullable().optional().or(z.literal('')), contactIds: z.array(z.string()).max(20).optional(), terms: z.number().int().min(1).max(12).optional(),
   yearGoalHours: z.number().int().min(1).max(5000).nullable().optional(), yearGoalDays: z.number().int().min(1).max(366).nullable().optional(), dailyGoalMinutes: z.number().int().min(1).max(1440).nullable().optional(),
   yearStart: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, 'Use a date like 08-24.').refine((v) => { const [m, d] = v.split('-').map(Number); return d <= new Date(Date.UTC(2001, m, 0)).getUTCDate(); }, 'That day isn’t in that month.').optional(),
 });
@@ -109,12 +113,12 @@ const off = async (c: Ctx) => !(await readFeatures(c.env.DB)).school;
 const isParent = async (c: Ctx) => (await requestKey(c))?.scope !== 'display';
 
 type SubjectRow = { id: string; name: string; emoji: string | null; color: string; sort: number; archived: number; goal_hours: number | null };
-type KidRow = { member_id: string; mode: 'home' | 'enrolled'; grade: string | null; approve_logs: number; day_start: string | null; day_end: string | null; to_school_by: string | null; to_school_time: string | null; from_school_by: string | null; from_school_time: string | null; school_days: string; calendar_id: string | null; school_contact_id: string | null; teacher_name: string | null; teacher_email: string | null; teacher_link: string | null; contact_ids: string; terms: number; year_goal_hours: number | null; year_goal_days: number | null; daily_goal_minutes: number | null; year_start: string };
+type KidRow = { member_id: string; mode: 'home' | 'enrolled'; grade: string | null; approve_logs: number; day_start: string | null; day_end: string | null; to_school_by: string | null; to_school_time: string | null; from_school_by: string | null; from_school_time: string | null; school_days: string; calendar_ids: string; half_day_end: string | null; half_from_school_time: string | null; last_day: string | null; school_contact_id: string | null; teacher_name: string | null; teacher_email: string | null; teacher_link: string | null; contact_ids: string; terms: number; year_goal_hours: number | null; year_goal_days: number | null; daily_goal_minutes: number | null; year_start: string };
 type GradeRow = { id: string; member_id: string | null; former_member?: string | null; year: number; term: number; subject_id: string; grade: string; updated_at: string };
 const json = <T,>(v: string, fallback: T): T => { try { return JSON.parse(v) as T } catch { return fallback } };
 type LogRow = { id: string; group_id: string; member_id: string | null; former_member?: string | null; subject_id: string | null; date: string; minutes: number; title: string | null; notes: string | null; pending: number; created_by: string | null; created_at: string; updated_at: string; chore_id?: string | null; chore_date?: string | null; photo_id?: string | null };
 const toSubject = (r: SubjectRow) => ({ id: r.id, name: r.name, emoji: r.emoji, color: r.color, sort: r.sort, archived: !!r.archived, goalHours: r.goal_hours ?? null });
-const toKid = (r: KidRow) => ({ memberId: r.member_id, mode: r.mode, grade: r.grade, approveLogs: !!r.approve_logs, dayStart: r.day_start, dayEnd: r.day_end, toSchoolBy: r.to_school_by ?? null, toSchoolTime: r.to_school_time ?? null, fromSchoolBy: r.from_school_by ?? null, fromSchoolTime: r.from_school_time ?? null, schoolDays: json<number[]>(r.school_days, [1, 2, 3, 4, 5]), calendarId: r.calendar_id, schoolContactId: r.school_contact_id ?? null, teacherName: r.teacher_name ?? null, teacherEmail: r.teacher_email ?? null, teacherLink: r.teacher_link ?? null, contactIds: json<string[]>(r.contact_ids, []), terms: r.terms, yearGoalHours: r.year_goal_hours ?? null, yearGoalDays: r.year_goal_days ?? null, dailyGoalMinutes: r.daily_goal_minutes ?? null, yearStart: r.year_start ?? DEFAULT_YEAR_START });
+const toKid = (r: KidRow) => ({ memberId: r.member_id, mode: r.mode, grade: r.grade, approveLogs: !!r.approve_logs, dayStart: r.day_start, dayEnd: r.day_end, toSchoolBy: r.to_school_by ?? null, toSchoolTime: r.to_school_time ?? null, fromSchoolBy: r.from_school_by ?? null, fromSchoolTime: r.from_school_time ?? null, schoolDays: json<number[]>(r.school_days, [1, 2, 3, 4, 5]), calendarIds: json<string[]>(r.calendar_ids, []), halfDayEnd: r.half_day_end ?? null, halfFromSchoolTime: r.half_from_school_time ?? null, lastDay: r.last_day ?? null, schoolContactId: r.school_contact_id ?? null, teacherName: r.teacher_name ?? null, teacherEmail: r.teacher_email ?? null, teacherLink: r.teacher_link ?? null, contactIds: json<string[]>(r.contact_ids, []), terms: r.terms, yearGoalHours: r.year_goal_hours ?? null, yearGoalDays: r.year_goal_days ?? null, dailyGoalMinutes: r.daily_goal_minutes ?? null, yearStart: r.year_start ?? DEFAULT_YEAR_START });
 export const toGrade = (r: GradeRow) => ({ id: r.id, memberId: r.member_id, formerMember: r.former_member ?? null, year: r.year, term: r.term, subjectId: r.subject_id, grade: r.grade, updatedAt: r.updated_at });
 export const toSchoolLog = (r: LogRow) => ({ id: r.id, groupId: r.group_id, memberId: r.member_id, formerMember: r.former_member ?? null, subjectId: r.subject_id, date: r.date, minutes: r.minutes, title: r.title, notes: r.notes, pending: !!r.pending, createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at, choreId: r.chore_id ?? null, choreDate: r.chore_date ?? null, photoId: r.photo_id ?? null });
 
@@ -270,13 +274,13 @@ schoolRoutes.openapi(
     const input = c.req.valid('json');
     const db = c.env.DB;
     if (!(await db.prepare('SELECT id FROM members WHERE id = ?').bind(id).first())) return c.json({ error: 'member not found' }, 404);
-    if (input.calendarId && !(await db.prepare('SELECT id FROM calendars WHERE id = ?').bind(input.calendarId).first())) return c.json({ error: 'calendar not found' }, 400);
+    if (input.calendarIds?.length && ((await db.prepare('SELECT COUNT(*) AS n FROM calendars WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify([...new Set(input.calendarIds)])).first<{ n: number }>())?.n ?? 0) !== new Set(input.calendarIds).size) return c.json({ error: 'calendar not found' }, 400);
     if (input.schoolContactId && !(await db.prepare('SELECT id FROM contacts WHERE id = ?').bind(input.schoolContactId).first())) return c.json({ error: 'contact not found' }, 400);
     for (const by of [input.toSchoolBy, input.fromSchoolBy]) if (by && by !== 'bus' && !(await db.prepare('SELECT id FROM members WHERE id = ? AND grown_up = 1').bind(by).first())) return c.json({ error: stored('error', 'Pick the bus or a grown-up.') }, 400);
     if (input.contactIds?.length && ((await db.prepare('SELECT COUNT(*) AS n FROM contacts WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify([...new Set(input.contactIds)])).first<{ n: number }>())?.n ?? 0) !== new Set(input.contactIds).size) return c.json({ error: 'contact not found' }, 400);
     // Only the fields sent change; a new kid starts with the table's defaults.
     const cols: [string, unknown][] = [['mode', input.mode], ['grade', input.grade === undefined ? undefined : input.grade || null], ['approve_logs', input.approveLogs === undefined ? undefined : input.approveLogs ? 1 : 0],
-      ['day_start', input.dayStart], ['day_end', input.dayEnd], ['to_school_by', input.toSchoolBy], ['to_school_time', input.toSchoolTime], ['from_school_by', input.fromSchoolBy], ['from_school_time', input.fromSchoolTime], ['school_days', input.schoolDays && JSON.stringify([...new Set(input.schoolDays)].sort())], ['calendar_id', input.calendarId], ['school_contact_id', input.schoolContactId], ['teacher_name', input.teacherName === undefined ? undefined : input.teacherName || null], ['teacher_email', input.teacherEmail === undefined ? undefined : input.teacherEmail || null], ['teacher_link', input.teacherLink === undefined ? undefined : input.teacherLink || null],
+      ['day_start', input.dayStart], ['day_end', input.dayEnd], ['to_school_by', input.toSchoolBy], ['to_school_time', input.toSchoolTime], ['from_school_by', input.fromSchoolBy], ['from_school_time', input.fromSchoolTime], ['school_days', input.schoolDays && JSON.stringify([...new Set(input.schoolDays)].sort())], ['calendar_ids', input.calendarIds && JSON.stringify([...new Set(input.calendarIds)])], ['half_day_end', input.halfDayEnd], ['half_from_school_time', input.halfFromSchoolTime], ['last_day', input.lastDay], ['school_contact_id', input.schoolContactId], ['teacher_name', input.teacherName === undefined ? undefined : input.teacherName || null], ['teacher_email', input.teacherEmail === undefined ? undefined : input.teacherEmail || null], ['teacher_link', input.teacherLink === undefined ? undefined : input.teacherLink || null],
       ['contact_ids', input.contactIds && JSON.stringify([...new Set(input.contactIds)])], ['terms', input.terms], ['year_goal_hours', input.yearGoalHours], ['year_goal_days', input.yearGoalDays], ['daily_goal_minutes', input.dailyGoalMinutes], ['year_start', input.yearStart]];
     const set = cols.filter(([, v]) => v !== undefined);
     const now = new Date().toISOString();
@@ -410,6 +414,57 @@ schoolRoutes.openapi(
     else await db.prepare('DELETE FROM school_report_cards WHERE member_id = ? AND year = ? AND term = ?').bind(b.memberId, b.year, b.term).run();
     if (was && was !== b.photoId) await dropSchoolPhotos(c, [was]);
     emit(c, 'school.changed', { id: b.memberId, kind: 'report-card' });
+    return c.json({ ok: true }, 200);
+  },
+);
+
+// ---- School days -------------------------------------------------------------------------------
+// Each kid's days (school-days.ts): a school day, a half day, none (a day off, a weekend, summer), and
+// the countdown to the last day of school. A grown-up's mark for one day wins over the calendars.
+
+export const SchoolDaySchema = z.object({
+  memberId: z.string(), date: z.string(),
+  kind: z.enum(['school', 'half', 'off', 'weekend', 'summer']).openapi({ description: 'half: early release (halfDayEnd). weekend: not one of their schoolDays. summer: after their last day of school, until the next school year.' }),
+  reason: z.string().nullable().openapi({ description: 'The school calendar event that made it a day off or a half day.' }),
+  last: z.boolean().openapi({ description: 'The last day of school.' }),
+  marked: z.boolean().openapi({ description: 'A grown-up marked this day, over what the calendars say.' }),
+}).openapi('SchoolDay');
+const SchoolDaysSchema = z.object({
+  days: z.array(SchoolDaySchema),
+  left: z.array(z.object({ memberId: z.string(), lastDay: z.string(), left: z.number().int().openapi({ description: 'School days and half days from today through the last day.' }) })),
+}).openapi('SchoolDays');
+const DaysQuery = z.object({ from: DAY, to: DAY }).refine((q) => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 62 * 86400000, 'choose an ordered range of at most 63 days');
+
+schoolRoutes.openapi(
+  createRoute({ method: 'get', path: '/api/school/days', tags: ['School'], summary: "Each kid's school days from `from` to `to` (at most 63), from their school calendars, the family's day rules (settings.school) and grown-ups' marks, with the school days left this year", security: [{ Bearer: [] }], request: { query: DaysQuery }, responses: { 200: res('days', SchoolDaysSchema), 400: errors[400], 404: errors[404] } }),
+  async (c) => {
+    if (await off(c)) return c.json(OFF, 404);
+    const { from, to } = c.req.valid('query');
+    const db = c.env.DB;
+    const { kids, settings, tz } = await loadSchoolDays(db, from, to);
+    const today = todayInTz(tz);
+    const days = [], left = [];
+    for (const [memberId, kid] of kids) for (let d = from; d <= to; d = new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)) days.push({ memberId, ...classifyDay(kid, d, settings.rules, tz) });
+    // The countdown reads the calendars from today to the furthest last day, once.
+    const lasts = [...kids.values()].map(k => lastDayOf(k, today, settings.rules, tz)).filter((d): d is string => !!d && d >= today).sort();
+    if (lasts.length) {
+      const wide = await loadSchoolDays(db, today, lasts[lasts.length - 1]);
+      for (const [memberId, kid] of wide.kids) { const count = schoolDaysLeft(kid, today, settings.rules, tz); if (count) left.push({ memberId, ...count }); }
+    }
+    return c.json({ days, left }, 200);
+  },
+);
+
+schoolRoutes.openapi(
+  createRoute({ method: 'put', path: '/api/school/days/{id}/{date}', tags: ['School'], summary: "Mark one kid's day as a school day, a half day or no school (parents), over what the calendars say; kind null clears the mark. id is the member's", security: [{ Bearer: [] }], request: { params: z.object({ id: z.string(), date: DAY }), body: body(z.object({ kind: z.enum(['school', 'half', 'off']).nullable() })) }, responses: { 200: ok, ...errors } }),
+  async (c) => {
+    if (await off(c)) return c.json(OFF, 404);
+    const { id, date } = c.req.valid('param');
+    const { kind } = c.req.valid('json');
+    const db = c.env.DB;
+    if (!(await db.prepare('SELECT member_id FROM school_kids WHERE member_id = ?').bind(id).first())) return c.json({ error: 'not in school' }, 404);
+    await (kind ? db.prepare('INSERT INTO school_day_marks (member_id, date, kind) VALUES (?, ?, ?) ON CONFLICT(member_id, date) DO UPDATE SET kind = excluded.kind').bind(id, date, kind) : db.prepare('DELETE FROM school_day_marks WHERE member_id = ? AND date = ?').bind(id, date)).run();
+    emit(c, 'school.changed', { id, kind: 'day', date });
     return c.json({ ok: true }, 200);
   },
 );

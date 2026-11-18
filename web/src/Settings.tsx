@@ -893,7 +893,7 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeAnyone: false, choreNudgeTime: '08:00', newChores: false, listUpdates: false, outingReminders: true, upkeepReminders: true, medicationNames: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeAnyone: false, choreNudgeTime: '08:00', newChores: false, listUpdates: false, schoolReminders: true, outingReminders: true, upkeepReminders: true, medicationNames: false }
 
 function AnyoneChoreReminder({ on, change }: { on: boolean; change: (on: boolean) => void }) {
   return <div className="toggle-row">
@@ -1121,6 +1121,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
           {settings.features.lists && <div className="toggle-row">
             <label>{t('List updates')}</label>
             <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label={t('List updates')} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+          </div>}
+          {settings.features.school && <div className="toggle-row">
+            <div>
+              <label id="push-school-label">{t('School reminders')}</label>
+              <div className="settings-row-sub" id="push-school-sub">{t('Before the bus and before a school drop-off or pickup, on school days.')}</div>
+            </div>
+            <button className={`switch ${prefs.schoolReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.schoolReminders !== false} aria-labelledby="push-school-label" aria-describedby="push-school-sub" onClick={() => savePrefs({ schoolReminders: prefs.schoolReminders === false })}><span className="knob" /></button>
           </div>}
           {settings.features.outings !== false && <div className="toggle-row">
             <div>

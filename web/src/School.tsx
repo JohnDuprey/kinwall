@@ -30,7 +30,7 @@ import { csv, DEFAULT_YEAR_START, groups, kidTotals, onDay, schoolYearOf, school
 import PickField from './PickField.tsx'
 import { formatTime } from './timeFormat.ts'
 import type { Contact } from './contact-types.ts'
-import type { CalendarEntry, ChoreDay, EventInstance, Member, SchoolGrade, SchoolRecords, SchoolKid, SchoolKind, SchoolLog, SchoolMode, SchoolSubject } from './types.ts'
+import type { CalendarEntry, ChoreDay, EventInstance, Member, SchoolDay, SchoolDayKind, SchoolDayRule, SchoolDays, SchoolGrade, SchoolRecords, SchoolKid, SchoolKind, SchoolLog, SchoolMode, SchoolSettings, SchoolSubject } from './types.ts'
 import './meals.css'
 import './outings.css'
 import './school.css'
@@ -80,15 +80,16 @@ export default function School() {
   const [view, setView] = useState<'today' | 'week' | 'log' | 'grades' | 'records'>('today')
   const narrow = useMediaQuery('(max-width:900px)') // Week: a list by day on a phone or portrait tablet, the grid when seven days fit
   const [work, setWork] = useState<ChoreDay | 'new' | null>(null)
+  const [marking, setMarking] = useState<string | null>(null) // the day a grown-up is marking (no school, a half day)
   // Schoolwork is chores with a subject: the shown week's days, and today, each with what's done.
   const [days, setDays] = useState<Record<string, ChoreDay[]>>({})
   // Today's school day: each linked school calendar's events, the lunch, and the school and teachers.
-  const [dayInfo, setDayInfo] = useState<{ events: Record<string, EventInstance[]>; lunch: string[]; contacts: Contact[] }>({ events: {}, lunch: [], contacts: [] })
-  const kidsKey = JSON.stringify(data?.kids.map(k => [k.calendarId, k.schoolContactId, k.contactIds, k.mode]) ?? [])
+  const [dayInfo, setDayInfo] = useState<{ events: Record<string, EventInstance[]>; lunch: string[]; contacts: Contact[]; school: SchoolDays }>({ events: {}, lunch: [], contacts: [], school: { days: [], left: [] } })
+  const kidsKey = JSON.stringify(data?.kids.map(k => [k.calendarIds, k.schoolContactId, k.contactIds, k.mode, k.lastDay, k.schoolDays, k.yearStart]) ?? [])
   useEffect(() => {
     if (!data) return
     let canceled = false
-    const cals = [...new Set(data.kids.map(k => k.calendarId).filter((x): x is string => !!x))]
+    const cals = [...new Set(data.kids.flatMap(k => k.calendarIds))]
     // The shown week and today: Today's card and the Week grid both show the school calendar.
     const first = who.today < week.from ? who.today : week.from, last = who.today > week.to ? who.today : week.to
     const from = new Date(`${first}T00:00:00`), to = new Date(`${last}T23:59:59`)
@@ -96,7 +97,8 @@ export default function School() {
       Promise.all(cals.map(c => api.getEvents(from.toISOString(), to.toISOString(), undefined, c).then(es => [c, es] as const).catch(() => [c, []] as const))),
       data.kids.some(k => k.mode === 'enrolled') && settings.features.meals ? api.getMeals(who.today, who.today).then(ms => ms.filter(m => m.slot === 'lunch').map(m => m.title)).catch(() => []) : Promise.resolve([]),
       data.kids.some(k => k.contactIds.length || k.schoolContactId) && settings.features.contacts !== false ? api.getContacts().catch(() => []) : Promise.resolve([]),
-    ]).then(([events, lunch, contacts]) => { if (!canceled) setDayInfo({ events: Object.fromEntries(events), lunch, contacts }) })
+      api.getSchoolDays(first, last).catch(() => ({ days: [], left: [] })),
+    ]).then(([events, lunch, contacts, school]) => { if (!canceled) setDayInfo({ events: Object.fromEntries(events), lunch, contacts, school }) })
     return () => { canceled = true }
   }, [kidsKey, who.today, week.from, week.to, refreshTick, tick]) // eslint-disable-line react-hooks/exhaustive-deps -- kidsKey stands for data.kids
   useEffect(() => {
@@ -114,6 +116,9 @@ export default function School() {
   if (!data) return <div className="meals-view scroll-y" aria-busy="true" />
   const subject = (id: string | null) => data.subjects.find(s => s.id === id)
   const member = (id: string) => members.find(m => m.id === id)
+  // A kid's school calendars' events on a day (one copy of an event both calendars have), and what kind of day it is.
+  const kidEvents = (k: SchoolKid | undefined, d: string) => [...new Map((k?.calendarIds ?? []).flatMap(c => dayInfo.events[c] ?? []).filter(e => onDay(e, d, tz)).map(e => [e.id + (e.occurrenceStart ?? ''), e])).values()]
+  const dayOf = (memberId: string, d: string) => dayInfo.school.days.find(x => x.memberId === memberId && x.date === d)
   const inSchool = data.kids.map(k => member(k.memberId)).filter((m): m is Member => !!m)
   const totals = kidTotals(data.logs)
   const byDay = groups(data.logs).reduce<[string, LogGroup[]][]>((out, g) => {
@@ -176,16 +181,21 @@ export default function School() {
         const k = data.kids.find(x => x.memberId === m.id)!
         const mine = (days[who.today] ?? []).filter(c => c.memberId === m.id)
         const logged = data.logs.filter(l => l.memberId === m.id && l.date === who.today && !l.pending).reduce((n, l) => n + l.minutes, 0)
-        const schoolDay = k.mode === 'enrolled' && k.schoolDays.includes(new Date(`${who.today}T12:00:00`).getDay())
-        const events = (k.calendarId ? dayInfo.events[k.calendarId] ?? [] : []).filter(e => onDay(e, who.today, tz))
+        const today = dayOf(m.id, who.today)
+        const half = today?.kind === 'half'
+        const schoolDay = k.mode === 'enrolled' && (today ? today.kind === 'school' || half : k.schoolDays.includes(new Date(`${who.today}T12:00:00`).getDay()))
+        const left = dayInfo.school.left.find(l => l.memberId === m.id)
+        const events = kidEvents(k, who.today)
         const school = k.schoolContactId ? dayInfo.contacts.find(c => c.id === k.schoolContactId) : undefined
         const people = k.contactIds.filter(cid => cid !== k.schoolContactId).map(cid => dayInfo.contacts.find(c => c.id === cid)).filter((c): c is Contact => !!c)
         return <div key={m.id} className="school-total">
           <div className="school-total-head"><Face m={m} /><strong>{m.name}</strong><span className="field-hint">{modeLine(k)}</span><span className="school-total-time">{k.dailyGoalMinutes ? t('{time} of {goal}', { time: hoursMinutes(logged), goal: hoursMinutes(k.dailyGoalMinutes) }) : logged ? hoursMinutes(logged) : t('Nothing yet')}</span></div>
+          {(today || left) && <DayNote day={today} left={left} />}
           {(schoolDay && (k.dayStart && k.dayEnd || k.toSchoolBy || k.fromSchoolBy) || events.length > 0 || (schoolDay && dayInfo.lunch.length > 0) || people.length > 0 || school || k.teacherName) && <ul className="school-day">
             {schoolDay && <Leg by={k.toSchoolBy} time={k.toSchoolTime} members={members} bus={time => t('Bus at {time}', { time })} grownUp={(name, time) => t('{name} drops off at {time}', { name, time })} />}
-            {schoolDay && k.dayStart && k.dayEnd && <li><span aria-hidden="true">🕗</span> {t('School {start} to {end}', { start: formatTime(k.dayStart), end: formatTime(k.dayEnd) })}</li>}
-            {schoolDay && <Leg by={k.fromSchoolBy} time={k.fromSchoolTime} members={members} bus={time => t('Bus home at {time}', { time })} grownUp={(name, time) => t('{name} picks up at {time}', { name, time })} />}
+            {schoolDay && k.dayStart && (half ? k.halfDayEnd : k.dayEnd) && <li><span aria-hidden="true">🕗</span> {t('School {start} to {end}', { start: formatTime(k.dayStart), end: formatTime((half ? k.halfDayEnd : k.dayEnd)!) })}</li>}
+            {schoolDay && (!half || k.halfFromSchoolTime) && <Leg by={k.fromSchoolBy} time={half ? k.halfFromSchoolTime : k.fromSchoolTime} members={members} bus={time => t('Bus home at {time}', { time })} grownUp={(name, time) => t('{name} picks up at {time}', { name, time })} />}
+            {schoolDay && half && k.fromSchoolBy && !k.halfFromSchoolTime && <li><span aria-hidden="true">⚠️</span> {t('Early release: check the time home. Set it in Set up.')}</li>}
             {events.map(e => <li key={e.id + (e.occurrenceStart ?? '')}><span aria-hidden="true">📅</span> {e.title}</li>)}
             {schoolDay && dayInfo.lunch.map((l, i) => <li key={i}><span aria-hidden="true">🍽️</span> {t('Lunch: {meal}', { meal: l })}</li>)}
             {(school || k.teacherName) && <li><span aria-hidden="true">{k.teacherName ? '🧑‍🏫' : '🏫'}</span> {k.teacherName && school ? t('{teacher}, {school}', { teacher: k.teacherName, school: school.name }) : k.teacherName ? t('Teacher: {name}', { name: k.teacherName }) : school!.name}{school && <Phone c={school} />}</li>}
@@ -195,9 +205,10 @@ export default function School() {
             {people.map(c => <li key={c.id}><span aria-hidden="true">📇</span> {c.name}<Phone c={c} /></li>)}
           </ul>}
           {mine.length ? <div className="school-today">{mine.map(c => <WorkRow key={c.id} c={c} subject={subject(c.schoolSubjectId ?? null)} onToggle={() => void toggle(c, who.today)} onEdit={who.parent ? () => setWork(c) : undefined} />)}</div>
-            : <p className="field-hint">{t('No schoolwork today.')}</p>}
+            : <p className="field-hint">{today && (today.kind === 'off' || today.kind === 'summer') ? t('No school today.') : t('No schoolwork today.')}</p>}
         </div>
       })}</div>}
+      {view === 'today' && who.parent && <p><button type="button" className="btn btn-secondary school-mark" onClick={() => setMarking(who.today)}>{t('Change today')}</button> <span className="field-hint">{t('A snow day, a make-up day or an early release the calendars don’t have.')}</span></p>}
 
       {view === 'records' && who.parent && <Records kids={data.kids} members={members} subjects={data.subjects} today={who.today} />}
       {view === 'grades' && who.parent && <Grades kids={data.kids.filter(k => k.mode === 'enrolled')} members={members} subjects={data.subjects} today={who.today} />}
@@ -212,14 +223,16 @@ export default function School() {
       {view === 'week' && narrow && <div className="school-plan-list">{dayKeys(week.from).map(d => {
         const rows = inSchool.map(m => {
           const k = data.kids.find(x => x.memberId === m.id)
-          const events = (k?.calendarId ? dayInfo.events[k.calendarId] ?? [] : []).filter(e => onDay(e, d, tz))
+          const events = kidEvents(k, d)
           const work = (days[d] ?? []).filter(c => c.memberId === m.id)
-          return { m, events, work }
-        }).filter(r => r.events.length || r.work.length)
+          const day = dayOf(m.id, d)
+          return { m, events, work, day }
+        }).filter(r => r.events.length || r.work.length || noteworthy(r.day))
         return <section key={d} className={`school-plan-list-day ${d === who.today ? 'today' : ''}`} aria-labelledby={`school-wk-${d}`}>
-          <h2 id={`school-wk-${d}`}>{longDay(d)}{d === who.today && <small> · {t('Today')}</small>}</h2>
-          {!rows.length ? <p className="field-hint">{t('Nothing planned.')}</p> : rows.map(({ m, events, work }) => <div key={m.id} className="school-plan-list-kid">
+          <div className="school-plan-list-head"><h2 id={`school-wk-${d}`}>{longDay(d)}{d === who.today && <small> · {t('Today')}</small>}</h2>{who.parent && <button type="button" className="btn btn-secondary school-mark" aria-label={t('Change {day}', { day: longDay(d) })} onClick={() => setMarking(d)}>{t('Change day')}</button>}</div>
+          {!rows.length ? <p className="field-hint">{t('Nothing planned.')}</p> : rows.map(({ m, events, work, day }) => <div key={m.id} className="school-plan-list-kid">
             <span className="school-plan-kid"><Face m={m} /> {m.name}</span>
+            {noteworthy(day) && <DayChip day={day!} />}
             {events.map(e => <span key={e.id + (e.occurrenceStart ?? '')} className="school-plan-event"><span aria-hidden="true">📅</span> {e.title}</span>)}
             {work.map(c => <WorkRow key={c.id} c={c} compact subject={subject(c.schoolSubjectId ?? null)} onToggle={() => void toggle(c, d)} onEdit={who.parent ? () => setWork(c) : undefined} />)}
           </div>)}
@@ -227,11 +240,14 @@ export default function School() {
       })}</div>}
       {view === 'week' && !narrow && <div className="school-plan-wrap"><div className="school-plan" style={{ gridTemplateColumns: `minmax(72px, auto) repeat(7, minmax(92px, 1fr))` }}>
         <span />
-        {dayKeys(week.from).map(d => <strong key={d} className={`school-plan-day ${d === who.today ? 'today' : ''}`}>{shortDay(d)}</strong>)}
+        {dayKeys(week.from).map(d => who.parent
+          ? <button key={d} type="button" className={`school-plan-day ${d === who.today ? 'today' : ''}`} aria-label={t('Change {day}', { day: longDay(d) })} onClick={() => setMarking(d)}>{shortDay(d)}</button>
+          : <strong key={d} className={`school-plan-day ${d === who.today ? 'today' : ''}`}>{shortDay(d)}</strong>)}
         {inSchool.map(m => <Fragment key={m.id}>
           <span className="school-plan-kid"><Face m={m} /> {m.name}</span>
           {dayKeys(week.from).map(d => <div key={d} className={`school-plan-cell ${d === who.today ? 'today' : ''}`}>
-            {(data.kids.find(k => k.memberId === m.id)?.calendarId ? dayInfo.events[data.kids.find(k => k.memberId === m.id)!.calendarId!] ?? [] : []).filter(e => onDay(e, d, tz))
+            {noteworthy(dayOf(m.id, d)) && <DayChip day={dayOf(m.id, d)!} />}
+            {kidEvents(data.kids.find(k => k.memberId === m.id), d)
               .map(e => <span key={e.id + (e.occurrenceStart ?? '')} className="school-plan-event"><span aria-hidden="true">📅</span> {e.title}</span>)}
             {(days[d] ?? []).filter(c => c.memberId === m.id).map(c => <WorkRow key={c.id} c={c} compact subject={subject(c.schoolSubjectId ?? null)} onToggle={() => void toggle(c, d)} onEdit={who.parent ? () => setWork(c) : undefined} />)}
           </div>)}
@@ -264,6 +280,7 @@ export default function School() {
     {editing && <LogSheet kids={inSchool} subjects={data.subjects.filter(s => !s.archived || s.id === editing.first.subjectId)} editing={editing} onDelete={() => void remove(editing)} onClose={() => setEditing(null)} />}
     {work && <WorkSheet kids={inSchool} subjects={data.subjects.filter(s => !s.archived || (work !== 'new' && s.id === work.schoolSubjectId))} work={work === 'new' ? null : work} onClose={() => setWork(null)} />}
     {setup && <SetupSheet subjects={data.subjects} kids={data.kids} onClose={() => setSetup(false)} />}
+    {marking && <MarkDaySheet date={marking} kids={inSchool} days={dayInfo.school.days.filter(x => x.date === marking)} onClose={() => setMarking(null)} />}
   </div>
 }
 
@@ -366,6 +383,87 @@ function Leg({ by, time, members, bus, grownUp }: { by?: string | null; time?: s
   return <li><span aria-hidden="true">{by === 'bus' ? '🚌' : '🚗'}</span> {by === 'bus' ? bus(when) : grownUp(who!.name, when)}</li>
 }
 
+// ---- School days (server: school-days.ts) --------------------------------------------------------
+
+/** A day worth a label: no school, a half day, summer, or the last day. Weekends and plain school days aren't. */
+const noteworthy = (d?: SchoolDay) => !!d && (d.kind === 'off' || d.kind === 'half' || d.kind === 'summer' || d.last)
+const DAY_EMOJI: Record<SchoolDayKind, string> = { school: '🎒', half: '⏰', off: '🏖️', weekend: '🛋️', summer: '☀️' }
+const dayLabel = (d: SchoolDay) => d.last && (d.kind === 'school' || d.kind === 'half') ? t('Last day of school') : d.kind === 'half' ? t('Early release') : d.kind === 'off' ? t('No school') : d.kind === 'summer' ? t('Summer break') : d.kind === 'weekend' ? t('Not a school day') : t('School day')
+
+/** A day's label in a Week cell: "🏖️ No school", "⏰ Early release". */
+function DayChip({ day }: { day: SchoolDay }) {
+  return <span className={`school-day-chip school-day-${day.kind}`} title={day.reason ?? undefined}><span aria-hidden="true">{day.last ? '🎉' : DAY_EMOJI[day.kind]}</span> {dayLabel(day)}</span>
+}
+
+/** Today's note on a kid's card: what kind of day it is (and why), and the school days left this year. */
+function DayNote({ day, left }: { day?: SchoolDay; left?: { left: number } }) {
+  const show = noteworthy(day)
+  if (!show && !left) return null
+  return <p className="school-day-note">
+    {show && <DayChip day={day!} />}
+    {show && day!.reason && <span className="field-hint"> {day!.reason}</span>}
+    {show && day!.marked && <span className="field-hint"> {t('(marked by a grown-up)')}</span>}
+    {left && day?.kind !== 'summer' && <span className="school-days-left">{tn(left.left, '{n} school day left', '{n} school days left')}</span>}
+  </p>
+}
+
+/** A grown-up marks one day for each kid: a school day, early release or no school, over what the calendars say (a snow day). */
+function MarkDaySheet({ date, kids, days, onClose }: { date: string; kids: Member[]; days: SchoolDay[]; onClose: () => void }) {
+  const { toast } = useApp()
+  const id = useId()
+  const mark = async (m: Member, kind: string) => {
+    try { await api.markSchoolDay(m.id, date, (kind || null) as 'school' | 'half' | 'off' | null); changed() } catch (e) { toast(err(e, t('Could not save.')), true) }
+  }
+  return <Sheet title={longDay(date)} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>}>
+    <p className="field-hint">{t('For a snow day, a make-up day or an early release the calendars don’t have.')}</p>
+    {kids.map(m => {
+      const d = days.find(x => x.memberId === m.id)
+      return <div key={m.id} className="field"><label htmlFor={`${id}-${m.id}`}><ChipFace m={m} /> {m.name}</label>
+        <select id={`${id}-${m.id}`} className="settings-select" value={d?.marked ? d.kind : ''} onChange={e => void mark(m, e.target.value)}>
+          <option value="">{d && !d.marked ? t('As the calendars say: {kind}', { kind: dayLabel(d) }) : t('As the calendars say')}</option>
+          <option value="school">{t('School day')}</option><option value="half">{t('Early release')}</option><option value="off">{t('No school')}</option>
+        </select></div>
+    })}
+  </Sheet>
+}
+
+const RULE_KINDS = [{ key: 'off', label: msg('No school') }, { key: 'half', label: msg('Early release') }, { key: 'last', label: msg('Last day of school') }] as const
+const LEAD_MINUTES = [5, 10, 15, 20, 30, 45, 60]
+/** The family's day rules (settings.school): words in a school calendar's event that make it a day off, a half day or the last day; and reminder times. */
+function DayRules() {
+  const { settings, reloadCore, toast } = useApp()
+  const id = useId()
+  const school: SchoolSettings = settings.school ?? { rules: [], busMinutes: 10, pickupMinutes: 15 }
+  const [words, setWords] = useState('')
+  const [kind, setKind] = useState<SchoolDayRule['kind']>('off')
+  const save = async (patch: Partial<SchoolSettings>) => {
+    try { await api.updateSettings({ school: { ...school, ...patch } }); reloadCore() } catch (e) { toast(err(e, t('Could not save.')), true) }
+  }
+  const add = () => { const w = words.trim(); if (!w) return; void save({ rules: [...school.rules, { words: w, kind }] }); setWords('') }
+  return <>
+    <h3>{t('Days off and early release')}</h3>
+    <p className="field-hint">{t('An event on a kid’s school calendars with these words makes that day no school, early release or the last day of school. Schoolwork is skipped on days with no school, and so are bus and pickup reminders.')}</p>
+    {RULE_KINDS.map(rk => <div key={rk.key} className="field"><label id={`${id}-${rk.key}`}>{tm(rk.label)}</label>
+      <div className="chip-row" role="group" aria-labelledby={`${id}-${rk.key}`}>{school.rules.map((r, i) => r.kind === rk.key && <button key={i} type="button" className="chip school-rule" aria-label={t('Remove “{words}”', { words: r.words })} onClick={() => void save({ rules: school.rules.filter((_, j) => j !== i) })}>{r.words} <span aria-hidden="true">×</span></button>)}</div>
+    </div>)}
+    <form className="school-rule-add" onSubmit={e => { e.preventDefault(); add() }}>
+      <input type="text" aria-label={t('Words to look for')} placeholder={t('Words, like Snow Day')} maxLength={60} value={words} onChange={e => setWords(e.target.value)} />
+      <select className="settings-select" aria-label={t('What they mean')} value={kind} onChange={e => setKind(e.target.value as SchoolDayRule['kind'])}>{RULE_KINDS.map(rk => <option key={rk.key} value={rk.key}>{tm(rk.label)}</option>)}</select>
+      <button type="submit" className="btn btn-secondary" disabled={!words.trim()}><PlusIcon /> {t('Add')}</button>
+    </form>
+    <h3>{t('Bus and pickup reminders')}</h3>
+    <div className="meal-form-row">
+      <div className="field"><label htmlFor={`${id}-bus`}>{t('Before the bus')}</label>
+        <select id={`${id}-bus`} className="settings-select" value={school.busMinutes ?? ''} onChange={e => void save({ busMinutes: e.target.value ? Number(e.target.value) : null })}>
+          <option value="">{t('No reminder')}</option>{LEAD_MINUTES.map(n => <option key={n} value={n}>{tn(n, '{n} minute before', '{n} minutes before')}</option>)}</select></div>
+      <div className="field"><label htmlFor={`${id}-pickup`}>{t('Before a drop-off or pickup')}</label>
+        <select id={`${id}-pickup`} className="settings-select" value={school.pickupMinutes ?? ''} onChange={e => void save({ pickupMinutes: e.target.value ? Number(e.target.value) : null })}>
+          <option value="">{t('No reminder')}</option>{LEAD_MINUTES.map(n => <option key={n} value={n}>{tn(n, '{n} minute before', '{n} minutes before')}</option>)}</select></div>
+    </div>
+    <p className="field-hint">{t('Kids on the same bus at the same time get one reminder. The bus reminder goes to grown-ups and the kids’ own devices; a pickup goes to the grown-up doing it. On iPhone, the Kinwall app can show a countdown on the Lock Screen.')}</p>
+  </>
+}
+
 /** A link's site, for its label: https://www.classdojo.com/… → classdojo.com. */
 const linkName = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
 
@@ -421,6 +519,7 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
   const [startTime, setStartTime] = useState(work?.dueTime && /^\d{2}:\d{2}$/.test(work.dueTime) ? work.dueTime : '')
   const [timerMinutes, setTimerMinutes] = useState<number | null>(work?.timerMinutes ?? null)
   const [needsApproval, setNeedsApproval] = useState<boolean | null>(work?.needsApproval ?? null)
+  const [daysOff, setDaysOff] = useState(!!work?.schoolDaysOff)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const subject = subjects.find(s => s.id === subjectId)
@@ -437,7 +536,7 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
     if (!scheduleValid) { setError(t('Check when it’s due.')); return }
     setBusy(true); setError('')
     const schedule = scheduleBody({ rrule: work ? work.rrule : LESSON_DAYS, dueDate: work?.dueDate ?? who.today }, sched, schedTouched || !work, dueDate)
-    const body = { title: title.trim(), emoji: subject?.emoji ?? '🎒', schoolSubjectId: subjectId, schoolKind: kind, schoolMinutes: minutes, points, ...schedule, repeatGoal, dueTime: startTime || null, timerMinutes, needsApproval }
+    const body = { title: title.trim(), emoji: subject?.emoji ?? '🎒', schoolSubjectId: subjectId, schoolKind: kind, schoolMinutes: minutes, schoolDaysOff: daysOff, points, ...schedule, repeatGoal, dueTime: startTime || null, timerMinutes, needsApproval }
     try {
       if (work) await api.updateChore(work.id, body)
       else await api.createChore({ ...body, memberIds: picked })
@@ -465,6 +564,8 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
         </div>}
         {work?.groupId && <p className="field-hint">{t('Changes apply to every kid who has it.')}</p>}
         <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={who.today} onChange={editSched} onStart={setDueDate} />
+        <label className="school-check"><input type="checkbox" checked={daysOff} onChange={e => setDaysOff(e.target.checked)} /> {t('Still due on days off')}</label>
+        <p className="field-hint">{t('Otherwise it’s skipped on a day with no school, like a holiday or summer break.')}</p>
         <div className="field"><label id={`${id}-min`}>{t('School time it counts for, in minutes')}</label>
           <div className="suggest-stepper school-stepper" role="group" aria-labelledby={`${id}-min`}>
             <button type="button" className="icon-btn" aria-label={t('5 minutes less')} disabled={minutes <= 5} onClick={() => setMinutes(Math.max(5, minutes - 5))}><MinusIcon width={20} height={20} /></button>
@@ -759,6 +860,10 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
                 onBlur={e => { if ((e.target.value || null) !== (k[timeKey] ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, [timeKey]: e.target.value || null })) }} /></div>}
             </div>
           })}
+          <div className="meal-form-row">
+            <div className="field"><label htmlFor={`${id}-${m.id}-hend`}>{t('Early release ends')}</label><input id={`${id}-${m.id}-hend`} type="time" defaultValue={k.halfDayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfDayEnd ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfDayEnd: e.target.value || null })) }} /></div>
+            {k.fromSchoolBy && <div className="field"><label htmlFor={`${id}-${m.id}-hhome`}>{k.fromSchoolBy === 'bus' ? t('Bus home on early release') : t('Pickup on early release')}</label><input id={`${id}-${m.id}-hhome`} type="time" defaultValue={k.halfFromSchoolTime ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.halfFromSchoolTime ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, halfFromSchoolTime: e.target.value || null })) }} /></div>}
+          </div>
           <div className="field"><label id={`${id}-${m.id}-days`}>{t('School days')}</label>
             <div className="chip-row" role="group" aria-labelledby={`${id}-${m.id}-days`}>{weekOrder.map(d => <button key={d} type="button" className={`chip ${k.schoolDays.includes(d) ? 'active' : ''}`} aria-pressed={k.schoolDays.includes(d)}
               onClick={() => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolDays: k.schoolDays.includes(d) ? k.schoolDays.filter(x => x !== d) : [...k.schoolDays, d] }))}>{formatDate(new Date(2023, 0, 1 + d), { weekday: 'short' })}</button>)}</div>
@@ -778,11 +883,13 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
               onBlur={e => { const v = e.target.value ? Math.min(max, Math.max(1, Math.round(Number(e.target.value)))) : null; if (v !== (k[key] ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, [key]: v })) }} /></div>)}
         </div>}
         {k && <>
-          <div className="field"><label htmlFor={`${id}-${m.id}-cal`}>{t('School calendar')}</label>
-            <select id={`${id}-${m.id}-cal`} className="settings-select" value={k.calendarId ?? ''} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, calendarId: e.target.value || null }))}>
-              <option value="">{t('None')}</option>{calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <p className="field-hint">{t('Its events for the day, like early release or no school, show on {name}’s School day.', { name: m.name })}</p></div>
+          <div className="field"><label htmlFor={`${id}-${m.id}-cal`}>{t('School calendars')}</label>
+            <PickField id={`${id}-${m.id}-cal`} label={t('School calendars')} multiple value={k.calendarIds} none={t('None')}
+              options={calendars.map(c => ({ value: c.id, label: c.name }))} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, calendarIds: ids }))} />
+            <p className="field-hint">{t('The school’s and the district’s. Their events show on {name}’s School day, and days off and early release come from them.', { name: m.name })}</p></div>
+          <div className="field"><label htmlFor={`${id}-${m.id}-last`}>{t('Last day of school (optional)')}</label>
+            <input id={`${id}-${m.id}-last`} type="date" defaultValue={k.lastDay ?? ''} onBlur={e => { if ((e.target.value || null) !== (k.lastDay ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, lastDay: e.target.value || null })) }} />
+            <p className="field-hint">{t('Leave it empty to use a “Last day of school” event on the calendars.')}</p></div>
           <div className="field"><label htmlFor={`${id}-${m.id}-school`}>{t('School')}</label>
             <PickField id={`${id}-${m.id}-school`} label={t('School')} search value={k.schoolContactId ? [k.schoolContactId] : []} none={t('None')}
               options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))} />
@@ -806,6 +913,8 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
         </>}
       </div>
     })}</div>
+
+    {kids.length > 0 && <DayRules />}
 
     <h3>{t('Subjects')}</h3>
     <div className="school-subjects">{active.map(s => <div key={s.id} className="school-subject">

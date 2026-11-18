@@ -13,6 +13,7 @@ On the device that should get notifications, go to **Settings → General → No
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
 | **Include Anyone chores** | off | Include shared chores anyone can do in this device’s daily chore reminder. Shown when Chore reminder is on. |
 | **New chores** | off | A push when a new chore is added for someone this device follows or Anyone. Skips chores you add yourself. Independent of the daily chore reminder. |
+| **School reminders** | on | Before the bus and before a school drop-off or pickup, on school days ([School](school.md#bus-and-pickup-reminders)). Kids on the same bus get one. Shown while School is on. |
 | **Outing reminders** | on | Heads-ups for [outings](outings.md#reminders) someone ⭐ (a week before and the day before), ticket dates ("🎟 Get tickets for the sewing class by Tuesday"), and last chances. Shown while Outings is on. |
 | **Home upkeep** | on | [Upkeep](upkeep.md#reminders) jobs coming up, due today and late, and warranties about to end. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |

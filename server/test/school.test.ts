@@ -63,7 +63,7 @@ test('school: subjects and kids are for parents; a wall reads them', async () =>
 
   const put = await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', grade: '3rd', approveLogs: false });
   assert.equal(put.status, 200);
-  assert.deepEqual(put.json, { memberId: t.maya.id, mode: 'enrolled', grade: '3rd', approveLogs: false, dayStart: null, dayEnd: null, schoolDays: [1, 2, 3, 4, 5], calendarId: null, schoolContactId: null, teacherName: null, teacherEmail: null, teacherLink: null, contactIds: [], terms: 3, yearGoalHours: null, yearGoalDays: null, dailyGoalMinutes: null, yearStart: '08-15', toSchoolBy: null, toSchoolTime: null, fromSchoolBy: null, fromSchoolTime: null });
+  assert.deepEqual(put.json, { memberId: t.maya.id, mode: 'enrolled', grade: '3rd', approveLogs: false, dayStart: null, dayEnd: null, schoolDays: [1, 2, 3, 4, 5], calendarIds: [], halfDayEnd: null, halfFromSchoolTime: null, lastDay: null, schoolContactId: null, teacherName: null, teacherEmail: null, teacherLink: null, contactIds: [], terms: 3, yearGoalHours: null, yearGoalDays: null, dailyGoalMinutes: null, yearStart: '08-15', toSchoolBy: null, toSchoolTime: null, fromSchoolBy: null, fromSchoolTime: null });
   assert.equal((await t.req(`/api/school/kids/${t.leo.id}`, 'PUT', { mode: 'home' }, t.wallKey)).status, 403);
   assert.equal((await t.req('/api/school/kids/nobody', 'PUT', { mode: 'home' })).status, 404);
   assert.deepEqual((await t.req('/api/school/kids', 'GET', undefined, t.wallKey)).json.map((k: any) => k.memberId), [t.maya.id]);
@@ -199,9 +199,9 @@ test('school: a kid who goes to a school has hours, days, a calendar, contacts a
   assert.deepEqual([ride.json.toSchoolBy, ride.json.toSchoolTime, ride.json.fromSchoolBy, ride.json.fromSchoolTime], ['bus', '07:35', t.alex.id, '15:05'], 'the bus there, Alex picks her up');
   assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', toSchoolTime: '7:35am' })).status, 400);
   assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', fromSchoolBy: t.leo.id })).status, 400, 'a grown-up, not a kid');
-  const put = await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', grade: '3rd', dayStart: '08:15', dayEnd: '15:05', schoolDays: [1, 2, 3, 4, 5], calendarId: cal.id, schoolContactId: office.id, teacherName: 'Ms. Patel', contactIds: [], terms: 4 });
+  const put = await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', grade: '3rd', dayStart: '08:15', dayEnd: '15:05', schoolDays: [1, 2, 3, 4, 5], calendarIds: [cal.id], schoolContactId: office.id, teacherName: 'Ms. Patel', contactIds: [], terms: 4 });
   assert.equal(put.status, 200, JSON.stringify(put.json));
-  assert.deepEqual([put.json.dayStart, put.json.dayEnd, put.json.schoolDays, put.json.calendarId, put.json.schoolContactId, put.json.teacherName, put.json.terms], ['08:15', '15:05', [1, 2, 3, 4, 5], cal.id, office.id, 'Ms. Patel', 4]);
+  assert.deepEqual([put.json.dayStart, put.json.dayEnd, put.json.schoolDays, put.json.calendarIds, put.json.schoolContactId, put.json.teacherName, put.json.terms], ['08:15', '15:05', [1, 2, 3, 4, 5], [cal.id], office.id, 'Ms. Patel', 4]);
   assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', schoolContactId: 'nope' })).status, 400);
   const reach = await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', teacherEmail: 'patel@example.org', teacherLink: 'https://www.classdojo.com/' });
   assert.deepEqual([reach.json.teacherEmail, reach.json.teacherLink], ['patel@example.org', 'https://www.classdojo.com/']);
@@ -211,11 +211,11 @@ test('school: a kid who goes to a school has hours, days, a calendar, contacts a
   assert.deepEqual([onWall.teacherName, onWall.teacherEmail, onWall.teacherLink], ['Ms. Patel', null, null], "a wall gets the teacher's name, not how to reach them");
   assert.equal((await t.req('/api/school/kids', 'GET', undefined, t.mayaKey)).json[0].teacherEmail, null, "nor Maya's tablet");
   assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', teacherEmail: '' })).json.teacherEmail, null, 'empty clears it');
-  assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', calendarId: 'nope' })).status, 400);
+  assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', calendarIds: ['nope'] })).status, 400);
   assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', contactIds: ['nope'] })).status, 400);
   assert.equal((await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', dayStart: '8am' })).status, 400);
   const kept = (await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', grade: '4th' })).json;
-  assert.deepEqual([kept.dayStart, kept.calendarId, kept.schoolContactId, kept.teacherName, kept.terms, kept.grade, kept.toSchoolTime], ['08:15', cal.id, office.id, 'Ms. Patel', 4, '4th', '07:35'], 'fields left out stay');
+  assert.deepEqual([kept.dayStart, kept.calendarIds, kept.schoolContactId, kept.teacherName, kept.terms, kept.grade, kept.toSchoolTime], ['08:15', [cal.id], office.id, 'Ms. Patel', 4, '4th', '07:35'], 'fields left out stay');
   await t.req(`/api/contacts/${office.id}`, 'DELETE');
   assert.equal((await t.req('/api/school/kids')).json[0].schoolContactId, null, 'a deleted contact is no longer the school');
   assert.equal((await t.req('/api/school/kids', 'GET', undefined, t.wallKey)).json[0].dayStart, '08:15', 'a wall sees the hours');

@@ -71,3 +71,4 @@ export function schoolYears(today: string): number[] {
   const latest = Math.min(2100, Math.max(2000, Number(today.slice(0, 4))))
   return Array.from({ length: latest - 2000 + 1 }, (_, i) => latest - i)
 }
+

@@ -16,7 +16,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
-import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
+import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolDays, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
@@ -421,6 +421,8 @@ export const api = {
   putSchoolKid: (memberId: string, body: SchoolKidInput) => put<SchoolKid>('api/school/kids/' + U(memberId), body),
   getSchoolGrades: (memberId: string, year: number) => get<SchoolGrade[]>('api/school/grades' + qs({ memberId, year: String(year) })),
   putSchoolGrade: (body: { memberId: string; year: number; term: number; subjectId: string; grade: string }) => put<SchoolGrade | null>('api/school/grades', body),
+  getSchoolDays: (from: string, to: string) => get<SchoolDays>('api/school/days' + qs({ from, to })),
+  markSchoolDay: (memberId: string, date: string, kind: 'school' | 'half' | 'off' | null) => put<{ ok: boolean }>('api/school/days/' + U(memberId) + '/' + U(date), { kind }),
   getSchoolTermsUsed: (memberId: string) => get<{ highestTerm: number }>('api/school/kids/' + U(memberId) + '/terms-used'),
   deleteSchoolKid: (memberId: string) => del<{ ok: boolean }>('api/school/kids/' + U(memberId)),
   getSchoolLogs: (q: { from?: string; to?: string; pending?: boolean } = {}) => get<SchoolLog[]>('api/school/logs' + qs({ from: q.from, to: q.to, pending: q.pending ? '1' : undefined })),

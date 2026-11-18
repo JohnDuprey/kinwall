@@ -1,4 +1,5 @@
 import { schoolworkVisibleSql } from '../schoolwork.ts';
+import { schoolworkOff } from '../school-days.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { deviceOwner, requestKey } from '../auth.ts';
@@ -46,7 +47,8 @@ routineModeRoutes.openapi(createRoute({ method: 'get', path: '/api/routine-mode/
   const ids: string[] | null = policy?.required_chore_ids == null ? null : JSON.parse(policy.required_chore_ids);
   const selected = ids?.length ? (await c.env.DB.prepare(ROUTINE_SELECTED_SQL).bind(memberId, JSON.stringify(ids)).all<ChoreRow>()).results : [];
   const selection = routineChoreSelection(ids, JSON.parse(policy?.required_one_time_names ?? '[]'), selected);
-  const chores = active.filter(row => dueOnDate(row, date, timezone)).map(row => ({ id: row.id, title: row.title, oneTime: oneTimeRoutineChore(row), completed: row.completion_status === 'approved', pending: row.completion_status === 'pending' }));
+  const noSchool = await schoolworkOff(c.env.DB, date, date, active);
+  const chores = active.filter(row => dueOnDate(row, date, timezone) && (row.completion_status === 'approved' || row.completion_status === 'pending' || !noSchool(row, date))).map(row => ({ id: row.id, title: row.title, oneTime: oneTimeRoutineChore(row), completed: row.completion_status === 'approved', pending: row.completion_status === 'pending' }));
   c.header('Cache-Control', 'no-store');
   const decision = evaluateRoutine({ enabled: enrollment?.enrolled !== 0 && !!policy?.enabled && (await readFeatures(c.env.DB)).chores, ...selection, appMode: policy?.app_mode ?? 'selected', cutoff: policy?.cutoff ?? '19:30', start: policy?.start ?? '00:00', daySchedules: policy?.day_schedules ? JSON.parse(policy.day_schedules) : undefined, allowedWebsitesOnly: !!policy?.allowed_websites_only, allowedWebDomains: JSON.parse(policy?.allowed_web_domains ?? '[]') as string[], schoolLinkDomains: policy?.school_link_domains == null ? undefined : JSON.parse(policy.school_link_domains) as string[] }, chores, timezone);
   // Older child apps infer future schedule-only grants from an empty ID list. Name rules

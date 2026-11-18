@@ -233,6 +233,8 @@ const ExportSchema = z
     schoolLogs: z.array(SchoolLogSchema),
     schoolGrades: z.array(SchoolGradeSchema),
     schoolReportCards: z.array(z.object({ id: z.string().optional(), memberId: z.string().nullable(), formerMember: z.string().nullable().default(null), year: z.number().int(), term: z.number().int(), photoId: z.string() })),
+    // A grown-up's mark for one kid's day (0154): school, a half day or none, over what the calendars say.
+    schoolDayMarks: z.array(z.object({ memberId: z.string(), date: z.string(), kind: z.enum(['school', 'half', 'off']) })),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
@@ -310,7 +312,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes, school_days_off FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, purpose, restock, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -465,6 +467,7 @@ dataRoutes.openapi(
         schoolLogs: await readLogs(db),
         schoolGrades: await readGrades(db),
         schoolReportCards: (await db.prepare('SELECT id, member_id, former_member, year, term, photo_id FROM school_report_cards ORDER BY member_id, year, term').all<{ id: string; member_id: string | null; former_member: string | null; year: number; term: number; photo_id: string }>()).results.map((r) => ({ id: r.id, memberId: r.member_id, formerMember: r.former_member, year: r.year, term: r.term, photoId: r.photo_id })),
+        schoolDayMarks: (await db.prepare('SELECT member_id, date, kind FROM school_day_marks ORDER BY member_id, date').all<{ member_id: string; date: string; kind: 'school' | 'half' | 'off' }>()).results.map((r) => ({ memberId: r.member_id, date: r.date, kind: r.kind })),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
@@ -540,7 +543,8 @@ const ImportSchema = ExportSchema.extend({
   schoolLogs: ExportSchema.shape.schoolLogs.default([]),
   schoolGrades: ExportSchema.shape.schoolGrades.default([]),
   schoolReportCards: ExportSchema.shape.schoolReportCards.default([]),
-  schoolKids: z.array(SchoolKidSchema.partial({ dayStart: true, dayEnd: true, schoolDays: true, calendarId: true, schoolContactId: true, teacherName: true, teacherEmail: true, teacherLink: true, contactIds: true, terms: true, yearGoalHours: true, yearGoalDays: true, dailyGoalMinutes: true, yearStart: true, toSchoolBy: true, toSchoolTime: true, fromSchoolBy: true, fromSchoolTime: true })).default([]), // older exports lack the newer fields
+  schoolDayMarks: ExportSchema.shape.schoolDayMarks.default([]),
+  schoolKids: z.array(SchoolKidSchema.partial({ dayStart: true, dayEnd: true, schoolDays: true, calendarIds: true, halfDayEnd: true, halfFromSchoolTime: true, lastDay: true, schoolContactId: true, teacherName: true, teacherEmail: true, teacherLink: true, contactIds: true, terms: true, yearGoalHours: true, yearGoalDays: true, dailyGoalMinutes: true, yearStart: true, toSchoolBy: true, toSchoolTime: true, fromSchoolBy: true, fromSchoolTime: true }).extend({ calendarId: z.string().nullable().optional() })).default([]), // older exports lack the newer fields (and had one calendarId)
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
@@ -759,6 +763,7 @@ dataRoutes.openapi(
     const schoolLogs = body.schoolLogs.filter((l) => l.memberId === null || fileMembers.has(l.memberId));
     const schoolGrades = body.schoolGrades.filter((g) => g.memberId === null || fileMembers.has(g.memberId));
     const schoolReportCards = body.schoolReportCards.filter((r) => r.memberId === null || fileMembers.has(r.memberId));
+    const schoolDayMarks = body.schoolDayMarks.filter((m) => fileMembers.has(m.memberId));
     // A member's entries only with that member (they're personal); the family's and removed members' always.
     // A connected app without aiHealthAccess neither adds health entries nor overwrites one by id, nor turns the switch on.
     const healthHidden = !!(await healthBlock(c));
@@ -986,6 +991,7 @@ dataRoutes.openapi(
           school_subject_id: ch.schoolSubjectId ?? null,
           school_kind: ch.schoolKind ?? null,
           school_minutes: ch.schoolMinutes ?? null,
+          school_days_off: ch.schoolDaysOff ? 1 : 0,
         })),
         { ...keepCreated, expr: { member_id: memberRef('member_id'), library_id: "(SELECT id FROM chore_library WHERE id = j.value->>'library_id')", school_subject_id: "(SELECT id FROM school_subjects WHERE id = j.value->>'school_subject_id')" } },
       ),
@@ -1161,9 +1167,10 @@ dataRoutes.openapi(
       db.prepare('DELETE FROM weekly_plan_applies WHERE week_start IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.weeklyPlans.map(p => p.weekStart))),
       ...upserts(db, 'weekly_plans', 'week_start', body.weeklyPlans.map(p => ({ week_start: p.weekStart, revision: p.revision, draft: JSON.stringify(p.draft), applied: JSON.stringify(p.applied) }))),
       ...upserts(db, 'announcements', 'id', body.announcements.map(a => ({ id: a.id, title: a.title, details: a.details, starts_at: new Date(a.startsAt).toISOString(), expires_at: new Date(a.expiresAt).toISOString(), priority: a.priority, created_at: a.createdAt, updated_at: a.updatedAt })), keepCreated),
-      ...upserts(db, 'school_kids', 'member_id', schoolKids.map((k) => ({ member_id: k.memberId, mode: k.mode, grade: k.grade, approve_logs: k.approveLogs ? 1 : 0, day_start: k.dayStart ?? null, day_end: k.dayEnd ?? null, to_school_by: k.toSchoolBy ?? null, to_school_time: k.toSchoolTime ?? null, from_school_by: k.fromSchoolBy ?? null, from_school_time: k.fromSchoolTime ?? null, school_days: JSON.stringify(k.schoolDays ?? [1, 2, 3, 4, 5]), calendar_id: k.calendarId ?? null, school_contact_id: k.schoolContactId ?? null, teacher_name: k.teacherName ?? null, teacher_email: k.teacherEmail ?? null, teacher_link: k.teacherLink ?? null, contact_ids: JSON.stringify(k.contactIds ?? []), terms: k.terms ?? 3, year_goal_hours: k.yearGoalHours ?? null, year_goal_days: k.yearGoalDays ?? null, daily_goal_minutes: k.dailyGoalMinutes ?? null, year_start: k.yearStart ?? DEFAULT_YEAR_START, updated_at: new Date().toISOString() })),
-        { expr: { calendar_id: "(SELECT id FROM calendars WHERE id = j.value->>'calendar_id')", school_contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'school_contact_id')" } }),
+      ...upserts(db, 'school_kids', 'member_id', schoolKids.map((k) => ({ member_id: k.memberId, mode: k.mode, grade: k.grade, approve_logs: k.approveLogs ? 1 : 0, day_start: k.dayStart ?? null, day_end: k.dayEnd ?? null, to_school_by: k.toSchoolBy ?? null, to_school_time: k.toSchoolTime ?? null, from_school_by: k.fromSchoolBy ?? null, from_school_time: k.fromSchoolTime ?? null, school_days: JSON.stringify(k.schoolDays ?? [1, 2, 3, 4, 5]), calendar_ids: JSON.stringify(k.calendarIds ?? (k.calendarId ? [k.calendarId] : [])), half_day_end: k.halfDayEnd ?? null, half_from_school_time: k.halfFromSchoolTime ?? null, last_day: k.lastDay ?? null, school_contact_id: k.schoolContactId ?? null, teacher_name: k.teacherName ?? null, teacher_email: k.teacherEmail ?? null, teacher_link: k.teacherLink ?? null, contact_ids: JSON.stringify(k.contactIds ?? []), terms: k.terms ?? 3, year_goal_hours: k.yearGoalHours ?? null, year_goal_days: k.yearGoalDays ?? null, daily_goal_minutes: k.dailyGoalMinutes ?? null, year_start: k.yearStart ?? DEFAULT_YEAR_START, updated_at: new Date().toISOString() })),
+        { expr: { calendar_ids: "(SELECT json_group_array(c.id) FROM calendars c WHERE c.id IN (SELECT value FROM json_each(j.value->>'calendar_ids')))", school_contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'school_contact_id')" } }),
       ...upserts(db, 'school_grades', 'id', schoolGrades.map((g) => ({ id: g.id, member_id: g.memberId, former_member: g.formerMember ?? null, year: g.year, term: g.term, subject_id: g.subjectId, grade: g.grade, updated_at: g.updatedAt })), { expr: { member_id: memberRef('member_id') }, where: "EXISTS (SELECT 1 FROM school_subjects WHERE id = excluded.subject_id)" }),
+      ...upserts(db, 'school_day_marks', 'member_id, date', schoolDayMarks.map((m) => ({ member_id: m.memberId, date: m.date, kind: m.kind }))),
       ...upserts(db, 'school_report_cards', 'id', schoolReportCards.map((r) => ({ id: r.id ?? crypto.randomUUID(), member_id: r.memberId, former_member: r.formerMember ?? null, year: r.year, term: r.term, photo_id: r.photoId, updated_at: new Date().toISOString() })), { expr: { member_id: memberRef('member_id') } }),
       ...upserts(db, 'school_logs', 'id', schoolLogs.map((l) => ({ id: l.id, group_id: l.groupId, member_id: l.memberId, former_member: l.formerMember ?? null, subject_id: l.subjectId, date: l.date, minutes: l.minutes, title: l.title, notes: l.notes, pending: l.pending ? 1 : 0, created_by: l.createdBy, created_at: l.createdAt, updated_at: l.updatedAt, chore_id: l.choreId ?? null, chore_date: l.choreDate ?? null, photo_id: l.photoId ?? null })),
         { ...keepCreated, expr: { member_id: memberRef('member_id'), subject_id: "(SELECT id FROM school_subjects WHERE id = j.value->>'subject_id')", created_by: memberRef('created_by') } }),
@@ -1218,7 +1225,7 @@ dataRoutes.openapi(
       ['poll.changed', body.polls.length],
       ['outing.changed', body.outings.length + body.outingCategories.length],
       ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
-      ['school.changed', body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length],
+      ['school.changed', body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1265,7 +1272,7 @@ dataRoutes.openapi(
           polls: body.polls.length,
           outings: body.outings.length,
           upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,
-          school: body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length,
+          school: body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

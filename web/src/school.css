@@ -51,6 +51,15 @@
 .school-plan { display: grid; gap: 8px; min-width: 760px; align-items: start; }
 .school-plan-day { text-align: center; font-size: 0.875rem; color: var(--text-dim); padding: 4px 0; }
 .school-plan-day.today { color: var(--text); }
+button.school-plan-day { background: none; border: none; font: inherit; font-weight: 700; min-height: 44px; border-radius: var(--radius-sm); }
+/* School days (school-days.ts): a day's label (no school, early release, summer, the last day) and the countdown. */
+.school-day-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8125rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg-alt); color: var(--text); max-width: 100%; overflow-wrap: anywhere; }
+.school-day-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.school-days-left { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
+.school-mark { flex: none; justify-self: start; }
+.school-plan-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.school-plan-list-head h2 { min-width: 0; }
+.school-plan-list-head .school-mark { padding: 0 14px; font-size: 0.875rem; }
 .school-plan-kid { display: flex; align-items: center; gap: 8px; font-weight: 800; align-self: center; }
 .school-plan-cell { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 6px; min-height: 96px; display: grid; gap: 6px; align-content: start; }
 .school-plan-cell.today { outline: 2px solid var(--accent); }
@@ -118,3 +127,8 @@
 .school-plan-list-day h2 { margin: 16px 0 8px; font-size: 1.0625rem; }
 .school-plan-list-day.today h2 small { color: var(--text-dim); font-weight: 700; }
 .school-plan-list-kid { display: grid; gap: 6px; background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 12px; margin-bottom: 8px; }
+/* The family's day rules (School.tsx DayRules): words as removable tags, and a row to add one. */
+.school-rule { gap: 6px; }
+.school-rule-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; margin-bottom: 16px; }
+.school-rule-add .btn { flex: none; }
+@media (max-width: 560px) { .school-rule-add { grid-template-columns: minmax(0, 1fr) auto; } .school-rule-add input { grid-column: 1 / -1; } }

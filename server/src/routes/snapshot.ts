@@ -1,4 +1,5 @@
 import { schoolworkVisibleSql } from '../schoolwork.ts';
+import { schoolworkOff } from '../school-days.ts';
 import { goalProgressFor } from '../chore-goals.ts';
 // A member's day (or week) at a glance: greeting, weather, their events + everyone's, their chores,
 // their due/important list items, birthdays, and a peek at tomorrow. What the header avatar opens,
@@ -144,9 +145,10 @@ snapshotRoutes.openapi(
     );
     // A feature that's off answers empty, in the same shape (settings.features).
     const goalDays = new Map(await Promise.all(choreDays.map(async date => [date, await goalProgressFor(db, choresRes.results as ChoreRow[], date)] as const)));
+    const noSchool = await schoolworkOff(db, choreDays[0], choreDays[choreDays.length - 1], choresRes.results as ChoreRow[]);
     const chores = !settings.features.chores ? [] : choreDays.flatMap((date) =>
       (choresRes.results as unknown as ChoreRow[])
-        .filter((row) => dueOnDate(row, date, tz) && (!goalDays.get(date)?.get(row.id)?.full || completions.has(`${row.id}:${date}`)))
+        .filter((row) => dueOnDate(row, date, tz) && (completions.has(`${row.id}:${date}`) || !noSchool(row, date)) && (!goalDays.get(date)?.get(row.id)?.full || completions.has(`${row.id}:${date}`)))
         .map((row) => {
           const cc = completions.get(`${row.id}:${date}`);
           // Waiting for a parent's OK is not done yet.
@@ -248,7 +250,8 @@ snapshotRoutes.openapi(
     const completedToday = new Set(todays.filter((r) => r.status === 'approved').map((r) => r.chore_id));
     const pendingToday = new Set(todays.filter((r) => r.status === 'pending').map((r) => r.chore_id));
     const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
-    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && (!goalStates.get(row.id)?.full || completedToday.has(row.id) || pendingToday.has(row.id)));
+    const noSchool = await schoolworkOff(db, today, today, choresRes.results as ChoreRow[]);
+    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && (completedToday.has(row.id) || pendingToday.has(row.id) || !noSchool(row, today)) && (!goalStates.get(row.id)?.full || completedToday.has(row.id) || pendingToday.has(row.id)));
     const byMember = new Map<string | null, ChoreRow[]>();
     for (const row of dueToday) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
     const memberById = new Map(members.map((m) => [m.id, m]));

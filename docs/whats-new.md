@@ -9,8 +9,11 @@ The full list of changes in every version is in the [changelog](https://github.c
 * **School**: a new place for what each kid learns, for kids who are homeschooled and kids who
   go to a school. Log time by subject for one kid or several at once; add lessons, homework, tests
   and projects that kids tick off like chores (with the same repeat options, and optional points);
-  see each kid's school day with their bus or pickup, school hours, the school's calendar, lunch
-  and teacher. Grown-ups get report card grades, records of a school year against hour and day
+  see each kid's school day with their bus or pickup, school hours, the school's and district's
+  calendars, lunch and teacher. Days off, early release and the last day of school come from those
+  calendars (or a grown-up marks one), with early release times and a countdown to summer; bus and
+  pickup reminders go out once for kids on the same bus, with a Lock Screen countdown on iPhone.
+  Grown-ups get report card grades, records of a school year against hour and day
   goals, a photo portfolio and a printable year-end report. Time a kid logs can wait for a
   grown-up's OK. School starts off: turn it on in Settings → General → Features. See
   [School](using/school.md).

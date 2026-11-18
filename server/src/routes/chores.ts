@@ -1,4 +1,5 @@
 import { schoolworkVisibleSql } from '../schoolwork.ts';
+import { schoolworkOff } from '../school-days.ts';
 import { readFeatures, parseFeatures } from './settings.ts';
 import { stored, words } from '../i18n.ts';
 import { createRoute, z } from '@hono/zod-openapi';
@@ -51,6 +52,7 @@ export type ChoreRow = {
   school_subject_id?: string | null; // schoolwork (migration 0151): ticking it logs school time
   school_kind?: string | null;
   school_minutes?: number | null;
+  school_days_off?: number | null;
 };
 
 export function toApi(row: ChoreRow) {
@@ -80,6 +82,7 @@ export function toApi(row: ChoreRow) {
     schoolSubjectId: row.school_subject_id ?? null,
     schoolKind: (row.school_kind ?? null) as 'lesson' | 'homework' | 'test' | 'project' | null,
     schoolMinutes: row.school_minutes ?? null,
+    schoolDaysOff: !!row.school_days_off,
   };
 }
 
@@ -115,9 +118,9 @@ async function checkLibrary(c: { env: Env }, libraryId: string | null | undefine
 function choreInsert(db: Env['DB'], row: ChoreRow) {
   return db
     .prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id, timer_minutes, repeat_goal, group_id, category, ongoing, source_id, school_subject_id, school_kind, school_minutes, school_days_off) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null, row.group_id ?? null, row.category ?? null, row.ongoing ?? 0, row.source_id ?? null, row.school_subject_id ?? null, row.school_kind ?? null, row.school_minutes ?? null);
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null, row.timer_minutes ?? null, row.repeat_goal ?? null, row.group_id ?? null, row.category ?? null, row.ongoing ?? 0, row.source_id ?? null, row.school_subject_id ?? null, row.school_kind ?? null, row.school_minutes ?? null, row.school_days_off ?? 0);
 }
 
 async function checkSubject(c: { env: Env }, subjectId: string | null | undefined): Promise<string | null> {
@@ -255,6 +258,7 @@ choresRoutes.openapi(
       school_subject_id: body.schoolSubjectId ?? null,
       school_kind: body.schoolSubjectId ? body.schoolKind ?? 'lesson' : null,
       school_minutes: body.schoolSubjectId ? body.schoolMinutes ?? null : null,
+      school_days_off: body.schoolSubjectId && body.schoolDaysOff ? 1 : 0,
     };
     const rows = owners.map((m, i) => ({ ...row, id: i ? crypto.randomUUID() : row.id, member_id: m }));
     for (const r of rows) await insertChore(c.env.DB, r);
@@ -341,8 +345,9 @@ choresRoutes.openapi(
       school_subject_id: body.schoolSubjectId !== undefined ? body.schoolSubjectId : existing.school_subject_id ?? null,
       school_kind: body.schoolKind !== undefined ? body.schoolKind : existing.school_kind ?? null,
       school_minutes: body.schoolMinutes !== undefined ? body.schoolMinutes : existing.school_minutes ?? null,
+      school_days_off: body.schoolDaysOff !== undefined ? (body.schoolDaysOff ? 1 : 0) : existing.school_days_off ?? 0,
     };
-    if (!updated.school_subject_id) { updated.school_kind = null; updated.school_minutes = null; } else updated.school_kind ??= 'lesson';
+    if (!updated.school_subject_id) { updated.school_kind = null; updated.school_minutes = null; updated.school_days_off = 0; } else updated.school_kind ??= 'lesson';
     const owners = memberIds ?? [updated.member_id];
     if (updated.ongoing && (owners.some(m => m !== null) || goal || updated.plugin_id || updated.rrule)) return c.json({ error: 'Ongoing chores must be for Anyone, without a repeat schedule, goal or activity.' }, 400);
     if (updated.ongoing && !existing.ongoing) {
@@ -370,8 +375,8 @@ choresRoutes.openapi(
         .run();
     }
     // Schoolwork fields, for this chore and its copies (a statement of its own keeps the two above as they were).
-    await c.env.DB.prepare('UPDATE chores SET school_subject_id = ?, school_kind = ?, school_minutes = ? WHERE id = ? OR (group_id = ? AND archived = 0)')
-      .bind(updated.school_subject_id ?? null, updated.school_kind ?? null, updated.school_minutes ?? null, id, existing.group_id ?? null).run();
+    await c.env.DB.prepare('UPDATE chores SET school_subject_id = ?, school_kind = ?, school_minutes = ?, school_days_off = ? WHERE id = ? OR (group_id = ? AND archived = 0)')
+      .bind(updated.school_subject_id ?? null, updated.school_kind ?? null, updated.school_minutes ?? null, updated.school_days_off ?? 0, id, existing.group_id ?? null).run();
     let result = updated;
     if (memberIds) {
       const { rows, added } = await regroup(c.env.DB, updated, memberIds);
@@ -556,7 +561,10 @@ choresRoutes.openapi(
     const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string; status: string }[];
 
     const byChore = new Map(completions.map((row) => [row.chore_id, row]));
-    const due = chores.filter(row => row.source_id ? byChore.has(row.id) : row.ongoing ? !row.archived && date >= (row.due_date ?? todayInTz(tz, new Date(row.created_at))) : dueOnDate(row, date, tz));
+    const scheduled = chores.filter(row => row.source_id ? byChore.has(row.id) : row.ongoing ? !row.archived && date >= (row.due_date ?? todayInTz(tz, new Date(row.created_at))) : dueOnDate(row, date, tz));
+    // Schoolwork on a kid's day with no school is left out, unless it was already ticked off that day.
+    const noSchool = await schoolworkOff(c.env.DB, date, date, scheduled);
+    const due = scheduled.filter(row => byChore.has(row.id) || !noSchool(row, date));
     const goals = await goalProgressFor(c.env.DB, due, date);
 
     return c.json(

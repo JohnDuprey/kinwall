@@ -8,6 +8,7 @@ import { schemeContrastFailures } from '../colors.ts';
 import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
 import { isSingleEmoji } from '../emoji.ts';
 import { BoardPresetSchema, LANGUAGES, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, NightLookSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { parseSchoolSettings } from '../school-days.ts';
 import { checkedDays } from '../checked-cleanup.ts';
 
 export const settingsRoutes = createRouter();
@@ -94,6 +95,7 @@ export async function readSettings(db: KinwallDb) {
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
     tidbits: parseTidbits(map.get('tidbits')),
+    school: parseSchoolSettings(map.get('school'), LANGUAGES.find((l) => l === map.get('language')) ?? 'en'),
     nightLook: parseNightLook(map.get('nightLook')),
     boardPresets: parseBoardPresets(map.get('boardPresets')),
     features: parseFeatures(map.get('features')),

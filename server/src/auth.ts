@@ -233,7 +233,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'DELETE', pattern: /^\/api\/upkeep\/log\/[^/]+$/ },
   // School: walls and kids' devices read subjects, kids, logs and the summary, and log time (a kid's
   // device only for its kid; routes/school.ts holds it for approval when the kid's settings say so).
-  { method: 'GET', pattern: /^\/api\/school\/(subjects|kids|logs|summary)$/ },
+  { method: 'GET', pattern: /^\/api\/school\/(subjects|kids|logs|summary|days)$/ },
   { method: 'POST', pattern: /^\/api\/school\/logs$/ },
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)

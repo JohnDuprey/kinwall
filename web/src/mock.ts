@@ -162,6 +162,12 @@ const settings: Settings = {
   temperatureUnit: 'fahrenheit',
   boardPresets: [],
   nightLook: { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null },
+  // The server's default day rules and reminder times (school-days.ts defaultDayRules).
+  school: { busMinutes: 10, pickupMinutes: 15, rules: [
+    ...['No School', 'No Classes', 'Schools Closed', 'Holiday', 'Recess', 'Break', 'Vacation', 'In-Service', 'Inservice', 'Professional Development', 'Teacher Workday'].map(words => ({ words, kind: 'off' as const })),
+    ...['Early Release', 'Early Dismissal', 'Half Day', 'Noon Dismissal'].map(words => ({ words, kind: 'half' as const })),
+    ...['Last Day of School', 'Last Day for Students'].map(words => ({ words, kind: 'last' as const })),
+  ] },
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
   features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true },
   newscastNotFeatured: [],

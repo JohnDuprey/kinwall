@@ -68,6 +68,7 @@ export interface Settings {
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
   tidbits: TidbitSettings // the Board's quote / fact card
+  school?: SchoolSettings // School's day rules and reminder times (school-days.ts)
   nightLook: NightLook // what wall screens show during night hours unless a screen picks its own (saverSources.ts)
   boardPresets: BoardPreset[] // Board layouts a parent saved for the family (boardLayout.ts)
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
@@ -126,8 +127,17 @@ export interface SchoolKid {
   yearStart?: string // their school year starts, "MM-DD"; it runs to the day before it comes round again
   yearGoalHours?: number | null; yearGoalDays?: number | null; dailyGoalMinutes?: number | null // records: a school year's hours and days, a school day's minutes
   teacherEmail?: string | null; teacherLink?: string | null // how to reach the teacher (parents' devices only: null elsewhere)
-  calendarId: string | null; schoolContactId?: string | null; teacherName?: string | null; contactIds: string[]; terms: number // the school's calendar, the school (Contacts) and their teacher, other contacts, report card terms a year
+  calendarIds: string[]; schoolContactId?: string | null; teacherName?: string | null; contactIds: string[]; terms: number // the school's and district's calendars, the school (Contacts) and their teacher, other contacts, report card terms a year
+  halfDayEnd?: string | null; halfFromSchoolTime?: string | null // a half day (early release): school ends, and the bus or pickup home
+  lastDay?: string | null // the last day of school ("YYYY-MM-DD") when their calendars don't say
 }
+/** A kid's day (server: school-days.ts): school, a half day, or none. */
+export type SchoolDayKind = 'school' | 'half' | 'off' | 'weekend' | 'summer'
+export interface SchoolDay { memberId: string; date: string; kind: SchoolDayKind; reason: string | null; last: boolean; marked: boolean }
+export interface SchoolDays { days: SchoolDay[]; left: { memberId: string; lastDay: string; left: number }[] }
+export type SchoolDayRule = { words: string; kind: 'off' | 'half' | 'last' }
+/** settings.school: the day rules, and how long before the bus or a pickup its reminder goes out (null: none). */
+export interface SchoolSettings { rules: SchoolDayRule[]; busMinutes: number | null; pickupMinutes: number | null }
 export type SchoolKidInput = Partial<Omit<SchoolKid, 'memberId' | 'mode'>> & { mode: SchoolMode }
 /** A report card grade (parents only). year: the school year's first calendar year (2026 = 2026–27). */
 export interface SchoolGrade { id: string; memberId: string | null; formerMember?: string | null; year: number; term: number; subjectId: string; grade: string; updatedAt: string }
@@ -473,6 +483,7 @@ export interface Chore {
   schoolSubjectId?: string | null
   schoolKind?: SchoolKind | null
   schoolMinutes?: number | null
+  schoolDaysOff?: boolean // still due on the kid's days off and in summer (homework over a break)
 }
 
 /** A saved chore in the chore library (server: routes/chore-library.ts). Parent devices only. */
@@ -1055,6 +1066,7 @@ export interface PushSubscriptionPrefs {
   newChores?: boolean
   choreNudgeTime: string
   listUpdates: boolean
+  schoolReminders?: boolean // School: before the bus and a grown-up's drop-off or pickup (on unless turned off)
   outingReminders?: boolean // Outings: heads-ups for ⭐ outings, ticket dates and last chances (on unless turned off)
   upkeepReminders?: boolean // Home upkeep: jobs coming up, due and late, warranties ending (on unless turned off)
   medicationNames: boolean // medicine names in medication reminders on this device (off: generic text)

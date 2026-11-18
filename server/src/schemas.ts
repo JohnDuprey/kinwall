@@ -247,6 +247,16 @@ export const TIDBIT_SOURCES = ['quotes', 'facts', 'tips', 'onthisday', 'trivia']
 export const TIP_CATEGORIES = ['routines', 'focus', 'organizing', 'feelings', 'sensory', 'communication'] as const;
 export const FACT_CATEGORIES = ['animals', 'space', 'science', 'body', 'plants', 'words'] as const;
 export const ON_THIS_DAY_KINDS = ['holidays', 'births', 'events'] as const;
+// School days (school-days.ts): the words that make a school calendar's event a day off, a half day or
+// the last day, and how long before the bus or a pickup its reminder goes out (null: none).
+export const SchoolSettingsSchema = z
+  .object({
+    rules: z.array(z.object({ words: z.string().trim().min(1).max(60), kind: z.enum(['off', 'half', 'last']) })).max(60),
+    busMinutes: z.number().int().min(1).max(120).nullable(),
+    pickupMinutes: z.number().int().min(1).max(120).nullable(),
+  })
+  .openapi('SchoolSettings', { description: "School's day rules (an event whose title holds the words makes its days a day off, a half day or the last day) and reminder lead times before the bus and a grown-up's pickup or drop-off (null: no reminder)." });
+
 export const TidbitSettingsSchema = z
   .object({
     sources: z.array(z.enum(TIDBIT_SOURCES)).max(TIDBIT_SOURCES.length), // [] = no card on the Board
@@ -369,6 +379,7 @@ export const SettingsSchema = z
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
+    school: SchoolSettingsSchema,
     nightLook: NightLookSchema.openapi({ description: "What wall screens show during night hours, unless a screen picks its own on the device." }),
     boardPresets: z.array(BoardPresetSchema).openapi({ description: "Board layouts a parent saved for the family; each screen picks one (or a built-in one, or its own) on the device." }),
     features: FeaturesSchema,
@@ -430,6 +441,7 @@ export const SettingsPatchSchema = z
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
     tidbits: TidbitSettingsSchema.optional(),
+    school: SchoolSettingsSchema.optional(),
     nightLook: NightLookSchema.optional(),
     boardPresets: z
       .array(BoardPresetSchema)
@@ -624,6 +636,7 @@ export const ChoreSchema = z
     schoolSubjectId: z.string().nullable().default(null).openapi({ description: 'Schoolwork: the School subject. Ticking it off (once approved) logs schoolMinutes of school time under it.' }),
     schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().default(null).openapi({ description: 'Schoolwork: what kind; null for an ordinary chore.' }),
     schoolMinutes: z.number().int().nullable().default(null).openapi({ description: 'Schoolwork: minutes logged when it is ticked off (default the timer, else 30).' }),
+    schoolDaysOff: z.boolean().default(false).openapi({ description: "Schoolwork: still due on the kid's days off and in summer (homework over a break). Otherwise it's left out on days with no school." }),
     groupId: z.string().nullable().default(null).openapi({ description: 'Set on a chore for several people: each has their own copy, and the copies share this id. Editing one changes them all (except memberId and sort); deleting one deletes them all.' }),
   })
   .openapi('Chore');
@@ -653,6 +666,7 @@ export const ChoreInputSchema = z
     schoolSubjectId: z.string().nullable().optional().openapi({ description: 'Schoolwork: a School subject id; null makes it an ordinary chore again.' }),
     schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().optional(),
     schoolMinutes: z.number().int().min(1).max(1440).nullable().optional(),
+    schoolDaysOff: z.boolean().optional(),
   })
   .openapi('ChoreInput');
 
@@ -1161,6 +1175,7 @@ export const PushSubscriptionPrefsSchema = z
     choreNudgeAnyone: z.boolean().optional().openapi({ description: 'Include Anyone chores in this device’s daily chore reminder; off by default. Does not filter the household feed.' }),
     newChores: z.boolean().optional().openapi({ description: 'Push when a new active chore is assigned to a followed member or Anyone, including library assignments. Off by default. Excludes the person and device that created it.' }),
     listUpdates: z.boolean(),
+    schoolReminders: z.boolean().default(true).openapi({ description: "School: before the bus and a grown-up's drop-off or pickup, on school days." }),
     outingReminders: z.boolean().default(true).openapi({ description: 'Outings: heads-ups for ⭐ outings, ticket dates and last chances.' }),
     upkeepReminders: z.boolean().default(true).openapi({ description: 'Home upkeep: jobs coming up, due and late, and warranties ending.' }),
     medicationNames: z.boolean().openapi({ description: 'Medicine names and doses in medication reminders on this device (off: "Time for Leo\'s medicine" only; push text shows on lock screens).' }),
