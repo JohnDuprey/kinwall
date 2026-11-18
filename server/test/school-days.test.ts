@@ -229,3 +229,31 @@ test('school days: kids at the same school share its hours, calendars and bus ti
   maya = await kid(t.maya.id);
   assert.equal(maya.dayEnd, '15:00');
 });
+
+test('routine mode: schoolwork blocks free time like a chore, can be picked as a required one, and not on a day off', async () => {
+  const t = await setup();
+  await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled' });
+  const today = new Date().toISOString().slice(0, 10);
+  const homework = (await t.req('/api/chores', 'POST', { title: 'Reading log', memberId: t.maya.id, rrule: 'FREQ=DAILY', dueDate: today, schoolSubjectId: 'ss-reading', schoolKind: 'homework' })).json;
+  const dishes = (await t.req('/api/chores', 'POST', { title: 'Dishes', memberId: t.maya.id, rrule: 'FREQ=DAILY', dueDate: today })).json;
+  const policy = { enabled: true, appMode: 'all', start: '00:00', cutoff: '23:59', requiredChoreIds: null, allowedWebsitesOnly: false, allowedWebDomains: [] };
+  assert.equal((await t.req(`/api/routine-mode/${t.maya.id}`, 'PUT', policy)).status, 200);
+  const state = async () => (await t.req(`/api/routine-mode/${t.maya.id}`)).json;
+  let s = await state();
+  assert.deepEqual(s.remaining.map((c: any) => c.title).sort(), ['Dishes', 'Reading log'], 'every chore due today, homework too');
+  assert.ok(s.availableChores.some((c: any) => c.id === homework.id), 'a parent can pick it');
+  // Only the homework required: it alone holds free time until it's done.
+  await t.req(`/api/routine-mode/${t.maya.id}`, 'PUT', { ...policy, requiredChoreIds: [homework.id] });
+  s = await state();
+  assert.deepEqual([s.remaining.map((c: any) => c.title), s.locked], [['Reading log'], true]);
+  await t.req(`/api/chores/${homework.id}/complete`, 'POST', { date: today });
+  s = await state();
+  assert.deepEqual([s.remaining, s.locked], [[], false], 'done: free time');
+  // A day with no school: schoolwork that's skipped doesn't hold free time.
+  await t.req(`/api/chores/${homework.id}/complete?date=${today}`, 'DELETE');
+  await t.req(`/api/school/days/${t.maya.id}/${today}`, 'PUT', { kind: 'off' });
+  await t.req(`/api/routine-mode/${t.maya.id}`, 'PUT', policy);
+  s = await state();
+  assert.deepEqual(s.remaining.map((c: any) => c.title), ['Dishes']);
+  assert.ok(dishes.id);
+});
