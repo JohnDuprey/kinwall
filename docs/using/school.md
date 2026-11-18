@@ -49,10 +49,12 @@ Schoolwork is a chore with a subject. It's added, changed and ticked off here in
 School reads each kid's school calendars for days off, half days and the last day of school. An event whose title holds words from the family's list makes the days it covers:
 
 * **No school**: "No School", "Holiday", "Recess", "Break" (Winter Break, not Breakfast), "Vacation", "In-Service", "Teacher Workday" and a few more.
-* **Early release**: "Early Release", "Early Dismissal", "Half Day", "Noon Dismissal".
+* **Early release**: "Early Release", "Early Dismissal", "Half Day" (also written "1/2 Day" or "½ Day"), "Noon Dismissal".
 * **Last day of school**: "Last Day of School", "Last Day for Students".
 
 Words match whole words in any case. Change the list in **Set up → Days off and early release**: tap words to remove them, or add your own ("Snow Day"). On a day with no school, schoolwork is skipped (unless it's [still due on days off](#schoolwork)) and so are bus and pickup reminders. A half day uses the early release times.
+
+An early release match wins over a no-school match on the same day, including matches from different school calendars. For example, "Holiday Recess Begins - 1/2 Day" and "1/2 Day - Professional Development In-Service" are half days. A parent's choice for that day still wins over the calendars.
 
 For a snow day, a make-up day or an early release the calendars don't have, a parent taps **Change today** on Today, or a day in **Week** (**Change day** on a phone), and picks **School day**, **Early release** or **No school** for each kid. **As the calendars say** goes back to the calendars.
 

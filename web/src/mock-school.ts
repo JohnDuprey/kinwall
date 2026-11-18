@@ -165,7 +165,7 @@ export async function mockSchoolRequest(path: string, options: RequestInit) {
 // School days, simplified from the server's school-days.ts: the family's day rules over each kid's
 // school calendars, a grown-up's marks, weekends, summer after the last day, and the countdown.
 let marks: Record<string, 'school' | 'half' | 'off'> = {}
-const norm = (x: string) => ` ${x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `
+const norm = (x: string) => ` ${x.toLowerCase().normalize('NFKD').replace(/\b1\s*[/⁄]\s*2\b/g, 'half').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `
 async function schoolDays(from: string, to: string) {
   const { rules } = (await mock.getSettings()).school ?? { rules: [] }
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -180,8 +180,9 @@ async function schoolDays(from: string, to: string) {
     if (lastDay && d > lastDay) return { ...base, kind: 'summer' }
     if (!k.schoolDays.includes(new Date(`${d}T12:00:00`).getDay())) return { ...base, kind: 'weekend' }
     const off = found('off'), half = found('half')
+    if (half) return { ...base, kind: 'half', reason: half.title }
     if (off) return { ...base, kind: 'off', reason: off.title }
-    return half ? { ...base, kind: 'half', reason: half.title } : { ...base, kind: 'school' as SchoolDayKind }
+    return { ...base, kind: 'school' as SchoolDayKind }
   }
   const days: SchoolDay[] = [], left: { memberId: string; lastDay: string; left: number }[] = []
   for (const k of kids) {

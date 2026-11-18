@@ -24,12 +24,33 @@ test('school days: rules match whole words, any case, and several at once', () =
   assert.deepEqual([...matchRules('Picture day', rules)], []);
 });
 
+test('school days: numeric and written half days use the saved Half Day rule', () => {
+  const saved = [{ words: 'Half Day', kind: 'half' as const }];
+  for (const title of ['Half Day', 'Half-day', '1/2 Day', '1 / 2 DAY', '½ Day', '1⁄2-day']) {
+    assert.deepEqual([...matchRules(title, saved)], ['half'], title);
+  }
+  assert.deepEqual([...matchRules('1/20 Day', saved)], []);
+  assert.deepEqual([...matchRules('1/2 Day', [])], [], 'a removed rule stays removed');
+});
+
+test('school days: half days win over days off in one title or across calendars', () => {
+  const date = '2026-12-23', end = '2026-12-24';
+  for (const title of ['Holiday Recess Begins - 1/2 Day', '1/2 Day - Professional Development In-Service', 'Holiday Recess Begins - Early Release', '1/2 Day for Grades K-8 - Parent Conferences']) {
+    for (const events of [[allDay(title, date, end), allDay('Holiday Event', date, end)], [allDay('Holiday Event', date, end), allDay(title, date, end)]]) {
+      const k = kid({ events });
+      assert.deepEqual(classifyDay(k, date, rules, tz), { date, kind: 'half', reason: title, last: false, marked: false }, title);
+      assert.equal(classifyDay({ ...k, marks: { [date]: 'off' } }, date, rules, tz).kind, 'off', 'a parent can still mark a closure');
+    }
+  }
+  assert.equal(classifyDay(kid({ events: [allDay('No School - Holiday Recess', date, end)] }), date, rules, tz).kind, 'off');
+});
+
 test('school days: an all-day event covers each day to its end; a timed one its day', () => {
   assert.deepEqual(eventDays(allDay('Winter Break', '2026-12-24', '2026-12-29'), tz), ['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-27', '2026-12-28']);
   assert.deepEqual(eventDays({ title: 'Early Release', start: '2026-11-25T17:30:00Z', end: '2026-11-25T18:00:00Z', allDay: false }, tz), ['2026-11-25']);
 });
 
-test('school days: marks win, then summer, weekends, days off and half days', () => {
+test('school days: marks win, then summer, weekends, half days and days off', () => {
   const k = kid({
     events: [allDay('Thanksgiving Recess', '2026-11-26', '2026-11-28'), { title: 'Early Dismissal', start: '2026-11-25T17:00:00Z', end: '2026-11-25T17:30:00Z', allDay: false }, allDay('Last Day of School', '2027-06-17', '2027-06-18')],
     marks: { '2026-11-30': 'off', '2026-11-27': 'school' },
@@ -146,6 +167,23 @@ test('school days: several calendars per kid, the days they make, a grown-up’s
   const exported = (await t.req('/api/export')).json;
   assert.deepEqual(exported.schoolDayMarks.map((m: any) => [m.date, m.kind]), [['2026-11-30', 'off']]);
   assert.deepEqual(exported.schoolKids.find((k: any) => k.memberId === t.maya.id).calendarIds, [t.school.id, t.district.id]);
+});
+
+test('school days API: existing saved rules recognize half days and keep schoolwork due', async () => {
+  const t = await setup();
+  const school = (await t.req('/api/settings')).json.school;
+  assert.equal(school.rules.some((r: any) => r.words === '1/2 Day'), false, 'no settings rewrite needed');
+  await t.req('/api/settings', 'PATCH', { school });
+  await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'enrolled', calendarIds: [t.school.id, t.district.id], lastDay: '2027-06-18' });
+  await t.event(t.school.id, 'Holiday Event', '2026-12-23', '2026-12-24');
+  await t.event(t.district.id, 'Holiday Recess Begins - 1/2 Day', '2026-12-23', '2026-12-24');
+  await t.event(t.district.id, 'No School - Holiday Recess', '2026-12-24', '2026-12-25');
+  const work = (await t.req('/api/chores', 'POST', { title: 'Reading lesson', memberId: t.maya.id, dueDate: '2026-12-23', rrule: 'FREQ=DAILY', schoolSubjectId: 'ss-reading' })).json;
+  const days = (await t.req('/api/school/days?from=2026-12-23&to=2026-12-24')).json.days.filter((d: any) => d.memberId === t.maya.id);
+  assert.deepEqual(days.map((d: any) => [d.kind, d.reason]), [['half', 'Holiday Recess Begins - 1/2 Day'], ['off', 'No School - Holiday Recess']]);
+  assert.ok((await t.req('/api/chores/day?date=2026-12-23')).json.some((c: any) => c.id === work.id));
+  assert.ok(!(await t.req('/api/chores/day?date=2026-12-24')).json.some((c: any) => c.id === work.id));
+  assert.deepEqual((await t.req('/api/settings')).json.school, school, 'classification leaves saved rules untouched');
 });
 
 test('school days: schoolwork is left out on a day off unless it’s still due on days off or already done', async () => {

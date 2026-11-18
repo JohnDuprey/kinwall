@@ -42,7 +42,8 @@ export function parseSchoolSettings(raw: string | null | undefined, lang: Lang =
   } catch { return defaults; }
 }
 
-const norm = (s: string) => ` ${s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+// Numeric fractions use the family's existing "Half Day" rule, including saved/customized lists.
+const norm = (s: string) => ` ${s.toLowerCase().normalize('NFKD').replace(/\b1\s*[/⁄]\s*2\b/g, 'half').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
 /** Which rules an event title meets. */
 export function matchRules(title: string, rules: DayRule[]): Set<RuleKind> {
   const t = norm(title);
@@ -103,8 +104,9 @@ export function classifyDay(kid: KidDays, date: string, rules: DayRule[], tz: st
   if (mark) return { ...base, kind: mark, reason: null, marked: true };
   if (lastDay && date > lastDay) return { ...base, kind: 'summer', reason: null, marked: false };
   if (!kid.schoolDays.includes(new Date(`${date}T12:00:00Z`).getUTCDay())) return { ...base, kind: 'weekend', reason: null, marked: false };
-  if (f.off) return { ...base, kind: 'off', reason: f.off, marked: false };
+  // Early release is more specific than closure words, even across the kid's calendars.
   if (f.half) return { ...base, kind: 'half', reason: f.half, marked: false };
+  if (f.off) return { ...base, kind: 'off', reason: f.off, marked: false };
   return { ...base, kind: 'school', reason: null, marked: false };
 }
 
