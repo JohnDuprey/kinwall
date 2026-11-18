@@ -443,23 +443,27 @@ function DayRules() {
   const add = () => { const w = words.trim(); if (!w) return; void save({ rules: [...school.rules, { words: w, kind }] }); setWords('') }
   return <>
     <h3>{t('Days off and early release')}</h3>
-    <p className="field-hint">{t('An event on a kid’s school calendars with these words makes that day no school, early release or the last day of school. Schoolwork is skipped on days with no school, and so are bus and pickup reminders.')}</p>
+    <p className="field-hint school-rules-hint">{t('An event on a kid’s school calendars with these words makes that day no school, early release or the last day of school. Schoolwork is skipped on days with no school, and so are bus and pickup reminders.')}</p>
     {RULE_KINDS.map(rk => <div key={rk.key} className="field"><label id={`${id}-${rk.key}`}>{tm(rk.label)}</label>
       <div className="chip-row" role="group" aria-labelledby={`${id}-${rk.key}`}>{school.rules.map((r, i) => r.kind === rk.key && <button key={i} type="button" className="chip school-rule" aria-label={t('Remove “{words}”', { words: r.words })} onClick={() => void save({ rules: school.rules.filter((_, j) => j !== i) })}>{r.words} <span aria-hidden="true">×</span></button>)}</div>
     </div>)}
     <form className="school-rule-add" onSubmit={e => { e.preventDefault(); add() }}>
-      <input type="text" aria-label={t('Words to look for')} placeholder={t('Words, like Snow Day')} maxLength={60} value={words} onChange={e => setWords(e.target.value)} />
-      <select className="settings-select" aria-label={t('What they mean')} value={kind} onChange={e => setKind(e.target.value as SchoolDayRule['kind'])}>{RULE_KINDS.map(rk => <option key={rk.key} value={rk.key}>{tm(rk.label)}</option>)}</select>
-      <button type="submit" className="btn btn-secondary" disabled={!words.trim()}><PlusIcon /> {t('Add')}</button>
+      <div className="field"><label htmlFor={`${id}-words`}>{t('Add words')}</label>
+        <input id={`${id}-words`} type="text" placeholder={t('Words, like Snow Day')} maxLength={60} value={words} onChange={e => setWords(e.target.value)} /></div>
+      <div className="meal-form-row school-half-row">
+        <div className="field"><label htmlFor={`${id}-means`}>{t('What they mean')}</label>
+          <select id={`${id}-means`} className="settings-select" value={kind} onChange={e => setKind(e.target.value as SchoolDayRule['kind'])}>{RULE_KINDS.map(rk => <option key={rk.key} value={rk.key}>{tm(rk.label)}</option>)}</select></div>
+        <div className="field"><button type="submit" className="btn btn-secondary" disabled={!words.trim()}><PlusIcon /> {t('Add')}</button></div>
+      </div>
     </form>
     <h3>{t('Bus and pickup reminders')}</h3>
-    <div className="meal-form-row">
+    <div className="meal-form-row school-half-row">
       <div className="field"><label htmlFor={`${id}-bus`}>{t('Before the bus')}</label>
         <select id={`${id}-bus`} className="settings-select" value={school.busMinutes ?? ''} onChange={e => void save({ busMinutes: e.target.value ? Number(e.target.value) : null })}>
-          <option value="">{t('No reminder')}</option>{LEAD_MINUTES.map(n => <option key={n} value={n}>{tn(n, '{n} minute before', '{n} minutes before')}</option>)}</select></div>
+          <option value="">{t('No reminder')}</option>{LEAD_MINUTES.map(n => <option key={n} value={n}>{t('{n} min before', { n })}</option>)}</select></div>
       <div className="field"><label htmlFor={`${id}-pickup`}>{t('Before a drop-off or pickup')}</label>
         <select id={`${id}-pickup`} className="settings-select" value={school.pickupMinutes ?? ''} onChange={e => void save({ pickupMinutes: e.target.value ? Number(e.target.value) : null })}>
-          <option value="">{t('No reminder')}</option>{LEAD_MINUTES.map(n => <option key={n} value={n}>{tn(n, '{n} minute before', '{n} minutes before')}</option>)}</select></div>
+          <option value="">{t('No reminder')}</option>{LEAD_MINUTES.map(n => <option key={n} value={n}>{t('{n} min before', { n })}</option>)}</select></div>
     </div>
     <p className="field-hint">{t('Kids on the same bus at the same time get one reminder. The bus reminder goes to grown-ups and the kids’ own devices; a pickup goes to the grown-up doing it. On iPhone, the Kinwall app can show a countdown on the Lock Screen.')}</p>
   </>

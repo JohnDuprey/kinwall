@@ -129,9 +129,9 @@ button.school-plan-day { background: none; border: none; font: inherit; font-wei
 .school-plan-list-kid { display: grid; gap: 6px; background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 12px; margin-bottom: 8px; }
 /* The family's day rules (School.tsx DayRules): words as removable tags, and a row to add one. */
 .school-rule { gap: 6px; }
-.school-rule-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; margin-bottom: 16px; }
-.school-rule-add .btn { flex: none; }
-@media (max-width: 560px) { .school-rule-add { grid-template-columns: minmax(0, 1fr) auto; } .school-rule-add input { grid-column: 1 / -1; } }
+.school-rule-add { display: grid; gap: 4px; margin-bottom: 16px; }
+.school-rules-hint { margin-bottom: 12px; }
+.school-rule-add .field > .btn { width: 100%; }
 /* A kid's settings in Set up fold away (School.tsx SetupSheet): the header is the toggle, with a one-line summary. */
 .school-kid-toggle { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: -4px -6px; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; text-align: left; }
 .school-kid-name { flex: 1; min-width: 0; display: grid; }
