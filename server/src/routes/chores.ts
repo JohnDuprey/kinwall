@@ -472,14 +472,15 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
 export const ChoreCountQuerySchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine(q => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 30 * 86400000, 'choose an ordered range of at most 31 days');
 choresRoutes.openapi(createRoute({
   method: 'get', path: '/api/chores/counts', tags: ['Chores'], security: [{ Bearer: [] }],
-  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Chores off returns an empty list.',
+  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is not counted. Chores off returns an empty list.',
   request: { query: ChoreCountQuerySchema },
   responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
 }), async c => {
   const { from, to } = c.req.valid('query'), db = c.env.DB;
   const [settingsRes, choresRes] = await db.batch<unknown>([
     db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features')"),
-    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND archived = 0 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date BETWEEN ? AND ?) ORDER BY sort, created_at`).bind(from, to),
+    // The Chores tab's date strip: schoolwork lives in School, so it isn't counted here.
+    db.prepare(`SELECT * FROM chores WHERE school_subject_id IS NULL AND school_kind IS NULL AND active = 1 AND archived = 0 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE school_subject_id IS NULL AND school_kind IS NULL AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date BETWEEN ? AND ?) ORDER BY sort, created_at`).bind(from, to),
   ]);
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
   if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);

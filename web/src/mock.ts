@@ -1424,7 +1424,7 @@ export const mock = {
     const counts: ChoreDateCount[] = []
     for (let date = from; date <= to; date = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
       const grouped = new Map<string | null, ChoreDateCount>()
-      for (const c of chores.filter(c => schoolworkVisible(c) && c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : dueOn(c, date)))) {
+      for (const c of chores.filter(c => !c.schoolSubjectId && !c.schoolKind && c.active && (c.sourceId ? completions.has(`${c.id}:${date}`) : dueOn(c, date)))) {
         const comp = completions.get(`${c.id}:${date}`)
         if (!comp && mockGoalProgress(c, date)?.full) continue
         const count = grouped.get(c.memberId) ?? { date, memberId: c.memberId, total: 0, remaining: 0, pending: 0 }

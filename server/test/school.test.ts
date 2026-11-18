@@ -361,6 +361,8 @@ test('school: disabling School hides schoolwork and refuses ticks without changi
   const schoolwork = (await t.req('/api/chores', 'POST', { title: 'Math lesson', memberId: t.maya.id, dueDate: today, schoolSubjectId: 'ss-math', schoolMinutes: 25, needsApproval: true })).json;
   const ordinary = (await t.req('/api/chores', 'POST', { title: 'Feed the cat', memberId: t.maya.id, dueDate: today })).json;
   await t.req(`/api/chores/${schoolwork.id}/complete`, 'POST', { date: today });
+  const schoolOn = (await t.req(`/api/chores/counts?from=${today}&to=${today}`)).json;
+  assert.equal(schoolOn.reduce((n: number, c: any) => n + c.total, 0), 1, "the Chores tab's counts leave out schoolwork");
   const before = (await t.req('/api/school/logs')).json;
   const pending = (await t.req('/api/chores', 'POST', { title: 'Writing', memberId: t.maya.id, dueDate: today, schoolSubjectId: 'ss-writing', needsApproval: true })).json;
   await t.req(`/api/chores/${pending.id}/complete`, 'POST', { date: today }, t.wallKey);

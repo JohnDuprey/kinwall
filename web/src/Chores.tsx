@@ -491,7 +491,8 @@ export default function Chores() {
   const load = (refreshCounts = true) => {
     if (refreshCounts) loadCounts()
     const k = key
-    api.getChoresDay(k).then(c => { if (keyRef.current === k) { setChores(c); setError(false); setLoadedKey(k) } })
+    // Schoolwork is managed and ticked in School, not here.
+    api.getChoresDay(k).then(c => { if (keyRef.current === k) { setChores(c.filter(x => !x.schoolKind)); setError(false); setLoadedKey(k) } })
       .catch(() => { if (keyRef.current === k) { setError(true); setLoadedKey(k) } })
   }
   useEffect(() => load(false), [key, refreshTick])

@@ -39,7 +39,7 @@ A parent taps **Add schoolwork** for a lesson, homework, a test or a project:
 * **Points**: 0 to start. With points it counts toward rewards like any chore.
 * **More options**: a start time, a timer and whether a tick needs a parent's OK, as on a chore.
 
-Schoolwork is a chore with a subject, so it also shows on the Board and in **Chores**, and a kid ticks it off the same way. It never shows as a late chore on the Board. Time from a tick on a wall or a kid's own device waits for a grown-up when that kid's School settings say so. When the tick itself needs a parent's OK, its time is logged once a parent approves it.
+Schoolwork is a chore with a subject. It's added, changed and ticked off here in School, not on the **Chores** tab, and it shows on the Board like a chore. It never shows as a late chore on the Board. Time from a tick on a wall or a kid's own device waits for a grown-up when that kid's School settings say so. When the tick itself needs a parent's OK, its time is logged once a parent approves it.
 
 ## Grades
 
