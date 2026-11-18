@@ -9,7 +9,7 @@ import { dueTravel, travelLegs } from '../src/school-reminders.ts';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
-import { runNotifications } from '../src/notify.ts';
+import { nextSchoolTravelAt, runNotifications, runSchoolReminders } from '../src/notify.ts';
 
 const tz = 'America/New_York', rules = DEFAULT_DAY_RULES;
 const allDay = (title: string, start: string, end: string) => ({ title, start, end, allDay: true });
@@ -257,4 +257,18 @@ test('routine mode: schoolwork blocks free time like a chore, can be picked as a
   s = await state();
   assert.deepEqual(s.remaining.map((c: any) => c.title), ['Dishes']);
   assert.ok(dishes.id);
+});
+
+test('school travel: a host wakes at the reminder’s exact time, and that wake sends it', async () => {
+  const t = await setup();
+  for (const k of [t.maya, t.leo]) await t.req(`/api/school/kids/${k.id}`, 'PUT', { mode: 'enrolled', toSchoolBy: 'bus', toSchoolTime: '08:30', fromSchoolBy: t.alex.id, fromSchoolTime: '15:00' });
+  const at = (iso: string) => new Date(iso).getTime();
+  // 10 minutes before the 8:30 bus (UTC household), not the next 5-minute tick.
+  assert.equal(await nextSchoolTravelAt(t.env, new Date('2026-11-17T08:00:00Z'), new Date('2026-11-17T08:23:00Z')), at('2026-11-17T08:20:00Z'));
+  assert.equal(await nextSchoolTravelAt(t.env, new Date('2026-11-17T08:00:00Z'), new Date('2026-11-17T08:15:00Z')), null, 'not before the routine tick');
+  await runSchoolReminders(t.env, new Date('2026-11-17T08:20:00Z'));
+  const notes = (await t.env.DB.prepare("SELECT title FROM notifications WHERE kind = 'reminder'").all<{ title: string }>()).results;
+  assert.deepEqual(notes.map(n => n.title), ['🚌 Bus at 8:30 AM'], 'sent on the exact wake');
+  // Sent: the next one is the pickup, 15 minutes before 3:00.
+  assert.equal(await nextSchoolTravelAt(t.env, new Date('2026-11-17T08:21:00Z'), new Date('2026-11-17T23:00:00Z')), at('2026-11-17T14:45:00Z'));
 });

@@ -63,7 +63,7 @@ On a school day or half day, School reminds before the bus comes and drops off, 
 * **Before the bus**: 10 minutes to start. Kids on the same bus at the same time get one reminder ("🚌 Bus at 7:35 AM: Time to get Maya and Leo to the bus stop."). It goes to the bell, grown-ups' phones and those kids' own devices.
 * **Before a drop-off or pickup**: 15 minutes to start ("School pickup at 3:05 PM: Pick up Maya from school."), to the grown-up doing it, on their own phone (every grown-up's when they haven't set one as theirs).
 
-Change either, or turn one off, in **Set up → Bus and pickup reminders**. Each device can turn them off under **School reminders** in [notifications](notifications.md). On an iPhone with the Kinwall app and the leave-by Live Activity on, the reminder also starts a countdown on the Lock Screen. Days off, weekends and summer have none, and a half day uses the early release times (with none set, there's no reminder home that day).
+Change either, or turn one off, in **Set up → Bus and pickup reminders**. Each device can turn them off under **School reminders** in [notifications](notifications.md). On an iPhone with the Kinwall app and the leave-by Live Activity on, the reminder also starts a countdown on the Lock Screen: 🚌 with the kids and "Bus at 8:30 AM", or 🚗 for a drop-off or pickup. Days off, weekends and summer have none, and a half day uses the early release times (with none set, there's no reminder home that day).
 
 ## Grades
 

@@ -1168,23 +1168,55 @@ async function runLibraryDue(env: Env, db: KinwallDb, now: Date, tz: string, win
 // own; a grown-up's leg: theirs (all grown-ups' devices when they have none of their own). Where
 // "School reminders" is on. Devices with the leave-by Live Activity also get a countdown to it.
 // Not held at night: a bus at 7:00 can't wait for night hours to end.
-async function runSchoolTravel(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
+/** Today's legs with a reminder (school-reminders.ts travelLegs), and when each leg's time is. */
+async function todaysTravel(db: KinwallDb, now: Date, tz: string) {
   const today = todayInTz(tz, now);
-  const [{ kids, settings }, kidRes, peopleRes] = await Promise.all([
+  const [{ kids, settings }, kidRes] = await Promise.all([
     loadSchoolDays(db, today, today),
     db.prepare("SELECT member_id, to_school_by, to_school_time, from_school_by, from_school_time, half_from_school_time FROM school_kids WHERE mode = 'enrolled'").all<{ member_id: string; to_school_by: string | null; to_school_time: string | null; from_school_by: string | null; from_school_time: string | null; half_from_school_time: string | null }>(),
-    db.prepare('SELECT id, name, grown_up, language FROM members').all<{ id: string; name: string; grown_up: number; language: string | null }>(),
   ]);
   const kinds = new Map([...kids].map(([id, k]) => [id, classifyDay(k, today, settings.rules, tz).kind]));
   const legs = travelLegs(kidRes.results.map(r => ({ memberId: r.member_id, toSchoolBy: r.to_school_by, toSchoolTime: r.to_school_time, fromSchoolBy: r.from_school_by, fromSchoolTime: r.from_school_time, halfFromSchoolTime: r.half_from_school_time })), kinds, today, { bus: settings.busMinutes, pickup: settings.pickupMinutes });
+  const atOf = (leg: TravelReminder) => zonedTimeToUtc({ y: Number(today.slice(0, 4)), mo: Number(today.slice(5, 7)) - 1, d: Number(today.slice(8, 10)), h: Number(leg.time.slice(0, 2)), mi: Number(leg.time.slice(3, 5)), s: 0 }, tz);
+  return { legs, atOf };
+}
+
+/** When the next school travel reminder is due before `before` (an unsent one already due: now), for
+ * hosts that wake at exact times between routine ticks (entry.ts nextReminderAt), so a bus reminder
+ * set for 10 minutes before isn't up to a tick late. */
+export async function nextSchoolTravelAt(env: Env, now: Date, before: Date): Promise<number | null> {
+  if (!(await readFeatures(env.DB)).school) return null;
+  const tz = (await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
+  const { legs, atOf } = await todaysTravel(env.DB, now, tz);
+  let next: number | null = null;
+  for (const leg of legs) {
+    const at = atOf(leg).getTime(), remind = at - leg.lead * 60000;
+    if (at <= now.getTime() || remind > before.getTime() || await alreadySent(env.DB, leg.key)) continue;
+    next = Math.min(next ?? Infinity, Math.max(remind, now.getTime()));
+  }
+  return next;
+}
+
+/** School travel reminders on their own, for a host's exact wake (entry.ts reminders). */
+export async function runSchoolReminders(env: Env, now: Date): Promise<void> {
+  if (!(await readFeatures(env.DB)).school) return;
+  const rows = new Map((await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'timeFormat', 'location')").all<{ key: string; value: string }>()).results.map(r => [r.key, r.value]));
+  let countryCode: string | undefined;
+  try { countryCode = JSON.parse(rows.get('location') ?? 'null')?.countryCode; } catch { /* no location */ }
+  await runSchoolTravel(env, env.DB, now, rows.get('timezone') ?? hostTimezone(), hour12For(rows.get('timeFormat'), countryCode));
+}
+
+async function runSchoolTravel(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
+  const { legs, atOf } = await todaysTravel(db, now, tz);
   const hhmm = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
   const due = dueTravel(legs, hhmm);
   if (!due.length) return;
+  const peopleRes = await db.prepare('SELECT id, name, grown_up, language FROM members').all<{ id: string; name: string; grown_up: number; language: string | null }>();
   const people = new Map(peopleRes.results.map(m => [m.id, m]));
   const grownUps = peopleRes.results.filter(m => m.grown_up).map(m => m.id);
   const fam = await familyLang(db);
   for (const leg of due) {
-    const at = zonedTimeToUtc({ y: Number(today.slice(0, 4)), mo: Number(today.slice(5, 7)) - 1, d: Number(today.slice(8, 10)), h: Number(leg.time.slice(0, 2)), mi: Number(leg.time.slice(3, 5)), s: 0 }, tz);
+    const at = atOf(leg);
     const time = formatTime(at.toISOString(), { tz, h12 });
     const text = (lang: Lang) => {
       const { t } = words(lang);
@@ -1198,6 +1230,14 @@ async function runSchoolTravel(env: Env, db: KinwallDb, now: Date, tz: string, h
         : leg.half ? { title: t('Early release: pickup at {time}', { time }), body: t('Pick up {names} from school.', { names }) }
         : { title: t('School pickup at {time}', { time }), body: t('Pick up {names} from school.', { names }) };
     };
+    // The Lock Screen countdown: the kids under a headline with the time (the bus has its own 🚌 icon,
+    // a drop-off or pickup the leave-by 🚗), and what to do once the time comes.
+    const live = (lang: Lang) => {
+      const { t } = words(lang);
+      const names = new Intl.ListFormat(lang, { type: 'conjunction' }).format(leg.kidIds.map(id => people.get(id)?.name.split(' ')[0] ?? ''));
+      if (leg.by === 'bus') return { name: names, title: leg.leg === 'to' ? t('Bus at {time}', { time }) : leg.half ? t('Early release: bus drop-off at {time}', { time }) : t('Bus drop-off at {time}', { time }), detail: t('The bus is here.') };
+      return { name: names, title: leg.leg === 'to' ? t('School drop-off at {time}', { time }) : leg.half ? t('Early release: pickup at {time}', { time }) : t('School pickup at {time}', { time }), detail: leg.leg === 'to' ? t('Time to take {names} to school.', { names }) : t('Time to pick up {names}.', { names }) };
+    };
     const claimed = await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(leg.key, now.toISOString()).run();
     if (!claimed.meta.changes) continue;
     const bus = leg.by === 'bus';
@@ -1208,12 +1248,12 @@ async function runSchoolTravel(env: Env, db: KinwallDb, now: Date, tz: string, h
     const to = bus || !mine.length ? subs : mine;
     await recordNotification(db, { kind: 'reminder', ...text(fam), url: '/#/school', memberIds: bus ? [...leg.kidIds, ...grownUps] : [leg.by], source: 'system', at: now });
     for (const sub of to.filter(x => subPrefs(x).schoolReminders)) await sendToSub(env, db, sub, (lang) => ({ ...text(lang), url: '/#/school', tag: leg.key }));
-    await startSchoolActivity(env, db, now, leg, at, to.map(x => x.delivery_owner ?? null), bus || !mine.length, text);
+    await startSchoolActivity(env, db, now, leg, at, to.map(x => x.delivery_owner ?? null), bus || !mine.length, text, live);
   }
 }
 
 /** The leave-by Live Activity, counting down to the bus or the pickup, on devices that show one. */
-async function startSchoolActivity(env: Env, db: KinwallDb, now: Date, leg: TravelReminder, at: Date, owners: (string | null)[], parents: boolean, text: (lang: Lang) => { title: string; body: string }): Promise<void> {
+async function startSchoolActivity(env: Env, db: KinwallDb, now: Date, leg: TravelReminder, at: Date, owners: (string | null)[], parents: boolean, text: (lang: Lang) => { title: string; body: string }, live: (lang: Lang) => { name: string; title: string; detail: string }): Promise<void> {
   if (!await nativePushConfigured(env)) return;
   const { results: tokens } = await db.prepare("SELECT t.id, t.device, t.kind, t.activity, t.token, t.preferences, COALESCE(k.owner, g.owner) AS owner, COALESCE(k.scope, g.scope) AS scope FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id")
     .all<{ id: string; device: string; kind: string; activity: string; token: string; preferences: string; owner: string | null; scope: string | null }>();
@@ -1224,11 +1264,12 @@ async function startSchoolActivity(env: Env, db: KinwallDb, now: Date, leg: Trav
     if (tokens.some(u => u.kind === 'update' && u.device === t.device && u.activity === activity)) continue;
     const sentKey = `la:${t.device}:${activity}`;
     if (await alreadySent(db, sentKey)) continue;
-    const { title, body } = text(fam);
+    const { title, body } = text(fam), shown = live(fam);
     const res = await sendNativeLiveActivity(env, await unseal(env, t.token, `live-activity-token:${t.id}`), {
       timestamp: unixSeconds(now.getTime()), event: 'start', 'attributes-type': 'KinwallActivityAttributes',
-      attributes: { kind: 'leave', name: title, activity, endsAt: swiftDate(ends) },
-      'content-state': { title, detail: body, date: swiftDate(at.getTime()), count: 0, done: false },
+      // 'bus': the app's 🚌 (an older app shows its generic 📅, same countdown); a grown-up's leg is a leave-by.
+      attributes: { kind: leg.by === 'bus' ? 'bus' : 'leave', name: shown.name, activity, endsAt: swiftDate(ends) },
+      'content-state': { title: shown.title, detail: shown.detail, date: swiftDate(at.getTime()), count: 0, done: false },
       'stale-date': unixSeconds(at.getTime()), alert: { title, body },
     });
     if (res.gone) await db.prepare('DELETE FROM live_activity_tokens WHERE id = ? AND token = ?').bind(t.id, t.token).run();

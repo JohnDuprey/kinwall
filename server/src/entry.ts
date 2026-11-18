@@ -4,7 +4,7 @@ import { nextReminderAt } from './reminder-schedule.ts';
 import { createApp } from './app.ts';
 import type { Env, WaitCtx } from './env.ts';
 import { syncDue } from './sync.ts';
-import { runNotifications, runMedicineReminders, sealMedicationNotes } from './notify.ts';
+import { runNotifications, runMedicineReminders, runSchoolReminders, nextSchoolTravelAt, sealMedicationNotes } from './notify.ts';
 import { runMigrations, type Migration } from './migrate.ts';
 import { sealHealthEntries } from './routes/trackers.ts';
 import { shelveReadingEntries } from './shelve.ts';
@@ -74,15 +74,18 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
       await ready();
       return app.fetch(request, env, ctx);
     },
-    /** Medicine reminders only; hosts may wake at exact due times between routine ticks. */
+    /** Medicine and school travel reminders; hosts may wake at exact due times between routine ticks. */
     async reminders(now = new Date()): Promise<void> {
       await ready();
+      // A school reminder's failure is logged; a medicine failure still reaches the host, which retries.
+      await runSchoolReminders(env, now).catch(e => console.error('school reminders skipped:', e instanceof Error ? e.name : 'error'));
       await runMedicineReminders(env, now);
     },
-    /** Earliest pending medicine deadline before the next routine tick, or null. */
+    /** Earliest pending medicine or school travel deadline before the next routine tick, or null. */
     async nextReminderAt(now: Date, before: Date): Promise<number | null> {
       await ready();
-      return nextReminderAt(env, now, before);
+      const times = (await Promise.all([nextReminderAt(env, now, before), nextSchoolTravelAt(env, now, before).catch(() => null)])).filter((x): x is number => x !== null);
+      return times.length ? Math.min(...times) : null;
     },
     /** One cron tick: sync calendars that are due (self-throttled) + send due notifications + read Outings' community calendars once a day. Each
      * runs to the end whatever the other does, and a failure is logged rather than thrown: the next
