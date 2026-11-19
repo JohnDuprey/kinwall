@@ -999,6 +999,8 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   wall: boolean
 }) {
   const isPhone = usePhoneHeader()
+  const { parentDevice } = useApp()
+  const { offline } = useOffline()
   const [now, setNow] = useState(new Date())
   useEffect(() => onMinute(() => setNow(new Date())), [])
   const device = useDeviceAppearance()
@@ -1008,9 +1010,13 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   // Phones and tablets standing up get one row: family name, people, bell, help. No clock or date:
   // the status bar shows the time and every view names its date. Kept as a separate render path so the
   // ≥768px wall-iPad markup below is untouched.
+  // How many icons sit beside the family button; styles.css hides the name when they leave it too
+  // little room. Counted here rather than with :has(:nth-child()), which iOS Safari doesn't recheck
+  // when the inbox appears after /api/me.
+  const icons = 3 + Number(offline) + Number(isAdmin && parentDevice && settings.features.inbox !== false) + Number(wall)
   if (isPhone) {
     return (
-      <header className="header header-phone">
+      <header className="header header-phone" data-icons={icons}>
         <FamilyButton name={settings.familyName || t('Our Family')} members={members} selectedMemberId={selectedMemberId} />
         <div className="header-right">
           <OfflineIcon />

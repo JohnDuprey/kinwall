@@ -2854,18 +2854,18 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 }
 /* The family name gives way (hidden, avatars stay) rather than being cut to a couple of letters:
    it gets about 60px only on screens wider than 212px plus 50px per header icon (offline, timer,
-   bell, Night, help). */
+   inbox, bell, Night, help; App.tsx counts them in data-icons). */
 @media (max-width: 361px) {
   .header-phone .family-name-sm { display: none; }
   .header-phone .family-btn { padding-right: 4px; }
 }
 @media (max-width: 411px) {
-  .header-phone:has(.header-right > :nth-child(4)) .family-name-sm { display: none; }
-  .header-phone:has(.header-right > :nth-child(4)) .family-btn { padding-right: 4px; }
+  .header-phone:is([data-icons="4"], [data-icons="5"], [data-icons="6"]) .family-name-sm { display: none; }
+  .header-phone:is([data-icons="4"], [data-icons="5"], [data-icons="6"]) .family-btn { padding-right: 4px; }
 }
 @media (max-width: 461px) {
-  .header-phone:has(.header-right > :nth-child(5)) .family-name-sm { display: none; }
-  .header-phone:has(.header-right > :nth-child(5)) .family-btn { padding-right: 4px; }
+  .header-phone:is([data-icons="5"], [data-icons="6"]) .family-name-sm { display: none; }
+  .header-phone:is([data-icons="5"], [data-icons="6"]) .family-btn { padding-right: 4px; }
 }
 /* A narrow phone: the faces overlap more before the name is cut ("OUR FAMI…"). */
 @media (max-width: 411px) { .header-phone .family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -14px; } }
