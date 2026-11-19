@@ -1,8 +1,10 @@
+import { SchoolworkBadge } from './SchoolworkBadge.tsx'
+import { choreCategory, schoolKindLabel } from './schoolwork.ts'
 import { openRoutine } from './pageNavigation.ts'
 import { choreCountLabel, countChoreDay, sumChoreCounts } from './choreCounts.ts'
 import { goalLabel, goalProgressLabel, validGoal } from './choreGoal.ts'
 import type { ChoreGoal, GoalProgress } from './choreGoal.ts'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useHashParam } from './hashQuery.ts'
 import { addDays, isSameDay } from 'date-fns'
 import { GivePoints } from './GivePoints.tsx'
@@ -39,6 +41,8 @@ import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForO
 import { latestOnly } from './latest.ts'
 import { onDayChange, rollToToday } from './minuteTick.ts'
 import { DAY, formatDate, intlLocale, LONG_DAY, msg, t, tn, tm } from './i18n.ts'
+
+const SchoolworkEditor = lazy(() => import('./School.tsx').then(m => ({ default: m.SchoolworkEditor })))
 
 function updatedGoalProgress(progress: GoalProgress, doneDelta: number, pendingDelta: number): GoalProgress {
   const done = Math.max(0, progress.done + doneDelta), pending = Math.max(0, progress.pending + pendingDelta)
@@ -206,6 +210,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chor
     <>
       <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
       <div className="chore-info">
+        <SchoolworkBadge kind={chore.schoolKind} />
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
         <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), oneOf, t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}{notDoneLink && !act && !timer && <> · {notDoneLink}</>}</div>
         {goalText && <div className="chore-pts">{goalText}</div>}
@@ -220,7 +225,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chor
     </>
   )
   const check = <div className={`chore-check ${chore.completed ? 'done' : pending ? 'pending' : ''}`}>{chore.completed ? <CheckIcon width={18} height={18} /> : pending && <span aria-hidden="true">⏳</span>}</div>
-  const said = [pending && t("waiting for a parent's OK"), notYet, notDone].filter(Boolean)
+  const said = [schoolKindLabel(chore.schoolKind), pending && t("waiting for a parent's OK"), notYet, notDone].filter(Boolean)
   const editOnRightClick = (e: React.MouseEvent) => { e.preventDefault(); onEdit() }
   // Edit chores mode (parent devices): the whole card opens the editor, a pencil where the check was.
   if (editing) {
@@ -362,6 +367,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
               <li key={`${p.choreId}:${p.date}`} className="approve-row">
                 <span className="approve-emoji" aria-hidden="true">{p.emoji}</span>
                 <div className="approve-info">
+                  <SchoolworkBadge kind={p.schoolKind} />
                   <div className="approve-title">{p.title}</div>
                   <div className="approve-sub">{[name(p), when(p), t('{n} pts', { n: p.points })].filter(Boolean).join(' · ')}</div>
                 </div>
@@ -446,8 +452,8 @@ export default function Chores() {
   const [category, setCategory] = useState('')
   const [ordering, setOrdering] = useState(false)
   const draggedChore = useRef<string | null>(null)
-  const categoryOptions = [...new Set([...chores.map(c => c.category).filter((c): c is string => !!c), ...(category ? [category] : [])])].sort((a, b) => a.localeCompare(b))
-  const inCategory = (c: ChoreDay) => !category || c.category === category
+  const categoryOptions = [...new Set([...chores.map(choreCategory).filter(Boolean), ...(category ? [category] : [])])].sort((a, b) => a.localeCompare(b))
+  const inCategory = (c: ChoreDay) => !category || choreCategory(c) === category
   const reorder = async (list: ChoreDay[], from: string, to: string) => {
     if (ordering || from === to) return
     const ids = list.filter(c => !c.sourceId).map(c => c.id)
@@ -465,6 +471,7 @@ export default function Chores() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null) // the day `chores` holds
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
+  const [schoolwork, setSchoolwork] = useState<ChoreDay | null>(null)
   const [editing, setEditing] = useState(false) // Edit chores mode: a tap opens a chore's editor instead of ticking it
   // The chore whose checklist is open in Get stuff done, by id in the link (#/chores?checklist=<id>) so a reload reopens it.
   const [checklistId, setChecklistId] = useHashParam('checklist')
@@ -504,14 +511,13 @@ export default function Chores() {
   const load = (refreshCounts = true) => {
     if (refreshCounts) loadCounts()
     const k = key
-    // Schoolwork is managed and ticked in School, not here.
-    api.getChoresDay(k).then(c => { if (keyRef.current === k) { setChores(c.filter(x => !x.schoolKind)); setError(false); setLoadedKey(k) } })
+    api.getChoresDay(k).then(c => { if (keyRef.current === k) { setChores(c); setError(false); setLoadedKey(k) } })
       .catch(() => { if (keyRef.current === k) { setError(true); setLoadedKey(k) } })
   }
   useEffect(() => load(false), [key, refreshTick])
 
   useEffect(() => {
-    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setEditing(false); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null); setSuggestFor(null) }
+    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setSchoolwork(null); setEditing(false); setChecklistId(null); setLibraryOpen(false); setRepeatDraft(null); setSuggestFor(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -736,8 +742,8 @@ export default function Chores() {
                     onDragEnd={() => { draggedChore.current = null }}
                     onDragOver={e => { if (canOrder && draggedChore.current && movable.some(x => x.id === draggedChore.current)) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); const from = draggedChore.current; draggedChore.current = null; if (canOrder && from) void reorder(movable, from, c.id) }}>
-                    {c.category && <span className="chore-category-name">{c.category}</span>}
-                    <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) setEditChore(c) }}
+                    {choreCategory(c) && <span className="chore-category-name">{choreCategory(c)}</span>}
+                    <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) { if (c.schoolKind) setSchoolwork(c); else setEditChore(c) } }}
                       onNotDone={markable(c) ? () => void setNotDone(c, !c.dismissed) : undefined} />
                     {canOrder && <div className="chore-order-actions">
                       <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑<span className="chore-order-word"> {t('Up')}</span></button>
@@ -764,6 +770,10 @@ export default function Chores() {
         </div>
       )}
       </div>
+
+      {parentDevice && schoolwork && <Suspense fallback={<Sheet title={t('Change schoolwork')} onClose={() => setSchoolwork(null)}><div aria-busy="true" /></Sheet>}>
+        <SchoolworkEditor work={schoolwork} onClose={() => { setSchoolwork(null); load() }} />
+      </Suspense>}
 
       {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label={t('Add chore')}><PlusIcon /></button>}
 

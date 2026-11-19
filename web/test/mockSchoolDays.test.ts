@@ -24,3 +24,21 @@ test('demo school days: half-day titles win over closure words and other calenda
   const result = await mockSchoolRequest(`api/school/days?from=${from}&to=${addDayKeys(from, 2)}`, {}) as SchoolDays
   assert.deepEqual(result.days.filter(d => d.memberId === 'm3').map(d => d.kind), ['half', 'half', 'off'])
 })
+
+test('demo Chores counts include visible schoolwork and hide it when School is off', async () => {
+  const date = '2030-11-18'
+  const settings = await mock.getSettings()
+  await mock.updateSettings({ features: { ...settings.features, school: true } })
+  await mock.createChore({ title: 'Reading homework', memberId: 'm3', dueDate: date, schoolSubjectId: 'ss-reading', schoolKind: 'homework' })
+  const { countChoreDay, sumChoreCounts } = await import('../src/choreCounts.ts')
+  const day = await mock.getChoresDay(date)
+  assert.ok(day.some(c => c.title === 'Reading homework'))
+  const count = sumChoreCounts(await mock.getChoreCounts(date, date), 'm3', true)
+  assert.deepEqual(count, countChoreDay(day, 'm3', true))
+  await mock.updateSettings({ features: { ...settings.features, school: false } })
+  const withoutSchool = await mock.getChoresDay(date)
+  assert.equal(withoutSchool.some(c => c.schoolKind), false)
+  const hiddenCount = sumChoreCounts(await mock.getChoreCounts(date, date), 'm3', true)
+  assert.deepEqual(hiddenCount, countChoreDay(withoutSchool, 'm3', true))
+  assert.ok(hiddenCount.total < count.total)
+})

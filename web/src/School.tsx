@@ -1,3 +1,4 @@
+import { SCHOOL_KINDS as KINDS, schoolKindLabel as kindLabel } from './schoolwork.ts'
 // School (docs/using/school.md; server: routes/school.ts): subjects, which kids are in school, and
 // the time each kid spends learning. One week at a time: each kid's minutes by subject, then what
 // was logged, newest first. Log time opens a sheet for one kid or several; one save is one log per
@@ -41,8 +42,6 @@ const changed = () => window.dispatchEvent(new Event(CHANGED))
 const err = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback)
 const longDay = (d: string) => formatDate(new Date(`${d}T12:00:00`), { weekday: 'long', month: 'short', day: 'numeric' })
 const shortDay = (d: string) => formatDate(new Date(`${d}T12:00:00`), DAY)
-const KINDS: { key: SchoolKind; label: string }[] = [{ key: 'lesson', label: msg('Lesson') }, { key: 'homework', label: msg('Homework') }, { key: 'test', label: msg('Test') }, { key: 'project', label: msg('Project') }]
-const kindLabel = (k: SchoolKind | null | undefined) => tm(KINDS.find(x => x.key === k)?.label ?? KINDS[0].label)
 const LESSON_DAYS = 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'
 const dayKeys = (from: string) => Array.from({ length: 7 }, (_, i) => addDayKeys(from, i))
 const COLORS = ['#5B8DEF', '#E86A92', '#C8610F', '#2BAE8E', '#B07A3B', '#A06BE0', '#3B9FC8', '#E0A431']
@@ -499,6 +498,26 @@ function WorkRow({ c, subject, compact, onToggle, onEdit }: { c: ChoreDay; subje
     <button type="button" className="school-work-check" aria-pressed={done} aria-label={done ? t('Not done yet: {title}', { title: c.title }) : t('Mark done: {title}', { title: c.title })} onClick={onToggle}>{done && '✓'}</button>
     {onEdit ? <button type="button" className="school-work-main" aria-haspopup="dialog" onClick={onEdit}>{label}</button> : <span className="school-work-main">{label}</span>}
   </div>
+}
+
+/** Opens the School editor from Chores, loading its subjects and kids only when needed. */
+export function SchoolworkEditor({ work, onClose }: { work: ChoreDay; onClose: () => void }) {
+  const { members } = useApp()
+  const [data, setData] = useState<{ subjects: SchoolSubject[]; kids: SchoolKid[] } | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    let canceled = false
+    Promise.all([api.getSchoolSubjects(true), api.getSchoolKids()])
+      .then(([subjects, kids]) => { if (!canceled) { setData({ subjects, kids }); setError(null) } })
+      .catch(e => { if (!canceled) setError(e) })
+    return () => { canceled = true }
+  }, [retry])
+  if (!data) return <Sheet title={t('Change schoolwork')} onClose={onClose}>
+    {error ? <LoadError what={t('school')} error={error} onRetry={() => setRetry(n => n + 1)} /> : <div aria-busy="true" />}
+  </Sheet>
+  return <WorkSheet work={work} onClose={onClose} kids={members.filter(m => data.kids.some(k => k.memberId === m.id))}
+    subjects={data.subjects.filter(s => !s.archived || s.id === work.schoolSubjectId)} />
 }
 
 /** Parents: add or change schoolwork (a chore with a subject). Its schedule, start time, timer and

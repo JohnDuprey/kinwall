@@ -527,7 +527,7 @@ export interface ChoreDay extends Chore {
 }
 
 /** A chore ticked on a wall screen or kid's device, waiting for a parent's OK (GET /api/chores/pending). */
-export interface PendingApproval { choreId: string; title: string; emoji: string | null; date: string; memberId: string | null; completedAt: string; points: number }
+export interface PendingApproval { schoolKind?: SchoolKind | null; choreId: string; title: string; emoji: string | null; date: string; memberId: string | null; completedAt: string; points: number }
 
 /** A chore a kid suggested (GET /api/chore-suggestions): waiting for a parent, or answered until the kid puts the card away. */
 export interface ChoreSuggestion {

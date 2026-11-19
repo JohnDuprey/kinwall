@@ -467,8 +467,10 @@ Parents only: wall screens and kids' devices get 403. `features.inbox=false` mak
 
 ## Chore date counts
 
-`GET /api/chores/counts?from=YYYY-MM-DD&to=YYYY-MM-DD` returns counts for up to 31 inclusive calendar dates. Each row is `{date, memberId, total, remaining, pending}`; `memberId: null` means Anyone. Rows with no scheduled chores are omitted. Recurrence uses the household timezone. Pending approvals count as remaining; full flexible goals only count on dates with actual ticks, so already-satisfied goals do not invent extra work. Counts are grouped by the chore's assignee, even when someone else completed an Anyone chore. A child's display key sees only that child's and Anyone counts; a shared wall can read all counts. While Chores is off the response is `[]`. Invalid, reversed, or longer ranges return 400.
+`GET /api/chores/counts?from=YYYY-MM-DD&to=YYYY-MM-DD` returns counts for up to 31 inclusive calendar dates. Each row is `{date, memberId, total, remaining, pending}`; `memberId: null` means Anyone. Rows with no scheduled chores are omitted. Recurrence uses the household timezone. Pending approvals count as remaining; full flexible goals only count on dates with actual ticks, so already-satisfied goals do not invent extra work. Counts are grouped by the chore's assignee, even when someone else completed an Anyone chore. A child's display key sees only that child's and Anyone counts; a shared wall can read all counts. Schoolwork is included while School is on, skipping days off unless still due or already ticked. While Chores is off the response is `[]`. Invalid, reversed, or longer ranges return 400.
 
+
+`GET /api/chores/pending` includes `schoolKind` (`lesson`, `homework`, `test` or `project`, or `null` for ordinary chores) so approval lists can label schoolwork.
 
 ### Medicine Live Activity choices
 

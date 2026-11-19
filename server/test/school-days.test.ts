@@ -197,6 +197,8 @@ test('school days: schoolwork is left out on a day off unless it’s still due o
   const day = async (d: string) => (await t.req(`/api/chores/day?date=${d}`)).json.map((c: any) => c.title).sort();
   assert.deepEqual(await day('2026-11-25'), ['Dishes', 'Math lesson', 'Reading log']);
   assert.deepEqual(await day('2026-11-26'), ['Dishes', 'Reading log'], 'no school: the lesson is left out, the homework stays');
+  const counts = (await t.req('/api/chores/counts?from=2026-11-25&to=2026-11-26')).json;
+  assert.deepEqual(counts.map((c: any) => [c.date, c.total]), [['2026-11-25', 3], ['2026-11-26', 2]], 'date strip agrees with the cards, including days off');
   await t.req(`/api/chores/${lesson.id}/complete`, 'POST', { date: '2026-11-26' });
   assert.deepEqual(await day('2026-11-26'), ['Dishes', 'Math lesson', 'Reading log'], 'done anyway: it shows done');
   assert.equal((await t.req(`/api/chores/${homework.id}`, 'PATCH', { schoolDaysOff: false })).json.schoolDaysOff, false);

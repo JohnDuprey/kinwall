@@ -1120,6 +1120,14 @@ button.month-cell .month-daynum { flex: none; }
   overflow: hidden; white-space: normal; overflow-wrap: anywhere;
 }
 .chore-title.done { text-decoration: line-through; }
+.schoolwork-badge {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text);
+  padding: 2px 6px; margin-bottom: 4px; font-size: 0.75rem; font-weight: 800;
+  overflow-wrap: anywhere;
+}
+/* Keep the kind readable in narrow tablet and landscape columns. */
+@container chore-col (max-width: 200px) { .chore-info .schoolwork-badge > span { display: none; } }
 .chore-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; } /* wraps: the checklist progress at its end is what a kid looks for */
 /* Longer words (German "Wöchentlich") break with a hyphen when they wrap. */
 :root:not([lang="en"]) .chore-pts { hyphens: auto; }
@@ -1960,6 +1968,7 @@ button.month-cell .month-daynum { flex: none; }
   }
 
   /* ---------- Chores: stack member sections instead of side-scrolling columns ---------- */
+  .chore-category-filter { max-width: none; margin-inline: 10px; }
   .chore-columns { display: flex; flex-direction: column; justify-content: flex-start; overflow-x: hidden; padding-top: 4px; padding-left: 10px; padding-right: 10px; }
   .chore-column { width: 100%; padding: 8px; gap: 6px; }
   .chore-col-head { display: flex; align-items: center; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; column-gap: 8px; row-gap: 0; padding-left: 2px; }
@@ -4189,6 +4198,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :root[data-density="compact"] .schedule-list, :root[data-density="compact"] .chore-columns, :root[data-density="compact"] .settings-scroll { padding-bottom: calc(52px + 14px + var(--safe-b) + 12px); }
   :root[data-density="compact"] .settings-scroll { padding-left: 10px; padding-right: 10px; }
   :root[data-density="compact"] .chore-columns { padding-left: 6px; padding-right: 6px; }
+  :root[data-density="compact"] .chore-category-filter { margin-inline: 6px; }
 }
 
 /* ---------- Cast screen ----------

@@ -64,6 +64,7 @@ void (async () => {
   const lesson = { schoolKind: 'lesson' as const, rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', dueDate: addDayKeys(today, -14), points: 0 }
   const math = await mock.createChore({ ...lesson, title: 'Math lesson', emoji: '🔢', memberId: 'm4', schoolSubjectId: 'ss-math', schoolMinutes: 20 })
   await mock.createChore({ ...lesson, title: 'Phonics', emoji: '📖', memberId: 'm4', schoolSubjectId: 'ss-reading', schoolMinutes: 20 })
+  await mock.createChore({ title: 'Reading log', emoji: '📖', memberId: 'm3', dueDate: today, schoolSubjectId: 'ss-reading', schoolKind: 'homework', schoolMinutes: 20, points: 3, needsApproval: true })
   await mock.createChore({ title: 'Spelling test', emoji: '📝', memberId: 'm3', dueDate: friday, schoolSubjectId: 'ss-reading', schoolKind: 'test', schoolMinutes: 15, points: 0 })
   await mock.createChore({ title: 'Volcano model', emoji: '🌋', memberIds: ['m3', 'm4'], dueDate: addDayKeys(today, 10), schoolSubjectId: 'ss-science', schoolKind: 'project', schoolMinutes: 45, points: 5 })
   const day = new Date(`${today}T12:00:00`).getDay()

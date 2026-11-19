@@ -174,6 +174,7 @@ test('school: schoolwork is a chore with a subject; ticking it logs its minutes,
   const essay = (await t.req('/api/chores', 'POST', { title: 'Essay', memberId: t.leo.id, dueDate: '2026-11-16', needsApproval: true, schoolSubjectId: 'ss-writing', schoolKind: 'homework' })).json;
   assert.equal((await t.req(`/api/chores/${essay.id}/complete`, 'POST', { date: '2026-11-16' }, t.wallKey)).json.pending, true);
   assert.equal((await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json.some((l: any) => l.choreId === essay.id), false);
+  assert.equal((await t.req('/api/chores/pending')).json.find((p: any) => p.choreId === essay.id).schoolKind, 'homework', 'approvals identify schoolwork');
   assert.equal((await t.req(`/api/chores/${essay.id}/approve`, 'POST', { date: '2026-11-16' })).status, 200);
   assert.equal((await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json.find((l: any) => l.choreId === essay.id).minutes, 30, 'no minutes set: 30');
 
@@ -362,7 +363,7 @@ test('school: disabling School hides schoolwork and refuses ticks without changi
   const ordinary = (await t.req('/api/chores', 'POST', { title: 'Feed the cat', memberId: t.maya.id, dueDate: today })).json;
   await t.req(`/api/chores/${schoolwork.id}/complete`, 'POST', { date: today });
   const schoolOn = (await t.req(`/api/chores/counts?from=${today}&to=${today}`)).json;
-  assert.equal(schoolOn.reduce((n: number, c: any) => n + c.total, 0), 1, "the Chores tab's counts leave out schoolwork");
+  assert.equal(schoolOn.reduce((n: number, c: any) => n + c.total, 0), 2, "the Chores tab's counts include schoolwork");
   const before = (await t.req('/api/school/logs')).json;
   const pending = (await t.req('/api/chores', 'POST', { title: 'Writing', memberId: t.maya.id, dueDate: today, schoolSubjectId: 'ss-writing', needsApproval: true })).json;
   await t.req(`/api/chores/${pending.id}/complete`, 'POST', { date: today }, t.wallKey);

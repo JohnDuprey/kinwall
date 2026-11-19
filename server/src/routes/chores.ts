@@ -497,15 +497,15 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
 export const ChoreCountQuerySchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine(q => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 30 * 86400000, 'choose an ordered range of at most 31 days');
 choresRoutes.openapi(createRoute({
   method: 'get', path: '/api/chores/counts', tags: ['Chores'], security: [{ Bearer: [] }],
-  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished; a missed day a parent marked not done is not remaining. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is not counted. Chores off returns an empty list.',
+  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished; a missed day a parent marked not done is not remaining. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is included when School is on, skipping days off unless still due or already ticked. Chores off returns an empty list.',
   request: { query: ChoreCountQuerySchema },
   responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
 }), async c => {
   const { from, to } = c.req.valid('query'), db = c.env.DB;
   const [settingsRes, choresRes] = await db.batch<unknown>([
     db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features')"),
-    // The Chores tab's date strip: schoolwork lives in School, so it isn't counted here.
-    db.prepare(`SELECT * FROM chores WHERE school_subject_id IS NULL AND school_kind IS NULL AND active = 1 AND archived = 0 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE school_subject_id IS NULL AND school_kind IS NULL AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date BETWEEN ? AND ?) ORDER BY sort, created_at`).bind(from, to),
+    // The date strip counts the same chores and schoolwork as the daily cards.
+    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND archived = 0 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date BETWEEN ? AND ?) ORDER BY sort, created_at`).bind(from, to),
   ]);
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
   if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);
@@ -523,12 +523,14 @@ choresRoutes.openapi(createRoute({
   const dismissed = new Set((await db.prepare('SELECT chore_id, date FROM chore_dismissals WHERE date BETWEEN ? AND ?').bind(from, to).all<{ chore_id: string; date: string }>()).results.map(d => `${d.chore_id}:${d.date}`));
   const completions = new Map<string, typeof completed>();
   for (const item of completed) { const list = completions.get(item.chore_id) ?? []; list.push(item); completions.set(item.chore_id, list); }
+  const off = await schoolworkOff(db, from, to, rows);
   const counts = new Map<string, z.infer<typeof ChoreDateCountSchema>>();
   for (const row of rows) {
     const done = completions.get(row.id) ?? [], goal = readChoreGoal(row.repeat_goal);
     const dates = row.source_id ? done.filter(d => d.date >= from && d.date <= to).map(d => d.date) : dueDates(row, from, to, tz);
     for (const date of dates) {
       const completion = done.find(d => d.date === date);
+      if (!completion && off(row, date)) continue;
       if (goal && row.due_date && !completion) {
         const period = goalPeriod(goal, row.due_date, date);
         const countFrom = row.due_date > period.from ? row.due_date : period.from;
@@ -856,6 +858,7 @@ choresRoutes.openapi(
 const PendingApprovalSchema = z
   .object({
     choreId: z.string(),
+    schoolKind: z.enum(['lesson', 'homework', 'test', 'project']).nullable().openapi({ description: 'Schoolwork kind, or null for an ordinary chore.' }),
     title: z.string(),
     emoji: z.string().nullable(),
     date: z.string(),
@@ -865,7 +868,7 @@ const PendingApprovalSchema = z
   })
   .openapi('PendingApproval');
 
-type PendingRow = { chore_id: string; title: string; emoji: string | null; date: string; member_id: string | null; completed_at: string; points: number };
+type PendingRow = { school_kind: 'lesson' | 'homework' | 'test' | 'project' | null; chore_id: string; title: string; emoji: string | null; date: string; member_id: string | null; completed_at: string; points: number };
 
 async function creditSettings(c: { env: Env }) {
   const { results } = await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')").all<{ key: string; value: string }>();
@@ -879,7 +882,7 @@ function approvalPoints(row: PendingRow, s: { tz: string; credit: number }): num
 }
 
 export const PENDING_SQL =
-  `SELECT cc.chore_id, c.title, c.emoji, cc.date, cc.member_id, cc.completed_at, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE ${schoolworkVisibleSql('c')} AND cc.status = 'pending'`;
+  `SELECT cc.chore_id, c.school_kind, c.title, c.emoji, cc.date, cc.member_id, cc.completed_at, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE ${schoolworkVisibleSql('c')} AND cc.status = 'pending'`;
 
 choresRoutes.openapi(
   createRoute({
@@ -893,7 +896,7 @@ choresRoutes.openapi(
   async (c) => {
     const s = await creditSettings(c);
     const { results } = await c.env.DB.prepare(`${PENDING_SQL} ORDER BY cc.completed_at`).all<PendingRow>();
-    return c.json(results.map((r) => ({ choreId: r.chore_id, title: r.title, emoji: r.emoji, date: r.date, memberId: r.member_id, completedAt: r.completed_at, points: approvalPoints(r, s) })), 200);
+    return c.json(results.map((r) => ({ choreId: r.chore_id, schoolKind: r.school_kind, title: r.title, emoji: r.emoji, date: r.date, memberId: r.member_id, completedAt: r.completed_at, points: approvalPoints(r, s) })), 200);
   },
 );
 
