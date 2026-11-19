@@ -1,6 +1,8 @@
 // Where a day's timed events go in the Day and Week grids (Calendar.tsx). Pure, so
 // web/test/dayLayout.test.ts covers it.
 import { minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { DAY, formatDate, t } from './i18n.ts'
+import { formatTime } from './timeFormat.ts'
 import type { EventInstance } from './types.ts'
 
 /** Matches --hour-h in styles.css (comfortable/compact, 44px on a phone on its side, compact's
@@ -148,6 +150,47 @@ export function isAllDayOnDate(ev: EventInstance, key: string) {
   return ev.start <= key && key < ev.end
 }
 
+/** A timed event long enough to be drawn in the all-day row, not on the time grid. */
+export function isLongTimed(ev: EventInstance, tz: string): boolean {
+  if (ev.allDay) return false
+  if (Date.parse(ev.end) - Date.parse(ev.start) >= 86400000) return true
+  // Under 24 hours can still contain a whole spring-forward calendar day. Compare calendar
+  // boundaries rather than adding 24 hours, and keep seconds at midnight exact.
+  const startDay = zonedDayKey(ev.start, tz)
+  const firstWholeDay = isLocalMidnight(ev.start, tz) ? startDay : nextDayKey(startDay)
+  return zonedDayKey(ev.end, tz) >= nextDayKey(firstWholeDay)
+}
+
+function isLocalMidnight(iso: string, tz: string) {
+  const instant = new Date(iso)
+  return minutesSinceMidnight(iso, tz) === 0 && instant.getUTCSeconds() === 0 && instant.getUTCMilliseconds() === 0
+}
+
+/** The portion of a timed event on one day, without artificial midnight-to-midnight ranges. */
+export function eventTimeOnDate(ev: EventInstance, key: string, tz: string): string {
+  if (ev.allDay) return t('All day')
+  const startDay = zonedDayKey(ev.start, tz), endDay = zonedDayKey(ev.end, tz)
+  if (startDay === endDay) return formatTime(ev.start, tz)
+  if (startDay === key && !isLocalMidnight(ev.start, tz)) return t('From {time}', { time: formatTime(ev.start, tz) })
+  if (endDay === key && !isLocalMidnight(ev.end, tz)) return t('Until {time}', { time: formatTime(ev.end, tz) })
+  return t('All day')
+}
+
+/** Only the endpoints that fall within this view; a midnight boundary needs no clock label. */
+export function allDayBarTimes(ev: EventInstance, dayKeys: string[], tz: string): { from: string | null; until: string | null } {
+  if (ev.allDay) return { from: null, until: null }
+  return {
+    from: dayKeys.includes(zonedDayKey(ev.start, tz)) && !isLocalMidnight(ev.start, tz) ? t('From {time}', { time: formatTime(ev.start, tz) }) : null,
+    until: dayKeys.includes(zonedDayKey(ev.end, tz)) && !isLocalMidnight(ev.end, tz) ? t('Until {time}', { time: formatTime(ev.end, tz) }) : null,
+  }
+}
+
+/** The original timed range for spoken labels, regardless of how a bar is clipped on screen. */
+export function timedEventRange(ev: EventInstance, tz: string): string {
+  const endpoint = (iso: string) => `${formatDate(new Date(iso), DAY, tz)}, ${formatTime(iso, tz)}`
+  return t('{start} – {end}', { start: endpoint(ev.start), end: endpoint(ev.end) })
+}
+
 export type AllDayBar = {
   ev: EventInstance
   from: number
@@ -158,15 +201,17 @@ export type AllDayBar = {
 }
 
 /** Pack spanning bars into the lowest available lane, clipped to the visible dates. */
-export function layoutAllDayRow(events: EventInstance[], dayKeys: string[], _tz: string): { bars: AllDayBar[]; lanes: number } {
+export function layoutAllDayRow(events: EventInstance[], dayKeys: string[], tz: string): { bars: AllDayBar[]; lanes: number } {
   if (!dayKeys.length) return { bars: [], lanes: 0 }
   const bars: AllDayBar[] = []
   for (const ev of dedupeEvents(events)) {
-    if (!ev.allDay) continue
-    const covered = dayKeys.map((key, i) => isAllDayOnDate(ev, key) ? i : -1).filter(i => i >= 0)
+    if (!ev.allDay && !isLongTimed(ev, tz)) continue
+    const covered = dayKeys.map((key, i) => (ev.allDay ? isAllDayOnDate(ev, key) : isTimedOnDate(ev, key, tz)) ? i : -1).filter(i => i >= 0)
     if (!covered.length) continue
     bars.push({ ev, from: covered[0], to: covered[covered.length - 1], lane: 0,
-      continuesBefore: ev.start < dayKeys[0], continuesAfter: ev.end > nextDayKey(dayKeys[dayKeys.length - 1]) })
+      continuesBefore: (ev.allDay ? ev.start : zonedDayKey(ev.start, tz)) < dayKeys[0],
+      continuesAfter: ev.allDay ? ev.end > nextDayKey(dayKeys[dayKeys.length - 1])
+        : zonedDayKey(new Date(Date.parse(ev.end) - 1).toISOString(), tz) > dayKeys[dayKeys.length - 1] })
   }
   bars.sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from)
     || a.ev.start.localeCompare(b.ev.start) || a.ev.title.localeCompare(b.ev.title)

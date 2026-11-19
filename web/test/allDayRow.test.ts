@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isAllDayOnDate, layoutAllDayRow } from '../src/dayLayout.ts'
+import { allDayBarTimes, eventTimeOnDate, isAllDayOnDate, isLongTimed, layoutAllDayRow, timedEventRange } from '../src/dayLayout.ts'
+import { formatTime, setHour12 } from '../src/timeFormat.ts'
+import { formatDate, DAY, setLang } from '../src/i18n.ts'
 import type { EventInstance } from '../src/types.ts'
 
 const event = (id: string, start: string, end: string, allDay = true): EventInstance => ({
@@ -40,5 +42,80 @@ for (const tz of ['Pacific/Auckland', 'Europe/Berlin', 'America/New_York', 'UTC'
     assert.deepEqual(result, layoutAllDayRow([...input].reverse(), week, tz))
     const twin = { ...input[0], id: 'Sam2' }
     assert.deepEqual(layoutAllDayRow([twin, input[0]], week, tz), layoutAllDayRow([input[0], twin], week, tz))
+  })
+}
+
+// Build local fixtures in each household zone, while passing UTC instants to the helpers.
+const at = (day: number, hour = 0, minute = 0) => new Date(2026, 10, day, hour, minute).toISOString()
+for (const tz of ['Pacific/Auckland', 'Europe/Berlin', 'America/New_York', 'UTC']) {
+  test(`long timed events and mixed spanning lanes (${tz})`, () => {
+    process.env.TZ = tz
+    const start = at(15)
+    assert.equal(isLongTimed(event('Maya', start, new Date(Date.parse(start) + 86340000).toISOString(), false), tz), false)
+    assert.equal(isLongTimed(event('Maya', start, new Date(Date.parse(start) + 86400000).toISOString(), false), tz), true)
+    assert.equal(isLongTimed(event('Leo', at(15, 20), at(16, 8), false), tz), false)
+    assert.equal(isLongTimed(event('Alex', '2026-11-15', '2026-11-20'), tz), false)
+    assert.equal(isLongTimed(event('Sam', at(15), at(20, 15), false), tz), true)
+    const stay = event("At Sam's", at(12), at(20, 15), false)
+    const monday = event('Family picnic', '2026-11-16', '2026-11-17')
+    const next = event('Family trip', at(20, 15), at(23, 15), false)
+    const input = [stay, monday, next, event('Soccer', at(16, 16), at(16, 17), false)]
+    const result = layoutAllDayRow(input, week, tz)
+    assert.equal(result.lanes, 2)
+    assert.deepEqual(result.bars.map(b => [b.ev.id, b.from, b.to, b.lane, b.continuesBefore, b.continuesAfter]), [
+      [stay.id, 0, 5, 0, true, false], [monday.id, 1, 1, 1, false, false], [next.id, 5, 6, 1, false, true],
+    ])
+    assert.deepEqual(result, layoutAllDayRow([...input].reverse(), week, tz))
+    const midnight = event('Maya', at(19, 18), at(21), false)
+    assert.equal(layoutAllDayRow([midnight], week, tz).bars[0].to, 5)
+    assert.equal(layoutAllDayRow([midnight], week, tz).bars[0].continuesAfter, false)
+    const single = layoutAllDayRow([stay], ['2026-11-20'], tz).bars[0]
+    assert.deepEqual([single.from, single.to, single.continuesBefore, single.continuesAfter], [0, 0, true, false])
+  })
+
+  test(`per-day time labels, bar endpoints and spoken range (${tz})`, async () => {
+    process.env.TZ = tz
+    setHour12(true)
+    const stay = event("At Sam's", at(15, 18), at(20, 15), false)
+    assert.equal(eventTimeOnDate(stay, week[0], tz), 'From 6:00 PM')
+    assert.equal(eventTimeOnDate(stay, week[1], tz), 'All day')
+    assert.equal(eventTimeOnDate(stay, week[5], tz), 'Until 3:00 PM')
+    assert.equal(eventTimeOnDate(event('Soccer', at(15, 16), at(15, 17), false), week[0], tz), '4:00 PM')
+    const overnight = event('Leo', at(15, 20), at(16, 8), false)
+    assert.equal(eventTimeOnDate(overnight, week[0], tz), 'From 8:00 PM')
+    assert.equal(eventTimeOnDate(overnight, week[1], tz), 'Until 8:00 AM')
+    const midnight = event('Sam', at(15), at(17), false)
+    assert.equal(eventTimeOnDate(midnight, week[0], tz), 'All day')
+    assert.equal(eventTimeOnDate(midnight, week[1], tz), 'All day')
+    assert.deepEqual(allDayBarTimes(stay, week, tz), { from: 'From 6:00 PM', until: 'Until 3:00 PM' })
+    assert.deepEqual(allDayBarTimes(stay, ['2026-11-20'], tz), { from: null, until: 'Until 3:00 PM' })
+    assert.deepEqual(allDayBarTimes(stay, ['2026-11-15'], tz), { from: 'From 6:00 PM', until: null })
+    assert.deepEqual(allDayBarTimes(stay, ['2026-11-16'], tz), { from: null, until: null })
+    assert.deepEqual(allDayBarTimes(midnight, week, tz), { from: null, until: null })
+    assert.deepEqual(allDayBarTimes(event('Family trip', '2026-11-15', '2026-11-20'), week, tz), { from: null, until: null })
+    const endpoint = (iso: string) => `${formatDate(new Date(iso), DAY, tz)}, ${formatTime(iso, tz)}`
+    assert.equal(timedEventRange(stay, tz), `${endpoint(stay.start)} – ${endpoint(stay.end)}`)
+    setHour12(false)
+    assert.equal(eventTimeOnDate(stay, week[5], tz), 'Until 15:00')
+    await setLang('de', async () => ({ 'From {time}': 'Ab {time}', 'Until {time}': 'Bis {time}', 'All day': 'Ganztägig' }))
+    assert.equal(eventTimeOnDate(stay, week[0], tz), 'Ab 18:00')
+    assert.equal(eventTimeOnDate(stay, week[1], tz), 'Ganztägig')
+    await setLang('en')
+    setHour12(true)
+  })
+}
+
+for (const [tz, month, day] of [['Pacific/Auckland', 8, 27], ['Europe/Berlin', 2, 29], ['America/New_York', 2, 8]] as const) {
+  test(`a whole spring-forward day is long even at 23 hours (${tz})`, () => {
+    process.env.TZ = tz
+    const start = new Date(2026, month, day).toISOString(), end = new Date(2026, month, day + 1).toISOString()
+    assert.equal(Date.parse(end) - Date.parse(start), 23 * 3600000)
+    assert.equal(isLongTimed(event('Maya', start, end, false), tz), true)
+    assert.equal(isLongTimed(event('Maya', new Date(Date.parse(start) + 1000).toISOString(), end, false), tz), false, 'a second after midnight is not a whole day')
+    assert.equal(isLongTimed(event('Leo', start, new Date(Date.parse(end) - 1).toISOString(), false), tz), false)
+    assert.equal(isLongTimed(event('Sam', new Date(Date.parse(start) - 1800000).toISOString(), end, false), tz), true, 'may start before the whole short day')
+    // Device zone is independent of the calendar zone.
+    process.env.TZ = 'UTC'
+    assert.equal(isLongTimed(event('Maya', start, end, false), tz), true)
   })
 }

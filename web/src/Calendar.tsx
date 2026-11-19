@@ -36,7 +36,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { dedupeEvents, eventPeople, gridTop, hourPx, isAllDayOnDate, isTimedOnDate, layoutAllDayRow, layoutDay, type AllDayBar, newEventDay, newEventStart, repeatChoice, repeatRule, wallHourPx, type RepeatChoice } from './dayLayout.ts'
+import { allDayBarTimes, dedupeEvents, eventTimeOnDate, eventPeople, gridTop, hourPx, isAllDayOnDate, isLongTimed, isTimedOnDate, layoutAllDayRow, layoutDay, type AllDayBar, newEventDay, newEventStart, repeatChoice, repeatRule, timedEventRange, wallHourPx, type RepeatChoice } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onDayChange, onMinute, rollToToday } from './minuteTick.ts'
@@ -57,15 +57,6 @@ function useHourPx() {
   const device = useDeviceAppearance()
   const screenK = useScreenK(!!device.cast)
   return hourPx(effectiveDensity(settings, device, parentPhone), useMediaQuery(SHORT_LANDSCAPE), useMediaQuery(SHORT_TABLET), device.cast ? castScale(window.innerHeight) : 0, screenK)
-}
-
-/** Show the portion on this day, while opening/editing the original event. */
-function eventTimeOnDate(ev: EventInstance, key: string, tz: string) {
-  const startDay = zonedDayKey(ev.start, tz), endDay = zonedDayKey(ev.end, tz)
-  if (startDay === endDay) return formatTime(ev.start, tz)
-  const start = startDay < key ? t('Midnight') : formatTime(ev.start, tz)
-  const end = endDay > key ? t('Midnight') : formatTime(ev.end, tz)
-  return `${start} – ${end}`
 }
 
 /** Current minute-of-day in `tz`, refreshed every minute (for the now-line + auto-scroll). */
@@ -657,7 +648,7 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[], day?: string): string {
   const who = new Intl.ListFormat(intlLocale()).format(members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name))
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  const head = `${ev.allDay ? t('All day') : day ? eventTimeOnDate(ev, day, tz) : formatTime(ev.start, tz)} ${ev.title}`
+  const head = `${ev.allDay ? t('All day') : isLongTimed(ev, tz) ? timedEventRange(ev, tz) : day ? eventTimeOnDate(ev, day, tz) : formatTime(ev.start, tz)} ${ev.title}`
   return [ev.hidden ? t('Hidden: {event}', { event: head }) : head, ev.busy === false && t('free'), who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && tn(ev.noteCount, '{n} note', '{n} notes'), ev.meal && t('meal: {status}', { status: mealEventStatus(ev.meal).text.replace('✓ ', '') })].filter(Boolean).join(', ')
 }
 
@@ -729,16 +720,21 @@ const HiddenMark = () => <span className="ev-hidden-mark"><EyeOffIcon width={12}
 const FreeMark = () => <span className="ev-free-mark">{t('Free ·')}</span>
 const evClass = (ev: EventInstance) => (ev.hidden ? ' ev-hidden' : '') + (ev.busy === false ? ' ev-free' : '')
 
-function AllDayEventBar({ bar, tz, members, categories, onTap }: { bar: AllDayBar; tz: string; members: ChipMember[]; categories: ChipCategory[]; onTap: () => void }) {
+function AllDayEventBar({ bar, dayKeys, tz, members, categories, onTap }: { bar: AllDayBar; dayKeys: string[]; tz: string; members: ChipMember[]; categories: ChipCategory[]; onTap: () => void }) {
   const { ev, from, to, lane, continuesBefore, continuesAfter } = bar
+  const times = allDayBarTimes(ev, dayKeys, tz)
   const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 7)
   return (
     <div className={`allday-chip${evClass(ev)}${continuesBefore ? ' continues-before' : ''}${continuesAfter ? ' continues-after' : ''}`}
       style={{ ...evFill(background, ink, solid), gridColumn: `${from + 2} / ${to + 3}`, gridRow: lane + 1 }}
       {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
-      {continuesBefore && <span className="allday-continuation" aria-hidden="true">‹</span>}
-      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} />
-      {continuesAfter && <span className="allday-continuation" aria-hidden="true">›</span>}
+      <span className="allday-bar-content" aria-hidden="true">
+        {continuesBefore && <span className="allday-continuation">‹</span>}
+        {times.from && <span className={`allday-from${pill ? ' event-title-pill' : ''}`}>{times.from}</span>}
+        <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} />
+        {times.until && <span className={`allday-until${pill ? ' event-title-pill' : ''}`}>{times.until}</span>}
+        {continuesAfter && <span className="allday-continuation">›</span>}
+      </span>
     </div>
   )
 }
@@ -780,8 +776,9 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
   useGridAutoScroll(scrollRef, nowMinutes, isCurrentWeek, days[0].getTime(), HOUR_PX, space)
 
   const dayKeys = days.map(dateKey)
-  const allDayByDay = dayKeys.map(k => events.filter(e => e.allDay && isAllDayOnDate(e, k)))
-  const timedByDay = dayKeys.map(k => events.filter(e => !e.allDay && isTimedOnDate(e, k, tz)))
+  const longTimed = events.filter(e => isLongTimed(e, tz))
+  const gridEvents = events.filter(e => !e.allDay && !isLongTimed(e, tz))
+  const timedByDay = dayKeys.map(k => gridEvents.filter(e => isTimedOnDate(e, k, tz)))
   const { bars, lanes } = layoutAllDayRow(events, dayKeys, tz)
   // Day headers are the keyboard way into the grid: arrows move between days, Enter opens that day.
   const roving = useRovingGrid(days.length, dayKeys.indexOf(todayStr))
@@ -794,7 +791,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
         {days.length > 1 && <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))` }} onKeyDown={roving.onKeyDown}>
           <div />
           {days.map((d, i) => {
-            const count = allDayByDay[i].length + timedByDay[i].length
+            const count = events.filter(e => e.allDay ? isAllDayOnDate(e, dayKeys[i]) : isTimedOnDate(e, dayKeys[i], tz)).length
             return (
               <button key={i} type="button" data-roving className={`week-header-cell ${dateKey(d) === todayStr ? 'today' : ''}`} tabIndex={roving.tabIndex(i)}
                 aria-current={dateKey(d) === todayStr ? 'date' : undefined}
@@ -809,7 +806,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
           <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${lanes}, var(--allday-lane-h))`, minHeight: lanes * 26 + 6 }}>
             <div style={{ gridColumn: 1, gridRow: '1 / -1' }} />
             {dayKeys.map((key, i) => <div className="allday-cell" key={key} style={{ gridColumn: i + 2, gridRow: '1 / -1' }} />)}
-            {bars.map(bar => <AllDayEventBar key={`${bar.ev.id}|${bar.ev.start}`} bar={bar} tz={tz} members={members} categories={categories} onTap={() => onTap(bar.ev)} />)}
+            {bars.map(bar => <AllDayEventBar key={`${bar.ev.id}|${bar.ev.start}`} bar={bar} dayKeys={dayKeys} tz={tz} members={members} categories={categories} onTap={() => onTap(bar.ev)} />)}
           </div>
         )}
       </div>
@@ -830,6 +827,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
+              {longTimed.map(ev => <LeaveMarker key={`${ev.id}|${ev.start}`} ev={ev} tz={tz} dayKey={dayKeys[i]} hourPx={HOUR_PX} left="2px" width="calc(100% - 4px)" color={eventVisual(ev, members, categories, 10).solid} />)}
               {laidOut.map(({ ev, s, e, left, width, covered }) => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 10)
                 const time = `${eventTimeOnDate(ev, dayKeys[i], tz)}${ev.meal ? timedMealText(ev.meal, days.length === 1) : ''}`
@@ -941,7 +939,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                 return (
                   <div key={ev.id} className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories, key)}>
                     {/* A phone's month cell is ~50px wide: time or avatars alone filled it, so show just the title. */}
-                    <EventTitle title={`${ev.allDay || isPhone ? '' : eventTimeOnDate(ev, key, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
+                    <EventTitle title={`${ev.allDay || isPhone || eventTimeOnDate(ev, key, tz) === t('All day') ? '' : eventTimeOnDate(ev, key, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} />
                   </div>
                 )
               })}
