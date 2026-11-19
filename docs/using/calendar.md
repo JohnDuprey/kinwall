@@ -20,7 +20,7 @@ Calendar has four: **Day**, **Week** (**3 Day** on a phone), **Month** and **Sch
 |---|---|---|
 | **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
 | **Day** | One time grid for the whole family's day. Events at the same time sit side by side, each shows once with the avatars of who it's for, and [free](events.md#free-or-busy) events sit behind the busy ones, striped and marked "Free". See [One event, shown once](#one-event-shown-once). | ±1 day |
-| **Week** (iPad / desktop) | 7 day columns with an all-day row and a time grid. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
+| **Week** (iPad / desktop) | 7 day columns with a time grid. All-day events show as one bar across their days; arrows mark a bar that continues beyond the view. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
 | **3 Day** (phones) | The same grid, 3 days from the anchor date. | ±3 days |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |

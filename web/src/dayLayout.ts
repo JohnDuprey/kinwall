@@ -142,3 +142,48 @@ export function isTimedOnDate(ev: EventInstance, key: string, tz: string) {
   const lastInstant = new Date(Date.parse(ev.end) - 1).toISOString()
   return zonedDayKey(ev.start, tz) <= key && key <= zonedDayKey(lastInstant, tz)
 }
+
+/** All-day start/end are date strings, with an exclusive end. */
+export function isAllDayOnDate(ev: EventInstance, key: string) {
+  return ev.start <= key && key < ev.end
+}
+
+export type AllDayBar = {
+  ev: EventInstance
+  from: number
+  to: number
+  lane: number
+  continuesBefore: boolean
+  continuesAfter: boolean
+}
+
+/** Pack spanning bars into the lowest available lane, clipped to the visible dates. */
+export function layoutAllDayRow(events: EventInstance[], dayKeys: string[], _tz: string): { bars: AllDayBar[]; lanes: number } {
+  if (!dayKeys.length) return { bars: [], lanes: 0 }
+  const bars: AllDayBar[] = []
+  for (const ev of dedupeEvents(events)) {
+    if (!ev.allDay) continue
+    const covered = dayKeys.map((key, i) => isAllDayOnDate(ev, key) ? i : -1).filter(i => i >= 0)
+    if (!covered.length) continue
+    bars.push({ ev, from: covered[0], to: covered[covered.length - 1], lane: 0,
+      continuesBefore: ev.start < dayKeys[0], continuesAfter: ev.end > nextDayKey(dayKeys[dayKeys.length - 1]) })
+  }
+  bars.sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from)
+    || a.ev.start.localeCompare(b.ev.start) || a.ev.title.localeCompare(b.ev.title)
+    || a.ev.id.localeCompare(b.ev.id) || a.ev.calendarId.localeCompare(b.ev.calendarId))
+  const ends: number[] = []
+  for (const bar of bars) {
+    let lane = ends.findIndex(end => end < bar.from)
+    if (lane < 0) lane = ends.length
+    ends[lane] = bar.to
+    bar.lane = lane
+  }
+  return { bars, lanes: ends.length }
+}
+
+/** Plain calendar date math, independent of the device's timezone and DST. */
+function nextDayKey(key: string) {
+  const day = new Date(`${key}T12:00:00Z`)
+  day.setUTCDate(day.getUTCDate() + 1)
+  return day.toISOString().slice(0, 10)
+}

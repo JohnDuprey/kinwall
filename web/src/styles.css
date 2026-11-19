@@ -495,12 +495,16 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 }
 
 .allday-row {
+  --allday-lane-h: 44px;
   display: grid;
+  padding-block: 3px;
   border-bottom: 1px solid var(--border);
   min-height: 30px;
 }
-.allday-cell { padding: 3px; display: flex; flex-direction: column; gap: 3px; border-left: 1px solid var(--border); min-width: 0; }
-.allday-cell:first-child { border-left: none; }
+.allday-cell { border-left: 1px solid var(--border); min-width: 0; }
+.allday-chip.continues-before { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.allday-chip.continues-after { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.allday-continuation { flex: none; font-size: 1rem; }
 
 .timegrid {
   display: grid;
@@ -558,8 +562,11 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 }
 .event-chip .t { opacity: 0.85; font-weight: 600; font-size: 0.6875rem; }
 .allday-chip {
+  z-index: 1;
+  min-width: 0;
+  margin-inline: 3px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 3px;
   border-radius: 8px;
   padding: 3px 8px;
@@ -579,9 +586,7 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   line-height: 1.25;
 }
-/* Wall and cast screens: all-day events are 44px taps. Day view's full-width bars carry bigger text. */
-@media (min-width: 1280px) { .allday-chip { min-height: 44px; align-items: center; } }
-:root[data-cast] .allday-chip { min-height: 44px; align-items: center; }
+/* All-day lanes keep every bar a 44px touch target. Day view carries bigger text. */
 @media (min-width: 1700px) and (min-height: 950px) {
   :root:not([data-cast]) .timegrid:has(> .day-col:nth-child(2):last-child) .timed-event { font-size: calc(0.875rem * var(--screen-k)); }
 }
