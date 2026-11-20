@@ -153,11 +153,14 @@ export function isAllDayOnDate(ev: EventInstance, key: string) {
 /** A timed event long enough to be drawn in the all-day row, not on the time grid. */
 export function isLongTimed(ev: EventInstance, tz: string): boolean {
   if (ev.allDay) return false
-  if (Date.parse(ev.end) - Date.parse(ev.start) >= 86400000) return true
-  // Under 24 hours can still contain a whole spring-forward calendar day. Compare calendar
-  // boundaries rather than adding 24 hours, and keep seconds at midnight exact.
+  const start = Date.parse(ev.start)
+  if (Date.parse(ev.end) - start >= 86400000) return true
+  // A short spring-forward day may begin at 01:00 when midnight is skipped. At its first
+  // instant, the preceding millisecond still belongs to an earlier local date. This also
+  // keeps an event beginning even a millisecond after the boundary out of the whole-day case.
   const startDay = zonedDayKey(ev.start, tz)
-  const firstWholeDay = isLocalMidnight(ev.start, tz) ? startDay : nextDayKey(startDay)
+  const startsDay = zonedDayKey(new Date(start - 1).toISOString(), tz) < startDay
+  const firstWholeDay = startsDay ? startDay : nextDayKey(startDay)
   return zonedDayKey(ev.end, tz) >= nextDayKey(firstWholeDay)
 }
 

@@ -148,3 +148,34 @@ for (const [tz, month, day] of [['Pacific/Auckland', 8, 27], ['Europe/Berlin', 2
     assert.equal(isLongTimed(event('Maya', start, end, false), tz), true)
   })
 }
+
+for (const [tz, key, start, end] of [
+  ['America/Santiago', '2026-09-06', '2026-09-06T04:00:00Z', '2026-09-07T03:00:00Z'],
+  ['America/Havana', '2026-03-08', '2026-03-08T05:00:00Z', '2026-03-09T04:00:00Z'],
+  ['Africa/Cairo', '2026-04-24', '2026-04-23T22:00:00Z', '2026-04-24T21:00:00Z'],
+] as const) {
+  test(`a whole day whose midnight is skipped belongs in the all-day row (${tz})`, () => {
+    setHour12(true)
+    const ev = event('Kitchen renovation', start, end, false)
+    assert.equal(Date.parse(end) - Date.parse(start), 23 * 3600000)
+    assert.equal(formatTime(start, tz), '1:00 AM', 'the first instant of this day is not 00:00')
+    for (const deviceZone of ['UTC', 'Pacific/Auckland']) {
+      process.env.TZ = deviceZone
+      assert.equal(isLongTimed(ev, tz), true, `a whole family day, independent of the device zone (${deviceZone})`)
+      const { bars, lanes } = layoutAllDayRow([ev], [key], tz)
+      assert.equal(lanes, 1)
+      assert.deepEqual(bars.map(bar => [bar.from, bar.to, bar.continuesBefore, bar.continuesAfter]), [[0, 0, false, false]])
+      assert.equal(bars[0].ev, ev, 'opening the bar retains the timed event')
+      assert.equal(isLongTimed({ ...ev, start: new Date(Date.parse(start) + 1).toISOString() }, tz), false, 'a millisecond late misses the beginning of the day')
+      assert.equal(isLongTimed({ ...ev, end: new Date(Date.parse(end) - 1).toISOString() }, tz), false, 'the full day must reach its ending boundary')
+      assert.equal(isLongTimed({ ...ev, start: new Date(Date.parse(start) - 1800000).toISOString() }, tz), true, 'a shorter-than-24-hour event may begin before the whole day')
+    }
+    const ordinaryDay = { ...ev, start: new Date(Date.parse(end) + 3600000).toISOString(), end: new Date(Date.parse(end) + 86400000).toISOString() }
+    assert.equal(isLongTimed(ordinaryDay, tz), false, '01:00 on the next, ordinary day is not its beginning')
+  })
+}
+
+test('a short event starting after a skipped date does not cover a whole day', () => {
+  const ev = event('Family picnic', '2011-12-30T10:00:00Z', '2011-12-30T22:00:00Z', false)
+  assert.equal(isLongTimed(ev, 'Pacific/Apia'), false, 'a 12-hour event on December 31 does not cover the skipped December 30')
+})

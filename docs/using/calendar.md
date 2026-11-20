@@ -26,7 +26,7 @@ Calendar has four: **Day**, **Week** (**3 Day** on a phone), **Month** and **Sch
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
 | **Newscast** | What the family did and shared: chores done, rewards, photos, books and announcements, with reactions. See [Newscast](newscast.md). | None: the last 7 days, then **Earlier this month** |
 
-A shorter overnight event stays on the time grid. Multi-day timed events read “From 6:00 PM” on their start day, “Until 3:00 PM” on their end day, and “All day” on whole days in between in Schedule. Month shows those endpoint labels and leaves out times on whole days. Moving an event into the all-day row does not change its saved times or its timed-event setting.
+A shorter overnight event stays on the time grid. An event covering a whole calendar day appears in the all-day row even when a clock change makes that day shorter than 24 hours. Multi-day timed events read “From 6:00 PM” on their start day, “Until 3:00 PM” on their end day, and “All day” on whole days in between in Schedule. Month shows those endpoint labels and leaves out times on whole days. Moving an event into the all-day row does not change its saved times or its timed-event setting.
 
 The Day, Week and 3 Day grids open at 7 AM, or on today an hour before now (with now always on screen). A screen 1280 pixels wide or more, and a [cast screen](../settings/this-display.md), shrinks the hour rows so 7 AM to 9 PM fits without scrolling, as far as it can while staying readable. An event too short for two lines shows its time after its title ("Team Meeting · 4:30 PM"), and the line for now runs under the events, marked by a dot at the left edge.
 
