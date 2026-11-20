@@ -696,7 +696,8 @@ export interface GooglePhotos {
   account?: { name: string | null; email: string } // parent devices: the Google account it's connected to (missing on older connections)
 }
 
-export interface PhotoQuota { count: number; bytes: number; memoryPhotos: number; maxCount: number; maxBytes: number; maxPhotoBytes: number }
+// usedBytes adds upkeep files to the photos' bytes; it counts toward maxBytes (null: the server sets no limit)
+export interface PhotoQuota { count: number; bytes: number; usedBytes: number; memoryPhotos: number; maxBytes: number | null; maxPhotoBytes: number }
 
 export type StickerPatch = Partial<Pick<StickerPlacement, 'x' | 'y' | 'scale' | 'rotation' | 'z'>>
 

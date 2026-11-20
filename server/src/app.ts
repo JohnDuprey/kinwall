@@ -12,6 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import { requestLang, translateError } from './i18n.ts';
 import { EncryptionKeyMissingError } from './crypto.ts';
 import { GENERIC_ERROR } from './redact.ts';
+import { DISK_FULL } from './storage.ts';
 import { createRouter } from './router.ts';
 import { carryRequestKey, requireAuth } from './auth.ts';
 import { healthRoutes } from './routes/health.ts';
@@ -129,6 +130,7 @@ export function createApp() {
     if (err instanceof HTTPException && err.status < 500) return c.json({ error: err.message }, err.status);
     if (err instanceof SyntaxError && c.req.method !== 'GET' && c.req.method !== 'HEAD') return c.json({ error: "That request isn't valid JSON" }, 400);
     if (err instanceof EncryptionKeyMissingError) { console.error(err); return c.json({ error: err.message }, 500); } // setup guidance for the parent, no internals
+    if (/SQLITE_FULL|database or disk is full/i.test(String((err as Error)?.message))) { console.error(err); return c.json({ error: DISK_FULL }, 507); }
     const ref = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     console.error(`[${ref}] ${c.req.method} ${c.req.path}`, err);
     return c.json({ error: GENERIC_ERROR, ref }, 500);

@@ -12,10 +12,10 @@ import type { Env } from '../src/env.ts';
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
 
-function makeApp() {
+function makeApp(extra: Partial<Env> = {}) {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
-  const env: Env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' };
+  const env: Env = { DB: db as unknown as D1Database, ADMIN_API_KEY: ADMIN_KEY, ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', ...extra };
   const app = createApp();
   const raw = (method: string, p: string, init: { body?: BodyInit; headers?: Record<string, string>; key?: string | null } = {}) =>
     app.request(p, { method, body: init.body, headers: { ...(init.key === null ? {} : { Authorization: `Bearer ${init.key ?? ADMIN_KEY}` }), ...init.headers } }, env);
@@ -83,18 +83,27 @@ test('photos: size cap (413), mime check (415), bad size headers (400)', async (
   assert.equal(noSize.status, 400);
 });
 
-test('photos: quota count (409 with the quota object)', async () => {
+test('photos: no total limit unless the host sets one', async () => {
   const { db, upload, send } = makeApp();
-  // Fill to one short of the cap directly, then the next upload fits and the one after doesn't.
-  for (let i = 0; i < PHOTO_LIMITS.maxCount - 1; i++) {
+  for (let i = 0; i < 250; i++) {
     await db.prepare("INSERT INTO photos (id, mime, width, height, bytes, data, created_at) VALUES (?, 'image/webp', 1, 1, 1, ?, '2026-01-01')").bind(`p${i}`, bytes(1)).run();
   }
   assert.equal((await upload(bytes(10))).status, 201);
-  const full = await upload(bytes(10));
-  assert.equal(full.status, 409);
-  assert.deepEqual([full.body.count, full.body.maxCount, full.body.maxBytes, full.body.maxPhotoBytes], [200, 200, 104857600, 614400]);
   const q = (await send('GET', '/api/photos/quota')).body;
-  assert.deepEqual(q, { count: 200, bytes: 199 + 10, memoryPhotos: 0, maxCount: 200, maxBytes: 104857600, maxPhotoBytes: 614400 });
+  assert.deepEqual(q, { count: 251, bytes: 260, usedBytes: 260, memoryPhotos: 0, maxBytes: null, maxPhotoBytes: 614400 });
+});
+
+test('photos: STORAGE_LIMIT_BYTES caps photos and upkeep files together (409 with the quota object)', async () => {
+  const { db, upload, send } = makeApp({ STORAGE_LIMIT_BYTES: '1000' });
+  await db.prepare("INSERT INTO upkeep_things (id, name, created_at, updated_at) VALUES ('t1', 'Fridge', '2026-01-01', '2026-01-01')").run();
+  await db.prepare("INSERT INTO upkeep_files (id, thing_id, name, mime, bytes, data, created_at) VALUES ('f1', 't1', 'Manual', 'application/pdf', 400, ?, '2026-01-01')").bind(bytes(400)).run();
+  assert.equal((await upload(bytes(500))).status, 201);
+  assert.equal((await upload(bytes(100))).status, 201); // exactly the limit is fine
+  const full = await upload(bytes(1));
+  assert.equal(full.status, 409);
+  assert.equal(full.body.error, 'Storage is full — delete some photos or files first');
+  assert.deepEqual([full.body.bytes, full.body.usedBytes, full.body.maxBytes], [600, 1000, 1000]);
+  assert.deepEqual((await send('GET', '/api/photos/quota')).body, { count: 2, bytes: 600, usedBytes: 1000, memoryPhotos: 0, maxBytes: 1000, maxPhotoBytes: 614400 });
 });
 
 test('photos: a display key can list, view and upload (Paint on the wall), but not edit or delete', async () => {
@@ -219,10 +228,7 @@ test('photos zip: import respects the quota and the per-photo cap; bad input; ad
   await a.upload(bytes(100, 2));
   const zip = await zipOf(await a.raw('GET', '/api/photos/export.zip'));
 
-  const b = makeApp();
-  for (let i = 0; i < PHOTO_LIMITS.maxCount - 1; i++) {
-    await b.db.prepare("INSERT INTO photos (id, mime, width, height, bytes, data, created_at) VALUES (?, 'image/webp', 1, 1, 1, ?, '2026-01-01')").bind(`p${i}`, bytes(1)).run();
-  }
+  const b = makeApp({ STORAGE_LIMIT_BYTES: '150' });
   assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 1, skipped: 1, upkeepFiles: 0 });
 
   const big = await deflatedZip('huge.png', png(PHOTO_LIMITS.maxPhotoBytes));
@@ -294,3 +300,17 @@ test('coloring pages: travel in the photos zip and come back as pages', async ()
   assert.deepEqual((await b.send('GET', '/api/coloring-pages')).body.map((p: any) => [p.id, p.name]), [[page.id, 'Castle']]);
   assert.deepEqual((await b.send('GET', '/api/photos')).body, []);
 });
+
+test("a full disk (SQLITE_FULL) says so instead of a generic error", async () => {
+  const { env, send } = makeApp();
+  const prepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = (sql: string) => {
+    if (sql.startsWith('INSERT INTO photos')) throw Object.assign(new Error('database or disk is full'), { code: 'ERR_SQLITE_ERROR', errcode: 13 });
+    return prepare(sql);
+  };
+  const res = await makeAppUpload(env);
+  assert.equal(res.status, 507);
+  assert.equal(((await res.json()) as any).error, "The server's disk is full. Free up space on it, then try again.");
+  assert.equal((await send('GET', '/api/photos')).status, 200);
+});
+const makeAppUpload = (env: Env) => createApp().request('/api/photos', { method: 'POST', body: bytes(10), headers: { Authorization: `Bearer ${ADMIN_KEY}`, 'Content-Type': 'image/webp', 'X-Photo-Width': '1', 'X-Photo-Height': '1' } }, env);

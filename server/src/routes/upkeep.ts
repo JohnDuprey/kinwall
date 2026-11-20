@@ -29,6 +29,7 @@ import { zonedTimeToUtc } from '../recurrence.ts';
 import { addDays, scheduledDue } from '../upkeep-rules.ts';
 import { factsOf, logDone, MAX_UPKEEP_FILE_BYTES, readAreas, readJobs, readLog, readThings, undoDone, type DoneInput, type UpkeepEntry, type UpkeepJob, type UpkeepThing } from '../upkeep.ts';
 import { UPKEEP_STARTERS } from '../upkeep-starters.ts';
+import { ROOM_SQL, roomArgs, STORAGE_FULL } from '../storage.ts';
 
 export const upkeepRoutes = createRouter();
 
@@ -620,7 +621,7 @@ upkeepRoutes.openapi(
       query: z.object({ thing: z.string().optional(), entry: z.string().optional() }),
       body: { required: true, content: Object.fromEntries(MIMES.map((m) => [m, { schema: z.string().openapi({ format: 'binary' }) }])) },
     },
-    responses: { 201: res('file', FileSchema), 413: res('file too large', ErrorSchema), ...errors },
+    responses: { 201: res('file', FileSchema), 409: res('storage is full', ErrorSchema), 413: res('file too large', ErrorSchema), ...errors },
   }),
   async (c) => {
     if (await off(c)) return c.json(OFF, 404);
@@ -639,7 +640,8 @@ upkeepRoutes.openapi(
     const count = (await db.prepare(`SELECT count(*) AS n FROM upkeep_files WHERE ${col} = ?`).bind(q.thing ?? q.entry).first<{ n: number }>())?.n ?? 0;
     if (count >= MAX_FILES) return c.json({ error: `There's room for ${MAX_FILES} files here.` }, 400);
     const id = crypto.randomUUID();
-    await db.prepare(`INSERT INTO upkeep_files (id, ${col}, name, mime, bytes, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, q.thing ?? q.entry, name, mime, data.byteLength, data, new Date().toISOString()).run();
+    const added = await db.prepare(`INSERT INTO upkeep_files (id, ${col}, name, mime, bytes, data, created_at) SELECT ?, ?, ?, ?, ?, ?, ? ${ROOM_SQL}`).bind(id, q.thing ?? q.entry, name, mime, data.byteLength, data, new Date().toISOString(), ...roomArgs(c.env, data.byteLength)).run();
+    if (!added.meta.changes) return c.json({ error: STORAGE_FULL }, 409);
     emit(c, 'upkeep.changed', { id: q.thing ?? q.entry, kind: q.thing ? 'thing' : 'log' });
     return c.json({ id, name, mime, bytes: data.byteLength }, 201);
   },

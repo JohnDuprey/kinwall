@@ -19,10 +19,11 @@ import { ErrorSchema } from '../schemas.ts';
 import type { KinwallDb } from '../db.ts';
 import { readZip, zipStream, type ZipEntry, type ZipFile } from '../zip.ts';
 import { MAX_UPKEEP_FILE_BYTES } from '../upkeep.ts';
+import { ROOM_SQL, roomArgs, STORAGE_FULL, storageLimit, USED_SQL } from '../storage.ts';
 
 export const photosRoutes = createRouter();
 
-export const PHOTO_LIMITS = { maxCount: 200, maxBytes: 100 * 1024 * 1024, maxPhotoBytes: 600 * 1024 };
+export const PHOTO_LIMITS = { maxPhotoBytes: 600 * 1024 };
 /** A profile picture: a 256 px crop is about 10-30 KB (a PNG fallback more). */
 export const MAX_PICTURE_BYTES = 200 * 1024;
 const MIMES = ['image/webp', 'image/jpeg', 'image/png'];
@@ -49,7 +50,7 @@ const PhotoSchema = z
   })
   .openapi('Photo');
 const QuotaSchema = z
-  .object({ count: z.number(), bytes: z.number(), memoryPhotos: z.number(), maxCount: z.number(), maxBytes: z.number(), maxPhotoBytes: z.number() }) // count/bytes include memoryPhotos
+  .object({ count: z.number(), bytes: z.number(), usedBytes: z.number(), memoryPhotos: z.number(), maxBytes: z.number().nullable(), maxPhotoBytes: z.number() }) // count/bytes include memoryPhotos; usedBytes adds upkeep files and counts toward maxBytes (null: no limit)
   .openapi('PhotoQuota');
 
 const toApi = (r: PhotoRow): z.infer<typeof PhotoSchema> => ({
@@ -64,19 +65,16 @@ export function blobBytes(v: unknown): Uint8Array<ArrayBuffer> {
   throw new Error('photo data is not a blob');
 }
 
-async function quota(db: KinwallDb) {
-  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, COALESCE(SUM(family = 0 AND coloring = 0 AND avatar = 0), 0) AS memory FROM photos').first<{ count: number; bytes: number; memory: number }>();
-  return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, memoryPhotos: row?.memory ?? 0, ...PHOTO_LIMITS };
+async function quota(env: Env) {
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, ${USED_SQL} AS used, COALESCE(SUM(family = 0 AND coloring = 0 AND avatar = 0), 0) AS memory FROM photos`).first<{ count: number; bytes: number; used: number; memory: number }>();
+  return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, usedBytes: row?.used ?? 0, memoryPhotos: row?.memory ?? 0, maxBytes: storageLimit(env), ...PHOTO_LIMITS };
 }
 
-// One statement, so two uploads racing can't both squeeze past the quota. false = it's full.
-async function insertWithinQuota(db: KinwallDb, row: PhotoRow, data: Uint8Array): Promise<boolean> {
-  const res = await db
-    .prepare(
-      `INSERT INTO photos (${COLS}, added_by, coloring, avatar, source_id, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-       WHERE (SELECT COUNT(*) FROM photos) < ? AND (SELECT COALESCE(SUM(bytes), 0) FROM photos) + ? <= ?`,
-    )
-    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, row.coloring ?? 0, row.avatar ?? 0, row.source_id ?? null, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
+// One statement, so two uploads racing can't both squeeze past the limit. false = it's full.
+async function insertWithinQuota(env: Env, row: PhotoRow, data: Uint8Array): Promise<boolean> {
+  const res = await env.DB
+    .prepare(`INSERT INTO photos (${COLS}, added_by, coloring, avatar, source_id, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? ${ROOM_SQL}`)
+    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, row.coloring ?? 0, row.avatar ?? 0, row.source_id ?? null, data, ...roomArgs(env, row.bytes))
     .run();
   return res.meta.changes > 0;
 }
@@ -111,7 +109,7 @@ photosRoutes.openapi(
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: json(QuotaSchema) } },
   }),
-  async (c) => c.json(await quota(c.env.DB), 200),
+  async (c) => c.json(await quota(c.env), 200),
 );
 
 photosRoutes.openapi(
@@ -159,7 +157,7 @@ photosRoutes.openapi(
       bytes: data.byteLength, member_id: null, created_at: new Date().toISOString(), family: family === '0' ? 0 : 1,
       drawing: drawing === '1' ? 1 : 0, added_by: by ?? (await actorOf(c)).memberId,
     };
-    if (!(await insertWithinQuota(c.env.DB, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(c.env.DB)) }, 409);
+    if (!(await insertWithinQuota(c.env, row, data))) return c.json({ error: STORAGE_FULL, ...(await quota(c.env)) }, 409);
     emit(c, 'photo.changed', { id: row.id });
     return c.json(toApi(row), 201);
   },
@@ -245,7 +243,8 @@ photosRoutes.openapi(
 
 const EXT: Record<string, string> = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' };
 const MIME_OF_EXT: Record<string, string> = { webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
-export const MAX_ZIP_BYTES = PHOTO_LIMITS.maxBytes + 10 * 1024 * 1024; // a full album plus zip overhead and manifest
+// ponytail: one request caps an import at 110 MB (a few hundred photos); a bigger backup zip won't re-import in one go. Stream the import if families outgrow it.
+export const MAX_ZIP_BYTES = 110 * 1024 * 1024;
 const binary = { schema: z.string().openapi({ format: 'binary' }) };
 
 type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string; family: boolean; coloring?: boolean; picture?: boolean };
@@ -423,13 +422,13 @@ photosRoutes.openapi(
       const picture = meta.picture === true;
       if (picture && (!member || data.byteLength > MAX_PICTURE_BYTES)) { skipped++; continue; } // nobody's picture here
       const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created, family: meta.family === false || meta.coloring === true || picture ? 0 : 1, coloring: meta.coloring === true ? 1 : 0, avatar: picture ? 1 : 0 };
-      if (!(await insertWithinQuota(db, row, data))) { skipped++; continue; }
+      if (!(await insertWithinQuota(c.env, row, data))) { skipped++; continue; }
       if (picture) await db.batch(setPictureStmts(db, member!.id, id));
       existing.add(id);
       imported++;
     }
     if (imported) { emit(c, 'photo.changed', { imported }); emit(c, 'member.changed', {}); }
-    const upkeepFiles = await importUpkeepFiles(db, entries);
+    const upkeepFiles = await importUpkeepFiles(c.env, entries);
     if (upkeepFiles) emit(c, 'upkeep.changed', { imported: upkeepFiles });
     return c.json({ imported, skipped, upkeepFiles }, 200);
   },
@@ -441,7 +440,8 @@ photosRoutes.openapi(
 type UpkeepFileRow = { id: string; thing_id: string | null; log_id: string | null; name: string; mime: string; created_at: string };
 const UPKEEP_MANIFEST = 'upkeep/files.json';
 const UPKEEP_EXT: Record<string, string> = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
-async function importUpkeepFiles(db: KinwallDb, entries: ZipEntry[]): Promise<number> {
+async function importUpkeepFiles(env: Env, entries: ZipEntry[]): Promise<number> {
+  const db = env.DB;
   const list = entries.find((e) => e.name === UPKEEP_MANIFEST);
   const bytes = await list?.read(5 * 1024 * 1024);
   if (!bytes) return 0;
@@ -461,8 +461,8 @@ async function importUpkeepFiles(db: KinwallDb, entries: ZipEntry[]): Promise<nu
     if (!data?.byteLength) continue;
     const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 200) : 'File';
     const created = typeof m.createdAt === 'string' && !Number.isNaN(Date.parse(m.createdAt)) ? new Date(m.createdAt).toISOString() : new Date().toISOString();
-    await db.prepare('INSERT INTO upkeep_files (id, thing_id, log_id, name, mime, bytes, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, thingId, logId, name, mime, data.byteLength, data, created).run();
-    n++;
+    const res = await db.prepare(`INSERT INTO upkeep_files (id, thing_id, log_id, name, mime, bytes, data, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? ${ROOM_SQL}`).bind(id, thingId, logId, name, mime, data.byteLength, data, created, ...roomArgs(env, data.byteLength)).run();
+    if (res.meta.changes) n++;
   }
   return n;
 }
@@ -527,7 +527,7 @@ photosRoutes.openapi(
       id: crypto.randomUUID(), caption: name?.trim() || 'Coloring page', mime: 'image/png', width: size['x-photo-width'], height: size['x-photo-height'],
       bytes: data.byteLength, member_id: null, created_at: new Date().toISOString(), family: 0, coloring: 1,
     };
-    if (!(await insertWithinQuota(c.env.DB, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(c.env.DB)) }, 409);
+    if (!(await insertWithinQuota(c.env, row, data))) return c.json({ error: STORAGE_FULL, ...(await quota(c.env)) }, 409);
     emit(c, 'photo.changed', { id: row.id });
     return c.json(pageOf(row), 201);
   },
@@ -624,7 +624,7 @@ photosRoutes.openapi(
       id: crypto.randomUUID(), caption: null, mime, width: size['x-photo-width'], height: size['x-photo-height'], bytes: data.byteLength,
       member_id: id, created_at: new Date().toISOString(), family: 0, avatar: 1, source_id: from ?? null,
     };
-    if (!(await insertWithinQuota(db, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(db)) }, 409);
+    if (!(await insertWithinQuota(c.env, row, data))) return c.json({ error: STORAGE_FULL, ...(await quota(c.env)) }, 409);
     await db.batch(setPictureStmts(db, id, row.id));
     emit(c, 'member.changed', { id });
     return c.json({ picture: pictureUrl(row.id) }, 200);

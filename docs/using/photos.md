@@ -33,12 +33,12 @@ Tap a photo to see it full size. Swipe, tap **‹** and **›**, or use the arro
 | Limit | Value |
 |---|---|
 | One photo, after shrinking | 600 KB |
-| Photos per family | 200 |
-| Total storage | 100 MB |
+| Photos per family | No limit |
+| Total storage | No limit, unless your server sets one |
 
-[Profile pictures](profiles.md#profile-pictures) and memories' own photos count toward these too.
+A server can set a storage limit for photos and [home upkeep](upkeep.md) files (receipts and manuals) together. [Profile pictures](profiles.md#profile-pictures) and memories' own photos count toward it too. When it's full, delete some photos or files to add more.
 
-The Photos page shows how much you've used, for example "23 photos · 6 MB of 100 MB".
+The Photos page shows how much you've used, for example "23 photos · 6 MB", or "23 photos · 6 MB of 2 GB" when the server sets a limit.
 
 ## Formats
 

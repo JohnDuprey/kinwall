@@ -35,6 +35,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
 | `TZ` | system | Docker/Node: the fallback timezone until the household sets one. |
+| `STORAGE_LIMIT_BYTES` | — (no limit) | Room for photos and upkeep files together, in bytes, for hosts running Kinwall for other families. Uploads past it get "Storage is full". Leave it unset to let Kinwall use whatever disk it has. |
 | `PHOTO_FOLDER` | — | Docker/Node only. A folder of pictures (for example `/photos`, mounted read-only) that the Night screen and the Board can show. See [Photo folder](#photo-folder). |
 
 ### Google Photos

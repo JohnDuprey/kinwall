@@ -13,7 +13,8 @@ import type { Photo, PhotoQuota } from './types.ts'
 import { ChipFace } from './Face'
 import { intlLocale, t, tn } from './i18n.ts'
 
-const mb = (b: number) => { const v = b / 1048576; return t('{n} MB', { n: new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0, useGrouping: false }).format(v) }) }
+const size = (v: number) => new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0, useGrouping: false }).format(v)
+const mb = (b: number) => b >= 1024 ** 3 ? t('{n} GB', { n: size(b / 1024 ** 3) }) : t('{n} MB', { n: size(b / 1048576) })
 const photoCount = (n: number) => tn(n, '{n} photo', '{n} photos')
 
 export default function Photos() {
@@ -74,7 +75,7 @@ export default function Photos() {
 
   const open = photos?.find(p => p.id === openId) ?? null
   const ready = isAdmin && !!quota && !progress
-  const full = !!quota && (quota.count >= quota.maxCount || quota.bytes >= quota.maxBytes)
+  const full = !!quota && quota.maxBytes !== null && quota.usedBytes >= quota.maxBytes
 
   return (
     <div className="photos scroll-y">
@@ -82,7 +83,7 @@ export default function Photos() {
         <a className="paint-btn" href="#/activities" aria-label={t('Back to activities')}><ChevronLeft /></a>
         <div className="photos-title">
           <h2>{t('Photos')}</h2>
-          {quota && <span className="photos-quota">{photoCount(quota.count - (quota.memoryPhotos ?? 0))}{quota.memoryPhotos ? ` ${t('(+{n} in memories)', { n: quota.memoryPhotos })}` : ''} · {t('{used} of {total}', { used: mb(quota.bytes), total: mb(quota.maxBytes) })}</span>}
+          {quota && <span className="photos-quota">{photoCount(quota.count - (quota.memoryPhotos ?? 0))}{quota.memoryPhotos ? ` ${t('(+{n} in memories)', { n: quota.memoryPhotos })}` : ''} · {quota.maxBytes === null ? mb(quota.bytes) : t('{used} of {total}', { used: mb(quota.usedBytes), total: mb(quota.maxBytes) })}</span>}
         </div>
         {isAdmin && <>
           <input ref={input} type="file" accept="image/*" multiple hidden onChange={e => { const f = [...(e.target.files ?? [])]; e.target.value = ''; upload(f) }} />
@@ -99,7 +100,7 @@ export default function Photos() {
           <button className="btn btn-secondary" disabled={importing || !!progress} onClick={() => zipInput.current?.click()}>{importing ? t('Importing…') : t('Import zip')}</button>
         </div>
       )}
-      {full && isAdmin && <p className="photos-note">{t('Photo storage is full. Delete some photos to add more.')}</p>}
+      {full && isAdmin && <p className="photos-note">{t('Storage is full. Delete some photos or files to add more.')}</p>}
 
       {photos && photos.length === 0 && (
         <div className="state-card">

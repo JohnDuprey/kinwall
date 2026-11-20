@@ -74,7 +74,7 @@ A memory has at most one photo:
 * **From family photos** uses one that's already in the family photos. It's only linked, so it stays in the family photos whatever happens to the memory.
 * Deleting a memory, removing its photo or replacing it deletes the memory's own photo, unless it's also in the family photos.
 
-A memory's own photos count toward the family's photo storage (200 photos, 100 MB). The Photos page shows them separately, for example "20 photos (+3 in memories)".
+A memory's own photos count toward the family's [photo storage](photos.md#limits). The Photos page shows them separately, for example "20 photos (+3 in memories)".
 
 **On this day** shows memories from the same date in earlier years.
 

@@ -32,6 +32,7 @@ export type Env = NativePushEnv & FcmEnv & {
   CLIENT_IP?: (req: Request) => string | null; // the caller's address for per-address rate limits (node.ts: socket peer, X-Forwarded-For only with TRUST_PROXY=1). Unset: cf-connecting-ip, which Cloudflare hosts always set; see ratelimit.ts
   ALLOW_PRIVATE_FEED_URLS?: string; // '1' lets ICS/CalDAV reach LAN hosts (see outbound.ts)
   ALLOW_PRIVATE_WEBHOOK_URLS?: string; // '1' lets webhooks target LAN receivers (Home Assistant add-on sets it)
+  STORAGE_LIMIT_BYTES?: string; // room for photos and upkeep files together (hosted sets it); unset: no limit. See storage.ts
   PHOTO_FOLDER?: PhotoFolder; // pictures in a folder on the server for the Night screen and the Board (node.ts: PHOTO_FOLDER=/photos, photo-folder-node.ts). Unset (Workers): none
   OUTBOUND_FETCH?: Fetch; // a fetch that refuses private addresses at connect time, for person-supplied URLs (node.ts: outbound-node.ts). Unset (Workers): the literal-host check only; see outbound.ts
   REQUIRE_PASSKEY_SETUP?: string; // '1': setup wizard can't skip the passkey (hosts with no other way back in); see routes/setup.ts

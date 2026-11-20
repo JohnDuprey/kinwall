@@ -38,6 +38,10 @@ When a sign-in goes wrong, Kinwall sends you back to **Settings → Calendars** 
 
 Kinwall shows this for anything it didn't expect, on purpose: the details can be technical, and kids use the app. The real error is in the server log (Home Assistant: the add-on's **Log** tab; Docker: `docker logs`; Cloudflare: `wrangler tail`). The API's response carries a short `ref` (for example `a1b2c3d4`), and the log line starts with the same code in square brackets, so you can find the matching entry.
 
+## "The server's disk is full"
+
+The disk or volume holding `DATA_DIR` ran out of space, so Kinwall can't save anything until there's room again. Free up space on it (or give the volume more), then try again; nothing already saved is lost. Kinwall itself sets no storage limit unless you set `STORAGE_LIMIT_BYTES` ([Configuration](configuration.md)).
+
 ## Sync errors
 
 The calendar's row in **Settings → Calendars** shows the last error.

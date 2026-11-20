@@ -337,7 +337,7 @@ const googleStatus = (): GooglePhotos => {
 
 const coloringPages: FamilyColoringPage[] = [] // a parent adds one from a picture (Paint → Coloring pages → Add a page)
 
-const PHOTO_LIMITS = { maxCount: 200, maxBytes: 104_857_600, maxPhotoBytes: 614_400 }
+const PHOTO_LIMITS = { maxBytes: 2_147_483_648, maxPhotoBytes: 614_400 }
 
 const accounts: Account[] = [{ id: 'demo-google', kind: 'google', name: 'Demo Google', createdAt: new Date().toISOString() }]
 
@@ -1771,7 +1771,7 @@ export const mock = {
   },
   getPhotos: async () => photos.filter(p => p.family !== false),
   photoUrl: (id: string) => photos.find(p => p.id === id)?.url ?? '',
-  getPhotoQuota: async (): Promise<PhotoQuota> => ({ count: photos.length, bytes: photos.reduce((n, p) => n + p.bytes, 0), memoryPhotos: photos.filter(p => p.family === false).length, ...PHOTO_LIMITS }),
+  getPhotoQuota: async (): Promise<PhotoQuota> => ({ count: photos.length, bytes: photos.reduce((n, p) => n + p.bytes, 0), usedBytes: photos.reduce((n, p) => n + p.bytes, 0), memoryPhotos: photos.filter(p => p.family === false).length, ...PHOTO_LIMITS }),
   uploadPhoto: async (blob: Blob, width: number, height: number, caption?: string, family = true) => {
     const p: Photo = { id: uid(), caption: caption?.trim() || null, mime: blob.type, width, height, bytes: blob.size, memberId: null, createdAt: new Date().toISOString(), url: URL.createObjectURL(blob), family }
     photos.unshift(p); bump(); return p

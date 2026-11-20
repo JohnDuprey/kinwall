@@ -227,6 +227,12 @@ test('upkeep: files are for parents, and walls never get them', async () => {
     const viaToken = await app_get(t, `/api/upkeep/files/${file.id}?key=${token}`);
     assert.equal(viaToken, 200, "a parent's media token opens it in an <img>");
     assert.equal((await t.req(`/api/upkeep/files/${file.id}`, 'DELETE')).status, 200);
+    t.env.STORAGE_LIMIT_BYTES = '10'; // the host's limit counts photos and upkeep files together
+    const post = () => t.raw(`/api/upkeep/files?thing=${thing.id}`, { method: 'POST', body: png, headers: { 'Content-Type': 'image/png' } });
+    assert.equal((await post()).status, 201);
+    const full = await post();
+    assert.equal(full.status, 409);
+    assert.equal(((await full.json()) as any).error, 'Storage is full — delete some photos or files first');
   } finally { await t.restore(); }
 });
 async function app_get(t: Awaited<ReturnType<typeof setup>>, p: string) {
