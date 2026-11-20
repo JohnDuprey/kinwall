@@ -36,7 +36,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { allDayBarTimes, dedupeEvents, eventTimeOnDate, eventPeople, gridTop, hourPx, isAllDayOnDate, isLongTimed, isTimedOnDate, layoutAllDayRow, layoutDay, type AllDayBar, newEventDay, newEventStart, repeatChoice, repeatRule, timedEventRange, wallHourPx, type RepeatChoice } from './dayLayout.ts'
+import { allDayBarTimes, allDayEventRange, dedupeEvents, eventTimeOnDate, eventPeople, gridTop, hourPx, isAllDayOnDate, isLongTimed, isTimedOnDate, layoutAllDayRow, layoutDay, type AllDayBar, newEventDay, newEventStart, repeatChoice, repeatRule, timedEventRange, wallHourPx, type RepeatChoice } from './dayLayout.ts'
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, HOME_VIEWS, dayOrigin, isCalendarView, isHomeView, lastCalendarView, linkedCalendarView, monthDayLabel, rememberCalendarView, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onDayChange, onMinute, rollToToday } from './minuteTick.ts'
@@ -648,7 +648,7 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[], day?: string): string {
   const who = new Intl.ListFormat(intlLocale()).format(members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name))
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  const head = `${ev.allDay ? t('All day') : isLongTimed(ev, tz) ? timedEventRange(ev, tz) : day ? eventTimeOnDate(ev, day, tz) : formatTime(ev.start, tz)} ${ev.title}`
+  const head = `${ev.allDay ? allDayEventRange(ev) : isLongTimed(ev, tz) ? timedEventRange(ev, tz) : day ? eventTimeOnDate(ev, day, tz) : formatTime(ev.start, tz)} ${ev.title}`
   return [ev.hidden ? t('Hidden: {event}', { event: head }) : head, ev.busy === false && t('free'), who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && tn(ev.noteCount, '{n} note', '{n} notes'), ev.meal && t('meal: {status}', { status: mealEventStatus(ev.meal).text.replace('✓ ', '') })].filter(Boolean).join(', ')
 }
 
@@ -725,17 +725,21 @@ function AllDayEventBar({ bar, dayKeys, tz, members, categories, onTap }: { bar:
   const times = allDayBarTimes(ev, dayKeys, tz)
   const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 7)
   return (
-    <div className={`allday-chip${evClass(ev)}${continuesBefore ? ' continues-before' : ''}${continuesAfter ? ' continues-after' : ''}`}
+    <button type="button" className={`allday-chip${evClass(ev)}${continuesBefore ? ' continues-before' : ''}${continuesAfter ? ' continues-after' : ''}`}
       style={{ ...evFill(background, ink, solid), gridColumn: `${from + 2} / ${to + 3}`, gridRow: lane + 1 }}
-      {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
+      onClick={onTap} aria-label={eventLabel(ev, tz, members, categories)}>
       <span className="allday-bar-content" aria-hidden="true">
         {continuesBefore && <span className="allday-continuation">‹</span>}
-        {times.from && <span className={`allday-from${pill ? ' event-title-pill' : ''}`}>{times.from}</span>}
-        <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} />
-        {times.until && <span className={`allday-until${pill ? ' event-title-pill' : ''}`}>{times.until}</span>}
+        <span className="allday-bar-body">
+          <span className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} meal={ev.meal} maxFaces={2} /></span>
+          {(times.from || times.until) && <span className="allday-bar-times">
+            {times.from && <span className={`allday-from${pill ? ' event-title-pill' : ''}`}>{times.from}</span>}
+            {times.until && <span className={`allday-until${pill ? ' event-title-pill' : ''}`}>{times.until}</span>}
+          </span>}
+        </span>
         {continuesAfter && <span className="allday-continuation">›</span>}
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -767,7 +771,10 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
     const el = scrollRef.current
     if (!el) return
     const head = el.querySelector<HTMLElement>('.grid-head')
-    const ro = new ResizeObserver(() => setSpace(el.clientHeight - (head?.offsetHeight ?? 0) - 12))
+    const ro = new ResizeObserver(() => {
+      el.style.setProperty('--grid-height', `${el.clientHeight}px`)
+      setSpace(el.clientHeight - (head?.offsetHeight ?? 0) - 12)
+    })
     ro.observe(el)
     if (head) ro.observe(head)
     return () => ro.disconnect()
@@ -780,6 +787,25 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
   const gridEvents = events.filter(e => !e.allDay && !isLongTimed(e, tz))
   const timedByDay = dayKeys.map(k => gridEvents.filter(e => isTimedOnDate(e, k, tz)))
   const { bars, lanes } = layoutAllDayRow(events, dayKeys, tz)
+  const [barOverflow, setBarOverflow] = useState(false)
+  const firstDayKey = dayKeys[0]
+  useLayoutEffect(() => {
+    const el = scrollRef.current?.querySelector<HTMLElement>('.allday-scroll')
+    if (!el) {
+      scrollRef.current?.style.setProperty('--allday-scrollbar', '0px')
+      setBarOverflow(false)
+      return
+    }
+    el.scrollTop = 0
+    const ro = new ResizeObserver(() => {
+      // Keep day headers and hourly columns aligned when this area's scrollbar takes space.
+      scrollRef.current?.style.setProperty('--allday-scrollbar', `${el.offsetWidth - el.clientWidth}px`)
+      setBarOverflow(el.scrollHeight > el.clientHeight + 1)
+    })
+    ro.observe(el)
+    if (el.firstElementChild) ro.observe(el.firstElementChild)
+    return () => ro.disconnect()
+  }, [lanes, firstDayKey])
   // Day headers are the keyboard way into the grid: arrows move between days, Enter opens that day.
   const roving = useRovingGrid(days.length, dayKeys.indexOf(todayStr))
   const minMinutes = (24 / HOUR_PX) * 60 // same 24px floor as .timed-event's min-height
@@ -803,12 +829,15 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
           })}
         </div>}
         {lanes > 0 && (
-          <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${lanes}, var(--allday-lane-h))`, minHeight: lanes * 26 + 6 }}>
-            <div style={{ gridColumn: 1, gridRow: '1 / -1' }} />
-            {dayKeys.map((key, i) => <div className="allday-cell" key={key} style={{ gridColumn: i + 2, gridRow: '1 / -1' }} />)}
-            {bars.map(bar => <AllDayEventBar key={`${bar.ev.id}|${bar.ev.start}`} bar={bar} dayKeys={dayKeys} tz={tz} members={members} categories={categories} onTap={() => onTap(bar.ev)} />)}
+          <div className="allday-scroll" role="region" aria-label={t('All-day and multi-day events')} tabIndex={0}>
+            <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${lanes}, minmax(44px, auto))` }}>
+              <div style={{ gridColumn: 1, gridRow: '1 / -1' }} />
+              {dayKeys.map((key, i) => <div className="allday-cell" key={key} style={{ gridColumn: i + 2, gridRow: '1 / -1' }} />)}
+              {bars.map(bar => <AllDayEventBar key={`${bar.ev.id}|${bar.ev.start}`} bar={bar} dayKeys={dayKeys} tz={tz} members={members} categories={categories} onTap={() => onTap(bar.ev)} />)}
+            </div>
           </div>
         )}
+        {barOverflow && <div className="allday-scroll-hint">{t('Scroll for more events')}</div>}
       </div>
       <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
         <div className="time-gutter">

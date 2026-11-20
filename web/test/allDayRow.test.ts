@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { allDayBarTimes, dedupeEvents, eventTimeOnDate, isAllDayOnDate, isLongTimed, layoutAllDayRow, timedEventRange } from '../src/dayLayout.ts'
+import { allDayBarTimes, allDayEventRange, dedupeEvents, eventTimeOnDate, isAllDayOnDate, isLongTimed, layoutAllDayRow, timedEventRange } from '../src/dayLayout.ts'
 import { formatTime, setHour12 } from '../src/timeFormat.ts'
 import { formatDate, DAY, setLang } from '../src/i18n.ts'
 import type { EventInstance } from '../src/types.ts'
@@ -113,14 +113,17 @@ for (const tz of ['Pacific/Auckland', 'Europe/Berlin', 'America/New_York', 'UTC'
     const overnight = event('Leo', at(15, 20), at(16, 8), false)
     assert.equal(eventTimeOnDate(overnight, week[0], tz), 'From 8:00 PM')
     assert.equal(eventTimeOnDate(overnight, week[1], tz), 'Until 8:00 AM')
+    assert.equal(eventTimeOnDate(event('Late appointment', at(15, 20), at(16), false), week[0], tz), '8:00 PM – Midnight')
     const midnight = event('Sam', at(15), at(17), false)
     assert.equal(eventTimeOnDate(midnight, week[0], tz), 'All day')
-    assert.equal(eventTimeOnDate(midnight, week[1], tz), 'All day')
+    assert.equal(eventTimeOnDate(midnight, week[1], tz), 'Until midnight')
     assert.deepEqual(allDayBarTimes(stay, week, tz), { from: 'From 6:00 PM', until: 'Until 3:00 PM' })
     assert.deepEqual(allDayBarTimes(stay, ['2026-11-20'], tz), { from: null, until: 'Until 3:00 PM' })
     assert.deepEqual(allDayBarTimes(stay, ['2026-11-15'], tz), { from: 'From 6:00 PM', until: null })
     assert.deepEqual(allDayBarTimes(stay, ['2026-11-16'], tz), { from: null, until: null })
-    assert.deepEqual(allDayBarTimes(midnight, week, tz), { from: null, until: null })
+    assert.deepEqual(allDayBarTimes(midnight, week, tz), { from: 'From 12:00 AM', until: 'Until midnight' })
+    assert.deepEqual(allDayBarTimes(midnight, ['2026-11-16'], tz), { from: null, until: 'Until midnight' })
+    assert.deepEqual(allDayBarTimes(midnight, ['2026-11-17'], tz), { from: null, until: null })
     assert.deepEqual(allDayBarTimes(event('Family trip', '2026-11-15', '2026-11-20'), week, tz), { from: null, until: null })
     const endpoint = (iso: string) => `${formatDate(new Date(iso), DAY, tz)}, ${formatTime(iso, tz)}`
     assert.equal(timedEventRange(stay, tz), `${endpoint(stay.start)} – ${endpoint(stay.end)}`)
@@ -178,4 +181,13 @@ for (const [tz, key, start, end] of [
 test('a short event starting after a skipped date does not cover a whole day', () => {
   const ev = event('Family picnic', '2011-12-30T10:00:00Z', '2011-12-30T22:00:00Z', false)
   assert.equal(isLongTimed(ev, 'Pacific/Apia'), false, 'a 12-hour event on December 31 does not cover the skipped December 30')
+})
+
+test('all-day spoken ranges use the last covered date, independent of device timezone', () => {
+  const tz = 'Pacific/Auckland'
+  const ev = event('School break', '2026-11-19', '2026-11-22')
+  const date = (key: string) => formatDate(new Date(key + 'T12:00:00Z'), DAY, 'UTC')
+  assert.equal(allDayEventRange(ev), `${date('2026-11-19')} – ${date('2026-11-21')} · All day`)
+  assert.equal(allDayEventRange({ ...ev, end: '2026-11-20' }), `${date('2026-11-19')} · All day`)
+  assert.equal(allDayBarTimes(event('Timed', '2026-11-19T11:00:00Z', '2026-11-20T11:00:00Z', false), ['2026-11-20'], tz).until, 'Until midnight')
 })

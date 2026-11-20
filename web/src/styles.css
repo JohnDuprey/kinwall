@@ -494,8 +494,15 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
   margin: 2px auto 0;
 }
 
+.week-header, .timegrid { padding-right: var(--allday-scrollbar, 0px); }
+.allday-scroll {
+  max-height: max(44px, min(220px, calc(var(--grid-height, 500px) * 0.4)));
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.allday-scroll-hint { padding: 2px 8px 3px 53px; font-size: 0.6875rem; color: var(--text-dim); }
 .allday-row {
-  --allday-lane-h: 44px;
+  row-gap: 3px;
   display: grid;
   padding-block: 3px;
   border-bottom: 1px solid var(--border);
@@ -505,15 +512,13 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 .allday-chip.continues-before { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .allday-chip.continues-after { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .allday-continuation { flex: none; font-size: 1rem; }
-.allday-chip { container: allday / inline-size; }
 .allday-bar-content { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
-.allday-from, .allday-until { flex: none; white-space: nowrap; }
-/* Keep the title longest, then the handoff time, then the start; faces give way first. */
-@container allday (max-width: 400px) {
-  .allday-bar-content .event-avatars, .allday-bar-content .event-avatars-more { display: none; }
-}
-@container allday (max-width: 300px) { .allday-from { display: none; } }
-@container allday (max-width: 160px) { .allday-until { display: none; } }
+.allday-bar-body { flex: 1; min-width: 0; }
+.allday-bar-body .event-title-text { min-width: 0; }
+.allday-bar-body .event-avatars, .allday-bar-body .event-avatars-more { flex: none; }
+.allday-bar-times { display: flex; flex-wrap: wrap; gap: 2px 6px; margin-top: 2px; font-weight: 600; }
+.allday-from, .allday-until { white-space: normal; overflow-wrap: anywhere; }
+.allday-until { margin-left: auto; }
 
 
 .timegrid {
@@ -572,6 +577,8 @@ button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* Mor
 }
 .event-chip .t { opacity: 0.85; font-weight: 600; font-size: 0.6875rem; }
 .allday-chip {
+  border: 0;
+  text-align: left;
   z-index: 1;
   min-width: 0;
   margin-inline: 3px;

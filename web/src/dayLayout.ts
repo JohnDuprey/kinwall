@@ -1,6 +1,6 @@
 // Where a day's timed events go in the Day and Week grids (Calendar.tsx). Pure, so
 // web/test/dayLayout.test.ts covers it.
-import { minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { allDayLastDay, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { DAY, formatDate, t } from './i18n.ts'
 import { formatTime } from './timeFormat.ts'
 import type { EventInstance } from './types.ts'
@@ -174,18 +174,32 @@ export function eventTimeOnDate(ev: EventInstance, key: string, tz: string): str
   if (ev.allDay) return t('All day')
   const startDay = zonedDayKey(ev.start, tz), endDay = zonedDayKey(ev.end, tz)
   if (startDay === endDay) return formatTime(ev.start, tz)
+  if (isLocalMidnight(ev.end, tz) && zonedDayKey(new Date(Date.parse(ev.end) - 1).toISOString(), tz) === key) {
+    if (startDay === key && !isLocalMidnight(ev.start, tz)) return t('{start} – {end}', { start: formatTime(ev.start, tz), end: t('Midnight') })
+    return t('Until midnight')
+  }
   if (startDay === key && !isLocalMidnight(ev.start, tz)) return t('From {time}', { time: formatTime(ev.start, tz) })
   if (endDay === key && !isLocalMidnight(ev.end, tz)) return t('Until {time}', { time: formatTime(ev.end, tz) })
   return t('All day')
 }
 
-/** Only the endpoints that fall within this view; a midnight boundary needs no clock label. */
+/** Visible endpoints, including midnight on the last covered date rather than an extra day. */
 export function allDayBarTimes(ev: EventInstance, dayKeys: string[], tz: string): { from: string | null; until: string | null } {
   if (ev.allDay) return { from: null, until: null }
   return {
-    from: dayKeys.includes(zonedDayKey(ev.start, tz)) && !isLocalMidnight(ev.start, tz) ? t('From {time}', { time: formatTime(ev.start, tz) }) : null,
-    until: dayKeys.includes(zonedDayKey(ev.end, tz)) && !isLocalMidnight(ev.end, tz) ? t('Until {time}', { time: formatTime(ev.end, tz) }) : null,
+    from: dayKeys.includes(zonedDayKey(ev.start, tz)) ? t('From {time}', { time: formatTime(ev.start, tz) }) : null,
+    until: isLocalMidnight(ev.end, tz)
+      ? (dayKeys.includes(zonedDayKey(new Date(Date.parse(ev.end) - 1).toISOString(), tz)) ? t('Until midnight') : null)
+      : (dayKeys.includes(zonedDayKey(ev.end, tz)) ? t('Until {time}', { time: formatTime(ev.end, tz) }) : null),
   }
+}
+
+/** Date-only events never shift with the device timezone; their stored end is exclusive. */
+export function allDayEventRange(ev: EventInstance): string {
+  const date = (key: string) => formatDate(new Date(`${key}T12:00:00Z`), DAY, 'UTC')
+  const last = allDayLastDay(ev.start, ev.end)
+  const dates = last ? t('{start} – {end}', { start: date(ev.start), end: date(last) }) : date(ev.start)
+  return t('{dates} · All day', { dates })
 }
 
 /** The original timed range for spoken labels, regardless of how a bar is clipped on screen. */
