@@ -20,11 +20,13 @@ Calendar has four: **Day**, **Week** (**3 Day** on a phone), **Month** and **Sch
 |---|---|---|
 | **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
 | **Day** | One time grid for the whole family's day. Events at the same time sit side by side, each shows once with the avatars of who it's for, and [free](events.md#free-or-busy) events sit behind the busy ones, striped and marked "Free". See [One event, shown once](#one-event-shown-once). | ±1 day |
-| **Week** (iPad / desktop) | 7 day columns with an all-day row and a time grid. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
+| **Week** (iPad / desktop) | 7 day columns with a time grid. All-day events and timed events lasting a day or longer show as one bar in the all-day row, with start and end times for timed events; arrows mark a bar that continues beyond the view. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
 | **3 Day** (phones) | The same grid, 3 days from the anchor date. | ±3 days |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
 | **Newscast** | What the family did and shared: chores done, rewards, photos, books and announcements, with reactions. See [Newscast](newscast.md). | None: the last 7 days, then **Earlier this month** |
+
+A shorter overnight event stays on the time grid. An event covering a whole calendar day appears in the all-day row even when a clock change makes that day shorter than 24 hours. Multi-day timed events read “From 6:00 PM” on their start day, “Until 3:00 PM” on their end day, and “All day” on whole days in between in Schedule. Month shows those endpoint labels and leaves out times on whole days. Moving an event into the all-day row does not change its saved times or its timed-event setting.
 
 The Day, Week and 3 Day grids open at 7 AM, or on today an hour before now (with now always on screen). A screen 1280 pixels wide or more, and a [cast screen](../settings/this-display.md), shrinks the hour rows so 7 AM to 9 PM fits without scrolling, as far as it can while staying readable. An event too short for two lines shows its time after its title ("Team Meeting · 4:30 PM"), and the line for now runs under the events, marked by a dot at the left edge.
 
@@ -51,7 +53,7 @@ Screen readers hear it too ("meal: Cooked").
 
 ### One event, shown once
 
-In every view, an event shared by several people shows once, with each person's avatar on it. The same event can also come in from two connected calendars (say a meeting on both the family calendar and a work calendar). Kinwall treats two events as the same when they're on different calendars and have the same title (ignoring capitals and extra spaces), start, end and all-day setting. They show as one, with everyone from both, and tapping it opens the first one. Two events with the same title and time on one calendar stay separate, so each can still be opened and changed. If one copy was renamed, both show.
+In every view, an event shared by several people shows once, with each person's avatar on it. The same event can also come in from two connected calendars (say a meeting on both the family calendar and a work calendar). Kinwall treats two events as the same when they're on different calendars and have the same title (ignoring capitals and extra spaces), start, end and all-day setting. They show as one, with everyone from both, and tapping it opens the first one. Two events with the same title and time on one calendar stay separate, so each can still be opened and changed. They also keep separate bars in the all-day row. If one copy was renamed, both show.
 
 ## Board view
 

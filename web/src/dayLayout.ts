@@ -1,6 +1,8 @@
 // Where a day's timed events go in the Day and Week grids (Calendar.tsx). Pure, so
 // web/test/dayLayout.test.ts covers it.
 import { minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { DAY, formatDate, t } from './i18n.ts'
+import { formatTime } from './timeFormat.ts'
 import type { EventInstance } from './types.ts'
 
 /** Matches --hour-h in styles.css (comfortable/compact, 44px on a phone on its side, compact's
@@ -141,4 +143,97 @@ export const repeatRule = (choice: RepeatChoice): string | null => choice ? `FRE
 export function isTimedOnDate(ev: EventInstance, key: string, tz: string) {
   const lastInstant = new Date(Date.parse(ev.end) - 1).toISOString()
   return zonedDayKey(ev.start, tz) <= key && key <= zonedDayKey(lastInstant, tz)
+}
+
+/** All-day start/end are date strings, with an exclusive end. */
+export function isAllDayOnDate(ev: EventInstance, key: string) {
+  return ev.start <= key && key < ev.end
+}
+
+/** A timed event long enough to be drawn in the all-day row, not on the time grid. */
+export function isLongTimed(ev: EventInstance, tz: string): boolean {
+  if (ev.allDay) return false
+  const start = Date.parse(ev.start)
+  if (Date.parse(ev.end) - start >= 86400000) return true
+  // A short spring-forward day may begin at 01:00 when midnight is skipped. At its first
+  // instant, the preceding millisecond still belongs to an earlier local date. This also
+  // keeps an event beginning even a millisecond after the boundary out of the whole-day case.
+  const startDay = zonedDayKey(ev.start, tz)
+  const startsDay = zonedDayKey(new Date(start - 1).toISOString(), tz) < startDay
+  const firstWholeDay = startsDay ? startDay : nextDayKey(startDay)
+  return zonedDayKey(ev.end, tz) >= nextDayKey(firstWholeDay)
+}
+
+function isLocalMidnight(iso: string, tz: string) {
+  const instant = new Date(iso)
+  return minutesSinceMidnight(iso, tz) === 0 && instant.getUTCSeconds() === 0 && instant.getUTCMilliseconds() === 0
+}
+
+/** The portion of a timed event on one day, without artificial midnight-to-midnight ranges. */
+export function eventTimeOnDate(ev: EventInstance, key: string, tz: string): string {
+  if (ev.allDay) return t('All day')
+  const startDay = zonedDayKey(ev.start, tz), endDay = zonedDayKey(ev.end, tz)
+  if (startDay === endDay) return formatTime(ev.start, tz)
+  if (startDay === key && !isLocalMidnight(ev.start, tz)) return t('From {time}', { time: formatTime(ev.start, tz) })
+  if (endDay === key && !isLocalMidnight(ev.end, tz)) return t('Until {time}', { time: formatTime(ev.end, tz) })
+  return t('All day')
+}
+
+/** Only the endpoints that fall within this view; a midnight boundary needs no clock label. */
+export function allDayBarTimes(ev: EventInstance, dayKeys: string[], tz: string): { from: string | null; until: string | null } {
+  if (ev.allDay) return { from: null, until: null }
+  return {
+    from: dayKeys.includes(zonedDayKey(ev.start, tz)) && !isLocalMidnight(ev.start, tz) ? t('From {time}', { time: formatTime(ev.start, tz) }) : null,
+    until: dayKeys.includes(zonedDayKey(ev.end, tz)) && !isLocalMidnight(ev.end, tz) ? t('Until {time}', { time: formatTime(ev.end, tz) }) : null,
+  }
+}
+
+/** The original timed range for spoken labels, regardless of how a bar is clipped on screen. */
+export function timedEventRange(ev: EventInstance, tz: string): string {
+  const endpoint = (iso: string) => `${formatDate(new Date(iso), DAY, tz)}, ${formatTime(iso, tz)}`
+  return t('{start} – {end}', { start: endpoint(ev.start), end: endpoint(ev.end) })
+}
+
+export type AllDayBar = {
+  ev: EventInstance
+  from: number
+  to: number
+  lane: number
+  continuesBefore: boolean
+  continuesAfter: boolean
+}
+
+/** Pack visible events into the lowest available lane, clipped to the visible dates.
+ * The caller deduplicates once before filtering, as for the other calendar views. Do not merge
+ * again here: representatives from different calendars can still be separate real events. */
+export function layoutAllDayRow(events: EventInstance[], dayKeys: string[], tz: string): { bars: AllDayBar[]; lanes: number } {
+  if (!dayKeys.length) return { bars: [], lanes: 0 }
+  const bars: AllDayBar[] = []
+  for (const ev of events) {
+    if (!ev.allDay && !isLongTimed(ev, tz)) continue
+    const covered = dayKeys.map((key, i) => (ev.allDay ? isAllDayOnDate(ev, key) : isTimedOnDate(ev, key, tz)) ? i : -1).filter(i => i >= 0)
+    if (!covered.length) continue
+    bars.push({ ev, from: covered[0], to: covered[covered.length - 1], lane: 0,
+      continuesBefore: (ev.allDay ? ev.start : zonedDayKey(ev.start, tz)) < dayKeys[0],
+      continuesAfter: ev.allDay ? ev.end > nextDayKey(dayKeys[dayKeys.length - 1])
+        : zonedDayKey(new Date(Date.parse(ev.end) - 1).toISOString(), tz) > dayKeys[dayKeys.length - 1] })
+  }
+  bars.sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from)
+    || a.ev.start.localeCompare(b.ev.start) || a.ev.title.localeCompare(b.ev.title)
+    || a.ev.id.localeCompare(b.ev.id) || a.ev.calendarId.localeCompare(b.ev.calendarId))
+  const ends: number[] = []
+  for (const bar of bars) {
+    let lane = ends.findIndex(end => end < bar.from)
+    if (lane < 0) lane = ends.length
+    ends[lane] = bar.to
+    bar.lane = lane
+  }
+  return { bars, lanes: ends.length }
+}
+
+/** Plain calendar date math, independent of the device's timezone and DST. */
+function nextDayKey(key: string) {
+  const day = new Date(`${key}T12:00:00Z`)
+  day.setUTCDate(day.getUTCDate() + 1)
+  return day.toISOString().slice(0, 10)
 }
