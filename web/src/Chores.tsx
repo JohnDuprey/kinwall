@@ -1,10 +1,10 @@
 import { SchoolworkBadge } from './SchoolworkBadge.tsx'
-import { choreCategory, schoolKindLabel } from './schoolwork.ts'
+import { choreCategory, schoolKindLabel, schoolworkGroups } from './schoolwork.ts'
 import { openRoutine } from './pageNavigation.ts'
 import { choreCountLabel, countChoreDay, sumChoreCounts } from './choreCounts.ts'
 import { goalLabel, goalProgressLabel, validGoal } from './choreGoal.ts'
 import type { ChoreGoal, GoalProgress } from './choreGoal.ts'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useHashParam } from './hashQuery.ts'
 import { addDays, isSameDay } from 'date-fns'
 import { GivePoints } from './GivePoints.tsx'
@@ -720,7 +720,7 @@ export default function Chores() {
           {active.map(col => {
             const columnChores = chores.filter(c => inCategory(c) && (col.id === '__anyone' ? inAnyone(c) : c.memberId === col.id))
             const list = editing ? [...columnChores].sort((a, b) => a.sort - b.sort) : choreOrder(columnChores)
-            const movable = list.filter(c => !c.sourceId)
+            const groups = schoolworkGroups(list)
             const required = list.filter(c => !c.ongoing)
             const done = required.filter(c => c.completed || c.goalProgress?.full).length
             const pct = required.length ? done / required.length : 0
@@ -734,22 +734,25 @@ export default function Chores() {
                     <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={t('{name} has {n} points to spend. See rewards', { name: col.name, n: col.balance })}>⭐ {t('{n} to spend', { n: col.balance })}</a>
                   )}
                 </div>
-                {list.map(c => {
-                  const index = movable.findIndex(x => x.id === c.id)
-                  const canOrder = editing && parentDevice && !c.sourceId
-                  return <div key={c.id} className="chore-entry" draggable={canOrder && !ordering}
-                    onDragStart={e => { draggedChore.current = c.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.id) }}
-                    onDragEnd={() => { draggedChore.current = null }}
-                    onDragOver={e => { if (canOrder && draggedChore.current && movable.some(x => x.id === draggedChore.current)) e.preventDefault() }}
-                    onDrop={e => { e.preventDefault(); const from = draggedChore.current; draggedChore.current = null; if (canOrder && from) void reorder(movable, from, c.id) }}>
-                    {choreCategory(c) && <span className="chore-category-name">{choreCategory(c)}</span>}
-                    <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) { if (c.schoolKind) setSchoolwork(c); else setEditChore(c) } }}
-                      onNotDone={markable(c) ? () => void setNotDone(c, !c.dismissed) : undefined} />
-                    {canOrder && <div className="chore-order-actions">
-                      <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑<span className="chore-order-word"> {t('Up')}</span></button>
-                      <button className="btn btn-secondary" disabled={ordering || index === movable.length - 1} aria-label={t('Move {title} down', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index + 1].id)}>↓<span className="chore-order-word"> {t('Down')}</span></button>
-                    </div>}
-                  </div>
+                {groups.map(group => {
+                  const movable = group.chores.filter(c => !c.sourceId)
+                  return <Fragment key={group.schoolwork ? 'schoolwork' : 'chores'}>{group.chores.map((c, row) => {
+                    const index = movable.findIndex(x => x.id === c.id)
+                    const canOrder = editing && parentDevice && !c.sourceId
+                    return <div key={c.id} className="chore-entry" draggable={canOrder && !ordering}
+                      onDragStart={e => { draggedChore.current = c.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.id) }}
+                      onDragEnd={() => { draggedChore.current = null }}
+                      onDragOver={e => { if (canOrder && draggedChore.current && movable.some(x => x.id === draggedChore.current)) e.preventDefault() }}
+                      onDrop={e => { e.preventDefault(); const from = draggedChore.current; draggedChore.current = null; if (canOrder && from) void reorder(movable, from, c.id) }}>
+                      {(!group.schoolwork || row === 0) && choreCategory(c) && <span className="chore-category-name">{choreCategory(c)}</span>}
+                      <ChoreCard chore={c} editing={editing && parentDevice && !c.sourceId} late={!c.ongoing && isToday && isLate(c.dueTime, now)} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice && !c.sourceId) { if (c.schoolKind) setSchoolwork(c); else setEditChore(c) } }}
+                        onNotDone={markable(c) ? () => void setNotDone(c, !c.dismissed) : undefined} />
+                      {canOrder && <div className="chore-order-actions">
+                        <button className="btn btn-secondary" disabled={ordering || index === 0} aria-label={t('Move {title} up', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index - 1].id)}>↑<span className="chore-order-word"> {t('Up')}</span></button>
+                        <button className="btn btn-secondary" disabled={ordering || index === movable.length - 1} aria-label={t('Move {title} down', { title: c.title })} onClick={() => void reorder(movable, c.id, movable[index + 1].id)}>↓<span className="chore-order-word"> {t('Down')}</span></button>
+                      </div>}
+                    </div>
+                  })}</Fragment>
                 })}
               </div>
             )

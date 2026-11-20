@@ -7,3 +7,11 @@ export const schoolKindLabel = (kind: SchoolKind | null | undefined) => kind ? t
 
 /** Schoolwork shares one category; its badge supplies the more specific kind. */
 export const choreCategory = (chore: Pick<Chore, 'schoolKind' | 'category'>) => chore.schoolKind ? t('Schoolwork') : chore.category ?? ''
+
+/** Keep the existing order within each section, with schoolwork together after ordinary chores. */
+export function schoolworkGroups<T extends Pick<Chore, 'schoolKind'>>(chores: T[]): { schoolwork: boolean; chores: T[] }[] {
+  return [
+    { schoolwork: false, chores: chores.filter(c => !c.schoolKind) },
+    { schoolwork: true, chores: chores.filter(c => !!c.schoolKind) },
+  ].filter(g => g.chores.length > 0)
+}
