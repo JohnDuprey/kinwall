@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { allDayBarTimes, eventTimeOnDate, isAllDayOnDate, isLongTimed, layoutAllDayRow, timedEventRange } from '../src/dayLayout.ts'
+import { allDayBarTimes, dedupeEvents, eventTimeOnDate, isAllDayOnDate, isLongTimed, layoutAllDayRow, timedEventRange } from '../src/dayLayout.ts'
 import { formatTime, setHour12 } from '../src/timeFormat.ts'
 import { formatDate, DAY, setLang } from '../src/i18n.ts'
 import type { EventInstance } from '../src/types.ts'
@@ -10,14 +10,43 @@ const event = (id: string, start: string, end: string, allDay = true): EventInst
 }) as EventInstance
 const week = Array.from({ length: 7 }, (_, i) => `2026-11-${15 + i}`)
 
+for (const allDay of [true, false]) {
+  test(`calendar deduplication followed by bar layout preserves distinct ${allDay ? 'all-day' : 'long timed'} events`, () => {
+    const start = allDay ? '2026-11-20' : '2026-11-20T16:00:00Z'
+    const end = allDay ? '2026-11-22' : '2026-11-22T16:00:00Z'
+    const title = allDay ? 'Family picnic' : 'Kitchen renovation'
+    const copy = (id: string, calendarId: string, memberId: string) => ({
+      ...event(id, start, end, allDay), title, calendarId, memberIds: [memberId],
+    })
+    // Two separate events on each calendar, with a synced copy of each on the other.
+    // Interleaving keeps one representative from each calendar after the initial merge.
+    const interleaved = [copy('a1', 'family', 'm1'), copy('b1', 'shared', 'm2'),
+      copy('b2', 'shared', 'm3'), copy('a2', 'family', 'm4')]
+    // Grouped calendars can also retain different representatives when a hidden copy is replaced.
+    const hiddenCopy = [interleaved[0], { ...interleaved[3], hidden: 'event' as const }, interleaved[1], interleaved[2]]
+    for (const input of [interleaved, hiddenCopy]) {
+      // CalendarView merges copies before filtering and passing visible events to WeekView.
+      const visible = dedupeEvents(input)
+      assert.deepEqual(visible.map(ev => [ev.id, [...ev.memberIds].sort()]), [['a1', ['m1', 'm2']], ['b2', ['m3', 'm4']]])
+      assert.ok(visible.every(ev => !ev.hidden), 'visible copies win when merging hidden events')
+      const { bars, lanes } = layoutAllDayRow(visible, ['2026-11-20', '2026-11-21', '2026-11-22'], 'UTC')
+      assert.equal(bars.length, 2, 'bar count agrees with the day header and other calendar views')
+      assert.equal(lanes, 2, 'separate overlapping events each have a lane')
+      assert.deepEqual(bars.map(bar => [bar.ev.id, bar.ev.memberIds]), visible.map(ev => [ev.id, ev.memberIds]))
+      for (const ev of visible) assert.ok(bars.some(bar => bar.ev === ev), 'each event opens its original representative')
+    }
+  })
+}
+
 for (const tz of ['Pacific/Auckland', 'Europe/Berlin', 'America/New_York', 'UTC']) {
-  test(`all-day bars span dates, reuse lanes, clip and deduplicate (${tz})`, () => {
+  test(`all-day bars span dates, reuse lanes and clip calendar-deduplicated events (${tz})`, () => {
     process.env.TZ = tz
     const stay = event("At Sam's", '2026-11-12', '2026-11-21')
     const monday = event('Family picnic', '2026-11-16', '2026-11-17')
     const next = event('Family trip', '2026-11-20', '2026-11-24')
     const input = [stay, monday, next]
-    const result = layoutAllDayRow([...input, stay, { ...stay, id: 'copy', calendarId: 'shared', memberIds: ['m2'] }], week, tz)
+    const visible = dedupeEvents([...input, stay, { ...stay, id: 'copy', calendarId: 'shared', memberIds: ['m2'] }])
+    const result = layoutAllDayRow(visible, week, tz)
     assert.equal(result.lanes, 2)
     assert.deepEqual(result.bars.map(({ ev, ...bar }) => ({ id: ev.id, ...bar })), [
       { id: stay.id, from: 0, to: 5, lane: 0, continuesBefore: true, continuesAfter: false },

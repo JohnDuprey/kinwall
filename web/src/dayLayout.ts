@@ -200,11 +200,13 @@ export type AllDayBar = {
   continuesAfter: boolean
 }
 
-/** Pack spanning bars into the lowest available lane, clipped to the visible dates. */
+/** Pack visible events into the lowest available lane, clipped to the visible dates.
+ * The caller deduplicates once before filtering, as for the other calendar views. Do not merge
+ * again here: representatives from different calendars can still be separate real events. */
 export function layoutAllDayRow(events: EventInstance[], dayKeys: string[], tz: string): { bars: AllDayBar[]; lanes: number } {
   if (!dayKeys.length) return { bars: [], lanes: 0 }
   const bars: AllDayBar[] = []
-  for (const ev of dedupeEvents(events)) {
+  for (const ev of events) {
     if (!ev.allDay && !isLongTimed(ev, tz)) continue
     const covered = dayKeys.map((key, i) => (ev.allDay ? isAllDayOnDate(ev, key) : isTimedOnDate(ev, key, tz)) ? i : -1).filter(i => i >= 0)
     if (!covered.length) continue
