@@ -76,6 +76,7 @@ Instead of the bare clock, wall screens can show a slow, dim slideshow overnight
 Options once any source is on:
 
 * **Change picture every** 2, 5 (default), 10 or 20 minutes. Pictures crossfade; with reduced motion turned on they switch without a fade.
+* A picture much taller or wider than the screen (a phone photo on a wide screen, a panorama) fills the screen and slowly pans from one end to the other, so it isn't shown tiny with wide black bars. The Board's picture card does the same. With reduced motion turned on, it's shown whole instead.
 * **Brightness**: **Low** (default) or **Medium**. It's a night mode, so pictures are always dimmed, never full brightness.
 * **Show clock**: a small time and date. When it moves around it keeps to the corners, and the picture shifts slightly, so nothing stays lit in one place.
 

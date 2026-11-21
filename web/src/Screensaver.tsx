@@ -118,6 +118,15 @@ function preload(src: string) {
   return img.decode()
 }
 
+/** A picture far off its frame's shape (a tall phone shot on a wide screen, a panorama) would sit
+ * tiny inside object-fit: contain, so it fills the frame and slowly pans along its long side
+ * instead (.pan-x / .pan-y in styles.css). Use as an <img> onLoad. */
+export function fitPicture(img: HTMLImageElement) {
+  const r = (img.naturalWidth / img.naturalHeight) / (img.clientWidth / img.clientHeight)
+  img.classList.toggle('pan-x', r > 1.6)
+  img.classList.toggle('pan-y', r < 1 / 1.6)
+}
+
 /** The slideshow's picture machinery, shared by the screensaver and the Board's photo card:
  * round-robin over `sources`, a new picture every `everySeconds`, paused while the page is hidden.
  * `pics` is the current picture plus the one fading out (never more than two); `n` counts changes;
@@ -191,7 +200,7 @@ export default function Slideshow({ sources, device, clock, spot }: { sources: S
   return (
     <>
       <div className="saver-stage">
-        {pics.map(p => <img key={p.key} className="saver-img" src={p.src} alt="" style={{ filter: `brightness(${brightness})` }} />)}
+        {pics.map(p => <img key={p.key} className="saver-img" src={p.src} alt="" onLoad={e => fitPicture(e.currentTarget)} style={{ filter: `brightness(${brightness})` }} />)}
       </div>
       {(device.saverClock !== false || current.caption) && (
         <div className="saver-corner night-spot" key={`${spot.x},${spot.y}`} style={spotStyle(spot)}>

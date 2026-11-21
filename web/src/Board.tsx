@@ -19,7 +19,7 @@ import { isLate } from './choreDay.ts'
 import { durationLabel } from './timers.ts'
 import { intlLocale, msg, t, tn } from './i18n.ts'
 import { useDeviceAppearance } from './useTheme.ts'
-import { useSlideshowPictures } from './Screensaver.tsx'
+import { fitPicture, useSlideshowPictures } from './Screensaver.tsx'
 import { boardSources, nightFieldsFor } from './saverSources.ts'
 import { tidbitCardTitle, tidbitCards, tidbitFor, tidbitQuery, tidbitSlot, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
@@ -959,12 +959,12 @@ function PhotoCard({ area, density }: { area: string; density?: CardDensity }) {
     <section style={{ gridArea: area }} className={`board-card board-photo${densityClass(density)}`} aria-label={t('Picture')}>
       {!failed && current ? (
         <>
-          {/* The whole picture, never cropped (drawings and tall photos lose too much to cover), over a
-              blurred, cropped copy of itself so the leftover space isn't empty bars. */}
+          {/* The whole picture, uncropped, over a blurred, cropped copy of itself so the leftover space
+              isn't empty bars; one far off the card's shape fills it and pans instead (fitPicture). */}
           {pics.map(p => (
             <div key={p.key} className="board-photo-frame">
               <img className="board-photo-fill" src={p.src} alt="" aria-hidden="true" />
-              <img className="board-photo-img" src={p.src} alt={p.caption ?? ''} />
+              <img className="board-photo-img" src={p.src} alt={p.caption ?? ''} onLoad={e => fitPicture(e.currentTarget)} />
             </div>
           ))}
           {/* The same caption the Night screen shows under its clock; the image's alt already reads it. */}

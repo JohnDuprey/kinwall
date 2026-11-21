@@ -2211,6 +2211,14 @@ button.month-cell .month-daynum { flex: none; }
 @media (prefers-reduced-motion: no-preference) {
   .saver-img { animation: kw-fade 2.5s ease, kw-saver-drift 90s ease-in-out infinite alternate; }
 }
+/* fitPicture's off-shape pictures: fill the screen and pan end to end over each 5-minute picture
+   (still pictures under reduced motion stay whole). */
+@media (prefers-reduced-motion: no-preference) {
+  .saver-img.pan-x { object-fit: cover; animation: kw-fade 2.5s ease, kw-saver-drift 90s ease-in-out infinite alternate, kw-pan-x 60s ease-in-out infinite alternate; }
+  .saver-img.pan-y { object-fit: cover; animation: kw-fade 2.5s ease, kw-saver-drift 90s ease-in-out infinite alternate, kw-pan-y 60s ease-in-out infinite alternate; }
+}
+@keyframes kw-pan-x { from { object-position: 0% 50%; } to { object-position: 100% 50%; } }
+@keyframes kw-pan-y { from { object-position: 50% 0%; } to { object-position: 50% 100%; } }
 @keyframes kw-saver-drift {
   from { transform: scale(1.04) translate(-1.5%, -1%); }
   to { transform: scale(1.08) translate(1.5%, 1%); }
@@ -3169,6 +3177,11 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 }
 .board-caption span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 @container board (min-width: 880px) { .board-caption { padding: 32px 16px 12px; font-size: 1rem; } }
+/* fitPicture's off-shape pictures: fill the card and pan end to end and back within its minute. */
+@media (prefers-reduced-motion: no-preference) {
+  .board-photo-img.pan-x { object-fit: cover; animation: kw-pan-x 30s ease-in-out infinite alternate; }
+  .board-photo-img.pan-y { object-fit: cover; animation: kw-pan-y 30s ease-in-out infinite alternate; }
+}
 .board-photo-empty { margin: auto; font-size: 2.5rem; opacity: 0.5; }
 @media (prefers-reduced-motion: no-preference) {
   .board-photo-frame { animation: kw-fade 2.5s ease; }
