@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.5.0](https://github.com/JohnDuprey/kinwall/compare/v1.4.0...v1.5.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **server:** GET /api/photos/quota drops maxCount, maxBytes may be null, and adds usedBytes (photos plus upkeep files).
+
+### New
+
+* **board:** fill and pan pictures far off the frame's shape ([dd35a30](https://github.com/JohnDuprey/kinwall/commit/dd35a30ba2eb54d1db74def4d2800c1e105a46b2))
+* **board:** fill today's spare room with chores and schoolwork ([a435884](https://github.com/JohnDuprey/kinwall/commit/a4358845a4e067cc34d747147d8b976cda0d5006))
+* **calendar:** draw all-day events as one bar across their days ([adca62c](https://github.com/JohnDuprey/kinwall/commit/adca62c8ecc9843406eab30ff6d801300d44174d))
+* **calendar:** show events of a day or longer in the all-day row ([bef6adc](https://github.com/JohnDuprey/kinwall/commit/bef6adcfc4293e9b116addf1f30a079e517ed788))
+* **calendar:** show long timed events as spanning all-day bars ([638940b](https://github.com/JohnDuprey/kinwall/commit/638940b5bfa8a3307e512edf334028a0b7905103))
+* **chores:** distinguish schoolwork in chores and approvals ([0aca453](https://github.com/JohnDuprey/kinwall/commit/0aca4538675e437057776741b882ae02b3716c9d))
+* **chores:** hand out library chores to several people, or just one of them ([c2e6518](https://github.com/JohnDuprey/kinwall/commit/c2e6518ff21c66bbbba66729f00b36a0c9940e7f))
+* **school:** add a new school or contact from set up's pickers ([c131648](https://github.com/JohnDuprey/kinwall/commit/c1316480c9df74fb793fce1a8ca900386c5b935b))
+* **school:** add a School hub for homeschooled and enrolled kids ([0325699](https://github.com/JohnDuprey/kinwall/commit/0325699679ae1ca07f1026e50761ea560fb393e1))
+* **school:** add days off, early release and bus reminders ([9038b63](https://github.com/JohnDuprey/kinwall/commit/9038b631c85e774fbc758d5c671a3a94d1200e79))
+* **school:** fold each kid's settings in set up ([0fa83d4](https://github.com/JohnDuprey/kinwall/commit/0fa83d4abab7cc0f14f920a7b373e986796fbaef))
+* **school:** pick a kid's school first in set up ([2c88757](https://github.com/JohnDuprey/kinwall/commit/2c887570abf8345133d616b85a2d550a89fb6cbc))
+* **school:** share a school's schedule among its kids ([290607d](https://github.com/JohnDuprey/kinwall/commit/290607d1052f491ca6d462eb8257e193d2309b54))
+* **school:** show schoolwork on the board's today card ([1320839](https://github.com/JohnDuprey/kinwall/commit/1320839b0f09a39b1e0e5a6e199822eee4e859e2))
+* **server:** replace the photo cap with an optional storage limit ([d384ccb](https://github.com/JohnDuprey/kinwall/commit/d384ccbb76ef0f3c1961886fedce2e4eb22aafb5))
+* **sync:** bridge discord forums and github issues ([dfb09f3](https://github.com/JohnDuprey/kinwall/commit/dfb09f33385ff2749067ccdb7a884a0c473dc53b))
+
+
+### Fixed
+
+* **board:** hide the phone family name when the inbox loads late ([e0fe637](https://github.com/JohnDuprey/kinwall/commit/e0fe637e333d45f8ab5c48abb044d9c67348c8c9))
+* **board:** right-align chore timer start on phones ([db8050f](https://github.com/JohnDuprey/kinwall/commit/db8050f4f036c35765da7a785f45195ff7e5bb90))
+* **calendar:** keep spanning events readable on every screen ([23f2902](https://github.com/JohnDuprey/kinwall/commit/23f2902c276112adb3c4417acf7938ff33294502))
+* **calendar:** preserve distinct events in the all-day row ([4ec69c9](https://github.com/JohnDuprey/kinwall/commit/4ec69c94a2916f2f0bf82587b4c2a8ec503c8fb1))
+* **calendar:** recognize days with a skipped midnight ([8ed6a70](https://github.com/JohnDuprey/kinwall/commit/8ed6a70054d95ed07b0f81f93566632ba3e1d761))
+* **chores:** group schoolwork under one heading per person ([0d5ff7b](https://github.com/JohnDuprey/kinwall/commit/0d5ff7b26cf1ba285760466ca05fa23775d59146))
+* **chores:** show dismissed days on the chores tab and allow not done there ([14dc9e6](https://github.com/JohnDuprey/kinwall/commit/14dc9e6b0d66ea4c57bca263e7144cc2dc1aa439))
+* **school:** keep schoolwork off the chores tab ([7dcfbc5](https://github.com/JohnDuprey/kinwall/commit/7dcfbc5ac506084563e3509f1e5a0f4e8a63a62f))
+* **school:** lay out the day rules form like the other fields ([746bc3a](https://github.com/JohnDuprey/kinwall/commit/746bc3a22dda95623883731e7a59a4aa7e00999a))
+* **school:** line up the early release times in set up ([cb6e63e](https://github.com/JohnDuprey/kinwall/commit/cb6e63e6a7bc5ffecabe52c15e924b225b4f1fe1))
+* **school:** prefer half days over no-school matches ([792626f](https://github.com/JohnDuprey/kinwall/commit/792626fd89d2e670b0233c94f06019ae4154b073))
+* **school:** send bus reminders on time, with a clearer countdown ([f088269](https://github.com/JohnDuprey/kinwall/commit/f0882697a3ae0b69706eb17168f75568f66f1f5f))
+* **school:** stop long calendar names widening set up ([4502bf0](https://github.com/JohnDuprey/kinwall/commit/4502bf053dbdbbf0a2b2ac4a2d9d6ebbc93c9612))
+* **school:** stop the week grid clipping its cells' edges ([dea77b4](https://github.com/JohnDuprey/kinwall/commit/dea77b4f5f3afffd6189b430b41e8baf5447af76))
+* **sync:** preserve community text and format import dates ([1808276](https://github.com/JohnDuprey/kinwall/commit/1808276110d74d9944d066075ea312dcdbb4f86d))
+
+
+### Chores
+
+* release the storage limit change as 1.5.0 ([c00feaf](https://github.com/JohnDuprey/kinwall/commit/c00feaf70ca95b336618bddc17341f9ff607b2ce))
+
 ## [1.4.0](https://github.com/JohnDuprey/kinwall/compare/v1.3.0...v1.4.0) (2026-11-15)
 
 
