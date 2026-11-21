@@ -1,6 +1,34 @@
 # Translations
 
-Kinwall is available in English and German (Deutsch). German covers every screen of the web app and
+Kinwall offers English, German (Deutsch), French (Français), and Spanish (Español).
+French and Spanish have entries for every extracted message in both the web app and server.
+This includes advanced settings, routine-device setup, account recovery, Google Photos,
+webhooks, errors and security activity, alongside the everyday family screens.
+
+`web/test/translationCoverage.test.ts` checks extracted messages on the covered screens and
+requires at least 99.9% dictionary coverage for each language in both the web app and server.
+Coverage counts source keys with dictionary entries; it is not a percentage of screens or
+features and does not include hard-coded text outside the translation system. Proper names
+such as color-scheme names remain unchanged so they are recognizable across languages.
+Dictionary coverage does not guarantee that every screen is fully localized: saved or
+user-entered content, plugin content, hard-coded copy and some runtime-composed message
+parameters can still be English. New source messages fall back to English until translated.
+
+Use this terminology consistently:
+
+| English | French | Spanish |
+|---|---|---|
+| Nooks | Espaces | Espacios |
+| Free time | Temps libre | Tiempo libre |
+| Basic / Basics (reusable recipe components) | Préparation de base / Préparations de base | Preparación base / Preparaciones base |
+| Temp check (sleep and feelings) | Point bien-être | Cómo te sientes |
+| sore (feeling) | Douleurs | Dolor corporal |
+
+Recipe-text import examples retain the parser headings `Ingredients` and `Directions`
+until the recipe parser supports French and Spanish headings.
+Run the translation checks below for the current coverage of each language.
+
+German covers every screen of the web app and
 the text the server writes for people: push notifications, the newscast, insights, the battery,
 error messages and more (see [What's translated](#whats-translated)). The phone apps' own screens
 follow the phone's language and are still English.
