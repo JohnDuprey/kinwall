@@ -3955,10 +3955,10 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 /* With the add button over it, a scrolling Board can scroll its last card clear (the fixed one's
    cards move their rows out from under it: Board.tsx FitBody). */
 .content:has(> .fab) .board-scroll:not([data-fixed]) { padding-bottom: calc(60px + 22px + var(--safe-b) + 16px); }
-/* A phone's add button sits over the Board's right edge: poll rows keep their controls and
+/* A phone's add button sits over the Board's right edge: poll and medicine rows keep their controls and
    counts left of it. The Board's bottom clearance lets timer rows scroll above the add button. */
 @media (max-width: 600px) {
-  .content:has(> .fab) .board-scroll:not([data-fixed]) :is(.board-slot-row, .board-poll-btn) { padding-right: 64px; }
+  .content:has(> .fab) .board-scroll:not([data-fixed]) :is(.board-slot-row.attn, .board-poll-btn) { padding-right: 64px; }
 }
 .board-scroll:has(> .board-polls:not(:empty)) { display: flex; flex-direction: column; }
 .board-polls:empty { display: none; }
