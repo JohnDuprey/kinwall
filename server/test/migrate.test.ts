@@ -24,6 +24,10 @@ test('sqlStatements drops comments and empty statements', () => {
   assert.deepEqual(sqlStatements('-- note; with semicolon\nCREATE TABLE a (x);\n\nCREATE TABLE b (y); -- trailing\n'), ['CREATE TABLE a (x)', 'CREATE TABLE b (y)']);
 });
 
+test('sqlStatements drops comments from CRLF files too', () => {
+  assert.deepEqual(sqlStatements('-- note; with semicolon\r\nCREATE TABLE a (x); -- trailing; too\r\n'), ['CREATE TABLE a (x)']);
+});
+
 test('worker-migrations.ts lists every migration file', () => {
   const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'worker-migrations.ts'), 'utf8');
   for (const f of files) assert.ok(src.includes(`name: '${f}'`) && src.includes(`/migrations/${f}'`), `${f} missing from src/worker-migrations.ts`);

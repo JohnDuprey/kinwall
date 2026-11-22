@@ -142,7 +142,7 @@ You run a setup program once from a computer. After that, you can turn that comp
 **You'll need:**
 
 * A free [Cloudflare account](https://dash.cloudflare.com/sign-up).
-* A Mac or Linux computer for the setup. These steps use the Mac's **Terminal** app (in Applications → Utilities). On Windows, use the browser-based method in [Deploy to Cloudflare Workers](deploy-cloudflare.md#2-manual-git-connected-dashboard) instead.
+* A Mac, Windows or Linux computer for the setup. These steps use the Mac's **Terminal** app (in Applications → Utilities); on Windows, use **PowerShell**.
 * [Node.js](https://nodejs.org) version 24 or newer (the "LTS" download is fine if it says 24 or higher).
 * A password manager, or somewhere safe to keep two long passwords.
 * About 30 minutes.

@@ -23,7 +23,7 @@ const WIN = process.platform === 'win32';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOML = join(ROOT, 'wrangler.toml');
 // Invoke the locally installed Wrangler through Node.js to avoid Windows .cmd shell issues while keeping the project-pinned version.
-const WRANGLER = [ process.execPath, join(ROOT, 'server', 'node_modules', 'wrangler', 'bin', 'wrangler.js')]; 
+const WRANGLER = [ process.execPath, join(ROOT, 'server', 'node_modules', 'wrangler', 'bin', 'wrangler.js')];
 const YES = process.argv.includes('--yes');
 const DRY = process.argv.includes('--dry-run');
 const LOCATIONS = ['enam', 'wnam', 'weur', 'eeur', 'apac', 'oc'];
@@ -64,8 +64,6 @@ const say = (msg = '') => console.log(msg);
 const step = (msg) => say(`\n== ${msg}`);
 const fail = (msg) => { console.error(`\nError: ${msg}`); process.exit(1); };
 const show = (args) => say(`  $ ${args.join(' ')}`);
-
-/** Runs wrangler with the terminal attached (login and account prompts work). `input` is piped to stdin. */
 
 /**
  * Runs the project-local Wrangler with inherited terminal I/O.
@@ -247,16 +245,9 @@ async function main() {
     say('ENCRYPTION_KEY encrypts calendar credentials. Keep a copy: losing it means re-connecting every calendar account.');
     const suppliedKey = process.env.KINWALL_ENCRYPTION_KEY || await ask('Paste an existing key, or press Enter to generate one');
     const key = suppliedKey || randomBytes(32).toString('base64');
-    if (Buffer.from(key, 'base64').length !== 32) {
-      fail('ENCRYPTION_KEY must be 32 bytes, base64-encoded.');
-    }
-    await put('ENCRYPTION_KEY', key);
-    if (!suppliedKey) {
-      say('\nENCRYPTION_KEY (generated; save in a password manager):');
-      say(`  ${key}`);
-    }
     if (Buffer.from(key, 'base64').length !== 32) fail('ENCRYPTION_KEY must be 32 bytes, base64-encoded (openssl rand -base64 32).');
     await put('ENCRYPTION_KEY', key);
+    if (!suppliedKey) say(`\nENCRYPTION_KEY (generated; save it in a password manager):\n  ${key}`);
   }
 
   // Only a key generated here is ever printed (once, so its owner can store it); one passed in

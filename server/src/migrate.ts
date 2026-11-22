@@ -8,33 +8,17 @@ export type Migration = { name: string; sql: string };
 
 /** Splits a migration file into statements. Migrations are plain DDL/DML (no string literals
  * containing ';'), so dropping `--` comments and splitting on ';' is enough, except inside a
- * trigger's BEGIN ... END, which is kept whole. */
+ * trigger's BEGIN ... END, which is kept whole. Lines split on CRLF too: `.` stops at '\r', so a
+ * Windows checkout's comments would otherwise survive and their ';' would split statements. */
 export function sqlStatements(sql: string): string[] {
   const out: string[] = [];
-
-  // Normalize line endings and remove SQL line comments.
-  const cleaned = sql
-    .split(/\r?\n/)
-    .map((line) => line.replace(/--.*$/, ''))
-    .join('\n');
-
-  for (const part of cleaned.split(';')) {
+  for (const part of sql.split(/\r?\n/).map((line) => line.replace(/--.*$/, '')).join('\n').split(';')) {
     const s = part.trim();
     if (!s) continue;
-
     const last = out.at(-1);
-
-    if (
-      last &&
-      /^CREATE\s+TRIGGER\b/i.test(last) &&
-      !/\bEND$/i.test(last)
-    ) {
-      out[out.length - 1] = `${last};\n${s}`;
-    } else {
-      out.push(s);
-    }
+    if (last && /^CREATE\s+TRIGGER\b/i.test(last) && !/\bEND$/i.test(last)) out[out.length - 1] = `${last};\n${s}`;
+    else out.push(s);
   }
-
   return out;
 }
 
