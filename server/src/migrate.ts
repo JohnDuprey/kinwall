@@ -11,13 +11,30 @@ export type Migration = { name: string; sql: string };
  * trigger's BEGIN ... END, which is kept whole. */
 export function sqlStatements(sql: string): string[] {
   const out: string[] = [];
-  for (const part of sql.split('\n').map((line) => line.replace(/--.*$/, '')).join('\n').split(';')) {
+
+  // Normalize line endings and remove SQL line comments.
+  const cleaned = sql
+    .split(/\r?\n/)
+    .map((line) => line.replace(/--.*$/, ''))
+    .join('\n');
+
+  for (const part of cleaned.split(';')) {
     const s = part.trim();
     if (!s) continue;
+
     const last = out.at(-1);
-    if (last && /^CREATE\s+TRIGGER\b/i.test(last) && !/\bEND$/i.test(last)) out[out.length - 1] = `${last};\n${s}`;
-    else out.push(s);
+
+    if (
+      last &&
+      /^CREATE\s+TRIGGER\b/i.test(last) &&
+      !/\bEND$/i.test(last)
+    ) {
+      out[out.length - 1] = `${last};\n${s}`;
+    } else {
+      out.push(s);
+    }
   }
+
   return out;
 }
 
