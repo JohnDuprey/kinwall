@@ -11,19 +11,19 @@
 // optional custom domain) into wrangler.toml -> deploy (builds the UI) -> set the ENCRYPTION_KEY,
 // ADMIN_API_KEY and PUBLIC_URL secrets -> hit /api/health, which makes the Worker apply its own
 // migrations (server/src/migrate.ts). Secrets are piped to wrangler on stdin, never written to disk.
-import { spawnSync, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
-// npm and npx are .cmd files on Windows, which spawnSync only runs through a shell.
 const WIN = process.platform === 'win32';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOML = join(ROOT, 'wrangler.toml');
-const WRANGLER = ['npx', '--prefix', 'server', 'wrangler']; // cwd stays the repo root, version stays pinned
+// Invoke the locally installed Wrangler through Node.js to avoid Windows .cmd shell issues while keeping the project-pinned version.
+const WRANGLER = [ process.execPath, join(ROOT, 'server', 'node_modules', 'wrangler', 'bin', 'wrangler.js')]; 
 const YES = process.argv.includes('--yes');
 const DRY = process.argv.includes('--dry-run');
 const LOCATIONS = ['enam', 'wnam', 'weur', 'eeur', 'apac', 'oc'];
@@ -31,7 +31,7 @@ const LOCATIONS = ['enam', 'wnam', 'weur', 'eeur', 'apac', 'oc'];
 /** Sets the D1 id and/or custom domain in wrangler.toml text, the same edits scripts/cloudflare-config.sh
  * makes, but replacing earlier values so re-runs don't duplicate lines. Comments and other keys are kept. */
 export function editToml(text, { databaseId, domain } = {}) {
-  let lines = text.split('\n');
+  let lines = text.split(/\r?\n/);
   const insertAfter = (re, add) => {
     const i = lines.findIndex((l) => re.test(l));
     if (i < 0) throw new Error(`wrangler.toml: no line matching ${re}`);
@@ -66,20 +66,79 @@ const fail = (msg) => { console.error(`\nError: ${msg}`); process.exit(1); };
 const show = (args) => say(`  $ ${args.join(' ')}`);
 
 /** Runs wrangler with the terminal attached (login and account prompts work). `input` is piped to stdin. */
+
+/**
+ * Runs the project-local Wrangler with inherited terminal I/O.
+ * Uses an asynchronous child process so interactive prompts work
+ * across Windows, macOS, and Linux.
+ * When input is provided, it is piped to stdin instead.
+ */
 function wrangler(args, { input, env } = {}) {
   const cmd = [...WRANGLER, ...args];
-  if (DRY) return show(cmd);
-  const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: [input == null ? 'inherit' : 'pipe', 'inherit', 'inherit'], input, env: { ...process.env, ...env }, shell: WIN });
-  if (r.signal) process.exit(130);
-  if (r.status !== 0) fail(`\`wrangler ${args.join(' ')}\` failed (exit ${r.status}).`);
+
+  if (DRY) {
+    show(cmd);
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd[0], cmd.slice(1), {
+      cwd: ROOT,
+      shell: false,
+      stdio: input === undefined
+        ? 'inherit'
+        : ['pipe', 'inherit', 'inherit'],
+      env: { ...process.env, ...env }
+    });
+
+    child.once('error', reject);
+
+    child.once('close', (code, signal) => {
+      if (signal) {
+        reject(new Error(`Wrangler terminated: ${signal}`));
+      } else if (code !== 0) {
+        reject(new Error(
+          `wrangler ${args.join(' ')} failed (exit ${code}).`
+        ));
+      } else {
+        resolve();
+      }
+    });
+
+    if (input !== undefined) {
+      child.stdin.on('error', reject);
+      child.stdin.end(input);
+    }
+  });
 }
+
 
 /** Runs a read-only wrangler command and parses its JSON stdout; null if it fails. */
 function wranglerJson(args, dryValue = null) {
-  if (DRY) { show([...WRANGLER, ...args]); return dryValue; }
+  if (DRY) {
+    show([...WRANGLER, ...args]);
+    return dryValue;
+  }
+
   try {
-    return JSON.parse(execFileSync(WRANGLER[0], [...WRANGLER.slice(1), ...args], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
-  } catch {
+    const output = execFileSync(
+      WRANGLER[0],
+      [...WRANGLER.slice(1), ...args],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false
+      }
+    );
+
+    return JSON.parse(output);
+  } catch (err) {
+    // Don't silently hide unexpected execution failures.
+    if (process.env.KINWALL_DEBUG === '1') {
+      console.error('Wrangler JSON command failed:', err.message);
+      console.error(err.stderr?.toString() || '');
+    }
     return null;
   }
 }
@@ -120,12 +179,12 @@ async function main() {
     if (DRY) show(['npm', 'ci', '--prefix', 'server']);
     else if (spawnSync('npm', ['ci', '--prefix', 'server'], { cwd: ROOT, stdio: 'inherit', shell: WIN }).status !== 0) fail('npm ci --prefix server failed.');
   }
-  wrangler(['--version']);
+  await wrangler(['--version']);
   let me = wranglerJson(['whoami', '--json'], { accounts: [{ name: '(dry run)', id: '-' }] });
   if (!me?.loggedIn && !DRY) {
     if (YES) fail('Not logged in to Cloudflare. Run `npx --prefix server wrangler login`, or set CLOUDFLARE_API_TOKEN.');
     say('Not logged in to Cloudflare yet; opening the browser to log in.');
-    wrangler(['login']);
+    await wrangler(['login']);
     me = wranglerJson(['whoami', '--json']);
     if (!me?.loggedIn) fail('Still not logged in.');
   }
@@ -151,7 +210,7 @@ async function main() {
       say('Pick the location nearest you; every query travels there. ' + LOCATIONS.join(' / '));
       const loc = await ask('Location', process.env.KINWALL_D1_LOCATION || guessLocation());
       if (!LOCATIONS.includes(loc)) fail(`Unknown location "${loc}".`);
-      wrangler(['d1', 'create', 'kinwall', '--location', loc]);
+      await wrangler(['d1', 'create', 'kinwall', '--location', loc]);
       dbs = wranglerJson(['d1', 'list', '--json'], [{ name: 'kinwall', uuid: '<new-database-id>' }]) ?? [];
       db = dbs.find((d) => d.name === 'kinwall') ?? fail('Created the database but could not find its id in `wrangler d1 list`.');
     }
@@ -171,7 +230,7 @@ async function main() {
   step('Deploy');
   // wrangler writes machine-readable results here; the deploy entry lists the URLs it published to.
   const outFile = join(tmpdir(), `kinwall-deploy-${process.pid}.ndjson`);
-  wrangler(['deploy'], { env: { WRANGLER_OUTPUT_FILE_PATH: outFile } });
+  await wrangler(['deploy'], { env: { WRANGLER_OUTPUT_FILE_PATH: outFile } });
   const targets = existsSync(outFile)
     ? readFileSync(outFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).find((e) => e.type === 'deploy')?.targets ?? []
     : [];
@@ -186,9 +245,18 @@ async function main() {
   if (existing.has('ENCRYPTION_KEY') && !(await confirm('ENCRYPTION_KEY is set. Replace it? Connected calendar accounts would have to be re-added', false))) say('ENCRYPTION_KEY: keeping the existing one.');
   else {
     say('ENCRYPTION_KEY encrypts calendar credentials. Keep a copy: losing it means re-connecting every calendar account.');
-    const key = process.env.KINWALL_ENCRYPTION_KEY || (await ask('Paste an existing key, or press Enter to generate one')) || randomBytes(32).toString('base64');
+    const suppliedKey = process.env.KINWALL_ENCRYPTION_KEY || await ask('Paste an existing key, or press Enter to generate one');
+    const key = suppliedKey || randomBytes(32).toString('base64');
+    if (Buffer.from(key, 'base64').length !== 32) {
+      fail('ENCRYPTION_KEY must be 32 bytes, base64-encoded.');
+    }
+    await put('ENCRYPTION_KEY', key);
+    if (!suppliedKey) {
+      say('\nENCRYPTION_KEY (generated; save in a password manager):');
+      say(`  ${key}`);
+    }
     if (Buffer.from(key, 'base64').length !== 32) fail('ENCRYPTION_KEY must be 32 bytes, base64-encoded (openssl rand -base64 32).');
-    put('ENCRYPTION_KEY', key);
+    await put('ENCRYPTION_KEY', key);
   }
 
   // Only a key generated here is ever printed (once, so its owner can store it); one passed in
@@ -198,13 +266,13 @@ async function main() {
   if (existing.has('ADMIN_API_KEY') && !(await confirm('ADMIN_API_KEY is set. Replace it?', false))) say('ADMIN_API_KEY: keeping the existing one.');
   else if (await confirm('Create an ADMIN_API_KEY? It is a permanent admin key and also works as the first-run setup code', true)) {
     if (!process.env.KINWALL_ADMIN_API_KEY) generated = `kw_${randomBytes(16).toString('hex')}`;
-    put('ADMIN_API_KEY', process.env.KINWALL_ADMIN_API_KEY || generated);
+    await put('ADMIN_API_KEY', process.env.KINWALL_ADMIN_API_KEY || generated);
     adminKeySet = true;
   }
 
   // A secret rather than [vars]: it's still env.PUBLIC_URL to the app, and survives later deploys and
   // dashboard git builds without living in wrangler.toml. Not sensitive, so it's re-set on every run.
-  put('PUBLIC_URL', url);
+  await put('PUBLIC_URL', url);
 
   step('Health check');
   // The first request makes the Worker apply server/migrations to D1 (worker.ts -> runMigrations).
