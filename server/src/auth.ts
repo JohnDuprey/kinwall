@@ -49,37 +49,31 @@ export async function createApiKey(
 }
 
 /** A device owner from an admin: 'shared' or an existing member's id that fits the key. Null
- * otherwise. 'display' (a paired device, an everyday-access sign-in): shared or a kid, never a
- * grown-up, so whoever approves a pairing code or a kid's sign-in never gets a key that opens a
- * grown-up's private journal (routes/journal.ts); grown-ups claim their own device from it
- * (PUT /api/me/owner). 'admin' (a parent's device): shared or a grown-up. 'app': a full-access
- * sign-in of the Kinwall app, any member (only a grown-up owner opens a journal: journalOwner). */
+ * otherwise. 'display' (a paired device, an everyday-access sign-in): shared or anyone. A grown-up's
+ * everyday device never opens their private journal (journal-privacy.ts journalOwner), so whoever
+ * approves a pairing code never gets a key that does. 'admin' (a parent's device): shared or a
+ * grown-up. 'app': a full-access sign-in of the Kinwall app, any member (only a grown-up owner opens
+ * a journal: journalOwner). */
 export async function validOwner(db: KinwallDb, owner: string, scope: KeyScope | 'app' = 'display'): Promise<string | null> {
   if (owner === 'shared') return owner;
   const m = await db.prepare('SELECT id, grown_up FROM members WHERE id = ?').bind(owner).first<{ id: string; grown_up: number }>();
   if (!m) return null;
-  return scope === 'app' || (scope === 'display') === !m.grown_up ? m.id : null;
+  return scope !== 'admin' || m.grown_up ? m.id : null;
 }
 
-/** Why validOwner refused a grown-up for an everyday-access key. */
-export const GROWN_UP_PAIRING = stored('error', "A paired device can't be a grown-up's. Grown-ups sign in on their own phone or computer with a passkey or the Kinwall app, then pick themselves under Whose device is this?");
-/** The same, for an everyday-access sign-in that asked for a grown-up (routes/mcp-oauth.ts). */
-export const EVERYDAY_GROWN_UP = stored('error', "Everyday access is for a kid or the whole family. A paired device can't be a grown-up's. Grown-ups sign in on their own phone or computer with a passkey or the Kinwall app, then pick themselves under Whose device is this?");
-
-/** What a device is: the family's wall screen, a kid's own device or a grown-up's own device. */
+/** What a device is: the family's wall screen, a kid's own device or a grown-up's own device (a
+ * parent's full-access phone, or an everyday-access device such as a grandparent's tablet). */
 export const DEVICE_KINDS = ['wall', 'kid', 'grownup'] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
 /** On a key, also 'widgets': the Kinwall app's widgets and Watch (POST /api/device-keys), which follow the device that made them. */
 export type KeyDeviceKind = DeviceKind | 'widgets';
 
 /** A device's kind and owner from an admin (pairing, PATCH /api/keys), checked against each other:
- * a wall screen is shared, a kid's device is a kid's. A paired device (display key) is only ever
- * one of those two (validOwner). A full-access key is a parent's device: a grown-up's
- * ('grownup'), or shared with no kind (automation). Without a kind (older clients) it follows the
- * owner ('shared' when that's missing too). */
+ * a wall screen is shared, a kid's device is a kid's, a grown-up's is a grown-up's. A full-access key
+ * is a parent's device: a grown-up's ('grownup'), or shared with no kind (automation). Without a kind
+ * (older clients) it follows the owner ('shared' when that's missing too). */
 export async function deviceKindOwner(db: KinwallDb, scope: KeyScope, kind: DeviceKind | undefined, ownerIn: string | undefined): Promise<{ kind: DeviceKind | null; owner: string } | { error: string }> {
   const admin = scope === 'admin';
-  if (!admin && kind === 'grownup') return { error: GROWN_UP_PAIRING };
   if (kind === 'wall') {
     if (admin) return { error: "A full-access device can't be a wall screen" };
     if (ownerIn && ownerIn !== 'shared') return { error: 'A wall screen belongs to the whole family' };
@@ -90,7 +84,6 @@ export async function deviceKindOwner(db: KinwallDb, scope: KeyScope, kind: Devi
   const m = await db.prepare('SELECT id, name, grown_up FROM members WHERE id = ?').bind(owner).first<{ id: string; name: string; grown_up: number }>();
   if (!m) return { error: 'unknown family member' };
   if (admin && !m.grown_up) return { error: 'A full-access device can only belong to a grown-up' };
-  if (!admin && m.grown_up) return { error: GROWN_UP_PAIRING };
   const theirs: DeviceKind = m.grown_up ? 'grownup' : 'kid';
   if (kind && kind !== theirs) return { error: kind === 'kid' ? `A kid's device belongs to a kid. ${m.name} is a grown-up.` : `A grown-up's device belongs to a grown-up. ${m.name} isn't marked as one.` };
   return { kind: theirs, owner: m.id };
@@ -127,6 +120,17 @@ export async function eventWriteBlock(c: Context<{ Bindings: Env }>, cals: Edita
 export async function deviceOwner(c: Context<{ Bindings: Env }>): Promise<string | null> {
   const key = await requestKey(c);
   return key?.scope === 'display' && key.owner && key.owner !== 'shared' ? key.owner : null;
+}
+
+/** Whose things this device's view is narrowed to: its owner (deviceOwner), unless a parent lets
+ * their devices show the whole family (members.sees_family: on by default for grown-ups, off for
+ * kids). Only for what a device shows; what it may do, and whose private things it opens, stay
+ * with deviceOwner. */
+export async function viewOwner(c: Context<{ Bindings: Env }>): Promise<string | null> {
+  const owner = await deviceOwner(c);
+  if (!owner) return null;
+  const m = await c.env.DB.prepare('SELECT sees_family FROM members WHERE id = ?').bind(owner).first<{ sees_family: number }>();
+  return m?.sees_family ? null : owner;
 }
 
 /** Whose own device this is: a display key owned by one member (deviceOwner), or a full-access key

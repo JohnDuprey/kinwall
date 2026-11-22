@@ -40,19 +40,40 @@ export function SendMessageForm({ onSent }: { onSent?: () => void }) {
   )
 }
 
-/** "What is this device?" for a paired device: the family's wall screen or a kid's device (which
- * kid), in one picker. Never a grown-up's: whoever approves a code mustn't get a key that opens a
- * grown-up's private journal. Value: 'wall' or kid:memberId (wallScreen.ts deviceKindValue); ''
- * (only with `legacy`) for one paired before anyone said, or as a grown-up's (needs a fix). */
+/** "Who uses this device?" for a paired device: everyone (a shared screen) or one person, in one
+ * list. The value still says kid or grown-up (the server checks it fits): 'wall', kid:memberId or
+ * grownup:memberId (wallScreen.ts deviceKindValue); '' (only with `legacy`) for one paired before anyone said. */
 export function DeviceKindSelect({ value, onChange, members, id, label, legacy }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string; legacy?: boolean }) {
   const ctx = useContext(AppContext)
   const list = members ?? ctx?.members ?? []
-  const kids = list.filter(m => !m.grownUp)
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
       {legacy && <option value="" disabled>{t('Pick one')}</option>}
-      <option value="wall">🖼️ {t('Shared (whole family)')}</option>
-      {kids.length > 0 && <optgroup label={t("A kid's device")}>{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {t("{name}'s device", { name: m.name })}</option>)}</optgroup>}
+      <option value="wall">👪 {t('Everyone (shared screen)')}</option>
+      {list.map(m => <option key={m.id} value={`${m.grownUp ? 'grownup' : 'kid'}:${m.id}`}>{m.avatar} {m.name}</option>)}
     </select>
+  )
+}
+
+/** Under "Who uses this device?" once a person is picked: whether their own everyday devices show the
+ * whole family. It's their profile's switch (Settings → Family), so it changes all their devices;
+ * saved at once, then `onSaved` gets the updated person so the hint above follows it. */
+export function SeesFamilySwitch({ member, onSaved, onError }: { member: Member; onSaved: (m: Member) => void; onError: (msg: string) => void }) {
+  const [busy, setBusy] = useState(false)
+  const on = !!member.seesFamily
+  const id = `sees-family-${member.id}`
+  const flip = async () => {
+    setBusy(true)
+    // useAdmin: the sign-in screens' admin key, else this device's
+    try { onSaved(await api.updateMember(member.id, { seesFamily: !on }, true)) } catch (e) { onError(e instanceof ApiError ? e.message : t('Could not save member')) } finally { setBusy(false) }
+  }
+  return (
+    <>
+      <div className="toggle-row">
+        <label id={id}>{t("Show the whole family on {name}'s devices", { name: member.name })}</label>
+        <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby={id} disabled={busy} onClick={flip}><span className="knob" /></button>
+      </div>
+      <p className="settings-row-sub">{t("This changes all of {name}'s devices, not just this one.", { name: member.name })}</p>
+    </>
   )
 }

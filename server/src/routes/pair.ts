@@ -116,16 +116,16 @@ pairRoutes.openapi(
   },
 );
 
-// kind: what the device is (auth.ts deviceKindOwner). owner: 'shared' (the whole family) or the kid
-// it's pinned to, and it has to match the kind. Never a grown-up: whoever approves a code mustn't
-// get a key that opens a grown-up's private journal. Older clients send only an owner (omitted =
+// kind: what the device is (auth.ts deviceKindOwner). owner: 'shared' (the whole family) or the
+// person it belongs to, and it has to match the kind. A grown-up's is everyday access and never opens
+// their private journal, so whoever approves a code never gets a key that does. Older clients send only an owner (omitted =
 // shared); the kind then follows it. Only an admin can change either later (PATCH /api/keys/{id}).
-const DeviceKindSchema = z.enum(['wall', 'kid']).openapi({ description: "What the device is: 'wall' (a wall screen, the whole family's) or 'kid' (a kid's own device). Never a grown-up's: grown-ups sign in on their own device and claim it (PUT /api/me/owner)." });
+const DeviceKindSchema = z.enum(['wall', 'kid', 'grownup']).openapi({ description: "What the device is: 'wall' (a wall screen, the whole family's), 'kid' (a kid's own device) or 'grownup' (a grown-up's everyday device, such as a grandparent's tablet: it shows the whole family, acts only as them, and never opens their private journal or settings)." });
 const PairApproveInputSchema = z.object({
   code: z.string().length(CODE_DIGITS),
   name: z.string().min(1),
   kind: DeviceKindSchema.optional(),
-  owner: z.string().min(1).optional().openapi({ description: "'shared' or a kid's member id: the kid for 'kid', 'shared' (or left out) for 'wall'. Without a kind, the kind follows it. A grown-up is refused (400)." }),
+  owner: z.string().min(1).optional().openapi({ description: "'shared' or a member id: a kid for 'kid', a grown-up for 'grownup', 'shared' (or left out) for 'wall'. Without a kind, the kind follows it." }),
 }).openapi('PairApproveInput');
 const PairApproveResponseSchema = z.object({ keyId: z.string(), name: z.string(), kind: DeviceKindSchema }).openapi('PairApproveResponse');
 

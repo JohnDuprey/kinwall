@@ -38,9 +38,9 @@ function readPostAs(): string | null {
  * kid's own device, always as the kid). */
 export default function NotesThread({ target, title: heading }: { target: NoteTarget; title?: string }) {
   const title = heading ?? t('Notes')
-  const { members, selectedMemberId, meMemberId, refreshTick, toast, parentDevice, focusLocked } = useApp()
+  const { members, selectedMemberId, meMemberId, refreshTick, toast, parentDevice } = useApp()
   // A kid's own device posts as the kid and changes only their notes; a wall screen only Someone's (the server refuses the rest).
-  const kid = !parentDevice && focusLocked ? meMemberId : null
+  const kid = !parentDevice ? meMemberId : null
   const canChange = (n: Note) => parentDevice || (n.memberId ?? null) === kid
   const dialog = useDialog()
   const [notes, setNotes] = useState<Note[]>([])

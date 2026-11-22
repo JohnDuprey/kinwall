@@ -180,6 +180,7 @@ export const MemberSchema = z
     balance: z.number(), // points left to spend: everything earned from chores, minus sticker purchases (+/- other ledger entries)
     grownUp: z.boolean().openapi({ description: "A parent or other adult. Their chores never wait for a parent's OK (needsApproval is always false)." }),
     needsApproval: z.boolean().openapi({ description: "Their chores need a parent's OK by default (a chore's own setting wins). Always false for a grown-up." }),
+    seesFamily: z.boolean().openapi({ description: "Their own everyday devices (a paired device or everyday-access sign-in that belongs to them) show the whole family's calendar, chores and lists instead of only theirs. They still act only for themselves. Full-access devices always show everyone." }),
     transitionReminders: TransitionRemindersSchema,
     rewardGoal: z
       .object({ rewardId: z.string(), title: z.string(), emoji: z.string().nullable(), cost: z.number() })
@@ -203,6 +204,7 @@ export const MemberInputSchema = z
     sort: z.number().optional(),
     grownUp: z.boolean().optional().openapi({ description: 'Default false. true also turns needsApproval off.' }),
     needsApproval: z.boolean().optional().openapi({ description: 'Ignored for a grown-up (stays false).' }),
+    seesFamily: z.boolean().optional().openapi({ description: "Default true for a grown-up, false for a kid. Changing grownUp without it moves to the new side's default." }),
     transitionReminders: TransitionRemindersSchema.optional(),
     tempCheck: TempCheckSettingsSchema.optional(),
     language: LanguageSchema.nullable().optional().openapi({ description: "Default null (follow the device, then the family's language)." }),
@@ -1127,7 +1129,7 @@ export const MeSchema = z
     kind: z.enum(['api', 'session', 'oauth']),
     owner: z.string().nullable().optional().openapi({ description: "Whose device this is: 'shared', a member id, or null. On a full-access key it's only for personal defaults" }),
     deviceKind: z.enum(['wall', 'kid', 'grownup', 'widgets']).nullable().optional().openapi({ description: "What this device is, when an admin said so (see ApiKey.kind)" }),
-    locked: z.boolean().openapi({ description: "The owner locks this device's family filter (everyday-access keys with an owner: a member id pins it, 'shared' shows everyone). Never true for full access" }),
+    locked: z.boolean().openapi({ description: "The owner locks this device's family filter (everyday-access keys with an owner: a member id pins it, 'shared' shows everyone). False when a parent lets the owner see the whole family (their seesFamily). Never true for full access" }),
     version: z.string(),
     hostPortalUrl: z.string().optional(),
   })

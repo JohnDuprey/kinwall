@@ -13,7 +13,7 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { actorOf, createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, EVERYDAY_GROWN_UP, validOwner, type Actor, type KeyScope } from '../auth.ts';
+import { actorOf, createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, validOwner, type Actor, type KeyScope } from '../auth.ts';
 import { deviceOwnerEvent, recordSecurityEvent, securityEventStmts } from './security-events.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
@@ -266,9 +266,9 @@ mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
   // Whose device: the app's sign-in only (default the whole family); ignored for anything else.
   let owner: string | null = null;
   if (isDeviceAppLink(body.redirect_uri)) {
-    // Everyday access is a kid's device or shared, never a grown-up's (it would open their journal).
+    // Everyday access may be anyone's: a grown-up's never opens their private journal (journalOwner).
     owner = await validOwner(c.env.DB, body.owner || 'shared', scope === 'display' ? 'display' : 'app');
-    if (!owner) return c.json({ error: scope === 'display' ? EVERYDAY_GROWN_UP : 'unknown family member' }, 400);
+    if (!owner) return c.json({ error: 'unknown family member' }, 400);
   }
   const code = randomToken();
   const by = await actorOf(c);
@@ -416,7 +416,7 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   if (!grant || !grant.device_app) return c.json({ error: 'not found' }, 404);
   const everyday = grant.scope === 'display';
   const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner, everyday ? 'display' : 'app') : null;
-  if (!owner) return c.json({ error: everyday ? EVERYDAY_GROWN_UP : 'unknown family member' }, 400);
+  if (!owner) return c.json({ error: 'unknown family member' }, 400);
   if (grant.owner !== owner) await recordDeviceOwner(c.env.DB, grant.name, owner); // it may open their private journal
   await c.env.DB.batch([
     // owner_since: theirs from now, so it can't remove the note about that (routes/push.ts)

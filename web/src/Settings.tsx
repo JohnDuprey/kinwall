@@ -1,4 +1,4 @@
-import { DeviceKindSelect, SendMessageForm } from './settingsControls.tsx'
+import { DeviceKindSelect, SeesFamilySwitch, SendMessageForm } from './settingsControls.tsx'
 import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import RoutineModeSettings from './RoutineModeSettings.tsx'
 import { AppContext, useApp } from './AppContext.tsx'
@@ -33,7 +33,7 @@ import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
 import { DEFAULT_ACCENT, effectiveDensity, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { screenScale, SCREEN_SCALES } from './screenScale.ts'
-import { deviceKindOf, deviceKindSaid, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
+import { deviceKindHint, deviceKindOf, deviceKindSaid, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, skinName, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
@@ -924,7 +924,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   }, [])
   const { members, settings, parentDevice, meMemberId } = useApp()
   // A kid's own device follows only them (the server holds to that), so there's nobody to pick.
-  const kid = !parentDevice && meMemberId ? members.find(m => m.id === meMemberId && !m.grownUp) : undefined
+  const kid = !parentDevice && meMemberId ? members.find(m => m.id === meMemberId) : undefined // (a grown-up's everyday device too)
   const [appNames, setAppNames] = useState(appMedicineNames) // in the app: this device's own choice (no push subscription)
   const [kidDoses, setKidDoses] = useState(appKidDoses)
   const [anyoneChores, setAnyoneChores] = useState(appChoreNudgeAnyone)
@@ -2277,13 +2277,14 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const birthday = !bday ? null : noYear ? `--${bday.slice(5)}` : bday
   const [grownUp, setGrownUp] = useState(!!member?.grownUp)
   const [needsApproval, setNeedsApproval] = useState(!!member?.needsApproval)
+  const [seesFamily, setSeesFamily] = useState(member ? !!member.seesFamily : false)
   const [tempCheck, setTempCheck] = useState<TempCheckSettings>({ ...TEMP_CHECK_OFF, ...member?.tempCheck })
   const [language, setLanguage] = useState<Lang | null>(member?.language ?? null)
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
       // Transition reminders are a parent's setting: only sent from a device that may manage members.
-      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp, tempCheck, language } : {}
+      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp, seesFamily, tempCheck, language } : {}
       if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, ...extra })
       else await api.createMember({ name: name.trim(), color, avatar, birthday, ...extra })
       onSaved()
@@ -2326,7 +2327,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
         <div className="field">
           <div className="toggle-row">
             <label id="member-grown-up">{t('Grown-up')}</label>
-            <button className={`switch ${grownUp ? 'on' : ''}`} role="switch" aria-checked={grownUp} aria-labelledby="member-grown-up" onClick={() => setGrownUp(v => !v)}><span className="knob" /></button>
+            <button className={`switch ${grownUp ? 'on' : ''}`} role="switch" aria-checked={grownUp} aria-labelledby="member-grown-up" onClick={() => { setGrownUp(!grownUp); setSeesFamily(!grownUp) }}><span className="knob" /></button>
           </div>
           <p className="field-hint">{t('Parents and other adults: their chores never wait for an OK.')}</p>
         </div>
@@ -2357,6 +2358,13 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
         <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="member-needs-approval" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>
       </div>
       <p className="field-hint">{t("Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.")}</p>
+      </>}
+      {canDelete && <>
+      <div className="toggle-row">
+        <label id="member-sees-family">{t('Their own devices show the whole family')}</label>
+        <button className={`switch ${seesFamily ? 'on' : ''}`} role="switch" aria-checked={seesFamily} aria-labelledby="member-sees-family" onClick={() => setSeesFamily(v => !v)}><span className="knob" /></button>
+      </div>
+      <p className="field-hint">{t("Their paired phone or tablet shows everyone's events, chores and lists, not just theirs. It still does things only as them, and it can't change settings.")}</p>
       </>}
       {canDelete && <TransitionRemindersField name={name.trim() || t('this person')} value={transitions} onChange={setTransitions} />}
       {canDelete && checkIns && <TempCheckField member={member} name={name.trim() || t('this person')} value={tempCheck} onChange={setTempCheck} toast={toast} />}
@@ -3342,7 +3350,7 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
               </div>
             </div>
             {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
-            {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} members={a.scope === 'display' ? members.filter(m => !m.grownUp || m.id === a.owner) : undefined} onChange={v => changeOwner(a.id, v)} label={t('Whose device {name} is', { name: a.clientName })} />}
+            {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} onChange={v => changeOwner(a.id, v)} label={t('Whose device {name} is', { name: a.clientName })} />}
             {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={t('Disconnect {name}', { name: a.clientName })}><TrashIcon width={16} height={16} /></button>}
           </div>
           <WidgetKeys keys={widgetsUnder(keys, { grantId: a.id })} onChanged={load} toast={toast} />
@@ -3487,10 +3495,11 @@ export function OwnerSelect({ value, onChange, members, id, label }: { value: st
   )
 }
 
-// 'grownup': paired as a grown-up's before that was refused. It no longer opens their journal.
-const KIND_GROUPS: { kind: DeviceKind | null; title: string; sub?: string }[] = [
-  { kind: 'grownup', title: msg('Needs a fix'), sub: msg("Paired as a grown-up's device, which isn't allowed any more: it no longer opens their journal. Make it a wall screen or a kid's device, or remove it and sign in there with a passkey.") },
-  { kind: 'wall', title: msg('Wall screens') }, { kind: 'kid', title: msg("Kids' devices") }, { kind: null, title: msg('Not set yet') },
+// Shared screens, and devices that are one person's (a kid's or a grown-up's: the picker on each says whose).
+const KIND_GROUPS: { id: string; kinds: (DeviceKind | null)[]; title: string }[] = [
+  { id: 'shared', kinds: ['wall'], title: msg('Shared screens') },
+  { id: 'personal', kinds: ['kid', 'grownup'], title: msg('Personal devices') },
+  { id: 'none', kinds: [null], title: msg('Not set yet') },
 ]
 
 function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
@@ -3511,6 +3520,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   useEffect(load, [])
 
   const [what, setWhat] = useState('wall')
+  const pickedMember = members.find(m => m.id === parseDeviceKind(what).owner)
   const pair = async () => {
     if (code.length !== 6 || !name.trim()) return
     setBusy(true)
@@ -3548,12 +3558,11 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
 
   return (
     <Section id="paired-devices" title={t('Paired devices')} icon={<MonitorIcon width={16} height={16} />}>
-      <p className="settings-row-sub">{t("Paired with a code. They get the calendar, chores and lists, but not settings. A kid's device shows only their things. Grown-ups sign in on their own phone with a passkey instead.")}</p>
-      {keys.length === 0 && <p className="settings-row-sub">{t('None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid\'s device" to get a code.')}</p>}
-      {KIND_GROUPS.map(g => ({ ...g, keys: keys.filter(k => deviceKindOf(k, members) === g.kind) })).filter(g => g.keys.length > 0).map(g => (
-        <div key={g.title} role="group" aria-labelledby={`device-kind-${g.kind ?? 'none'}`}>
-          <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.kind === 'grownup' ? '⚠️ ' : ''}{tm(g.title)}</div>
-          {g.sub && <p className="settings-row-sub">{tm(g.sub)}</p>}
+      <p className="settings-row-sub">{t('Paired with a code. They get the calendar, chores and lists, but not settings. Anyone who manages Kinwall signs in with a passkey instead.')}</p>
+      {keys.length === 0 && <p className="settings-row-sub">{t('None yet. Open Kinwall on the device and choose "Set up with a code" to get a code.')}</p>}
+      {KIND_GROUPS.map(g => ({ ...g, keys: keys.filter(k => g.kinds.includes(deviceKindOf(k, members))) })).filter(g => g.keys.length > 0).map(g => (
+        <div key={g.id} role="group" aria-labelledby={`device-kind-${g.id}`}>
+          <div className="settings-row-label device-kind-title" id={`device-kind-${g.id}`}>{tm(g.title)}</div>
           {g.keys.map(k => (
             <Fragment key={k.id}>
               {renaming?.id === k.id ? (
@@ -3587,12 +3596,12 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
         <p className="settings-row-sub">{t("From the Kinwall app on a phone that isn't listed here, most made before Kinwall kept track of which phone. Remove any you don't recognize; the phone makes new ones when it signs in again.")}</p>
         <WidgetKeys keys={unplaced} onChanged={load} toast={toast} />
       </div>}
-      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />{t("Add a wall screen or kid's device")}</button>
+      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />{t('Add a device with a code')}</button>
 
       {adding && (
-        <Sheet title={t("Add a wall screen or kid's device")} onClose={() => setAdding(false)}
+        <Sheet title={t('Add a device with a code')} onClose={() => setAdding(false)}
           actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? t('Pairing…') : t('Add device')}</button>}>
-          <p className="settings-row-sub" style={{ marginBottom: 14 }}>{t('On that screen, open Kinwall, choose "Set up a wall screen or kid\'s device", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.')}</p>
+          <p className="settings-row-sub" style={{ marginBottom: 14 }}>{t('On that device, open Kinwall, choose "Set up with a code", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.')}</p>
           <div className="row-2">
             <div className="field">
               <label>{t('Code')}</label>
@@ -3610,9 +3619,10 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
             </div>
           </div>
           <div className="field">
-            <label htmlFor="pair-kind">{t('What is this device?')}</label>
+            <label htmlFor="pair-kind">{t('Who uses this device?')}</label>
             <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} />
-            <p className="settings-row-sub">{t("A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.")}</p>
+            <p className="settings-row-sub">{deviceKindHint(what, members)} {t('Only a parent can change this later.')}</p>
+            {pickedMember && <SeesFamilySwitch member={pickedMember} onSaved={() => reloadCore()} onError={m => toast(m, true)} />}
           </div>
         </Sheet>
       )}

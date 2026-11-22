@@ -175,8 +175,8 @@ const settings: Settings = {
 }
 
 const members: Member[] = [
-  { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
-  { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
+  { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, seesFamily: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
+  { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, seesFamily: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
   { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', picture: 'demo-drawings/maya-picture.webp', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '21:00', journal: true, battery: true } },
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
   { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), grownUp: false, sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
@@ -504,6 +504,12 @@ completions.set(`ch-once-done:${dateOnly(-1)}`, { completedAt: at(-1, 16), membe
 for (const c of chores.filter(x => x.rrule && !x.repeatGoal)) {
   const n = [1, 2, 3, 4, 5, 6, 7].find(n => dueOn(c, dateOnly(-n)))
   if (n) completions.set(`${c.id}:${dateOnly(-n)}`, { completedAt: at(-n, 18), memberId: c.memberId, points: c.points })
+}
+// Older kids whose own devices show the whole family (Settings → Family), kept like the suggestions below.
+const SEES_FAMILY_KEY = 'kinwall.demoSeesFamily'
+const seesFamilyFromSession = (m: Member) => {
+  try { const ids = JSON.parse(sessionStorage.getItem(SEES_FAMILY_KEY) ?? 'null'); if (Array.isArray(ids)) m.seesFamily = ids.includes(m.id) } catch { /* the seed */ }
+  return m
 }
 // Chores kids suggested. Kept in sessionStorage so the demo can switch between a kid's device and a
 // parent's (kinwall.demoKid + reload) and still see the same ideas and answers; approved ones come back as chores.
@@ -1132,7 +1138,7 @@ export const mock = {
   setQuietPin: async (pin: string | null) => { quietPin = pin; settings.quietPin = !!pin; bump(); return { ok: true } },
   verifyQuietPin: async (pin: string) => ({ ok: !quietPin || pin === quietPin }),
 
-  getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => {
+  getMembers: async () => [...members].map(seesFamilyFromSession).sort((a, b) => a.sort - b.sort).map(m => {
     const tc = m.tempCheck ?? TEMP_CHECK_OFF
     return { ...m, rewardGoal: goalOf(m.id), tempCheck: tc, todayGoal: tc.on && tc.goal ? tempChecks.get(`${m.id}:${dateKey(new Date())}`)?.goal ?? null : null, privateJournal: privacyOf(m) }
   }),
@@ -1193,8 +1199,10 @@ export const mock = {
   },
   myOwner: () => demoOwner,
   forecast: (dates: string[]) => mockWeather(dates), // Outings' ideas (mock-outings.ts)
-  // Screenshots of a kid's own device: sessionStorage 'kinwall.demoKid' = a member id makes the demo that device (api.meStrict).
+  // Screenshots of someone's own everyday device: sessionStorage 'kinwall.demoKid' = a member id makes the demo that device (api.meStrict).
   demoKid: (): string | null => { try { return sessionStorage.getItem('kinwall.demoKid') } catch { return null } },
+  /** That device shows the whole family when a parent turned it on for that person (the server's /api/me locked). */
+  demoKidLocked: (): boolean => !members.map(seesFamilyFromSession).find(x => x.id === mock.demoKid())?.seesFamily,
   setMyOwner: async (owner: string) => { demoOwner = owner === 'shared' ? null : owner; bump(); return { owner } },
   // Insights: Maya's made-up history with the server's own analysis of it (mock-insights.ts); nothing yet for everyone else.
   getInsights: async (memberId: string, range: InsightRange): Promise<Insights> => {
@@ -1294,12 +1302,17 @@ export const mock = {
     return { memberId, today: dateKey(new Date()), medications: mine.map(m => ({ ...m })), days }
   },
   createMember: async (m: Partial<Member>) => {
-    const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, grownUp: !!m.grownUp, needsApproval: !m.grownUp && !!m.needsApproval, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
+    const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, grownUp: !!m.grownUp, needsApproval: !m.grownUp && !!m.needsApproval, seesFamily: m.seesFamily ?? !!m.grownUp, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
     members.push(nm); bump(); return nm
   },
   updateMember: async (id: string, patch: Partial<Member>) => {
     const m = members.find(x => x.id === id); if (!m) throw new Error('not found')
-    Object.assign(m, patch); if (m.grownUp) m.needsApproval = false; bump(); return m
+    const flipped = patch.grownUp !== undefined && patch.grownUp !== !!m.grownUp
+    Object.assign(m, patch); if (m.grownUp) m.needsApproval = false
+    if (flipped && patch.seesFamily === undefined) m.seesFamily = !!m.grownUp // that side's default, as on the server
+    // Kept in sessionStorage so switching the demo to that kid's device (demoKid) still knows.
+    try { sessionStorage.setItem(SEES_FAMILY_KEY, JSON.stringify(members.filter(x => x.seesFamily).map(x => x.id))) } catch { /* forgets on reload */ }
+    bump(); return m
   },
   deleteMember: async (id: string) => {
     const i = members.findIndex(x => x.id === id)
@@ -1829,6 +1842,13 @@ export const mock = {
     const k = mockKeys.find(x => x.id === id)
     if (k) k.name = name
     return k ? { ...k } : { id, name, prefix: 'kw_' + id.slice(0, 4), scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'shared' }
+  },
+  setKeyKind: async (id: string, device: { kind: NonNullable<ApiKey['kind']>; owner?: string }): Promise<ApiKey> => {
+    const k = mockKeys.find(x => x.id === id)
+    if (!k) throw new Error('not found')
+    Object.assign(k, { kind: device.kind, owner: device.owner ?? 'shared' })
+    for (const w of mockKeys) if (w.parentKeyId === id) w.owner = k.owner // widgets follow their device
+    return { ...k }
   },
   deleteKey: async (id: string) => {
     mockKeys = mockKeys.filter(k => k.id !== id && k.parentKeyId !== id)

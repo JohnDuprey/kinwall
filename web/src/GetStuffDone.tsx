@@ -28,7 +28,7 @@ export type DoChore = { memberId: string | null; title: string; points: number; 
  * Built like cooking mode (CookingMode.tsx): screen on, the app behind out of reach. `pinned`: this
  * screen's pinned checklist (Settings → This display), whose way out goes back to the Board. */
 export default function GetStuffDone({ listId, chore, pinned, onClose }: { listId: string; chore?: DoChore; pinned?: boolean; onClose: () => void }) {
-  const { members, toast, refreshTick, parentDevice, focusLocked, meMemberId, focusMemberId } = useApp()
+  const { members, toast, refreshTick, parentDevice, meMemberId, focusMemberId } = useApp()
   const titleId = useId()
   const [detail, setDetail] = useState<ListDetail | null>(null)
   const [error, setError] = useState(false)
@@ -68,7 +68,7 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
   const list = detail?.list
   // What this screen works through: a chore's person's items (or a screen shown for one person),
   // and on a kid's own device only what it may tick (canChangeItem, the server's rule too).
-  const kid = !parentDevice && focusLocked ? meMemberId : null
+  const kid = !parentDevice ? meMemberId : null
   const who = chore ? chore.memberId : focusMemberId
   // In the list's own sort (as the list shows it); a tick doesn't move an item along.
   const today = dateKey(new Date())

@@ -5,6 +5,7 @@ import m0152 from '../migrations/0152_school_enrolled.sql';
 import m0153 from '../migrations/0153_school_records.sql';
 import m0154 from '../migrations/0154_school_days.sql';
 import m0155 from '../migrations/0155_chore_one_of.sql';
+import m0156 from '../migrations/0156_member_sees_family.sql';
 import m0148 from '../migrations/0148_recipe_cooking_index.sql';
 import m0147 from '../migrations/0147_inbox.sql';
 import m0146 from '../migrations/0146_weekly_planning.sql';
@@ -313,4 +314,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0153_school_records.sql', sql: m0153 },
   { name: '0154_school_days.sql', sql: m0154 },
   { name: '0155_chore_one_of.sql', sql: m0155 },
+  { name: '0156_member_sees_family.sql', sql: m0156 },
 ];

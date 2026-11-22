@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
-import { resolveKey, validOwner } from '../auth.ts';
+import { deviceOwner, resolveKey, validOwner, viewOwner } from '../auth.ts';
 import { deviceOwnerEvent, recordSecurityEvent } from './security-events.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -26,7 +26,8 @@ meRoutes.openapi(
     // Variables typing through every route file just for this one endpoint.
     const resolved = await resolveKey(c);
     const householdId = await householdIdOf(c.env.DB);
-    return c.json({ householdId, scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', owner: resolved?.owner ?? null, deviceKind: resolved?.deviceKind ?? null, locked: resolved?.scope === 'display' && !!resolved.owner, version: VERSION, ...(c.env.HOST_PORTAL_URL ? { hostPortalUrl: c.env.HOST_PORTAL_URL } : {}) }, 200);
+    const seesFamily = (await deviceOwner(c)) !== (await viewOwner(c)); // their devices show the whole family (members.sees_family)
+    return c.json({ householdId, scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', owner: resolved?.owner ?? null, deviceKind: resolved?.deviceKind ?? null, locked: resolved?.scope === 'display' && !!resolved.owner && !seesFamily, version: VERSION, ...(c.env.HOST_PORTAL_URL ? { hostPortalUrl: c.env.HOST_PORTAL_URL } : {}) }, 200);
   },
 );
 

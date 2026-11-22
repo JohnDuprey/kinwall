@@ -550,6 +550,14 @@ export default function Chores() {
   const toggle = async (c: ChoreDay, doneBy?: string | null) => {
     if (c.goalProgress?.full && !c.completed && !c.pending) return
     const ticked = c.completed || !!c.pending // a pending tick unticks like a done one
+    // A kid's own device ticks only as them (the server refuses the rest). It can show everyone's
+    // chores when a parent lets that kid see the whole family, so say so rather than queue a refusal.
+    const kid = !parentDevice ? meMemberId : null
+    if (kid && ((c.memberId && c.memberId !== kid) || (ticked && c.completedBy && c.completedBy !== kid))) {
+      toast(t('This device can only do that for {name}.', { name: members.find(m => m.id === kid)?.name ?? '' }), true)
+      return
+    }
+    if (kid && !c.memberId && doneBy === undefined) doneBy = kid
     // Unticking is deliberate: a stray tap on a done chore shouldn't quietly take points back.
     if (ticked && !await dialog.confirm({
       title: t('Mark "{title}" not done?', { title: c.title }),

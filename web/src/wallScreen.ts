@@ -87,18 +87,20 @@ export function widgetParent(key: LinkedKey, all: LinkedKey[]): { keyId: string 
   return null
 }
 
-/** A device's kind: the one saved on it, else what its owner says (older keys). Null when nobody's said. */
+/** A device's kind: whose it is when it's someone's (following their grown-up switch, which can
+ * change after pairing), else the one saved on it, else 'wall' for a shared one. Null when nobody's said. */
 export function deviceKindOf(key: { kind?: DeviceKind | null; owner?: string | null }, members: { id: string; grownUp?: boolean }[]): DeviceKind | null {
+  const m = members.find(x => x.id === key.owner)
+  if (m) return m.grownUp ? 'grownup' : 'kid'
   if (key.kind) return key.kind
   if (!key.owner) return null
-  if (key.owner === 'shared') return 'wall'
-  return members.find(m => m.id === key.owner)?.grownUp ? 'grownup' : 'kid'
+  return key.owner === 'shared' ? 'wall' : 'kid'
 }
 
-/** The pairing picker's value: 'wall' or kid:memberId. '' when nobody's said, or it needs a fix. */
+/** The pairing picker's value: 'wall', kid:memberId or grownup:memberId. '' when nobody's said. */
 export function deviceKindValue(key: { kind?: DeviceKind | null; owner?: string | null }, members: { id: string; grownUp?: boolean }[]): string {
   const kind = deviceKindOf(key, members)
-  return kind === 'wall' ? 'wall' : kind === 'kid' ? `kid:${key.owner}` : ''
+  return kind === 'wall' ? 'wall' : (kind === 'kid' || kind === 'grownup') && members.some(m => m.id === key.owner) ? `${kind}:${key.owner}` : ''
 }
 
 export function parseDeviceKind(value: string): { kind: DeviceKind; owner?: string } {
@@ -109,6 +111,17 @@ export function parseDeviceKind(value: string): { kind: DeviceKind; owner?: stri
 /** The toast after a paired device's role changes: "Kitchen wall is now Maya's device". */
 export function deviceKindSaid(name: string, value: string, members: { id: string; name: string }[]): string {
   const { kind, owner } = parseDeviceKind(value)
-  const who = kind === 'kid' ? members.find(m => m.id === owner)?.name : undefined
-  return who ? t("{name} is now {who}'s device", { name, who }) : t('{name} is now a shared wall screen', { name })
+  const who = kind === 'kid' || kind === 'grownup' ? members.find(m => m.id === owner)?.name : undefined
+  return who ? t("{name} is now {who}'s device", { name, who }) : t('{name} is now shared by everyone', { name })
+}
+
+/** Under "Who uses this device?": what the picked choice does. Someone's own device shows the whole
+ * family when their switch is on (Settings → Family); '' for a member who's gone. */
+export function deviceKindHint(value: string, members: { id: string; name: string; seesFamily?: boolean }[]): string {
+  if (value === 'wall') return t('Shows the whole family. Anyone can tick chores here.')
+  const m = members.find(x => x.id === parseDeviceKind(value).owner)
+  if (!m) return ''
+  return m.seesFamily
+    ? t("{name}'s own device. It does things only as {name}. It shows the whole family.", { name: m.name })
+    : t("{name}'s own device. It does things only as {name}. It shows only {name}'s things.", { name: m.name })
 }

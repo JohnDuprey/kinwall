@@ -4,6 +4,7 @@ import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn
 import Setup from './Setup.tsx'
 import type { Member } from './types.ts'
 import { Brand } from './Brand.tsx'
+import { SeesFamilySwitch } from './settingsControls.tsx'
 import { ChipFace } from './Face'
 import { t } from './i18n.ts'
 
@@ -81,7 +82,7 @@ export default function AuthorizeScreen() {
     setBusy(true); setError('')
     try {
       const { redirect } = await api.decideAuthorization({
-        decision, scope, owner: info?.deviceApp && (scope === 'admin' || !members.find(m => m.id === owner)?.grownUp) ? owner : undefined,
+        decision, scope, owner: info?.deviceApp ? owner : undefined,
         client_id: params.get('client_id') ?? undefined,
         redirect_uri: params.get('redirect_uri') ?? undefined,
         state: params.get('state') ?? undefined,
@@ -157,15 +158,16 @@ export default function AuthorizeScreen() {
                 <label id="authorize-owner">{t('Whose device is this?')}</label>
                 <div className="chip-row" role="group" aria-labelledby="authorize-owner">
                   <button type="button" className={`chip ${owner === 'shared' ? 'active' : ''}`} aria-pressed={owner === 'shared'} onClick={() => setOwner('shared')}>👪 {t('Shared')}</button>
-                  {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
-                  {members.filter(m => scope === 'admin' || !m.grownUp).map(m => (
+                  {/* Everyday access may be anyone's: a grown-up's never opens their private journal. */}
+                  {members.map(m => (
                     <button key={m.id} type="button" className={`chip ${owner === m.id ? 'active' : ''}`} aria-pressed={owner === m.id}
                       style={{ ['--chip-color' as string]: m.color }} onClick={() => setOwner(m.id)}><ChipFace m={m} /> {m.name}</button>
                   ))}
                 </div>
                 <p className="settings-row-sub">{scope === 'admin'
                   ? t('Picks whose reminders and defaults it uses. Everyone stays visible.')
-                  : owner === 'shared' ? t('Shows the whole family.') : t('Shows only their events, chores and lists.')}</p>
+                  : owner === 'shared' || members.find(m => m.id === owner)?.seesFamily ? t('Shows the whole family.') : t('Shows only their events, chores and lists.')}</p>
+                {scope === 'display' && (m => m && <SeesFamilySwitch member={m} onSaved={u => setMembers(list => list.map(x => x.id === u.id ? { ...x, ...u } : x))} onError={setError} />)(members.find(m => m.id === owner))}
               </div>
             )}
             <button className="btn btn-primary btn-block" onClick={() => decide('approve')} disabled={busy}>{busy ? t('Connecting…') : t('Allow')}</button>

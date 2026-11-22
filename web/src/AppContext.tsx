@@ -10,7 +10,7 @@ export interface AppCtx {
   actingMemberId: string | null // a wall screen's picked person, until it goes idle: "Who?" prompts act as them (actingAs.ts)
   focusMemberId: string | null // this display is pinned to one member (selectedMemberId is then that member)
   focusShowsShared: boolean // ...and still shows events/chores/lists assigned to nobody
-  focusLocked: boolean // an admin set who this everyday-access device belongs to, so it can't pick its own
+  focusLocked: boolean // an admin set who this everyday-access device belongs to, so it can't pick its own (off when a parent lets that kid see the whole family). Whether it's a kid's own device is !parentDevice && meMemberId
   meMemberId: string | null // whose device this is (any scope), for personal defaults like "post as"; never a filter
   parentPhone: boolean // a parent device that's a phone and not a wall screen: compact by default (density.ts)
   parentDevice: boolean // full access (admin key): may add, edit and delete chores; wall screens and kids' devices only tick them off

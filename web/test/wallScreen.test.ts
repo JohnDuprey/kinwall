@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deviceKindOf, deviceKindSaid, deviceKindValue, IDLE_CEILING_MS, idleWaitsForTyping, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { deviceKindHint, deviceKindOf, deviceKindSaid, deviceKindValue, IDLE_CEILING_MS, idleWaitsForTyping, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -21,7 +21,8 @@ test('device kinds: what a device is follows its owner, and round-trips through 
   assert.equal(deviceKindValue({ owner: 'shared' }, members), 'wall')
   assert.equal(deviceKindValue({ owner: 'leo' }, members), 'kid:leo')
   assert.equal(deviceKindValue({ owner: null }, members), '')
-  assert.equal(deviceKindValue({ owner: 'alex' }, members), '', "a paired grown-up's device needs a fix")
+  assert.equal(deviceKindValue({ owner: 'alex' }, members), 'grownup:alex', "a grown-up's everyday device")
+  assert.equal(deviceKindValue({ kind: 'kid', owner: 'alex' }, members), 'grownup:alex', 'follows the owner once a kid becomes a grown-up')
   assert.deepEqual(parseDeviceKind('wall'), { kind: 'wall' })
   assert.deepEqual(parseDeviceKind('kid:leo'), { kind: 'kid', owner: 'leo' })
 })
@@ -115,6 +116,16 @@ test('idleWaitsForTyping: a wall waits for a focused text field up to 10 minutes
 test("deviceKindSaid: a role change says what the device is now", () => {
   const members = [{ id: 'm3', name: 'Maya' }]
   assert.equal(deviceKindSaid('Kitchen wall', 'kid:m3', members), "Kitchen wall is now Maya's device")
-  assert.equal(deviceKindSaid('Kitchen wall', 'wall', members), 'Kitchen wall is now a shared wall screen')
-  assert.equal(deviceKindSaid('Old tablet', 'kid:gone', members), 'Old tablet is now a shared wall screen', "a member who's gone isn't named")
+  assert.equal(deviceKindSaid('Kitchen wall', 'wall', members), 'Kitchen wall is now shared by everyone')
+  assert.equal(deviceKindSaid('Old tablet', 'kid:gone', members), 'Old tablet is now shared by everyone', "a member who's gone isn't named")
+})
+
+test('deviceKindHint: what the picked choice does, in words, for anyone', () => {
+  const members = [{ id: 'm3', name: 'Maya' }, { id: 'm4', name: 'Leo', seesFamily: true }, { id: 'm1', name: 'Alex', seesFamily: true }, { id: 'm2', name: 'Sam' }]
+  assert.equal(deviceKindHint('wall', members), 'Shows the whole family. Anyone can tick chores here.')
+  assert.equal(deviceKindHint('kid:m3', members), "Maya's own device. It does things only as Maya. It shows only Maya's things.")
+  assert.equal(deviceKindHint('kid:m4', members), "Leo's own device. It does things only as Leo. It shows the whole family.", 'their switch is on')
+  assert.equal(deviceKindHint('grownup:m1', members), "Alex's own device. It does things only as Alex. It shows the whole family.")
+  assert.equal(deviceKindHint('grownup:m2', members), "Sam's own device. It does things only as Sam. It shows only Sam's things.", 'a grown-up limited to them')
+  assert.equal(deviceKindHint('kid:gone', members), '')
 })

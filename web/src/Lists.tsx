@@ -1281,8 +1281,8 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   catalog: ListCatalog; listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
 }) {
-  const { toast, parentDevice, focusLocked, meMemberId } = useApp()
-  const kid = !parentDevice && focusLocked && !!meMemberId // a kid's own device: browse and add, but the catalog is changed from a grown-up's device or a wall screen
+  const { toast, parentDevice, meMemberId } = useApp()
+  const kid = !parentDevice && !!meMemberId // a kid's own device: browse and add, but the catalog is changed from a grown-up's device or a wall screen
   const [items, setItems] = useState<RememberedItem[] | null>(null)
   const [query, setQuery] = useState('')
   const [store, setStore] = useState<string | null>(null)
@@ -1695,8 +1695,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   lists: List[] // the family's lists on this screen: where an item can move
   shopMode: boolean // #/lists/<id>/shop: shopping mode, full screen
 }) {
-  const { members, toast, refreshTick, parentDevice, focusLocked, meMemberId } = useApp()
-  const kid = !parentDevice && focusLocked ? meMemberId : null // a kid's own device: only their items change (canChangeItem)
+  const { members, toast, refreshTick, parentDevice, meMemberId } = useApp()
+  const kid = !parentDevice ? meMemberId : null // a kid's own device: only their items change (canChangeItem)
   const [detail, setDetail] = useState<ListDetail | null>(null)
   const [error, setError] = useState(false)
   const [editItem, setEditItem] = useState<ListItem | null>(null)
@@ -1902,7 +1902,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // barcode to the catalog is a choice made there. While shopping, a scan checks the product off
   // (scanMatch finds it on the trip, both lists on a combined one), or adds it already checked off.
   const scan = async () => {
-    const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
+    const code = await scanBarcode(wallCamera({ parentDevice, meMemberId }))
     if (!code) return
     let found = null
     try { found = await api.lookupBarcode(listId, code) }

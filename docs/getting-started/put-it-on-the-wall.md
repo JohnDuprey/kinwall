@@ -4,16 +4,16 @@
 
 ## 1. Pair the display
 
-1. On the iPad, open `https://<your-kinwall>` in Safari and tap **Set up a wall screen or kid's device**. It shows **Set up this screen** with a 6-digit code and a QR code. The code is valid for 10 minutes. In the Kinwall app, **Back to sign in** under the code goes back to the app's sign-in screen, where you can also pick another server.
+1. On the iPad, open `https://<your-kinwall>` in Safari and tap **Set up with a code**. It shows **Set up this screen** with a 6-digit code and a QR code. The code is valid for 10 minutes. In the Kinwall app, **Back to sign in** under the code goes back to the app's sign-in screen, where you can also pick another server.
 2. Approve it from a parent's phone or computer (a device signed in with a passkey, which has admin rights), either way:
    * scan the QR code and tap **Approve as a parent**, or
-   * open **Settings → Access → Paired devices → Add a wall screen or kid's device**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add device**.
+   * open **Settings → Access → Paired devices → Add a device with a code**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add device**.
 
-   Either way you also pick **What is this device?**:
-   * **🖼️ Shared (whole family)** for a kitchen wall. It turns on **Use as a wall screen** by itself.
-   * **A kid's device**: one kid (say Maya, for her tablet or bedroom screen). It shows only her things.
+   Either way you also pick **Who uses this device?**:
+   * **👪 Everyone (shared screen)** for a kitchen wall. It turns on **Use as a wall screen** by itself.
+   * **One person**, by name (say Maya, for her tablet or bedroom screen). It's her own device: it does things only as her. It shows only their things, or the whole family: **Show the whole family on Maya's devices** under the picker decides, for all their devices (on by default for grown-ups, off for kids). A grown-up's never opens their [private journal](../using/journal.md#private-journals) or settings. The hint under the picker says what it will do.
 
-   A paired device is never a grown-up's: whoever approves a code would otherwise get a device that opens that grown-up's [private journal](../using/journal.md#private-journals). Grown-ups sign in on their own phone or computer with a passkey (or the Kinwall app with full access), then pick themselves under **Whose device is this?**.
+   Anyone who manages Kinwall signs in on their own phone or computer with a passkey (or the Kinwall app with full access) instead, then picks themselves under **Whose device is this?**.
 
    Only a parent can change it later, under **Settings → Access → Paired devices**.
 3. The display shows "You're connected! 🎉" and loads the calendar. It now holds a **display** key, which can't manage members, accounts, keys or webhooks.
@@ -91,7 +91,7 @@ Kinwall needs a connection to your server whether it's installed or not. It does
 A Google Nest Hub (7", 1024×600), Nest Hub Max (10", 1280×800) or another Cast smart display can show Kinwall too. These displays have no browser of their own: something casts the page to them through [DashCast](https://github.com/madmod/dashcast), a Cast app that opens a web address on the screen. From Home Assistant that's usually [CATT](https://github.com/skorokithakis/catt) (`catt -d "Kitchen display" cast_site <address>`) or the [Continuously Casting Dashboards](https://github.com/b0mbays/continuously_casting_dashboards) integration, which runs CATT for you. The screen stays a touch screen while it shows Kinwall.
 
 1. Cast `https://<your-kinwall>/?screen=cast`. The `?screen=cast` part turns on **cast screen** mode, which this display remembers. Kinwall also turns it on by itself when the display says it's a Cast device, so the address works without it too; `?screen=normal` turns it off again.
-2. The first time, the display shows the sign-in screen. Tap **Set up a wall screen or kid's device** on the display and approve its code from a parent's phone, as in [Pair the display](#1-pair-the-display). The display keeps its key, so the next cast opens straight on Home.
+2. The first time, the display shows the sign-in screen. Tap **Set up with a code** on the display and approve its code from a parent's phone, as in [Pair the display](#1-pair-the-display). The display keeps its key, so the next cast opens straight on Home.
 3. If you like, pick a [Board layout](../using/calendar.md#board-layouts) with fewer cards for this screen (**Settings → General → This screen → Board layout**). Cast screen mode keeps whatever layout the display has.
 
 In cast screen mode Kinwall is drawn bigger, to read from across the kitchen: a bigger clock, Board text and buttons, and a side bar of six big buttons (Home, Calendar, Chores, Lists, Contacts and Meals) with the rest under **More**; **🎟 Outings** is still on Home's toolbar. The Board shares out the screen in its layout's columns instead of scrolling, and is drawn a little smaller when its cards still don't fit. Everything else works as on any wall screen: going back to Home after 2 idle minutes, and the [Night screen](../using/night.md) at night.

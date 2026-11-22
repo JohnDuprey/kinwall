@@ -106,7 +106,7 @@ const clearQuery = () => history.replaceState(history.state, '', hashPath(locati
  * Back and Show hidden. */
 export default function CalendarView({ place }: { place: 'home' | 'calendar' }) {
   const dialog = useDialog()
-  const { settings, members, categories, selectedMemberId, setSelectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, parentDevice, toast, reloadCore, refreshTick } = useApp()
+  const { settings, members, categories, selectedMemberId, setSelectedMemberId, focusMemberId, focusShowsShared, meMemberId, parentDevice, toast, reloadCore, refreshTick } = useApp()
   const device = useDeviceAppearance()
   const isPhone = useIsPhone()
   // Where the Board puts one or two count tiles as chips (boardFit.ts tileChips); a phone's toolbar has no room.
@@ -151,7 +151,7 @@ export default function CalendarView({ place }: { place: 'home' | 'calendar' }) 
   // Which calendars this device may add to / change (the server decides: canEditEvents). A kid's
   // device (pinned to a member) gets only calendars that are for them; with none, adding gives way
   // to a hint. Other devices can still start a Kinwall-only calendar when there's no local one.
-  const kidDevice = focusLocked && !!meMemberId
+  const kidDevice = !parentDevice && !!meMemberId
   // Temp check: the goal of the one person this calendar is about (pinned, filtered, or their own device).
   const goalMember = focusMemberId ?? selectedMemberId ?? meMemberId
   const goalText = settings.features.checkIns ? calendarGoal(members, goalMember) : null

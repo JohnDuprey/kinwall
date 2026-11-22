@@ -243,7 +243,7 @@ export const appQuickSettingsTiles = () => nativeFlag('quickSettingsTiles')
 export const appBarcodeScanner = () => nativeFlag('barcodeScanner')
 
 /** A wall screen (not a grown-up's device, not a kid's own): its front camera faces the room. */
-export const wallCamera = (a: { parentDevice: boolean; focusLocked: boolean; meMemberId: string | null }) => !a.parentDevice && !(a.focusLocked && a.meMemberId)
+export const wallCamera = (a: { parentDevice: boolean; meMemberId: string | null }) => !a.parentDevice && !a.meMemberId
 
 /** Opens the app's barcode scanner (the front camera when `front`, e.g. a wall tablet): the barcode's
  * digits (a book's ISBN), or null when closed. The app answers with a 'kinwall:barcode' event

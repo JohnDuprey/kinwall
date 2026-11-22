@@ -23,9 +23,9 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 type Tab = 'book' | 'shop'
 
 export default function Stickers() {
-  const { members: everyone, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast, parentDevice, focusLocked } = useApp()
+  const { members: everyone, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast, parentDevice } = useApp()
   // A kid's own device opens only the kid's book (the server refuses anyone else's).
-  const members = !parentDevice && focusLocked && meMemberId ? everyone.filter(m => m.id === meMemberId) : everyone
+  const members = !parentDevice && meMemberId ? everyone.filter(m => m.id === meMemberId) : everyone
   const dialog = useDialog()
   // #/activities/stickers?member=<id>&tab=shop is how Rewards' "Sticker packs" opens the shop.
   const [query] = useState(() => new URLSearchParams(location.hash.split('?')[1] || ''))

@@ -1,6 +1,7 @@
 // Device kinds (routes/pair.ts, routes/keys.ts, auth.ts deviceKindOwner): what a paired device is (a
-// wall screen or a kid's device), kept on its key and always matching its owner. A paired device is
-// never a grown-up's: whoever approves a code mustn't get a key that opens a grown-up's private journal.
+// wall screen, a kid's device or a grown-up's), kept on its key and always matching its owner. A
+// grown-up's paired device has everyday access: it never opens their private journal, since whoever
+// approves a code mustn't get a key that does (journal-privacy.ts journalOwner).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -42,10 +43,7 @@ test('pairing: the kind is checked against the owner, kept on the key and return
 
   // Mismatches are refused before anything is approved.
   assert.equal((await pair({ kind: 'kid', owner: alex })).approve.status, 400, "a kid's device can't be a grown-up's");
-  assert.equal((await pair({ kind: 'grownup', owner: alex })).approve.status, 400, "pairing never makes a grown-up's device");
-  const noParent = (await pair({ owner: alex })).approve;
-  assert.equal(noParent.status, 400, 'not even through an owner alone');
-  assert.match(noParent.json.error, /passkey/);
+  assert.equal((await pair({ kind: 'grownup', owner: leo })).approve.status, 400, "a grown-up's device can't be a kid's");
   assert.equal((await pair({ kind: 'wall', owner: leo })).approve.status, 400, 'a wall screen is the whole family');
   assert.equal((await pair({ kind: 'kid' })).approve.status, 400, "a kid's device needs its kid");
   assert.equal((await pair({ kind: 'grownup', owner: 'shared' })).approve.status, 400);
@@ -58,9 +56,11 @@ test('pairing: the kind is checked against the owner, kept on the key and return
 
   const kid = await pair({ kind: 'kid', owner: leo });
   assert.equal(kid.poll.json.kind, 'kid');
+  const grandpa = await pair({ kind: 'grownup', owner: alex });
+  assert.equal(grandpa.poll.json.kind, 'grownup');
 
   const keys = (await req('/api/keys')).json as any[];
-  assert.deepEqual(keys.map((k) => k.kind).sort(), ['kid', 'wall']);
+  assert.deepEqual(keys.map((k) => k.kind).sort(), ['grownup', 'kid', 'wall']);
 });
 
 test('pairing: older clients that send only an owner still work; the kind follows the owner', async () => {
@@ -70,7 +70,7 @@ test('pairing: older clients that send only an owner still work; the kind follow
   assert.equal((await pair({})).poll.json.kind, 'wall');
   assert.equal((await pair({ owner: 'shared' })).poll.json.kind, 'wall');
   assert.equal((await pair({ owner: leo })).poll.json.kind, 'kid');
-  assert.equal((await pair({ owner: alex })).approve.status, 400, "a grown-up's owner is refused as before kinds too");
+  assert.equal((await pair({ owner: alex })).poll.json.kind, 'grownup');
   assert.equal((await pair({ owner: 'nobody' })).approve.status, 400);
 });
 
@@ -98,10 +98,10 @@ test('PATCH /api/keys: an admin changes the kind, with the same rules', async ()
   assert.deepEqual([kid.json.kind, kid.json.owner], ['kid', leo]);
   const back = await req(`/api/keys/${id}`, 'PATCH', { kind: 'wall' });
   assert.deepEqual([back.json.kind, back.json.owner], ['wall', 'shared']);
-  // owner only (older clients): the kind follows it; a grown-up is refused either way
+  // owner only (older clients): the kind follows it
   assert.equal((await req(`/api/keys/${id}`, 'PATCH', { owner: leo })).json.kind, 'kid');
-  assert.equal((await req(`/api/keys/${id}`, 'PATCH', { owner: alex })).status, 400);
-  assert.equal((await req(`/api/keys/${id}`, 'PATCH', { kind: 'grownup', owner: alex })).status, 400);
+  assert.equal((await req(`/api/keys/${id}`, 'PATCH', { owner: alex })).json.kind, 'grownup');
+  assert.equal((await req(`/api/keys/${id}`, 'PATCH', { kind: 'grownup', owner: leo })).status, 400);
 
   // A full-access key is a parent's: only ever a grown-up's device.
   const admin = (await req('/api/keys', 'POST', { name: 'Automation', scope: 'admin' })).json.id;
@@ -151,4 +151,33 @@ test('migrations 0065-0066: devices paired before kinds follow their owner', asy
   const kinds = Object.fromEntries((await db.prepare('SELECT id, device_kind FROM api_keys').all<{ id: string; device_kind: string | null }>()).results.map((r) => [r.id, r.device_kind]));
   assert.deepEqual(kinds, { wall: 'wall', kid: 'kid', grown: null, legacy: null, phone: 'grownup', automation: null, session: null });
   assert.equal((await db.prepare("SELECT owner FROM api_keys WHERE id = 'grown'").first<{ owner: string }>())?.owner, 'alex', 'never silently changed');
+});
+
+// Their private journal stays shut on it: private-journals.test.ts.
+test("a grown-up's everyday device: shows the whole family, acts only as them, no settings", async () => {
+  const { req, member, pair } = setup();
+  const grandpa = await member('Alex', true);
+  const leo = await member('Leo', false);
+  await req('/api/chores', 'POST', { title: 'Feed the cat', memberId: leo, repeat: 'daily', dueDate: '2026-06-01' });
+  const key = (await pair({ kind: 'grownup', owner: grandpa })).poll.json.key as string;
+
+  const me = (await req('/api/me', 'GET', undefined, key)).json;
+  assert.deepEqual([me.scope, me.owner, me.locked], ['display', grandpa, false], 'theirs, and not narrowed to them');
+  const counts = (await req('/api/chores/counts?from=2026-06-01&to=2026-06-01', 'GET', undefined, key)).json as any[];
+  assert.ok(counts.some((r) => r.memberId === leo), "Leo's chores show");
+  const note = await req('/api/notes', 'POST', { target: 'event:e1', body: 'hi', memberId: leo }, key);
+  assert.equal(note.status, 403, 'acts only as them');
+  assert.equal((await req('/api/settings', 'PATCH', { familyName: 'X' }, key)).status, 403, 'no settings');
+});
+
+test("a grown-up's everyday device is limited to them when a parent turns their whole family off", async () => {
+  const { req, member, pair } = setup();
+  const grandpa = await member('Alex', true);
+  const leo = await member('Leo', false);
+  await req('/api/chores', 'POST', { title: 'Feed the cat', memberId: leo, repeat: 'daily', dueDate: '2026-06-01' });
+  const key = (await pair({ kind: 'grownup', owner: grandpa })).poll.json.key as string;
+  assert.equal((await req(`/api/members/${grandpa}`, 'PATCH', { seesFamily: false })).json.seesFamily, false);
+  assert.equal((await req('/api/me', 'GET', undefined, key)).json.locked, true);
+  const counts = (await req('/api/chores/counts?from=2026-06-01&to=2026-06-01', 'GET', undefined, key)).json as any[];
+  assert.ok(!counts.some((r) => r.memberId === leo), "Leo's chores stay off it");
 });

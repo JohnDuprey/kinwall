@@ -114,7 +114,7 @@ function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; set
           { host: <strong>{new URL(document.baseURI).host}</strong>, code: <strong>{code.slice(0, 3)} {code.slice(3)}</strong> })}</p>
         <ol className="setup-steps-list">
           <li>{t('On your phone, finish setup and create your passkey.')}</li>
-          <li>{t("This screen then shows a pairing code. On your phone, open Settings → Access → Add a wall screen or kid's device and enter it.")}</li>
+          <li>{t("This screen then shows a pairing code. On your phone, open Settings → Access → Add a device with a code and enter it.")}</li>
         </ol>
         <p className="settings-row-sub">{t('Waiting for your phone…')}</p>
         <button className="link-btn" onClick={() => setWallFirst(false)}>{t('Back')}</button>
@@ -717,7 +717,7 @@ function DoneStep({ onGoToCalendar, onPair }: { onGoToCalendar: () => void; onPa
       <ol className="setup-steps-list">
         <li>{rich(t('Open {address} in the browser on the wall tablet or screen'), { address: <strong>{location.origin}{location.pathname}</strong> })}</li>
         <li>{rich(t('Add it to the home screen (on an iPad: Share → {add})'), { add: <strong>{t('Add to Home Screen')}</strong> })}</li>
-        <li>{rich(t('Open it from the home screen and tap {button}. It shows a pairing code and a QR code.'), { button: <strong>{t("Set up a wall screen or kid's device")}</strong> })}</li>
+        <li>{rich(t('Open it from the home screen and tap {button}. It shows a pairing code and a QR code.'), { button: <strong>{t('Set up with a code')}</strong> })}</li>
         <li>{rich(t('Scan that QR code with this phone, or tap {button} below and enter the code'), { button: <strong>{t('Pair a wall screen now')}</strong> })}</li>
       </ol>
       <button className="btn btn-secondary btn-block setup-btn" onClick={onPair}>{t('Pair a wall screen now')}</button>

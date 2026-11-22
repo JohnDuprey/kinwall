@@ -9,7 +9,7 @@ Kinwall has no usernames or passwords. Every request carries a **key**, and each
 
 ### Whose device a key is
 
-Paired displays and the Kinwall app's sign-in also record whose device it is: **Anyone (whole family)** or one member. A parent picks it when pairing a display (**What is this device?**: a wall screen or a kid's device) or on the app's consent screen (**Whose device is this?**), and can change it under [Settings → Access](../settings/access.md). The device itself can't. A paired device or an everyday-access sign-in is never a grown-up's, so approving a code never opens a grown-up's private journal.
+Paired displays and the Kinwall app's sign-in also record whose device it is: **Anyone (whole family)** or one member. A parent picks it when pairing a display (**Who uses this device?**: everyone, or one person) or on the app's consent screen (**Whose device is this?**), and can change it under [Settings → Access](../settings/access.md). The device itself can't. A grown-up's paired device or everyday-access sign-in never opens their private journal, so approving a code never does.
 
 * On a **display** key (a wall screen, a kid's device, an "Everyday access" app, and the app's widgets and watch), a member owner pins the view to that member, and **Shared** keeps it on the whole family. Either way the device can't pick its own filter.
 * The app's widgets and Apple Watch get their own everyday-access keys, made by the phone's sign-in. They follow that phone: a kid's phone's widgets show only that kid, a parent's phone's widgets show the whole family (and never open anyone's private journal). Signing out, removing the phone or disconnecting its sign-in signs them out too.
@@ -20,11 +20,11 @@ Paired displays and the Kinwall app's sign-in also record whose device it is: **
 A device without a key shows **Welcome home 👋** with these options:
 
 * **Sign in as a parent**: with your passkey (Face ID, Touch ID, your screen lock or a security key). This makes it a parent device, with a **30-day admin session**.
-* **Set up a wall screen or kid's device**: starts pairing; a parent approves it with a code. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
+* **Set up with a code**: starts pairing; a parent approves it with a code. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 * **Enter a key manually**: paste any API key.
 * **Use a recovery code**: see below.
 
-On a screen the size of a TV or large display (1600×900 and up), or one already set to **Use as a wall screen**, **Set up a wall screen or kid's device** comes first as the main button. On big screens this card and the pairing screen's code and QR code are drawn large, to read from across the room.
+On a screen the size of a TV or large display (1600×900 and up), or one already set to **Use as a wall screen**, **Set up with a code** comes first as the main button. On big screens this card and the pairing screen's code and QR code are drawn large, to read from across the room.
 
 Passkey sign-in attempts are rate-limited to 20 per 10 minutes per address.
 

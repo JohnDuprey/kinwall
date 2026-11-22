@@ -9,7 +9,7 @@ import { t, tn } from './i18n.ts'
 
 /** Look up a book (GET /api/books/search: Open Library, through the server) to fill the form. */
 export default function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResult) => void }) {
-  const { toast, parentDevice, focusLocked, meMemberId } = useApp()
+  const { toast, parentDevice, meMemberId } = useApp()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<BookResult[] | null>(null)
@@ -25,7 +25,7 @@ export default function BookLookup({ initial, onPick }: { initial: string; onPic
   }
   // In the iPhone/Android app: the camera reads the ISBN off the back of the book.
   const scan = async () => {
-    const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
+    const code = await scanBarcode(wallCamera({ parentDevice, meMemberId }))
     if (!code) return
     setQ(code); setOpen(true); search(code)
   }

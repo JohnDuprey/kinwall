@@ -39,8 +39,8 @@ const SUGGESTIONS: Partial<Reward>[] = [
 /** The Rewards screen (#/rewards, #/rewards/<memberId>): whose rewards, then the panel. A device
  * that belongs to one member shows only theirs, whatever the link says. */
 export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
-  const { members, selectedMemberId, meMemberId, focusLocked, focusMemberId, parentDevice, reloadCore } = useApp()
-  const choices = focusLocked && focusMemberId ? members.filter(m => m.id === focusMemberId) : members
+  const { members, selectedMemberId, meMemberId, parentDevice, reloadCore } = useApp()
+  const choices = !parentDevice && meMemberId ? members.filter(m => m.id === meMemberId) : members
   // A parent almost always comes here for a kid: the one with a request waiting, else the first kid.
   const [asking, setAsking] = useState<string | null>(null)
   useEffect(() => { if (parentDevice) api.getRedemptions({ status: 'pending' }).then(rs => setAsking(rs[0]?.memberId ?? null)).catch(() => {}) }, [parentDevice])

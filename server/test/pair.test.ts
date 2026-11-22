@@ -260,3 +260,42 @@ test('pairing: two parents approving the same code at once make one tablet key',
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 404]);
   assert.equal((await (env.DB as any).prepare("SELECT COUNT(*) AS n FROM api_keys WHERE scope = 'display'").first()).n, 1);
 });
+
+test("someone's own device can show the whole family, still as them and still only acting for them", async () => {
+  const env = makeEnv();
+  const admin = makeApp(env);
+  const maya = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#7C9CFF' }) })).json() as any;
+  const leo = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Leo', color: '#FF9E7A' }) })).json() as any;
+  assert.equal(maya.seesFamily, false);
+  await admin('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Feed the cat', memberId: leo.id, repeat: 'daily', dueDate: '2026-06-01' }) });
+  const { key } = await pairDisplay(env, maya.id);
+  const device = makeApp(env, key);
+  const counts = async () => ((await (await device('/api/chores/counts?from=2026-06-01&to=2026-06-01')).json()) as any[]).filter((r) => r.memberId === leo.id).length;
+
+  assert.equal(((await (await device('/api/me')).json()) as any).locked, true);
+  assert.equal(await counts(), 0, "locked: a sibling's chores stay off the date strip");
+
+  // Only a parent turns it on; the kid's own device can't.
+  assert.equal((await device(`/api/members/${maya.id}`, { method: 'PATCH', body: JSON.stringify({ seesFamily: true }) })).status, 403);
+  const on = await admin(`/api/members/${maya.id}`, { method: 'PATCH', body: JSON.stringify({ seesFamily: true }) });
+  assert.equal(((await on.json()) as any).seesFamily, true);
+
+  const me = (await (await device('/api/me')).json()) as any;
+  assert.equal(me.locked, false);
+  assert.equal(me.owner, maya.id, 'still their device');
+  assert.equal(await counts(), 1, "a sibling's chores now show");
+  // Still acts only for them.
+  const note = await device('/api/notes', { method: 'POST', body: JSON.stringify({ target: 'event:e1', body: 'hi', memberId: leo.id }) });
+  assert.equal(note.status, 403);
+
+  // A grown-up's starts on (their devices show the whole family), and a parent can turn it off.
+  const alex = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Alex', color: '#000000', grownUp: true }) })).json() as any;
+  assert.equal(alex.seesFamily, true);
+  const limited = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Sam', color: '#000000', grownUp: true, seesFamily: false }) })).json() as any;
+  assert.equal(limited.seesFamily, false);
+  // Changing someone's grown-up switch moves them to that side's starting point.
+  const leoUp = await (await admin(`/api/members/${leo.id}`, { method: 'PATCH', body: JSON.stringify({ grownUp: true }) })).json() as any;
+  assert.equal(leoUp.seesFamily, true);
+  const leoBack = await (await admin(`/api/members/${leo.id}`, { method: 'PATCH', body: JSON.stringify({ grownUp: false }) })).json() as any;
+  assert.equal(leoBack.seesFamily, false);
+});

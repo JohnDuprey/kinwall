@@ -20,13 +20,13 @@ import GetStuffDone from './GetStuffDone.tsx'
 import { pinnedNow } from './getStuffDone.ts'
 import Trackers from './Trackers.tsx'
 import { shownActivities } from './activityConfig.ts'
-import { DeviceKindSelect } from './settingsControls.tsx'
+import { DeviceKindSelect, SeesFamilySwitch } from './settingsControls.tsx'
 import { readSetupResume, resumeAtPasskey } from './setupResume.ts'
 import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme, type LockedView } from './useTheme.ts'
 import { lockedOut, meSlot, navBadgeCount, restingHash } from './calendarViews.ts'
-import { idleWaitsForTyping, isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
+import { deviceKindHint, idleWaitsForTyping, isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
 import { pickAfterIdle } from './actingAs.ts'
 import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
 import { inkFor } from './color.ts'
@@ -615,8 +615,8 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
                 <p className="gate-note">{t('With your passkey. Parents can change everything.')}</p>
               </div>,
               <div key="wall">
-                <button className={`btn ${wallFirst ? 'btn-primary' : 'btn-secondary'} btn-block`} onClick={() => setMode('pair')}>{t("Set up a wall screen or kid's device")}</button>
-                <p className="gate-note">{t('A parent approves it with a code. It gets the calendar, chores and lists, but not settings.')}</p>
+                <button className={`btn ${wallFirst ? 'btn-primary' : 'btn-secondary'} btn-block`} onClick={() => setMode('pair')}>{t('Set up with a code')}</button>
+                <p className="gate-note">{t('A parent approves it. It gets the calendar, chores and lists, but not settings.')}</p>
               </div>,
             ][wallFirst ? 'reverse' : 'slice']()}
           </div>
@@ -699,7 +699,7 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
       <div className="gate-card pairing-card">
         <Brand />
         <h1>{t('Set up this screen')}</h1>
-        <p>{t("On a parent's phone or computer, open Kinwall → Settings → Access → Add a wall screen or kid's device, and enter this code:")}</p>
+        <p>{t("On a parent's phone or computer, open Kinwall → Settings → Access → Add a device with a code, and enter this code:")}</p>
         <div className="pairing-body">
           <div className="pairing-code">
             <span aria-hidden="true">{digits ? `${digits.slice(0, 3)} ${digits.slice(3)}` : '⋯'}</span>
@@ -798,7 +798,7 @@ function PairPhoneScreen({ code }: { code: string }) {
     <div className="gate-screen" role="main">
       <div className="gate-card">
         <Brand />
-        <h1>{t("Add a wall screen or kid's device")}</h1>
+        <h1>{t('Add a device with a code')}</h1>
         <p>{t("Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.")}</p>
         <div className="field" style={{ textAlign: 'left' }}>
           <label htmlFor="pair-code">{t('Code')}</label>
@@ -811,9 +811,10 @@ function PairPhoneScreen({ code }: { code: string }) {
         </div>
         {isAdmin && (
           <div className="field" style={{ textAlign: 'left' }}>
-            <label htmlFor="pair-kind">{t('What is this device?')}</label>
+            <label htmlFor="pair-kind">{t('Who uses this device?')}</label>
             <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} members={members} />
-            <p className="settings-row-sub">{t("A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.")}</p>
+            <p className="settings-row-sub">{deviceKindHint(what, members)} {t('Only a parent can change this later.')}</p>
+            {(m => m && <SeesFamilySwitch member={m} onSaved={u => setMembers(list => list.map(x => x.id === u.id ? { ...x, ...u } : x))} onError={setError} />)(members.find(x => x.id === parseDeviceKind(what).owner))}
           </div>
         )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
@@ -1210,7 +1211,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [owner, setOwner] = useState<string | null>(null) // who an admin says this device belongs to (GET /api/me)
-  const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (everyday access only)
+  const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (a kid's device, unless a parent lets them see the whole family)
   const [parentDevice, setParentDevice] = useState(false) // until /api/me says otherwise, act as a device
   const [toApprove, setToApprove] = useState(0) // chores and rewards waiting for a parent's OK (parent devices)
   const [rewardRequests, setRewardRequests] = useState(0) // ...of which rewards
@@ -1401,7 +1402,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   // day (the server keeps the first of that, their Temp check and their check-in): a kid's device, or
   // a grown-up's own phone (a parent device they own). Never a parent's device for a kid.
   const medsOn = !!settings?.medications
-  const dayOwner = ownerLocks || parentDevice ? meMemberId : null
+  const dayOwner = meMemberId // a kid's own device or a grown-up's own phone
   const dayOwnerGrownUp = !!members.find(m => m.id === dayOwner)?.grownUp
   useEffect(() => {
     const today = dateKey(new Date())
@@ -1476,7 +1477,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     )
   }
 
-  const nav = navItems(settings, members.find(m => m.id === meMemberId), !!pluginsOn, lockView, ownerLocks)
+  const nav = navItems(settings, members.find(m => m.id === meMemberId), !!pluginsOn, lockView, !parentDevice && !!meMemberId)
   // "Me" is lit on their own profile only, not while looking at someone else's.
   const navTab = (section === 'profile' || section === 'journal') && sub !== meMemberId ? '' : section === 'medications' || section === 'insights' ? '' : section
   return (

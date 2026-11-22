@@ -54,9 +54,9 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   onAdded: () => void // closes it
   onStarted: () => void // a reading entry was started: the shelves reload
 }) {
-  const { members, toast, parentDevice, focusLocked, meMemberId, refreshTick, settings, selectedMemberId } = useApp()
+  const { members, toast, parentDevice, meMemberId, refreshTick, settings, selectedMemberId } = useApp()
   const today = todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
-  const kid = !parentDevice && focusLocked ? meMemberId : null
+  const kid = !parentDevice ? meMemberId : null
   // A kid's own device, or a wall with a kid picked in the header, opens on the Kids shelf.
   const kidView = !!kid || members.find(m => m.id === selectedMemberId)?.grownUp === false
   // A pick lasts while it's the same kind of view (picking a kid in the header starts them on Kids again).
@@ -120,7 +120,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     let last = ''
     try {
       for (;;) {
-        const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
+        const code = await scanBarcode(wallCamera({ parentDevice, meMemberId }))
         if (!code) break
         if (code !== last) {
           last = code

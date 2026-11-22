@@ -507,7 +507,7 @@ export const api = {
   checkAdminKey: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me', true),
   // Strict check (no fail-open) against whatever key is currently stored — used by the QR-pairing
   // "confirm" screen and Settings (which must fail closed to the display view, not assume admin).
-  meStrict: (): Promise<Me> => MOCK ? Promise.resolve(mock.demoKid() ? { scope: 'display', keyName: 'Kid’s tablet', kind: 'api', locked: true, owner: mock.demoKid() } : { scope: 'admin', keyName: 'mock', kind: 'api', locked: false, owner: mock.myOwner() }) : get<Me>('api/me'),
+  meStrict: (): Promise<Me> => MOCK ? Promise.resolve(mock.demoKid() ? { scope: 'display', keyName: 'Kid’s tablet', kind: 'api', locked: mock.demoKidLocked(), owner: mock.demoKid() } : { scope: 'admin', keyName: 'mock', kind: 'api', locked: false, owner: mock.myOwner() }) : get<Me>('api/me'),
 
   /** The family a key signs in to, before it's stored (a sign-in link asks first, App.tsx
    * KeyLinkGate): its name; null when this server refuses the key (a setup code, or a key that
@@ -955,7 +955,7 @@ export const api = {
   pairApprove: (code: string, name: string, device: { kind: DeviceKind; owner?: string }) => post<{ keyId: string; name: string; kind: DeviceKind }>('api/pair/approve', { code, name, ...device }, true),
   renameKey: (id: string, name: string) => MOCK ? mock.renameKey(id, name) : patch<ApiKey>(`api/keys/${id}`, { name }, true),
   setKeyOwner: (id: string, owner: string) => patch<ApiKey>(`api/keys/${id}`, { owner }, true),
-  setKeyKind: (id: string, device: { kind: DeviceKind; owner?: string }) => patch<ApiKey>(`api/keys/${id}`, device, true),
+  setKeyKind: (id: string, device: { kind: DeviceKind; owner?: string }) => MOCK ? mock.setKeyKind(id, device) : patch<ApiKey>(`api/keys/${id}`, device, true),
   // OAuth consent (#/authorize) and Settings → Access → Connected apps.
   authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display'; deviceApp?: boolean }>(`api/authorizations/request?${qs}`, true),
   decideAuthorization: (body: Record<string, string | undefined>) => post<{ redirect: string }>('api/authorizations/approve', body, true),

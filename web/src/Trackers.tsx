@@ -86,9 +86,9 @@ function TrackerViewPicker({ views, value, onChange, compact }: { views: typeof 
 }
 
 export default function Trackers({ sub }: { sub?: string }) {
-  const { settings, members, selectedMemberId, refreshTick, toast, parentDevice, focusLocked, meMemberId } = useApp()
+  const { settings, members, selectedMemberId, refreshTick, toast, parentDevice, meMemberId } = useApp()
   // A kid's own device changes only their entries and the family's (the server refuses the rest).
-  const kid = !parentDevice && focusLocked ? meMemberId : null
+  const kid = !parentDevice ? meMemberId : null
   const canEdit = (e: TrackerEntry) => !kid || !e.memberId || e.memberId === kid
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const today = todayKeyInTz(tz)

@@ -107,7 +107,7 @@ On a wall display or tablet the cards fill the screen in three columns without s
 On a parent's phone or computer, the top of the Board lists what's still missing after setup, each row opening the right spot in Settings:
 
 * **📆 Connect a calendar**: no calendars yet. Opens Settings → Calendars.
-* **🖼️ Put Kinwall on the wall**: no wall screen or kid's device paired yet. Opens the **Add a wall screen or kid's device** sheet.
+* **🖼️ Put Kinwall on the wall**: no device paired yet. Opens the **Add a device with a code** sheet.
 * **👪 Add your family**: only one person in the family. Opens Settings → Family → Members.
 * **🔑 Add a second way in**: one passkey and no unused recovery codes. Opens Settings → Access → Recovery codes.
 

@@ -16,7 +16,7 @@ import { goalProgressFor } from '../chore-goals.ts';
 import type { ChoreGoal } from '../chore-goal.ts';
 import { ChoreDateCountSchema, ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
-import { actorOf, changedBy, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
+import { actorOf, changedBy, deviceOwner, ownDevice, ownerBlock, requestKey, viewOwner } from '../auth.ts';
 import { notifyChoreApproval, notifyChoreCreated } from '../notify.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
 import { logFromChore, savePendingChore, unlogFromChore, type DoneInput } from '../upkeep.ts';
@@ -497,7 +497,7 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
 export const ChoreCountQuerySchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine(q => q.to >= q.from && Date.parse(q.to) - Date.parse(q.from) <= 30 * 86400000, 'choose an ordered range of at most 31 days');
 choresRoutes.openapi(createRoute({
   method: 'get', path: '/api/chores/counts', tags: ['Chores'], security: [{ Bearer: [] }],
-  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished; a missed day a parent marked not done is not remaining. Full flexible goals only count on dates with an actual tick. A child device sees its own and Anyone counts. Schoolwork is included when School is on, skipping days off unless still due or already ticked. Chores off returns an empty list.',
+  summary: 'Chore counts by date and assignee (null for Anyone), for up to 31 inclusive dates. Pending approvals remain unfinished; a missed day a parent marked not done is not remaining. Full flexible goals only count on dates with an actual tick. A member-owned everyday device sees that member and Anyone counts, unless a parent lets their devices show the whole family (seesFamily). Schoolwork is included when School is on, skipping days off unless still due or already ticked. Chores off returns an empty list.',
   request: { query: ChoreCountQuerySchema },
   responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
 }), async c => {
@@ -509,7 +509,7 @@ choresRoutes.openapi(createRoute({
   ]);
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
   if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);
-  const owner = await deviceOwner(c), tz = settings.get('timezone') ?? hostTimezone();
+  const owner = await viewOwner(c), tz = settings.get('timezone') ?? hostTimezone();
   const rows = (choresRes.results as ChoreRow[]).filter(r => !owner || (r.member_id ? r.member_id === owner : !eligibleOf(r) || eligibleOf(r)!.includes(owner)));
   let completionFrom = from, completionTo = to;
   for (const row of rows) {

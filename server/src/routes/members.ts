@@ -18,7 +18,7 @@ import { pictureUrl } from './photos.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null; temp_check?: string | null; journal_private?: number | null; journal_private_allowed?: number | null; picture_id?: string | null; language?: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; sees_family?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null; temp_check?: string | null; journal_private?: number | null; journal_private_allowed?: number | null; picture_id?: string | null; language?: string | null };
 
 // The stored JSON, or off. Shared with notify.ts (which only acts on `on`).
 export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
@@ -137,7 +137,7 @@ const toGoals = (rows: { id: string; title: string; emoji: string | null; cost: 
 const goalRewards = async (db: KinwallDb) => toGoals((await db.prepare(GOALS_SQL).all<{ id: string; title: string; emoji: string | null; cost: number }>()).results);
 
 function toApi(row: MemberRow, points: Points, goals: Map<string, Goal> = new Map(), todays: Map<string, string> = new Map()) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, picture: row.picture_id ? pictureUrl(row.picture_id) : null, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null, tempCheck: parseTempCheck(row.temp_check), todayGoal: todays.get(row.id) ?? null, privateJournal: privacyOf({ grown_up: row.grown_up ?? 0, journal_private: row.journal_private ?? null, journal_private_allowed: row.journal_private_allowed ?? 0 }), language: LanguageSchema.safeParse(row.language).data ?? null };
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, picture: row.picture_id ? pictureUrl(row.picture_id) : null, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, seesFamily: !!row.sees_family, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null, tempCheck: parseTempCheck(row.temp_check), todayGoal: todays.get(row.id) ?? null, privateJournal: privacyOf({ grown_up: row.grown_up ?? 0, journal_private: row.journal_private ?? null, journal_private_allowed: row.journal_private_allowed ?? 0 }), language: LanguageSchema.safeParse(row.language).data ?? null };
 }
 
 membersRoutes.openapi(
@@ -193,12 +193,13 @@ membersRoutes.openapi(
       // A grown-up's chores never wait for an OK: needsApproval is ignored for them.
       grown_up: body.grownUp ? 1 : 0,
       needs_approval: body.needsApproval && !body.grownUp ? 1 : 0,
+      sees_family: (body.seesFamily ?? !!body.grownUp) ? 1 : 0, // a grown-up's devices start on the whole family, a kid's on them
       transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : null,
       temp_check: body.tempCheck ? JSON.stringify(body.tempCheck) : null,
       language: body.language ?? null,
     };
-    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, grown_up, needs_approval, transitions, temp_check, language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.grown_up, row.needs_approval, row.transitions, row.temp_check, row.language)
+    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, grown_up, needs_approval, sees_family, transitions, temp_check, language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.grown_up, row.needs_approval, row.sees_family, row.transitions, row.temp_check, row.language)
       .run();
     emit(c, 'member.changed', { id: row.id });
     return c.json(toApi(row, NO_POINTS), 201);
@@ -284,6 +285,8 @@ membersRoutes.openapi(
       sort: body.sort ?? existing.sort,
       grown_up: body.grownUp !== undefined ? (body.grownUp ? 1 : 0) : existing.grown_up,
       needs_approval: body.needsApproval !== undefined ? (body.needsApproval ? 1 : 0) : existing.needs_approval,
+      // Marking someone a grown-up or a kid starts them at that side's default unless this says otherwise.
+      sees_family: body.seesFamily !== undefined ? (body.seesFamily ? 1 : 0) : flipped ? (body.grownUp ? 1 : 0) : existing.sees_family,
       transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : existing.transitions,
       temp_check: body.tempCheck ? JSON.stringify(body.tempCheck) : existing.temp_check,
       language: body.language !== undefined ? body.language : (existing.language ?? null),
@@ -291,8 +294,8 @@ membersRoutes.openapi(
     if (updated.grown_up) updated.needs_approval = 0; // a grown-up's chores never wait for an OK
     const trail = flipped ? await grownUpChangeStmts(c, id, !!updated.grown_up, updated.name) : [];
     await c.env.DB.batch([
-      c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, grown_up = ?, needs_approval = ?, transitions = ?, temp_check = ?, language = ? WHERE id = ?')
-        .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.grown_up ?? 0, updated.needs_approval ?? 0, updated.transitions, updated.temp_check ?? null, updated.language ?? null, id),
+      c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, grown_up = ?, needs_approval = ?, sees_family = ?, transitions = ?, temp_check = ?, language = ? WHERE id = ?')
+        .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.grown_up ?? 0, updated.needs_approval ?? 0, updated.sees_family ?? 0, updated.transitions, updated.temp_check ?? null, updated.language ?? null, id),
       ...trail,
     ]);
     if (flipped) {

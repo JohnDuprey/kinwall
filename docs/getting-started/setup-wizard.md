@@ -34,7 +34,7 @@ A new instance is *unclaimed*. The first browser to open it gets the setup wizar
    Everything starts picked, except that with no kids in the family the chores and painting cards start off. A picked card has a filled ✓ circle and a light tint; one that's off has an empty circle. **Show all features** lists every switch on its own. **Keep all on** skips the step and leaves every feature on. You can change any of it later in **Settings → General → Features**. Medication reminders aren't in the wizard; turn them on there once the Health tracker is on.
 8. **Connect a calendar** (optional): 📆 Google, 📧 Outlook, 🍎 iCloud (CalDAV) or 🔗 Subscribe to a link. If Google or Outlook isn't configured yet, its button says **Needs setup**, and tapping it shows the provider form inline, starting with "Google needs a one-time app setup, about 10 minutes. Easier: subscribe to a link or use iCloud." and the guide (see [Calendar providers](../settings/calendars.md#calendar-providers)). The iCloud form says what iCloud wants: `https://caldav.icloud.com`, your Apple Account email, and an [app-specific password](https://support.apple.com/102654). The form scrolls into view when it opens. **Skip** skips the step.
 9. **Set up some chores**: tap starter chores and pick who does each one, or **Anyone**. This step is left out when chores are off.
-10. **All set! 🎉** The steps to put Kinwall on the wall: open it on the wall screen, add it to the home screen, tap **Set up a wall screen or kid's device** there to get a code, then scan it or enter it here. **Pair a wall screen now** opens [Settings → Access → Paired devices](../settings/access.md#paired-devices) for that; **Go to calendar** finishes.
+10. **All set! 🎉** The steps to put Kinwall on the wall: open it on the wall screen, add it to the home screen, tap **Set up with a code** there to get a code, then scan it or enter it here. **Pair a wall screen now** opens [Settings → Access → Paired devices](../settings/access.md#paired-devices) for that; **Go to calendar** finishes.
 
 ## If you started on the wall display
 
@@ -42,7 +42,7 @@ Your passkey belongs on your phone, not the wall, so **Setting up the wall scree
 
 1. Scan it with your phone's camera. Kinwall opens there, with the setup code already filled in if you typed it on the wall screen first. No camera? Type the address shown into your phone's browser and enter the code.
 2. On your phone, go through setup and create your passkey.
-3. The wall display notices and switches to its pairing screen. On your phone, open **Settings → Access → Add a wall screen or kid's device** and enter the code it shows.
+3. The wall display notices and switches to its pairing screen. On your phone, open **Settings → Access → Add a device with a code** and enter the code it shows.
 
 No phone at all? Go through setup on the wall device itself so you still get a passkey, then turn on **Use as a wall screen** for it in Settings.
 

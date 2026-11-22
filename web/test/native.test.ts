@@ -232,9 +232,9 @@ test('scanBarcode: asks the app for its camera and hears back the digits, or nul
   const front = scanBarcode(true) // a wall screen: its front camera faces the room
   assert.deepEqual(sent, [{ type: 'scanBarcode', facing: 'front' }])
   answer(null); await front
-  assert.equal(wallCamera({ parentDevice: false, focusLocked: false, meMemberId: null }), true, 'a wall screen')
-  assert.equal(wallCamera({ parentDevice: false, focusLocked: true, meMemberId: 'leo' }), false, "a kid's own device")
-  assert.equal(wallCamera({ parentDevice: true, focusLocked: false, meMemberId: 'alex' }), false, "a grown-up's phone")
+  assert.equal(wallCamera({ parentDevice: false, meMemberId: null }), true, 'a wall screen')
+  assert.equal(wallCamera({ parentDevice: false, meMemberId: 'leo' }), false, "a kid's own device")
+  assert.equal(wallCamera({ parentDevice: true, meMemberId: 'alex' }), false, "a grown-up's phone")
 })
 
 test('Screen Time pickers are unavailable when the native build reports an unsupported host', async () => {
