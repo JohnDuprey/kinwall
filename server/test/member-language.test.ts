@@ -112,3 +112,22 @@ test('currency: USD until a parent picks an ISO 4217 code', async () => {
   assert.equal((await t.req('/api/settings')).json.currency, 'EUR');
   assert.equal((await t.req('/api/settings', 'PATCH', { currency: 'euro' })).status, 400);
 });
+
+for (const language of ['fr', 'es'] as const) {
+  test(`${language}: family and member choices persist through API and export/import`, async () => {
+    const t = await setup();
+    assert.equal((await t.req('/api/settings', 'PATCH', { language })).status, 200);
+    const own = await t.req(`/api/members/${t.leo.id}/language`, 'PUT', { language }, t.leoKey);
+    assert.equal(own.status, 200);
+    assert.equal(own.json.language, language);
+    const file = (await t.req('/api/export')).json;
+    assert.equal(file.settings.language, language);
+    assert.equal(file.members.find((m: any) => m.id === t.leo.id).language, language);
+    await t.req('/api/settings', 'PATCH', { language: 'en' });
+    await t.req(`/api/members/${t.leo.id}`, 'PATCH', { language: null });
+    assert.equal((await t.req('/api/import', 'POST', file)).status, 200);
+    assert.equal((await t.req('/api/settings')).json.language, language);
+    assert.equal((await t.member(t.leo.id)).language, language);
+    assert.equal((await t.req('/api/settings', 'PATCH', { language }, t.wallKey)).status, 403);
+  });
+}

@@ -66,7 +66,7 @@ test("pickLang: the member's own, then the device's, then the family's, then Eng
   assert.equal(pickLang({ member: null, device: 'de', family: 'en' }), 'de')
   assert.equal(pickLang({ member: null, device: undefined, family: 'de' }), 'de')
   assert.equal(pickLang({}), 'en')
-  assert.equal(pickLang({ member: 'xx', device: 'fr', family: 'de' }), 'de', 'unknown languages are skipped')
+  assert.equal(pickLang({ member: 'xx', device: 'xx', family: 'de' }), 'de', 'unknown languages are skipped')
 })
 
 test("playerLang: an activity follows the player's own language, else the screen's", () => {

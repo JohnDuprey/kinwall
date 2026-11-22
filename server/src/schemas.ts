@@ -163,8 +163,8 @@ export const FEELINGS = ['great', 'good', 'fine', 'ok', 'bad', 'awful', 'tired',
 
 // The languages the app comes in (web/src/i18n.ts LANGUAGES). The family picks one (settings
 // 'language'); a member may pick their own, used on their own devices and in activities.
-export const LANGUAGES = ['en', 'de'] as const;
-export const LanguageSchema = z.enum(LANGUAGES).openapi({ description: "A display language: 'en' (English) or 'de' (Deutsch)" });
+export const LANGUAGES = ['en', 'de', 'fr', 'es'] as const;
+export const LanguageSchema = z.enum(LANGUAGES).openapi({ description: "A display language: 'en' (English), 'de' (Deutsch), 'fr' (Français), or 'es' (Español)" });
 
 export const MemberSchema = z
   .object({

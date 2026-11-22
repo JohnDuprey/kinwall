@@ -16,11 +16,13 @@
 // No packages: the server's tests import web helpers that call t(). English ships in the code;
 // other languages load on demand (setLang), so a wall in English never downloads German.
 // scripts/i18n-check.mjs keeps en.json in step with the t() calls and checks every translation.
-export type Lang = 'en' | 'de'
+export type Lang = 'en' | 'de' | 'fr' | 'es'
 /** Each choice in its own language: what someone looks for when they can't read the rest. */
 export const LANGUAGES: { key: Lang; label: string }[] = [
   { key: 'en', label: 'English' },
   { key: 'de', label: 'Deutsch' },
+  { key: 'fr', label: 'Français' },
+  { key: 'es', label: 'Español' },
 ]
 type Dict = Record<string, string>
 const LOADERS = new Map<Exclude<Lang, 'en'>, () => Promise<{ default: Dict }>>([
