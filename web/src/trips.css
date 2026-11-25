@@ -78,7 +78,6 @@ a.outing-row { text-decoration: none; }
 .trip-vote { margin: 0 0 10px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-alt); }
 .trip-vote-status { margin: 0 0 6px; }
 .trip-choice-hint { margin: 0 0 10px; font-weight: 700; }
-.trip-sort { margin: 0 0 10px; }
 .trip-stay-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; align-items: start; }
 .trip-stay-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); box-shadow: var(--shadow); }
 .trip-stay-card.is-chosen { border: 2px solid var(--accent); }
@@ -120,7 +119,6 @@ a.outing-row { text-decoration: none; }
 /* Calendar and review lists */
 .trip-cal-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .trip-cal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-alt); }
-.trip-cal-row .meal-check { flex: 1 1 260px; margin: 0; align-items: center; }
 .trip-review-sec { margin: 0 0 14px; }
 .trip-review-sec h3 { margin: 0 0 6px; font-size: 1rem; }
 .trip-review-sec ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
@@ -172,8 +170,7 @@ a.outing-row { text-decoration: none; }
 .trip-care-confirmed { border-color: var(--accent); }
 .trip-care-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .trip-care-task { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border-radius: var(--radius-sm); background: var(--bg-alt); font-weight: 700; }
-.trip-care-task input { width: 22px; height: 22px; flex: none; }
-.trip-care-task input:checked + span { color: var(--text-dim); text-decoration: line-through; }
+.trip-care-task .done + span { color: var(--text-dim); text-decoration: line-through; }
 .trip-care-private-list { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border); }
 .trip-care-private-list dt { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
 .trip-care-private-list dd { margin: 2px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
