@@ -243,7 +243,7 @@ function DoneSheet({ job, onClose }: { job: UpkeepJob; onClose: () => void }) {
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-day`}>{t('When')}</label><input id={`${id}-day`} type="date" required max={who.today} min={who.parent ? undefined : addDays(who.today, -7)} value={doneOn} onChange={e => setDoneOn(e.target.value || who.today)} /></div>
-          {!who.kidId && <div className="field"><label htmlFor={`${id}-who`}>{t('Who did it')}</label><Choose hideLabel label={t('Who did it')} id={`${id}-who`} value={memberId} onChange={next => setMemberId(next)} sheet
+          {!who.kidId && <div className="field"><label htmlFor={`${id}-who`}>{t('Who did it')}</label><Choose hideLabel label={t('Who did it')} id={`${id}-who`} value={memberId} onChange={setMemberId} sheet
             options={[
               { value: '', label: t('Someone else') },
               ...members.map(m => ({ value: m.id, label: m.name })),
@@ -716,12 +716,12 @@ function CalendarSheet({ job, onClose, onSaved }: { job: UpkeepJob; onClose: () 
     <p>{job.title}</p>
     <fieldset className="meal-fieldset" disabled={busy}>
       <div className="field"><label htmlFor={`${id}-day`}>{t('Day')}</label><input id={`${id}-day`} type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
-      <Switch checked={allDay} onChange={next => setAllDay(next)} label={t('All day')} />
+      <Switch checked={allDay} onChange={setAllDay} label={t('All day')} />
       {!allDay && <div className="meal-form-row">
         <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} /></div>
       </div>}
-      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId} onChange={next => setCalendarId(next)} sheet
+      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId} onChange={setCalendarId} sheet
         options={calendars.map(c => ({ value: c.id, label: c.name }))} /></div>}
     </fieldset>
     {!calendars && !error && <p role="status">{t('Loading calendars…')}</p>}

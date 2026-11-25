@@ -185,7 +185,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       {snapshot && (time || meal?.recipeSnapshot) && <section aria-label={t('Recipe')}>
         {time && <p className="recipe-time">⏱ {time}{start ? ` · ${t('Start by {time}', { time: formatTime(start) })}` : ''}</p>}
         {meal?.recipeSnapshot && <p className="field-hint">{t('The recipe is saved with this meal, so later recipe edits don’t change it.')}</p>}
-        {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <Switch checked={refreshRecipe} onChange={next => setRefreshRecipe(next)} label={t('Refresh from the current recipe when saving')} disabled={busy} />}
+        {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <Switch checked={refreshRecipe} onChange={setRefreshRecipe} label={t('Refresh from the current recipe when saving')} disabled={busy} />}
       </section>}
       {draft.mealKind !== 'recipe' && <p className="field-hint">{draft.mealKind === 'dining_out' ? t('Eating out doesn’t add anything to the grocery list.') : t('Only recipes add to the grocery list.')}</p>}
       {canUpdate ? <fieldset className="meal-fieldset meal-spaced" disabled={busy}>

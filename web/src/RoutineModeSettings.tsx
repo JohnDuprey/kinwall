@@ -136,7 +136,7 @@ function SchoolWebsiteFields({ domains, links }: { domains: string[]; links: str
     {websites.length > 0 && <fieldset className="routine-school-visibility">
       <legend>{t('Website links')}</legend>
       <p className="settings-row-sub">{t('Selected sites appear on the child’s routine page. Other sites stay allowed, so school sign-in and redirects can still work.')}</p>
-      {websites.map(domain => <CheckRow checked={!hidden.has(domain)} onChange={checked => { setHidden(previous => { const next = new Set(previous); if (checked) next.delete(domain); else next.add(domain); return next }) }} label={<><span>{t('Show {site} in website links', { site: domain })}</span></>} name="schoolLinkDomains" value={domain} key={domain} />)}
+      {websites.map(domain => <CheckRow checked={!hidden.has(domain)} onChange={checked => { setHidden(previous => { const next = new Set(previous); if (checked) next.delete(domain); else next.add(domain); return next }) }} label={t('Show {site} in website links', { site: domain })} name="schoolLinkDomains" value={domain} key={domain} />)}
     </fieldset>}
   </>
 }
@@ -162,7 +162,7 @@ function RoutineScheduleFields({ start, cutoff, days }: { start: string; cutoff:
       <legend>{t('Day overrides')}</legend>
       <p className="settings-row-sub">{t('Days without an override use the times above.')}</p>
       {names.map((name, day) => <div key={day} className="routine-day-schedule">
-        <Switch checked={overrides[day]} onChange={checked => { setOverrides(previous => previous.map((value, index) => index === day ? checked : value)) }} label={<><span>{t('Use different times on {day}', { day: name })}</span></>} name={`day-${day}`} />
+        <Switch checked={overrides[day]} onChange={checked => { setOverrides(previous => previous.map((value, index) => index === day ? checked : value)) }} label={t('Use different times on {day}', { day: name })} name={`day-${day}`} />
         {overrides[day] && <div className="routine-time-pair">
           <label className="field">{t('{day} routine starts', { day: name })}<input type="time" name={`start-${day}`} required defaultValue={days[day]?.start ?? dailyStart} /></label>
           <label className="field">{t('{day} free time ends', { day: name })}<input type="time" name={`cutoff-${day}`} required defaultValue={days[day]?.cutoff ?? dailyEnd} /></label>
@@ -187,11 +187,11 @@ function RoutineChoreFields({ selected, names, chores }: { selected: string[] | 
     {specific && <fieldset className="routine-school-visibility">
       <legend>{t('Required chores')}</legend>
       <p className="settings-row-sub">{t('Choose active chores assigned to this child. Each chore is required only on the days it is due. Inactive, deleted, or reassigned chores do not count.')}</p>
-      {repeating.map(chore => <CheckRow checked={chosen.has(chore.id)} onChange={checked => { setChosen(previous => { const next = new Set(previous); if (checked) next.add(chore.id); else next.delete(chore.id); return next }) }} label={<><span>{chore.title}</span></>} name="requiredChoreIds" value={chore.id} key={chore.id} />)}
+      {repeating.map(chore => <CheckRow checked={chosen.has(chore.id)} onChange={checked => { setChosen(previous => { const next = new Set(previous); if (checked) next.add(chore.id); else next.delete(chore.id); return next }) }} label={chore.title} name="requiredChoreIds" value={chore.id} key={chore.id} />)}
       {oneTimeNames.length > 0 && <>
         <p className="settings-row-sub">{t('One-time chore names')}</p>
         <p className="settings-row-sub">{t('Completed one-time chores are hidden. Selected names also require future one-time chores with the same name for this child, only when due. Capitalization and extra spaces do not matter. Deselect a name to stop requiring it.')}</p>
-        {oneTimeNames.map(name => <CheckRow checked={chosenNames.has(routineChoreName(name))} onChange={checked => { setChosenNames(previous => { const next = new Map(previous); if (checked) next.set(routineChoreName(name), name); else next.delete(routineChoreName(name)); return next }) }} label={<><span>{name}</span></>} name="requiredOneTimeChoreNames" value={name} key={routineChoreName(name)} />)}
+        {oneTimeNames.map(name => <CheckRow checked={chosenNames.has(routineChoreName(name))} onChange={checked => { setChosenNames(previous => { const next = new Map(previous); if (checked) next.set(routineChoreName(name), name); else next.delete(routineChoreName(name)); return next }) }} label={name} name="requiredOneTimeChoreNames" value={name} key={routineChoreName(name)} />)}
       </>}
       {!repeating.length && !oneTimeNames.length && <p>{t('No active chores are assigned to this child.')}</p>}
       {!repeating.some(chore => chosen.has(chore.id)) && !chosenNames.size && <p>{t('With no chores selected, free time follows the schedule without chore requirements.')}</p>}

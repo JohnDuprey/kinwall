@@ -179,7 +179,7 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
       </div>
       <div className="field">
         <label htmlFor="journal-mood">{t('Mood')} <span className="settings-row-sub">{t('(optional)')}</span></label>
-        <Choose hideLabel label={`${t('Mood')} ${t('(optional)')}`} id="journal-mood" value={mood} onChange={next => setMood(next)}
+        <Choose hideLabel label={`${t('Mood')} ${t('(optional)')}`} id="journal-mood" value={mood} onChange={setMood}
           options={[
             { value: '', label: t('None') },
             ...[...new Set([...MOODS, ...(mood ? [mood] : [])])].map(m => ({ value: m, label: m })),

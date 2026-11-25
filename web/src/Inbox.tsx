@@ -191,7 +191,7 @@ function OrganizeSheet({ id, onClose }: { id: string; onClose: () => void }) {
     {kind === 'task' && <div className="field">
       <label htmlFor="inbox-list">{t('List')}</label>
       {lists && !lists.length ? <p className="field-hint">{t('Make a to-do list in Lists first.')}</p>
-        : <Choose hideLabel label={t('List')} id="inbox-list" value={listId} onChange={next => setListId(next)} disabled={!lists} sheet
+        : <Choose hideLabel label={t('List')} id="inbox-list" value={listId} onChange={setListId} disabled={!lists} sheet
           options={(lists ?? []).map(l => ({ value: l.id, label: l.emoji ? `${l.emoji} ${l.name}` : l.name }))} />}
     </div>}
     {kind === 'event' && !calendars.length && <p className="field-hint">{t('Add a calendar that takes new events in Settings → Calendars first.')}</p>}

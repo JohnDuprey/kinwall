@@ -31,7 +31,7 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
       {full && (
         <>
           <label htmlFor={`battery-day-${member.id}`} className="sr-only">{t('Day')}</label>
-          <Choose hideLabel label={t('Day')} id={`battery-day-${member.id}`} value={pick || shown.today} onChange={next => setPick(next)} sheet
+          <Choose hideLabel label={t('Day')} id={`battery-day-${member.id}`} value={pick || shown.today} onChange={setPick} sheet
             options={shown.days.map(d => ({ value: d.date, label: d.forecast ? t('{day} (a guess)', { day: label(d.date) }) : label(d.date) }))} />
         </>
       )}

@@ -69,7 +69,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
       <button className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.unlinkMealCalendar(meal.id), t('Calendar event unlinked'))}>{t('Unlink (keep the event)')}</button>
     </> : <fieldset className="meal-fieldset" disabled={busy || loading}>
       <h3>{t('Add to a calendar')}</h3>
-      <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId ?? '-'} onChange={next => setCalendarId(next)} sheet
+      <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId ?? '-'} onChange={setCalendarId} sheet
         options={[
           ...(calendarId === null ? [{ value: '-', label: t('Choose a calendar'), disabled: true }] : []),
           ...groups.flatMap(([label, list]) => list.map(cal => ({ value: cal.id, label: `${cal.name}${PROVIDER[cal.kind] ? ` · ${PROVIDER[cal.kind]}` : ''}`, detail: label }))),
@@ -83,7 +83,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
       <p className="field-hint">{meal.recipeSnapshot?.totalMinutes ? t('{from} to {to} ({length}, the recipe’s total time).', span) : t('{from} to {to} ({length}).', span)} {chosen && chosen.kind !== 'local' ? t('It’s also added to {calendar} on {provider}.', { calendar: chosen.name, provider: PROVIDER[chosen.kind] ?? t('that calendar') }) : ''}</p>
       <button className="btn btn-primary" disabled={busy || loading || calendarId === null} onClick={() => void create()}>{t('Add to calendar')}</button>
       <h3>{t('Or link an event you already have')}</h3>
-      <div className="field"><label htmlFor={`${id}-event`}>{t('Event near this meal’s date')}</label><Choose hideLabel label={t('Event near this meal’s date')} id={`${id}-event`} value={eventId} onChange={next => setEventId(next)} sheet
+      <div className="field"><label htmlFor={`${id}-event`}>{t('Event near this meal’s date')}</label><Choose hideLabel label={t('Event near this meal’s date')} id={`${id}-event`} value={eventId} onChange={setEventId} sheet
         options={[
           { value: '', label: t('Choose an event') },
           ...events.map(event => ({ value: event.id, label: `${event.title} · ${event.start.slice(0, 10)}` })),

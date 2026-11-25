@@ -694,7 +694,7 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, s
       {lists.length > 1 && (
         <div className="field">
           <label htmlFor="scan-list">{t('Add to')}</label>
-          <Choose hideLabel label={t('Add to')} id="scan-list" value={target} onChange={next => setTarget(next)} sheet
+          <Choose hideLabel label={t('Add to')} id="scan-list" value={target} onChange={setTarget} sheet
             options={lists.map(l => ({ value: l.id, label: `${l.emoji ? `${l.emoji} ` : ''}${l.name}` }))} />
         </div>
       )}

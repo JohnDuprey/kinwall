@@ -252,12 +252,12 @@ function TaskSyncSheet({ list, link, onClose, onChanged }: { list: List; link: T
         )}
         <div className="field">
           <label htmlFor="task-sync-account">{t('Account')}</label>
-          <Choose hideLabel label={t('Account')} id="task-sync-account" value={accountId} onChange={next => setAccountId(next)} sheet
+          <Choose hideLabel label={t('Account')} id="task-sync-account" value={accountId} onChange={setAccountId} sheet
             options={accounts.map(a => ({ value: a.id, label: label(a.kind, a.name) }))} />
         </div>
         <div className="field">
           <label htmlFor="task-sync-list">{account ? t('List in {app}', { app: appName(account.kind) }) : t('List')}</label>
-          <Choose hideLabel label={account ? t('List in {app}', { app: appName(account.kind) }) : t('List')} id="task-sync-list" value={remoteId} onChange={next => setRemoteId(next)} disabled={!remote} sheet
+          <Choose hideLabel label={account ? t('List in {app}', { app: appName(account.kind) }) : t('List')} id="task-sync-list" value={remoteId} onChange={setRemoteId} disabled={!remote} sheet
             options={[
               ...(!remote ? [{ value: remoteId, label: t('Loading…') }] : []),
               ...(remote?.map(r => ({ value: r.remoteId, label: r.name })) ?? []),

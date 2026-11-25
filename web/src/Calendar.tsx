@@ -1531,7 +1531,7 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
       {endBeforeStart && <p className="field-error" id="event-end-error" role="alert">{t('The end has to be after the start.')}</p>}
       {!event && <div className="field">
         <label>{t('Calendar')}</label>
-        <Choose hideLabel label={t('Calendar')} value={calendarId} onChange={next => setCalendarId(next)} sheet
+        <Choose hideLabel label={t('Calendar')} value={calendarId} onChange={setCalendarId} sheet
           options={[
             ...writable.map(c => ({ value: c.id, label: c.name })),
             ...(!event && offerNewLocal ? [{ value: NEW_LOCAL_CALENDAR, label: t('Kinwall only (not synced)') }] : []),
@@ -1562,7 +1562,7 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
       {remindersEditable && (
         <div className="field">
           <label>{t('Reminder')}</label>
-          <Choose hideLabel label={t('Reminder')} value={reminder} onChange={next => setReminder(next)} sheet
+          <Choose hideLabel label={t('Reminder')} value={reminder} onChange={setReminder} sheet
             options={[
               ...(initialReminder === 'keep' ? [{ value: 'keep', label: reminderLabel(ownReminders) ?? t('None') }] : []),
               ...(calKind !== 'microsoft' ? [{ value: 'default', label: calKind === 'google' ? t('Google calendar default') : t('Family default') }] : []),

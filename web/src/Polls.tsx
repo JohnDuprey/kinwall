@@ -246,7 +246,7 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
     {open && !who && !lockedTo && <p className="field-hint">{t('Pick who’s voting, then tap a choice. Tap it again to take it back.')}</p>}
     {closing !== null && <div className="field poll-close">
       <label htmlFor={`poll-winner-${poll.id}`}>{t('Winner')}</label>
-      <Choose hideLabel label={t('Winner')} id={`poll-winner-${poll.id}`} value={closing} onChange={next => setClosing(next)} sheet
+      <Choose hideLabel label={t('Winner')} id={`poll-winner-${poll.id}`} value={closing} onChange={setClosing} sheet
         options={poll.options.map(o => ({ value: o.id, label: `${o.label} (${tn(o.votes.length, '{n} vote', '{n} votes')})` }))} />
       <p className="field-hint">{tie ? t('It’s a tie: pick the winner.') : t('The choice with the most votes is picked.')} {t('Nobody can vote after voting ends.')}</p>
     </div>}

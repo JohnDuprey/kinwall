@@ -179,18 +179,18 @@ export default function Meals() {
         { value: 'meal', label: t('Meals') },
         { value: 'basic', label: t('Basics') },
       ]} /></div>
-    <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={filter} onChange={next => setFilter(next)}
+    <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={filter} onChange={setFilter}
       options={[
         { value: 'active', label: t('Active recipes') },
         { value: 'archived', label: t('Archived recipes') },
         { value: 'all', label: t('All recipes') },
       ]} /></div>
-    <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><Choose hideLabel label={t('Ingredient category')} id="recipe-category" value={category} onChange={next => setCategory(next)} sheet
+    <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><Choose hideLabel label={t('Ingredient category')} id="recipe-category" value={category} onChange={setCategory} sheet
       options={[
         { value: '', label: t('All categories') },
         ...categories.map(c => ({ value: c, label: c })),
       ]} /></div>
-    <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><Choose hideLabel label={t('Favorites')} id="recipe-loved" value={loved} onChange={next => setLoved(next)} sheet
+    <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><Choose hideLabel label={t('Favorites')} id="recipe-loved" value={loved} onChange={setLoved} sheet
       options={[
         { value: '', label: t('All recipes') },
         { value: 'any', label: t("Anyone's favorites") },

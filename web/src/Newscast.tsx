@@ -301,7 +301,7 @@ function Composer({ inSheet, onPosted }: { inSheet: boolean; onPosted: () => voi
         <div className="news-count" id="news-count">{tn(MAX - text.length, '{n} left', '{n} left')}</div>
         <div className="news-row">
           {!meMemberId && (
-            <Choose hideLabel label={t('Post as')} value={as} onChange={next => setAs(next)} sheet
+            <Choose hideLabel label={t('Post as')} value={as} onChange={setAs} sheet
               options={[
                 { value: '', label: t('Post as…') },
                 ...members.map(m => ({ value: m.id, label: `${m.avatar} ${m.name}` })),
@@ -314,7 +314,7 @@ function Composer({ inSheet, onPosted }: { inSheet: boolean; onPosted: () => voi
                 { value: 'grownups', label: t('🔒 Grown-ups only') },
               ]} />
           )}
-          <Choose hideLabel label={t('Emoji')} value={emoji} onChange={next => setEmoji(next)} sheet
+          <Choose hideLabel label={t('Emoji')} value={emoji} onChange={setEmoji} sheet
             options={[
               { value: '', label: t('No emoji') },
               ...EMOJI.map(x => ({ value: x, label: x })),

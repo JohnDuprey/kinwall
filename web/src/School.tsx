@@ -599,7 +599,7 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
         </div>}
         {work?.groupId && <p className="field-hint">{t('Changes apply to every kid who has it.')}</p>}
         <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={who.today} onChange={editSched} onStart={setDueDate} />
-        <Switch checked={daysOff} onChange={next => setDaysOff(next)} label={t('Still due on days off')} />
+        <Switch checked={daysOff} onChange={setDaysOff} label={t('Still due on days off')} />
         <p className="field-hint">{t('Otherwise it’s skipped on a day with no school, like a holiday or summer break.')}</p>
         <div className="field"><label id={`${id}-min`}>{t('School time it counts for, in minutes')}</label>
           <div className="suggest-stepper school-stepper" role="group" aria-labelledby={`${id}-min`}>
@@ -722,7 +722,7 @@ function ShareSheet({ kid, text: start, onClose }: { kid: Member; text: string; 
     <form id={id} onSubmit={e => { e.preventDefault(); void post() }}>
       <div className="field"><label htmlFor={`${id}-text`}>{t('Post')}</label><textarea id={`${id}-text`} maxLength={280} value={text} onChange={e => setText(e.target.value)} /></div>
       {!meMemberId && <div className="field"><label htmlFor={`${id}-poster`}>{t('Posting as')}</label>
-        <Choose hideLabel label={t('Posting as')} id={`${id}-poster`} value={poster} onChange={next => setPoster(next)} sheet
+        <Choose hideLabel label={t('Posting as')} id={`${id}-poster`} value={poster} onChange={setPoster} sheet
           options={grownUps.map(m => ({ value: m.id, label: m.name }))} /></div>}
       <div className="field"><label htmlFor={`${id}-who`}>{t('Who sees it')}</label>
         <Choose hideLabel label={t('Who sees it')} id={`${id}-who`} value={audience} onChange={next => setAudience(next as 'grownups' | 'everyone')}

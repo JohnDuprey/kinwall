@@ -134,9 +134,9 @@ export function SuggestChoreSheet({ memberId, onClose, onSent }: { memberId: str
         <PointsStepper value={shown} max={pointsMax(familyPoints)} onChange={setPoints} label={t("Points you think it's worth")} />
       </div>
       <div className="field suggest-checks">
-        <Switch checked={repeat} onChange={next => setRepeat(next)} label={t('Make it repeat')} />
+        <Switch checked={repeat} onChange={setRepeat} label={t('Make it repeat')} />
         {repeat && <RepeatFields idPrefix="suggest" days={days} setDays={setDays} time={time} setTime={setTime} timer={timer} setTimer={setTimer} />}
-        <Switch checked={done} onChange={next => setDone(next)} label={t('I already did it today')} />
+        <Switch checked={done} onChange={setDone} label={t('I already did it today')} />
         {done && <p className="field-hint">{t('A grown-up checks it, then the points count.')}</p>}
       </div>
       {!done && !repeat && (
@@ -263,7 +263,7 @@ export function SuggestionAnswerSheet({ s, mode, onClose, onDone }: { s: ChoreSu
           {s.done && <p className="field-hint">{t('{kid} already did it today, so these points count now.', { kid })}</p>}
         </div>
         <div className="field suggest-checks">
-          <Switch checked={repeat} onChange={next => setRepeat(next)} label={t('Make it repeat')} />
+          <Switch checked={repeat} onChange={setRepeat} label={t('Make it repeat')} />
           {repeat && customRule && <p className="field-hint">{t('Keeps its repeat ({days}).', { days: daysText(s.rrule) ?? '' })}</p>}
           {repeat && !customRule && <RepeatFields idPrefix="answer" days={days} setDays={setDays} time={time} setTime={setTime} timer={timer} setTimer={setTimer} />}
         </div>

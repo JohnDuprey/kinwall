@@ -96,7 +96,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
         ]} /></div>}
       {lists?.length === 1 && <p className="field-hint">{t('Adding to {list}.', { list: `${lists[0].emoji} ${lists[0].name}` })}</p>}
       {lists?.length === 0 && <p>{noLists[0]}<a href="#/lists" onClick={close}>{t('Create a Groceries list in Lists')}</a>{noLists[1]}</p>}
-      {admin && <Switch checked={includeNotes} onChange={next => setIncludeNotes(next)} label={t('Add a note on each item saying which meals need it')} />}
+      {admin && <Switch checked={includeNotes} onChange={setIncludeNotes} label={t('Add a note on each item saying which meals need it')} />}
       {!admin && <p className="field-hint">{t('A grown-up can add these to a grocery list.')}</p>}
       {loading && <p role="status">{t('Calculating ingredients…')}</p>}
       {current && !loading && <>

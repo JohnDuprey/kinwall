@@ -595,7 +595,7 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
   </>}>
     <p>{o.title}{o.placeName ? ` · ${o.placeName}` : ''}</p>
     <fieldset className="meal-fieldset" disabled={busy}>
-      <Switch checked={allDay} onChange={next => setAllDay(next)} label={t('All day')} />
+      <Switch checked={allDay} onChange={setAllDay} label={t('All day')} />
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field"><label htmlFor={`${id}-day`}>{t('Starts')}</label><input id={`${id}-day`} type="date" min={o.startsOn ?? undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={date} onChange={e => {
           const next = e.target.value
@@ -608,7 +608,7 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
       </div>
       {endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('The end has to be after the start.')}</p>}
       {needsEndTime && !endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('Pick an end time for a visit that spans days.')}</p>}
-      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId} onChange={next => setCalendarId(next)} sheet
+      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId} onChange={setCalendarId} sheet
         options={calendars.map(c => ({ value: c.id, label: c.name }))} /></div>}
       <LabeledPick label={t('Who’s going')} multiple none={t('Everyone')} value={going} onChange={setGoing} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
       <p className="field-hint">{t('It goes on the calendar as a normal event in the 🎟 Outing category, with the place, notes and links. Change it there any time.')}</p>
