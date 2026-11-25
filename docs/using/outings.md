@@ -135,3 +135,5 @@ Outings has its own switch in [Settings → Features](../settings/general.md#fea
 ## For developers
 
 REST: [`/api/outings`, `/api/outing-feeds`](../integrations/rest-api.md), and `POST /api/share` with `kind: outing` ([Add to Kinwall](share-to-kinwall.md#the-request)). MCP: `list_outings`, `get_outing`, `create_outing`, `update_outing`, `delete_outing`, `mark_outing_interest`, `add_outing_to_calendar`, `list_outing_categories`, `suggest_outings`, `import_outing` ([MCP](../integrations/mcp.md)); community calendars are managed in the app or over REST only. Webhook: `outing.changed`. Kept outings are in the family's export and import (community calendars and their waiting events aren't).
+
+Outing options such as **Free** and **All day** use switches. Tap audience chips to choose who an outing suits; the filters use chips for what counts as for each person.

@@ -11,7 +11,7 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { useDialog } from './dialog.tsx'
-import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
+import { Switch, filterSortLabel, LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import PickField, { Choose } from './PickField.tsx'
 import { Face } from './Face'
@@ -310,8 +310,8 @@ function FiltersSheet({ value, place, categories, count, onClose, onApply, onEdi
         { value: '', label: t('Anyone') },
         ...members.map(m => ({ value: m.id, label: m.name })),
       ]} /></div>
-    {person && <fieldset className="meal-fieldset outing-boxes"><legend className="sr-only">{t('What counts as for {name}', { name: person.name })}</legend>
-      {FOR_BOXES.map(b => <label key={b} className="meal-check"><input type="checkbox" checked={f.boxes.includes(b)} onChange={e => setF({ ...f, boxes: e.target.checked ? FOR_BOXES.filter(x => x === b || f.boxes.includes(x)) : f.boxes.filter(x => x !== b) as ForBox[] })} /> {boxLabel(b, person)}</label>)}
+    {person && <fieldset className="meal-fieldset outing-boxes chip-row"><legend className="sr-only">{t('What counts as for {name}', { name: person.name })}</legend>
+      {FOR_BOXES.map(b => <button key={b} type="button" className={f.boxes.includes(b) ? 'chip active' : 'chip'} aria-pressed={f.boxes.includes(b)} onClick={() => setF({ ...f, boxes: !f.boxes.includes(b) ? FOR_BOXES.filter(x => x === b || f.boxes.includes(x)) : f.boxes.filter(x => x !== b) as ForBox[] })}>{boxLabel(b, person)}</button>)}
     </fieldset>}
     <div className="field"><label htmlFor={`${id}-marked`}>{t('Marked by')}</label><Choose hideLabel label={t('Marked by')} id={`${id}-marked`} value={f.markedBy} onChange={next => setF({ ...f, markedBy: next })} sheet
       options={[
@@ -484,7 +484,7 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
   const close = () => { if (!busy) onClose() }
   const field = (k: 'placeName' | 'address' | 'hours' | 'priceNote' | 'url' | 'ticketsUrl', label: string, extra: Record<string, string> = {}) =>
     <div className="field"><label htmlFor={`${id}-${k}`}>{label}</label><input id={`${id}-${k}`} type={k.endsWith('rl') ? 'url' : 'text'} maxLength={k.endsWith('rl') ? 2000 : 200} {...extra} value={d[k] ?? ''} onChange={e => text(k, e.target.value)} /></div>
-  const aud = (a: OutingAudience, label: string) => <label className="meal-check"><input type="checkbox" checked={!!d.audience?.includes(a)} onChange={e => set('audience', e.target.checked ? [...(d.audience ?? []), a] : (d.audience ?? []).filter(x => x !== a))} /> {label}</label>
+  const aud = (a: OutingAudience, label: string) => <button type="button" className={!!d.audience?.includes(a) ? 'chip active' : 'chip'} aria-pressed={!!d.audience?.includes(a)} onClick={() => set('audience', !d.audience?.includes(a) ? [...(d.audience ?? []), a] : (d.audience ?? []).filter(x => x !== a))}>{label}</button>
   return <Sheet title={outing ? t('Edit {title}', { title: outing.title }) : upcoming ? t('Add an outing') : t('Add a place')} onClose={close} dismissable={!busy} actions={<>
     <button className="btn btn-secondary" disabled={busy} onClick={close}>{t('Cancel')}</button>
     <button className="btn btn-primary" type="submit" form={id} disabled={busy}>{busy ? t('Saving…') : t('Save')}</button>
@@ -505,7 +505,7 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
             {d.run && <div className="field"><label htmlFor={`${id}-end`}>{t('Last day')}</label><input id={`${id}-end`} type="date" min={d.startsOn ?? undefined} value={d.endsOn ?? ''} onChange={e => set('endsOn', e.target.value || null)} /></div>}
           </div>
           {!d.startsOn && <p className="field-hint">{t('No day yet? Leave it empty: it shows as “Date not announced yet”.')}</p>}
-          <label className="meal-check"><input type="checkbox" checked={d.run} onChange={e => set('run', e.target.checked)} /> {t('Runs for a while (open on several days)')}</label>
+          <Switch checked={d.run} onChange={next => set('run', next)} label={t('Runs for a while (open on several days)')} />
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={d.startTime ?? ''} onChange={e => set('startTime', e.target.value || null)} /></div>
             <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={d.endTime ?? ''} onChange={e => set('endTime', e.target.value || null)} /></div>
@@ -516,13 +516,13 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
         {field('placeName', t('Place'), { placeholder: t('Town Green, the library…') })}
         {field('address', t('Address'), { placeholder: t('For the Map button') })}
         <h3>{t('Cost')}</h3>
-        <label className="meal-check"><input type="checkbox" checked={d.free} onChange={e => set('free', e.target.checked)} /> {t('Free')}</label>
+        <Switch checked={d.free} onChange={next => set('free', next)} label={t('Free')} />
         {!d.free && <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-price`}>{t('From (per person)')}</label><input id={`${id}-price`} type="text" inputMode="decimal" maxLength={10} placeholder="15" value={d.price} onChange={e => set('price', e.target.value)} /></div>
           {field('priceNote', t('Price note'), { placeholder: t('Kids under 5 free') })}
         </div>}
         <h3>{t('Who it’s for')}</h3>
-        {aud('family', t('The whole family'))}{aud('kids', t('Kids'))}{aud('grownups', t('Grown-ups'))}
+        <div className="chip-row" role="group" aria-label={t('Who it’s for')}>{aud('family', t('The whole family'))}{aud('kids', t('Kids'))}{aud('grownups', t('Grown-ups'))}</div>
         {d.audience?.includes('kids') && <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-amin`}>{t('Youngest age')}</label><input id={`${id}-amin`} type="number" min={0} max={120} inputMode="numeric" value={d.ageMin ?? ''} onChange={e => set('ageMin', e.target.value === '' ? null : Number(e.target.value))} /></div>
           <div className="field"><label htmlFor={`${id}-amax`}>{t('Oldest age')}</label><input id={`${id}-amax`} type="number" min={0} max={120} inputMode="numeric" value={d.ageMax ?? ''} onChange={e => set('ageMax', e.target.value === '' ? null : Number(e.target.value))} /></div>
@@ -595,7 +595,7 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
   </>}>
     <p>{o.title}{o.placeName ? ` · ${o.placeName}` : ''}</p>
     <fieldset className="meal-fieldset" disabled={busy}>
-      <label className="meal-check"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> {t('All day')}</label>
+      <Switch checked={allDay} onChange={next => setAllDay(next)} label={t('All day')} />
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field"><label htmlFor={`${id}-day`}>{t('Starts')}</label><input id={`${id}-day`} type="date" min={o.startsOn ?? undefined} max={o.endsOn ?? o.startsOn ?? undefined} value={date} onChange={e => {
           const next = e.target.value
