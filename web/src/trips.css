@@ -1,6 +1,8 @@
 /* Trips and away days (Trips.tsx, TripStays.tsx, TripPlan.tsx, Away.tsx): Outings' rows and chips,
    plus the trip page's cards, the stay comparison and the day plan. */
 .btn.trip-fit { flex: none; min-height: 44px; padding: 6px 14px; gap: 6px; white-space: nowrap; }
+/* Room under Ideas | Upcoming | Past when the list has no heading (Ideas); collapses into a heading's margin. */
+.trips-view [role="tabpanel"] { margin-top: 12px; }
 /* Empty and loading cards line up with the headings and rows, not the app-wide inset. */
 .trips-view .state-card { margin: 16px 0; }
 .trip-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; text-align: left; }
