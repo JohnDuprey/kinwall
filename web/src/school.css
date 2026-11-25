@@ -22,8 +22,6 @@
 .school-download { flex: none; }
 .school-setup-kids, .school-subjects { display: grid; gap: 12px; margin-bottom: 16px; }
 .school-setup-kid { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.school-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
-.school-check input { width: 22px; height: 22px; flex: none; }
 .school-subject { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } /* on a phone, the hours and actions go under the name */
 .school-subject > input[type="text"]:not(.school-subject-emoji) { flex: 1 1 9em; min-width: 0; }
 .school-subject > span { flex: 1; }

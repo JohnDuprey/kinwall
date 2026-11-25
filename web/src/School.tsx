@@ -14,7 +14,7 @@ import { preparePhoto } from './photos.ts'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { LoadError, Segmented } from './a11y.tsx'
+import { Switch, LoadError, Segmented } from './a11y.tsx'
 import { PointsStepper } from './ChoreSuggest.tsx'
 import { ChoreScheduleFields } from './ChoreScheduleFields.tsx'
 import { rruleToForm, scheduleBody, validSchedule, type ScheduleForm } from './choreSchedule.ts'
@@ -599,7 +599,7 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
         </div>}
         {work?.groupId && <p className="field-hint">{t('Changes apply to every kid who has it.')}</p>}
         <ChoreScheduleFields value={sched} goal={repeatGoal} onGoal={setRepeatGoal} start={dueDate} today={who.today} onChange={editSched} onStart={setDueDate} />
-        <label className="school-check"><input type="checkbox" checked={daysOff} onChange={e => setDaysOff(e.target.checked)} /> {t('Still due on days off')}</label>
+        <Switch checked={daysOff} onChange={next => setDaysOff(next)} label={t('Still due on days off')} />
         <p className="field-hint">{t('Otherwise it’s skipped on a day with no school, like a holiday or summer break.')}</p>
         <div className="field"><label id={`${id}-min`}>{t('School time it counts for, in minutes')}</label>
           <div className="suggest-stepper school-stepper" role="group" aria-labelledby={`${id}-min`}>
@@ -913,7 +913,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
               options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))}
               add={{ label: t('New school…'), onAdd: name => setNewContact({ m, k, role: 'school', name }) }} />
             <p className="field-hint">{k.mode === 'enrolled' && !sameSchool(k).length ? t('From Contacts, or add a new one. Its number is the one to call, for the teacher too. Kids at the same school share its hours and bus times.') : t('From Contacts, or add a new one. Its number is the one to call, for the teacher too.')}</p></div>}
-        {k && <label className="school-check"><input type="checkbox" checked={k.approveLogs} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: e.target.checked }))} /> {t('A grown-up checks the time {name} logs', { name: m.name })}</label>}
+        {k && <Switch checked={k.approveLogs} onChange={next => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: next }))} label={t('A grown-up checks the time {name} logs', { name: m.name })} />}
         {k?.mode === 'enrolled' && <>
           {sameSchool(k).length > 0 && <p className="field-hint">{t('Goes to the same school as {names}: its hours, early release, school days, calendars, school year and bus times are shared. Pickups and drop-offs stay each kid’s own.', { names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(sameSchool(k).map(x => members.find(mm => mm.id === x.memberId)?.name ?? '')) })}</p>}
           <div className="meal-form-row">
