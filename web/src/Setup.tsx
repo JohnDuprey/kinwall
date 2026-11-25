@@ -7,7 +7,7 @@ import { clearOffline } from './outbox.ts'
 import { QrCode } from './App.tsx'
 import { CaldavHint, CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.tsx'
 import TimezoneField from './TimezoneField.tsx'
-import { announce, reducedMotion } from './a11y.tsx'
+import { Switch, announce, reducedMotion } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import type { Features, Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
@@ -693,14 +693,7 @@ function FeaturesStep({ members, onNext, onBack }: { members: Member[]; onNext: 
         </div>
         <button className="link-btn setup-hint-toggle" onClick={() => setAll(a => !a)} aria-expanded={all}>{all ? t('Hide all features') : t('Show all features')}</button>
         {all && FEATURE_ROWS.map(f => (
-          <div key={f.key} className="toggle-row">
-            <div>
-              <label id={`setup-feature-${f.key}`}>{f.group === 'Trackers' ? t('{feature} tracker', { feature: tm(f.label) }) : tm(f.label)}</label>
-              <div className="settings-row-sub">{tm(f.sub)}</div>
-            </div>
-            <button className={`switch ${features[f.key] ? 'on' : ''}`} role="switch" aria-checked={features[f.key]} aria-labelledby={`setup-feature-${f.key}`}
-              onClick={() => setFeatures(x => x && { ...x, [f.key]: !x[f.key] })}><span className="knob" /></button>
-          </div>
+          <Switch checked={features[f.key]} onChange={() => setFeatures(x => x && { ...x, [f.key]: !x[f.key] })} label={f.group === 'Trackers' ? t('{feature} tracker', { feature: tm(f.label) }) : tm(f.label)} id={`setup-feature-${f.key}`} hint={tm(f.sub)} key={f.key} />
         ))}
       </>}
       <p className="setup-note">{t('You can change any of these later in Settings → General → Features.')}</p>

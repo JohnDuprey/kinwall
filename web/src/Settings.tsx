@@ -50,7 +50,7 @@ import { EVENING_TIMES } from './journal.ts'
 import { deviceTimeFormat, formatTime, resolveHour12 } from './timeFormat.ts'
 import { tzCity } from './timezone.ts'
 import { MedicationsToggle } from './MedicationSettings.tsx'
-import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
+import { Switch, announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
 import { filterSettings, linkTab, SEARCH_ALIASES, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
@@ -452,14 +452,7 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
       {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
         {FEATURE_ROWS[i - 1]?.section !== f.section && <h3 className="features-section">{f.section === 'Everyday' ? t('Everyday') : t('Nooks')}</h3>}
         {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h4 className="features-group">{tm(f.group)}</h4>}
-        <div className={`toggle-row ${f.group ? 'features-grouped' : ''}`}>
-          <div>
-            <label id={`feature-${f.key}-label`}>{f.group && <span className="sr-only">{tm(f.group)}: </span>}{tm(f.label)}</label>
-            <div className="settings-row-sub" id={`feature-${f.key}-sub`}>{tm(f.sub)}</div>
-          </div>
-          <button className={`switch ${settings.features[f.key] ? 'on' : ''}`} role="switch" aria-checked={settings.features[f.key]}
-            aria-labelledby={`feature-${f.key}-label`} aria-describedby={`feature-${f.key}-sub`} onClick={() => set(f.key)}><span className="knob" /></button>
-        </div>
+        <div className={f.group ? 'features-grouped' : undefined}><Switch checked={settings.features[f.key]} onChange={() => set(f.key)} label={<>{f.group && <span className="sr-only">{tm(f.group)}: </span>}{tm(f.label)}</>} id={`feature-${f.key}-label`} hint={tm(f.sub)} /></div>
         {f.key === 'trackersHealth' && settings.features.trackersHealth && <MedicationsToggle />}
       </Fragment>))}
     </SummarySection>
@@ -824,32 +817,10 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
         <Choose hideLabel label={t('Daily check-in points')} value={settings.checkInPoints} onChange={next => save({ checkInPoints: next })}
           options={[0, 1, 2, 3, 5, 10].map(n => ({ value: n, label: n === 0 ? t('Off') : tn(n, '{n} point', '{n} points') }))} />
       </div>}
-      <div className="toggle-row">
-        <label id="leaderboard-label">{t('Show leaderboard')}</label>
-        <button className={`switch ${settings.leaderboardEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.leaderboardEnabled} aria-labelledby="leaderboard-label"
-          onClick={() => save({ leaderboardEnabled: !settings.leaderboardEnabled })}><span className="knob" /></button>
-      </div>
-      <div className="toggle-row">
-        <div>
-          <label id="kid-suggest-label">{t('Kids can suggest chores')}</label>
-          <div className="settings-row-sub" id="kid-suggest-sub">{t("Kids add their own chore ideas and say what they think they're worth. Nothing counts until you say yes.")}</div>
-        </div>
-        <button className={`switch ${settings.kidChoreSuggestions ? 'on' : ''}`} role="switch" aria-checked={settings.kidChoreSuggestions} aria-labelledby="kid-suggest-label" aria-describedby="kid-suggest-sub"
-          onClick={() => save({ kidChoreSuggestions: !settings.kidChoreSuggestions })}><span className="knob" /></button>
-      </div>
-      <div className="toggle-row">
-        <div>
-          <label id="rewards-label">{t('Rewards')}</label>
-          <div className="settings-row-sub" id="rewards-sub">{t('Kids spend points on rewards you set, with your OK.')}</div>
-        </div>
-        <button className={`switch ${settings.rewardsEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.rewardsEnabled} aria-labelledby="rewards-label" aria-describedby="rewards-sub"
-          onClick={() => save({ rewardsEnabled: !settings.rewardsEnabled })}><span className="knob" /></button>
-      </div>
-      <div className="toggle-row">
-        <label id="sticker-shop-label">{t('Sticker shop')}</label>
-        <button className={`switch ${settings.stickersEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.stickersEnabled} aria-labelledby="sticker-shop-label"
-          onClick={() => save({ stickersEnabled: !settings.stickersEnabled })}><span className="knob" /></button>
-      </div>
+      <Switch checked={settings.leaderboardEnabled} onChange={() => save({ leaderboardEnabled: !settings.leaderboardEnabled })} label={t('Show leaderboard')} id="leaderboard-label" />
+      <Switch checked={settings.kidChoreSuggestions} onChange={() => save({ kidChoreSuggestions: !settings.kidChoreSuggestions })} label={t('Kids can suggest chores')} id="kid-suggest-label" hint={t("Kids add their own chore ideas and say what they think they're worth. Nothing counts until you say yes.")} />
+      <Switch checked={settings.rewardsEnabled} onChange={() => save({ rewardsEnabled: !settings.rewardsEnabled })} label={t('Rewards')} id="rewards-label" hint={t('Kids spend points on rewards you set, with your OK.')} />
+      <Switch checked={settings.stickersEnabled} onChange={() => save({ stickersEnabled: !settings.stickersEnabled })} label={t('Sticker shop')} id="sticker-shop-label" />
       {settings.stickersEnabled && (
         <div className="settings-row">
           <div>
@@ -887,11 +858,7 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
 const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', morningCheckIn: false, morningCheckInTime: '07:30', choreNudge: false, choreNudgeAnyone: false, choreNudgeTime: '08:00', newChores: false, listUpdates: false, schoolReminders: true, outingReminders: true, upkeepReminders: true, medicationNames: false }
 
 function AnyoneChoreReminder({ on, change }: { on: boolean; change: (on: boolean) => void }) {
-  return <div className="toggle-row">
-    <div><label id="push-anyone-label">{t('Include Anyone chores')}</label>
-      <div className="settings-row-sub" id="push-anyone-sub">{t('Remind me about shared chores anyone can do.')}</div></div>
-    <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="push-anyone-label" aria-describedby="push-anyone-sub" onClick={() => change(!on)}><span className="knob" /></button>
-  </div>
+  return <Switch checked={on} onChange={() => change(!on)} label={t('Include Anyone chores')} id="push-anyone-label" hint={t('Remind me about shared chores anyone can do.')} />
 }
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
@@ -1010,20 +977,8 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
   const nativeDetails = <>
         {liveLine && <p className="settings-row-sub">{liveLine}</p>}
-        {settings.medications && <div className="toggle-row">
-          <div>
-            <label id="app-med-names-label">{t('Show medicine names on this device')}</label>
-            <div className="settings-row-sub" id="app-med-names-sub">{t('Off: a due dose says “Leo’s medicine”. It shows on the lock screen.')}</div>
-          </div>
-          <button className={`switch ${appNames ? 'on' : ''}`} role="switch" aria-checked={appNames} aria-labelledby="app-med-names-label" aria-describedby="app-med-names-sub" onClick={() => { setAppMedicineNames(!appNames); setAppNames(!appNames) }}><span className="knob" /></button>
-        </div>}
-        {settings.medications && grownUpPhone && <div className="toggle-row">
-          <div>
-            <label id="app-kid-doses-label">{t("Show the kids' doses on this phone")}</label>
-            <div className="settings-row-sub" id="app-kid-doses-sub">{t("A kid's dose that's due shows on the lock screen too, like “Leo · 8:00 AM medicine”, with Taken and Snooze. Snooze is for this phone only.")}</div>
-          </div>
-          <button className={`switch ${kidDoses ? 'on' : ''}`} role="switch" aria-checked={kidDoses} aria-labelledby="app-kid-doses-label" aria-describedby="app-kid-doses-sub" onClick={() => { setAppKidDoses(!kidDoses); setKidDoses(!kidDoses) }}><span className="knob" /></button>
-        </div>}
+        {settings.medications && <Switch checked={appNames} onChange={() => { setAppMedicineNames(!appNames); setAppNames(!appNames) }} label={t('Show medicine names on this device')} id="app-med-names-label" hint={t('Off: a due dose says “Leo’s medicine”. It shows on the lock screen.')} />}
+        {settings.medications && grownUpPhone && <Switch checked={kidDoses} onChange={() => { setAppKidDoses(!kidDoses); setKidDoses(!kidDoses) }} label={t("Show the kids' doses on this phone")} id="app-kid-doses-label" hint={t("A kid's dose that's due shows on the lock screen too, like “Leo · 8:00 AM medicine”, with Taken and Snooze. Snooze is for this phone only.")} />}
         {settings.medications && appNotificationSettings() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-secondary" onClick={() => openAppNotificationSettings('medicine')}>{t('Let medicine reminders through Do Not Disturb')}</button>
           <div className="settings-row-sub">{t("Opens Android's settings for Kinwall's Medicine notifications. Turn on Override Do Not Disturb.")}</div>
@@ -1073,74 +1028,29 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
         </div>
       ) : (
         <>
-          {!appNativePush() && <div className="toggle-row">
-            <label>{t('Event reminders')}</label>
-            <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} role="switch" aria-checked={prefs.eventReminders} aria-label={t('Event reminders')} onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
-          </div>}
+          {!appNativePush() && <Switch checked={prefs.eventReminders} onChange={() => savePrefs({ eventReminders: !prefs.eventReminders })} label={t('Event reminders')} />}
           <div className="settings-row">
-            <div className="toggle-row" style={{ flex: 1 }}>
-              <label>{t('Daily summary')}</label>
-              <button className={`switch ${prefs.dailySummary ? 'on' : ''}`} role="switch" aria-checked={prefs.dailySummary} aria-label={t('Daily summary')} onClick={() => savePrefs({ dailySummary: !prefs.dailySummary })}><span className="knob" /></button>
-            </div>
+            <div style={{ flex: 1 }}><Switch checked={prefs.dailySummary} onChange={() => savePrefs({ dailySummary: !prefs.dailySummary })} label={t('Daily summary')} /></div>
             {prefs.dailySummary && <input type="time" aria-label={t('Daily summary time')} value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
           </div>
           {morningCheckInAvailable && <>
             <div className="settings-row">
-              <div className="toggle-row" style={{ flex: 1 }}>
-                <label id="push-morning-label">{t('Morning check-in reminder')}</label>
-                <button className={`switch ${prefs.morningCheckIn ? 'on' : ''}`} role="switch" aria-checked={!!prefs.morningCheckIn} aria-labelledby="push-morning-label" aria-describedby="push-morning-sub" onClick={() => savePrefs({ morningCheckIn: !prefs.morningCheckIn })}><span className="knob" /></button>
-              </div>
+              <div style={{ flex: 1 }}><Switch checked={!!prefs.morningCheckIn} onChange={() => savePrefs({ morningCheckIn: !prefs.morningCheckIn })} label={t('Morning check-in reminder')} id="push-morning-label" hint={t('On this device, in the family’s time zone. Skipped once you start today’s check-in. Waits for night hours to end, until noon.')} /></div>
               {prefs.morningCheckIn && <input type="time" max="11:59" aria-label={t('Morning check-in time')} value={prefs.morningCheckInTime ?? '07:30'} onChange={e => { if (e.target.value && e.target.value < '12:00') savePrefs({ morningCheckInTime: e.target.value }) }} />}
             </div>
-            <p className="settings-row-sub" id="push-morning-sub">{t('On this device, in the family’s time zone. Skipped once you start today’s check-in. Waits for night hours to end, until noon.')}</p>
+
           </>}
           {settings.features.chores && <div className="settings-row">
-            <div className="toggle-row" style={{ flex: 1 }}>
-              <label>{t('Chore reminder')}</label>
-              <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} role="switch" aria-checked={prefs.choreNudge} aria-label={t('Chore reminder')} onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
-            </div>
+            <div style={{ flex: 1 }}><Switch checked={prefs.choreNudge} onChange={() => savePrefs({ choreNudge: !prefs.choreNudge })} label={t('Chore reminder')} /></div>
             {prefs.choreNudge && <input type="time" aria-label={t('Chore reminder time')} value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
           </div>}
           {settings.features.chores && prefs.choreNudge && <AnyoneChoreReminder on={prefs.choreNudgeAnyone === true} change={on => savePrefs({ choreNudgeAnyone: on })} />}
-          {settings.features.chores && <div className="toggle-row">
-            <div>
-              <label id="push-new-chores-label">{t('New chores')}</label>
-              <div className="settings-row-sub" id="push-new-chores-sub">{t('When a chore is added for the people you follow or Anyone. Skips chores you add yourself.')}</div>
-            </div>
-            <button className={`switch ${prefs.newChores ? 'on' : ''}`} role="switch" aria-checked={prefs.newChores === true} aria-labelledby="push-new-chores-label" aria-describedby="push-new-chores-sub" onClick={() => savePrefs({ newChores: !prefs.newChores })}><span className="knob" /></button>
-          </div>}
-          {settings.features.lists && <div className="toggle-row">
-            <label>{t('List updates')}</label>
-            <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label={t('List updates')} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
-          </div>}
-          {settings.features.school && <div className="toggle-row">
-            <div>
-              <label id="push-school-label">{t('School reminders')}</label>
-              <div className="settings-row-sub" id="push-school-sub">{t('Before the bus and before a school drop-off or pickup, on school days.')}</div>
-            </div>
-            <button className={`switch ${prefs.schoolReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.schoolReminders !== false} aria-labelledby="push-school-label" aria-describedby="push-school-sub" onClick={() => savePrefs({ schoolReminders: prefs.schoolReminders === false })}><span className="knob" /></button>
-          </div>}
-          {settings.features.outings !== false && <div className="toggle-row">
-            <div>
-              <label id="push-outings-label">{t('Outing reminders')}</label>
-              <div className="settings-row-sub" id="push-outings-sub">{t('A week and a day before outings someone ⭐, ticket dates, and last chances.')}</div>
-            </div>
-            <button className={`switch ${prefs.outingReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.outingReminders !== false} aria-labelledby="push-outings-label" aria-describedby="push-outings-sub" onClick={() => savePrefs({ outingReminders: prefs.outingReminders === false })}><span className="knob" /></button>
-          </div>}
-          {settings.features.upkeep !== false && <div className="toggle-row">
-            <div>
-              <label id="push-upkeep-label">{t('Home upkeep')}</label>
-              <div className="settings-row-sub" id="push-upkeep-sub">{t('Jobs coming up, due today and late, and warranties about to end.')}</div>
-            </div>
-            <button className={`switch ${prefs.upkeepReminders !== false ? 'on' : ''}`} role="switch" aria-checked={prefs.upkeepReminders !== false} aria-labelledby="push-upkeep-label" aria-describedby="push-upkeep-sub" onClick={() => savePrefs({ upkeepReminders: prefs.upkeepReminders === false })}><span className="knob" /></button>
-          </div>}
-          {settings.medications && <div className="toggle-row">
-            <div>
-              <label id="push-med-names-label">{t('Show medicine names in notifications on this device')}</label>
-              <div className="settings-row-sub" id="push-med-names-sub">{t('Off: “Time for Leo’s medicine”. Notification text passes through Apple or Google and shows on the lock screen.')}</div>
-            </div>
-            <button className={`switch ${prefs.medicationNames ? 'on' : ''}`} role="switch" aria-checked={prefs.medicationNames} aria-labelledby="push-med-names-label" aria-describedby="push-med-names-sub" onClick={() => savePrefs({ medicationNames: !prefs.medicationNames })}><span className="knob" /></button>
-          </div>}
+          {settings.features.chores && <Switch checked={prefs.newChores === true} onChange={() => savePrefs({ newChores: !prefs.newChores })} label={t('New chores')} id="push-new-chores-label" hint={t('When a chore is added for the people you follow or Anyone. Skips chores you add yourself.')} />}
+          {settings.features.lists && <Switch checked={prefs.listUpdates} onChange={() => savePrefs({ listUpdates: !prefs.listUpdates })} label={t('List updates')} />}
+          {settings.features.school && <Switch checked={prefs.schoolReminders !== false} onChange={() => savePrefs({ schoolReminders: prefs.schoolReminders === false })} label={t('School reminders')} id="push-school-label" hint={t('Before the bus and before a school drop-off or pickup, on school days.')} />}
+          {settings.features.outings !== false && <Switch checked={prefs.outingReminders !== false} onChange={() => savePrefs({ outingReminders: prefs.outingReminders === false })} label={t('Outing reminders')} id="push-outings-label" hint={t('A week and a day before outings someone ⭐, ticket dates, and last chances.')} />}
+          {settings.features.upkeep !== false && <Switch checked={prefs.upkeepReminders !== false} onChange={() => savePrefs({ upkeepReminders: prefs.upkeepReminders === false })} label={t('Home upkeep')} id="push-upkeep-label" hint={t('Jobs coming up, due today and late, and warranties about to end.')} />}
+          {settings.medications && <Switch checked={prefs.medicationNames} onChange={() => savePrefs({ medicationNames: !prefs.medicationNames })} label={t('Show medicine names in notifications on this device')} id="push-med-names-label" hint={t('Off: “Time for Leo’s medicine”. Notification text passes through Apple or Google and shows on the lock screen.')} />}
           {kid
             ? <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{t('For {name} and the whole family.', { name: kid.name })}</p>
             : <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label={t('Which family members?')} noneLabel={t('Everyone')} />}
@@ -1538,12 +1448,8 @@ function DeviceAppearanceRows() {
             { value: 'device', label: t("This device's ({name})", { name: tzCity(Intl.DateTimeFormat().resolvedOptions().timeZone) }) },
           ]} />
       </div>
-      <div className="toggle-row">
-        <label id="lowstim-label">{t('Low-stimulation mode')}</label>
-        <button className={`switch ${device.lowStim ? 'on' : ''}`} role="switch" aria-checked={!!device.lowStim} aria-labelledby="lowstim-label" aria-describedby="lowstim-sub"
-          onClick={() => { set({ lowStim: !device.lowStim || undefined }); announce(device.lowStim ? t('Low-stimulation mode off') : t('Low-stimulation mode on')) }}><span className="knob" /></button>
-      </div>
-      <div className="settings-row-sub" id="lowstim-sub" style={{ marginTop: -8 }}>{t('Flat, calm colors, no motion and more room. Colors become a thin bar beside each event.')}</div>
+      <Switch checked={!!device.lowStim} onChange={() => { set({ lowStim: !device.lowStim || undefined }); announce(device.lowStim ? t('Low-stimulation mode off') : t('Low-stimulation mode on')) }} label={t('Low-stimulation mode')} id="lowstim-label" hint={t('Flat, calm colors, no motion and more room. Colors become a thin bar beside each event.')} />
+
     </div>
   )
 }
@@ -1624,11 +1530,7 @@ function ScreenFocusRows() {
           )}
         </div>
         {focus && (
-          <div className="toggle-row">
-            <label id="focus-shared-label">{t('Also show things for everyone')}</label>
-            <button className={`switch ${!device.focusHideShared ? 'on' : ''}`} role="switch" aria-checked={!device.focusHideShared} aria-labelledby="focus-shared-label"
-              onClick={() => set({ focusHideShared: !device.focusHideShared || undefined })}><span className="knob" /></button>
-          </div>
+          <Switch checked={!device.focusHideShared} onChange={() => set({ focusHideShared: !device.focusHideShared || undefined })} label={t('Also show things for everyone')} id="focus-shared-label" />
         )}
         <div className="settings-row-sub">{focus ? (device.focusHideShared ? t("Only {name}'s events, chores and lists show here.", { name: focus.name }) : t("Only {name}'s events, chores and lists show here, plus ones with nobody assigned.", { name: focus.name })) : focusLocked ? t('This screen is shared by the whole family. A parent can change who it belongs to under Settings → Access.') : t('Pin this screen to one person — handy for a display in a bedroom.')}</div>
         <div className="device-pref-row">
@@ -1669,26 +1571,16 @@ function WallBehaviorRows({ display }: { display: boolean }) {
     <>
       {!display && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="toggle-row">
-            <label id="wall-screen-label">{t('Use as a wall screen')}</label>
-            <button className={`switch ${device.wallScreen ? 'on' : ''}`} role="switch" aria-checked={!!device.wallScreen} aria-labelledby="wall-screen-label" aria-describedby="wall-screen-sub"
-              onClick={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? t('Wall screen off') : t('Wall screen on')) }}><span className="knob" /></button>
-          </div>
-          <div className="settings-row-sub" id="wall-screen-sub">{t("Acts like a wall screen: stays awake, goes back to Home when idle, and rests on the Night screen at night. Your access doesn't change.")}</div>
+          <Switch checked={!!device.wallScreen} onChange={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? t('Wall screen off') : t('Wall screen on')) }} label={t('Use as a wall screen')} id="wall-screen-label" hint={t("Acts like a wall screen: stays awake, goes back to Home when idle, and rests on the Night screen at night. Your access doesn't change.")} />
+
         </div>
       )}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="toggle-row">
-          <label id="keep-awake-label">{t('Keep the screen on')}</label>
-          <button className={`switch ${keepOn ? 'on' : ''}`} role="switch" aria-checked={keepOn} aria-labelledby="keep-awake-label" onClick={() => set({ keepAwake: !keepOn })}><span className="knob" /></button>
-        </div>
+        <Switch checked={keepOn} onChange={() => set({ keepAwake: !keepOn })} label={t('Keep the screen on')} id="keep-awake-label" />
         <div className="settings-row-sub">{t("Stops this screen from dimming and locking while Kinwall is open. On by default for wall screens and kids' devices, off on parents' phones and computers. Shopping mode and an open recipe keep the screen on either way.")}</div>
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="toggle-row">
-          <label id="idle-reset-label">{t('Back to Home when idle')}</label>
-          <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
-        </div>
+        <Switch checked={idleReset} onChange={() => set({ idleReset: !idleReset })} label={t('Back to Home when idle')} id="idle-reset-label" />
         <div className="settings-row-sub">{t("After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.")}</div>
       </div>
     </>
@@ -1716,10 +1608,7 @@ function TimeCueRows() {
   return (
     <>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="toggle-row">
-          <label id="nownext-label">{t('Now / Next')}</label>
-          <button className={`switch ${nowNext ? 'on' : ''}`} role="switch" aria-checked={nowNext} aria-labelledby="nownext-label" onClick={() => set({ nowNext: !nowNext })}><span className="knob" /></button>
-        </div>
+        <Switch checked={nowNext} onChange={() => set({ nowNext: !nowNext })} label={t('Now / Next')} id="nownext-label" />
         <div className="settings-row-sub">{t("What's on now and what's next today, with a countdown, above the calendar.")}</div>
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -1729,11 +1618,7 @@ function TimeCueRows() {
           onOff={() => set({ warnings: undefined, warningRepeat: undefined })}
           onChange={(minutes, repeat) => set({ warnings: minutes.length ? minutes : undefined, warningRepeat: repeat ?? undefined })} />
         {anyWarnings && (
-          <div className="toggle-row">
-            <label id="warning-sound-label">{t('Sound')}</label>
-            <button className={`switch ${device.warningSound ? 'on' : ''}`} role="switch" aria-checked={!!device.warningSound} aria-labelledby="warning-sound-label"
-              onClick={() => set({ warningSound: !device.warningSound || undefined })}><span className="knob" /></button>
-          </div>
+          <Switch checked={!!device.warningSound} onChange={() => set({ warningSound: !device.warningSound || undefined })} label={t('Sound')} id="warning-sound-label" />
         )}
         {anyWarnings && <div className="settings-row-sub">{t('A soft chime with each warning.')}</div>}
       </div>
@@ -1789,11 +1674,7 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
         </div>
       )}
       {full && <div className="settings-row-sub">{t("That's {n} times, the most there can be. Tap one to remove it.", { n: MAX_WARNING_TIMES })}</div>}
-      <div className="toggle-row">
-        <label id={`${idBase}-repeat-label`}>{t('Repeat as it gets close')}</label>
-        <button className={`switch ${repeat ? 'on' : ''}`} role="switch" aria-checked={!!repeat} aria-labelledby={`${idBase}-repeat-label`}
-          onClick={() => onChange(minutes, repeat ? null : repeatDefault)}><span className="knob" /></button>
-      </div>
+      <Switch checked={!!repeat} onChange={() => onChange(minutes, repeat ? null : repeatDefault)} label={t('Repeat as it gets close')} id={`${idBase}-repeat-label`} />
       {repeat && presets.some(m => covered(m, repeat)) && <div className="settings-row-sub">{t('Grayed-out times are already covered by the repeat.')}</div>}
       {repeat && (
         <div className="minutes-row">
@@ -1876,13 +1757,7 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
       </div>
       <h3 className="settings-subhead">{t('Wall screens')}</h3>
       {on && <div className="settings-row">
-        <div className="toggle-row" style={{ flex: 1 }}>
-          <div>
-            <label id="night-rest-label">{t('Rest at night')}</label>
-            <div className="settings-row-sub" id="night-rest-sub">{t('Wall screens show the Night screen during night hours. A tap wakes one for five minutes.')}</div>
-          </div>
-          <button className={`switch ${rest ? 'on' : ''}`} role="switch" aria-checked={rest} aria-labelledby="night-rest-label" aria-describedby="night-rest-sub" onClick={() => saveSettings({ nightRest: !rest })}><span className="knob" /></button>
-        </div>
+        <div style={{ flex: 1 }}><Switch checked={rest} onChange={() => saveSettings({ nightRest: !rest })} label={t('Rest at night')} id="night-rest-label" hint={t('Wall screens show the Night screen during night hours. A tap wakes one for five minutes.')} /></div>
       </div>}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <NightRows value={look} onChange={saveLook} label={t('What they show')} />
@@ -1895,10 +1770,7 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
       {on && <>
         <h3 className="settings-subhead">{t('Notifications')}</h3>
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="toggle-row">
-            <label id="night-hold-label">{t('Hold reminders at night')}</label>
-            <button className={`switch ${hold ? 'on' : ''}`} role="switch" aria-checked={hold} aria-labelledby="night-hold-label" onClick={() => saveSettings({ nightHoldReminders: !hold })}><span className="knob" /></button>
-          </div>
+          <Switch checked={hold} onChange={() => saveSettings({ nightHoldReminders: !hold })} label={t('Hold reminders at night')} id="night-hold-label" />
           <div className="settings-row-sub">{hold ? t('Wait until morning: transition reminders, time cues, Live Activities, low battery alerts and the morning check-in reminder.') : t('Come through at night too: transition reminders, time cues, Live Activities, low battery alerts and the morning check-in reminder.')}</div>
           <div className="settings-row-sub">{t('Always come through: event reminders, medicine reminders, the evening goal check, daily summaries and messages.')}</div>
         </div>
@@ -1988,11 +1860,7 @@ function NightRows({ value, onChange, here = false, label = t('Show') }: { value
       <div className="settings-row-label" aria-hidden="true">{t('Brightness')}</div>
       <Segmented label={t('Brightness')} value={value.saverBright ?? 'low'} onChange={v => onChange({ saverBright: v === 'medium' ? 'medium' : undefined })}
         options={[{ key: 'low', label: t('Low') }, { key: 'medium', label: t('Medium') }]} />
-      <div className="toggle-row">
-        <label id={`saver-clock-label${here ? '-here' : ''}`}>{t('Show clock')}</label>
-        <button className={`switch ${value.saverClock !== false ? 'on' : ''}`} role="switch" aria-checked={value.saverClock !== false} aria-labelledby={`saver-clock-label${here ? '-here' : ''}`}
-          onClick={() => onChange({ saverClock: value.saverClock === false ? undefined : false })}><span className="knob" /></button>
-      </div>
+      <Switch checked={value.saverClock !== false} onChange={() => onChange({ saverClock: value.saverClock === false ? undefined : false })} label={t('Show clock')} id={`saver-clock-label${here ? '-here' : ''}`} />
     </>}
     {(sources.length === 0 || value.saverClock !== false) && <>
       <div className="device-pref-row">
@@ -2154,11 +2022,8 @@ function StatusBarRow() {
   }, [])
   if (hidden === null) return null
   return <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-    <div className="toggle-row">
-      <label id="status-bar-label">{t('Hide status bar')}</label>
-      <button className={`switch ${hidden ? 'on' : ''}`} role="switch" aria-checked={hidden} aria-labelledby="status-bar-label" aria-describedby="status-bar-sub" onClick={() => setAppStatusBarHidden(!hidden)}><span className="knob" /></button>
-    </div>
-    <div className="settings-row-sub" id="status-bar-sub">{t('Hides the time, battery and signal icons at the top of the app. Only on this device.')}</div>
+    <Switch checked={hidden} onChange={() => setAppStatusBarHidden(!hidden)} label={t('Hide status bar')} id="status-bar-label" hint={t('Hides the time, battery and signal icons at the top of the app. Only on this device.')} />
+
   </div>
 }
 
@@ -2316,10 +2181,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       )}
       {canDelete && (
         <div className="field">
-          <div className="toggle-row">
-            <label id="member-grown-up">{t('Grown-up')}</label>
-            <button className={`switch ${grownUp ? 'on' : ''}`} role="switch" aria-checked={grownUp} aria-labelledby="member-grown-up" onClick={() => { setGrownUp(!grownUp); setSeesFamily(!grownUp) }}><span className="knob" /></button>
-          </div>
+          <Switch checked={grownUp} onChange={() => { setGrownUp(!grownUp); setSeesFamily(!grownUp) }} label={t('Grown-up')} id="member-grown-up" />
           <p className="field-hint">{t('Parents and other adults: their chores never wait for an OK.')}</p>
         </div>
       )}
@@ -2339,23 +2201,14 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
         <input id="member-birthday" type="date" value={bday} max={noYear ? undefined : new Date().toISOString().slice(0, 10)} onChange={e => setBday(e.target.value)} />
       </div>
       {bday && (
-        <div className="toggle-row">
-          <label id="member-birthday-noyear">{t("I don't know the year")}</label>
-          <button className={`switch ${noYear ? 'on' : ''}`} role="switch" aria-checked={noYear} aria-labelledby="member-birthday-noyear" onClick={() => setNoYear(v => !v)}><span className="knob" /></button>
-        </div>
+        <Switch checked={noYear} onChange={() => setNoYear(v => !v)} label={t("I don't know the year")} id="member-birthday-noyear" />
       )}
       {canDelete && !grownUp && <>
-      <div className="toggle-row">
-        <label id="member-needs-approval">{t("Their chores need a parent's OK")}</label>
-        <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="member-needs-approval" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>
-      </div>
+      <Switch checked={needsApproval} onChange={() => setNeedsApproval(v => !v)} label={t("Their chores need a parent's OK")} id="member-needs-approval" />
       <p className="field-hint">{t("Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.")}</p>
       </>}
       {canDelete && <>
-      <div className="toggle-row">
-        <label id="member-sees-family">{t('Their own devices show the whole family')}</label>
-        <button className={`switch ${seesFamily ? 'on' : ''}`} role="switch" aria-checked={seesFamily} aria-labelledby="member-sees-family" onClick={() => setSeesFamily(v => !v)}><span className="knob" /></button>
-      </div>
+      <Switch checked={seesFamily} onChange={() => setSeesFamily(v => !v)} label={t('Their own devices show the whole family')} id="member-sees-family" />
       <p className="field-hint">{t("Their paired phone or tablet shows everyone's events, chores and lists, not just theirs. It still does things only as them, and it can't change settings.")}</p>
       </>}
       {canDelete && <TransitionRemindersField name={name.trim() || t('this person')} value={transitions} onChange={setTransitions} />}
@@ -2379,15 +2232,9 @@ function NewscastMemberField({ member, toast }: { member: Member; toast: (m: str
   }
   return (
     <div className="field">
-      <div className="toggle-row">
-        <label id="member-news-featured">{t('Featured in Newscast')}</label>
-        <button className={`switch ${featured ? 'on' : ''}`} role="switch" aria-checked={featured} aria-labelledby="member-news-featured" onClick={() => set('newscastNotFeatured', featured)}><span className="knob" /></button>
-      </div>
+      <Switch checked={featured} onChange={() => set('newscastNotFeatured', featured)} label={t('Featured in Newscast')} id="member-news-featured" />
       <div className="settings-row-sub">{featured ? t("{name}'s chores, rewards, photos, books, memories and birthday show in Newscast.", { name: member.name }) : t("None of {name}'s chores, rewards, photos, books, memories or birthday show. Their own posts still do.", { name: member.name })}</div>
-      <div className="toggle-row">
-        <label id="member-news-posting">{t('Can post in Newscast')}</label>
-        <button className={`switch ${posting ? 'on' : ''}`} role="switch" aria-checked={posting} aria-labelledby="member-news-posting" onClick={() => set('newscastPostingPaused', posting)}><span className="knob" /></button>
-      </div>
+      <Switch checked={posting} onChange={() => set('newscastPostingPaused', posting)} label={t('Can post in Newscast')} id="member-news-posting" />
       <div className="settings-row-sub">{posting ? t('{name} can share announcements.', { name: member.name }) : t('Posting is paused for {name}. They still see Newscast and react; turn it back on any time.', { name: member.name })}</div>
     </div>
   )
@@ -2404,10 +2251,7 @@ function PrivateJournalField({ member, toast }: { member: Member; toast: (m: str
   }
   return (
     <div className="field">
-      <div className="toggle-row">
-        <label id="member-private-journal">{t('Let {name} keep a private journal', { name: member.name })}</label>
-        <button className={`switch ${allowed ? 'on' : ''}`} role="switch" aria-checked={allowed} aria-labelledby="member-private-journal" onClick={() => change(!allowed)}><span className="knob" /></button>
-      </div>
+      <Switch checked={allowed} onChange={() => change(!allowed)} label={t('Let {name} keep a private journal', { name: member.name })} id="member-private-journal" />
       <div className="settings-row-sub">{allowed
         ? member.privateJournal?.on
           ? t("{name} can turn it on from their own device. Then you see their mood, not what they write. It's on now.", { name: member.name })
@@ -2431,17 +2275,11 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
     catch (e) { toast(e instanceof ApiError ? e.message : t("Couldn't remove that"), true) }
   }
   const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal' | 'evening' | 'journal' | 'battery', label: string) => (
-    <div className="toggle-row" key={key}>
-      <label id={`member-tc-${key}`}>{label}</label>
-      <button className={`switch ${value[key] ? 'on' : ''}`} role="switch" aria-checked={!!value[key]} aria-labelledby={`member-tc-${key}`} onClick={() => set({ [key]: !value[key] })}><span className="knob" /></button>
-    </div>
+    <Switch checked={!!value[key]} onChange={() => set({ [key]: !value[key] })} label={label} id={`member-tc-${key}`} key={key} />
   )
   return (
     <div className="field">
-      <div className="toggle-row">
-        <label id="member-tc-label">{t('Temp check')}</label>
-        <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-tc-label" onClick={() => set({ on: !value.on })}><span className="knob" /></button>
-      </div>
+      <Switch checked={value.on} onChange={() => set({ on: !value.on })} label={t('Temp check')} id="member-tc-label" />
       <div className="settings-row-sub">{t("A few quick questions at the end of {name}'s day. Sleep and feelings are kept private and encrypted; a shared wall shows only that they answered.", { name })}</div>
       {value.on && <>
         {row('sleep', t('How did you sleep?'))}
@@ -2506,21 +2344,13 @@ function TransitionRemindersField({ name, value, onChange }: { name: string; val
   const set = (patch: Partial<TransitionReminders>) => onChange({ ...value, ...patch })
   return (
     <div className="field">
-      <div className="toggle-row">
-        <label id="member-transitions-label">{t('Transition reminders')}</label>
-        <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-transitions-label"
-          onClick={() => set(value.on ? { on: false } : { on: true, ...(value.minutes.length || value.repeat ? {} : { minutes: [30], repeat: { every: 5, within: 15 } }) })}><span className="knob" /></button>
-      </div>
+      <Switch checked={value.on} onChange={() => set(value.on ? { on: false } : { on: true, ...(value.minutes.length || value.repeat ? {} : { minutes: [30], repeat: { every: 5, within: 15 } }) })} label={t('Transition reminders')} id="member-transitions-label" />
       <div className="settings-row-sub">{value.on ? transitionLine(value) : t("Extra heads-ups before {name}'s events, sent to devices that belong to {name}. Helpful when switching activities is hard.", { name })}</div>
       {value.on && (
         <>
           <MinutesPicker idBase="member-transitions" label={t('Transition reminder times')} presets={[60, 30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5} repeatDefault={{ every: 5, within: 15 }}
             onChange={(minutes, repeat) => set({ minutes, repeat })} />
-          <div className="toggle-row">
-            <label id="member-transitions-leave-label">{t('Count down to leaving')}</label>
-            <button className={`switch ${value.leaveBy ? 'on' : ''}`} role="switch" aria-checked={value.leaveBy} aria-labelledby="member-transitions-leave-label"
-              onClick={() => set({ leaveBy: !value.leaveBy })}><span className="knob" /></button>
-          </div>
+          <Switch checked={value.leaveBy} onChange={() => set({ leaveBy: !value.leaveBy })} label={t('Count down to leaving')} id="member-transitions-leave-label" />
           <div className="settings-row-sub">{t('When an event has travel time, reminders count to the time to leave ("Leave for Soccer in 5 minutes"). They go to phones and tablets set up as {name}\'s under Settings → Access, with notifications on. Held at night, unless the family turns that off under Night.', { name })}</div>
         </>
       )}
@@ -2865,18 +2695,9 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
         </button>
       </div>
       {hiddenOpen && hidden && <HiddenEventsSheet calendar={calendar} hidden={hidden} onChanged={setHidden} onClose={() => setHiddenOpen(false)} />}
-      <div className="toggle-row">
-        <label id="calendar-enabled-label">{t('Enabled')}</label>
-        <button className={`switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} aria-labelledby="calendar-enabled-label" onClick={() => setEnabled(v => !v)}><span className="knob" /></button>
-      </div>
+      <Switch checked={enabled} onChange={() => setEnabled(v => !v)} label={t('Enabled')} id="calendar-enabled-label" />
       {/* Read-only feeds (ICS links, read-only shared calendars): nobody edits their events, so no switch. */}
-      {!calendar.writable ? <p className="settings-row-sub">{calendar.kind === 'ics' ? t("Read-only: this calendar's events come from a feed link and can't be added to or changed in Kinwall. You can still hide events or filter it.") : t("Read-only: this calendar's events come from its account and can't be added to or changed in Kinwall. You can still hide events or filter it.")}</p> : <div className="toggle-row">
-        <div>
-          <label id="calendar-display-edit-label">{t("Wall screens and kids' devices can edit")}</label>
-          <div className="settings-row-sub" id="calendar-display-edit-sub">{t("Off: only parents' devices add, change or delete its events. A kid's device can only ever change calendars that are for them.")}</div>
-        </div>
-        <button className={`switch ${displayEdit ? 'on' : ''}`} role="switch" aria-checked={displayEdit} aria-labelledby="calendar-display-edit-label" aria-describedby="calendar-display-edit-sub" onClick={() => setDisplayEdit(v => !v)}><span className="knob" /></button>
-      </div>}
+      {!calendar.writable ? <p className="settings-row-sub">{calendar.kind === 'ics' ? t("Read-only: this calendar's events come from a feed link and can't be added to or changed in Kinwall. You can still hide events or filter it.") : t("Read-only: this calendar's events come from its account and can't be added to or changed in Kinwall. You can still hide events or filter it.")}</p> : <Switch checked={displayEdit} onChange={() => setDisplayEdit(v => !v)} label={t("Wall screens and kids' devices can edit")} id="calendar-display-edit-label" hint={t("Off: only parents' devices add, change or delete its events. A kid's device can only ever change calendars that are for them.")} />}
       <div className="cal-actions" style={{ marginTop: 4 }}>
         {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>{t('Sync now')}</button>}
         <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={onRemove}>{t('Remove')}</button>
@@ -3348,14 +3169,7 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
           <WidgetKeys keys={widgetsUnder(keys, { grantId: a.id })} onChanged={load} toast={toast} />
         </Fragment>
       ))}
-      <div className="toggle-row">
-        <div>
-          <label id="ai-health-label">{t('Let connected apps see health entries')}</label>
-          <div className="settings-row-sub" id="ai-health-sub">{t("Off: connected apps can't read or change the Health tracker.")}</div>
-        </div>
-        <button className={`switch ${settings.aiHealthAccess ? 'on' : ''}`} role="switch" aria-checked={settings.aiHealthAccess} aria-labelledby="ai-health-label" aria-describedby="ai-health-sub"
-          onClick={() => setHealth(!settings.aiHealthAccess)}><span className="knob" /></button>
-      </div>
+      <Switch checked={settings.aiHealthAccess} onChange={() => setHealth(!settings.aiHealthAccess)} label={t('Let connected apps see health entries')} id="ai-health-label" hint={t("Off: connected apps can't read or change the Health tracker.")} />
     </Section>
   )
 }

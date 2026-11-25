@@ -1,4 +1,5 @@
 import { useContext, useState } from 'react'
+import { Switch } from './a11y.tsx'
 import { Choose } from './PickField.tsx'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
@@ -71,10 +72,7 @@ export function SeesFamilySwitch({ member, onSaved, onError }: { member: Member;
   }
   return (
     <>
-      <div className="toggle-row">
-        <label id={id}>{t("Show the whole family on {name}'s devices", { name: member.name })}</label>
-        <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby={id} disabled={busy} onClick={flip}><span className="knob" /></button>
-      </div>
+      <Switch checked={on} onChange={flip} label={t("Show the whole family on {name}'s devices", { name: member.name })} id={id} disabled={busy} />
       <p className="settings-row-sub">{t("This changes all of {name}'s devices, not just this one.", { name: member.name })}</p>
     </>
   )
