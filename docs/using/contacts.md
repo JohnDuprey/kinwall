@@ -79,3 +79,5 @@ MCP provides `list_contacts` (with an optional search), `get_contact`, `create_c
 ## Export and import
 
 Household exports include contact records, built-in/custom contact categories, tags, member associations, visibility settings, phones, emails, addresses, service metadata, and safe source metadata. Raw uploaded vCard files and credentials are not exported. Re-import preserves stable contact/category IDs using the same idempotent household import behavior as the rest of Kinwall.
+
+Contact options such as **Favorite**, **Emergency contact** and wall visibility use on/off switches, including in the import review.

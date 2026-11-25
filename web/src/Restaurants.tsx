@@ -11,7 +11,7 @@ import { t, tm, tn } from './i18n.ts'
 import { formatTime } from './timeFormat.ts'
 import { ORDER_TYPE_LABEL, ordersInLabel } from './orders.ts'
 import { mapHref, menuOptions, menuSections, optionName, parsePrice, priceLabel, telHref } from './restaurants.ts'
-import { LoadError, reducedMotion } from './a11y.tsx'
+import { Switch, LoadError, reducedMotion } from './a11y.tsx'
 import type { MenuItem, MenuItemInput, Restaurant, RestaurantInput } from './meal-types.ts'
 
 /** The Restaurants tab in Meals: the binder, searchable, read-only for walls and kids. */
@@ -232,7 +232,7 @@ export function RestaurantEditSheet({ restaurant, onClose, onSaved }: { restaura
             <div className="field"><label htmlFor={`${r.key}-price`}>{t('Price')}</label><input id={`${r.key}-price`} type="text" inputMode="decimal" maxLength={10} placeholder="12.99" value={r.price} onChange={e => row(r.key, { price: e.target.value })} /></div>
           </div>
           <div className="field"><label htmlFor={`${r.key}-description`}>{t('Description')}</label><input id={`${r.key}-description`} type="text" maxLength={1000} value={r.description} onChange={e => row(r.key, { description: e.target.value })} /></div>
-          <label className="meal-check"><input type="checkbox" checked={r.favorite} onChange={e => row(r.key, { favorite: e.target.checked })} /> ★ {t('Family favorite')}</label>
+          <Switch checked={r.favorite} onChange={next => row(r.key, { favorite: next })} label={<>★ {t('Family favorite')}</>} />
           <button type="button" className="link-btn" aria-label={r.name ? t('Remove item {n}, {name}', { n: index + 1, name: r.name }) : t('Remove item {n}', { n: index + 1 })} onClick={() => setRows(rs => rs.filter(x => x.key !== r.key))}>{t('Remove item')}</button>
         </fieldset>)}
         <button type="button" className="btn btn-secondary" disabled={rows.length >= 500} onClick={() => setRows(rs => [...rs, { key: crypto.randomUUID(), section: lastSection, name: '', price: '', description: '', favorite: false }])}><PlusIcon /> {t('Add item')}</button>

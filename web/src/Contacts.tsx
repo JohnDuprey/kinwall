@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import { announce, filterSortLabel, LoadError } from './a11y.tsx'
+import { Switch, announce, filterSortLabel, LoadError } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
@@ -187,9 +187,9 @@ export function ContactForm({ initial, draft: start, categories, members, onClos
     {(form.kind === 'service' || form.kind === 'organization' || form.kind === 'place') && <div className="row-2"><div className="field"><label htmlFor={`${id}-hours`}>{t('Service hours')}</label><input id={`${id}-hours`} value={form.serviceHours ?? ''} onChange={e => change('serviceHours', clean(e.target.value))} placeholder={t('Mon–Fri, 8am–5pm')} /></div><div className="field"><label htmlFor={`${id}-area`}>{t('Service area')}</label><input id={`${id}-area`} value={form.serviceArea ?? ''} onChange={e => change('serviceArea', clean(e.target.value))} placeholder={t('North county')} /></div></div>}
     <div className="field"><label htmlFor={`${id}-notes`}>{t('Notes')}</label><textarea id={`${id}-notes`} value={form.notes ?? ''} onChange={e => change('notes', e.target.value)} maxLength={2000} /></div>
     <fieldset className="contact-options"><legend>{t('Directory options')}</legend>
-      <label><input type="checkbox" checked={form.favorite} onChange={e => change('favorite', e.target.checked)} /> {t('Favorite')}</label>
-      <label><input type="checkbox" checked={form.emergency} onChange={e => change('emergency', e.target.checked)} /> {t('Emergency contact')}</label>
-      <label><input type="checkbox" checked={form.alwaysOpen ?? false} onChange={e => change('alwaysOpen', e.target.checked)} /> {t('Available 24/7')}</label>
+      <Switch checked={form.favorite} onChange={next => change('favorite', next)} label={t('Favorite')} />
+      <Switch checked={form.emergency} onChange={next => change('emergency', next)} label={t('Emergency contact')} />
+      <Switch checked={form.alwaysOpen ?? false} onChange={next => change('alwaysOpen', next)} label={t('Available 24/7')} />
     </fieldset>
     <fieldset className="contact-options"><legend>{t('Who can see it')}</legend>
       <div className="field"><label htmlFor={`${id}-visibility`} className="sr-only">{t('Who can see it')}</label><Choose hideLabel label={t('Who can see it')} id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={next => change('visibility', next as ContactInput['visibility'])}
@@ -204,8 +204,8 @@ export function ContactForm({ initial, draft: start, categories, members, onClos
     </fieldset>
     <fieldset className="contact-options"><legend>{t('On the wall')}</legend>
       <p className="field-hint">{t('Wall screens show it only when everyone in the family can see it.')}</p>
-      <label><input type="checkbox" checked={form.wallVisible} onChange={e => change('wallVisible', e.target.checked)} /> {t('Show on wall and shared displays')}</label>
-      {form.wallVisible && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> {t('Show permitted phone numbers on wall')}</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> {t('Show address on wall')}</label></>}
+      <Switch checked={form.wallVisible} onChange={next => change('wallVisible', next)} label={t('Show on wall and shared displays')} />
+      {form.wallVisible && <><Switch checked={form.phoneVisibleOnWall ?? false} onChange={next => change('phoneVisibleOnWall', next)} label={t('Show permitted phone numbers on wall')} /><Switch checked={form.addressVisibleOnWall ?? false} onChange={next => change('addressVisibleOnWall', next)} label={t('Show address on wall')} /></>}
     </fieldset>
     {validation && <p className="field-error" role="alert">{validation}</p>}
   </Sheet>
@@ -363,9 +363,9 @@ function ImportSheet({ contacts, categories, members, shared, onClose, onImporte
             <div className="field"><label htmlFor={`${f}-categories`}>{t('Categories')}</label><PickField id={`${f}-categories`} label={t('Categories for {name}', { name: c.name })} title={t('Categories')} multiple options={categoryOptions(categories)} value={c.categoryIds ?? []} onChange={v => edit(row.key, { categoryIds: v })} /></div>
             <div className="field"><label htmlFor={`${f}-members`}>{t('Associated household members')}</label><PickField id={`${f}-members`} label={t('Household members for {name}', { name: c.name })} title={t('Household members')} multiple options={memberOptions(members)} value={c.memberIds ?? []} onChange={v => edit(row.key, { memberIds: v })} /></div>
             <div className="contact-options">
-              <label><input type="checkbox" checked={!!c.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> {t('Favorite')}</label>
-              <label><input type="checkbox" checked={!!c.emergency} onChange={e => edit(row.key, { emergency: e.target.checked })} /> {t('Emergency contact')}</label>
-              <label><input type="checkbox" checked={!!c.wallVisible} onChange={e => edit(row.key, { wallVisible: e.target.checked })} /> {t('Show on wall and shared displays')}</label>
+              <Switch checked={!!c.favorite} onChange={next => edit(row.key, { favorite: next })} label={t('Favorite')} />
+              <Switch checked={!!c.emergency} onChange={next => edit(row.key, { emergency: next })} label={t('Emergency contact')} />
+              <Switch checked={!!c.wallVisible} onChange={next => edit(row.key, { wallVisible: next })} label={t('Show on wall and shared displays')} />
             </div>
           </section>}
         </section>

@@ -48,8 +48,6 @@
 .contact-phone-menu .dial-editor { width: 100%; margin: 0; }
 .contact-phone-steps { flex-basis: 100%; margin: 0; font-weight: 700; color: var(--text-dim); }
 .contact-remove-method { min-height: 52px; border: none; background: none; color: var(--danger); font-weight: 800; cursor: pointer; }
-.contact-options label { display: flex; align-items: center; gap: 9px; min-height: 44px; font-weight: 700; }
-.contact-options input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent-strong); }
 .contact-import-options { display: grid; gap: 16px; }
 .contact-import-options .field { margin: 0; }
 .contact-import-choice { display: flex; flex-direction: column; gap: 5px; text-align: left; border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: var(--card); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
