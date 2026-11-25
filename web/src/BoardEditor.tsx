@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // The Board layout editor (boardLayout.ts): a screen's own layout, or a family preset. Cards sit in
 // columns, each as tall as its share of the column, so the editor is a small picture of the Board.
 // Drag a card by its grip to another place or column, or use its arrow buttons; a keyboard and a
@@ -115,18 +116,18 @@ export default function BoardEditor({ title, start, name: startName, presets, on
       <div className="board-editor-options">
         <div className="device-pref-row">
           <span>{t('Start from')}</span>
-          <select className="settings-select" aria-label={t('Start from')} value="" onChange={e => startFrom(e.target.value)}>
-            <option value="" disabled>{t('Choose…')}</option>
-            <option value="default">{t('Family wall (default)')}</option>
-            {BUILT_IN_PRESETS.map(p => <option key={p.id} value={p.id}>{tm(p.name)}</option>)}
-            {presets.map(p => <option key={p.id} value={p.id}>{p.name} 🏠</option>)}
-          </select>
+          <Choose hideLabel label={t('Start from')} value={''} onChange={next => startFrom(next)} sheet
+            options={[
+              { value: '', label: t('Choose…'), disabled: true },
+              { value: 'default', label: t('Family wall (default)') },
+              ...(BUILT_IN_PRESETS.map(p => ({ value: String(p.id), label: tm(p.name) }))),
+              ...(presets.map(p => ({ value: String(p.id), label: [p.name, " 🏠"].join('') }))),
+            ]} />
         </div>
         <div className="device-pref-row">
           <span>{t('Columns')}</span>
-          <select className="settings-select" aria-label={t('Columns')} value={n} onChange={e => setLayout(setColumnCount(layout, Number(e.target.value)))}>
-            {Array.from({ length: MAX_COLUMNS }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
-          </select>
+          <Choose hideLabel label={t('Columns')} value={String(n)} onChange={next => setLayout(setColumnCount(layout, Number(next)))} sheet
+            options={Array.from({ length: MAX_COLUMNS }, (_, i) => ({ value: String(i + 1), label: i + 1 }))} />
         </div>
         <div className="toggle-row">
           <label id="board-tiles-label">{t('Count tiles across the top')}</label>
@@ -156,17 +157,16 @@ export default function BoardEditor({ title, start, name: startName, presets, on
                     <button type="button" className="icon-btn" aria-label={t('Remove {card}', { card: tm(CARD_NAMES[card.id]) })} onClick={() => { setLayout(removeCard(layout, at)); announce(t('{card} removed', { card: tm(CARD_NAMES[card.id]) })) }}><XIcon width={18} height={18} /></button>
                   </div>
                   <div className="board-editor-card-controls">
-                    <select className="settings-select" aria-label={t('{card} height', { card: tm(CARD_NAMES[card.id]) })} value={card.size} onChange={e => setLayout(updateCard(layout, at, { size: e.target.value as CardSize }))}>
-                      {CARD_SIZES.map(s => <option key={s} value={s}>{tm(SIZE_NAMES[s])}</option>)}
-                    </select>
-                    <select className="settings-select" aria-label={t('{card} text size', { card: tm(CARD_NAMES[card.id]) })} value={card.density} onChange={e => setLayout(updateCard(layout, at, { density: e.target.value as CardDensity }))}>
-                      {CARD_DENSITIES.map(d => <option key={d} value={d}>{tm(DENSITY_NAMES[d])}</option>)}
-                    </select>
+                    <Choose hideLabel label={t('{card} height', { card: tm(CARD_NAMES[card.id]) })} value={String(card.size)} onChange={next => setLayout(updateCard(layout, at, { size: next as CardSize }))}
+                      options={CARD_SIZES.map(s => ({ value: String(s), label: tm(SIZE_NAMES[s]) }))} />
+                    <Choose hideLabel label={t('{card} text size', { card: tm(CARD_NAMES[card.id]) })} value={String(card.density)} onChange={next => setLayout(updateCard(layout, at, { density: next as CardDensity }))}
+                      options={CARD_DENSITIES.map(d => ({ value: String(d), label: tm(DENSITY_NAMES[d]) }))} />
                     {card.id === 'checklist' && (
-                      <select className="settings-select" aria-label={t("Get stuff done card's list")} value={card.listId ?? ''} onChange={e => setLayout(updateCard(layout, at, { listId: e.target.value || undefined }))}>
-                        <option value="">{t('First reusable list')}</option>
-                        {lists.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
-                      </select>
+                      <Choose hideLabel label={t("Get stuff done card's list")} value={String(card.listId ?? '')} onChange={next => setLayout(updateCard(layout, at, { listId: next || undefined }))} sheet
+                        options={[
+                          { value: '', label: t('First reusable list') },
+                          ...(lists.map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name].join('') }))),
+                        ]} />
                     )}
                   </div>
                   <div className="board-editor-moves" role="group" aria-label={t('Move {card}, now {where}', { card: tm(CARD_NAMES[card.id]), where: where(at) })}>
@@ -187,15 +187,16 @@ export default function BoardEditor({ title, start, name: startName, presets, on
       {addable.length > 0 && (
         <div className="device-pref-row board-editor-add">
           <span>{t('Add a card')}</span>
-          <select className="settings-select" aria-label={t('Add a card')} value="" onChange={e => {
-            const id = e.target.value as keyof typeof CARD_NAMES
+          <Choose hideLabel label={t('Add a card')} value={''} onChange={choice => {
+            const id = choice as keyof typeof CARD_NAMES
             const next = addCard(layout, id)
             if (next === layout) { announce(t('Every column is full')); return }
             setLayout(next); announce(t('{card} added', { card: tm(CARD_NAMES[id]) }))
-          }}>
-            <option value="" disabled>{t('Choose…')}</option>
-            {addable.map(id => <option key={id} value={id}>{tm(CARD_NAMES[id])}</option>)}
-          </select>
+          }} sheet
+            options={[
+              { value: '', label: t('Choose…'), disabled: true },
+              ...(addable.map(id => ({ value: String(id), label: tm(CARD_NAMES[id]) }))),
+            ]} />
         </div>
       )}
       <p className="field-hint">{t("A card for something the family turned off (like Meals) stays hidden, and a quote card shows only when there's one to show: set them up under Quotes & facts.")}</p>
@@ -205,15 +206,15 @@ export default function BoardEditor({ title, start, name: startName, presets, on
   )
 }
 
-/** The layouts a screen can pick, as <option>s: the default, the built-in ones, the family's (🏠),
+/** The layouts a screen can pick: the default, the built-in ones, the family's (🏠),
  * and this screen's own (`own`: its label, or left out). */
-function LayoutOptions({ presets, own }: { presets: BoardPreset[]; own?: string }) {
-  return <>
-    <option value="">{t('Family wall (default)')}</option>
-    {BUILT_IN_PRESETS.map(p => <option key={p.id} value={p.id}>{tm(p.name)}</option>)}
-    {presets.map(p => <option key={p.id} value={p.id}>{p.name} 🏠</option>)}
-    {own && <option value={CUSTOM}>{own}</option>}
-  </>
+function layoutOptions({ presets, own }: { presets: BoardPreset[]; own?: string }) {
+  return [
+    { value: '', label: t('Family wall (default)') },
+    ...BUILT_IN_PRESETS.map(p => ({ value: p.id, label: tm(p.name) })),
+    ...presets.map(p => ({ value: p.id, label: `${p.name} 🏠` })),
+    ...(own ? [{ value: CUSTOM, label: own }] : []),
+  ]
 }
 
 /** This screen's layout choice, '' for the default (also when its preset is gone). */
@@ -275,13 +276,12 @@ export function DeviceBoardLayoutRows() {
     <>
       <div className="device-pref-row" id="board-layout">
         <span>{t('Board layout')}</span>
-        <select className="settings-select" aria-label={t('Board layout')} value={choice} onChange={e => {
-          const v = e.target.value
+        <Choose hideLabel label={t('Board layout')} value={String(choice)} onChange={next => {
+          const v = next
           // Own layout: start from what's showing now, and open the editor.
           if (v === CUSTOM && !device.boardCustom) setEditing(true); else pick(v)
-        }}>
-          <LayoutOptions presets={presets} own={device.boardCustom ? t('Own layout') : t('Own layout…')} />
-        </select>
+        }}
+          options={layoutOptions({ presets: presets, own: device.boardCustom ? t('Own layout') : t('Own layout…') })} />
       </div>
       {choice === CUSTOM && <button type="button" className="btn btn-secondary board-layout-edit" aria-haspopup="dialog" onClick={() => setEditing(true)}>{t('Edit this screen’s layout')}</button>}
       <div className="settings-row-sub">{choice === CUSTOM ? t('This screen’s own layout, kept on this device.') : choice ? t('A preset: pick Own layout to change it just here.') : t('Fits the cards to the screen by itself.')}</div>
