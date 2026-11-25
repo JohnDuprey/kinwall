@@ -13,7 +13,7 @@ import { actingMember } from './actingAs.ts'
 import { useDialog } from './dialog.tsx'
 import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
-import PickField from './PickField.tsx'
+import PickField, { Choose } from './PickField.tsx'
 import { Face } from './Face'
 import { ChevronRight, FilterIcon, LinkIcon, PlusIcon } from './icons.tsx'
 import { todayKeyInTz } from './date.ts'
@@ -296,24 +296,38 @@ function FiltersSheet({ value, place, categories, count, onClose, onApply, onEdi
     <button className="btn btn-secondary" onClick={() => setF({ ...startFilters(null) })}>{t('Clear')}</button>
     <button className="btn btn-primary" onClick={() => onApply(f)}>{place ? tn(n, 'Show {n} place', 'Show {n} places') : tn(n, 'Show {n} outing', 'Show {n} outings')}</button>
   </>}>
-    {!place && <div className="field"><label htmlFor={`${id}-when`}>{t('When')}</label><select id={`${id}-when`} value={f.when} onChange={e => setF({ ...f, when: e.target.value as When })}>
-      <option value="any">{t('Any time')}</option><option value="weekend">{t('This weekend')}</option><option value="week">{t('Next 7 days')}</option><option value="month">{t('Next 30 days')}</option><option value="past">{t('Past')}</option>
-    </select></div>}
+    {!place && <div className="field"><label htmlFor={`${id}-when`}>{t('When')}</label><Choose hideLabel label={t('When')} id={`${id}-when`} value={String(f.when)} onChange={next => setF({ ...f, when: next as When })}
+      options={[
+        { value: 'any', label: t('Any time') },
+        { value: 'weekend', label: t('This weekend') },
+        { value: 'week', label: t('Next 7 days') },
+        { value: 'month', label: t('Next 30 days') },
+        { value: 'past', label: t('Past') },
+      ]} /></div>}
     <LabeledPick label={t('Categories')} multiple none={t('Any')} value={f.categoryIds} onChange={v => setF({ ...f, categoryIds: v })} options={categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))} />
-    <div className="field"><label htmlFor={`${id}-who`}>{t('Who it’s for')}</label><select id={`${id}-who`} value={f.who} onChange={e => setF({ ...f, who: e.target.value, boxes: [...FOR_BOXES] })}>
-      <option value="">{t('Anyone')}</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-    </select></div>
+    <div className="field"><label htmlFor={`${id}-who`}>{t('Who it’s for')}</label><Choose hideLabel label={t('Who it’s for')} id={`${id}-who`} value={String(f.who)} onChange={next => setF({ ...f, who: next, boxes: [...FOR_BOXES] })} sheet
+      options={[
+        { value: '', label: t('Anyone') },
+        ...(members.map(m => ({ value: String(m.id), label: m.name }))),
+      ]} /></div>
     {person && <fieldset className="meal-fieldset outing-boxes"><legend className="sr-only">{t('What counts as for {name}', { name: person.name })}</legend>
       {FOR_BOXES.map(b => <label key={b} className="meal-check"><input type="checkbox" checked={f.boxes.includes(b)} onChange={e => setF({ ...f, boxes: e.target.checked ? FOR_BOXES.filter(x => x === b || f.boxes.includes(x)) : f.boxes.filter(x => x !== b) as ForBox[] })} /> {boxLabel(b, person)}</label>)}
     </fieldset>}
-    <div className="field"><label htmlFor={`${id}-marked`}>{t('Marked by')}</label><select id={`${id}-marked`} value={f.markedBy} onChange={e => setF({ ...f, markedBy: e.target.value })}>
-      <option value="">{t('Anyone or no one')}</option><option value="any">{t('Someone marked it')}</option><option value="really">{t('⭐ Really want to go')}</option>
-      {who.kidId && <option value={who.kidId}>{t('Me')}</option>}
-      {members.filter(m => m.id !== who.kidId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-    </select></div>
-    <div className="field"><label htmlFor={`${id}-cost`}>{t('Cost')}</label><select id={`${id}-cost`} value={f.cost} onChange={e => setF({ ...f, cost: e.target.value as Cost })}>
-      <option value="any">{t('Any cost')}</option><option value="free">{t('Free only')}</option><option value="10">{t('Under ${amount}', { amount: 10 })}</option><option value="25">{t('Under ${amount}', { amount: 25 })}</option>
-    </select></div>
+    <div className="field"><label htmlFor={`${id}-marked`}>{t('Marked by')}</label><Choose hideLabel label={t('Marked by')} id={`${id}-marked`} value={String(f.markedBy)} onChange={next => setF({ ...f, markedBy: next })} sheet
+      options={[
+        { value: '', label: t('Anyone or no one') },
+        { value: 'any', label: t('Someone marked it') },
+        { value: 'really', label: t('⭐ Really want to go') },
+        ...(who.kidId ? [{ value: String(who.kidId), label: t('Me') }] : []),
+        ...(members.filter(m => m.id !== who.kidId).map(m => ({ value: String(m.id), label: m.name }))),
+      ]} /></div>
+    <div className="field"><label htmlFor={`${id}-cost`}>{t('Cost')}</label><Choose hideLabel label={t('Cost')} id={`${id}-cost`} value={String(f.cost)} onChange={next => setF({ ...f, cost: next as Cost })}
+      options={[
+        { value: 'any', label: t('Any cost') },
+        { value: 'free', label: t('Free only') },
+        { value: '10', label: t('Under ${amount}', { amount: 10 }) },
+        { value: '25', label: t('Under ${amount}', { amount: 25 }) },
+      ]} /></div>
     {onEditCategories && <button type="button" className="link-btn" onClick={onEditCategories}>{t('Edit categories')}</button>}
   </Sheet>
 }
@@ -375,14 +389,14 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const canEdit = who.canEdit(o)
   const options = [
-    canEdit && onEdit && <option key="edit" value="edit">{t('Edit')}</option>,
-    canEdit && o.kind === 'place' && <option key="been" value="been">{t('We went today')}</option>,
-    who.parent && o.gotTickets && <option key="tickets" value="tickets">{t('We don’t have tickets')}</option>,
-    canEdit && <option key="archive" value="archive">{o.archived ? t('Put it back on the list') : t('Not for us')}</option>,
-    who.parent && <option key="delete" value="delete">{t('Delete outing…')}</option>,
+    canEdit && onEdit && ({ value: 'edit', label: t('Edit') }),
+    canEdit && o.kind === 'place' && ({ value: 'been', label: t('We went today') }),
+    who.parent && o.gotTickets && ({ value: 'tickets', label: t('We don’t have tickets') }),
+    canEdit && ({ value: 'archive', label: o.archived ? t('Put it back on the list') : t('Not for us') }),
+    who.parent && ({ value: 'delete', label: t('Delete outing…') }),
   ].filter(Boolean)
   const actions = <>
-    {options.length > 0 && <select className="settings-select actions-select" aria-label={t('Outing actions')} value="" disabled={busy} onChange={e => void more(e.target.value)}><option value="" disabled hidden>{t('More…')}</option>{options}</select>}
+    {canEdit && onEdit && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void more('edit')}>{t('Edit')}</button>}
     {who.parent && o.kind === 'upcoming' && !o.gotTickets && (o.ticketsUrl || o.buyBy || o.ticketsOnSaleAt) && <button className="btn btn-secondary" disabled={busy} onClick={() => void more('tickets')}>{t('🎟 We have tickets')}</button>}
     {who.parent && !o.calendarEventId && <button className="btn btn-primary outing-cal-btn" disabled={busy} onClick={() => setCalendar(true)}>{t('Add to our calendar')}</button>}
   </>
@@ -423,6 +437,9 @@ export function OutingSheet({ id, onClose, onEdit }: { id: string; onClose: () =
     </section>
     {o.notes && <section className="restaurant-section"><h3>{t('Details')}</h3><p className="meal-prose">{o.notes}</p></section>}
     {o.url && <p><a className="btn btn-secondary outing-link" href={o.url} target="_blank" rel="noopener noreferrer"><LinkIcon /> {t('More info')}</a></p>}
+    {options.length > 0 && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Outing actions')}>
+      {options.map(option => option && option.value !== 'edit' && <button type="button" key={option.value} className={/delete|archive/.test(option.value) ? 'link-btn link-danger' : 'btn btn-secondary'} disabled={busy} onClick={() => void more(option.value)}>{option.label}</button>)}
+    </div>}
     {calendar && <OutingCalendarSheet outing={o} onClose={() => setCalendar(false)} onSaved={x => { setO(x); changed(); setCalendar(false) }} />}
   </Sheet>
 }
@@ -474,7 +491,11 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
   </>}>
     <form id={id} onSubmit={e => { e.preventDefault(); void save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
-        <div className="field"><label htmlFor={`${id}-kind`}>{t('What is it?')}</label><select id={`${id}-kind`} value={d.kind} onChange={e => set('kind', e.target.value as Outing['kind'])}><option value="upcoming">{t('Something happening')}</option><option value="place">{t('A place to visit any time')}</option></select></div>
+        <div className="field"><label htmlFor={`${id}-kind`}>{t('What is it?')}</label><Choose hideLabel label={t('What is it?')} id={`${id}-kind`} value={String(d.kind)} onChange={next => set('kind', next as Outing['kind'])}
+          options={[
+            { value: 'upcoming', label: t('Something happening') },
+            { value: 'place', label: t('A place to visit any time') },
+          ]} /></div>
         <div className="field"><label htmlFor={`${id}-title`}>{t('Name')}</label><input id={`${id}-title`} type="text" required maxLength={200} placeholder={upcoming ? t('Fall fest, kids’ sewing class…') : t('Nature preserve, the beach…')} value={d.title} onChange={e => set('title', e.target.value)} /></div>
         <LabeledPick label={t('Category')} none={t('None')} value={d.categoryId ? [d.categoryId] : []} onChange={v => set('categoryId', v[0] || null)} options={[{ value: '', label: t('None') }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
         {upcoming && <>
@@ -516,7 +537,12 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
           </div>
         </>}
         {!upcoming && <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-visit`}>{t('Been there?')}</label><select id={`${id}-visit`} value={d.visitStatus ?? ''} onChange={e => set('visitStatus', (e.target.value || null) as Outing['visitStatus'])}><option value="want">{t('Want to go')}</option><option value="been">{t('Been there')}</option><option value="">{t('Not sure')}</option></select></div>
+          <div className="field"><label htmlFor={`${id}-visit`}>{t('Been there?')}</label><Choose hideLabel label={t('Been there?')} id={`${id}-visit`} value={String(d.visitStatus ?? '')} onChange={next => set('visitStatus', (next || null) as Outing['visitStatus'])}
+            options={[
+              { value: 'want', label: t('Want to go') },
+              { value: 'been', label: t('Been there') },
+              { value: '', label: t('Not sure') },
+            ]} /></div>
           {d.visitStatus === 'been' && <div className="field"><label htmlFor={`${id}-last`}>{t('Last visit')}</label><input id={`${id}-last`} type="date" value={d.lastVisitedOn ?? ''} onChange={e => set('lastVisitedOn', e.target.value || null)} /></div>}
         </div>}
         <h3>{t('Details')}</h3>
@@ -582,7 +608,8 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
       </div>
       {endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('The end has to be after the start.')}</p>}
       {needsEndTime && !endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('Pick an end time for a visit that spans days.')}</p>}
-      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><select id={`${id}-cal`} value={calendarId} onChange={e => setCalendarId(e.target.value)}>{calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={String(calendarId)} onChange={next => setCalendarId(next)} sheet
+        options={calendars.map(c => ({ value: String(c.id), label: c.name }))} /></div>}
       <LabeledPick label={t('Who’s going')} multiple none={t('Everyone')} value={going} onChange={setGoing} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
       <p className="field-hint">{t('It goes on the calendar as a normal event in the 🎟 Outing category, with the place, notes and links. Change it there any time.')}</p>
     </fieldset>
@@ -749,9 +776,13 @@ function FeedSheet({ feed, categories, onClose, onSaved }: { feed: OutingFeed | 
       <p className="field-hint" id={`${id}-url-hint`}>{t('Look for “Subscribe”, “iCal” or “Add to calendar” on the calendar’s page and copy that link.')}</p></div>
     <LabeledPick label={t('Category for its events')} none={t('None')} value={categoryId ? [categoryId] : []} onChange={v => setCategoryId(v[0] || null)} options={[{ value: '', label: t('None') }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
     <div className="field"><label htmlFor={`${id}-aud`}>{t('Who its events are for')}</label>
-      <select id={`${id}-aud`} className="settings-select" value={audience} onChange={e => setAudience(e.target.value as OutingAudience | '')}>
-        <option value="">{t('Not set')}</option><option value="family">{t('The whole family')}</option><option value="kids">{t('Kids')}</option><option value="grownups">{t('Grown-ups')}</option>
-      </select></div>
+      <Choose hideLabel label={t('Who its events are for')} id={`${id}-aud`} value={String(audience)} onChange={next => setAudience(next as OutingAudience | '')}
+        options={[
+          { value: '', label: t('Not set') },
+          { value: 'family', label: t('The whole family') },
+          { value: 'kids', label: t('Kids') },
+          { value: 'grownups', label: t('Grown-ups') },
+        ]} /></div>
     <div className="field"><label htmlFor={`${id}-skip`}>{t('Skip events named with')}</label><input id={`${id}-skip`} type="text" value={skipWords} maxLength={500} onChange={e => setSkipWords(e.target.value)} aria-describedby={`${id}-skip-hint`} />
       <p className="field-hint" id={`${id}-skip-hint`}>{t('Words separated by commas. Events with one of these words in the name never show up, like a town’s public meetings.')}</p></div>
     {feed && <div className="feed-sheet-actions">

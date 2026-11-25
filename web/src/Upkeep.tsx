@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Home upkeep (docs/using/upkeep.md; server: routes/upkeep.ts): the things the family looks after,
 // the jobs that keep them working and a log of every time one was done. Three views: Due (what's
 // late, due soon and later), Things (by area, with warranties) and History (newest first, with what
@@ -242,13 +243,22 @@ function DoneSheet({ job, onClose }: { job: UpkeepJob; onClose: () => void }) {
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-day`}>{t('When')}</label><input id={`${id}-day`} type="date" required max={who.today} min={who.parent ? undefined : addDays(who.today, -7)} value={doneOn} onChange={e => setDoneOn(e.target.value || who.today)} /></div>
-          {!who.kidId && <div className="field"><label htmlFor={`${id}-who`}>{t('Who did it')}</label><select id={`${id}-who`} value={memberId} onChange={e => setMemberId(e.target.value)}><option value="">{t('Someone else')}</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>}
+          {!who.kidId && <div className="field"><label htmlFor={`${id}-who`}>{t('Who did it')}</label><Choose hideLabel label={t('Who did it')} id={`${id}-who`} value={String(memberId)} onChange={next => setMemberId(next)} sheet
+            options={[
+              { value: '', label: t('Someone else') },
+              ...(members.map(m => ({ value: String(m.id), label: m.name }))),
+            ]} /></div>}
         </div>
         {who.parent && <>
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${id}-cost`}>{t('Cost')}</label><input id={`${id}-cost`} type="text" inputMode="decimal" maxLength={12} placeholder="54.99" value={cost} onChange={e => setCost(e.target.value)} /></div>
             <div className="field"><label htmlFor={`${id}-reading`}>{t('Reading (optional)')}</label><input id={`${id}-reading`} type="text" inputMode="numeric" maxLength={12} placeholder={t('Odometer or hours')} value={reading} onChange={e => setReading(e.target.value)} /></div>
-            {reading && <div className="field"><label htmlFor={`${id}-unit`}>{t('In')}</label><select id={`${id}-unit`} value={unit} onChange={e => setUnit(e.target.value as 'mi' | 'km' | 'h')}><option value="mi">{t('Miles')}</option><option value="km">{t('Kilometers')}</option><option value="h">{t('Hours')}</option></select></div>}
+            {reading && <div className="field"><label htmlFor={`${id}-unit`}>{t('In')}</label><Choose hideLabel label={t('In')} id={`${id}-unit`} value={String(unit)} onChange={next => setUnit(next as 'mi' | 'km' | 'h')}
+              options={[
+                { value: 'mi', label: t('Miles') },
+                { value: 'km', label: t('Kilometers') },
+                { value: 'h', label: t('Hours') },
+              ]} /></div>}
           </div>
           <div className="field"><label htmlFor={`${id}-notes`}>{t('Notes')}</label><textarea id={`${id}-notes`} maxLength={10000} placeholder={t('What was used, what to do next time…')} value={notes} onChange={e => setNotes(e.target.value)} /></div>
           <div className="field"><label htmlFor={`${id}-file`}>{t('Receipt or photo (optional)')}</label><input id={`${id}-file`} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={e => setFile(e.target.files?.[0] ?? null)} /></div>
@@ -299,13 +309,13 @@ function JobSheet({ id, things, onClose, onDone, onEdit }: { id: string; things:
     }
   }
   const options = who.parent ? [
-    <option key="edit" value="edit">{t('Edit')}</option>,
-    soon && !j.snoozedUntil && <option key="snooze" value="snooze">{t('Not this week')}</option>,
-    j.snoozedUntil && <option key="unsnooze" value="unsnooze">{t('Back to its usual day')}</option>,
-    j.nextDue && j.repeatKind !== 'once' && <option key="skip" value="skip">{t('Skip this time')}</option>,
-    j.nextDue && !j.calendarEventId && <option key="calendar" value="calendar">{t('Add to the calendar…')}</option>,
-    <option key="archive" value="archive">{j.archived ? t('Put it back') : t('Put it away')}</option>,
-    <option key="delete" value="delete">{t('Delete job…')}</option>,
+    ({ value: 'edit', label: t('Edit') }),
+    soon && !j.snoozedUntil && ({ value: 'snooze', label: t('Not this week') }),
+    j.snoozedUntil && ({ value: 'unsnooze', label: t('Back to its usual day') }),
+    j.nextDue && j.repeatKind !== 'once' && ({ value: 'skip', label: t('Skip this time') }),
+    j.nextDue && !j.calendarEventId && ({ value: 'calendar', label: t('Add to the calendar…') }),
+    ({ value: 'archive', label: j.archived ? t('Put it back') : t('Put it away') }),
+    ({ value: 'delete', label: t('Delete job…') }),
   ].filter(Boolean) : []
   const pro = j.contactId ? t('Done by a pro') : null
   const facts: [string, ReactNode][] = [
@@ -318,7 +328,7 @@ function JobSheet({ id, things, onClose, onDone, onEdit }: { id: string; things:
     ...(j.calendarEventId && j.calendarEventStart ? [['🗓', <a key="cal" href={`#/calendar?event=${encodeURIComponent(j.calendarEventId)}&at=${j.calendarEventStart.slice(0, 10)}`} onClick={onClose}>{t('On the calendar: {date}', { date: longDay(j.calendarEventStart.slice(0, 10)) })}</a>] as [string, ReactNode]] : []),
   ]
   return <Sheet title={`${jobEmoji(j)} ${j.title}`} onClose={onClose} actions={<>
-    {options.length > 0 && <select className="settings-select actions-select" aria-label={t('Job actions')} value="" disabled={busy} onChange={e => void more(e.target.value)}><option value="" disabled hidden>{t('More…')}</option>{options}</select>}
+    {who.parent && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void more('edit')}>{t('Edit')}</button>}
     {j.nextDue && <button className="btn btn-primary" disabled={busy} onClick={() => onDone(j)}>{t('Mark done')}</button>}
   </>}>
     <ul className="outing-facts">{facts.map(([icon, text], i) => <li key={i}><span aria-hidden="true">{icon}</span><span>{text}</span></li>)}</ul>
@@ -329,6 +339,10 @@ function JobSheet({ id, things, onClose, onDone, onEdit }: { id: string; things:
       {log.length ? <ul className="upkeep-log">{log.map(e => <EntryRow key={e.id} e={e} members={members} />)}</ul> : <p className="field-hint">{t('Not done yet.')}</p>}
     </section>}
     {calendar && <CalendarSheet job={j} onClose={() => setCalendar(false)} onSaved={x => { setJ(x); changed(); setCalendar(false) }} />}
+
+    {options.length > 0 && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Job actions')}>
+      {options.map(option => option && option.value !== 'edit' && <button type="button" key={option.value} className={/delete|archive|remove/.test(option.value) ? 'link-btn link-danger' : 'btn btn-secondary'} disabled={busy} onClick={() => void more(option.value)}>{option.label}</button>)}
+    </div>}
   </Sheet>
 }
 
@@ -417,12 +431,7 @@ function ThingSheet({ id, jobs, onClose, onOpenJob, onEdit }: { id: string; jobs
     if (!file) return
     void run(() => api.uploadUpkeepFile({ thing: x.id }, file, file.name), t('Added: {name}', { name: file.name }))
   }
-  return <Sheet title={`${thingEmoji(x)} ${x.name}`} onClose={onClose} actions={who.parent ? <select className="settings-select actions-select" aria-label={t('Thing actions')} value="" disabled={busy} onChange={e => void more(e.target.value)}>
-    <option value="" disabled hidden>{t('More…')}</option>
-    <option value="edit">{t('Edit')}</option>
-    <option value="archive">{x.archived ? t('Put it back on the list') : t('Sold or gone')}</option>
-    <option value="delete">{t('Delete…')}</option>
-  </select> : undefined}>
+  return <Sheet title={`${thingEmoji(x)} ${x.name}`} onClose={onClose} actions={who.parent ? <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void more('edit')}>{t('Edit')}</button> : undefined}>
     {facts.length > 0 && <ul className="outing-facts">{facts.map(([icon, text], i) => <li key={i}><span aria-hidden="true">{icon}</span><span>{text}</span></li>)}</ul>}
     {x.notes && <p className="meal-prose">{x.notes}</p>}
     <section className="restaurant-section"><h3>{t('Jobs')}</h3>
@@ -440,6 +449,11 @@ function ThingSheet({ id, jobs, onClose, onOpenJob, onEdit }: { id: string; jobs
       <div className="field"><label htmlFor={fileId}>{t('Add a receipt, manual or photo (up to 2 MB)')}</label><input id={fileId} type="file" disabled={busy} accept="image/png,image/jpeg,image/webp,application/pdf" onChange={e => { void upload(e.target.files?.[0]); e.target.value = '' }} /></div>
     </section>}
     {who.history && log.length > 0 && <section className="restaurant-section"><h3>{t('History')}</h3><ul className="upkeep-log">{log.map(e => <EntryRow key={e.id} e={e} members={members} withTitle />)}</ul></section>}
+
+    {who.parent && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Thing actions')}>
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => void more("archive")}>{x.archived ? t('Put it back on the list') : t('Sold or gone')}</button>
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => void more("delete")}>{t('Delete…')}</button>
+    </div>}
   </Sheet>
 }
 
@@ -499,16 +513,33 @@ function JobEditSheet({ job, things, areas, onClose, onSaved }: { job: UpkeepJob
           <div className="field"><label htmlFor={`${id}-title`}>{t('Job')}</label><input id={`${id}-title`} type="text" required maxLength={200} placeholder={t('Change the furnace filter')} value={d.title} onChange={e => set('title', e.target.value)} /></div>
         </div>
         <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-thing`}>{t('For')}</label><select id={`${id}-thing`} value={d.thingId} onChange={e => set('thingId', e.target.value)}><option value="">{t('Nothing in particular')}</option>{things.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
-          {!d.thingId && <div className="field"><label htmlFor={`${id}-area`}>{t('Area')}</label><select id={`${id}-area`} value={d.areaId} onChange={e => set('areaId', e.target.value)}><option value="">{t('None')}</option>{areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
+          <div className="field"><label htmlFor={`${id}-thing`}>{t('For')}</label><Choose hideLabel label={t('For')} id={`${id}-thing`} value={String(d.thingId)} onChange={next => set('thingId', next)} sheet
+            options={[
+              { value: '', label: t('Nothing in particular') },
+              ...(things.map(x => ({ value: String(x.id), label: x.name }))),
+            ]} /></div>
+          {!d.thingId && <div className="field"><label htmlFor={`${id}-area`}>{t('Area')}</label><Choose hideLabel label={t('Area')} id={`${id}-area`} value={String(d.areaId)} onChange={next => set('areaId', next)} sheet
+            options={[
+              { value: '', label: t('None') },
+              ...(areas.map(a => ({ value: String(a.id), label: a.name }))),
+            ]} /></div>}
         </div>
         <h3>{t('How often')}</h3>
-        <div className="field"><label htmlFor={`${id}-kind`}>{t('Repeats')}</label><select id={`${id}-kind`} value={d.repeatKind} onChange={e => set('repeatKind', e.target.value as UpkeepJob['repeatKind'])}>
-          <option value="after">{t('Every so often, from the last time')}</option><option value="on">{t('On set dates each year')}</option><option value="once">{t('Just once')}</option>
-        </select></div>
+        <div className="field"><label htmlFor={`${id}-kind`}>{t('Repeats')}</label><Choose hideLabel label={t('Repeats')} id={`${id}-kind`} value={String(d.repeatKind)} onChange={next => set('repeatKind', next as UpkeepJob['repeatKind'])}
+          options={[
+            { value: 'after', label: t('Every so often, from the last time') },
+            { value: 'on', label: t('On set dates each year') },
+            { value: 'once', label: t('Just once') },
+          ]} /></div>
         {d.repeatKind === 'after' && <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-every`}>{t('Every')}</label><input id={`${id}-every`} type="number" min={1} max={1000} inputMode="numeric" value={d.every} onChange={e => set('every', e.target.value)} /></div>
-          <div className="field"><label htmlFor={`${id}-unit`}>{t('Unit')}</label><select id={`${id}-unit`} value={d.unit} onChange={e => set('unit', e.target.value as JobDraft['unit'])}><option value="day">{t('days')}</option><option value="week">{t('weeks')}</option><option value="month">{t('months')}</option><option value="year">{t('years')}</option></select></div>
+          <div className="field"><label htmlFor={`${id}-unit`}>{t('Unit')}</label><Choose hideLabel label={t('Unit')} id={`${id}-unit`} value={String(d.unit)} onChange={next => set('unit', next as JobDraft['unit'])}
+            options={[
+              { value: 'day', label: t('days') },
+              { value: 'week', label: t('weeks') },
+              { value: 'month', label: t('months') },
+              { value: 'year', label: t('years') },
+            ]} /></div>
         </div>}
         {d.repeatKind === 'on' && <>
           <fieldset className="upkeep-months"><legend>{t('Months')}</legend>{ALL_MONTHS.map(m => <label key={m} className="meal-check"><input type="checkbox" checked={d.onMonths.includes(m)} onChange={e => set('onMonths', e.target.checked ? [...d.onMonths, m].sort((a, b) => a - b) : d.onMonths.filter(x => x !== m))} /> {monthName(m)}</label>)}</fieldset>
@@ -520,8 +551,16 @@ function JobEditSheet({ job, things, areas, onClose, onSaved }: { job: UpkeepJob
         <div className="field"><label htmlFor={`${id}-heads`}>{t('Heads-up, days before')}</label><input id={`${id}-heads`} type="number" min={0} max={60} inputMode="numeric" value={d.headsUpDays} onChange={e => set('headsUpDays', e.target.value)} /></div>
         <h3>{t('Who')}</h3>
         <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-who`}>{t('Usually done by')}</label><select id={`${id}-who`} value={d.memberId} onChange={e => set('memberId', e.target.value)}><option value="">{t('Any grown-up')}</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
-          {contacts.length > 0 && <div className="field"><label htmlFor={`${id}-pro`}>{t('Pro who does it')}</label><select id={`${id}-pro`} value={d.contactId} onChange={e => set('contactId', e.target.value)}><option value="">{t('None')}</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+          <div className="field"><label htmlFor={`${id}-who`}>{t('Usually done by')}</label><Choose hideLabel label={t('Usually done by')} id={`${id}-who`} value={String(d.memberId)} onChange={next => set('memberId', next)} sheet
+            options={[
+              { value: '', label: t('Any grown-up') },
+              ...(members.map(m => ({ value: String(m.id), label: m.name }))),
+            ]} /></div>
+          {contacts.length > 0 && <div className="field"><label htmlFor={`${id}-pro`}>{t('Pro who does it')}</label><Choose hideLabel label={t('Pro who does it')} id={`${id}-pro`} value={String(d.contactId)} onChange={next => set('contactId', next)} sheet
+            options={[
+              { value: '', label: t('None') },
+              ...(contacts.map(c => ({ value: String(c.id), label: c.name }))),
+            ]} /></div>}
         </div>
         {kid && <>
           <label className="meal-check"><input type="checkbox" checked={d.chore} onChange={e => set('chore', e.target.checked)} /> {t('Make it {name}’s chore on the day it’s due', { name: kid.name })}</label>
@@ -533,7 +572,11 @@ function JobEditSheet({ job, things, areas, onClose, onSaved }: { job: UpkeepJob
         <div className="field"><label htmlFor={`${id}-steps`}>{t('How to, one step per line')}</label><textarea id={`${id}-steps`} maxLength={9000} value={d.steps} onChange={e => set('steps', e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-sup`}>{t('Supplies to buy, one per line')}</label><textarea id={`${id}-sup`} maxLength={4000} placeholder={t('Furnace filter 16x25x1')} value={d.supplies} onChange={e => set('supplies', e.target.value)} /></div>
         {lines(d.supplies).length > 0 && <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-list`}>{t('Put them on')}</label><select id={`${id}-list`} value={d.suppliesListId} onChange={e => set('suppliesListId', e.target.value)}><option value="">{t('The first shopping list')}</option>{lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+          <div className="field"><label htmlFor={`${id}-list`}>{t('Put them on')}</label><Choose hideLabel label={t('Put them on')} id={`${id}-list`} value={String(d.suppliesListId)} onChange={next => set('suppliesListId', next)} sheet
+            options={[
+              { value: '', label: t('The first shopping list') },
+              ...(lists.map(l => ({ value: String(l.id), label: l.name }))),
+            ]} /></div>
           <div className="field"><label htmlFor={`${id}-sd`}>{t('Days before it’s due')}</label><input id={`${id}-sd`} type="number" min={0} max={60} inputMode="numeric" value={d.suppliesDays} onChange={e => set('suppliesDays', e.target.value)} /></div>
         </div>}
       </fieldset>
@@ -588,7 +631,11 @@ function ThingEditSheet({ thing, areas, onClose, onSaved }: { thing: UpkeepThing
           <div className="field"><label htmlFor={`${id}-name`}>{t('Name')}</label><input id={`${id}-name`} type="text" required maxLength={200} placeholder={t('Furnace, fridge, the blue van…')} value={d.name} onChange={e => set('name', e.target.value)} /></div>
         </div>
         <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-area`}>{t('Area')}</label><select id={`${id}-area`} value={d.areaId} onChange={e => set('areaId', e.target.value)}><option value="">{t('None')}</option>{areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+          <div className="field"><label htmlFor={`${id}-area`}>{t('Area')}</label><Choose hideLabel label={t('Area')} id={`${id}-area`} value={String(d.areaId)} onChange={next => set('areaId', next)} sheet
+            options={[
+              { value: '', label: t('None') },
+              ...(areas.map(a => ({ value: String(a.id), label: a.name }))),
+            ]} /></div>
           {text('room', t('Where it is'), t('Basement, garage…'))}
         </div>
         <div className="meal-form-row">{text('brand', t('Brand'))}{text('model', t('Model'))}</div>
@@ -600,7 +647,11 @@ function ThingEditSheet({ thing, areas, onClose, onSaved }: { thing: UpkeepThing
           <div className="field"><label htmlFor={`${id}-war`}>{t('Warranty until')}</label><input id={`${id}-war`} type="date" value={d.warrantyUntil} onChange={e => set('warrantyUntil', e.target.value)} /></div>
         </div>
         <div className="field"><label htmlFor={`${id}-manual`}>{t('Link to the manual')}</label><input id={`${id}-manual`} type="url" maxLength={2000} value={d.manualUrl} onChange={e => set('manualUrl', e.target.value)} /></div>
-        {contacts.length > 0 && <div className="field"><label htmlFor={`${id}-pro`}>{t('Who services it')}</label><select id={`${id}-pro`} value={d.contactId} onChange={e => set('contactId', e.target.value)}><option value="">{t('None')}</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+        {contacts.length > 0 && <div className="field"><label htmlFor={`${id}-pro`}>{t('Who services it')}</label><Choose hideLabel label={t('Who services it')} id={`${id}-pro`} value={String(d.contactId)} onChange={next => set('contactId', next)} sheet
+          options={[
+            { value: '', label: t('None') },
+            ...(contacts.map(c => ({ value: String(c.id), label: c.name }))),
+          ]} /></div>}
         <div className="field"><label htmlFor={`${id}-notes`}>{t('Notes')}</label><textarea id={`${id}-notes`} maxLength={10000} value={d.notes} onChange={e => set('notes', e.target.value)} /><p className="field-hint">{t('Don’t save codes or passwords here.')}</p></div>
       </fieldset>
       {error && <p className="field-error" role="alert">{error}</p>}
@@ -673,7 +724,8 @@ function CalendarSheet({ job, onClose, onSaved }: { job: UpkeepJob; onClose: () 
         <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} /></div>
       </div>}
-      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><select id={`${id}-cal`} value={calendarId} onChange={e => setCalendarId(e.target.value)}>{calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={String(calendarId)} onChange={next => setCalendarId(next)} sheet
+        options={calendars.map(c => ({ value: String(c.id), label: c.name }))} /></div>}
     </fieldset>
     {!calendars && !error && <p role="status">{t('Loading calendars…')}</p>}
     {error && <p className="field-error" role="alert">{error}</p>}

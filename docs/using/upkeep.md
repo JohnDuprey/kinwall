@@ -24,7 +24,7 @@ Areas group things: Heating & cooling, Water & plumbing, Kitchen & laundry, Safe
 
 **Heads-up, days before** (7 by default) is when a job shows as **Due soon** and its heads-up note goes out.
 
-In a job's **More…**:
+At the bottom of a job's sheet:
 
 * **Not this week** (when it's late or due within the week) moves it a week on, just this time. Marking it done puts it back on its usual schedule.
 * **Skip this time** logs nothing and counts the next one on from the date skipped.

@@ -58,7 +58,7 @@ Tap **Add** on the tab or in the tray. **What is it?** is something happening or
 * **Been there?** (places): want to go or been there, and the last visit.
 * **Details**: an info page and notes.
 
-On a parent's device an outing with ticket dates has **🎟 We have tickets**, which stops the ticket reminders. From an outing's **More…** menu: **Edit**, **We went today** (a place), **We don't have tickets**, **Not for us** (hides it from the list; it's kept and can be put back), and **Delete outing…** (parents).
+On a parent's device an outing with ticket dates has **🎟 We have tickets**, which stops the ticket reminders. Open an outing and tap **Edit**, or use the buttons at the bottom: **We went today** (a place), **We don't have tickets**, **Not for us** (hides it from the list; it's kept and can be put back), and **Delete outing…** (parents).
 
 ### Who can do what
 
