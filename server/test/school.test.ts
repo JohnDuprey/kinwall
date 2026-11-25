@@ -11,6 +11,7 @@ import type { Env } from '../src/env.ts';
 
 const MIGRATIONS_DIR = path.join(import.meta.dirname, '..', 'migrations');
 const ADMIN = 'kw_test_admin';
+const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 async function setup({ on = true } = {}) {
   const db = openDb(':memory:');
@@ -142,6 +143,7 @@ test('school: the export brings subjects, kids and logs back', async () => {
 });
 
 test('school: schoolwork is a chore with a subject; ticking it logs its minutes, undoing takes them back', async () => {
+  const day = daysAgo(2); // a wall or kid's device may tick only the last DISPLAY_DAYS_BACK days
   const t = await setup();
   await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'home', approveLogs: true });
   await t.req(`/api/school/kids/${t.leo.id}`, 'PUT', { mode: 'home' });
@@ -156,27 +158,27 @@ test('school: schoolwork is a chore with a subject; ticking it logs its minutes,
   assert.equal((await t.req(`/api/chores/${mayaCopy.id}`, 'PATCH', { schoolMinutes: 25 })).json.schoolMinutes, 25);
   assert.equal((await t.req('/api/chores')).json.find((c: any) => c.id === leoCopy.id).schoolMinutes, 25, 'the group follows');
 
-  assert.equal((await t.req(`/api/chores/${leoCopy.id}/complete`, 'POST', { date: '2026-11-16' })).status, 200);
-  let logs = (await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json;
+  assert.equal((await t.req(`/api/chores/${leoCopy.id}/complete`, 'POST', { date: day })).status, 200);
+  let logs = (await t.req(`/api/school/logs?from=${day}&to=${day}`)).json;
   assert.deepEqual(logs.map((l: any) => [l.memberId, l.subjectId, l.minutes, l.title, l.pending, l.choreId]), [[t.leo.id, 'ss-math', 25, 'Math lesson', false, leoCopy.id]]);
-  assert.equal((await t.req(`/api/chores/${leoCopy.id}/complete`, 'POST', { date: '2026-11-16' })).status, 200, 're-ticking');
-  assert.equal((await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json.length, 1, 'logs once');
+  assert.equal((await t.req(`/api/chores/${leoCopy.id}/complete`, 'POST', { date: day })).status, 200, 're-ticking');
+  assert.equal((await t.req(`/api/school/logs?from=${day}&to=${day}`)).json.length, 1, 'logs once');
 
   // From Maya's tablet: her settings ask for a grown-up, so her time waits; the chore itself is done.
-  assert.equal((await t.req(`/api/chores/${mayaCopy.id}/complete`, 'POST', { date: '2026-11-16' }, t.mayaKey)).json.pending, false);
-  logs = (await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json;
+  assert.equal((await t.req(`/api/chores/${mayaCopy.id}/complete`, 'POST', { date: day }, t.mayaKey)).json.pending, false);
+  logs = (await t.req(`/api/school/logs?from=${day}&to=${day}`)).json;
   assert.equal(logs.find((l: any) => l.memberId === t.maya.id).pending, true);
 
-  assert.equal((await t.req(`/api/chores/${leoCopy.id}/complete?date=2026-11-16`, 'DELETE')).status, 200);
-  assert.deepEqual((await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json.map((l: any) => l.memberId), [t.maya.id]);
+  assert.equal((await t.req(`/api/chores/${leoCopy.id}/complete?date=${day}`, 'DELETE')).status, 200);
+  assert.deepEqual((await t.req(`/api/school/logs?from=${day}&to=${day}`)).json.map((l: any) => l.memberId), [t.maya.id]);
 
   // A chore that needs approval logs once a parent approves it.
-  const essay = (await t.req('/api/chores', 'POST', { title: 'Essay', memberId: t.leo.id, dueDate: '2026-11-16', needsApproval: true, schoolSubjectId: 'ss-writing', schoolKind: 'homework' })).json;
-  assert.equal((await t.req(`/api/chores/${essay.id}/complete`, 'POST', { date: '2026-11-16' }, t.wallKey)).json.pending, true);
-  assert.equal((await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json.some((l: any) => l.choreId === essay.id), false);
+  const essay = (await t.req('/api/chores', 'POST', { title: 'Essay', memberId: t.leo.id, dueDate: day, needsApproval: true, schoolSubjectId: 'ss-writing', schoolKind: 'homework' })).json;
+  assert.equal((await t.req(`/api/chores/${essay.id}/complete`, 'POST', { date: day }, t.wallKey)).json.pending, true);
+  assert.equal((await t.req(`/api/school/logs?from=${day}&to=${day}`)).json.some((l: any) => l.choreId === essay.id), false);
   assert.equal((await t.req('/api/chores/pending')).json.find((p: any) => p.choreId === essay.id).schoolKind, 'homework', 'approvals identify schoolwork');
-  assert.equal((await t.req(`/api/chores/${essay.id}/approve`, 'POST', { date: '2026-11-16' })).status, 200);
-  assert.equal((await t.req('/api/school/logs?from=2026-11-16&to=2026-11-16')).json.find((l: any) => l.choreId === essay.id).minutes, 30, 'no minutes set: 30');
+  assert.equal((await t.req(`/api/chores/${essay.id}/approve`, 'POST', { date: day })).status, 200);
+  assert.equal((await t.req(`/api/school/logs?from=${day}&to=${day}`)).json.find((l: any) => l.choreId === essay.id).minutes, 30, 'no minutes set: 30');
 
   const file = (await t.req('/api/export')).json;
   assert.equal(file.chores.find((c: any) => c.id === essay.id).schoolKind, 'homework');
@@ -328,10 +330,11 @@ test('school: the highest report card term with anything saved, so lowering term
 
 
 test('school: changing who completed schoolwork moves the time and rechecks approval', async () => {
+  const day = daysAgo(2);
   const t = await setup();
   for (const kid of [t.maya, t.leo]) await t.req(`/api/school/kids/${kid.id}`, 'PUT', { mode: 'home', approveLogs: kid.id === t.maya.id });
-  const chore = (await t.req('/api/chores', 'POST', { title: 'Reading together', dueDate: '2026-11-17', schoolSubjectId: 'ss-reading', schoolMinutes: 25 })).json;
-  const complete = (memberId: string, key = ADMIN) => t.req(`/api/chores/${chore.id}/complete`, 'POST', { date: '2026-11-17', memberId }, key);
+  const chore = (await t.req('/api/chores', 'POST', { title: 'Reading together', dueDate: day, schoolSubjectId: 'ss-reading', schoolMinutes: 25 })).json;
+  const complete = (memberId: string, key = ADMIN) => t.req(`/api/chores/${chore.id}/complete`, 'POST', { date: day, memberId }, key);
   await complete(t.leo.id);
   const original = (await t.req('/api/school/logs')).json[0];
   await t.req(`/api/school/logs/${original.id}`, 'PATCH', { minutes: 40, notes: 'A parent corrected the duration' });
@@ -347,7 +350,7 @@ test('school: changing who completed schoolwork moves the time and rechecks appr
   await t.req(`/api/chores/${chore.id}`, 'PATCH', { needsApproval: true });
   await complete(t.leo.id, t.wallKey);
   assert.deepEqual((await t.req('/api/school/logs')).json, [], 'a pending chore no longer credits its previous child');
-  await t.req(`/api/chores/${chore.id}/approve`, 'POST', { date: '2026-11-17' });
+  await t.req(`/api/chores/${chore.id}/approve`, 'POST', { date: day });
   logs = (await t.req('/api/school/logs')).json;
   assert.deepEqual(logs.map((l: any) => [l.memberId, l.pending]), [[t.leo.id, false]]);
   await t.req(`/api/chores/${chore.id}`, 'PATCH', { needsApproval: false });
