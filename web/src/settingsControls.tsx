@@ -1,5 +1,5 @@
-import { Choose } from './PickField.tsx'
 import { useContext, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Member } from './types.ts'
@@ -48,11 +48,11 @@ export function DeviceKindSelect({ value, onChange, members, id, label, legacy }
   const ctx = useContext(AppContext)
   const list = members ?? ctx?.members ?? []
   return (
-    <Choose hideLabel label={label ?? t('Who uses this device?')} id={id} value={String(value)} onChange={next => onChange(next)} sheet
+    <Choose hideLabel label={label ?? t('Who uses this device?')} id={id} value={value} onChange={next => onChange(next)} sheet
       options={[
         ...(legacy ? [{ value: '', label: t('Pick one'), disabled: true }] : []),
-        { value: 'wall', label: ["👪 ", t('Everyone (shared screen)')].join('') },
-        ...(list.map(m => ({ value: String(`${m.grownUp ? 'grownup' : 'kid'}:${m.id}`), label: [m.avatar, " ", m.name].join('') }))),
+        { value: 'wall', label: `👪 ${t('Everyone (shared screen)')}` },
+        ...list.map(m => ({ value: `${m.grownUp ? 'grownup' : 'kid'}:${m.id}`, label: `${m.avatar} ${m.name}` })),
       ]} />
   )
 }

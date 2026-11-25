@@ -61,15 +61,15 @@ export default function CalendarFilterSheet({ calendar, onClose, onSaved }: { ca
       <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{t('Decide which events the family sees from this calendar, everywhere: the calendar, the Board, reminders and connected apps. Nothing is deleted, and you can change it any time.')}</p>
       <div className="field">
         <label htmlFor="filter-preset">{t('Start from a preset')}</label>
-        <Choose hideLabel label={t('Start from a preset')} id="filter-preset" value={String(preset)} onChange={next => pickPreset(next)} sheet
+        <Choose hideLabel label={t('Start from a preset')} id="filter-preset" value={preset} onChange={next => pickPreset(next)} sheet
           options={[
             { value: '', label: t('Choose…') },
-            ...(FILTER_PRESETS.map(p => ({ value: String(p.id), label: tm(p.label) }))),
+            ...FILTER_PRESETS.map(p => ({ value: p.id, label: tm(p.label) })),
           ]} />
       </div>
       <div className="field">
         <label htmlFor="filter-mode">{t('Show')}</label>
-        <Choose hideLabel label={t('Show')} id="filter-mode" value={String(filter.mode)} onChange={next => setFilter(f => ({ ...f, mode: next as CalendarFilter['mode'] }))}
+        <Choose hideLabel label={t('Show')} id="filter-mode" value={filter.mode} onChange={next => setFilter(f => ({ ...f, mode: next as CalendarFilter['mode'] }))}
           options={[
             { value: 'all', label: t('All events') },
             { value: 'only', label: t('Only events that match') },
@@ -84,7 +84,7 @@ export default function CalendarFilterSheet({ calendar, onClose, onSaved }: { ca
         </div>
         <div className="field">
           <label htmlFor="filter-allday">{t('All-day or timed')}</label>
-          <Choose hideLabel label={t('All-day or timed')} id="filter-allday" value={String(filter.allDay)} onChange={next => setFilter(f => ({ ...f, allDay: next as CalendarFilter['allDay'] }))}
+          <Choose hideLabel label={t('All-day or timed')} id="filter-allday" value={filter.allDay} onChange={next => setFilter(f => ({ ...f, allDay: next as CalendarFilter['allDay'] }))}
             options={[
               { value: 'any', label: t('Either') },
               { value: 'allDay', label: t('All-day only') },

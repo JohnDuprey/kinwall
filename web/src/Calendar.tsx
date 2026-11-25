@@ -1,8 +1,8 @@
-import { Choose } from './PickField.tsx'
 import { EventFollow } from './EventFollow.tsx'
 import { AnnouncementsButton } from './FamilyAnnouncements.tsx'
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
+import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
@@ -1327,15 +1327,15 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
       <div className="field">
         <label>{t('Travel time')}</label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Choose hideLabel label={t('Travel time')} value={String(custom ? 'custom' : minutes === null ? 'none' : String(minutes))} style={{ flex: 1, minWidth: 0 }} onChange={next => {
+          <Choose hideLabel label={t('Travel time')} value={custom ? 'custom' : minutes === null ? 'none' : minutes} style={{ flex: 1, minWidth: 0 }} onChange={next => {
               const v = next
               if (v === 'custom') { setCustom(true); setDraft(minutes ? String(minutes) : ''); return }
               setCustom(false)
-              onChange(v === 'none' ? null : Number(v), v === 'none' ? false : remind)
+              onChange(v === 'none' ? null : v, v === 'none' ? false : remind)
             }} sheet
             options={[
               { value: 'none', label: t('None') },
-              ...(TRAVEL_PRESETS.map(m => ({ value: String(m), label: t('{n} min', { n: m }) }))),
+              ...TRAVEL_PRESETS.map(m => ({ value: m, label: t('{n} min', { n: m }) })),
               { value: 'custom', label: t('Custom…') },
             ]} />
           {custom && (
@@ -1537,10 +1537,10 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
       {endBeforeStart && <p className="field-error" id="event-end-error" role="alert">{t('The end has to be after the start.')}</p>}
       {!event && <div className="field">
         <label>{t('Calendar')}</label>
-        <Choose hideLabel label={t('Calendar')} value={String(calendarId)} onChange={next => setCalendarId(next)} sheet
+        <Choose hideLabel label={t('Calendar')} value={calendarId} onChange={next => setCalendarId(next)} sheet
           options={[
-            ...(writable.map(c => ({ value: String(c.id), label: c.name }))),
-            ...(!event && offerNewLocal ? [{ value: String(NEW_LOCAL_CALENDAR), label: t('Kinwall only (not synced)') }] : []),
+            ...writable.map(c => ({ value: c.id, label: c.name })),
+            ...(!event && offerNewLocal ? [{ value: NEW_LOCAL_CALENDAR, label: t('Kinwall only (not synced)') }] : []),
           ]} />
       </div>}
       <div className="field">
@@ -1568,17 +1568,17 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
       {remindersEditable && (
         <div className="field">
           <label>{t('Reminder')}</label>
-          <Choose hideLabel label={t('Reminder')} value={String(reminder)} onChange={next => setReminder(next)} sheet
+          <Choose hideLabel label={t('Reminder')} value={reminder} onChange={next => setReminder(next)} sheet
             options={[
               ...(initialReminder === 'keep' ? [{ value: 'keep', label: reminderLabel(ownReminders) ?? t('None') }] : []),
               ...(calKind !== 'microsoft' ? [{ value: 'default', label: calKind === 'google' ? t('Google calendar default') : t('Family default') }] : []),
-              ...(REMINDER_OPTIONS.map(o => ({ value: String(o.value), label: tm(o.label) }))),
+              ...REMINDER_OPTIONS.map(o => ({ value: o.value, label: tm(o.label) })),
             ]} />
         </div>
       )}
       <div className="field">
         <label htmlFor="event-show-as">{t('Show as')}</label>
-        <Choose hideLabel label={t('Show as')} id="event-show-as" value={String(busy ? 'busy' : 'free')} onChange={next => setBusy(next === 'busy')}
+        <Choose hideLabel label={t('Show as')} id="event-show-as" value={busy ? 'busy' : 'free'} onChange={next => setBusy(next === 'busy')}
           options={[
             { value: 'busy', label: t('Busy') },
             { value: 'free', label: t("Free (doesn't block time)") },
@@ -1587,7 +1587,7 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
       {!allDay && <TravelFields minutes={travel.minutes} remind={travel.remind} onChange={(minutes, remind) => setTravel({ minutes, remind })} />}
       <div className="field">
         <label>{t('Repeat')}</label>
-        <Choose hideLabel label={t('Repeat')} value={String(rrule)} onChange={next => setRrule(next as RepeatChoice)}
+        <Choose hideLabel label={t('Repeat')} value={rrule} onChange={next => setRrule(next as RepeatChoice)}
           options={[
             { value: '', label: t('Does not repeat') },
             { value: 'daily', label: t('Daily') },
@@ -1598,10 +1598,10 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
       </div>
       <div className="field">
         <label>{t('Category')}</label>
-        <Choose hideLabel label={t('Category')} value={String(categoryId ?? '')} onChange={next => setCategoryId(next || null)} sheet
+        <Choose hideLabel label={t('Category')} value={categoryId ?? ''} onChange={next => setCategoryId(next || null)} sheet
           options={[
             { value: '', label: t('Automatic') },
-            ...(categories.map(c => ({ value: String(c.id), label: [c.emoji ? `${c.emoji} ` : '', c.name].join('') }))),
+            ...categories.map(c => ({ value: c.id, label: `${c.emoji ? `${c.emoji} ` : ''}${c.name}` })),
           ]} />
         {autoHint && <div className="settings-row-sub">{autoHint}</div>}
         {inSeries && categoryChanged && (

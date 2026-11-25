@@ -1,8 +1,8 @@
-import { Choose } from './PickField.tsx'
 // Settings → For the whole family → Quotes & facts: which sources the Board's quote / fact card
 // draws from, and the categories within each. A sheet of its own so the settings list stays short.
 // The same sheet edits a device's own cards (Settings → This display, DeviceTidbitRows below).
 import { useState } from 'react'
+import { Choose } from './PickField.tsx'
 import Sheet from './Sheet.tsx'
 import { announce } from './a11y.tsx'
 import { setDeviceAppearance, useDeviceAppearance } from './useTheme.ts'
@@ -82,9 +82,9 @@ export default function TidbitsSheet({ value, onClose, onSave, title, intro, onR
             {cfg.onThisDay.includes('births') && (
               <div className="settings-row">
                 <label className="settings-row-label" htmlFor="births-after">{t('Birthdays of people born')}</label>
-                <Choose hideLabel label={t('Birthdays of people born')} id="births-after" value={String(cfg.birthsAfter ?? '')} onChange={next => { const v = next; setT(x => ({ ...x, birthsAfter: v === '' ? null : Number(v) })) }}
+                <Choose hideLabel label={t('Birthdays of people born')} id="births-after" value={cfg.birthsAfter ?? ''} onChange={next => { const v = next; setT(x => ({ ...x, birthsAfter: v === '' ? null : v })) }}
                   options={[
-                    ...([1800, 1900, 1950, 1970, 1990].map(y => ({ value: String(y), label: t('Since {year}', { year: y }) }))),
+                    ...[1800, 1900, 1950, 1970, 1990].map(y => ({ value: y, label: t('Since {year}', { year: y }) })),
                     { value: '', label: t('Any time') },
                   ]} />
               </div>
@@ -136,7 +136,7 @@ export function DeviceTidbitRows() {
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="device-pref-row">
         <span>{t('Board quotes & facts')}</span>
-        <Choose hideLabel label={t('Board quotes and facts')} value={String(cards.length ? 'own' : '')} onChange={next => {
+        <Choose hideLabel label={t('Board quotes and facts')} value={cards.length ? 'own' : ''} onChange={next => {
             if (next) { save([{ ...settings.tidbits }]); announce(t('This device picks its own quotes and facts')) }
             else { save(undefined); announce(t("This device follows the family's quotes and facts")) }
           }}

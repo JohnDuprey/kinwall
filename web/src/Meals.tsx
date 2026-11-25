@@ -1,5 +1,5 @@
-import { Choose } from './PickField.tsx'
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { withHashParam } from './hashQuery.ts'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -173,28 +173,28 @@ export default function Meals() {
   const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked, tagIds })
   const filterCount = [kind, filter !== 'active', category, loved, cooked !== 'all', sort !== 'name', tagIds.length > 0].filter(Boolean).length
   const filters = <>
-    <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><Choose hideLabel label={t('Type')} id="recipe-kind" value={String(kind)} onChange={next => setKind(next as '' | RecipeKind)}
+    <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><Choose hideLabel label={t('Type')} id="recipe-kind" value={kind} onChange={next => setKind(next as '' | RecipeKind)}
       options={[
         { value: '', label: t('All') },
         { value: 'meal', label: t('Meals') },
         { value: 'basic', label: t('Basics') },
       ]} /></div>
-    <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={String(filter)} onChange={next => setFilter(next)}
+    <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={filter} onChange={next => setFilter(next)}
       options={[
         { value: 'active', label: t('Active recipes') },
         { value: 'archived', label: t('Archived recipes') },
         { value: 'all', label: t('All recipes') },
       ]} /></div>
-    <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><Choose hideLabel label={t('Ingredient category')} id="recipe-category" value={String(category)} onChange={next => setCategory(next)} sheet
+    <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><Choose hideLabel label={t('Ingredient category')} id="recipe-category" value={category} onChange={next => setCategory(next)} sheet
       options={[
         { value: '', label: t('All categories') },
-        ...(categories.map(c => ({ value: String(c), label: c }))),
+        ...categories.map(c => ({ value: c, label: c })),
       ]} /></div>
-    <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><Choose hideLabel label={t('Favorites')} id="recipe-loved" value={String(loved)} onChange={next => setLoved(next)} sheet
+    <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><Choose hideLabel label={t('Favorites')} id="recipe-loved" value={loved} onChange={next => setLoved(next)} sheet
       options={[
         { value: '', label: t('All recipes') },
         { value: 'any', label: t("Anyone's favorites") },
-        ...(members.map(m => ({ value: String(m.id), label: t("{name}'s favorites", { name: m.name }) }))),
+        ...members.map(m => ({ value: m.id, label: t("{name}'s favorites", { name: m.name }) })),
       ]} /></div>
     <RecipeTagFilter tags={tagCatalog ?? []} value={tagIds} onChange={setTagIds} />
     <RecipeBrowseControls sort={sort} cooked={cooked} onSort={setSort} onCooked={setCooked} />

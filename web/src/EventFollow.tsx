@@ -1,5 +1,5 @@
-import { Choose } from './PickField.tsx'
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { t } from './i18n.ts'
@@ -65,7 +65,7 @@ export function EventFollow({ event }: { event: EventInstance }) {
       {(event.rrule || event.seriesId) && (
         <label className="field">
           {t('Apply to')}
-          <Choose hideLabel label={t('Apply to')} value={String(scope)} onChange={next => setScope(next as 'occurrence' | 'series')}
+          <Choose hideLabel label={t('Apply to')} value={scope} onChange={next => setScope(next as 'occurrence' | 'series')}
             options={[
               { value: 'occurrence', label: t('Just this event') },
               { value: 'series', label: t('Every occurrence') },
@@ -74,17 +74,17 @@ export function EventFollow({ event }: { event: EventInstance }) {
       )}
       <label className="field">
         {t('Show countdown')}
-        <Choose hideLabel label={t('Show countdown')} value={String(choice.minutes)} disabled={busy || !ready} onChange={next => {
-            const minutes = Number(next)
+        <Choose hideLabel label={t('Show countdown')} value={choice.minutes} disabled={busy || !ready} onChange={next => {
+            const minutes = next
             setChoice({ ...choice, minutes })
             if (choice.enabled) void save(true, false, minutes)
           }}
           options={[
-            { value: String(0), label: t('At the start') },
-            { value: String(5), label: t('5 minutes before') },
-            { value: String(15), label: t('15 minutes before') },
-            { value: String(30), label: t('30 minutes before') },
-            { value: String(60), label: t('60 minutes before') },
+            { value: 0, label: t('At the start') },
+            { value: 5, label: t('5 minutes before') },
+            { value: 15, label: t('15 minutes before') },
+            { value: 30, label: t('30 minutes before') },
+            { value: 60, label: t('60 minutes before') },
           ]} />
       </label>
       <p className="settings-row-sub">

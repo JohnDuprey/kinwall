@@ -1,8 +1,8 @@
-import { Choose } from './PickField.tsx'
 // To-do apps: Settings → Calendars → To-do apps (connect Todoist, Google Tasks, Microsoft To Do),
 // a to-do list's "Sync with…" in its Edit sheet, and the synced list's status line. Server:
 // routes/tasks.ts. Connecting and linking are for parent devices; every screen sees the status.
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
@@ -252,16 +252,16 @@ function TaskSyncSheet({ list, link, onClose, onChanged }: { list: List; link: T
         )}
         <div className="field">
           <label htmlFor="task-sync-account">{t('Account')}</label>
-          <Choose hideLabel label={t('Account')} id="task-sync-account" value={String(accountId)} onChange={next => setAccountId(next)} sheet
-            options={accounts.map(a => ({ value: String(a.id), label: label(a.kind, a.name) }))} />
+          <Choose hideLabel label={t('Account')} id="task-sync-account" value={accountId} onChange={next => setAccountId(next)} sheet
+            options={accounts.map(a => ({ value: a.id, label: label(a.kind, a.name) }))} />
         </div>
         <div className="field">
           <label htmlFor="task-sync-list">{account ? t('List in {app}', { app: appName(account.kind) }) : t('List')}</label>
-          <Choose hideLabel label={account ? t('List in {app}', { app: appName(account.kind) }) : t('List')} id="task-sync-list" value={String(remoteId)} onChange={next => setRemoteId(next)} disabled={!remote} sheet
+          <Choose hideLabel label={account ? t('List in {app}', { app: appName(account.kind) }) : t('List')} id="task-sync-list" value={remoteId} onChange={next => setRemoteId(next)} disabled={!remote} sheet
             options={[
-              ...(!remote ? [{ value: String(remoteId), label: t('Loading…') }] : []),
-              ...(remote?.map(r => ({ value: String(r.remoteId), label: r.name })) ?? []),
-              ...(remote ? [{ value: String(NEW), label: t('Make a new one: {name}', { name: list.name }) }] : []),
+              ...(!remote ? [{ value: remoteId, label: t('Loading…') }] : []),
+              ...(remote?.map(r => ({ value: r.remoteId, label: r.name })) ?? []),
+              ...(remote ? [{ value: NEW, label: t('Make a new one: {name}', { name: list.name }) }] : []),
             ]} />
         </div>
         <p className="field-hint">{t('Titles, done, due dates, notes and steps sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for and the discussion stay in Kinwall.')}</p>

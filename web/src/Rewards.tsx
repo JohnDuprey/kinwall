@@ -1,10 +1,10 @@
-import { Choose } from './PickField.tsx'
 // Rewards: things a parent sets up ("🍿 Movie night, 100 points") that a member spends chore points
 // on (server: routes/rewards.ts). Points are earned on Chores and spent here: the screen shows one
 // member's balance, their goal, what they can get now and what they're saving for, requests
 // waiting for a grown-up, and a way into the sticker shop. Several people can split one reward. Parents also decide on requests (the
 // same queue as Chores' "To approve") and add, edit and archive rewards here.
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { MilestonesPanel } from './Milestones.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -525,7 +525,7 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
       <div className="field">
         {/* The same choice as a chore's (which also has Default, following the person). */}
         <label htmlFor="reward-approval">{t("Needs a parent's OK")}</label>
-        <Choose hideLabel label={t("Needs a parent's OK")} id="reward-approval" value={String(needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'yes')}
+        <Choose hideLabel label={t("Needs a parent's OK")} id="reward-approval" value={needsApproval ? 'yes' : 'no'} onChange={next => setNeedsApproval(next === 'yes')}
           options={[
             { value: 'yes', label: t('Yes') },
             { value: 'no', label: t('No') },

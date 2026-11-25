@@ -220,7 +220,7 @@ function ChangeDoseSheet({ dose, date, today, name, onSave, onClose }: { dose: D
       <p className="snap-dim">{name} · {doseTimeLabel(dose)}{date !== today ? ` ${t('(yesterday)')}` : ''}</p>
       <div className="field">
         <label htmlFor="dose-status">{t('What happened')}</label>
-        <Choose hideLabel label={t('What happened')} id="dose-status" value={String(status)} onChange={next => setStatus(next as typeof status)}
+        <Choose hideLabel label={t('What happened')} id="dose-status" value={status} onChange={next => setStatus(next as typeof status)}
           options={[
             { value: 'taken', label: t('Taken') },
             { value: 'skipped', label: t('Skipped') },

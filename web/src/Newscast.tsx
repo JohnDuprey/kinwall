@@ -1,9 +1,9 @@
-import { Choose } from './PickField.tsx'
 // Home → Newscast (docs/using/newscast.md): what the family did and shared, a day at a time.
 // Calm by design: no unread badge, no pushes, no jumping. A fresh load with new items waits behind
 // a quiet "New: N · Show"; it's asked for only while this tab is showing and /api/rev moved
 // (refreshTick). Reactions show faces, never counts. Low-stimulation mode drops the pictures.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { api, ApiError } from './api.ts'
@@ -301,23 +301,23 @@ function Composer({ inSheet, onPosted }: { inSheet: boolean; onPosted: () => voi
         <div className="news-count" id="news-count">{tn(MAX - text.length, '{n} left', '{n} left')}</div>
         <div className="news-row">
           {!meMemberId && (
-            <Choose hideLabel label={t('Post as')} value={String(as)} onChange={next => setAs(next)} sheet
+            <Choose hideLabel label={t('Post as')} value={as} onChange={next => setAs(next)} sheet
               options={[
                 { value: '', label: t('Post as…') },
-                ...(members.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+                ...members.map(m => ({ value: m.id, label: `${m.avatar} ${m.name}` })),
               ]} />
           )}
           {who?.grownUp && (
-            <Choose hideLabel label={t('Who sees it')} value={String(audience)} onChange={next => setAudience(next as 'everyone' | 'grownups')}
+            <Choose hideLabel label={t('Who sees it')} value={audience} onChange={next => setAudience(next as 'everyone' | 'grownups')}
               options={[
                 { value: 'everyone', label: t('👪 Everyone') },
                 { value: 'grownups', label: t('🔒 Grown-ups only') },
               ]} />
           )}
-          <Choose hideLabel label={t('Emoji')} value={String(emoji)} onChange={next => setEmoji(next)} sheet
+          <Choose hideLabel label={t('Emoji')} value={emoji} onChange={next => setEmoji(next)} sheet
             options={[
               { value: '', label: t('No emoji') },
-              ...(EMOJI.map(x => ({ value: String(x), label: x }))),
+              ...EMOJI.map(x => ({ value: x, label: x })),
             ]} />
         </div>
         {photo && (

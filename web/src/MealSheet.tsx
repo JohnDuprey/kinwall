@@ -128,7 +128,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       {/* An order night's orders have their own view (Orders.tsx OrderNightSheet); eating out somewhere else keeps them here, on top. */}
       {showOrders && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {admin ? <fieldset className="meal-fieldset" disabled={busy}>
-        <div className="field"><label htmlFor={`${formId}-kind`}>{t('What are we eating?')}</label><Choose hideLabel label={t('What are we eating?')} id={`${formId}-kind`} value={String(draft.mealKind)} onChange={next => update('mealKind', next as MealKind)}
+        <div className="field"><label htmlFor={`${formId}-kind`}>{t('What are we eating?')}</label><Choose hideLabel label={t('What are we eating?')} id={`${formId}-kind`} value={draft.mealKind} onChange={next => update('mealKind', next as MealKind)}
           options={[
             { value: 'recipe', label: t('A recipe') },
             { value: 'freeform', label: t('Something else') },
@@ -146,10 +146,10 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
             <PickField id={`${formId}-restaurant`} label={t('Restaurant')} title={t('Choose a restaurant')} placeholder={t('Restaurant name')}
               options={[{ value: '', label: t('Somewhere else'), detail: t('Not in the binder') }, ...binder.filter(r => !r.archived || r.id === draft.restaurantId).map(r => ({ value: r.id, label: r.name, detail: r.cuisine ?? undefined }))]}
               value={[draft.restaurantId ?? '']} onChange={v => { const r = binder.find(x => x.id === v[0]); setDraft(d => ({ ...d, restaurantId: r?.id ?? null, title: r ? r.name : d.title, orderType: r ? d.orderType ?? 'pickup' : d.orderType })) }} /></div>
-          <div className="field"><label htmlFor={`${formId}-how`}>{t('How')}</label><Choose hideLabel label={t('How')} id={`${formId}-how`} value={String(draft.orderType ?? '')} onChange={next => update('orderType', (next || null) as OrderType | null)} sheet
+          <div className="field"><label htmlFor={`${formId}-how`}>{t('How')}</label><Choose hideLabel label={t('How')} id={`${formId}-how`} value={draft.orderType ?? ''} onChange={next => update('orderType', (next || null) as OrderType | null)} sheet
             options={[
               { value: '', label: t('Not set') },
-              ...(Object.entries(ORDER_TYPE_LABEL).map(([k, label]) => ({ value: String(k), label: tm(label) }))),
+              ...Object.entries(ORDER_TYPE_LABEL).map(([k, label]) => ({ value: k, label: tm(label) })),
             ]} /></div>
         </>}
         <div className="field"><label htmlFor={`${formId}-title`}>{draft.mealKind === 'dining_out' ? t('Place or meal name') : t('Meal name')}</label><input id={`${formId}-title`} type="text" required maxLength={200} placeholder={draft.mealKind === 'dining_out' ? t('Eating out, school cafeteria…') : t('What are we eating?')} value={draft.title} onChange={e => update('title', e.target.value)} /></div>
@@ -157,8 +157,8 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
         {swapRange && <div className="sheet-links"><button className="sheet-link" type="button" aria-haspopup="dialog" onClick={() => setSwapping(true)}><CalendarIcon /><span>{t('Swap with…')}<small>{t('Trade days with another meal this week')}</small></span><ChevronRight /></button></div>}
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${formId}-date`}>{t('Date')}</label><input id={`${formId}-date`} type="date" required value={draft.date} onChange={e => update('date', e.target.value)} /></div>
-          <div className="field"><label htmlFor={`${formId}-slot`}>{t('Meal')}</label><Choose hideLabel label={t('Meal')} id={`${formId}-slot`} value={String(draft.slot)} onChange={next => update('slot', next as MealSlot)}
-            options={MEAL_SLOTS.map(slot => ({ value: String(slot), label: tm(SLOT_LABEL[slot]) }))} /></div>
+          <div className="field"><label htmlFor={`${formId}-slot`}>{t('Meal')}</label><Choose hideLabel label={t('Meal')} id={`${formId}-slot`} value={draft.slot} onChange={next => update('slot', next as MealSlot)}
+            options={MEAL_SLOTS.map(slot => ({ value: slot, label: tm(SLOT_LABEL[slot]) }))} /></div>
         </div>
         <div className="meal-form-row">
           {/* Eating out: who's eating sets how many, and nobody cooks. */}
@@ -167,10 +167,10 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
             {/* A time field can't show a placeholder, so the usual time sits under it. */}
             <p className="field-hint" id={`${formId}-time-hint`}>{draft.plannedTime ? t('Clear it to use the usual time.') : t('Usual {meal} time: {time}', { meal: tm(SLOT_WORD[draft.slot]), time: formatTime(settings.mealTimes[draft.slot]) })}</p></div>
         </div>
-        {draft.mealKind !== 'dining_out' && <div className="field"><label htmlFor={`${formId}-assignee`}>{t('Cooking')}</label><Choose hideLabel label={t('Cooking')} id={`${formId}-assignee`} value={String(draft.assigneeMemberId ?? '')} onChange={next => update('assigneeMemberId', next || null)} sheet
+        {draft.mealKind !== 'dining_out' && <div className="field"><label htmlFor={`${formId}-assignee`}>{t('Cooking')}</label><Choose hideLabel label={t('Cooking')} id={`${formId}-assignee`} value={draft.assigneeMemberId ?? ''} onChange={next => update('assigneeMemberId', next || null)} sheet
           options={[
             { value: '', label: t('Nobody yet') },
-            ...(members.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+            ...members.map(m => ({ value: m.id, label: `${m.avatar} ${m.name}` })),
           ]} /></div>}
         <MemberPicker members={members} selected={draft.eaterIds} label={t('Who’s eating')} noneLabel={t('Everyone')} onChange={ids => setDraft(d => ({ ...d, eaterIds: ids, servings: ids.length || d.servings }))} />
         {draft.mealKind === 'dining_out' ? <p className="field-hint meal-eaters-hint">{t('Who’s eating is who gets asked for their order.')}</p>
@@ -189,8 +189,8 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       {draft.mealKind !== 'recipe' && <p className="field-hint">{draft.mealKind === 'dining_out' ? t('Eating out doesn’t add anything to the grocery list.') : t('Only recipes add to the grocery list.')}</p>}
       {canUpdate ? <fieldset className="meal-fieldset meal-spaced" disabled={busy}>
         {/* On an order night the status locks everyone's orders: a grown-up's call (the server says so too). */}
-        {(admin || draft.mealKind !== 'dining_out') && !showOrders && <div className="field"><label htmlFor={`${formId}-status`}>{t('Status')}</label><Choose hideLabel label={t('Status')} id={`${formId}-status`} value={String(draft.status)} onChange={next => update('status', next as MealStatus)}
-          options={(['planned', 'prepared'] as const).map(status => ({ value: String(status), label: statusLabel({ status, mealKind: draft.mealKind }) }))} /></div>}
+        {(admin || draft.mealKind !== 'dining_out') && !showOrders && <div className="field"><label htmlFor={`${formId}-status`}>{t('Status')}</label><Choose hideLabel label={t('Status')} id={`${formId}-status`} value={draft.status} onChange={next => update('status', next as MealStatus)}
+          options={(['planned', 'prepared'] as const).map(status => ({ value: status, label: statusLabel({ status, mealKind: draft.mealKind }) }))} /></div>}
         <div className="field"><label htmlFor={`${formId}-notes`}>{t('Notes')}</label><textarea id={`${formId}-notes`} maxLength={10000} value={draft.notes ?? ''} onChange={e => update('notes', e.target.value || null)} /></div>
       </fieldset> : <><p>{t('Status: {status}', { status: statusLabel(draft) })}</p>{draft.notes && <p className="meal-prose">{draft.notes}</p>}</>}
       {((snapshot && selectedRecipe) || meal?.sourceUrl || linkedMeal?.calendarEventId) && <div className="sheet-links">
@@ -240,7 +240,7 @@ export function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
   const hasBasics = recipes.some(r => r.kind === 'basic' && !r.archived)
   return <Sheet title={t('Choose a recipe')} onClose={onClose}>
     <RecipeSelector recipes={recipes} currentId={currentId} basics={basics} onPick={onPick}
-      extraControls={hasBasics && <div className="field"><label htmlFor={`${formId}-show`}>{t('Show')}</label><Choose hideLabel label={t('Show')} id={`${formId}-show`} value={String(basics ? 'all' : 'meals')} onChange={next => setBasics(next === 'all')}
+      extraControls={hasBasics && <div className="field"><label htmlFor={`${formId}-show`}>{t('Show')}</label><Choose hideLabel label={t('Show')} id={`${formId}-show`} value={basics ? 'all' : 'meals'} onChange={next => setBasics(next === 'all')}
         options={[
           { value: 'meals', label: t('Meals') },
           { value: 'all', label: t('Meals and basics') },
@@ -269,7 +269,7 @@ function SwapPicker({ meal, range, recipes, onPick, onClose }: {
     return () => { canceled = true }
   }, [meal.id, range.from, range.to])
   return <Sheet title={t('Swap “{title}” with…', { title: meal.title })} onClose={onClose}>
-    {meals?.some(isBasic) && <div className="field"><label htmlFor="swap-show">{t('Show')}</label><Choose hideLabel label={t('Show')} id="swap-show" value={String(basics ? 'all' : 'meals')} onChange={next => setBasics(next === 'all')}
+    {meals?.some(isBasic) && <div className="field"><label htmlFor="swap-show">{t('Show')}</label><Choose hideLabel label={t('Show')} id="swap-show" value={basics ? 'all' : 'meals'} onChange={next => setBasics(next === 'all')}
       options={[
         { value: 'meals', label: t('Meals') },
         { value: 'all', label: t('Meals and basics') },

@@ -604,7 +604,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
       {kind === 'reading' && <>
         <div className="field">
           <label htmlFor="trk-format">{t('Format')}</label>
-          <Choose hideLabel label={t('Format')} id="trk-format" value={String(f.format)} onChange={next => set({ format: next as ReadingFormat })}
+          <Choose hideLabel label={t('Format')} id="trk-format" value={f.format} onChange={next => set({ format: next as ReadingFormat })}
             options={[
               { value: 'book', label: t('📖 Book') },
               { value: 'audiobook', label: t('🎧 Audiobook') },
@@ -702,8 +702,8 @@ function MeasureInput({ id, label, value, unit, units, onValue, onUnit }: { id: 
     <div className="trk-measure">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="text" inputMode="decimal" value={value} onChange={e => onValue(e.target.value.replace(/[^\d.]/g, ''))} />
-      <Choose hideLabel label={t('{label} unit', { label })} value={String(unit)} onChange={next => onUnit(next)}
-        options={units.map(u => ({ value: String(u), label: u === 'F' || u === 'C' ? `°${u}` : u }))} />
+      <Choose hideLabel label={t('{label} unit', { label })} value={unit} onChange={next => onUnit(next)}
+        options={units.map(u => ({ value: u, label: u === 'F' || u === 'C' ? `°${u}` : u }))} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
-import { Choose } from './PickField.tsx'
 import { useId, useState, type ReactNode } from 'react'
+import { Choose } from './PickField.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -26,7 +26,7 @@ export function RestaurantBinder({ restaurants, loaded, error, onRetry, onOpen }
   return <section role="tabpanel" aria-labelledby="meals-tab-restaurants">
     <div className="meals-toolbar">
       <div className="field meals-search"><label htmlFor="restaurant-search">{t('Find a restaurant')}</label><input id="restaurant-search" type="search" placeholder={t('Pizza, lo mein…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
-      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="restaurant-filter" value={String(filter)} onChange={next => setFilter(next)}
+      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="restaurant-filter" value={filter} onChange={next => setFilter(next)}
         options={[
           { value: 'active', label: t('Active') },
           { value: 'archived', label: t('Archived') },

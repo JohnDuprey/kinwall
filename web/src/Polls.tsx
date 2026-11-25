@@ -1,4 +1,3 @@
-import { Choose } from './PickField.tsx'
 // Family polls (docs/using/polls.md; server: routes/polls.ts). Polls have no tab of their own: an open
 // poll shows in the Board's Today card, the Polls button on Home's Board lists them all (and starts one), a
 // poll tied to a meal shows in that Meals week cell, and the bell's "New poll" opens it
@@ -10,6 +9,7 @@ import { Choose } from './PickField.tsx'
 // parent's device for anyone, after picking who. Parents start, close and delete polls; closing
 // with Meals on offers "Plan it", which opens that meal (or a new one) with the winner filled in.
 import { useCallback, useEffect, useId, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
@@ -246,15 +246,15 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
     {open && !who && !lockedTo && <p className="field-hint">{t('Pick who’s voting, then tap a choice. Tap it again to take it back.')}</p>}
     {closing !== null && <div className="field poll-close">
       <label htmlFor={`poll-winner-${poll.id}`}>{t('Winner')}</label>
-      <Choose hideLabel label={t('Winner')} id={`poll-winner-${poll.id}`} value={String(closing)} onChange={next => setClosing(next)} sheet
-        options={poll.options.map(o => ({ value: String(o.id), label: [o.label, " (", tn(o.votes.length, '{n} vote', '{n} votes'), ")"].join('') }))} />
+      <Choose hideLabel label={t('Winner')} id={`poll-winner-${poll.id}`} value={closing} onChange={next => setClosing(next)} sheet
+        options={poll.options.map(o => ({ value: o.id, label: `${o.label} (${tn(o.votes.length, '{n} vote', '{n} votes')})` }))} />
       <p className="field-hint">{tie ? t('It’s a tie: pick the winner.') : t('The choice with the most votes is picked.')} {t('Nobody can vote after voting ends.')}</p>
     </div>}
     {tripLink && <p className="field-hint">{t('A vote on where to stay. Ending it never picks a winner: a grown-up chooses on the trip.')}</p>}
     {parentDevice && !tripLink && closing === null && <div className="field poll-more">
       <label htmlFor={`poll-more-${poll.id}`} className="sr-only">{t('More')}</label>
       <div className="choice-actions" role="group" aria-label={t('More')}>
-        <button type="button" className="link-btn link-danger" onClick={() => void more("delete")}>{t('Delete poll')}</button>
+        <button type="button" className="link-btn link-danger" onClick={() => void more('delete')}>{t('Delete poll')}</button>
       </div>
     </div>}
     {planning && <MealSheet meal={planning.meal} initial={planning.initial} recipes={planning.recipes} admin owner={null} onClose={() => setPlanning(null)} onSaved={saved => void planned(saved)} onRecipe={() => {}} />}
@@ -307,8 +307,8 @@ export function NewPollSheet({ onClose, onCreated }: { onClose: () => void; onCr
         <div className="field"><label htmlFor={`${formId}-q`}>{t('Question')}</label><input id={`${formId}-q`} type="text" required maxLength={200} placeholder={t('Where are we eating Friday?')} value={question} onChange={e => setQuestion(e.target.value)} /></div>
         {meals && <div className="meal-form-row">
           <div className="field"><label htmlFor={`${formId}-date`}>{t('For a meal (optional)')}</label><input id={`${formId}-date`} type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
-          <div className="field"><label htmlFor={`${formId}-slot`}>{t('Meal')}</label><Choose hideLabel label={t('Meal')} id={`${formId}-slot`} disabled={!date} value={String(slot)} onChange={next => setSlot(next as MealSlot)}
-            options={MEAL_SLOTS.map(s => ({ value: String(s), label: tm(SLOT_LABEL[s]) }))} /></div>
+          <div className="field"><label htmlFor={`${formId}-slot`}>{t('Meal')}</label><Choose hideLabel label={t('Meal')} id={`${formId}-slot`} disabled={!date} value={slot} onChange={next => setSlot(next as MealSlot)}
+            options={MEAL_SLOTS.map(s => ({ value: s, label: tm(SLOT_LABEL[s]) }))} /></div>
         </div>}
         <fieldset className="poll-choices"><legend>{t('Choices')}</legend>
           {choices.map((c, i) => <div key={c.key} className="poll-choice">

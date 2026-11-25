@@ -296,7 +296,7 @@ function FiltersSheet({ value, place, categories, count, onClose, onApply, onEdi
     <button className="btn btn-secondary" onClick={() => setF({ ...startFilters(null) })}>{t('Clear')}</button>
     <button className="btn btn-primary" onClick={() => onApply(f)}>{place ? tn(n, 'Show {n} place', 'Show {n} places') : tn(n, 'Show {n} outing', 'Show {n} outings')}</button>
   </>}>
-    {!place && <div className="field"><label htmlFor={`${id}-when`}>{t('When')}</label><Choose hideLabel label={t('When')} id={`${id}-when`} value={String(f.when)} onChange={next => setF({ ...f, when: next as When })}
+    {!place && <div className="field"><label htmlFor={`${id}-when`}>{t('When')}</label><Choose hideLabel label={t('When')} id={`${id}-when`} value={f.when} onChange={next => setF({ ...f, when: next as When })}
       options={[
         { value: 'any', label: t('Any time') },
         { value: 'weekend', label: t('This weekend') },
@@ -305,23 +305,23 @@ function FiltersSheet({ value, place, categories, count, onClose, onApply, onEdi
         { value: 'past', label: t('Past') },
       ]} /></div>}
     <LabeledPick label={t('Categories')} multiple none={t('Any')} value={f.categoryIds} onChange={v => setF({ ...f, categoryIds: v })} options={categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))} />
-    <div className="field"><label htmlFor={`${id}-who`}>{t('Who it’s for')}</label><Choose hideLabel label={t('Who it’s for')} id={`${id}-who`} value={String(f.who)} onChange={next => setF({ ...f, who: next, boxes: [...FOR_BOXES] })} sheet
+    <div className="field"><label htmlFor={`${id}-who`}>{t('Who it’s for')}</label><Choose hideLabel label={t('Who it’s for')} id={`${id}-who`} value={f.who} onChange={next => setF({ ...f, who: next, boxes: [...FOR_BOXES] })} sheet
       options={[
         { value: '', label: t('Anyone') },
-        ...(members.map(m => ({ value: String(m.id), label: m.name }))),
+        ...members.map(m => ({ value: m.id, label: m.name })),
       ]} /></div>
     {person && <fieldset className="meal-fieldset outing-boxes"><legend className="sr-only">{t('What counts as for {name}', { name: person.name })}</legend>
       {FOR_BOXES.map(b => <label key={b} className="meal-check"><input type="checkbox" checked={f.boxes.includes(b)} onChange={e => setF({ ...f, boxes: e.target.checked ? FOR_BOXES.filter(x => x === b || f.boxes.includes(x)) : f.boxes.filter(x => x !== b) as ForBox[] })} /> {boxLabel(b, person)}</label>)}
     </fieldset>}
-    <div className="field"><label htmlFor={`${id}-marked`}>{t('Marked by')}</label><Choose hideLabel label={t('Marked by')} id={`${id}-marked`} value={String(f.markedBy)} onChange={next => setF({ ...f, markedBy: next })} sheet
+    <div className="field"><label htmlFor={`${id}-marked`}>{t('Marked by')}</label><Choose hideLabel label={t('Marked by')} id={`${id}-marked`} value={f.markedBy} onChange={next => setF({ ...f, markedBy: next })} sheet
       options={[
         { value: '', label: t('Anyone or no one') },
         { value: 'any', label: t('Someone marked it') },
         { value: 'really', label: t('⭐ Really want to go') },
-        ...(who.kidId ? [{ value: String(who.kidId), label: t('Me') }] : []),
-        ...(members.filter(m => m.id !== who.kidId).map(m => ({ value: String(m.id), label: m.name }))),
+        ...(who.kidId ? [{ value: who.kidId, label: t('Me') }] : []),
+        ...members.filter(m => m.id !== who.kidId).map(m => ({ value: m.id, label: m.name })),
       ]} /></div>
-    <div className="field"><label htmlFor={`${id}-cost`}>{t('Cost')}</label><Choose hideLabel label={t('Cost')} id={`${id}-cost`} value={String(f.cost)} onChange={next => setF({ ...f, cost: next as Cost })}
+    <div className="field"><label htmlFor={`${id}-cost`}>{t('Cost')}</label><Choose hideLabel label={t('Cost')} id={`${id}-cost`} value={f.cost} onChange={next => setF({ ...f, cost: next as Cost })}
       options={[
         { value: 'any', label: t('Any cost') },
         { value: 'free', label: t('Free only') },
@@ -491,7 +491,7 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
   </>}>
     <form id={id} onSubmit={e => { e.preventDefault(); void save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
-        <div className="field"><label htmlFor={`${id}-kind`}>{t('What is it?')}</label><Choose hideLabel label={t('What is it?')} id={`${id}-kind`} value={String(d.kind)} onChange={next => set('kind', next as Outing['kind'])}
+        <div className="field"><label htmlFor={`${id}-kind`}>{t('What is it?')}</label><Choose hideLabel label={t('What is it?')} id={`${id}-kind`} value={d.kind} onChange={next => set('kind', next as Outing['kind'])}
           options={[
             { value: 'upcoming', label: t('Something happening') },
             { value: 'place', label: t('A place to visit any time') },
@@ -537,7 +537,7 @@ function OutingEditSheet({ outing, kind, categories, onClose, onSaved }: { outin
           </div>
         </>}
         {!upcoming && <div className="meal-form-row">
-          <div className="field"><label htmlFor={`${id}-visit`}>{t('Been there?')}</label><Choose hideLabel label={t('Been there?')} id={`${id}-visit`} value={String(d.visitStatus ?? '')} onChange={next => set('visitStatus', (next || null) as Outing['visitStatus'])}
+          <div className="field"><label htmlFor={`${id}-visit`}>{t('Been there?')}</label><Choose hideLabel label={t('Been there?')} id={`${id}-visit`} value={d.visitStatus ?? ''} onChange={next => set('visitStatus', (next || null) as Outing['visitStatus'])}
             options={[
               { value: 'want', label: t('Want to go') },
               { value: 'been', label: t('Been there') },
@@ -608,8 +608,8 @@ function OutingCalendarSheet({ outing: o, onClose, onSaved }: { outing: Outing; 
       </div>
       {endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('The end has to be after the start.')}</p>}
       {needsEndTime && !endBeforeStart && <p className="field-error" id={`${id}-end-error`} role="alert">{t('Pick an end time for a visit that spans days.')}</p>}
-      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={String(calendarId)} onChange={next => setCalendarId(next)} sheet
-        options={calendars.map(c => ({ value: String(c.id), label: c.name }))} /></div>}
+      {calendars && calendars.length > 1 && <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId} onChange={next => setCalendarId(next)} sheet
+        options={calendars.map(c => ({ value: c.id, label: c.name }))} /></div>}
       <LabeledPick label={t('Who’s going')} multiple none={t('Everyone')} value={going} onChange={setGoing} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />
       <p className="field-hint">{t('It goes on the calendar as a normal event in the 🎟 Outing category, with the place, notes and links. Change it there any time.')}</p>
     </fieldset>
@@ -776,7 +776,7 @@ function FeedSheet({ feed, categories, onClose, onSaved }: { feed: OutingFeed | 
       <p className="field-hint" id={`${id}-url-hint`}>{t('Look for “Subscribe”, “iCal” or “Add to calendar” on the calendar’s page and copy that link.')}</p></div>
     <LabeledPick label={t('Category for its events')} none={t('None')} value={categoryId ? [categoryId] : []} onChange={v => setCategoryId(v[0] || null)} options={[{ value: '', label: t('None') }, ...categories.map(c => ({ value: c.id, label: c.name, lead: <span aria-hidden="true">{c.emoji}</span> }))]} />
     <div className="field"><label htmlFor={`${id}-aud`}>{t('Who its events are for')}</label>
-      <Choose hideLabel label={t('Who its events are for')} id={`${id}-aud`} value={String(audience)} onChange={next => setAudience(next as OutingAudience | '')}
+      <Choose hideLabel label={t('Who its events are for')} id={`${id}-aud`} value={audience} onChange={next => setAudience(next as OutingAudience | '')}
         options={[
           { value: '', label: t('Not set') },
           { value: 'family', label: t('The whole family') },

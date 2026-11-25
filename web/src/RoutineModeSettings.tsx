@@ -1,6 +1,6 @@
-import { Choose } from './PickField.tsx'
 import type { RoutineDaySchedule, RoutineState } from './routineMode.ts'
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { schoolDomain } from './routineWebsites.ts'
 import { useApp } from './AppContext.tsx'
 import RoutineAppPreview from './RoutineAppPreview.tsx'
@@ -46,8 +46,8 @@ function RoutineModeSettingsBody() {
   const [statuses, setStatuses] = useState<Record<string, RoutineSaveStatus>>({})
   const pending = (id: string) => !!statuses[id] && !['idle', 'saved'].includes(statuses[id]!.phase)
   return <div className="routine-settings">
-    <label className="field">{t('Child')}<Choose hideLabel label={t('Child')} disabled={nativeBusy} value={String(picked)} onChange={next => { setPicked(next); setNative(null) }} sheet
-      options={children.map(m => ({ value: String(m.id), label: statuses[m.id]?.phase === 'error' || statuses[m.id]?.phase === 'invalid' ? t('{name} (not saved)', { name: m.name }) : m.name }))} /></label>
+    <label className="field">{t('Child')}<Choose hideLabel label={t('Child')} disabled={nativeBusy} value={picked} onChange={next => { setPicked(next); setNative(null) }} sheet
+      options={children.map(m => ({ value: m.id, label: statuses[m.id]?.phase === 'error' || statuses[m.id]?.phase === 'invalid' ? t('{name} (not saved)', { name: m.name }) : m.name }))} /></label>
     <p className="settings-row-sub">{t('Changes save automatically for the selected child.')}</p>
     {!memberId && <p>{t('Add a child to your family before setting up routine mode.')}</p>}
     {error && <p role="alert">{error}</p>}
@@ -105,7 +105,7 @@ function RoutineSettingsForm({ memberId, childName, state, active, onSaved, onSt
             { value: 'false', label: t('Off') },
             { value: 'true', label: t('On') },
           ]} /></label>
-        <label className="field">{t('Apps during routine mode')}<Choose hideLabel label={t('Apps during routine mode')} name="appMode" defaultValue={String(seed.appMode ?? 'selected')}
+        <label className="field">{t('Apps during routine mode')}<Choose hideLabel label={t('Apps during routine mode')} name="appMode" defaultValue={seed.appMode ?? 'selected'}
           options={[
             { value: 'selected', label: t('Pause selected apps and categories') },
             { value: 'all', label: t('Pause all apps except allowed apps') },
@@ -147,7 +147,7 @@ function RoutineScheduleFields({ start, cutoff, days }: { start: string; cutoff:
   const [dailyEnd, setDailyEnd] = useState(cutoff)
   const names = [t('Sunday'), t('Monday'), t('Tuesday'), t('Wednesday'), t('Thursday'), t('Friday'), t('Saturday')]
   return <>
-    <label className="field">{t('Schedule')}<Choose hideLabel label={t('Schedule')} name="scheduleMode" value={String(custom ? 'custom' : 'daily')} onChange={next => setCustom(next === 'custom')}
+    <label className="field">{t('Schedule')}<Choose hideLabel label={t('Schedule')} name="scheduleMode" value={custom ? 'custom' : 'daily'} onChange={next => setCustom(next === 'custom')}
       options={[
         { value: 'daily', label: t('Same times every day') },
         { value: 'custom', label: t('Customize by day') },
@@ -178,7 +178,7 @@ function RoutineChoreFields({ selected, names, chores }: { selected: string[] | 
   const repeating = chores.filter(chore => !chore.oneTime)
   const oneTimeNames = routineChoreNames([...names, ...chores.filter(chore => chore.oneTime).map(chore => chore.title), ...chosenNames.values()])
   return <>
-    <label className="field">{t('Chores required for free time')}<Choose hideLabel label={t('Chores required for free time')} name="choreRequirement" value={String(specific ? 'selected' : 'all')} onChange={next => setSpecific(next === 'selected')}
+    <label className="field">{t('Chores required for free time')}<Choose hideLabel label={t('Chores required for free time')} name="choreRequirement" value={specific ? 'selected' : 'all'} onChange={next => setSpecific(next === 'selected')}
       options={[
         { value: 'all', label: t('All assigned chores due today') },
         { value: 'selected', label: t('Selected chores') },

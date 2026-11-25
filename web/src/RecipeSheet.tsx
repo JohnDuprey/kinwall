@@ -265,7 +265,7 @@ function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSa
     <form id={formId} onSubmit={e => { e.preventDefault(); save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${formId}-name`}>{t('Name')}</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>
-        <div className="field"><label htmlFor={`${formId}-kind`}>{t('Type')}</label><Choose hideLabel label={t('Type')} id={`${formId}-kind`} value={String(draft.kind)} onChange={next => update('kind', next as RecipeKind)}
+        <div className="field"><label htmlFor={`${formId}-kind`}>{t('Type')}</label><Choose hideLabel label={t('Type')} id={`${formId}-kind`} value={draft.kind} onChange={next => update('kind', next as RecipeKind)}
           options={[
             { value: 'meal', label: t('Meal') },
             { value: 'basic', label: t('Basic') },

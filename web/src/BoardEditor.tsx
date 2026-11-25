@@ -1,9 +1,9 @@
-import { Choose } from './PickField.tsx'
 // The Board layout editor (boardLayout.ts): a screen's own layout, or a family preset. Cards sit in
 // columns, each as tall as its share of the column, so the editor is a small picture of the Board.
 // Drag a card by its grip to another place or column, or use its arrow buttons; a keyboard and a
 // screen reader get the same moves from the buttons.
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Choose } from './PickField.tsx'
 import { announce } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -120,14 +120,14 @@ export default function BoardEditor({ title, start, name: startName, presets, on
             options={[
               { value: '', label: t('Choose…'), disabled: true },
               { value: 'default', label: t('Family wall (default)') },
-              ...(BUILT_IN_PRESETS.map(p => ({ value: String(p.id), label: tm(p.name) }))),
-              ...(presets.map(p => ({ value: String(p.id), label: [p.name, " 🏠"].join('') }))),
+              ...BUILT_IN_PRESETS.map(p => ({ value: p.id, label: tm(p.name) })),
+              ...presets.map(p => ({ value: p.id, label: `${p.name} 🏠` })),
             ]} />
         </div>
         <div className="device-pref-row">
           <span>{t('Columns')}</span>
-          <Choose hideLabel label={t('Columns')} value={String(n)} onChange={next => setLayout(setColumnCount(layout, Number(next)))} sheet
-            options={Array.from({ length: MAX_COLUMNS }, (_, i) => ({ value: String(i + 1), label: i + 1 }))} />
+          <Choose hideLabel label={t('Columns')} value={n} onChange={next => setLayout(setColumnCount(layout, next))} sheet
+            options={Array.from({ length: MAX_COLUMNS }, (_, i) => ({ value: i + 1, label: i + 1 }))} />
         </div>
         <div className="toggle-row">
           <label id="board-tiles-label">{t('Count tiles across the top')}</label>
@@ -157,15 +157,15 @@ export default function BoardEditor({ title, start, name: startName, presets, on
                     <button type="button" className="icon-btn" aria-label={t('Remove {card}', { card: tm(CARD_NAMES[card.id]) })} onClick={() => { setLayout(removeCard(layout, at)); announce(t('{card} removed', { card: tm(CARD_NAMES[card.id]) })) }}><XIcon width={18} height={18} /></button>
                   </div>
                   <div className="board-editor-card-controls">
-                    <Choose hideLabel label={t('{card} height', { card: tm(CARD_NAMES[card.id]) })} value={String(card.size)} onChange={next => setLayout(updateCard(layout, at, { size: next as CardSize }))}
-                      options={CARD_SIZES.map(s => ({ value: String(s), label: tm(SIZE_NAMES[s]) }))} />
-                    <Choose hideLabel label={t('{card} text size', { card: tm(CARD_NAMES[card.id]) })} value={String(card.density)} onChange={next => setLayout(updateCard(layout, at, { density: next as CardDensity }))}
-                      options={CARD_DENSITIES.map(d => ({ value: String(d), label: tm(DENSITY_NAMES[d]) }))} />
+                    <Choose hideLabel label={t('{card} height', { card: tm(CARD_NAMES[card.id]) })} value={card.size} onChange={next => setLayout(updateCard(layout, at, { size: next as CardSize }))}
+                      options={CARD_SIZES.map(s => ({ value: s, label: tm(SIZE_NAMES[s]) }))} />
+                    <Choose hideLabel label={t('{card} text size', { card: tm(CARD_NAMES[card.id]) })} value={card.density} onChange={next => setLayout(updateCard(layout, at, { density: next as CardDensity }))}
+                      options={CARD_DENSITIES.map(d => ({ value: d, label: tm(DENSITY_NAMES[d]) }))} />
                     {card.id === 'checklist' && (
-                      <Choose hideLabel label={t("Get stuff done card's list")} value={String(card.listId ?? '')} onChange={next => setLayout(updateCard(layout, at, { listId: next || undefined }))} sheet
+                      <Choose hideLabel label={t("Get stuff done card's list")} value={card.listId ?? ''} onChange={next => setLayout(updateCard(layout, at, { listId: next || undefined }))} sheet
                         options={[
                           { value: '', label: t('First reusable list') },
-                          ...(lists.map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name].join('') }))),
+                          ...lists.map(l => ({ value: l.id, label: `${l.emoji ? `${l.emoji} ` : ''}${l.name}` })),
                         ]} />
                     )}
                   </div>
@@ -195,7 +195,7 @@ export default function BoardEditor({ title, start, name: startName, presets, on
           }} sheet
             options={[
               { value: '', label: t('Choose…'), disabled: true },
-              ...(addable.map(id => ({ value: String(id), label: tm(CARD_NAMES[id]) }))),
+              ...addable.map(id => ({ value: id, label: tm(CARD_NAMES[id]) })),
             ]} />
         </div>
       )}
@@ -276,7 +276,7 @@ export function DeviceBoardLayoutRows() {
     <>
       <div className="device-pref-row" id="board-layout">
         <span>{t('Board layout')}</span>
-        <Choose hideLabel label={t('Board layout')} value={String(choice)} onChange={next => {
+        <Choose hideLabel label={t('Board layout')} value={choice} onChange={next => {
           const v = next
           // Own layout: start from what's showing now, and open the editor.
           if (v === CUSTOM && !device.boardCustom) setEditing(true); else pick(v)

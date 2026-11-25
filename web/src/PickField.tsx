@@ -17,7 +17,7 @@ export const PickSwatch = ({ color }: { color: string }) => <span className="pic
  * `add`: a first row to make a new one ("New school…"); it closes the sheet and hands over the search text. */
 export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = t('Search'), none = t('None'), summary, add, maxSelections, hint, disabled, 'aria-describedby': describedBy, 'aria-labelledby': labelledBy }: {
   id?: string
-  label: string // what the row is for, read with its value: 'Categories: Medical, School'
+  label: string // what the row is for, read with its value: "Categories: Medical, School"
   title?: string
   options: PickOption[] | (() => PickOption[]) // a function: built only while the sheet is open (give `summary`)
   value: string[]

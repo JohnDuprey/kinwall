@@ -1,9 +1,9 @@
-import { Choose } from './PickField.tsx'
 // Kids suggest chores (server: routes/chore-suggestions.ts). A kid's own device, or a wall after
 // picking who, sends an idea with the points they think it's worth; it waits on their Chores screen
 // until a parent says yes (maybe with other points or a changed schedule) or "Not this time", with a
 // note either way, and the answer stays there as a card until the kid puts it away.
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { ChoreSuggestion } from './types.ts'
@@ -63,10 +63,10 @@ function RepeatFields({ days, setDays, time, setTime, timer, setTimer, idPrefix 
       </div>
       <div className="field">
         <label htmlFor={`${idPrefix}-timer`}>{t('How long? (optional)')}</label>
-        <Choose hideLabel label={t('How long? (optional)')} id={`${idPrefix}-timer`} value={String(timer ?? '')} onChange={next => setTimer(next ? Number(next) : null)}
+        <Choose hideLabel label={t('How long? (optional)')} id={`${idPrefix}-timer`} value={timer ?? ''} onChange={next => setTimer(next === '' ? null : next)}
           options={[
             { value: '', label: t('No timer') },
-            ...([...new Set([...TIMERS, ...(timer ? [timer] : [])])].sort((a, b) => a - b).map(m => ({ value: String(m), label: durationLabel(m) }))),
+            ...[...new Set([...TIMERS, ...(timer ? [timer] : [])])].sort((a, b) => a - b).map(m => ({ value: m, label: durationLabel(m) })),
           ]} />
         <p className="field-hint">{t('For things like practicing: tap the chore to start a timer this long.')}</p>
       </div>

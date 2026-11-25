@@ -1,5 +1,5 @@
-import { Choose } from './PickField.tsx'
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
@@ -74,7 +74,7 @@ function MilestoneEditor({ memberId, onClose, onSaved }: { memberId: string; onC
     <div className="field"><label htmlFor="milestone-name">{t('Name')}</label><input id="milestone-name" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} autoComplete="off" autoFocus /></div>
     <div className="field"><label>{t('Emoji')}</label><AnyEmojiField value={emoji} onChange={setEmoji} /></div>
     <div className="field"><label htmlFor="milestone-reward">{t('Reward')}</label><textarea id="milestone-reward" maxLength={300} value={reward} onChange={e => setReward(e.target.value)} placeholder={t('Pick the family movie')} /></div>
-    <div className="field"><label htmlFor="milestone-type">{t('Count toward the target')}</label><Choose hideLabel label={t('Count toward the target')} id="milestone-type" value={String(metric)} onChange={next => setMetric(next as MilestoneInput['metric'])}
+    <div className="field"><label htmlFor="milestone-type">{t('Count toward the target')}</label><Choose hideLabel label={t('Count toward the target')} id="milestone-type" value={metric} onChange={next => setMetric(next as MilestoneInput['metric'])}
       options={[
         { value: 'points', label: t('Points earned') },
         { value: 'chores', label: t('Approved chores') },

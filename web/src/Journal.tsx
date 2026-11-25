@@ -1,4 +1,3 @@
-import { Choose } from './PickField.tsx'
 // A person's journal (#/journal/{memberId}): their days, newest first, with that day's Temp check and
 // evening goal check, and their own entries (a few lines and a mood), the start of bullet journaling.
 // Opens on their own device and parents' devices only; the server refuses everyone else (403), and
@@ -8,6 +7,7 @@ import { Choose } from './PickField.tsx'
 import { useBackClose } from './backStack.ts'
 import { leaveJournal } from './pageNavigation.ts'
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { todayKeyInTz } from './date.ts'
@@ -184,10 +184,10 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
       </div>
       <div className="field">
         <label htmlFor="journal-mood">{t('Mood')} <span className="settings-row-sub">{t('(optional)')}</span></label>
-        <Choose hideLabel label={[t('Mood'), " ", t('(optional)')].join('')} id="journal-mood" value={String(mood)} onChange={next => setMood(next)}
+        <Choose hideLabel label={`${t('Mood')} ${t('(optional)')}`} id="journal-mood" value={mood} onChange={next => setMood(next)}
           options={[
             { value: '', label: t('None') },
-            ...([...new Set([...MOODS, ...(mood ? [mood] : [])])].map(m => ({ value: String(m), label: m }))),
+            ...[...new Set([...MOODS, ...(mood ? [mood] : [])])].map(m => ({ value: m, label: m })),
           ]} />
       </div>
       <div className="field">
@@ -196,7 +196,7 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
       </div>
 
     {entry && <div className="sheet-danger-zone choice-actions">
-      <button type="button" className="link-btn link-danger" onClick={() => more("delete")}>{t('Delete entry')}</button>
+      <button type="button" className="link-btn link-danger" onClick={() => more('delete')}>{t('Delete entry')}</button>
     </div>}
   </Sheet>
   )

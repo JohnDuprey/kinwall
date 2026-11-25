@@ -1,10 +1,10 @@
-import { Choose } from './PickField.tsx'
 // Medication reminders, part of the Health tracker (off unless both are on, server-side too):
 // - MedicationsToggle: the switch under Health in Settings → Features, with a one-time notice about
 //   what's kept and who sees it;
 // - MedicineList: Trackers → Health (parent devices only): each person's medicines, names on shared
 //   screens, and "Delete all medication data" behind More….
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -83,7 +83,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
         <div className="settings-row">
           <div className="settings-row-sub">{t('Reminders come through at night too.')}</div>
           <div className="choice-actions" role="group" aria-label={t('More medication actions')}>
-            <button type="button" className="link-btn link-danger" onClick={() => more("delete-all")}>{t('Delete all medication data')}</button>
+            <button type="button" className="link-btn link-danger" onClick={() => more('delete-all')}>{t('Delete all medication data')}</button>
           </div>
         </div>
       </details>
@@ -149,7 +149,7 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
         <legend>{t('Times')}</legend>
         {times.map((time, i) => (
           <div key={i} className="meds-time-row">
-            <Choose hideLabel label={t('Time {n}: when', { n: i + 1 })} value={String(typeof time === 'string' ? 'at' : 'wake')} onChange={next => setTime(i, next === 'wake' ? { wake: true, latest: '12:00' } : '08:00')}
+            <Choose hideLabel label={t('Time {n}: when', { n: i + 1 })} value={typeof time === 'string' ? 'at' : 'wake'} onChange={next => setTime(i, next === 'wake' ? { wake: true, latest: '12:00' } : '08:00')}
               options={[
                 { value: 'at', label: t('At a time') },
                 { value: 'wake', label: t('When I start my day'), disabled: hasWake && typeof time === 'string' },
@@ -165,7 +165,7 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
       </fieldset>
       <div className="field">
         <label htmlFor="med-days">{t('Days')}</label>
-        <Choose hideLabel label={t('Days')} id="med-days" value={String(mode)} onChange={next => pickMode(next as DaysMode)}
+        <Choose hideLabel label={t('Days')} id="med-days" value={mode} onChange={next => pickMode(next as DaysMode)}
           options={[
             { value: 'every', label: t('Every day') },
             { value: 'weekdays', label: t('Weekdays') },
@@ -183,7 +183,7 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
       </div>
       <div className="field">
         <label htmlFor="med-late">{t('Can be taken late')}</label>
-        <Choose hideLabel label={t('Can be taken late')} id="med-late" value={String(lateWindow)} onChange={next => setLateWindow(next as LateWindow)} aria-describedby="med-late-hint"
+        <Choose hideLabel label={t('Can be taken late')} id="med-late" value={lateWindow} onChange={next => setLateWindow(next as LateWindow)} aria-describedby="med-late-hint"
           options={[
             { value: '3h', label: t('Up to 3 hours') },
             { value: 'evening', label: t('Until evening (8 PM)') },
@@ -196,7 +196,7 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
         <summary>{t('Course length (optional)')}</summary>
         <div className="field">
           <label htmlFor="med-ends">{t('Ends')}</label>
-          <Choose hideLabel label={t('Ends')} id="med-ends" value={String(ends)} onChange={next => setEnds(next as typeof ends)}
+          <Choose hideLabel label={t('Ends')} id="med-ends" value={ends} onChange={next => setEnds(next as typeof ends)}
             options={[
               { value: 'never', label: t('No end') },
               { value: 'date', label: t('On a date') },

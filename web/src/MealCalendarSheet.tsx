@@ -1,5 +1,5 @@
-import { Choose } from './PickField.tsx'
 import { useEffect, useId, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
@@ -69,13 +69,13 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
       <button className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.unlinkMealCalendar(meal.id), t('Calendar event unlinked'))}>{t('Unlink (keep the event)')}</button>
     </> : <fieldset className="meal-fieldset" disabled={busy || loading}>
       <h3>{t('Add to a calendar')}</h3>
-      <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={String(calendarId ?? '-')} onChange={next => setCalendarId(next)} sheet
+      <div className="field"><label htmlFor={`${id}-cal`}>{t('Calendar')}</label><Choose hideLabel label={t('Calendar')} id={`${id}-cal`} value={calendarId ?? '-'} onChange={next => setCalendarId(next)} sheet
         options={[
           ...(calendarId === null ? [{ value: '-', label: t('Choose a calendar'), disabled: true }] : []),
-          ...(groups.flatMap(([label, list]) => list.length > 0 ? [...(list.map(cal => ({ value: String(cal.id), label: [cal.name, PROVIDER[cal.kind] ? ` · ${PROVIDER[cal.kind]}` : ''].join(''), detail: label })))] : [])),
+          ...groups.flatMap(([label, list]) => list.map(cal => ({ value: cal.id, label: `${cal.name}${PROVIDER[cal.kind] ? ` · ${PROVIDER[cal.kind]}` : ''}`, detail: label }))),
           ...(!loading && !calendars.some(c => c.kind === 'local') ? [{ value: '', label: t('A new “Meals” calendar on Kinwall') }] : []),
         ]} /></div>
-      <div className="field"><label htmlFor={`${id}-start`}>{t('Starts')}</label><Choose hideLabel label={t('Starts')} id={`${id}-start`} value={String(eventStart)} onChange={next => setEventStart(next as typeof eventStart)}
+      <div className="field"><label htmlFor={`${id}-start`}>{t('Starts')}</label><Choose hideLabel label={t('Starts')} id={`${id}-start`} value={eventStart} onChange={next => setEventStart(next as typeof eventStart)}
         options={[
           { value: 'meal', label: t('At the meal time') },
           { value: 'cooking', label: t('When cooking starts') },
@@ -83,10 +83,10 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
       <p className="field-hint">{meal.recipeSnapshot?.totalMinutes ? t('{from} to {to} ({length}, the recipe’s total time).', span) : t('{from} to {to} ({length}).', span)} {chosen && chosen.kind !== 'local' ? t('It’s also added to {calendar} on {provider}.', { calendar: chosen.name, provider: PROVIDER[chosen.kind] ?? t('that calendar') }) : ''}</p>
       <button className="btn btn-primary" disabled={busy || loading || calendarId === null} onClick={() => void create()}>{t('Add to calendar')}</button>
       <h3>{t('Or link an event you already have')}</h3>
-      <div className="field"><label htmlFor={`${id}-event`}>{t('Event near this meal’s date')}</label><Choose hideLabel label={t('Event near this meal’s date')} id={`${id}-event`} value={String(eventId)} onChange={next => setEventId(next)} sheet
+      <div className="field"><label htmlFor={`${id}-event`}>{t('Event near this meal’s date')}</label><Choose hideLabel label={t('Event near this meal’s date')} id={`${id}-event`} value={eventId} onChange={next => setEventId(next)} sheet
         options={[
           { value: '', label: t('Choose an event') },
-          ...(events.map(event => ({ value: String(event.id), label: [event.title, " · ", event.start.slice(0, 10)].join('') }))),
+          ...events.map(event => ({ value: event.id, label: `${event.title} · ${event.start.slice(0, 10)}` })),
         ]} /></div>
       <p className="field-hint">{t('A linked event is never changed or deleted by Kinwall.')}</p>
       <button className="btn btn-secondary" disabled={!eventId || busy || loading} onClick={() => void run(() => api.linkMealCalendar(meal.id, eventId), t('Calendar event linked'))}>{t('Link event')}</button>

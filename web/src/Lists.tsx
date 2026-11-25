@@ -1,6 +1,6 @@
-import { Choose } from './PickField.tsx'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { applyListOps, type Op } from './outbox.ts'
@@ -272,11 +272,11 @@ function ValuePicker({ id, label, value, options, onChange, newLabel, placeholde
   return (
     <div className={className ? `field ${className}` : 'field'}>
       <label htmlFor={id}>{label}</label>
-      <Choose hideLabel label={label} id={id} value={String(typing ? NEW_VALUE : value)} onChange={next => { const v = next; setAdding(v === NEW_VALUE); onChange(v === NEW_VALUE ? '' : v) }} sheet
+      <Choose hideLabel label={label} id={id} value={typing ? NEW_VALUE : value} onChange={next => { const v = next; setAdding(v === NEW_VALUE); onChange(v === NEW_VALUE ? '' : v) }} sheet
         options={[
           { value: '', label: noneLabel ?? t('None') },
-          ...(options.map(o => ({ value: String(o), label: o }))),
-          { value: String(NEW_VALUE), label: newLabel },
+          ...options.map(o => ({ value: o, label: o })),
+          { value: NEW_VALUE, label: newLabel },
         ]} />
       {typing && (
         <input type="text" className="value-picker-new" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
@@ -713,8 +713,8 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, s
       {lists.length > 1 && (
         <div className="field">
           <label htmlFor="scan-list">{t('Add to')}</label>
-          <Choose hideLabel label={t('Add to')} id="scan-list" value={String(target)} onChange={next => setTarget(next)} sheet
-            options={lists.map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name].join('') }))} />
+          <Choose hideLabel label={t('Add to')} id="scan-list" value={target} onChange={next => setTarget(next)} sheet
+            options={lists.map(l => ({ value: l.id, label: `${l.emoji ? `${l.emoji} ` : ''}${l.name}` }))} />
         </div>
       )}
       {here && <>
@@ -808,15 +808,15 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
       {shopping && (
         <div className="field">
           <label htmlFor={`list-group-${list.id}`}>{t('Group by')}</label>
-          <Choose hideLabel label={t('Group by')} id={`list-group-${list.id}`} value={String(list.groupBy)} onChange={next => onGroupBy(next as ListGroupBy)}
-            options={(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => ({ value: String(g), label: tm(GROUP_LABEL[g]) }))} />
+          <Choose hideLabel label={t('Group by')} id={`list-group-${list.id}`} value={list.groupBy} onChange={next => onGroupBy(next as ListGroupBy)}
+            options={(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => ({ value: g, label: tm(GROUP_LABEL[g]) }))} />
           {onReorder && <button className="link-btn" onClick={onReorder}>{list.groupBy === 'store' ? t('Reorder stores') : t('Reorder categories')}</button>}
         </div>
       )}
       {pantry && (
         <div className="field">
           <label htmlFor={`list-group-${list.id}`}>{t('Group by')}</label>
-          <Choose hideLabel label={t('Group by')} id={`list-group-${list.id}`} value={String(list.groupBy === 'category' ? 'category' : 'none')} onChange={next => onGroupBy(next as ListGroupBy)}
+          <Choose hideLabel label={t('Group by')} id={`list-group-${list.id}`} value={list.groupBy === 'category' ? 'category' : 'none'} onChange={next => onGroupBy(next as ListGroupBy)}
             options={[
               { value: 'category', label: t('Where it’s kept') },
               { value: 'none', label: tm(GROUP_LABEL.none) },
@@ -825,17 +825,17 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
       )}
       <div className="field">
         <label htmlFor={`list-sort-${list.id}`}>{t('Sort')}</label>
-        <Choose hideLabel label={t('Sort')} id={`list-sort-${list.id}`} value={String(list.sortBy)} onChange={next => onSortBy(next as ListSortBy)} sheet
-          options={(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due') && (k !== 'priority' || !pantry || list.sortBy === 'priority')) /* shopping items have no due dates, pantry items no priority */.map(k => ({ value: String(k), label: sortLabel(k) }))} />
+        <Choose hideLabel label={t('Sort')} id={`list-sort-${list.id}`} value={list.sortBy} onChange={next => onSortBy(next as ListSortBy)} sheet
+          options={(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => (k !== 'aisle' || shopping || list.sortBy === 'aisle') && (k !== 'due' || !shopping || list.sortBy === 'due') && (k !== 'priority' || !pantry || list.sortBy === 'priority')) /* shopping items have no due dates, pantry items no priority */.map(k => ({ value: k, label: sortLabel(k) }))} />
         <p className="field-hint">{pantry && list.sortBy === 'due' ? t('What to use first at the top, no date last') : tm(SORT_HINT[list.sortBy])}{list.sortBy !== 'manual' && t('. Switch to Manual to drag items into your own order.')}</p>
       </div>
       {shopping && stores.length > 0 && (
         <div className="field">
           <label htmlFor={`list-store-${list.id}`}>{t('Show store')}</label>
-          <Choose hideLabel label={t('Show store')} id={`list-store-${list.id}`} value={String(store ?? '')} onChange={next => onStore(next || null)} sheet
+          <Choose hideLabel label={t('Show store')} id={`list-store-${list.id}`} value={store ?? ''} onChange={next => onStore(next || null)} sheet
             options={[
               { value: '', label: t('All stores') },
-              ...(stores.map(s => ({ value: String(s), label: s }))),
+              ...stores.map(s => ({ value: s, label: s })),
             ]} />
         </div>
       )}
@@ -1256,8 +1256,8 @@ function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChange
       {aisleStores.length > 1 && (
         <div className="field">
           <label htmlFor="manage-aisle-store">{t('Store')}</label>
-          <Choose hideLabel label={t('Store')} id="manage-aisle-store" value={String(store ?? '')} onChange={next => { setStore(next || null); setEditing(null) }} sheet
-            options={aisleStores.map(st => ({ value: String(st ?? ''), label: st ?? t('No store') }))} />
+          <Choose hideLabel label={t('Store')} id="manage-aisle-store" value={store ?? ''} onChange={next => { setStore(next || null); setEditing(null) }} sheet
+            options={aisleStores.map(st => ({ value: st ?? '', label: st ?? t('No store') }))} />
         </div>
       )}
       <p className="field-hint">{store ? t('Put the aisles in the order you walk {store} (drag them, or use ↑ and ↓). Aisle sort follows it.', { store }) : t('Put the aisles in the order you walk the store (drag them, or use ↑ and ↓). Aisle sort follows it.')}</p>
@@ -1382,14 +1382,14 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
           <div className="catalog-view">
             <div className="field">
               <label htmlFor="catalog-sort">{t('Sort')}</label>
-              <Choose hideLabel label={t('Sort')} id="catalog-sort" value={String(sort)} onChange={next => changeView({ sort: next as CatalogSort })} sheet
+              <Choose hideLabel label={t('Sort')} id="catalog-sort" value={sort} onChange={next => changeView({ sort: next as CatalogSort })} sheet
                 options={(Object.keys(CATALOG_SORT_LABELS) as CatalogSort[]).filter(k => k !== 'aisle' || atStore).map(k =>
-                  ({ value: String(k), label: k === 'aisle' ? t('Aisle at {store}', { store: atStore ?? '' }) : tm(CATALOG_SORT_LABELS[k]) }))} />
+                  ({ value: k, label: k === 'aisle' ? t('Aisle at {store}', { store: atStore ?? '' }) : tm(CATALOG_SORT_LABELS[k]) }))} />
             </div>
             <div className="field">
               <label htmlFor="catalog-group">{t('Group by')}</label>
-              <Choose hideLabel label={t('Group by')} id="catalog-group" value={String(view.group)} onChange={next => changeView({ group: next as CatalogGroup })} sheet
-                options={(Object.keys(CATALOG_GROUP_LABELS) as CatalogGroup[]).map(k => ({ value: String(k), label: tm(CATALOG_GROUP_LABELS[k]) }))} />
+              <Choose hideLabel label={t('Group by')} id="catalog-group" value={view.group} onChange={next => changeView({ group: next as CatalogGroup })} sheet
+                options={(Object.keys(CATALOG_GROUP_LABELS) as CatalogGroup[]).map(k => ({ value: k, label: tm(CATALOG_GROUP_LABELS[k]) }))} />
             </div>
           </div>
           {parentDevice && <button className="link-btn" onClick={() => { setFiltering(false); setEditing('tags') }}>{t('Edit categories')}</button>} {/* renaming or removing one everywhere is parents only */}

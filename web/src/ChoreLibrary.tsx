@@ -1,9 +1,9 @@
-import { Choose } from './PickField.tsx'
 // Chores → Library (parent devices): saved chores that aren't on a schedule, due-ish ones on top.
 // Tap one → who → when → it's a normal one-off chore (a linked copy each for several people); "Again"
 // hands it to whoever had it last, today;
 // "Make it repeat" opens the chore editor with it filled in.
 import { useEffect, useMemo, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { LibraryChore, LibraryUnit, List } from './types.ts'
@@ -149,7 +149,7 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Sho
             {t('Anyone')}
           </button>
         </div>
-        {memberIds.length > 1 && <Choose hideLabel label={t('How many of them do it')} value={String(oneOf ? 'one' : 'each')} onChange={next => setOneOf(next === 'one')} style={{ marginTop: 8 }}
+        {memberIds.length > 1 && <Choose hideLabel label={t('How many of them do it')} value={oneOf ? 'one' : 'each'} onChange={next => setOneOf(next === 'one')} style={{ marginTop: 8 }}
           options={[
             { value: 'each', label: t('Each of them does it') },
             { value: 'one', label: t('Just one of them does it') },
@@ -160,8 +160,8 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Sho
       </div>
       <div className="field">
         <label htmlFor="lib-when">{t('When')}</label>
-        <Choose hideLabel label={t('When')} id="lib-when" value={String(when)} onChange={next => setWhen(next as WhenPick | 'date')} sheet
-          options={WHEN.map(([v, label]) => ({ value: String(v), label: [tm(label), v !== 'date' ? ` (${formatDate(new Date(`${whenDate(v)}T00:00:00`), DAY)})` : ''].join('') }))} />
+        <Choose hideLabel label={t('When')} id="lib-when" value={when} onChange={next => setWhen(next as WhenPick | 'date')} sheet
+          options={WHEN.map(([v, label]) => ({ value: v, label: `${tm(label)}${v !== 'date' ? ` (${formatDate(new Date(`${whenDate(v)}T00:00:00`), DAY)})` : ''}` }))} />
         {when === 'date' && <input type="date" aria-label={t('Date')} value={date} min={dateKey(new Date())} onChange={e => setDate(e.target.value || dateKey(new Date()))} style={{ marginTop: 8 }} />}
       </div>
 
@@ -235,33 +235,33 @@ export function LibraryEditSheet({ item, onClose, onSaved }: { item: LibraryChor
         <label htmlFor="lib-every">{t('About every (optional)')}</label>
         <div className="lib-every">
           {unit && <input id="lib-every-n" type="number" inputMode="numeric" min={1} max={365} aria-label={t('How many')} value={everyN} onChange={e => setEveryN(Math.min(365, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setEveryN(n => Math.max(1, n))} />}
-          <Choose hideLabel label={t('About every (optional)')} id="lib-every" value={String(unit)} onChange={next => setUnit(next as LibraryUnit | '')} sheet
+          <Choose hideLabel label={t('About every (optional)')} id="lib-every" value={unit} onChange={next => setUnit(next as LibraryUnit | '')} sheet
             options={[
               { value: '', label: t('No set time') },
-              ...(UNITS.map(([u, label]) => ({ value: String(u), label: tm(label) }))),
+              ...UNITS.map(([u, label]) => ({ value: u, label: tm(label) })),
             ]} />
         </div>
         <p className="field-hint">{t("Not a schedule: once it's been about that long, it moves to the top of the library.")}</p>
       </div>
       <div className="field">
         <label htmlFor="lib-member">{t('Usually goes to')}</label>
-        <Choose hideLabel label={t('Usually goes to')} id="lib-member" value={String(memberId ?? '')} onChange={next => setMemberId(next || null)} sheet
+        <Choose hideLabel label={t('Usually goes to')} id="lib-member" value={memberId ?? ''} onChange={next => setMemberId(next || null)} sheet
           options={[
             { value: '', label: t('Anyone') },
-            ...(members.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+            ...members.map(m => ({ value: m.id, label: `${m.avatar} ${m.name}` })),
           ]} />
       </div>
       <div className="field">
         <label htmlFor="lib-checklist">{t('Checklist (optional)')}</label>
-        <Choose hideLabel label={t('Checklist (optional)')} id="lib-checklist" value={String(listId ?? '')} onChange={next => setListId(next || null)} sheet
+        <Choose hideLabel label={t('Checklist (optional)')} id="lib-checklist" value={listId ?? ''} onChange={next => setListId(next || null)} sheet
           options={[
             { value: '', label: t('None') },
-            ...(lists.filter(l => !l.archived || l.id === listId).map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name, l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`].join('') }))),
+            ...lists.filter(l => !l.archived || l.id === listId).map(l => ({ value: l.id, label: `${l.emoji ? `${l.emoji} ` : ''}${l.name}${l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}` })),
           ]} />
       </div>
       <div className="field">
         <label htmlFor="lib-approval">{t("Needs a parent's OK")}</label>
-        <Choose hideLabel label={t("Needs a parent's OK")} id="lib-approval" value={String(needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
+        <Choose hideLabel label={t("Needs a parent's OK")} id="lib-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
           options={[
             { value: 'default', label: t("Default (the person's setting)") },
             { value: 'yes', label: t('Yes') },

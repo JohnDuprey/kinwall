@@ -1,6 +1,6 @@
-import { Choose } from './PickField.tsx'
 import RecipeSelector from './RecipeSelector.tsx'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK } from './api.ts'
 import Sheet from './Sheet.tsx'
@@ -61,7 +61,7 @@ export default function WeeklyPlanner({ home }: { home: boolean }) {
       <button type="button" className="btn btn-primary" onClick={hideHome}>{t('Hide planner')}</button>
     </>}>
       <p>{t('This only hides the Home prompt on this device. You can still open the planner from Calendar.')}</p>
-      <div className="field"><label htmlFor={dismissId}>{t('For how long?')}</label><Choose hideLabel label={t('For how long?')} id={dismissId} value={String(duration)} onChange={next => setDuration(next as PlannerDismissDuration)}
+      <div className="field"><label htmlFor={dismissId}>{t('For how long?')}</label><Choose hideLabel label={t('For how long?')} id={dismissId} value={duration} onChange={next => setDuration(next as PlannerDismissDuration)}
         options={[
           { value: 'today', label: t('Today') },
           { value: 'week', label: t('This week') },
@@ -167,7 +167,7 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
               <button className="btn btn-secondary" onClick={() => void openMeals()}>{t('Open Meals')}</button>
             </>}
           </div>)}</> : appliedDinner(date) ? <p>{t('A meal was already added from this plan. Make further changes in Meals.')}</p> : <>
-            <label className="field">{t('Dinner')}<Choose hideLabel label={t('Dinner')} value={String(choice?.kind ?? 'later')} onChange={next => { if (next === 'meal') chooseDinner(date); else dinner(date, next === 'open' ? { date, kind: 'open' } : undefined) }}
+            <label className="field">{t('Dinner')}<Choose hideLabel label={t('Dinner')} value={choice?.kind ?? 'later'} onChange={next => { if (next === 'meal') chooseDinner(date); else dinner(date, next === 'open' ? { date, kind: 'open' } : undefined) }}
               options={[
                 { value: 'later', label: t('Decide later') },
                 { value: 'open', label: t('Leave dinner open on purpose') },

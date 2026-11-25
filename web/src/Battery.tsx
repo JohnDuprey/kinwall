@@ -1,9 +1,9 @@
-import { Choose } from './PickField.tsx'
 // The energy battery (docs/using/battery.md): today's level with everything behind it and any
 // heads-up, and on the Insights page (full) the week and the days ahead. The server works it all
 // out (server/src/battery.ts) and refuses anyone but their own device and parents' devices; callers
 // only show it there, never on a shared wall, the Board or a profile.
 import { useEffect, useState } from 'react'
+import { Choose } from './PickField.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { dayLabel, drainedOf, levelWord, reasonLine, soon } from './battery.ts'
@@ -31,8 +31,8 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
       {full && (
         <>
           <label htmlFor={`battery-day-${member.id}`} className="sr-only">{t('Day')}</label>
-          <Choose hideLabel label={t('Day')} id={`battery-day-${member.id}`} value={String(pick || shown.today)} onChange={next => setPick(next)} sheet
-            options={shown.days.map(d => ({ value: String(d.date), label: d.forecast ? t('{day} (a guess)', { day: label(d.date) }) : label(d.date) }))} />
+          <Choose hideLabel label={t('Day')} id={`battery-day-${member.id}`} value={pick || shown.today} onChange={next => setPick(next)} sheet
+            options={shown.days.map(d => ({ value: d.date, label: d.forecast ? t('{day} (a guess)', { day: label(d.date) }) : label(d.date) }))} />
         </>
       )}
       <p className="battery-now">

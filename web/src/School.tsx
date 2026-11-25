@@ -419,7 +419,7 @@ function MarkDaySheet({ date, kids, days, onClose }: { date: string; kids: Membe
     {kids.map(m => {
       const d = days.find(x => x.memberId === m.id)
       return <div key={m.id} className="field"><label htmlFor={`${id}-${m.id}`}><ChipFace m={m} /> {m.name}</label>
-        <Choose hideLabel label={m.name} id={`${id}-${m.id}`} value={String(d?.marked ? d.kind : '')} onChange={next => void mark(m, next)}
+        <Choose hideLabel label={m.name} id={`${id}-${m.id}`} value={d?.marked ? d.kind : ''} onChange={next => void mark(m, next)}
           options={[
             { value: '', label: d && !d.marked ? t('As the calendars say: {kind}', { kind: dayLabel(d) }) : t('As the calendars say') },
             { value: 'school', label: t('School day') },
@@ -454,24 +454,24 @@ function DayRules() {
         <input id={`${id}-words`} type="text" placeholder={t('Words, like Snow Day')} maxLength={60} value={words} onChange={e => setWords(e.target.value)} /></div>
       <div className="meal-form-row school-half-row">
         <div className="field"><label htmlFor={`${id}-means`}>{t('What they mean')}</label>
-          <Choose hideLabel label={t('What they mean')} id={`${id}-means`} value={String(kind)} onChange={next => setKind(next as SchoolDayRule['kind'])}
-            options={RULE_KINDS.map(rk => ({ value: String(rk.key), label: tm(rk.label) }))} /></div>
+          <Choose hideLabel label={t('What they mean')} id={`${id}-means`} value={kind} onChange={next => setKind(next as SchoolDayRule['kind'])}
+            options={RULE_KINDS.map(rk => ({ value: rk.key, label: tm(rk.label) }))} /></div>
         <div className="field"><button type="submit" className="btn btn-secondary" disabled={!words.trim()}><PlusIcon /> {t('Add')}</button></div>
       </div>
     </form>
     <h3>{t('Bus and pickup reminders')}</h3>
     <div className="meal-form-row school-half-row">
       <div className="field"><label htmlFor={`${id}-bus`}>{t('Before the bus')}</label>
-        <Choose hideLabel label={t('Before the bus')} id={`${id}-bus`} value={String(school.busMinutes ?? '')} onChange={next => void save({ busMinutes: next ? Number(next) : null })} sheet
+        <Choose hideLabel label={t('Before the bus')} id={`${id}-bus`} value={school.busMinutes ?? ''} onChange={next => void save({ busMinutes: next === '' ? null : next })} sheet
           options={[
             { value: '', label: t('No reminder') },
-            ...(LEAD_MINUTES.map(n => ({ value: String(n), label: t('{n} min before', { n }) }))),
+            ...LEAD_MINUTES.map(n => ({ value: n, label: t('{n} min before', { n }) })),
           ]} /></div>
       <div className="field"><label htmlFor={`${id}-pickup`}>{t('Before a drop-off or pickup')}</label>
-        <Choose hideLabel label={t('Before a drop-off or pickup')} id={`${id}-pickup`} value={String(school.pickupMinutes ?? '')} onChange={next => void save({ pickupMinutes: next ? Number(next) : null })} sheet
+        <Choose hideLabel label={t('Before a drop-off or pickup')} id={`${id}-pickup`} value={school.pickupMinutes ?? ''} onChange={next => void save({ pickupMinutes: next === '' ? null : next })} sheet
           options={[
             { value: '', label: t('No reminder') },
-            ...(LEAD_MINUTES.map(n => ({ value: String(n), label: t('{n} min before', { n }) }))),
+            ...LEAD_MINUTES.map(n => ({ value: n, label: t('{n} min before', { n }) })),
           ]} /></div>
     </div>
     <p className="field-hint">{t('Kids on the same bus at the same time get one reminder. The bus reminder goes to grown-ups and the kids’ own devices; a pickup goes to the grown-up doing it. On iPhone, the Kinwall app can show a countdown on the Lock Screen.')}</p>
@@ -592,8 +592,8 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
           <div className="chip-row" role="group" aria-labelledby={`${id}-subject`}>{subjects.map(s => <button key={s.id} type="button" className={`chip ${subjectId === s.id ? 'active' : ''}`} aria-pressed={subjectId === s.id} style={{ ['--chip-color' as string]: s.color }} onClick={() => setSubjectId(s.id)}>{s.emoji} {s.name}</button>)}</div>
         </div>
         <div className="field"><label htmlFor={`${id}-kind`}>{t('Kind')}</label>
-          <Choose hideLabel label={t('Kind')} id={`${id}-kind`} value={String(kind)} onChange={next => chooseKind(next as SchoolKind)}
-            options={KINDS.map(k => ({ value: String(k.key), label: tm(k.label) }))} /></div>
+          <Choose hideLabel label={t('Kind')} id={`${id}-kind`} value={kind} onChange={next => chooseKind(next as SchoolKind)}
+            options={KINDS.map(k => ({ value: k.key, label: tm(k.label) }))} /></div>
         {!work && <div className="field"><label id={`${id}-who`}>{t('Who it’s for')}</label>
           <div className="chip-row" role="group" aria-labelledby={`${id}-who`}>{kids.map(m => <button key={m.id} type="button" className={`chip ${picked.includes(m.id) ? 'active' : ''}`} aria-pressed={picked.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => setPicked(picked.includes(m.id) ? picked.filter(x => x !== m.id) : [...picked, m.id])}><ChipFace m={m} /> {m.name}</button>)}</div>
         </div>}
@@ -622,16 +622,16 @@ function WorkSheet({ kids, subjects, work, onClose }: { kids: Member[]; subjects
           </div>
           <div className="field">
             <label htmlFor={`${id}-timer`}>{t('Timer (optional)')}</label>
-            <Choose hideLabel label={t('Timer (optional)')} id={`${id}-timer`} value={String(timerMinutes ?? '')} onChange={next => setTimerMinutes(next ? Number(next) : null)}
+            <Choose hideLabel label={t('Timer (optional)')} id={`${id}-timer`} value={timerMinutes ?? ''} onChange={next => setTimerMinutes(next === '' ? null : next)}
               options={[
                 { value: '', label: t('None') },
-                ...([...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => ({ value: String(m), label: durationLabel(m) }))),
+                ...[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => ({ value: m, label: durationLabel(m) })),
               ]} />
             <p className="field-hint">{t('Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.')}</p>
           </div>
           <div className="field">
             <label htmlFor={`${id}-approval`}>{t("Needs a parent's OK")}</label>
-            <Choose hideLabel label={t("Needs a parent's OK")} id={`${id}-approval`} value={String(needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
+            <Choose hideLabel label={t("Needs a parent's OK")} id={`${id}-approval`} value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
               options={[
                 { value: 'default', label: t('Default') },
                 { value: 'yes', label: t('Yes') },
@@ -722,10 +722,10 @@ function ShareSheet({ kid, text: start, onClose }: { kid: Member; text: string; 
     <form id={id} onSubmit={e => { e.preventDefault(); void post() }}>
       <div className="field"><label htmlFor={`${id}-text`}>{t('Post')}</label><textarea id={`${id}-text`} maxLength={280} value={text} onChange={e => setText(e.target.value)} /></div>
       {!meMemberId && <div className="field"><label htmlFor={`${id}-poster`}>{t('Posting as')}</label>
-        <Choose hideLabel label={t('Posting as')} id={`${id}-poster`} value={String(poster)} onChange={next => setPoster(next)} sheet
-          options={grownUps.map(m => ({ value: String(m.id), label: m.name }))} /></div>}
+        <Choose hideLabel label={t('Posting as')} id={`${id}-poster`} value={poster} onChange={next => setPoster(next)} sheet
+          options={grownUps.map(m => ({ value: m.id, label: m.name }))} /></div>}
       <div className="field"><label htmlFor={`${id}-who`}>{t('Who sees it')}</label>
-        <Choose hideLabel label={t('Who sees it')} id={`${id}-who`} value={String(audience)} onChange={next => setAudience(next as 'grownups' | 'everyone')}
+        <Choose hideLabel label={t('Who sees it')} id={`${id}-who`} value={audience} onChange={next => setAudience(next as 'grownups' | 'everyone')}
           options={[
             { value: 'grownups', label: t('Grown-ups') },
             { value: 'everyone', label: t('Everyone, on every screen') },
@@ -899,7 +899,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
         {isOpen && <div id={`${id}-${m.id}-body`} className="school-setup-kid-body">
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-${m.id}-mode`}>{t('School')}</label>
-            <Choose hideLabel label={t('School')} id={`${id}-${m.id}-mode`} value={String(k?.mode ?? '')} onChange={next => void setMode(m, next as SchoolMode | '')}
+            <Choose hideLabel label={t('School')} id={`${id}-${m.id}-mode`} value={k?.mode ?? ''} onChange={next => void setMode(m, next as SchoolMode | '')}
               options={[
                 { value: '', label: t('Not in school') },
                 { value: 'home', label: t('Homeschooled') },
@@ -920,18 +920,18 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
             <div className="field"><label htmlFor={`${id}-${m.id}-start`}>{t('School starts')}</label><input key={k.dayStart ?? ''} id={`${id}-${m.id}-start`} type="time" defaultValue={k.dayStart ?? ''} onBlur={e => { if ((e.target.value || null) !== k.dayStart) void run(api.putSchoolKid(m.id, { mode: k.mode, dayStart: e.target.value || null })) }} /></div>
             <div className="field"><label htmlFor={`${id}-${m.id}-end`}>{t('School ends')}</label><input key={k.dayEnd ?? ''} id={`${id}-${m.id}-end`} type="time" defaultValue={k.dayEnd ?? ''} onBlur={e => { if ((e.target.value || null) !== k.dayEnd) void run(api.putSchoolKid(m.id, { mode: k.mode, dayEnd: e.target.value || null })) }} /></div>
             <div className="field"><label htmlFor={`${id}-${m.id}-terms`}>{t('Report cards a year')}</label>
-              <Choose hideLabel label={t('Report cards a year')} id={`${id}-${m.id}-terms`} value={String(k.terms)} onChange={next => void setTerms(m, k, Number(next))}
-                options={[2, 3, 4, 6].map(n => ({ value: String(n), label: n }))} /></div>
+              <Choose hideLabel label={t('Report cards a year')} id={`${id}-${m.id}-terms`} value={k.terms} onChange={next => void setTerms(m, k, next)}
+                options={[2, 3, 4, 6].map(n => ({ value: n, label: n }))} /></div>
           </div>
           {([['toSchool', 'toSchoolBy', 'toSchoolTime', t('Getting to school'), t('Drops off')], ['fromSchool', 'fromSchoolBy', 'fromSchoolTime', t('Getting home'), t('Picks up')]] as const).map(([leg, byKey, timeKey, label, verb]) => {
             const by = k[byKey] ?? '', time = k[timeKey] ?? ''
             return <div key={leg} className="meal-form-row">
               <div className="field"><label htmlFor={`${id}-${m.id}-${leg}`}>{label}</label>
-                <Choose hideLabel label={label} id={`${id}-${m.id}-${leg}`} value={String(by)} onChange={next => void run(api.putSchoolKid(m.id, { mode: k.mode, [byKey]: next || null }))} sheet
+                <Choose hideLabel label={label} id={`${id}-${m.id}-${leg}`} value={by} onChange={next => void run(api.putSchoolKid(m.id, { mode: k.mode, [byKey]: next || null }))} sheet
                   options={[
                     { value: '', label: t('Not set') },
                     { value: 'bus', label: t('The bus') },
-                    ...(members.filter(g => g.grownUp).map(g => ({ value: String(g.id), label: t('{name}: {verb}', { name: g.name, verb }) }))),
+                    ...members.filter(g => g.grownUp).map(g => ({ value: g.id, label: t('{name}: {verb}', { name: g.name, verb }) })),
                   ]} /></div>
               {by && <div className="field"><label htmlFor={`${id}-${m.id}-${leg}-time`}>{t('At')}</label><input key={time} id={`${id}-${m.id}-${leg}-time`} type="time" defaultValue={time}
                 onBlur={e => { if ((e.target.value || null) !== (k[timeKey] ?? null)) void run(api.putSchoolKid(m.id, { mode: k.mode, [timeKey]: e.target.value || null })) }} /></div>}
@@ -948,10 +948,10 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
         </>}
         {k && <div className="field"><label id={`${id}-${m.id}-ys`}>{t('School year starts')}</label>
           <div className="meal-form-row" role="group" aria-labelledby={`${id}-${m.id}-ys`}>
-            <Choose hideLabel label={t('Month')} value={String((k.yearStart ?? DEFAULT_YEAR_START).slice(0, 2))} onChange={next => { const day = Math.min(Number((k.yearStart ?? DEFAULT_YEAR_START).slice(3)), new Date(2001, Number(next), 0).getDate()); void run(api.putSchoolKid(m.id, { mode: k.mode, yearStart: `${next}-${String(day).padStart(2, '0')}` })) }} sheet
-              options={Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mm => ({ value: String(mm), label: formatDate(new Date(2001, Number(mm) - 1, 1), { month: 'long' }) }))} />
-            <Choose hideLabel label={t('Day')} value={String((k.yearStart ?? DEFAULT_YEAR_START).slice(3))} onChange={next => void run(api.putSchoolKid(m.id, { mode: k.mode, yearStart: `${(k.yearStart ?? DEFAULT_YEAR_START).slice(0, 2)}-${next}` }))} sheet
-              options={Array.from({ length: new Date(2001, Number((k.yearStart ?? DEFAULT_YEAR_START).slice(0, 2)), 0).getDate() }, (_, i) => String(i + 1).padStart(2, '0')).map(dd => ({ value: String(dd), label: Number(dd) }))} />
+            <Choose hideLabel label={t('Month')} value={(k.yearStart ?? DEFAULT_YEAR_START).slice(0, 2)} onChange={next => { const day = Math.min(Number((k.yearStart ?? DEFAULT_YEAR_START).slice(3)), new Date(2001, Number(next), 0).getDate()); void run(api.putSchoolKid(m.id, { mode: k.mode, yearStart: `${next}-${String(day).padStart(2, '0')}` })) }} sheet
+              options={Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mm => ({ value: mm, label: formatDate(new Date(2001, Number(mm) - 1, 1), { month: 'long' }) }))} />
+            <Choose hideLabel label={t('Day')} value={(k.yearStart ?? DEFAULT_YEAR_START).slice(3)} onChange={next => void run(api.putSchoolKid(m.id, { mode: k.mode, yearStart: `${(k.yearStart ?? DEFAULT_YEAR_START).slice(0, 2)}-${next}` }))} sheet
+              options={Array.from({ length: new Date(2001, Number((k.yearStart ?? DEFAULT_YEAR_START).slice(0, 2)), 0).getDate() }, (_, i) => String(i + 1).padStart(2, '0')).map(dd => ({ value: dd, label: Number(dd) }))} />
           </div>
           <p className="field-hint">{t('Records and grades count a school year from this day to the day before it comes round again.')}</p></div>}
         {k?.mode === 'home' && <div className="meal-form-row">
@@ -999,8 +999,8 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
       <input type="number" className="school-subject-goal" inputMode="numeric" min={1} max={2000} aria-label={t('Hours a year for {name}', { name: s.name })} placeholder={t('h/yr')} defaultValue={s.goalHours ?? ''}
         onBlur={e => { const v = e.target.value ? Math.min(2000, Math.max(1, Math.round(Number(e.target.value)))) : null; if (v !== (s.goalHours ?? null)) void run(api.updateSchoolSubject(s.id, { goalHours: v })) }} />
       <div className="choice-actions" role="group" aria-label={t('More for {name}', { name: s.name })}>
-        <button type="button" className="link-btn link-danger" onClick={() => void subjectAction(s, "archive")}>{t('Put away')}</button>
-        <button type="button" className="link-btn link-danger" onClick={() => void subjectAction(s, "delete")}>{t('Delete…')}</button>
+        <button type="button" className="link-btn link-danger" onClick={() => void subjectAction(s, 'archive')}>{t('Put away')}</button>
+        <button type="button" className="link-btn link-danger" onClick={() => void subjectAction(s, 'delete')}>{t('Delete…')}</button>
       </div>
     </div>)}</div>
     <form className="school-subject-add" onSubmit={e => { e.preventDefault(); void addSubject() }}>

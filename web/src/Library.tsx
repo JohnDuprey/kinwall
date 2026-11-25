@@ -1,4 +1,3 @@
-import { Choose } from './PickField.tsx'
 // The family's library (server: routes/library.ts), a Trackers view: the books the family owns or
 // has borrowed (due back on a date; returned ones stay, under Returned), apart from who's reading
 // what. Search, the Filters sheet (what, where, whose shelf; filtered here, libraries are small), scan books in one after another
@@ -6,6 +5,7 @@ import { Choose } from './PickField.tsx'
 // from a book (data.bookId links them, so the book lists its readers).
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Choose } from './PickField.tsx'
 import { Segmented } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -355,7 +355,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       )}
       <div className="field">
         <label htmlFor="lib-whose">{t('Whose book')}</label>
-        <Choose hideLabel label={t('Whose book')} id="lib-whose" value={String(whose)} onChange={next => pickWhose(next)}
+        <Choose hideLabel label={t('Whose book')} id="lib-whose" value={whose} onChange={next => pickWhose(next)}
           options={[
             { value: 'ours', label: t('Ours') },
             { value: 'borrowed', label: t('Borrowed') },
@@ -365,10 +365,10 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       </div>
       <div className="field">
         <label htmlFor="lib-shelf">{t('Shelf')}</label>
-        <Choose hideLabel label={t('Shelf')} id="lib-shelf" value={String(book.shelf ?? '')} disabled={!canRemove} onChange={next => { const v = (next || null) as BookShelf | null; save({ shelf: v }, t('Shelf: {shelf}', { shelf: v ? tm(SHELF_WORD[v]) : t('Auto') })) }} sheet
+        <Choose hideLabel label={t('Shelf')} id="lib-shelf" value={book.shelf ?? ''} disabled={!canRemove} onChange={next => { const v = (next || null) as BookShelf | null; save({ shelf: v }, t('Shelf: {shelf}', { shelf: v ? tm(SHELF_WORD[v]) : t('Auto') })) }} sheet
           options={[
             { value: '', label: book.shelf ? t('Auto') : t('Auto ({shelf})', { shelf: tm(SHELF_WORD[book.effectiveShelf ?? 'grownups']) }) },
-            ...((Object.keys(SHELF_WORD) as BookShelf[]).map(k => ({ value: String(k), label: tm(SHELF_WORD[k]) }))),
+            ...(Object.keys(SHELF_WORD) as BookShelf[]).map(k => ({ value: k, label: tm(SHELF_WORD[k]) })),
           ]} />
         <p className="field-hint">{canRemove ? t("Who it's for. Auto goes by its genres, reading level, length and who reads it.") : t("Who it's for. A parent can change it.")}</p>
       </div>
@@ -445,11 +445,11 @@ function PlacePicker({ value, places, onChange }: { value: string; places: strin
           <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={() => { onChange(draft.trim()); setTyping(false) }}>{t('Save')}</button>
         </div>
       ) : (
-        <Choose hideLabel label={t('Where it lives')} id="lib-place" value={String(value)} onChange={next => { if (next === '\u0000new') { setDraft(''); setTyping(true) } else onChange(next) }} sheet
+        <Choose hideLabel label={t('Where it lives')} id="lib-place" value={value} onChange={next => { if (next === '\u0000new') { setDraft(''); setTyping(true) } else onChange(next) }} sheet
           options={[
             { value: '', label: t('Not set') },
-            ...(options.map(p => ({ value: String(p), label: p }))),
-            { value: String('\u0000new'), label: t('New place…') },
+            ...options.map(p => ({ value: p, label: p })),
+            { value: '\u0000new', label: t('New place…') },
           ]} />
       )}
     </div>

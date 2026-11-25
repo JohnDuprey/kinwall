@@ -98,8 +98,8 @@ function Leaderboard({ away }: { away: Set<string> }) {
 
   return (
     <div className="leaderboard-strip">
-      <Choose hideLabel label={t('Leaderboard period')} className="lb-period" value={String(period)} onChange={next => setPeriod(next as LeaderboardPeriod)}
-        options={LB_PERIODS.map(p => ({ value: String(p), label: tm(LB_PERIOD_LABEL[p]) }))} />
+      <Choose hideLabel label={t('Leaderboard period')} className="lb-period" value={period} onChange={next => setPeriod(next as LeaderboardPeriod)}
+        options={LB_PERIODS.map(p => ({ value: p, label: tm(LB_PERIOD_LABEL[p]) }))} />
       <div className="leaderboard-pills" role="list" aria-label={t('Leaderboard')}>
         {board.map(e => (
           <div key={e.memberId} role="listitem" className="leaderboard-item">
@@ -969,7 +969,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
       </div>
       <div className="field">
         <label htmlFor="chore-ongoing">{t('Completion')}</label>
-        <Choose hideLabel label={t('Completion')} id="chore-ongoing" value={String(ongoing ? 'ongoing' : 'once')} onChange={next => { const on = next === 'ongoing'; setOngoing(on); if (on) { setMemberIds([]); setPluginId(null); setRepeatGoal(null) } }}
+        <Choose hideLabel label={t('Completion')} id="chore-ongoing" value={ongoing ? 'ongoing' : 'once'} onChange={next => { const on = next === 'ongoing'; setOngoing(on); if (on) { setMemberIds([]); setPluginId(null); setRepeatGoal(null) } }}
           options={[
             { value: 'once', label: t('Once each time it is due') },
             { value: 'ongoing', label: t('Keep available for anyone') },
@@ -984,7 +984,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
             <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
-        {memberIds.length > 1 && <Choose hideLabel label={t('How many of them do it')} value={String(oneOf ? 'one' : 'each')} onChange={next => setOneOf(next === 'one')} style={{ marginTop: 8 }}
+        {memberIds.length > 1 && <Choose hideLabel label={t('How many of them do it')} value={oneOf ? 'one' : 'each'} onChange={next => setOneOf(next === 'one')} style={{ marginTop: 8 }}
           options={[
             { value: 'each', label: t('Each of them does it') },
             { value: 'one', label: t('Just one of them does it') },
@@ -999,21 +999,21 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         <summary>{t('More options')}</summary>
         {settings.features.lists && <div className="field">
           <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>
-          <Choose hideLabel label={t('Checklist (optional)')} id="chore-checklist" value={String(listId ?? '')} onChange={next => setListId(next || null)} sheet
+          <Choose hideLabel label={t('Checklist (optional)')} id="chore-checklist" value={listId ?? ''} onChange={next => setListId(next || null)} sheet
             options={[
               { value: '', label: t('None') },
-              ...(lists.filter(l => !l.archived || l.id === listId).map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name, l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`].join('') }))),
+              ...lists.filter(l => !l.archived || l.id === listId).map(l => ({ value: l.id, label: `${l.emoji ? `${l.emoji} ` : ''}${l.name}${l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}` })),
             ]} />
           <p className="field-hint">{t('Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.')}</p>
         </div>}
         {!ongoing && (activities.length > 0 || pluginId) && (
           <div className="field">
             <label htmlFor="chore-activity">{t('Do an activity (optional)')}</label>
-            <Choose hideLabel label={t('Do an activity (optional)')} id="chore-activity" value={String(pluginId ?? '')} onChange={next => setPluginId(next || null)} sheet
+            <Choose hideLabel label={t('Do an activity (optional)')} id="chore-activity" value={pluginId ?? ''} onChange={next => setPluginId(next || null)} sheet
               options={[
                 { value: '', label: t('None') },
-                ...(activities.map(p => ({ value: String(p.id), label: [p.emoji, " ", p.enabled ? p.name : t('{name} (off)', { name: p.name })].join('') }))),
-                ...(pluginId && !activities.some(p => p.id === pluginId) ? [{ value: String(pluginId), label: t('Activity not available') }] : []),
+                ...activities.map(p => ({ value: p.id, label: `${p.emoji} ${p.enabled ? p.name : t('{name} (off)', { name: p.name })}` })),
+                ...(pluginId && !activities.some(p => p.id === pluginId) ? [{ value: pluginId, label: t('Activity not available') }] : []),
               ]} />
             {pluginId && (
               <div className="chore-minutes">
@@ -1041,16 +1041,16 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         </div>
         {!pluginId && <div className="field">
           <label htmlFor="chore-timer">{t('Timer (optional)')}</label>
-          <Choose hideLabel label={t('Timer (optional)')} id="chore-timer" value={String(timerMinutes ?? '')} onChange={next => setTimerMinutes(next ? Number(next) : null)}
+          <Choose hideLabel label={t('Timer (optional)')} id="chore-timer" value={timerMinutes ?? ''} onChange={next => setTimerMinutes(next === '' ? null : next)}
             options={[
               { value: '', label: t('None') },
-              ...([...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => ({ value: String(m), label: durationLabel(m) }))),
+              ...[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => ({ value: m, label: durationLabel(m) })),
             ]} />
           <p className="field-hint">{t('Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.')}</p>
         </div>}
         <div className="field">
           <label htmlFor="chore-approval">{t("Needs a parent's OK")}</label>
-          <Choose hideLabel label={t("Needs a parent's OK")} id="chore-approval" value={String(needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
+          <Choose hideLabel label={t("Needs a parent's OK")} id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
             options={[
               { value: 'default', label: assignee ? (defaultApproval ? t('Default (yes)') : t('Default (no)')) : t('Default') },
               { value: 'yes', label: t('Yes') },
