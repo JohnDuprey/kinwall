@@ -22,7 +22,7 @@ import { isSingleEmoji } from './emoji.ts'
 import { CheckIcon, EditIcon, PlusIcon } from './icons.tsx'
 import { ActivityRing } from './ActivityRing.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
-import { announce } from './a11y.tsx'
+import { Switch, announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { ChoreLibrarySheet, type RepeatDraft } from './ChoreLibrary.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
@@ -1024,10 +1024,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
             )}
             <p className="field-hint">{t("Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.")}</p>
             {pluginId && (
-              <div className="toggle-row">
-                <label id="chore-approve-play-label">{t("Needs a parent's OK even for timed play")}</label>
-                <button className={`switch ${approveTimedPlay ? 'on' : ''}`} role="switch" aria-checked={approveTimedPlay} aria-labelledby="chore-approve-play-label" onClick={() => setApproveTimedPlay(v => !v)}><span className="knob" /></button>
-              </div>
+              <Switch checked={approveTimedPlay} onChange={() => setApproveTimedPlay(v => !v)} label={t("Needs a parent's OK even for timed play")} id="chore-approve-play-label" />
             )}
           </div>
         )}

@@ -4,7 +4,7 @@
 // screen reader get the same moves from the buttons.
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Choose } from './PickField.tsx'
-import { announce } from './a11y.tsx'
+import { Switch, announce } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -129,11 +129,7 @@ export default function BoardEditor({ title, start, name: startName, presets, on
           <Choose hideLabel label={t('Columns')} value={n} onChange={next => setLayout(setColumnCount(layout, next))} sheet
             options={Array.from({ length: MAX_COLUMNS }, (_, i) => ({ value: i + 1, label: i + 1 }))} />
         </div>
-        <div className="toggle-row">
-          <label id="board-tiles-label">{t('Count tiles across the top')}</label>
-          <button type="button" className={`switch ${layout.tiles ? 'on' : ''}`} role="switch" aria-checked={layout.tiles} aria-labelledby="board-tiles-label"
-            onClick={() => setLayout({ ...layout, tiles: !layout.tiles })}><span className="knob" /></button>
-        </div>
+        <Switch checked={layout.tiles} onChange={() => setLayout({ ...layout, tiles: !layout.tiles })} label={t('Count tiles across the top')} id="board-tiles-label" />
       </div>
       <p className="field-hint">{t('Drag a card by its grip, or use its arrows. A taller card takes more of its column. Phones and narrow screens show the cards in order, column by column.')}</p>
 

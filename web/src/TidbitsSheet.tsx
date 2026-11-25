@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { Choose } from './PickField.tsx'
 import Sheet from './Sheet.tsx'
-import { announce } from './a11y.tsx'
+import { Switch, announce } from './a11y.tsx'
 import { setDeviceAppearance, useDeviceAppearance } from './useTheme.ts'
 import { useApp } from './AppContext.tsx'
 import { FACT_CATEGORY_LABELS, MAX_TIDBIT_CARDS, SOURCE_TITLES, TIP_CATEGORY_LABELS, tidbitCardTitle, tidbitSummary } from './tidbits.ts'
@@ -52,14 +52,7 @@ export default function TidbitsSheet({ value, onClose, onSave, title, intro, onR
       <p className="settings-row-sub">{intro ?? tm(FAMILY_INTRO)}</p>
       {SOURCES.map(s => (
         <div key={s.key} className="tidbit-source">
-          <div className="toggle-row">
-            <div>
-              <label id={`tidbit-${s.key}`}>{tm(SOURCE_TITLES[s.key])}</label>
-              <div className="settings-row-sub">{tm(s.sub)}</div>
-            </div>
-            <button className={`switch ${on(s.key) ? 'on' : ''}`} role="switch" aria-checked={on(s.key)} aria-labelledby={`tidbit-${s.key}`}
-              onClick={() => setT(x => ({ ...x, sources: toggle(x.sources, s.key) }))}><span className="knob" /></button>
-          </div>
+          <Switch checked={on(s.key)} onChange={() => setT(x => ({ ...x, sources: toggle(x.sources, s.key) }))} label={tm(SOURCE_TITLES[s.key])} id={`tidbit-${s.key}`} hint={tm(s.sub)} />
           {s.key === 'facts' && on('facts') && (
             <div className="chip-row" role="group" aria-label={t('Fact categories')}>
               {chip(cfg.factCategories.length === 0, t('✨ All'), () => setT(x => ({ ...x, factCategories: [] })))}

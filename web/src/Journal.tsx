@@ -7,6 +7,7 @@
 import { useBackClose } from './backStack.ts'
 import { leaveJournal } from './pageNavigation.ts'
 import { useEffect, useState } from 'react'
+import { Switch } from './a11y.tsx'
 import { Choose } from './PickField.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -88,13 +89,7 @@ export default function Journal({ memberId }: { memberId?: string }) {
       </section>
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {privacy?.canChange && (
-        <div className="board-card journal-privacy toggle-row">
-          <div>
-            <label id="journal-private-label">{t('Private journal')}</label>
-            <div className="settings-row-sub">{privacy.on ? t("Turn it off to share new entries with parent devices. What you wrote while it's private stays private.") : t('Parent devices can read new entries. Turn it on to keep them to yourself.')}</div>
-          </div>
-          <button className={`switch ${privacy.on ? 'on' : ''}`} role="switch" aria-checked={privacy.on} aria-labelledby="journal-private-label" onClick={() => setPrivate(!privacy.on)}><span className="knob" /></button>
-        </div>
+        <div className="board-card journal-privacy"><Switch checked={privacy.on} onChange={() => setPrivate(!privacy.on)} label={t('Private journal')} id="journal-private-label" hint={privacy.on ? t("Turn it off to share new entries with parent devices. What you wrote while it's private stays private.") : t('Parent devices can read new entries. Turn it on to keep them to yourself.')} /></div>
       )}
       {shown && claim && (
         <div className="board-card journal-privacy">

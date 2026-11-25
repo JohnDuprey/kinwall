@@ -16,7 +16,7 @@ import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.t
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery, useScreenK } from './useIsPhone.ts'
 import { castScale } from './cast.ts'
-import { announce, filterSortLabel, LoadError, pressable, Segmented, useRovingGrid } from './a11y.tsx'
+import { Switch, announce, filterSortLabel, LoadError, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
@@ -1346,10 +1346,7 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
         <div className="settings-row-sub">{t('Only in Kinwall — not added to Google/Outlook.')}</div>
       </div>
       {minutes !== null && (
-        <div className="toggle-row">
-          <label id="travel-remind-label">{t('Remind me before I need to leave')}</label>
-          <button className={`switch ${remind ? 'on' : ''}`} role="switch" aria-checked={remind} aria-labelledby="travel-remind-label" onClick={() => onChange(minutes, !remind)}><span className="knob" /></button>
-        </div>
+        <Switch checked={remind} onChange={() => onChange(minutes, !remind)} label={t('Remind me before I need to leave')} id="travel-remind-label" />
       )}
     </>
   )
@@ -1506,10 +1503,7 @@ export function EventEditSheet({ event, prefill, shared, calendars, offerNewLoca
           aria-invalid={noTitle || undefined} aria-describedby={noTitle ? 'event-title-error' : undefined} />
         {noTitle && <p className="field-error" id="event-title-error" role="alert">{t('Add a title.')}</p>}
       </div>
-      <div className="toggle-row">
-        <label id="event-allday-label">{t('All day')}</label>
-        <button className={`switch ${allDay ? 'on' : ''}`} role="switch" aria-checked={allDay} aria-labelledby="event-allday-label" onClick={() => setAllDay(v => !v)}><span className="knob" /></button>
-      </div>
+      <Switch checked={allDay} onChange={() => setAllDay(v => !v)} label={t('All day')} id="event-allday-label" />
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">
           <label htmlFor="event-start-date">{t('Starts')}</label>

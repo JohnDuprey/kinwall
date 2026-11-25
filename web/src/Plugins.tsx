@@ -19,7 +19,7 @@ import { api, ApiError } from './api.ts'
 import { ChevronLeft } from './icons.tsx'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
-import { announce, reducedMotion } from './a11y.tsx'
+import { Switch, announce, reducedMotion } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
 import { frameLive, frameLoaded, fromPluginFrame } from './pluginFrame.ts'
@@ -431,11 +431,7 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
                 {[p.description, p.ages ? ages(p.ages) : '', p.categories.join(', '), reviewed(p) ? t('Reviewed') : p.source ? `github.com/${p.source}` : t('Uploaded')].filter(Boolean).join(' · ')}
               </div>
               <div className="plugin-row-actions">
-                <div className="toggle-row">
-                  <label id={`plugin-on-${p.id}`}>{tc('switch', 'On')}</label>
-                  <button className={`switch ${p.enabled ? 'on' : ''}`} role="switch" aria-checked={p.enabled} aria-labelledby={`plugin-on-${p.id}`} disabled={!!busy}
-                    onClick={() => run(p.id, () => api.setPluginEnabled(p.id, !p.enabled), p.enabled ? t('{name} turned off', { name: p.name }) : t('{name} turned on', { name: p.name }))}><span className="knob" /></button>
-                </div>
+                <Switch checked={p.enabled} onChange={() => run(p.id, () => api.setPluginEnabled(p.id, !p.enabled), p.enabled ? t('{name} turned off', { name: p.name }) : t('{name} turned on', { name: p.name }))} label={tc('switch', 'On')} id={`plugin-on-${p.id}`} disabled={!!busy} />
                 {(() => {
                   // A reviewed plugin updates only to the catalog's version; others to their latest release.
                   const e = reviewed(p)

@@ -4,6 +4,7 @@
 // - MedicineList: Trackers → Health (parent devices only): each person's medicines, names on shared
 //   screens, and "Delete all medication data" behind More….
 import { useEffect, useState } from 'react'
+import { Switch } from './a11y.tsx'
 import { Choose } from './PickField.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -34,13 +35,7 @@ export function MedicationsToggle() {
     save({ medications: !on })
   }
   return (
-    <div className="toggle-row features-sub">
-      <div>
-        <label id="meds-on-label"><span className="sr-only">{t('Trackers:')} </span>{t('Medication reminders')}</label>
-        <div className="settings-row-sub" id="meds-on-sub">{t('Medicines in the Health tracker, a reminder at each dose and a Take now tile on the Board.')}</div>
-      </div>
-      <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="meds-on-label" aria-describedby="meds-on-sub" onClick={toggle}><span className="knob" /></button>
-    </div>
+    <div className="features-sub"><Switch checked={on} onChange={toggle} label={<><span className="sr-only">{t('Trackers:')} </span>{t('Medication reminders')}</>} id="meds-on-label" hint={t('Medicines in the Health tracker, a reminder at each dose and a Take now tile on the Board.')} /></div>
   )
 }
 
@@ -72,14 +67,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
       })}
       <details className="meds-options">
         <summary>{t('Medicine privacy and settings')}</summary>
-        <div className="toggle-row">
-          <div>
-            <label id="meds-names-label">{t('Show medicine names on shared screens')}</label>
-            <div className="settings-row-sub" id="meds-names-sub">{t('Off: wall screens say “Meds”. Parent devices and each person’s own device always show names.')}</div>
-          </div>
-          <button className={`switch ${settings.medicationNamesOnWalls ? 'on' : ''}`} role="switch" aria-checked={settings.medicationNamesOnWalls} aria-labelledby="meds-names-label" aria-describedby="meds-names-sub"
-            onClick={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })}><span className="knob" /></button>
-        </div>
+        <Switch checked={settings.medicationNamesOnWalls} onChange={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })} label={t('Show medicine names on shared screens')} id="meds-names-label" hint={t('Off: wall screens say “Meds”. Parent devices and each person’s own device always show names.')} />
         <div className="settings-row">
           <div className="settings-row-sub">{t('Reminders come through at night too.')}</div>
           <div className="choice-actions" role="group" aria-label={t('More medication actions')}>

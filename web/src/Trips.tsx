@@ -12,7 +12,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { api, getKey } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { LoadError, Segmented } from './a11y.tsx'
+import { Switch, LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import PickField from './PickField.tsx'
 import { Face } from './Face'
@@ -544,12 +544,7 @@ function TripEditSheet({ trip, onClose, onSaved, save, tz }: { trip: Trip | null
         <p className="field-hint">{d.audience === 'grownups' ? t('For a surprise: kids’ devices and wall screens don’t see this trip at all. Booking details have their own setting.')
           : d.audience === 'people' ? t('For a surprise: only these people’s own devices see this trip. Devices with full access always do; wall screens don’t.')
           : t('Everyone sees the plans. Booking details have their own setting.')}</p>
-        {d.audience && d.audience !== 'everyone' && <div className="toggle-row">
-          <div><label id={`${id}-apps-label`}>{t('Connected apps can see it')}</label>
-            <div className="settings-row-sub" id={`${id}-apps-sub`}>{t('An assistant connected to Kinwall may answer anyone in the family who asks it. Booking details stay private either way.')}</div></div>
-          <button type="button" className={`switch ${d.connectedApps ? 'on' : ''}`} role="switch" aria-checked={!!d.connectedApps} aria-labelledby={`${id}-apps-label`} aria-describedby={`${id}-apps-sub`}
-            onClick={() => set('connectedApps', !d.connectedApps)}><span className="knob" /></button>
-        </div>}
+        {d.audience && d.audience !== 'everyone' && <Switch checked={!!d.connectedApps} onChange={() => set('connectedApps', !d.connectedApps)} label={t('Connected apps can see it')} id={`${id}-apps-label`} hint={t('An assistant connected to Kinwall may answer anyone in the family who asks it. Booking details stay private either way.')} />}
         <h3>{t('When')}</h3>
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-start`}>{t('First day')}</label><input id={`${id}-start`} type="date" value={d.startDate ?? ''} onChange={e => set('startDate', e.target.value || null)} /></div>
@@ -720,11 +715,7 @@ function DetailsPage({ t_: { trip, save, busy } }: { t_: TripApi }) {
         options={[{ key: 'grownups' as const, label: t('🔒 Grown-ups only') }, { key: 'everyone' as const, label: t('👨‍👩‍👧 Everyone in the family') }]}
         onChange={v => void save(rev => api.updateTrip(trip.id, { revision: rev, detailsAudience: v, ...(v === 'grownups' && { detailsOnWall: false }) }), t('Saved: {title}', { title: trip.title }))} />
       <p className="field-hint">{everyone ? t('Grown-ups’ and kids’ own devices. Wall screens only with Show on wall.') : t('Parents’ devices and grown-ups’ own devices. Never kids’ devices or the wall.')}</p></div>
-    <div className="toggle-row">
-      <div><label id="trip-wall-label">{t('Show on wall')}</label><div className="settings-row-sub" id="trip-wall-sub">{everyone ? t('Wall screens show booking details too.') : t('Choose Everyone in the family first.')}</div></div>
-      <button className={`switch ${trip.detailsOnWall ? 'on' : ''}`} role="switch" aria-checked={trip.detailsOnWall} aria-labelledby="trip-wall-label" aria-describedby="trip-wall-sub" disabled={busy || !everyone}
-        onClick={() => void save(rev => api.updateTrip(trip.id, { revision: rev, detailsOnWall: !trip.detailsOnWall }), t('Saved: {title}', { title: trip.title }))}><span className="knob" /></button>
-    </div>
+    <Switch checked={trip.detailsOnWall} onChange={() => void save(rev => api.updateTrip(trip.id, { revision: rev, detailsOnWall: !trip.detailsOnWall }), t('Saved: {title}', { title: trip.title }))} label={t('Show on wall')} id="trip-wall-label" disabled={busy || !everyone} hint={everyone ? t('Wall screens show booking details too.') : t('Choose Everyone in the family first.')} />
     <p className="field-hint">{t('Trip names, dates, towns, place names, prices and travel times are plans everyone sees. Where details are hidden, the row says “For grown-ups”, so kids know to ask. Connected apps never get booking details.')}</p>
   </>
 }

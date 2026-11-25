@@ -17,7 +17,7 @@ import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
 import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, InfoIcon, JarIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
 import { KEPT_STARTERS, expiryLabel, soonestGroupFirst } from './pantry.ts'
-import { announce, filterSortLabel, pressable, Segmented } from './a11y.tsx'
+import { Switch, announce, filterSortLabel, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
@@ -204,35 +204,23 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
         {type === 'pantry' && <p className="field-hint">{t('Food you have at home. Give things a use-by date to see what to use first, and Meals suggests recipes that use it up.')}</p>}
       </div>
       <div className="field">
-        <div className="steps-head">
-          <label id="list-keep-checked">{t('Keep checked items in place')}</label>
-          <button className={`switch ${keepChecked ? 'on' : ''}`} role="switch" aria-checked={keepChecked} aria-labelledby="list-keep-checked" aria-describedby="list-keep-checked-hint"
-            onClick={() => setKeep(!keepChecked)}><span className="knob" /></button>
-        </div>
-        <p className="field-hint" id="list-keep-checked-hint">{keepChecked
+        <Switch checked={keepChecked} onChange={() => setKeep(!keepChecked)} label={t('Keep checked items in place')} id="list-keep-checked" hint={keepChecked
           ? t('Checked items stay where they are, crossed off, until you tap {button}.', { button: tm(CHECKOUT_LABEL[type === 'pantry' ? 'pantry' : kind]) })
-          : t('Checked items move to a Done section at the bottom.')}</p>
+          : t('Checked items move to a Done section at the bottom.')} />
+
       </div>
       {type === 'pantry' && (
         <div className="field">
-          <div className="steps-head">
-            <label id="list-restock">{t('Add used-up food to the grocery list')}</label>
-            <button className={`switch ${restock ? 'on' : ''}`} role="switch" aria-checked={restock} aria-labelledby="list-restock" aria-describedby="list-restock-hint"
-              onClick={() => setRestock(!restock)}><span className="knob" /></button>
-          </div>
-          <p className="field-hint" id="list-restock-hint">{t('Checking something off adds it to your default Groceries list, unless it’s already there. Untick it by mistake and it comes back off.')}</p>
+          <Switch checked={restock} onChange={() => setRestock(!restock)} label={t('Add used-up food to the grocery list')} id="list-restock" hint={t('Checking something off adds it to your default Groceries list, unless it’s already there. Untick it by mistake and it comes back off.')} />
+
         </div>
       )}
       {defaultable && (
         <div className="field">
-          <div className="steps-head">
-            <label id="list-default">{t('Default {type} list', { type: tm(TYPE_LABEL[type]) })}</label>
-            <button className={`switch ${isDefault ? 'on' : ''}`} role="switch" aria-checked={isDefault} aria-labelledby="list-default" aria-describedby="list-default-hint"
-              onClick={() => setDefault(!isDefault)}><span className="knob" /></button>
-          </div>
-          <p className="field-hint" id="list-default-hint">{type === 'groceries'
+          <Switch checked={isDefault} onChange={() => setDefault(!isDefault)} label={t('Default {type} list', { type: tm(TYPE_LABEL[type]) })} id="list-default" hint={type === 'groceries'
             ? t("Scanned food, meal ingredients, and the app's widgets, Siri and tiles use this list. Turning it on here turns it off on your other Groceries lists.")
-            : t('Scanned household and beauty items go to this list. Turning it on here turns it off on your other Shopping lists.')}</p>
+            : t('Scanned household and beauty items go to this list. Turning it on here turns it off on your other Shopping lists.')} />
+
         </div>
       )}
       <div className="field">
@@ -325,10 +313,7 @@ function ItemPlaceFields({ shopping, quantity, onQuantity, store, onStore, aisle
 function SaleField({ id, on, onChange }: { id: string; on: boolean; onChange: (on: boolean) => void }) {
   return (
     <div className="field">
-      <div className="steps-head">
-        <label id={id}>{t('On sale')}</label>
-        <button type="button" className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby={id} onClick={() => onChange(!on)}><span className="knob" /></button>
-      </div>
+      <Switch checked={on} onChange={() => onChange(!on)} label={t('On sale')} id={id} />
     </div>
   )
 }
@@ -617,11 +602,7 @@ function StepsEditor({ listId, item, onChange }: { listId: string; item: ListIte
       <div className="steps-head">
         <label id={`steps-${item.id}`}>{steps.length > 0 ? t('Steps · {done} of {total}', { done: item.stepsDone, total: item.stepsTotal }) : t('Steps')}</label>
         {steps.length > 1 && (
-          <div className="steps-mode">
-            <span id={`steps-one-${item.id}`}>{t('One at a time')}</span>
-            <button className={`switch ${oneAtATime ? 'on' : ''}`} role="switch" aria-checked={oneAtATime} aria-labelledby={`steps-one-${item.id}`}
-              onClick={() => setOneAtATime(v => !v)}><span className="knob" /></button>
-          </div>
+          <div className="steps-mode"><Switch checked={oneAtATime} onChange={() => setOneAtATime(v => !v)} label={t('One at a time')} id={`steps-one-${item.id}`} /></div>
         )}
       </div>
       {oneAtATime && steps.length > 1 ? (
@@ -722,13 +703,7 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, s
         <ValuePicker id="scan-dept" label={t('Department')} value={dept} options={here.departments} newLabel={t('New department…')} placeholder={t('e.g. Dairy, Pantry')} onChange={setCategory} noneLabel={t('Not sure')} />
       </>}
       {canSave && (
-        <div className="scan-save">
-          <div>
-            <div id="scan-save-label" className="settings-row-label">{t('Also save to catalog')}</div>
-            <div className="settings-row-sub">{name ? t('Next time, scanning it adds “{name}” right away.', { name }) : t('Next time, scanning it adds it right away.')}</div>
-          </div>
-          <button className={`switch ${save ? 'on' : ''}`} role="switch" aria-checked={save} aria-labelledby="scan-save-label" onClick={() => setSave(v => !v)}><span className="knob" /></button>
-        </div>
+        <div className="scan-save"><Switch checked={save} onChange={() => setSave(v => !v)} label={t('Also save to catalog')} id="scan-save-label" hint={name ? t('Next time, scanning it adds “{name}” right away.', { name }) : t('Next time, scanning it adds it right away.')} /></div>
       )}
     </Sheet>
   )

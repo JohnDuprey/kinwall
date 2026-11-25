@@ -7,7 +7,7 @@ import { DAY, formatDate, intlLocale, msg, t, tc, tm, tn } from './i18n.ts'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { announce, Segmented } from './a11y.tsx'
+import { Switch, announce, Segmented } from './a11y.tsx'
 import BookLookup from './BookLookup.tsx'
 import Library, { AddBookSheet } from './Library.tsx'
 import { addDayKeys } from './library.ts'
@@ -732,11 +732,7 @@ function PhotoField({ f, set, photos }: { f: Form; set: (patch: Partial<Form>) =
         <img src={src} alt={t("The memory's photo")} />
         <div className="trk-photo-side">
           {own
-            ? <div className="toggle-row">
-                <label id="trk-photo-family">{t('Also in family photos')}</label>
-                <button type="button" className={`switch ${f.photoFamily ? 'on' : ''}`} role="switch" aria-checked={f.photoFamily} aria-labelledby="trk-photo-family"
-                  onClick={() => set({ photoFamily: !f.photoFamily })}><span className="knob" /></button>
-              </div>
+            ? <Switch checked={f.photoFamily} onChange={() => set({ photoFamily: !f.photoFamily })} label={t('Also in family photos')} id="trk-photo-family" />
             : <span className="trk-sub">{t('From the family photos')}</span>}
           <button type="button" className="btn btn-secondary trk-small-btn" onClick={() => set({ photoId: null, pending: null, photoOwned: false })}>{t('Remove')}</button>
         </div>
