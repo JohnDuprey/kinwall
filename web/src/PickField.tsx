@@ -130,7 +130,7 @@ export function Choose<T extends string | number>({ id: givenId, label, value: c
   const selected = options.find(o => String(o.value) === String(value))
   const picks = visible.map(o => {
     const text = String(o.label)
-    const leading = o.emoji ?? text.match(/^(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s+/u)?.[1]
+    const leading = o.emoji ?? text.match(/^(\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier}|\u200D\p{Extended_Pictographic})*)\s+/u)?.[1]
     return { ...o, value: String(o.value), label: leading && text.startsWith(leading) ? text.slice(leading.length).trimStart() : text, lead: leading && <span aria-hidden="true">{leading}</span> }
   })
   return <div ref={control} className={`${hideLabel ? 'choose-control' : 'field choose-field'} ${className}`} style={style}>
