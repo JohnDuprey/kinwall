@@ -45,6 +45,10 @@ Overrides are saved in the browser's local storage on that device. They're never
 
 While the on-screen keyboard is up, the header, tabs, rail and **+** button step aside so the field you're typing in, its label and its **Save** or **Add** button fit in what's left, and the navigation stays where it was (a tablet on its side doesn't switch to the phone layout). On a phone on its side, a sheet scrolls as one, with its buttons kept on the bottom edge. Fields stay below the phone’s status bar and above the keyboard, including the add bar on to-do and pantry lists. Everything comes back when the keyboard goes away.
 
+## Choosing a setting
+
+A few short choices appear side by side. Longer lists, people, calendars and categories open a sheet: tap the current value, then tap a choice. Long lists include search. A check marks the current choice, and **Done** closes the sheet. Controls work with a keyboard too: use Tab to reach a field, arrow keys to move between short choices, or Enter to open a sheet.
+
 ## Typeface
 
 Tap the **Typeface** row (it shows the current typeface in itself) to open the **Typeface** sheet: Default ([Nunito](https://github.com/googlefonts/nunito)), Hyperlegible ([Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/)), Dyslexia-friendly ([Lexend](https://www.lexend.com)), Modern ([Figtree](https://github.com/erikdkennedy/figtree)), Playful ([Fredoka](https://github.com/hafontia/Fredoka-One)), Storybook ([Literata](https://github.com/googlefonts/literata)) or Handwritten ([Kalam](https://github.com/itfoundry/kalam)). All are open-source typefaces bundled with Kinwall; see [Credits](../contributing/credits.md#typefaces). Each card shows a sample line in that typeface and what it's good for. Tap one to use it right away, then **Done**. Every typeface is bundled with Kinwall and served by your own server (no requests to Google or other font services); a device downloads one only when it opens the sheet or uses it.

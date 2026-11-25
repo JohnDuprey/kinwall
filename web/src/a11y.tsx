@@ -51,25 +51,28 @@ function stepFocus(e: { key: string; target: EventTarget | null; preventDefault(
 
 /** Segmented control as a radio group (or a tab list with `tabs`): one Tab stop, arrow keys move
  * and select like native radios, `aria-checked`/`aria-selected` carry the state. */
-export function Segmented<T extends string | number>({ label, value, options, onChange, tabs, idBase, className = '', style, disabled }: {
+export function Segmented<T extends string | number>({ label, value, options, onChange, tabs, idBase, className = '', style, disabled, id, 'aria-describedby': describedBy, 'aria-labelledby': labelledBy }: {
   label: string
   value: T | null
-  options: readonly { key: T; label: ReactNode; ariaLabel?: string; title?: string }[]
+  options: readonly { key: T; label: ReactNode; ariaLabel?: string; title?: string; disabled?: boolean }[]
   onChange: (v: T) => void
   tabs?: boolean
   idBase?: string // tabs: each tab gets id `${idBase}-${key}`, for a panel's aria-labelledby
   className?: string
   style?: CSSProperties
   disabled?: boolean
+  id?: string
+  'aria-describedby'?: string
+  'aria-labelledby'?: string
 }) {
-  const on = options.findIndex(o => o.key === value)
+  const on = options.findIndex(o => o.key === value && !o.disabled)
   return (
-    <div className={`segmented ${className}`} style={style} role={tabs ? 'tablist' : 'radiogroup'} aria-label={label}
+    <div id={id} className={`segmented ${className}`} style={style} role={tabs ? 'tablist' : 'radiogroup'} aria-label={label} aria-describedby={describedBy} aria-labelledby={labelledBy}
       onKeyDown={e => stepFocus(e, e.currentTarget, 'button:not(:disabled)')?.click()}>
       {options.map((o, i) => (
         <button key={String(o.key)} type="button" id={idBase ? `${idBase}-${o.key}` : undefined}
           role={tabs ? 'tab' : 'radio'} aria-selected={tabs ? i === on : undefined} aria-checked={tabs ? undefined : i === on}
-          tabIndex={i === (on < 0 ? 0 : on) ? 0 : -1} className={i === on ? 'active' : ''} disabled={disabled} aria-label={o.ariaLabel} title={o.title}
+          tabIndex={i === (on < 0 ? options.findIndex(o => !o.disabled) : on) ? 0 : -1} className={i === on ? 'active' : ''} disabled={disabled || o.disabled} aria-label={o.ariaLabel} title={o.title}
           onClick={() => onChange(o.key)}>{o.label}</button>
       ))}
     </div>
