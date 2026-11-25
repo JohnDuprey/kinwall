@@ -217,6 +217,11 @@ export default function SettingsView() {
               {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
               {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
               {settings.features.chores && (!isDisplay || (me.deviceKind === 'kid' && appPlatform() === 'ios')) && <Section id="routine-mode" title={t('Routine mode')} keywords={[t('Allowed websites'), t('Free time'), 'Clever', 'Freckle', 'Safari']}><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}><RoutineModeSettings /></div></Section>}
+              {/* Away days live on their own page, so they keep working with Trips off. */}
+              {!isDisplay && <Section id="away" title={t('Away days')} keywords={[t('Vacation'), t('Trips'), t('Handoff')]}>
+                <p className="settings-row-sub">{t('When someone’s away, pause their chores and streaks, or hand chores to someone at home for those days.')}</p>
+                <a className="btn btn-secondary" style={{ flex: "none", alignSelf: "flex-start" }} href="#/away"><span aria-hidden="true">✈️</span> {t('Open away days')}</a>
+              </Section>}
               {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
               {!isDisplay && settings.features.lists && <ShoppingSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
               {/* Community calendars are a parent's to manage (routes/outing-feeds.ts refuses walls and kids' devices). */}

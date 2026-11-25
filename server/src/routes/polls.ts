@@ -33,6 +33,7 @@ export const PollOptionSchema = z
     id: z.string(),
     label: z.string(),
     recipeId: z.string().nullable().openapi({ description: 'A recipe from the recipe book; null for a typed idea (or a recipe since deleted).' }),
+    stayId: z.string().nullable().default(null),
     restaurantId: z.string().nullable().openapi({ description: 'A restaurant from the binder (Meals → Restaurants); null otherwise (or one since deleted).' }),
     sort: z.number().int(),
     votes: z.array(z.string()).openapi({ description: 'Member ids who picked this choice.' }),
@@ -41,6 +42,8 @@ export const PollOptionSchema = z
 export const PollSchema = z
   .object({
     id: z.string(),
+    tripId: z.string().nullable().default(null),
+    stayGroupId: z.string().nullable().default(null),
     question: z.string(),
     date: z.string().nullable().openapi({ description: 'YYYY-MM-DD the poll decides (a meal), if any.' }),
     slot: MealSlotSchema.nullable(),
@@ -84,24 +87,27 @@ const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json
 const pollResponse = { description: 'poll', content: { 'application/json': { schema: PollSchema } } };
 
 type PollRow = { id: string; question: string; date: string | null; slot: Poll['slot']; status: Poll['status']; winner_option_id: string | null; meal_id: string | null; created_by: string | null; created_at: string; closed_at: string | null };
-type OptionRow = { id: string; poll_id: string; label: string; recipe_id: string | null; restaurant_id: string | null; sort: number };
+type OptionRow = { id: string; poll_id: string; label: string; recipe_id: string | null; restaurant_id: string | null; sort: number; stay_id:string|null };
 
 /** Polls with their choices and votes: open ones first, then newest. */
-export async function readPolls(db: KinwallDb, opts: { id?: string; status?: Poll['status']; limit?: number } = {}): Promise<Poll[]> {
+export async function readPolls(db: KinwallDb, opts: { id?: string; status?: Poll['status']; limit?: number; includeHidden?: boolean } = {}): Promise<Poll[]> {
   const where = opts.id ? 'WHERE id = ?1' : opts.status ? 'WHERE status = ?2' : '';
-  const polls = (await db.prepare(`SELECT * FROM polls ${where} ORDER BY status = 'open' DESC, created_at DESC LIMIT ?3`).bind(opts.id ?? null, opts.status ?? null, opts.limit ?? -1).all<PollRow>()).results;
+  let polls = (await db.prepare(`SELECT * FROM polls ${where} ORDER BY status = 'open' DESC, created_at DESC LIMIT ?3`).bind(opts.id ?? null, opts.status ?? null, opts.limit ?? -1).all<PollRow>()).results;
+  const contexts=(await db.prepare('SELECT * FROM trip_stay_polls').all<{poll_id:string;trip_id:string;group_id:string}>()).results;
+  if(!opts.includeHidden && !(await readFeatures(db)).trips)polls=polls.filter(p=>!contexts.some(t=>t.poll_id===p.id));
   if (!polls.length) return [];
   const ids = JSON.stringify(polls.map((p) => p.id));
   const [options, votes] = await db.batch<unknown>([
-    db.prepare('SELECT id, poll_id, label, recipe_id, restaurant_id, sort FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?)) ORDER BY sort, id').bind(ids),
+    db.prepare('SELECT o.*, t.stay_id FROM poll_options o LEFT JOIN trip_poll_options t ON t.option_id=o.id WHERE o.poll_id IN (SELECT value FROM json_each(?)) ORDER BY o.sort, o.id').bind(ids),
     db.prepare('SELECT v.option_id, v.member_id FROM poll_votes v JOIN members m ON m.id = v.member_id WHERE v.poll_id IN (SELECT value FROM json_each(?)) ORDER BY m.sort, m.created_at').bind(ids),
   ]);
   const byOption = new Map<string, string[]>();
   for (const v of votes.results as { option_id: string; member_id: string }[]) byOption.set(v.option_id, [...(byOption.get(v.option_id) ?? []), v.member_id]);
   return polls.map((p) => ({
+    tripId:contexts.find(t=>t.poll_id===p.id)?.trip_id??null,stayGroupId:contexts.find(t=>t.poll_id===p.id)?.group_id??null,
     id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winnerOptionId: p.winner_option_id, mealId: p.meal_id,
     createdBy: p.created_by, createdAt: p.created_at, closedAt: p.closed_at,
-    options: (options.results as OptionRow[]).filter((o) => o.poll_id === p.id).map((o) => ({ id: o.id, label: o.label, recipeId: o.recipe_id, restaurantId: o.restaurant_id, sort: o.sort, votes: byOption.get(o.id) ?? [] })),
+    options: (options.results as OptionRow[]).filter((o) => o.poll_id === p.id).map((o) => ({ id: o.id, label: o.label,stayId:o.stay_id??null, recipeId: o.recipe_id, restaurantId: o.restaurant_id, sort: o.sort, votes: byOption.get(o.id) ?? [] })),
   }));
 }
 
@@ -109,7 +115,9 @@ export async function readPolls(db: KinwallDb, opts: { id?: string; status?: Pol
 export const leader = (poll: Pick<Poll, 'options'>) => poll.options.reduce<Poll['options'][number] | null>((best, o) => (!best || o.votes.length > best.votes.length ? o : best), null);
 
 async function pollsOff(c: Context<{ Bindings: Env }>) {
-  return !(await readFeatures(c.env.DB)).polls;
+  const features=await readFeatures(c.env.DB);
+  if(!features.polls)return true;
+  return !features.trips && !!c.req.param('id') && !!await c.env.DB.prepare('SELECT poll_id FROM trip_stay_polls WHERE poll_id=?').bind(c.req.param('id')).first();
 }
 async function onePoll(db: KinwallDb, id: string) {
   return (await readPolls(db, { id }))[0];
@@ -202,6 +210,7 @@ pollsRoutes.openapi(
     if (blocked) return c.json({ error: blocked }, 403);
     const poll = await onePoll(c.env.DB, id);
     if (!poll) return c.json({ error: 'poll not found' }, 404);
+    if(poll.tripId){const row=await c.env.DB.prepare('SELECT data FROM trips WHERE id=?').bind(poll.tripId).first<{data:string}>();if(!row||!JSON.parse(row.data).memberIds.includes(memberId))return c.json({error:'Only people joining this trip can vote on its stay.'},403);}
     if (poll.status !== 'open') return c.json({ error: 'Voting on this poll has ended.' }, 409);
     if (optionId && !poll.options.some((o) => o.id === optionId)) return c.json({ error: 'choice not found in this poll' }, 400);
     if (!(await c.env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(memberId).first())) return c.json({ error: 'member not found' }, 404);
@@ -225,7 +234,7 @@ pollsRoutes.openapi(
     const poll = await onePoll(c.env.DB, id);
     if (!poll) return c.json({ error: 'poll not found' }, 404);
     if (optionId && !poll.options.some((o) => o.id === optionId)) return c.json({ error: 'choice not found in this poll' }, 400);
-    const winner = optionId ?? leader(poll)?.id ?? null;
+    const winner = poll.tripId ? null : optionId ?? leader(poll)?.id ?? null;
     await c.env.DB.prepare("UPDATE polls SET status = 'closed', winner_option_id = ?, closed_at = coalesce(closed_at, ?) WHERE id = ?").bind(winner, new Date().toISOString(), id).run();
     emit(c, 'poll.changed', { id, status: 'closed', winnerOptionId: winner });
     return c.json((await onePoll(c.env.DB, id))!, 200);
@@ -241,6 +250,7 @@ pollsRoutes.openapi(
     if (await pollsOff(c)) return c.json(OFF, 404);
     const { id } = c.req.valid('param');
     const { question, mealId } = c.req.valid('json');
+    if(await c.env.DB.prepare('SELECT poll_id FROM trip_stay_polls WHERE poll_id=?').bind(id).first())return c.json({error:'Manage stay votes from the trip.'},409);
     if (mealId && !(await c.env.DB.prepare('SELECT id FROM meals WHERE id = ?').bind(mealId).first())) return c.json({ error: 'meal not found' }, 400);
     const res = await c.env.DB.prepare('UPDATE polls SET question = coalesce(?, question), meal_id = CASE WHEN ? THEN ? ELSE meal_id END WHERE id = ?').bind(question ?? null, mealId !== undefined ? 1 : 0, mealId ?? null, id).run();
     if (!res.meta.changes) return c.json({ error: 'poll not found' }, 404);

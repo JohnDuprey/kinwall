@@ -208,7 +208,9 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
     try { await api.deletePoll(poll.id); changed(); toast(t('Poll deleted')); onClose() } catch (e) { fail(e, t('Could not delete the poll.')) }
   }
 
-  const actions = parentDevice ? open
+  // A trip's stay vote: the trip's people vote here, but a grown-up decides on the trip itself.
+  const tripLink = poll.tripId ? `#/trips?${new URLSearchParams({ trip: poll.tripId, part: 'stays' })}` : null
+  const actions = tripLink ? <a className="btn btn-primary" href={tripLink} onClick={onClose}>{t('Open the trip')}</a> : parentDevice ? open
     ? closing === null ? <button className="btn btn-secondary" disabled={busy} onClick={() => setClosing(suggestedWinner(poll)?.id ?? '')}>{t('End voting…')}</button>
       : <><button className="btn btn-secondary" disabled={busy} onClick={() => setClosing(null)}>{t('Keep voting')}</button><button className="btn btn-primary" disabled={busy || !closing} onClick={() => void close()}>{t('End voting')}</button></>
     : meals && winner ? <button className="btn btn-primary" disabled={busy} onClick={() => void plan()}>{poll.mealId ? t('Open the meal') : t('Plan it')}</button> : undefined
@@ -248,7 +250,8 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
       </select>
       <p className="field-hint">{tie ? t('It’s a tie: pick the winner.') : t('The choice with the most votes is picked.')} {t('Nobody can vote after voting ends.')}</p>
     </div>}
-    {parentDevice && closing === null && <div className="field poll-more">
+    {tripLink && <p className="field-hint">{t('A vote on where to stay. Ending it never picks a winner: a grown-up chooses on the trip.')}</p>}
+    {parentDevice && !tripLink && closing === null && <div className="field poll-more">
       <label htmlFor={`poll-more-${poll.id}`} className="sr-only">{t('More')}</label>
       <select id={`poll-more-${poll.id}`} className="settings-select" value="" onChange={e => void more(e.target.value)}>
         <option value="">{t('More…')}</option><option value="delete">{t('Delete poll')}</option>

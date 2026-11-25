@@ -1,3 +1,4 @@
+import {loadAway,effectiveChore,awayStatements,awayFromResults,AWAY_VERSION_SQL} from '../away.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { schoolworkOff } from '../school-days.ts';
 import { readFeatures, parseFeatures } from './settings.ts';
@@ -502,15 +503,17 @@ choresRoutes.openapi(createRoute({
   responses: { 200: { description: 'counts; dates and members with no chores are omitted', content: { 'application/json': { schema: z.array(ChoreDateCountSchema) } } }, 400: { description: 'invalid range', content: { 'application/json': { schema: ErrorSchema } } } },
 }), async c => {
   const { from, to } = c.req.valid('query'), db = c.env.DB;
-  const [settingsRes, choresRes] = await db.batch<unknown>([
+  const [settingsRes, choresRes,...awayRes] = await db.batch<unknown>([
     db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features')"),
     // The date strip counts the same chores and schoolwork as the daily cards.
     db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND archived = 0 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date BETWEEN ? AND ?) ORDER BY sort, created_at`).bind(from, to),
+    ...awayStatements(db,from,to),
   ]);
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
   if (!parseFeatures(settings.get('features')).chores) return c.json([], 200);
   const owner = await viewOwner(c), tz = settings.get('timezone') ?? hostTimezone();
-  const rows = (choresRes.results as ChoreRow[]).filter(r => !owner || (r.member_id ? r.member_id === owner : !eligibleOf(r) || eligibleOf(r)!.includes(owner)));
+  const rows = choresRes.results as ChoreRow[];
+  const away=awayFromResults(awayRes);
   let completionFrom = from, completionTo = to;
   for (const row of rows) {
     const goal = readChoreGoal(row.repeat_goal);
@@ -523,12 +526,14 @@ choresRoutes.openapi(createRoute({
   const dismissed = new Set((await db.prepare('SELECT chore_id, date FROM chore_dismissals WHERE date BETWEEN ? AND ?').bind(from, to).all<{ chore_id: string; date: string }>()).results.map(d => `${d.chore_id}:${d.date}`));
   const completions = new Map<string, typeof completed>();
   for (const item of completed) { const list = completions.get(item.chore_id) ?? []; list.push(item); completions.set(item.chore_id, list); }
-  const off = await schoolworkOff(db, from, to, rows);
+  const off = await schoolworkOff(db, from, to, rows,away);
   const counts = new Map<string, z.infer<typeof ChoreDateCountSchema>>();
-  for (const row of rows) {
-    const done = completions.get(row.id) ?? [], goal = readChoreGoal(row.repeat_goal);
-    const dates = row.source_id ? done.filter(d => d.date >= from && d.date <= to).map(d => d.date) : dueDates(row, from, to, tz);
+  for (const source of rows) {
+    const done = completions.get(source.id) ?? [], goal = readChoreGoal(source.repeat_goal);
+    const dates = source.source_id ? done.filter(d => d.date >= from && d.date <= to).map(d => d.date) : dueDates(source, from, to, tz);
     for (const date of dates) {
+      const row=effectiveChore(source,date,away);
+      if(owner&&!away.forMember(source,date,owner)&&!done.some(d=>d.date===date&&source.member_id===owner))continue;
       const completion = done.find(d => d.date === date);
       if (!completion && off(row, date)) continue;
       if (goal && row.due_date && !completion) {
@@ -562,7 +567,7 @@ choresRoutes.openapi(
     const { date } = c.req.valid('query');
 
     // tz, chores and completions are all independent reads - one batch, one round trip.
-    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes, rejectionsRes, dismissalsRes] = await c.env.DB.batch<unknown>([
+    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes, rejectionsRes, dismissalsRes,...awayRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND source_id IS NULL UNION ALL SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND source_id IS NOT NULL AND id IN (SELECT chore_id FROM chore_completions WHERE date = ?) ORDER BY sort, created_at`).bind(date),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
@@ -576,6 +581,7 @@ choresRoutes.openapi(
       c.env.DB.prepare('SELECT member_id, plugin_id, seconds FROM plugin_playtime WHERE date = ?').bind(date),
       c.env.DB.prepare('SELECT chore_id, note, rejected_at FROM chore_rejections WHERE date = ?').bind(date),
       c.env.DB.prepare('SELECT chore_id FROM chore_dismissals WHERE date = ?').bind(date),
+      ...awayStatements(c.env.DB,date,date),
     ]);
     const dismissed = new Set((dismissalsRes.results as { chore_id: string }[]).map((r) => r.chore_id));
     const rejections = new Map((rejectionsRes.results as { chore_id: string; note: string | null; rejected_at: string }[]).map((r) => [r.chore_id, r]));
@@ -589,8 +595,9 @@ choresRoutes.openapi(
     const byChore = new Map(completions.map((row) => [row.chore_id, row]));
     const scheduled = chores.filter(row => row.source_id ? byChore.has(row.id) : row.ongoing ? !row.archived && date >= (row.due_date ?? todayInTz(tz, new Date(row.created_at))) : dueOnDate(row, date, tz));
     // Schoolwork on a kid's day with no school is left out, unless it was already ticked off that day.
-    const noSchool = await schoolworkOff(c.env.DB, date, date, scheduled);
-    const due = scheduled.filter(row => byChore.has(row.id) || !noSchool(row, date));
+    const away=awayFromResults(awayRes);
+    const noSchool = await schoolworkOff(c.env.DB, date, date, scheduled,away);
+    const due = scheduled.filter(row => byChore.has(row.id) || !noSchool(row, date)).map(row=>effectiveChore(row,date,away));
     const goals = await goalProgressFor(c.env.DB, due, date);
 
     return c.json(
@@ -600,6 +607,7 @@ choresRoutes.openapi(
         const rejection = rejections.get(row.id);
         return {
           ...toApi(row),
+          handoff:row.handoff,
           goalProgress: goals.get(row.id) ?? null,
           // A completion waiting for a parent's OK isn't done yet (no points, not counted).
           completed: completion?.status === 'approved',
@@ -682,14 +690,32 @@ async function completeOngoing(c: Context<{ Bindings: Env }>, source: ChoreRow, 
 export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false, upkeepInput?: DoneInput, operation: OngoingOperation = {}): Promise<CompletionResult> {
   // A member's own device credits them when no one is named (an Anyone chore, like the app does).
   memberId ??= (await deviceOwner(c)) ?? undefined;
-  const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
+  const [choreRes, settingsRes,...awayRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
       `SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days, (SELECT enabled FROM plugins WHERE id = c.plugin_id) AS plugin_enabled, (SELECT id FROM upkeep_jobs WHERE handed_chore_id = c.id) AS upkeep_job FROM chores c WHERE ${schoolworkVisibleSql("c")} AND c.id = ? AND c.archived = 0`,
     ).bind(memberId ?? null, date, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
+    ...awayStatements(c.env.DB,date,date),
   ]);
   const chore = choreRes.results[0] as (ChoreRow & { approve_timed_play: number; member_needs_approval: number | null; done_by: string | null; other_days: number; plugin_enabled: number | null; upkeep_job: string | null }) | undefined;
   if (!chore) return 'not found';
+  const away=awayFromResults(awayRes),duty=away.duty(chore,date);
+  const originalMember=chore.member_id;
+  if(duty.excused&&!chore.done_by)return {notDue:stored('error','This chore is paused while away.')};
+  chore.member_id=duty.memberId;
+  if(!originalMember&&memberId&&!away.forMember({...chore,member_id:originalMember},date,memberId))return {notDue:stored('error','This chore is for someone at home that day.')};
+  // A later handoff never transfers an already-earned completion or rewrites an offline replay.
+  if(duty.handoff&&chore.done_by){
+    const historyBlock=await ownerBlock(c,memberId,chore.done_by);
+    if(historyBlock&&memberId!==duty.memberId)return {blocked:historyBlock};
+    return false;
+  }
+  if(duty.handoff){
+    const recipient=await c.env.DB.prepare('SELECT needs_approval FROM members WHERE id=?').bind(duty.memberId).first<{needs_approval:number}>();
+    chore.member_needs_approval=recipient?.needs_approval??null;
+  }
+  if(duty.handoff&&memberId&&memberId!==duty.memberId)return {blocked:stored('error','This chore has been handed to someone else for that day.')};
+  if(timedPlay&&(duty.excused||!away.forMember({...chore,member_id:originalMember},date,memberId??'')))return {notDue:stored('error','This chore is paused while away.')};
   const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
   if (blocked) return { blocked };
   const eligible = eligibleOf(chore);
@@ -732,13 +758,17 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   const period = goal && chore.due_date ? goalPeriod(goal, chore.due_date, date) : null;
   const capacity = period && goal ? ` WHERE EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?) OR (SELECT COUNT(*) FROM chore_completions WHERE chore_id = ? AND date BETWEEN ? AND ?) < ?` : ' WHERE 1';
   const capacityArgs = period && goal ? [id, date, id, chore.due_date! > period.from ? chore.due_date! : period.from, period.to, goal.times] : [];
-  const [writtenRes] = await c.env.DB.batch<unknown>([
+  const awayVersion=(awayRes[3].results[0] as {version:string}).version;
+  let writeResults:{results:unknown[]}[];
+  try{writeResults = await c.env.DB.batch<unknown>([
+    c.env.DB.prepare(`SELECT json(CASE WHEN (${AWAY_VERSION_SQL}) = ? AND EXISTS(SELECT 1 FROM chores WHERE id=? AND member_id IS ?) THEN 'true' ELSE 'duty_changed' END)`).bind(awayVersion,id,originalMember),
     c.env.DB.prepare(
       `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) SELECT ?,?,?,?,?,?,?${capacity} ON CONFLICT(chore_id, date) DO ${timedPlay || chore.source_id ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
     ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved', ...capacityArgs),
     c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ? AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?)').bind(id, date, id, date), // ticked again: the "Not yet" note goes
     c.env.DB.prepare('DELETE FROM chore_dismissals WHERE chore_id = ? AND date = ? AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = ? AND date = ?)').bind(id, date, id, date), // ticked after all: no longer "not done"
-  ]);
+  ]);}catch(error){if(String(error).includes('malformed JSON'))return {notDue:stored('error','The chore duties changed. Refresh the plan before ticking it off.')};throw error;}
+  const writtenRes=writeResults[1];
   const written = writtenRes.results[0] as { status: string; points_awarded: number } | undefined;
   if (!written) return goal && !timedPlay ? { notDue: stored('error', 'This goal is full for this interval. Undo a completion to make room.') } : false;
   // A reusable checklist starts fresh for the next time the chore comes round - just this
@@ -836,7 +866,8 @@ choresRoutes.openapi(
       .bind(date, id)
       .first<{ title: string; member_id: string | null; done_by: string | null; school_visible: number }>();
     if (chore && !chore.school_visible) return c.json({ error: 'not found' }, 404);
-    const blocked = await ownerBlock(c, chore?.member_id, chore?.done_by);
+    // A completion belongs to whoever earned it, including a temporary handoff recipient.
+    const blocked = await ownerBlock(c, chore?.done_by ?? chore?.member_id);
     if (blocked) return c.json({ error: blocked }, 403);
     // Undoing follows the tick's window: a wall screen or kid's device can't wipe older days (and their points).
     if ((await requestKey(c))?.scope === 'display') {

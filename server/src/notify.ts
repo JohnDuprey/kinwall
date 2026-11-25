@@ -1,6 +1,7 @@
 import { schoolworkVisibleSql } from './schoolwork.ts';
 import { classifyDay, loadSchoolDays, schoolworkOff } from './school-days.ts';
 import { dueTravel, travelLegs, type TravelReminder } from './school-reminders.ts';
+import { loadAway,effectiveChore } from './away.ts';
 import { revokeAndroidGateways } from './android-push-gateway.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventPlans } from './routes/event-follows.ts';
@@ -744,7 +745,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
       linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
     }
     const noSchool = await schoolworkOff(db, today, today, choresRes.results as ChoreRow[]);
-    const chores = (choresRes.results as ChoreRow[]).filter(row => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full && !noSchool(row, today));
+    const away=await loadAway(db,today,today);
+    const chores = (choresRes.results as ChoreRow[]).filter(row => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full && !noSchool(row, today)).map(r=>effectiveChore(r,today,away));
     return { events: visibleEvents, linked, chores, meals: mealsRes.results as { slot: string; title: string }[], due: dueRes.results as { title: string; priority: string; member_id: string | null }[] };
   };
   let data: Awaited<ReturnType<typeof load>> | undefined;
@@ -796,7 +798,8 @@ async function runChoreNudge(env: Env, db: KinwallDb, now: Date, tz: string, sub
   const done = new Set((completionsRes.results as unknown as { chore_id: string }[]).map((r) => r.chore_id));
   const goalStates = await goalProgressFor(db, chores, today);
   const noSchool = await schoolworkOff(db, today, today, chores);
-  const dueToday = chores.filter((c) => dueOnDate(c, today, tz) && !done.has(c.id) && !goalStates.get(c.id)?.full && !noSchool(c, today));
+  const away=await loadAway(db,today,today);
+  const dueToday = chores.filter((c) => dueOnDate(c, today, tz) && !done.has(c.id) && !goalStates.get(c.id)?.full && !noSchool(c, today)).map(r=>effectiveChore(r,today,away));
   const fam = await familyLang(db);
 
   for (const sub of targets) {
@@ -1173,14 +1176,17 @@ async function runLibraryDue(env: Env, db: KinwallDb, now: Date, tz: string, win
 /** Today's legs with a reminder (school-reminders.ts travelLegs), and when each leg's time is. */
 async function todaysTravel(db: KinwallDb, now: Date, tz: string) {
   const today = todayInTz(tz, now);
-  const [{ kids, settings }, kidRes] = await Promise.all([
+  const [{ kids, settings }, kidRes, away] = await Promise.all([
     loadSchoolDays(db, today, today),
     db.prepare("SELECT member_id, to_school_by, to_school_time, from_school_by, from_school_time, half_from_school_time FROM school_kids WHERE mode = 'enrolled'").all<{ member_id: string; to_school_by: string | null; to_school_time: string | null; from_school_by: string | null; from_school_time: string | null; half_from_school_time: string | null }>(),
+    loadAway(db, today, today),
   ]);
   const kinds = new Map([...kids].map(([id, k]) => [id, classifyDay(k, today, settings.rules, tz).kind]));
-  const legs = travelLegs(kidRes.results.map(r => ({ memberId: r.member_id, toSchoolBy: r.to_school_by, toSchoolTime: r.to_school_time, fromSchoolBy: r.from_school_by, fromSchoolTime: r.from_school_time, halfFromSchoolTime: r.half_from_school_time })), kinds, today, { bus: settings.busMinutes, pickup: settings.pickupMinutes });
+  // Filter before grouping: a sibling at home still needs the same bus or pickup, and neither
+  // reminder text nor Live Activities should include the child who is away.
+  const legs = travelLegs(kidRes.results.filter(r => !away.isAway(r.member_id, today)).map(r => ({ memberId: r.member_id, toSchoolBy: r.to_school_by, toSchoolTime: r.to_school_time, fromSchoolBy: r.from_school_by, fromSchoolTime: r.from_school_time, halfFromSchoolTime: r.half_from_school_time })), kinds, today, { bus: settings.busMinutes, pickup: settings.pickupMinutes });
   const atOf = (leg: TravelReminder) => zonedTimeToUtc({ y: Number(today.slice(0, 4)), mo: Number(today.slice(5, 7)) - 1, d: Number(today.slice(8, 10)), h: Number(leg.time.slice(0, 2)), mi: Number(leg.time.slice(3, 5)), s: 0 }, tz);
-  return { legs, atOf };
+  return { legs: legs.filter(leg => leg.by === 'bus' || !away.isAway(leg.by, today)), atOf };
 }
 
 /** When the next school travel reminder is due before `before` (an unsent one already due: now), for
@@ -1324,17 +1330,21 @@ export async function runUpkeep(env: Env, db: KinwallDb, now: Date, tz: string, 
   if (new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now) < UPKEEP_AT) return;
   const today = todayInTz(tz, now);
   const claim = async (key: string) => !!(await db.prepare('INSERT INTO upkeep_sent (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run()).meta.changes;
-  const [jobs, things, people] = await Promise.all([
+  const [jobs, things, people, away] = await Promise.all([
     readJobs(db, today, (iso) => todayInTz(tz, new Date(iso))),
     readThings(db),
     db.prepare('SELECT id, grown_up FROM members').all<{ id: string; grown_up: number }>(),
+    loadAway(db, today, today),
   ]);
   const open = jobs.filter((j) => !j.archived && j.nextDue);
   const kids = new Set(people.results.filter((m) => !m.grown_up).map((m) => m.id));
+  const awayKids = new Set([...kids].filter(id => away.isAway(id, today)));
   const fam = await familyLang(db);
   for (const j of open) {
     // A kid's job on (or past) its day: a chore for today, which logs the job when ticked.
-    if (j.chorePoints != null && j.memberId && kids.has(j.memberId) && j.nextDue! <= today && (await claim('upkeep:chore:' + j.id + ':' + j.nextDue))) {
+    // Leave the creation claim unconsumed while the child is away. The first eligible tick
+    // after return creates one chore for that day, without moving the maintenance due date.
+    if (j.chorePoints != null && j.memberId && kids.has(j.memberId) && !awayKids.has(j.memberId) && j.nextDue! <= today && (await claim('upkeep:chore:' + j.id + ':' + j.nextDue))) {
       await handOutChore(db, j, today);
       publish(env, execCtx, 'chore.changed', { upkeepJobId: j.id });
     }
@@ -1347,9 +1357,9 @@ export async function runUpkeep(env: Env, db: KinwallDb, now: Date, tz: string, 
   const thingById = new Map(things.map((t) => [t.id, t]));
   for (const n of dueNotes(open.map((j) => ({ id: j.id, due: j.nextDue, headsUpDays: j.headsUpDays })), things, today)) {
     if (!(await claim(n.key))) continue;
-    if (n.kind === 'warranty') { await sendUpkeepNote(env, db, n, null, thingById.get(n.thingId)!.name, today, now, kids); continue; }
+    if (n.kind === 'warranty') { await sendUpkeepNote(env, db, n, null, thingById.get(n.thingId)!.name, today, now, kids, awayKids); continue; }
     const j = byId.get(n.jobId)!;
-    await sendUpkeepNote(env, db, n, j, j.thingId ? thingById.get(j.thingId)?.name ?? null : null, today, now, kids);
+    await sendUpkeepNote(env, db, n, j, j.thingId ? thingById.get(j.thingId)?.name ?? null : null, today, now, kids, awayKids);
     publish(env, execCtx, 'upkeep.due', { jobId: j.id, title: j.title, dueOn: n.due, status: j.status }, false);
   }
   await db.prepare('DELETE FROM upkeep_sent WHERE sent_at < ?').bind(new Date(now.getTime() - 400 * 86400000).toISOString()).run();
@@ -1357,7 +1367,7 @@ export async function runUpkeep(env: Env, db: KinwallDb, now: Date, tz: string, 
 
 /** One upkeep note: in the bell and pushed (where "Home upkeep" is on) to the job's person, and the
  * grown-ups unless that person is a grown-up; late and warranty notes go to the grown-ups. */
-async function sendUpkeepNote(env: Env, db: KinwallDb, n: UpkeepNote, j: UpkeepJob | null, thing: string | null, today: string, now: Date, kids: Set<string>): Promise<void> {
+async function sendUpkeepNote(env: Env, db: KinwallDb, n: UpkeepNote, j: UpkeepJob | null, thing: string | null, today: string, now: Date, kids: Set<string>, awayKids: Set<string>): Promise<void> {
   const day = (lang: Lang, d: string) => {
     const at = new Date(`${d}T12:00:00Z`);
     return new Intl.DateTimeFormat(LOCALES[lang], daysBetween(today, d) < 7 ? { weekday: 'long', timeZone: 'UTC' } : { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(at);
@@ -1369,7 +1379,8 @@ async function sendUpkeepNote(env: Env, db: KinwallDb, n: UpkeepNote, j: UpkeepJ
     const title = n.kind === 'heads-up' ? t('{job} is due {day}', { job, day: day(lang, n.due) }) : n.kind === 'due' ? t('{job} is due today', { job }) : tn(n.late ?? 0, '{job} is {n} day late', '{job} is {n} days late', { job });
     return { title: `${emoji} ${title}`, body: thing ? t('{thing} · Open Upkeep to mark it done.', { thing }) : t('Open Upkeep to mark it done.') };
   });
-  const person = n.kind === 'warranty' || n.kind === 'late' ? null : j!.memberId;
+  const assigned = n.kind === 'warranty' || n.kind === 'late' ? null : j!.memberId;
+  const person = assigned && awayKids.has(assigned) ? null : assigned;
   const grownUps = !person || kids.has(person);
   const url = n.kind === 'warranty' ? `/#/upkeep?thing=${encodeURIComponent(n.thingId)}` : `/#/upkeep?job=${encodeURIComponent(n.jobId)}`;
   const grownUpIds = grownUps ? (await db.prepare('SELECT id FROM members WHERE grown_up = 1').all<{ id: string }>()).results.map((m) => m.id) : [];

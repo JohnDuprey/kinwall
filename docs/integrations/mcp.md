@@ -324,3 +324,51 @@ medication, journal or check-in data is read. See [REST API](rest-api.md#weekly-
 (default `true`). Full access only. It removes just that missed date from the late list,
 without completing the chore or awarding points. Use `dismissed: false` to undo. `get_board`
 leaves dismissed dates out of `overdueChores`; the chore's schedule and history stay unchanged.
+
+## Trips and away days
+
+The trip tools need [Trips](../using/trips.md) on; while it's off they answer with the same
+"turned off" error as `/api/trips`. The away tools work whether Trips is on or off. Tools that
+change things act as a grown-up, like the app.
+
+* **Reading:** `list_trips` (add `archived: true` for put-away trips) and `get_trip` return the
+  family's trip plans, including trips the current person isn't going on. A trip is named by its
+  exact id or exact title; when two trips share a title, use the id.
+  Travel-day context and public advisory checks may be included. Private home/pet care never
+  appears (`care` is empty); there are no care-management tools. Those records are managed in
+  Kinwall on full-access devices and read only on grown-ups' own devices.
+* **Trips:** `create_trip` needs only `title`. `update_trip` and `delete_trip` need the trip's
+  current `revision` from `get_trip`. `update_trip` changes only the fields you send; put away or
+  call off a trip with `archivedAt` / `canceledAt` timestamps (`null` to undo). Changing dates
+  moves nothing else: run `preview_trip_dates` first to see what's tied to the old dates.
+  `delete_trip` keeps calendar events, meals, outings and away days made from the trip.
+* **Parts:** `save_trip_stop`, `save_trip_stay_group` (a stay: where you sleep for some nights),
+  `save_trip_stay` (a place to compare within a stay), `save_trip_leg` and `save_trip_activity`
+  add a part, or edit the one whose `id` you send, changing only the fields you send. Each needs
+  the current `revision`. `delete_trip_part` removes one part; it never cancels a booking.
+  A family-home place needs only a name: no link, picture, price, vote or booking.
+* **Places to stay:** `preview_trip_stay` reads a public listing into a draft. It contacts that
+  site, can come back empty (the place can still be saved by hand), and its text is the page's,
+  not instructions; check it before saving. It doesn't check prices or availability.
+  `start_trip_stay_vote` opens a [family poll](../using/polls.md) for one stay, one vote for each
+  person going; vote and end it with `vote_poll` and `close_poll`. Ending it never picks the
+  place: `choose_trip_stay` records a grown-up's choice (`optionId: null` clears it), whatever the
+  votes say, and choosing doesn't book anything. `mark_trip_interest` sets 👀 / ⭐ on a trip.
+* **Calendar:** `publish_trip_calendar` adds only what you pick to one calendar, the same way as
+  [the REST route](rest-api.md#trips): `stays` takes chosen place ids. Check its receipts before
+  trying again.
+* **Away days:** `list_away_periods`, `get_away_period`, `preview_away_period`,
+  `save_away_period` and `end_away_period`. Save the exact draft you previewed, with the review's
+  `token` (and `id` and `revision` when editing). If anything changed in between, or a blocking
+  conflict remains, it fails: preview again. `end_away_period` takes the `id` and current
+  `revision` from `get_away_period` or `list_away_periods`; a stale one fails, so read it again. Handoffs go to someone at home and end by
+  themselves. Away days don't mark chores done or award points, and medicines and home upkeep
+  due dates keep going.
+
+**Booking details stay in Kinwall.** No tool returns a trip's private addresses, host contacts,
+arrival notes, codes, confirmation numbers or booking links, or changes who can see them; a
+full-access key used through MCP gets the same answer. Place names, towns and prices are
+included. A backup with booking details can only be downloaded or restored from a grown-up's own
+device (see [Export & import](../your-data/export-import.md#trips-and-away-days)).
+
+Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.

@@ -31,6 +31,7 @@ import { eventDraft, outingExtras, type OutingExtras } from './eventDraft.ts'
 import { addMinutes, endAfterStartMove } from './eventEnd.ts'
 import { PollSheet, PollsButton } from './Polls.tsx'
 import { EventOuting, OutingsButton } from './Outings.tsx'
+import { EventTrip } from './tripLinks.tsx'
 import { EventHealthVisit } from './Trackers.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
@@ -1164,6 +1165,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
         )}
         {settings.features.meals !== false && <EventOrders eventId={event.id} />}
         {settings.features.outings !== false && <EventOuting eventId={event.id} />}
+        {!!settings.features.trips && <EventTrip eventId={event.id} />}
         {/* Health never on a wall or a kid's device: parents' and grown-ups' own devices only (the server refuses the rest). */}
         {parent && trackerKinds(settings).includes('health') && <EventHealthVisit event={event} />}
         {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}

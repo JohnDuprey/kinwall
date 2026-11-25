@@ -25,5 +25,6 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'contacts', section: 'Spaces', label: msg('Contacts'), sub: msg('The household contacts directory.') },
   { key: 'upkeep', section: 'Spaces', label: msg('Home upkeep'), sub: msg('The things you look after, the jobs that keep them working and when each was last done. Reminders, kids’ upkeep chores and supplies for the shopping list.') },
   { key: 'school', section: 'Spaces', label: msg('School'), sub: msg('Subjects, which kids are in school, and the time each kid spends learning, for homeschooled kids and kids who go to school. Off until you turn it on.') },
+  { key: 'trips', section: 'Spaces', label: msg('Trips'), sub: msg('Plan trips together: places to stay and votes, getting there and a day plan. Off until you turn it on. Away days work without it.') },
   { key: 'newscast', section: 'Spaces', label: msg('Newscast'), sub: msg('Home’s Newscast tab: chores done, rewards, photos and drawings, books, memories, birthdays and announcements, with reactions.') },
 ]

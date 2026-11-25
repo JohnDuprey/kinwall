@@ -26,6 +26,7 @@ import type { Env } from './env.ts';
 import { RecipeSchema, RecipeTagSchema, RecipeTagIdsSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
+import { registerTravelTools, TRAVEL_TOOL_OUTPUT, TRAVEL_TOOL_HINTS } from './travel-mcp.ts';
 import { OutingCategorySchema, OutingCalendarInputSchema, OutingIdeasSchema, OutingPatchSchema, OutingSchema } from './routes/outings.ts';
 import { ShareResultSchema } from './routes/share.ts';
 import { SchoolGradeSchema, SchoolLogSchema, SchoolSummarySchema, schoolYearOf } from './routes/school.ts';
@@ -255,6 +256,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable' | 'pantry
   return { kind };
 }
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
+  ...TRAVEL_TOOL_OUTPUT,
   list_recipe_tags: { tags: z.array(RecipeTagSchema) }, list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, favorite_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
@@ -368,6 +370,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
+  ...TRAVEL_TOOL_HINTS,
   list_inbox: READ, add_to_inbox: WRITE,
   list_announcements: READ, create_announcement: WRITE, update_announcement: SET, delete_announcement: DELETE,
   list_recipe_tags: READ, list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
@@ -403,6 +406,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const inputSchema = config.inputSchema && lenientBooleans(config.inputSchema as z.ZodRawShape);
     return server.registerTool(name, { ...config, inputSchema, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } } as typeof config, cb);
   };
+
+  registerTravelTools(tool, (method, path, body) => call(app, env, auth, method, path, body));
 
   tool('get_weekly_plan', {
     title: 'Review a family week', description: 'Full access required. Calendar events, meals, due to-dos, upkeep and recipe suggestions for a complete family week (default next week), with the saved shared draft. Hidden events and disabled features are omitted. Keep the sourceVersion and revision from this review; saving and applying send them back so nothing changes unnoticed. No medical tracker or medication data.', inputSchema: PlanningQuerySchema.shape,

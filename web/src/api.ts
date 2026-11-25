@@ -19,6 +19,7 @@ import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, 
 import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolDays, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
+import type { ActivityInput, AwayInput, CareInput, AwayPeriod, AwayReview, CalendarPublish, DateChangePreview, LegInput, LinkInput, LinkPreview, StayGroupInput, StayOptionInput, StopInput, Trip, TripInput, TripLinkRef, TripSummary } from './trip-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   Milestone, MilestoneInput, StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, RewardShare, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -270,7 +271,7 @@ if (!MOCK && typeof window !== 'undefined') {
 async function req<T>(path: string, { quiet, ...opts }: RequestInit & { useAdmin?: boolean; quiet?: boolean } = {}): Promise<T> {
   // Reading a recipe page into a preview changes nothing, so it doesn't flash "Saved"; nor does a
   // write the app makes on its own (`quiet`), since the person didn't save anything.
-  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text)|restaurants\/(parse-menu|details))$/.test(path)
+  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text)|restaurants\/(parse-menu|details)|trips\/link-preview|away\/preview)$/.test(path)
   return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
 }
 
@@ -302,6 +303,10 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   if (MOCK && /^api\/inbox([/?]|$)/.test(path)) {
     const { mockInboxRequest } = await import('./mock-inbox.ts')
     return mockInboxRequest(path, opts) as Promise<T>
+  }
+  if (MOCK && /^api\/(trips|away|polls\/trip-)/.test(path)) {
+    const { mockTripRequest } = await import('./mock-trips.ts')
+    return mockTripRequest(path, opts) as Promise<T>
   }
   if (MOCK && /^api\/polls([/?]|$)/.test(path)) {
     const { mockPollRequest } = await import('./mock-polls.ts')
@@ -350,6 +355,7 @@ const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DE
 const U = (id: string) => encodeURIComponent(id)
 const qs = (q: Record<string, string | undefined>) => { const p = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => !!e[1])).toString(); return p ? '?' + p : '' }
 
+type TripPart = 'stops' | 'stay-groups' | 'stays' | 'legs' | 'items' | 'care'
 const routinePath = (id: string) => ['api', 'routine-mode', U(id)].join('/')
 
 const recipeTagsPath = 'api/recipe-tags'
@@ -439,6 +445,40 @@ export const api = {
   approveSchoolLog: (id: string, all = false) => post<{ ok: boolean }>('api/school/logs/' + U(id) + '/approve' + (all ? '?all=1' : '')),
   deleteSchoolLog: (id: string, all = false) => del<{ ok: boolean }>('api/school/logs/' + U(id) + (all ? '?all=1' : '')),
   getSchoolSummary: (from: string, to: string) => get<SchoolSummary>('api/school/summary' + qs({ from, to })),
+  // Trips (routes/trips.ts) and away days (routes/away.ts). Never kept offline (not CACHEABLE): a
+  // trip can carry booking details for this device, and those stay off IndexedDB and the outbox.
+  // Every change answers with the whole trip, read again for this device, and needs its revision.
+  /** includeArchived: put-away and not-this-time trips too (the Trips tab's Put away list); the Board leaves them out. */
+  getTrips: (includeArchived = false) => get<TripSummary[]>('api/trips' + (includeArchived ? '?archived=1' : '')),
+  getTrip: (id: string) => get<Trip>('api/trips/' + U(id)),
+  getTripLinks: () => get<TripLinkRef[]>('api/trips/links'),
+  createTrip: (body: TripInput & { title: string }) => post<Trip>('api/trips', body),
+  updateTrip: (id: string, body: TripInput & { revision: number }) => patch<Trip>('api/trips/' + U(id), body),
+  deleteTrip: (id: string, revision: number) => del<{ ok: boolean }>('api/trips/' + U(id) + qs({ revision: String(revision) })),
+  markTrip: (id: string, memberId: string, kind: 'interested' | 'really' | null) => put<Trip>('api/trips/' + U(id) + '/marks', { memberId, kind }),
+  markTripItem: (id: string, itemId: string, memberId: string, kind: 'interested' | 'really' | null) => put<Trip>('api/trips/' + U(id) + '/items/' + U(itemId) + '/marks', { memberId, kind }),
+  addTripPart: (id: string, part: TripPart, revision: number, body: StopInput | StayGroupInput | StayOptionInput | LegInput | ActivityInput | LinkInput | CareInput) =>
+    post<Trip>('api/trips/' + U(id) + '/' + part, { ...body, revision }),
+  updateTripPart: (id: string, part: TripPart, childId: string, revision: number, body: StopInput | StayGroupInput | StayOptionInput | LegInput | ActivityInput | CareInput) =>
+    patch<Trip>('api/trips/' + U(id) + '/' + part + '/' + U(childId), { ...body, revision }),
+  deleteTripPart: (id: string, part: TripPart, childId: string, revision: number) =>
+    del<Trip>('api/trips/' + U(id) + '/' + part + '/' + U(childId) + qs({ revision: String(revision) })),
+  previewStayLink: (url: string) => post<LinkPreview>('api/trips/link-preview', { url }),
+  startStayVote: (id: string, groupId: string, revision: number, restart = false) => post<Trip>('api/trips/' + U(id) + '/stay-groups/' + U(groupId) + '/vote', { revision, ...(restart && { restart }) }),
+  chooseStay: (id: string, groupId: string, revision: number, optionId: string | null) => post<Trip>('api/trips/' + U(id) + '/stay-groups/' + U(groupId) + '/choose', { revision, optionId }),
+  /** Ends a stay vote without picking: choosing is its own step for a grown-up. */
+  endStayVote: (pollId: string) => post<Poll>('api/polls/' + U(pollId) + '/close', {}),
+  publishTrip: (id: string, revision: number, body: CalendarPublish) => post<Trip>('api/trips/' + U(id) + '/calendar', { ...body, revision }),
+  previewTripDates: (id: string, startDate: string | null, endDate: string | null) => post<DateChangePreview>('api/trips/' + U(id) + '/date-change/preview', { startDate, endDate }),
+  /** A saved place to stay's picture as an <img src>: the server fetches the option's own saved
+   * imageUrl (like a recipe's photo) and the browser keeps it a week. Never the remote URL. */
+  stayImageUrl: (optionId: string) => MOCK ? null : mediaUrl('api/trips/stays/' + U(optionId) + '/image') || null,
+  getAway: (from?: string, to?: string) => get<AwayPeriod[]>('api/away' + qs({ from, to })),
+  getAwayPeriod: (id: string) => get<AwayPeriod>('api/away/' + U(id)),
+  previewAway: (draft: AwayInput & { id?: string }) => post<AwayReview>('api/away/preview', draft),
+  createAway: (draft: AwayInput & { token: string }) => post<AwayPeriod>('api/away', draft),
+  updateAway: (id: string, draft: AwayInput & { token: string; revision: number }) => patch<AwayPeriod>('api/away/' + U(id), draft),
+  deleteAway: (id: string, revision: number) => del<{ ok: boolean }>('api/away/' + U(id) + qs({ revision: String(revision) })),
   // Home upkeep (routes/upkeep.ts). A wall or kid's device gets its own jobs and no costs or files.
   getUpkeepJobs: (status?: string) => get<UpkeepJob[]>('api/upkeep/jobs' + qs({ status })),
   getArchivedUpkeepJobs: () => get<UpkeepJob[]>('api/upkeep/jobs?archived=true'),

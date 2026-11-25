@@ -15,6 +15,7 @@ import { eventInstances } from './routes/events.ts';
 import { todayInTz } from './routes/members.ts';
 import { hostTimezone } from './env.ts';
 import { isLang, words, type Lang } from './i18n.ts';
+import { loadAway,type AwayContext } from './away.ts';
 
 export type DayKind = 'school' | 'half' | 'off' | 'weekend' | 'summer';
 export type RuleKind = 'off' | 'half' | 'last';
@@ -161,12 +162,14 @@ export async function loadSchoolDays(db: KinwallDb, from: string, to: string, me
 
 /** Whether a schoolwork row has no school on a day from `from` to `to` (a day off or summer for its
  * kid), so it's left out that day; schoolwork still due on days off, and ordinary chores, never are. */
-export async function schoolworkOff(db: KinwallDb, from: string, to: string, rows: { id: string; member_id: string | null; school_subject_id?: string | null; school_kind?: string | null; school_days_off?: number | null }[]): Promise<(row: { id: string }, date: string) => boolean> {
+export async function schoolworkOff(db: KinwallDb, from: string, to: string, rows: { id: string; member_id: string | null; eligible_member_ids?:string|null; school_subject_id?: string | null; school_kind?: string | null; school_days_off?: number | null }[], context?:AwayContext): Promise<(row: { id: string }, date: string) => boolean> {
+  const away=context??await loadAway(db,from,to), byId=new Map(rows.map(r=>[r.id,r]));
   const work = new Map(rows.filter(r => (r.school_subject_id || r.school_kind) && !r.school_days_off && r.member_id).map(r => [r.id, r.member_id as string]));
-  if (!work.size) return () => false;
+  if (!work.size) return (row,date) => {const r=byId.get(row.id);return !!r&&away.duty(r,date).excused;};
   const { kids, settings, tz } = await loadSchoolDays(db, from, to, [...new Set(work.values())]);
   const seen = new Map<string, DayKind>();
   return (row, date) => {
+    const r=byId.get(row.id);if(r&&away.duty(r,date).excused)return true;
     const member = work.get(row.id), kid = member && kids.get(member);
     if (!kid) return false;
     const key = `${member}:${date}`;

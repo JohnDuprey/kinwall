@@ -3,6 +3,9 @@ import { PlanningExportSchema } from '../weekly-planning-schemas.ts';
 import { exportWeeklyPlans } from '../weekly-planning.ts';
 import { AnnouncementSchema, readAnnouncements } from '../announcements.ts';
 import { InboxItemSchema, readInbox } from '../inbox.ts';
+import { TripSchema } from '../travel-schemas.ts';
+import { AwayPeriodSchema } from '../away-schemas.ts';
+import { prepareTravelImport, travelExport, TravelBackupError, TripDetailsBackupSchema } from '../travel-data.ts';
 // "Your data": GET /api/export (everything the family entered, minus credentials), POST /api/import
 // (merges an export back in) and GET /api/host-events (see host-events.ts). All admin-only -
 // display keys are denied by default in auth.ts.
@@ -223,6 +226,10 @@ const ExportSchema = z
     // Outings (0111): things to do and places to go, with who marked them, and their categories.
     outings: z.array(OutingSchema),
     outingCategories: z.array(OutingCategorySchema),
+    trips: z.array(TripSchema),
+    awayPeriods: z.array(AwayPeriodSchema),
+    // Only an explicitly requested backup from a parent's own device contains booking details.
+    tripDetails: z.array(TripDetailsBackupSchema).optional(),
     // Home upkeep (0126): areas, the things looked after, their jobs and every Done. Receipts and
     // other files are in the photo backup zip (upkeep/), not here.
     upkeepAreas: z.array(UpkeepAreaSchema),
@@ -291,12 +298,22 @@ dataRoutes.openapi(
     method: 'get',
     path: '/api/export',
     tags: ['System'],
-    summary: 'Download everything the family entered as JSON (no credentials, secrets or synced events; no health entries for a connected app without aiHealthAccess)',
+    summary: 'Download family data as JSON; booking details are omitted unless includeTripDetails=1 on a parent device (the resulting file contains private plaintext)',
     security: [{ Bearer: [] }],
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: ExportSchema } } } },
+    request: { query: z.object({ includeTripDetails: z.enum(['0', '1']).optional() }) },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: ExportSchema } } }, 400: { description: 'Private trip backup could not be read completely', content: { 'application/json': { schema: ErrorSchema } } }, 403: { description: 'Protected backup needs a parent device', content: { 'application/json': { schema: ErrorSchema } } } },
   }),
   async (c) => {
     const db = c.env.DB;
+    const includeTripDetails = c.req.valid('query').includeTripDetails === '1';
+    if (includeTripDetails && await isConnectedApp(c)) return c.json({ error: 'Export booking details from a grown-up’s own device.' }, 403);
+    c.header('Cache-Control', 'private, no-store');
+    let travel: Awaited<ReturnType<typeof travelExport>>;
+    try { travel = await travelExport(c, includeTripDetails); }
+    catch (error) {
+      if(error instanceof TravelBackupError)return c.json({error:error.message},error.status);
+      throw error;
+    }
     const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
     const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, tempChecks, journal, scrapbook, rewards, redemptions, trackers, passkeys, webhooks, hiddenEvents] = (await db.batch<unknown>([
@@ -458,9 +475,10 @@ dataRoutes.openapi(
         weeklyPlans: await exportWeeklyPlans(db),
         announcements: (await readAnnouncements(db, true)).announcements,
         inboxItems: (await readInbox(db, true)).items,
-        polls: await readPolls(db),
+        polls: await readPolls(db, { includeHidden: true }),
         outings: await readOutings(db),
         outingCategories: await readOutingCategories(db),
+        ...travel,
         upkeepAreas: await readAreas(db),
         upkeepThings: (await readThings(db)).map(({ files: _, ...t }) => t),
         upkeepJobs: (await readJobs(db, '0000-01-01', (iso) => iso.slice(0, 10), { rawArchive: true })).map(({ nextDue: _n, status: _s, lastDone: _l, calendarEventStart: _e, ...j }) => j),
@@ -538,6 +556,8 @@ const ImportSchema = ExportSchema.extend({
   polls: ExportSchema.shape.polls.default([]),
   outings: ExportSchema.shape.outings.default([]),
   outingCategories: ExportSchema.shape.outingCategories.default([]),
+  trips: ExportSchema.shape.trips.default([]),
+  awayPeriods: ExportSchema.shape.awayPeriods.default([]),
   upkeepAreas: ExportSchema.shape.upkeepAreas.default([]),
   upkeepThings: ExportSchema.shape.upkeepThings.default([]),
   upkeepJobs: ExportSchema.shape.upkeepJobs.default([]),
@@ -600,6 +620,8 @@ const ImportResultSchema = z
       inboxItems: z.number(),
       polls: z.number(),
       outings: z.number(),
+      trips: z.number(),
+      awayPeriods: z.number(),
       upkeep: z.number(),
       school: z.number(),
       mealShoppingSources: z.number(),
@@ -706,12 +728,21 @@ dataRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ImportResultSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'Protected trip restore needs a parent device', content: { 'application/json': { schema: ErrorSchema } } },
       413: { description: 'too large', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     const db = c.env.DB;
+    let travelWrites: KinwallStatement[];
+    try {
+      travelWrites = await prepareTravelImport(c, body, body);
+    } catch (error) {
+      if (error instanceof TravelBackupError) return c.json({ error: error.message }, error.status);
+      if (error instanceof z.ZodError) return c.json({ error: 'Trip backup contains invalid records.' }, 400);
+      throw error;
+    }
 
     // Settings go through PATCH /api/settings' schema + writer. Keys this version doesn't know are
     // dropped; a null timezone means "never set" in the export, which PATCH can't express.
@@ -1199,6 +1230,7 @@ dataRoutes.openapi(
       // An item's categories in the file are added to the ones it has here, in the file's order after them.
       ...upserts(db, 'item_tags', 'catalog, name_key, tag', catalogs.rows(body.itemTags).map((t, n) => ({ catalog: t.catalog, name_key: t.nameKey, tag: t.tag, sort: 1000 + n }))),
     ];
+    writes.push(...travelWrites);
     if (writes.length) await db.batch(writes);
     for (const m of flips) await noteGrownUpChange(c, m.id, m.name, grownUp(m));
     // An entry already here as health keeps its kind (kind is kept on conflict), so sweep up anything the file brought in as another kind.
@@ -1232,6 +1264,9 @@ dataRoutes.openapi(
       ['outing.changed', body.outings.length + body.outingCategories.length],
       ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
       ['school.changed', body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length],
+      ['trip.changed', body.trips.length],
+      ['settings.changed', body.awayPeriods.length],
+      ['chore.changed', body.awayPeriods.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1277,6 +1312,8 @@ dataRoutes.openapi(
           inboxItems: body.inboxItems.length,
           polls: body.polls.length,
           outings: body.outings.length,
+          trips: body.trips.length,
+          awayPeriods: body.awayPeriods.length,
           upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,
           school: body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length,
           mealShoppingSources: mealSources.length,

@@ -21,6 +21,7 @@
 | Notes threads on local events and list items | Notes on synced events, and [Newscast](../using/newscast.md) announcements and reactions (they last 30 days, like the bell's feed lasts 90; everything else in Newscast comes from what is exported) |
 | [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos and coloring pages (download them separately from Photos) |
 | [Family polls](../using/polls.md) with their choices and votes | |
+| [Trips](../using/trips.md) (even while Trips is off): stops, places to stay, getting there, the day plan and its links, packing-list links, calendar receipts, and stay votes (with the other polls). [Away days](../using/away.md), with or without a trip, with kept-due chores and handoffs. See [below](#trips-and-away-days) | Trip booking details, unless you ask for them. Place pictures: only their links are in the file |
 | [Home upkeep](../using/upkeep.md): areas, things, jobs and every Done, costs and notes too | Its receipts and manuals: they're in the photo backup zip, under `upkeep/` |
 | [School](../using/school.md): subjects, which kids are in school and their school settings, every entry of school time, report card grades, which photo is each report card, and days a grown-up marked (no school, early release) | The photos themselves: they're in the photo backup zip |
 | [Meals](../using/meals.md): recipes (archived ones too, basics with their links), planned meals with their own ingredient copies, and which ingredients were already added to which shopping list | |
@@ -69,3 +70,21 @@ The [inbox](../using/inbox.md) is backed up as `inboxItems`: each thought's word
 [Plan the week](../using/weekly-planning.md) is backed up as `weeklyPlans`: each week's shared draft and the meals and to-dos it added. Import replaces the plan for each week in the file and leaves other weeks alone. Older exports without it remain valid.
 
 Scheduled family announcements are backed up with their titles, details, UTC visibility windows, emphasis, ids, and creation/update times. Import restores them by id without deleting other announcements; expired messages stay expired unless you change their schedule. Older exports without announcements remain valid.
+
+## Trips and away days
+
+The export has `trips` and `awayPeriods`. Trip **booking details** (private street addresses,
+host contacts, arrival notes, door and Wi-Fi codes, confirmation numbers and booking links) and
+all private **home and pet care** records are left out of an ordinary export.
+
+To back them up too, call `GET /api/export?includeTripDetails=1` from a grown-up's own device with
+full access (there's no button for it in the app yet). The file then has a `tripDetails` section with those
+details **in plain form**, including home/pet care records (`kind: care`), so keep it private. A connected app (MCP) can't ask for it (403) and
+can't import trips or booking details. On import, booking details are encrypted again with this
+server's key as they're saved. Care records are also validated and re-encrypted with the receiving
+server's key; no helper is contacted and no chores are created by restoring them. If any private
+booking detail or home/pet care record can't be opened (the server's encryption key changed, say), this export answers
+400 instead of leaving it out of the file.
+
+Import merges by id like everything else. A file without `trips` or `awayPeriods` (an older
+export) still imports and leaves the trips and away days already here alone.

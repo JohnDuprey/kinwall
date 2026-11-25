@@ -53,7 +53,7 @@ export default function PickField({ id, label, title = label, options: given, va
   }
   return <>
     <button id={id} type="button" className="sheet-link pick-btn" aria-haspopup="dialog" aria-label={`${label}: ${text}`} onClick={() => setOpen(true)}>
-      {lead}<span className="pick-text">{text}</span><ChevronRight />
+      {lead && <span className="pick-lead">{lead}</span>}<span className="pick-text">{text}</span><ChevronRight />
     </button>
     {open && <Sheet title={title} onClose={close} actions={<>
       {multiple && <button type="button" className="btn btn-secondary" disabled={!value.length} onClick={() => onChange([])}>{t('Clear')}</button>}
@@ -69,7 +69,7 @@ export default function PickField({ id, label, title = label, options: given, va
           {shown.map(o => {
             const on = value.includes(o.value)
             return <button key={o.value} type="button" className="sheet-link" disabled={atLimit && !on} aria-pressed={on} onClick={() => choose(o.value)}>
-              {o.lead}<span>{o.label}{o.detail && <small>{o.detail}</small>}</span>{on && <CheckIcon className="pick-check" />}
+              {o.lead && <span className="pick-lead">{o.lead}</span>}<span>{o.label}{o.detail && <small>{o.detail}</small>}</span>{on && <CheckIcon className="pick-check" />}
             </button>
           })}
         </div>

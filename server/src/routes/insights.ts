@@ -1,3 +1,5 @@
+import {loadAway} from '../away.ts';
+import {schoolworkOff} from '../school-days.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { readChoreGoal } from '../chore-goal.ts';
 // Insights (#/insights/<id>) and the energy battery (battery.ts, GET /api/members/{id}/battery): a person's check-ins over time (sleep, feelings, goals and how they
@@ -216,7 +218,7 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
   const to = addDays(today, FORECAST_DAYS);
   const [checks, chores, done] = await env.DB.batch<unknown>([
     env.DB.prepare('SELECT * FROM temp_checks WHERE member_id = ? AND date BETWEEN ? AND ?').bind(memberId, from, to),
-    env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND member_id = ?`).bind(memberId),
+    env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`),
     env.DB.prepare('SELECT cc.chore_id, cc.date, cc.member_id, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.date BETWEEN ? AND ?').bind(from, to),
   ]);
   const days = new Map<string, BatteryInput>();
@@ -233,7 +235,9 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
     const completions = done.results as { chore_id: string; date: string; member_id: string | null; points: number }[];
     const doneKeys = new Set(completions.map((c) => `${c.chore_id}:${c.date}`));
     for (const c of completions) if (c.member_id === memberId) days.get(c.date)!.choreDone += c.points;
+    const away=await loadAway(env.DB,from,to),noSchool=await schoolworkOff(env.DB,from,to,chores.results as ChoreRow[]);
     for (const row of chores.results as ChoreRow[]) for (const d of dueDates(row, from, to, tz)) {
+      if(!row.member_id||!away.forMember(row,d,memberId)||noSchool(row,d))continue;
       const day = days.get(d)!;
       // Flexible goals are optional on individual days: only actual work adds daily effort.
       if (readChoreGoal(row.repeat_goal) && !doneKeys.has(`${row.id}:${d}`)) continue;

@@ -102,6 +102,10 @@ Also on this tab, admin only:
 
 See [Chores](../using/chores.md) for how these play out day to day.
 
+## Away days
+
+**Open away days** goes to [Away days](../using/away.md) (`#/away`): whole days when someone isn't home, with or without a trip, when their chores pause or go to someone at home for a while. It's here, and in Chores, so it works whether or not [Trips](../using/trips.md) is on. Grown-ups' devices only.
+
 ## Meals
 
 When the Meals feature is on, this tab has the family's usual meal times: **Breakfast** 7:30 AM, **Lunch** 12:00 PM, **Dinner** 6:00 PM and **Snack** 3:00 PM unless you change them. A meal without its own time goes on the calendar at its usual time, and the meal sheet shows it under the **Time** field. Changing a usual time doesn't move events already on the calendar. API: `mealTimes` in `GET` / `PATCH /api/settings`, as `{ "breakfast": "07:30", "lunch": "12:00", "dinner": "18:00", "snack": "15:00" }` (send all four). See [Meals](../using/meals.md#the-calendar).

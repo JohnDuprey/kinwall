@@ -1,3 +1,6 @@
+import {loadAway,effectiveChore} from '../away.ts';
+import {zonedTimeToUtc} from '../recurrence.ts';
+import {shiftGoalDate} from '../chore-goal.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { schoolworkOff } from '../school-days.ts';
 import { createRoute, z } from '@hono/zod-openapi';
@@ -43,14 +46,21 @@ routineModeRoutes.openapi(createRoute({ method: 'get', path: '/api/routine-mode/
   const enrollment = key?.id && key.scope !== 'admin' ? await c.env.DB.prepare('SELECT enrolled, revision, choices_after_revision FROM routine_device_enrollments WHERE key_id = ? AND member_id = ?').bind(key.id, memberId).first<{ enrolled: number; revision: number; choices_after_revision: number }>() : null;
   const timezone = await householdTz(c.env.DB), date = todayInTz(timezone);
   const policy = await c.env.DB.prepare('SELECT enabled, app_mode, cutoff, allowed_websites_only, allowed_web_domains, school_link_domains, start, day_schedules, required_chore_ids, required_one_time_names FROM routine_mode WHERE member_id = ?').bind(memberId).first<{ enabled: number; app_mode: 'selected' | 'all'; cutoff: string; allowed_websites_only: number; allowed_web_domains: string; school_link_domains: string | null; start: string; day_schedules: string | null; required_chore_ids: string | null; required_one_time_names: string }>();
-  const { results: active } = await c.env.DB.prepare(ROUTINE_CHORES_SQL).bind(date, memberId).all<ChoreRow & { completion_status: string | null; approved_once: number }>();
+  const { results: baseActive } = await c.env.DB.prepare(ROUTINE_CHORES_SQL).bind(date, memberId).all<ChoreRow & { completion_status: string | null; approved_once: number }>();
+  const away=await loadAway(c.env.DB,date,date);
+  const incoming=(await c.env.DB.prepare(`SELECT c.*,cc.status AS completion_status,0 AS approved_once FROM chores c JOIN away_rules r ON r.chore_id=c.id LEFT JOIN chore_completions cc ON cc.chore_id=c.id AND cc.date=? WHERE r.kind='handoff' AND r.to_member_id=? AND r.start_date<=? AND r.end_date>=? AND c.active=1 AND c.archived=0`).bind(date,memberId,date,date).all<ChoreRow & {completion_status:string|null;approved_once:number}>()).results;
+  const active=[...new Map([...baseActive,...incoming].map(r=>[r.id,r])).values()].filter(r=>away.forMember(r,date,memberId));
   const ids: string[] | null = policy?.required_chore_ids == null ? null : JSON.parse(policy.required_chore_ids);
   const selected = ids?.length ? (await c.env.DB.prepare(ROUTINE_SELECTED_SQL).bind(memberId, JSON.stringify(ids)).all<ChoreRow>()).results : [];
   const selection = routineChoreSelection(ids, JSON.parse(policy?.required_one_time_names ?? '[]'), selected);
+  if(selection.requiredChoreIds!==null)selection.requiredChoreIds=[...new Set([...selection.requiredChoreIds,...incoming.map(r=>r.id)])];
   const noSchool = await schoolworkOff(c.env.DB, date, date, active);
   const chores = active.filter(row => dueOnDate(row, date, timezone) && (row.completion_status === 'approved' || row.completion_status === 'pending' || !noSchool(row, date))).map(row => ({ id: row.id, title: row.title, oneTime: oneTimeRoutineChore(row), completed: row.completion_status === 'approved', pending: row.completion_status === 'pending' }));
   c.header('Cache-Control', 'no-store');
   const decision = evaluateRoutine({ enabled: enrollment?.enrolled !== 0 && !!policy?.enabled && (await readFeatures(c.env.DB)).chores, ...selection, appMode: policy?.app_mode ?? 'selected', cutoff: policy?.cutoff ?? '19:30', start: policy?.start ?? '00:00', daySchedules: policy?.day_schedules ? JSON.parse(policy.day_schedules) : undefined, allowedWebsitesOnly: !!policy?.allowed_websites_only, allowedWebDomains: JSON.parse(policy?.allowed_web_domains ?? '[]') as string[], schoolLinkDomains: policy?.school_link_domains == null ? undefined : JSON.parse(policy.school_link_domains) as string[] }, chores, timezone);
+  const tomorrow=shiftGoalDate(date,1),[y,mo,d]=tomorrow.split('-').map(Number);
+  const midnight=zonedTimeToUtc({y,mo:mo-1,d,h:0,mi:0,s:0},timezone);
+  if(new Date(decision.validUntil)>midnight||new Date(decision.validUntil)<=new Date())decision.validUntil=midnight.toISOString();
   // Older child apps infer future schedule-only grants from an empty ID list. Name rules
   // still require a fresh server decision; parent reads retain the exact editable selection.
   const deviceRequiredIds = key?.scope === 'display' && selection.requiredOneTimeChoreNames.length ? null : decision.requiredChoreIds;

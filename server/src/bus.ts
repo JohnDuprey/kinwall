@@ -52,6 +52,7 @@ export type BusEventType =
   | 'tracker.changed'
   | 'newscast.posted'
   | 'newscast.changed'
+  | 'trip.changed'
   | 'poll.changed'
   | 'outing.changed'
   | 'upkeep.changed'

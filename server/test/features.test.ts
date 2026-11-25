@@ -11,8 +11,8 @@ import { runNotifications } from '../src/notify.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
-// ALL_ON: every switch at its default (School starts off).
-const ALL_ON = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true };
+// ALL_ON: every switch at its default (School and Trips start off).
+const ALL_ON = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, trips: false, upkeep: true, school: false, checkIns: true };
 
 function setup() {
   const db = openDb(':memory:');
@@ -35,12 +35,13 @@ test('features: all on by default; a PATCH round-trips; a display key cannot cha
   assert.deepEqual(((await (await request('/api/settings')).json()) as any).features, off);
   assert.equal((await request('/api/settings', 'PATCH', { features: { chores: false } })).status, 400, 'the whole object, like tidbits');
 
-  const { contacts: _contacts, announcements: _announcements, ...oldClientFeatures } = ALL_ON;
+  const { contacts: _contacts, announcements: _announcements, trips: _trips, ...oldClientFeatures } = ALL_ON;
   const oldClient = await request('/api/settings', 'PATCH', { features: oldClientFeatures });
   assert.equal(oldClient.status, 200);
   const oldSettings = await oldClient.json() as any;
   assert.equal(oldSettings.features.contacts, true);
   assert.equal(oldSettings.features.announcements, true);
+  assert.equal(oldSettings.features.trips, false, 'older clients do not enable Trips');
 
   const display = (await (await request('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
   assert.equal((await request('/api/settings', 'PATCH', { features: ALL_ON }, display.key)).status, 403);

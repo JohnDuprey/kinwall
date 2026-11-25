@@ -391,3 +391,6 @@ span.menu-star { width: 44px; text-align: center; }
 .use-it-up-recipe .btn { flex: none; width: auto; align-self: center; }
 .use-it-up > .link-btn { margin-top: 8px; min-height: 44px; }
 .use-it-up > .field-hint:last-child { margin: 10px 0 0; }
+
+/* A meal planned for a trip (tripLinks.tsx): the trip's name, so a far-away dinner makes sense in the week. */
+.meal-trip-tag { align-self: flex-start; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.75rem; font-weight: 800; }

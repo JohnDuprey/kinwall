@@ -169,7 +169,7 @@ const settings: Settings = {
     ...['Last Day of School', 'Last Day for Students'].map(words => ({ words, kind: 'last' as const })),
   ] },
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true },
+  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, announcements: true, inbox: true, polls: true, outings: true, upkeep: true, school: false, checkIns: true, trips: true },
   newscastNotFeatured: [],
   newscastPostingPaused: [],
 }
@@ -1198,6 +1198,9 @@ export const mock = {
     return { ...p, mine, canChange: mine && p.allowed }
   },
   myOwner: () => demoOwner,
+  // Trips' away review (mock-trips.ts) reads the family and its chores as they are now.
+  choresNow: () => chores.filter(c => !c.sourceId),
+  membersNow: () => members,
   forecast: (dates: string[]) => mockWeather(dates), // Outings' ideas (mock-outings.ts)
   // Screenshots of someone's own everyday device: sessionStorage 'kinwall.demoKid' = a member id makes the demo that device (api.meStrict).
   demoKid: (): string | null => { try { return sessionStorage.getItem('kinwall.demoKid') } catch { return null } },

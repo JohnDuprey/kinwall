@@ -1,3 +1,5 @@
+import {loadAway} from '../away.ts';
+import {schoolworkOff} from '../school-days.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 // A member's profile numbers (GET /api/members/{id}/stats), built from tables Kinwall already
 // fills: chore_completions, check_ins, point_entries, tracker_entries (reading only - health never shows
@@ -82,8 +84,8 @@ memberStatsRoutes.openapi(
       db.prepare("SELECT cc.chore_id, cc.date, COALESCE(cc.points_awarded, 0) AS points, c.title, c.emoji FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.member_id = ? AND cc.status = 'approved' ORDER BY cc.date").bind(id),
       db.prepare("SELECT amount, reason, at FROM point_entries WHERE member_id = ? AND (amount < 0 OR reason = 'reward_refund')").bind(id),
       // The streak: the leaderboard's chores (active, assigned to them) and anyone's ticks on them.
-      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND member_id = ?`).bind(id),
-      db.prepare(`SELECT chore_id, date FROM chore_completions WHERE status = 'approved' AND chore_id IN (SELECT id FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND member_id = ?)`).bind(id),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`).bind(),
+      db.prepare(`SELECT chore_id, date FROM chore_completions WHERE status = 'approved' AND chore_id IN (SELECT id FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1)`).bind(),
       db.prepare("SELECT id, title, data FROM tracker_entries WHERE kind = 'reading' AND member_id = ?").bind(id),
       db.prepare('SELECT pack_id FROM member_sticker_packs WHERE member_id = ?').bind(id),
       db.prepare('SELECT COUNT(*) AS n FROM scrapbook_stickers WHERE member_id = ?').bind(id),
@@ -127,7 +129,10 @@ memberStatsRoutes.openapi(
     const graceDays = Number(settings.get('streakGraceDays') ?? 1);
     const keys = new Set((keysRes.results as { chore_id: string; date: string }[]).map((r) => `${r.chore_id}:${r.date}`));
     const streakDays = Math.min(MAX_STREAK_DAYS, Math.max(60, daysBetween(allFrom, today) + 1)); // at least the leaderboard's 60
-    const streak = streakStats(choresRes.results as ChoreRow[], keys, tz, today, graceDays, streakDays);
+    const streakRows=choresRes.results as ChoreRow[];
+    const away=await loadAway(db,addDaysStr(today,-36600),today),first=away.streakStart(id,today,streakDays);
+    const noSchool=await schoolworkOff(db,first,today,streakRows);
+    const streak = streakStats(streakRows, keys, tz, today, graceDays, Math.round((Date.parse(today)-Date.parse(first))/86400000)+1,{memberId:id,away,schoolOff:noSchool});
 
     const chart: { key: string; count: number }[] = [];
     if (period === 'week' || period === 'month') {

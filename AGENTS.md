@@ -86,17 +86,25 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   `@media (hover: hover) and (pointer: fine)`.
 - Scrollbars: hidden only on touch screens (`pointer: coarse`); mouse users always see them. Don't
   hide a scrollbar anywhere else.
-- Short choices use a `<select>` (not radio groups). A long list, picking several, or choices that
-  need a preview (color schemes, typefaces, timezones, categories, members) use a row that opens a
-  sheet (`PickField`, `SchemePicker`), never `<select multiple>`.
+- No native `<select>` in new or reworked screens (older screens still have them; replace them
+  when you touch the screen). Pick by the choices:
+  - Up to three short choices (about 40 characters together) are a segmented control
+    (`Segmented` in `a11y.tsx`), labeled like any field: Idea | Planning | Ready.
+  - More choices, longer ones, or a list that grows (days, people, calendars) are a row that opens
+    a sheet (`PickField`), with the choice's emoji as its lead when it has one.
+  - Picking several, or choices that need a preview (color schemes, typefaces, timezones,
+    categories, members), are always a sheet (`PickField`, `SchemePicker`), never `<select multiple>`.
+  - For a single choice, `Choose` in `tripShared.tsx` picks between those two for you.
+- Actions are buttons, not a "More…" dropdown: the main one top right (`.meal-actions`), the rest
+  as buttons in the row they act on.
 - A card summing up settings shows them as read-only `.chip-static` chips, one per setting with an
   icon and a plain name; values inherited from the family are marked 🏠. No run-on sentences.
 - Color is never the only signal: pair it with a word, shape, emoji, avatar or pattern. Check new
   colors with the color-vision helpers in `web/src/colorVision.ts`.
 - Buttons in headers and rows size to their content (`flex: none`); `.btn` stretches by default.
-- Destructive or rare actions (archive, delete, remove) go in a "More…" select or at the bottom of
-  a sheet's body (`.sheet-danger-zone`, a danger text button), never in the footer beside the
-  primary button. A delete always asks with `dialog.confirm`, titled `Delete “Name”?`.
+- Destructive or rare actions (archive, delete, remove) go at the bottom of the page or of a
+  sheet's body (`.sheet-danger-zone`, text buttons, the delete one in danger red), never in the
+  footer beside the primary button. A delete always asks with `dialog.confirm`, titled `Delete “Name”?`.
 - Copy: US English, short and plain, sentence case. Say what happens ("Saved: Tacos"), not how.
 - Plain words, never the code's words. Families (and kids) read every label, hint, toast, error and
   notification, and translators will too: name things the way a family would ("grocery list", not

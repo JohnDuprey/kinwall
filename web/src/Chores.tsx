@@ -37,6 +37,8 @@ import { durationLabel } from './timers.ts'
 import { PointsStepper, SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
 import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
+import { awayUntil } from './away.ts'
+import type { AwayPeriod } from './trip-types.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 import { latestOnly } from './latest.ts'
 import { onDayChange, rollToToday } from './minuteTick.ts'
@@ -68,7 +70,7 @@ const LB_PERIOD_LABEL: Record<LeaderboardPeriod, string> = { today: msg('Today')
 
 /** The pills, led by the period they count (Today / This week / This month). The period only
  * changes the leaderboard, so it lives here rather than above the chores. */
-function Leaderboard() {
+function Leaderboard({ away }: { away: Set<string> }) {
   const [period, setPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
   useEffect(() => { saveLbPeriod(period) }, [period])
   const { refreshTick, members } = useApp()
@@ -115,6 +117,7 @@ function Leaderboard() {
                 <span className="lb-name">{e.name}</span>
                 {e.rank === 1 && e.points > 0 && <span className="lb-crown" aria-label={t('Leader')}>👑</span>}
                 {e.streak >= 2 && <span className="lb-streak" aria-label={t('{n} day streak', { n: e.streak })}>🔥{e.streak}</span>}
+                {away.has(e.memberId) && <span className="lb-away" aria-label={t('Away today')}><span aria-hidden="true">✈️</span><span className="lb-away-word" aria-hidden="true"> {t('Away')}</span></span>}
               </div>
               <div className="lb-bar-track"><div className="lb-bar-fill" style={{ width: `${(e.points / maxPoints) * 100}%`, background: e.color }} /></div>
               {spendable(e.memberId) !== null && <div className="lb-spend" aria-hidden="true">{t('{n} to spend', { n: spendable(e.memberId) ?? 0 })}</div>}
@@ -179,6 +182,8 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chor
   const goalText = goalProgress && chore.repeatGoal ? goalProgressLabel(chore.repeatGoal, goalProgress.done) : ''
   // "Just one of them": who can do it ("Maya or Leo"), until one of them has.
   const oneOf = !chore.completed && chore.eligibleMemberIds ? new Intl.ListFormat(intlLocale(), { type: 'disjunction' }).format(members.filter(m => chore.eligibleMemberIds!.includes(m.id)).map(m => m.name)) : ''
+  // A temporary handoff while its person is away (Away days): "From Maya until Tue".
+  const handoff = chore.handoff ? t('From {name} until {day}', { name: members.find(m => m.id === chore.handoff!.fromMemberId)?.name ?? t('someone'), day: formatDate(new Date(`${chore.handoff.until}T12:00:00`), DAY) }) : ''
   const notYet = !ticked && chore.rejection ? (chore.rejection.note ? t('Not yet: {note}', { note: chore.rejection.note }) : t('Not yet')) : ''
   const notDone = !ticked && chore.dismissed ? t('Marked not done') : '' // heard, not shown: the Undo not done link says it
   const cl = chore.checklist
@@ -212,7 +217,7 @@ function ChoreCard({ chore, editing, late, onToggle, onEdit, onNotDone }: { chor
       <div className="chore-info">
         <SchoolworkBadge kind={chore.schoolKind} />
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-        <div className="chore-pts">{[startsAt, by && t('Done by {name}', { name: by }), oneOf, t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}{notDoneLink && !act && !timer && <> · {notDoneLink}</>}</div>
+        <div className="chore-pts">{[startsAt, handoff, by && t('Done by {name}', { name: by }), oneOf, t('{n} pts', { n: chore.points }), schedule, checklist].filter(Boolean).join(' · ')}{notDoneLink && !act && !timer && <> · {notDoneLink}</>}</div>
         {goalText && <div className="chore-pts">{goalText}</div>}
         {goalBlocked && <div className="chore-waiting">{goalProgress!.done >= goalProgress!.target ? t('Goal reached') : t('Waiting for OK')}</div>}
         {goalProgress && goalProgress.pending > 0 && <div className="chore-waiting">{t('{n} waiting for OK this interval', { n: goalProgress.pending })}</div>}
@@ -500,6 +505,14 @@ export default function Chores() {
   useEffect(loadCounts, [from, to, refreshTick, settings.features.chores])
 
   const key = dateKey(selectedDate)
+  // Away days (#/away): who's away on the day shown, to say why their chores aren't there.
+  const [away, setAway] = useState<AwayPeriod[]>([])
+  useEffect(() => {
+    let canceled = false
+    api.getAway().then(x => { if (!canceled) setAway(x) }).catch(() => { /* say nothing */ })
+    return () => { canceled = true }
+  }, [refreshTick])
+  const awayNow = members.map(m => ({ m, until: awayUntil(away, m.id, key) })).filter(x => x.until && (!selectedMemberId || x.m.id === selectedMemberId))
   // Loading only while a new day's chores are on their way. A refresh of the same day (a sheet
   // saved, the rev moved) keeps what's on screen, so the columns don't collapse and jump back.
   const loading = loadedKey !== key
@@ -666,7 +679,9 @@ export default function Chores() {
   const idle = !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
   const active = visibleColumns.filter(m => !idle.includes(m))
   const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, calc(480px * var(--screen-k))))` }
-  const leaderboard = settings.leaderboardEnabled && <Leaderboard />
+  // Who's away today, marked on the leaderboard (their streak waits; Away days).
+  const awayToday = new Set(members.filter(m => awayUntil(away, m.id, today)).map(m => m.id))
+  const leaderboard = settings.leaderboardEnabled && <Leaderboard away={awayToday} />
   const rewardsShown = rewardsOn(settings)
 
   return (
@@ -682,9 +697,11 @@ export default function Chores() {
         {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label={t('Give points')}><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">{t('Give points')}</span><span className="chores-short-label">{t('Give')}</span></GivePoints>}
         {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label={t('Edit chores')} onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">{t('Edit chores')}</span><span className="chores-short-label">{t('Edit')}</span></button>}
         {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">{t('Library')}</span><span className="chores-short-label">{t('Library')}</span></button>}
+        {parentDevice && <a className="btn btn-secondary chores-rewards-btn chores-library-btn" href="#/away"><span aria-hidden="true">✈️</span> <span className="chores-rewards-label">{t('Away days')}</span><span className="chores-short-label">{t('Away')}</span></a>}
         {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">{t('Suggest a chore')}</span><span className="chores-short-label">{t('Idea')}</span></button>}
         {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">{t('Rewards')}</span><span className="chores-short-label">{t('Rewards')}</span></a>}
       </div>
+      {awayNow.length > 0 && <p className="state-card chores-away" role="note">{awayNow.map(x => t('✈️ {name} is away until {day}. Their chores wait until they’re back.', { name: x.m.name, day: formatDate(new Date(`${x.until}T12:00:00`), DAY) })).join(' ')}</p>}
       <div className="date-strip" role="group" aria-label={t('Day')}>
         {strip.map(d => {
           const day = dateKey(d)

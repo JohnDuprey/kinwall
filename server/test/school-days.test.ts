@@ -226,6 +226,38 @@ test('school travel: one bus reminder for kids on the same bus, once, and none o
   assert.equal((await read()).length, 2, 'no school: no bus reminder');
 });
 
+test('away school travel: filter absent children before grouping and exact-wake scheduling', async () => {
+  const t = await setup();
+  for (const k of [t.maya, t.leo]) await t.req(`/api/school/kids/${k.id}`, 'PUT', { mode: 'enrolled', toSchoolBy: 'bus', toSchoolTime: '07:40', fromSchoolBy: t.alex.id, fromSchoolTime: '15:00' });
+  const away = async (memberId: string, from: string, to: string) => {
+    const draft = { label: 'Family visit', tripId: null, people: [{ memberId, startDate: from, endDate: to, leaveDayAway: true, returnDayAway: true }], handoffs: [], keepDue: [] };
+    const preview = await t.req('/api/away/preview', 'POST', draft);
+    assert.equal(preview.status, 200, JSON.stringify(preview.json));
+    const saved = await t.req('/api/away', 'POST', { ...draft, token: preview.json.token });
+    assert.equal(saved.status, 201, JSON.stringify(saved.json));
+  };
+  await away(t.maya.id, '2026-11-17', '2026-11-18');
+  await away(t.leo.id, '2026-11-18', '2026-11-18');
+  const before = new Date('2026-11-17T07:20:00Z');
+  assert.equal(await nextSchoolTravelAt(t.env, before, new Date('2026-11-17T07:39:00Z')), Date.parse('2026-11-17T07:30:00Z'));
+  await runSchoolReminders(t.env, new Date('2026-11-17T07:31:00Z'));
+  const notes = (await t.env.DB.prepare("SELECT body, member_ids FROM notifications WHERE kind = 'reminder'").all<{ body: string; member_ids: string }>()).results;
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].body, 'Time to get Leo to the bus stop.');
+  assert.deepEqual(JSON.parse(notes[0].member_ids).sort(), [t.leo.id, t.alex.id].sort());
+  assert.equal(await nextSchoolTravelAt(t.env, new Date('2026-11-18T07:20:00Z'), new Date('2026-11-18T23:00:00Z')), null, 'all riders away: no exact wake');
+  await runSchoolReminders(t.env, new Date('2026-11-18T07:31:00Z'));
+  assert.equal((await t.env.DB.prepare("SELECT id FROM notifications WHERE kind = 'reminder'").all()).results.length, 1, 'all riders away: no reminder');
+  assert.equal(await nextSchoolTravelAt(t.env, new Date('2026-11-19T07:20:00Z'), new Date('2026-11-19T07:39:00Z')), Date.parse('2026-11-19T07:30:00Z'), 'ordinary schedule resumes after return');
+  const driverDraft = {label:'Work trip', people:[{memberId:t.alex.id,startDate:'2026-11-19',endDate:'2026-11-19'}],handoffs:[],keepDue:[]};
+  const driverReview = await t.req('/api/away/preview','POST',driverDraft);
+  assert.ok(driverReview.json.conflicts.some((c:any)=>c.kind==='driver-away'&&!c.blocking),'ride warning does not require changing a permanent school setting');
+  assert.equal((await t.req('/api/away','POST',{...driverDraft,token:driverReview.json.token})).status,201);
+  assert.equal(await nextSchoolTravelAt(t.env,new Date('2026-11-19T14:00:00Z'),new Date('2026-11-19T16:00:00Z')),null,'away driver has no pickup exact wake');
+  await runSchoolReminders(t.env,new Date('2026-11-19T14:51:00Z'));
+  assert.equal((await t.env.DB.prepare("SELECT id FROM notifications WHERE kind='reminder'").all()).results.length,1,'away driver receives no pickup notice');
+});
+
 test('board: schoolwork is counted on its own, and a timed one is a row on Today like a chore', async () => {
   const t = await setup();
   await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'home' });

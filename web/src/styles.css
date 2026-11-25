@@ -844,7 +844,8 @@ button.month-cell .month-daynum { flex: none; }
 .pick-sheet .sheet-link > span { overflow-wrap: anywhere; }
 .pick-btn > .pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .sheet-link > svg.pick-check { color: var(--accent-strong); }
-.sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch { flex: none; } /* not the label's flex: 1 */
+.sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch, .sheet-link > .pick-lead { flex: none; } /* not the label's flex: 1 */
+.pick-lead { display: flex; }
 /* Hidden events (Calendar's Show hidden, parents only): faded, dashed and marked "Hidden", never by color alone. */
 .ev-hidden { opacity: 0.5; outline: 2px dashed var(--text-dim); outline-offset: -2px; }
 .ev-hidden-mark { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-weight: 800; vertical-align: bottom; }
@@ -1274,6 +1275,8 @@ button.month-cell .month-daynum { flex: none; }
 .lb-name { overflow: hidden; text-overflow: ellipsis; }
 .lb-crown { font-size: 0.8125rem; flex-shrink: 0; }
 .lb-streak { font-size: 0.75rem; flex-shrink: 0; }
+.lb-away { font-size: 0.75rem; font-weight: 800; flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 700px) { .lb-away-word { display: none; } }
 .lb-bar-track { height: 5px; border-radius: 3px; background: var(--border); margin-top: 5px; overflow: hidden; }
 .lb-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
 .lb-points { font-size: 0.9375rem; font-weight: 800; flex-shrink: 0; }
@@ -4301,7 +4304,7 @@ html:root[data-cast] {
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-edit-btn,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, .school-work-main, .school-work.compact, button.school-plan-day, .school-kid-toggle, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
+    .activity-card, .school-work-main, .school-work.compact, button.school-plan-day, .school-kid-toggle, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .trip-plan-link, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the "off" track keeps its own inset ring). */

@@ -1,3 +1,4 @@
+import {loadAway,effectiveChore} from '../away.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { schoolworkOff } from '../school-days.ts';
 import { goalProgressFor } from '../chore-goals.ts';
@@ -102,7 +103,7 @@ snapshotRoutes.openapi(
     const today = todayInTz(tz, now);
     const [membersRes, choresRes, itemsRes, stepsRes, categoriesRes, checkInRes] = await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday FROM members ORDER BY sort, created_at'),
-      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at`).bind(memberId),
+      db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 ORDER BY sort, created_at`),
       db
         .prepare(
           `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
@@ -145,10 +146,11 @@ snapshotRoutes.openapi(
     );
     // A feature that's off answers empty, in the same shape (settings.features).
     const goalDays = new Map(await Promise.all(choreDays.map(async date => [date, await goalProgressFor(db, choresRes.results as ChoreRow[], date)] as const)));
+    const away=await loadAway(db,choreDays[0],choreDays[choreDays.length-1]);
     const noSchool = await schoolworkOff(db, choreDays[0], choreDays[choreDays.length - 1], choresRes.results as ChoreRow[]);
     const chores = !settings.features.chores ? [] : choreDays.flatMap((date) =>
       (choresRes.results as unknown as ChoreRow[])
-        .filter((row) => dueOnDate(row, date, tz) && (completions.has(`${row.id}:${date}`) || !noSchool(row, date)) && (!goalDays.get(date)?.get(row.id)?.full || completions.has(`${row.id}:${date}`)))
+        .filter((row) => away.forMember(row,date,memberId) && dueOnDate(row, date, tz) && (completions.has(`${row.id}:${date}`) || !noSchool(row, date)) && (!goalDays.get(date)?.get(row.id)?.full || completions.has(`${row.id}:${date}`)))
         .map((row) => {
           const cc = completions.get(`${row.id}:${date}`);
           // Waiting for a parent's OK is not done yet.
@@ -251,7 +253,8 @@ snapshotRoutes.openapi(
     const pendingToday = new Set(todays.filter((r) => r.status === 'pending').map((r) => r.chore_id));
     const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], today);
     const noSchool = await schoolworkOff(db, today, today, choresRes.results as ChoreRow[]);
-    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && (completedToday.has(row.id) || pendingToday.has(row.id) || !noSchool(row, today)) && (!goalStates.get(row.id)?.full || completedToday.has(row.id) || pendingToday.has(row.id)));
+    const away=await loadAway(db,addDays(today,-DISPLAY_DAYS_BACK),today);
+    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz) && (completedToday.has(row.id) || pendingToday.has(row.id) || !noSchool(row, today)) && (!goalStates.get(row.id)?.full || completedToday.has(row.id) || pendingToday.has(row.id))).map(row=>effectiveChore(row,today,away));
     const memberById = new Map(members.map((m) => [m.id, m]));
     // Each person's count, chores and schoolwork apart: schoolwork opens School, chores the Chores tab.
     const isWork = (r: ChoreRow) => !!(r.school_subject_id || r.school_kind);
@@ -282,8 +285,8 @@ snapshotRoutes.openapi(
     // Schoolwork is left out: an unfinished lesson isn't a late chore (School shows it).
     const lastDue = !settings.features.chores ? [] : (choresRes.results as unknown as ChoreRow[]).flatMap((r) => {
       if (r.school_kind) return [];
-      const date = r.repeat_goal ? null : [...dueDates(r, since, yesterday, tz)].sort().pop(); // ongoing chores have none
-      return date && date >= since && date < today ? [{ r, date }] : [];
+      const date = r.repeat_goal ? null : [...dueDates(r, since, yesterday, tz)].filter(d=>!away.duty(r,d).excused).sort().pop(); // ongoing chores have none
+      return date && date >= since && date < today ? [{ r:effectiveChore(r,date,away), date }] : [];
     });
     const ticked = !lastDue.length ? new Set<string>() : new Set((await db.prepare(
       "SELECT chore_id FROM chore_completions WHERE (chore_id, date) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1)) UNION ALL SELECT chore_id FROM chore_dismissals WHERE (chore_id, date) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1))",

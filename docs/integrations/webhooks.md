@@ -23,6 +23,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `calendar.changed` | A calendar is added, edited or removed. |
 | `calendar.synced` | A calendar finished syncing and something changed, or you pressed Sync now (includes `error` on failure; a background sync repeating the same error doesn't send it again). |
 | `events.changed` | Events were created, edited or deleted, including by a sync that brought in changes. |
+| `trip.changed` | A [trip](../using/trips.md), one of its parts or someone's 👀 / ⭐ on it was added, changed or deleted, or it was added to a calendar. `data`: `{ id }` (an import sends `{ imported }`), never booking details. Starting a stay vote also sends `poll.changed`. |
 | `chore.changed` | A chore is added, edited or deleted, or a parent resets the play time of an [activity chore](../using/chores.md#activity-chores). |
 | `chore.dismissal.changed` | A parent dismisses a late date as not done or restores it. `data`: `{ choreId, date, dismissed }`. No points or completion event. |
 | `chore.completed` | A chore is marked done for a date (for a chore that needs a parent's OK, when it's approved). `data`: `{ id, date, title, memberId, points }`. `memberId` is who gets the credit (for an Anyone chore, the person it was ticked off for, or `null`), and `points` is what was awarded, so late completions show the reduced amount. |
@@ -67,6 +68,8 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `display.night_screen` | The [Night screen](../using/night.md#start-it-from-home-assistant) was started or ended remotely. `data`: `{ on, displays, until }`, where `displays` is the display key IDs or `null` for every wall screen, and `until` is when "on" runs out (`null` for off). |
 | `contact.changed` | A [contact](../using/contacts.md) is added, edited, deleted, imported or merged. `data`: `{ id, action }`, where `action` is `created`, `updated`, `deleted`, `imported` or `merged`. |
 | `contact.category.changed` | A contact category is added, edited or deleted. `data`: `{ id }`. |
+
+Saving, changing or ending [away days](../using/away.md) sends `chore.changed` and `settings.changed`, so chore lists and routine mode refresh. It never sends `chore.completed` or awards points.
 
 ## Payload and signature
 

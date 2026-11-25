@@ -40,6 +40,7 @@ import { clockTimeZone } from './timezone.ts'
 import { Face } from './Face'
 import { ChoreTimerButton } from './ChoreTimer.tsx'
 import { useUpkeepDue } from './Upkeep.tsx'
+import { useTripGlance } from './tripGlance.tsx'
 import { dueLabel } from './upkeep.ts'
 import RoutineHomeIndicator from './RoutineHomeIndicator.tsx'
 import { useHomeRoutine } from './useHomeRoutine.ts'
@@ -294,6 +295,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
   const kidDevice = !parentDevice && !!meMemberId && members.find(m => m.id === meMemberId)?.grownUp === false
   const device = useDeviceAppearance()
   const upkeepDue = useUpkeepDue() // Home upkeep jobs late or due soon, shown in Due soon
+  const travel = useTripGlance() // who's away today, and a trip under way or coming soon
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const [now, setNow] = useState(() => new Date())
   const [tick, setTick] = useState(0)
@@ -576,6 +578,8 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       row: upkeepRow,
       full: upkeepRow,
     },
+    // Who's away and a trip that's close (tripGlance.tsx): after the day's own things.
+    ...(todayTiles ? travel : []),
     pollHost(shown) === 'today' && pollSlot.item,
   ].filter(Boolean) as SlotItem[]
   // Without Today, an open poll goes to the foot of Coming up, else a slim strip above the cards; the

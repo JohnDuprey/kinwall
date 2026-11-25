@@ -1,0 +1,24 @@
+-- Empty additive tables only; no backfill or changes to existing family records.
+CREATE TABLE trips (id TEXT PRIMARY KEY, data TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, created_by TEXT REFERENCES members(id) ON DELETE SET NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE trip_stops (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, data TEXT NOT NULL);
+CREATE TABLE trip_stay_groups (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, data TEXT NOT NULL);
+CREATE TABLE trip_stays (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, group_id TEXT NOT NULL REFERENCES trip_stay_groups(id) ON DELETE CASCADE, data TEXT NOT NULL);
+CREATE TABLE trip_legs (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, data TEXT NOT NULL);
+CREATE TABLE trip_items (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, data TEXT NOT NULL);
+CREATE TABLE trip_private (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, data TEXT NOT NULL);
+CREATE TABLE trip_stay_polls (poll_id TEXT PRIMARY KEY REFERENCES polls(id) ON DELETE CASCADE, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, group_id TEXT NOT NULL REFERENCES trip_stay_groups(id) ON DELETE CASCADE);
+CREATE TABLE trip_poll_options (option_id TEXT PRIMARY KEY REFERENCES poll_options(id) ON DELETE CASCADE, stay_id TEXT REFERENCES trip_stays(id) ON DELETE SET NULL);
+CREATE TABLE trip_publications (id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, source_kind TEXT NOT NULL, source_id TEXT NOT NULL, calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE, event_id TEXT REFERENCES events(id) ON DELETE SET NULL, state TEXT NOT NULL, UNIQUE(trip_id, source_kind, source_id, calendar_id));
+CREATE TABLE away_periods (id TEXT PRIMARY KEY, trip_id TEXT REFERENCES trips(id) ON DELETE SET NULL, data TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, created_by TEXT REFERENCES members(id) ON DELETE SET NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE away_people (period_id TEXT NOT NULL REFERENCES away_periods(id) ON DELETE CASCADE, member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE, start_date TEXT NOT NULL, end_date TEXT NOT NULL, PRIMARY KEY(period_id,member_id));
+CREATE TABLE away_rules (id TEXT PRIMARY KEY, period_id TEXT NOT NULL REFERENCES away_periods(id) ON DELETE CASCADE, chore_id TEXT NOT NULL REFERENCES chores(id) ON DELETE CASCADE, from_member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE, to_member_id TEXT REFERENCES members(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('keep','handoff')), start_date TEXT NOT NULL, end_date TEXT NOT NULL);
+CREATE INDEX idx_away_people_dates ON away_people(member_id,start_date,end_date);
+CREATE INDEX idx_away_rules_chore ON away_rules(chore_id,start_date,end_date);
+CREATE INDEX idx_trip_stops_trip ON trip_stops(trip_id);
+CREATE INDEX idx_trip_groups_trip ON trip_stay_groups(trip_id);
+CREATE INDEX idx_trip_stays_trip ON trip_stays(trip_id);
+CREATE INDEX idx_trip_legs_trip ON trip_legs(trip_id);
+CREATE INDEX idx_trip_items_trip ON trip_items(trip_id);
+CREATE INDEX idx_trip_private_trip ON trip_private(trip_id);
+CREATE INDEX idx_trip_polls_trip ON trip_stay_polls(trip_id);
+CREATE INDEX idx_away_periods_trip ON away_periods(trip_id);

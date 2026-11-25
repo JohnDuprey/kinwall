@@ -314,6 +314,7 @@ export const FeaturesSchema = z
     inbox: z.boolean().default(true), // The quick-capture inbox (parents): /api/inbox and its routes answer 404 while off
     polls: z.boolean().default(true), // Family polls: /api/polls and its routes answer 404 while off, no poll notifications
     outings: z.boolean().default(true), // Outings: /api/outings and its routes answer 404 while off, no outing reminders
+    trips: z.boolean().default(false), // Trips starts off; standalone and already-active away days remain available independently
     upkeep: z.boolean().default(true), // Home upkeep: /api/upkeep and its routes answer 404 while off, no upkeep notes, chores or supplies
     school: z.boolean().default(false), // School: /api/school and its routes answer 404 while off. The one switch that starts off: most families don't need it
     checkIns: z.boolean().default(true), // Temp check, goal checks, the energy battery, journals, Insights: no check-in, goal or battery notifications and no check-in points while off
@@ -688,6 +689,7 @@ export const ActivityProgressSchema = z.object({
 export const ChoreDateCountSchema = z.object({ date: z.string(), memberId: z.string().nullable(), total: z.number().int(), remaining: z.number().int(), pending: z.number().int(), dismissed: z.number().int().openapi({ description: 'Missed and marked not done by a parent: part of total, not of remaining.' }) }).openapi('ChoreDateCount');
 
 export const ChoreDaySchema = ChoreSchema.extend({
+  handoff: z.object({fromMemberId:z.string(),until:z.string()}).nullable().optional().openapi({description:'Temporary dated duty; the underlying chore assignee stays unchanged.'}),
   goalProgress: ChoreGoalProgressSchema.nullable().optional(),
   completed: z.boolean().openapi({ description: "Done and counted (a completion waiting for a parent's OK is pending instead)." }),
   pending: z.boolean().openapi({ description: "Ticked from a wall screen or kid's device, waiting for a parent's OK: no points yet." }),

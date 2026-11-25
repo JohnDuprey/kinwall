@@ -1,3 +1,5 @@
+import {loadAway,type AwayContext} from '../away.ts';
+import {schoolworkOff} from '../school-days.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { goalPeriod, readChoreGoal, shiftGoalDate } from '../chore-goal.ts';
 import { createRoute, z } from '@hono/zod-openapi';
@@ -47,18 +49,28 @@ export function computeStreak(memberChores: ChoreRow[], completedKeys: Set<strin
 // The same walk over `days` days, carried on past each miss that ends a run: `current` is the
 // first run (computeStreak), `best` the longest one - so a profile's best streak follows the
 // leaderboard's rule, grace days included. A run ended by a miss starts again the day before it.
-export function streakStats(memberChores: ChoreRow[], completedKeys: Set<string>, tz: string, today: string, graceDays = 0, days = STREAK_LOOKBACK_DAYS) {
+export function streakStats(memberChores: ChoreRow[], completedKeys: Set<string>, tz: string, today: string, graceDays = 0, days = STREAK_LOOKBACK_DAYS, policy?:{memberId:string;away:AwayContext;schoolOff:(row:{id:string},date:string)=>boolean}) {
   const first = addDaysStr(today, 1 - days);
   // Flexible goals are judged at interval end; freely chosen rest days never break a streak.
   completedKeys = new Set(completedKeys);
+  // Bridge long trips without expanding every chore's recurrence through thousands of excused
+  // days. Keep-due exceptions still participate in the normal streak rules.
+  const ranges: {from:string;to:string}[] = [];
+  for (let date = first; date <= today; date = addDaysStr(date, 1)) {
+    if (policy?.away.isAway(policy.memberId,date) && !policy.away.rules.some(r => r.kind === 'keep' && r.from_member_id === policy.memberId && r.start_date <= date && r.end_date >= date)) continue;
+    const last = ranges.at(-1);
+    if (last && addDaysStr(last.to,1) === date) last.to = date;
+    else ranges.push({from:date,to:date});
+  }
   const due = memberChores.map(c => {
-    const dates = dueDates(c, first, today, tz);
+    const dates = new Set(ranges.flatMap(range => [...dueDates(c, range.from, range.to, tz)]).filter(date=>!policy || (!!c.member_id&&policy.away.forMember(c,date,policy.memberId)&&!policy.schoolOff(c,date))));
     const goal = readChoreGoal(c.repeat_goal);
     if (!goal || !c.due_date) return { id: c.id, on: dates };
     const on = new Set<string>();
     for (const date of dates) {
       const period = goalPeriod(goal, c.due_date, date);
       if (date !== period.to) continue;
+      if(policy && policy.away.touches(policy.memberId,period.from,period.to))continue;
       const countFrom = c.due_date > period.from ? c.due_date : period.from;
       if (countFrom < first) continue; // the streak's history window cannot judge a partial interval
       on.add(date);
@@ -73,7 +85,8 @@ export function streakStats(memberChores: ChoreRow[], completedKeys: Set<string>
   let best = 0;
   let streak = 0;
   let missed: string[] = []; // forgiven misses in this run, newest first
-  for (let date = today; date >= first; date = addDaysStr(date, -1)) {
+  const dueDays = [...new Set(due.flatMap(c => [...c.on]))].sort().reverse();
+  for (const date of dueDays) {
     const dueToday = due.filter((c) => c.on.has(date));
     if (dueToday.length === 0) continue;
     if (dueToday.every((c) => completedKeys.has(`${c.id}:${date}`))) streak++;
@@ -109,7 +122,10 @@ leaderboardRoutes.openapi(
     const graceDays = Number(graceRow?.value ?? 1);
     const today = todayInTz(tz);
     const periodFrom = period === 'today' ? today : period === 'week' ? weekStartDate(tz, weekStart) : monthStartDate(tz);
-    const windowFrom = addDaysStr(today, -STREAK_LOOKBACK_DAYS);
+    const away=await loadAway(c.env.DB,addDaysStr(today,-36600),today);
+    const {results:streakMembers}=await c.env.DB.prepare('SELECT id FROM members').all<{id:string}>();
+    const starts=streakMembers.map(m=>away.streakStart(m.id,today));
+    const windowFrom = starts.sort()[0]??addDaysStr(today,-STREAK_LOOKBACK_DAYS);
 
     const { results: members } = await c.env.DB.prepare('SELECT id, name, color, avatar, sort FROM members ORDER BY sort, name').all<MemberRow>();
     const { results: chores } = await c.env.DB.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1`).all<ChoreRow>();
@@ -132,6 +148,7 @@ leaderboardRoutes.openapi(
       choresByMember.set(row.member_id, list);
     }
 
+    const noSchool=await schoolworkOff(c.env.DB,windowFrom,today,chores);
     const entries = members.map((m) => {
       let points = bonusBy.get(m.id) ?? 0;
       let completed = 0;
@@ -141,7 +158,8 @@ leaderboardRoutes.openapi(
         points += row.points_awarded ?? 0;
         completed++;
       }
-      const streak = computeStreak(choresByMember.get(m.id) ?? [], completedKeys, tz, today, graceDays);
+      const first=away.streakStart(m.id,today);
+      const streak = streakStats(chores, completedKeys, tz, today, graceDays,Math.round((Date.parse(today)-Date.parse(first))/86400000)+1,{memberId:m.id,away,schoolOff:noSchool}).current;
       return { memberId: m.id, name: m.name, color: m.color, avatar: m.avatar, points, completed, streak };
     });
 

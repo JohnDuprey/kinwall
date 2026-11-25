@@ -9,7 +9,7 @@ import { dayStartDue } from './medications.ts'
 import { AppContext, useApp, type ToastAction } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { rewardsOn, trackerKinds } from './types.ts'
-import { BookIcon, CalendarIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon, TicketIcon, WrenchIcon, SchoolIcon } from './icons.tsx'
+import { BookIcon, CalendarIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon, TicketIcon, WrenchIcon, SchoolIcon, LuggageIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Contacts from './Contacts.tsx'
@@ -75,8 +75,12 @@ const screenLoaders = {
   Journal: () => import('./Journal.tsx'),
   Insights: () => import('./Insights.tsx'),
   Medications: () => import('./Medications.tsx'),
+  Trips: () => import('./Trips.tsx'),
+  Away: () => import('./Away.tsx'),
 }
 const RoutineMode = lazy(screenLoaders.RoutineMode)
+const Trips = lazy(screenLoaders.Trips)
+const Away = lazy(screenLoaders.Away)
 const Lists = lazy(screenLoaders.Lists)
 const Meals = lazy(screenLoaders.Meals)
 const Activities = lazy(screenLoaders.Activities)
@@ -100,6 +104,7 @@ const NAV_ITEMS = [
   { key: 'meals', href: '#/meals', label: msg('Meals'), Icon: MealIcon },
   { key: 'outings', href: '#/outings', label: msg('Outings'), Icon: TicketIcon },
   { key: 'upkeep', href: '#/upkeep', label: msg('Upkeep'), Icon: WrenchIcon },
+  { key: 'trips', href: '#/trips', label: msg('Trips'), Icon: LuggageIcon },
   { key: 'school', href: '#/school', label: msg('School'), Icon: SchoolIcon },
   { key: 'trackers', href: '#/trackers', label: msg('Trackers'), Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: msg('Activities'), Icon: BrushIcon },
@@ -109,7 +114,7 @@ const NAV_ITEMS = [
 ] as const
 
 /** The nav's "nooks": areas of their own with several parts inside. Only a heading in the phone's More list. */
-const NOOKS = new Set(['meals', 'outings', 'upkeep', 'school', 'trackers', 'activities'])
+const NOOKS = new Set(['meals', 'outings', 'upkeep', 'trips', 'school', 'trackers', 'activities'])
 
 type NavItem = { key: string; href: string; label: string; Icon: (p: object) => ReactNode }
 
@@ -119,7 +124,7 @@ type NavItem = { key: string; href: string; label: string; Icon: (p: object) => 
  * member's own device gets "Me" (their profile): after Chores on a kid's device (`kid`), so it stays
  * on a phone's bottom bar, after Lists on a grown-up's (meSlot), and "Journal" while check-ins are on. */
 function navItems(s: Settings, me?: Member | null, plugins = false, lock?: LockedView, kid = false): NavItem[] {
-  const items: NavItem[] = NAV_ITEMS.filter(i => !lockedOut(i.key, lock)).filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'outings' ? s.features.outings !== false : i.key === 'upkeep' ? s.features.upkeep !== false : i.key === 'school' ? !!s.features.school : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
+  const items: NavItem[] = NAV_ITEMS.filter(i => !lockedOut(i.key, lock)).filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'outings' ? s.features.outings !== false : i.key === 'upkeep' ? s.features.upkeep !== false : i.key === 'trips' ? !!s.features.trips : i.key === 'school' ? !!s.features.school : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
   if (me) items.splice(meSlot(items.map(i => i.key), kid), 0, { key: 'profile', href: `#/profile/${me.id}`, label: msg('Me'), Icon: () => me.picture ? <Face m={me} className="nav-me nav-me-pic" aria-hidden="true" /> : <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
   if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: msg('Journal'), Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
@@ -136,7 +141,7 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined, 
   if (section === 'medications' && !s.medications) return rest
   if ((section === 'journal' || section === 'insights') && !s.features.checkIns) return rest
   if (section === 'activities' && sub === 'plugin') return null // an activity chore's play link works whatever else is on
-  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'outings' || section === 'upkeep' || section === 'school' || section === 'trackers' || section === 'activities') {
+  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'outings' || section === 'upkeep' || section === 'trips' || section === 'school' || section === 'trackers' || section === 'activities') {
     if (!navItems(s, null, plugins !== false).some(i => i.key === section)) return rest
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) && !(sub === 'library' && on.includes('reading')) ? `#/trackers/${on[0]}` : null } // the library comes with Reading
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
@@ -1428,8 +1433,8 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   }, [hasKey, builtInActivities, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub, pluginsOn, lockView)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = tm(section === 'routine' ? msg('Free time') : section === 'profile' ? msg('Profile') : section === 'journal' ? msg('Journal') : section === 'insights' ? msg('Insights') : section === 'medications' ? msg('Medicines') : section === 'activities' && sub === 'paint' ? msg('Paint') : section === 'activities' && sub === 'stickers' ? msg('Sticker book') : section === 'activities' && sub === 'photos' ? msg('Photos') : NAV_ITEMS.find(i => i.key === section)?.label ?? msg('Home'))
-  const inApp = hasKey && !!settings && !wizardActive && (section === 'routine' || section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
+  const tabLabel = tm(section === 'routine' ? msg('Free time') : section === 'profile' ? msg('Profile') : section === 'journal' ? msg('Journal') : section === 'insights' ? msg('Insights') : section === 'medications' ? msg('Medicines') : section === 'away' ? msg('Away days') : section === 'activities' && sub === 'paint' ? msg('Paint') : section === 'activities' && sub === 'stickers' ? msg('Sticker book') : section === 'activities' && sub === 'photos' ? msg('Photos') : NAV_ITEMS.find(i => i.key === section)?.label ?? msg('Home'))
+  const inApp = hasKey && !!settings && !wizardActive && (section === 'routine' || section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || section === 'away' || NAV_ITEMS.some(i => i.key === section))
   // "Chores · Our Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
   useEffect(() => { document.title = inApp ? `${tabLabel} · ${familyName || 'Kinwall'}` : 'Kinwall' }, [tabLabel, inApp, familyName])
@@ -1479,7 +1484,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
 
   const nav = navItems(settings, members.find(m => m.id === meMemberId), !!pluginsOn, lockView, !parentDevice && !!meMemberId)
   // "Me" is lit on their own profile only, not while looking at someone else's.
-  const navTab = (section === 'profile' || section === 'journal') && sub !== meMemberId ? '' : section === 'medications' || section === 'insights' ? '' : section
+  const navTab = (section === 'profile' || section === 'journal') && sub !== meMemberId ? '' : section === 'medications' || section === 'insights' || section === 'away' ? '' : section
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
@@ -1498,7 +1503,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
             <Suspense key={section} fallback={<ScreenLoading />}>
-              {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : section === 'school' ? <School /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
+              {redirect ? null : section === 'routine' ? <RoutineMode /> : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : section === 'outings' ? <Outings /> : section === 'upkeep' ? <Upkeep /> : section === 'trips' ? <Trips /> : section === 'away' ? <Away /> : section === 'school' ? <School /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : section === 'calendar' ? <CalendarView key="calendar" place="calendar" /> : <CalendarView key="home" place="home" />}
             </Suspense>
           </main>
           {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}

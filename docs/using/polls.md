@@ -41,6 +41,10 @@ To delete a poll and its votes: open it, then **More… → Delete poll**.
 
 In the Kinwall app for iPhone, the Shortcuts app has a **Vote in a poll** action: pick the poll, your choice and who's voting. A phone that belongs to someone always votes for them; on a shared phone, it asks who's voting.
 
+## Votes on where to stay
+
+A [trip](trips.md)'s **🗳 Ask the family** starts a poll whose choices are that stay's places. Only the people going on the trip vote. It shows on the Board and in the bell like any poll, but ending it never picks a winner: a grown-up chooses on the trip's **Places to stay**. With Trips off, these polls leave the Board, the bell and the Polls list.
+
 ## Turning polls off
 
 **Settings → General → Features → Family polls**. Off, polls are gone everywhere: nothing on the Board, no Polls button, nothing in the Meals planner, no notifications (and earlier poll notifications leave the bell), and the API and MCP tools answer that polls are off. Polls already made are kept and come back when it's turned on. With Meals off, polls still work with typed ideas only (recipes and restaurants need Meals), and there's no **Plan it**.

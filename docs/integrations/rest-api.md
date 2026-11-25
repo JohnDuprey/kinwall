@@ -607,3 +607,126 @@ are unchanged. Send `dismissed: false` to undo, including after the date leaves 
 counts it as `dismissed` instead of `remaining`, and completing it later clears the dismissal.
 Repeating the same request has the same result. Dismissals are included in JSON backups as
 `choreDismissals`; old backups without that field still import.
+
+## Trips and away days
+
+[Trips](../using/trips.md) starts off (`features.trips` is `false`). While it's off, `/api/trips`
+and every route under it answer 404. [Away days](../using/away.md) live under `/api/away` and keep
+working whether Trips is on or off. Responses from both are sent `Cache-Control: private, no-store`
+and the app never keeps them in its offline cache. The exact fields are in the zod/OpenAPI shapes
+at `/docs` (tags **Trips** and **Away**).
+
+### Trips
+
+- `GET /api/trips` lists basic summaries of every family trip, including trips the viewer isn't
+  going on. Put-away trips (`archivedAt` set) are left out unless you add `?archived=1`.
+  `GET /api/trips/{id}` reads one trip with its stops, stays, legs, day plan and calendar receipts,
+  with booking details included only when this device may see them (`canSeeDetails`).
+- Full reads also include advisory `checks` and `travelDay` (`today`, `timeZone`, `source`
+  (`override`, `stop`, `leg` or `home`), `stopId`). `viewTimeZone` is an optional IANA override for the travel-day view; `null` follows
+  known stops/legs, with an explicit home-time fallback. It never shifts saved dates or away days.
+  Checks report night gaps, overlapping chosen stays, out-of-trip dates and known travel-time
+  conflicts. They are advice, not write validation. Interval `to` is an exclusive boundary for
+  uncovered nights, like a stay's check-out; unknown times cannot establish an exact conflict.
+- Private home/pet care uses `POST /api/trips/{id}/care`,
+  `PATCH /api/trips/{id}/care/{careId}` and
+  `DELETE /api/trips/{id}/care/{careId}?revision=N`. Every write requires the trip revision
+  and full access. Fields include `title`, `kind` (`pet`, `home`, `plants`, `other`), optional
+  `helperName`/`helperContact`, paired nullable `fromDate`/`toDate` (inclusive days at home),
+  `status` (`needed`, `asked`, `confirmed`, `canceled`), checklist `tasks` (`id`, `text`, `done`),
+  `instructions`, `entry`, `emergency` and `sort`. PATCH replaces tasks only when supplied.
+  Responses return the whole projected Trip. All care content is encrypted at rest; only
+  grown-ups' own devices and full-access devices read it. `canEditCare` requires full access.
+  Kids, walls and connected apps receive `care: []` and false care permission flags regardless
+  of booking visibility. `careUnavailable: true` (sent only where care may be read) means at
+  least one record couldn't be decrypted or validated: it's kept, the readable ones are still
+  returned and other trip writes still work, and `GET /api/export?includeTripDetails=1` answers
+  400 until it's fixed. Care is manual planning: it never contacts a helper or creates chores.
+- `POST /api/trips` (grown-up) needs only `title`. Dates, `dateNote`, `location`, `description`,
+  `memberIds` and `status` (`idea`, `planning` or `ready`) are optional; `status` starts as `idea`.
+- `PATCH /api/trips/{id}` (grown-up) needs the trip's current `revision` and changes only the fields
+  you send. Put away and call off a trip with the nullable ISO timestamps `archivedAt` and
+  `canceledAt` (send `null` to undo); there are no boolean versions of these. Changing the dates
+  never moves stays, legs, events, meals, private care or away days. Changing `memberIds` while a stay vote is
+  open answers 409.
+- `DELETE /api/trips/{id}?revision=N` (grown-up) deletes the trip with its stops, stays, legs,
+  day plan and stay votes. Calendar events, meals, outings and away days made from it stay.
+- Any stale `revision` answers 409: read the trip again, then retry.
+- `PUT /api/trips/{id}/marks` and `PUT /api/trips/{id}/items/{itemId}/marks` set
+  `{ memberId, kind }` (`interested`, `really`, or `null` to clear). A person's own device marks
+  only for them.
+- Parts: `POST /api/trips/{id}/{part}`, `PATCH /api/trips/{id}/{part}/{partId}` and
+  `DELETE /api/trips/{id}/{part}/{partId}?revision=N`, where `{part}` is `stops`, `stay-groups`
+  (a stay: where you sleep for some nights, with `checkIn` and `checkOut`), `stays` (the places
+  to compare within a stay), `legs` or `items` (activities, and links to an outing, meal or event
+  by `refId`). Each answers with the whole updated trip. Grown-ups send `revision` with every
+  write. A PATCH changes only the fields you send. A kid's own device can only `POST` an `items`
+  activity with no date or time (a suggestion, credited to that kid). Shared wall screens can't
+  suggest (403); they read, mark and vote for a chosen person.
+- A `stays` place has `kind` (`hotel`, `rental`, `family`, `camping`, `other`) and `cost`
+  (`unknown`, `free`, `contribution`, `price`; `price` needs a `price` object with
+  `amountMinor`, `currency`, `basis`, `fees` and `observedOn`). A `family` place needs only a
+  name: no link, picture, price or booking. `booking` is `none`, `booked`, `canceled`, or for a
+  family place `confirmed_family`. Changing the value of any field of a place other than
+  `booking`, `notes` or `details` clears it as the chosen place, and is
+  refused with 409 while its stay's vote is open. Sending fields with their current values changes
+  nothing, so the choice and vote stay.
+- Booking details are `details` on a stay place (`address`, `contact`, `arrival`,
+  `confirmation`, `manageUrl`, `codes`) or a leg (`confirmation`, `manageUrl`, `notes`). They're
+  encrypted at rest and returned only to devices the trip allows: `detailsAudience` (`grownups`
+  or `everyone`) and `detailsOnWall` (only with `everyone`). A connected app never gets them and
+  gets 403 sending `details`, `detailsAudience` or `detailsOnWall`.
+- `POST /api/trips/{id}/stay-groups/{stayId}/vote` (grown-up, `{ revision, restart? }`) starts a
+  [family poll](../using/polls.md) with the stay's places as its choices (two to twelve), one vote
+  for each person going. It needs Family polls on and the trip's `memberIds` set. A stay that
+  already had a vote needs `restart: true`, which closes the old round and starts a new one. Vote
+  and close with the usual poll routes. Closing never chooses a place.
+- `POST /api/trips/{id}/stay-groups/{stayId}/choose` (grown-up, `{ revision, optionId }`) marks a
+  place chosen, whatever the votes say; `optionId: null` clears it. Chosen and booked are separate.
+- `POST /api/trips/link-preview` (grown-up, `{ url }`) reads one public `https://` page's own
+  structured data (hotel and rental JSON-LD) or Open Graph/Twitter tags into an editable draft:
+  `name`, `town`, `siteName`, `imageUrl`, `price`, `sleeps`. It saves nothing. When the page
+  can't be read it still answers 200 with `ok: false` and `reason` (`blocked` or `unreadable`),
+  so the link can be saved and the rest typed by hand. It doesn't check prices or availability.
+- `GET /api/trips/stays/{placeId}/image` shows a place's picture the way Meals pictures work:
+  Kinwall keeps only the picture's `https://` link, fetches it through the server each time
+  (public addresses only, images up to 8 MB), and the browser may keep it for seven days
+  (`Cache-Control: private, max-age=604800`). No copy is stored on the server or in the app.
+- `POST /api/trips/{id}/date-change/preview` (grown-up, `{ startDate, endDate }`) lists what's tied
+  to the trip's dates (`away`, `events`, `meals`, `bookedLegs`, `bookedStays`). It changes nothing.
+- `POST /api/trips/{id}/calendar` (grown-up) adds what you pick to one calendar:
+  `{ revision, calendarId, span, legs, stays, items }`. `span: true` adds the whole trip as an
+  all-day event (it needs both dates). `legs` are leg ids (each needs both ends' date, time and
+  time zone), `stays` are the **chosen place ids** (not stay ids; the stay needs both dates) and
+  `items` are activity ids (date, time and time zone; added as one-hour events). Each one gets a
+  receipt in `calendar` with `state` `added`, `failed` or `pending`. Sending it again adds only
+  what failed; a `pending` one (the calendar didn't answer clearly) is never added again by
+  itself, so check the calendar first.
+- `GET /api/trips/links` lists `{ kind, refId, tripId, title, emoji }` for meals, outings and
+  events linked to a trip, and events added from one, so those screens can show **From Trips**.
+  No booking details.
+
+### Away days
+
+- `GET /api/away` (`?from=&to=` for a date range) and `GET /api/away/{id}` read away days. Each
+  person has `startDate`, `endDate`, `leaveDayAway` and `returnDayAway`; `effectiveFrom` and
+  `effectiveTo` are the whole days that count, on the family's home calendar.
+- Saving is two steps (grown-up). `POST /api/away/preview` with the draft (`label`, optional
+  `tripId`, `people`, `keepDue`, `handoffs`) answers with what's paused, kept due and handed over,
+  anything to check (`conflicts`, some `blocking`), what keeps going, and a `token`. Then
+  `POST /api/away` with the same draft and `token`, or `PATCH /api/away/{id}` with it, the
+  `token` and the period's `revision`. If the draft, chores, other away days or the family
+  changed in between, or a blocking conflict remains, it answers 409: preview again.
+- A handoff goes to someone home on all its days, within the owner's away days. Schoolwork can be
+  kept due but not handed over. A school driver who's away while a kid is home is a warning, not
+  a block: arrange the ride yourself. That driver gets no ride reminder while away, and the usual
+  ride settings don't change.
+- `DELETE /api/away/{id}?revision=N` (grown-up) ends the away days from today on. Days already
+  gone stay excused. A stale `revision` answers 409: read the away days again.
+- Away days never edit the chores themselves, mark anything done or award points. Work already
+  done keeps its points, and paused days don't come back as late. Medicines, school records,
+  calendar events, meals and home upkeep due dates don't change.
+
+Backups: see [Export & import](../your-data/export-import.md#trips-and-away-days).
+
+Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.

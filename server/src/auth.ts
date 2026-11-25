@@ -222,6 +222,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'DELETE', pattern: /^\/api\/meals\/[^/]+\/orders\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/events\/[^/]+\/meal$/ }, // the order summary on the event page
   // Family polls: everyone reads and votes (routes/polls.ts keeps a member's own device to that member); starting, closing and deleting: parents.
+  { method: 'GET', pattern: /^\/api\/(?:trips(?:\/[^/]+)?|trips\/stays\/[^/]+\/image|away(?:\/[^/]+)?)$/ },
+  { method: 'PUT', pattern: /^\/api\/trips\/[^/]+(?:\/items\/[^/]+)?\/marks$/ },
+  { method: 'POST', pattern: /^\/api\/trips\/[^/]+\/items$/ },
   { method: 'GET', pattern: /^\/api\/polls(\/[^/]+)?$/ },
   { method: 'PUT', pattern: /^\/api\/polls\/[^/]+\/vote$/ },
   // Outings: everyone reads and marks interest (routes/outings.ts keeps a member's own device to that
@@ -470,7 +473,7 @@ function isDisplayAllowed(method: string, path: string): boolean {
 // which opens nothing but them. A full key is never taken from a URL (it would land in browser
 // history and access logs): everything else, the photo zip included, takes the Bearer header (the
 // zip also a one-time ?ticket=, photoExportTicket).
-const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/library\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$|^\/api\/upkeep\/files\/[^/]+$/;
+const MEDIA_PATH = /^\/api\/trips\/stays\/[^/]+\/image$|^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/library\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$|^\/api\/upkeep\/files\/[^/]+$/;
 // Shared by requireAuth and GET /api/me: resolves the Bearer key (or a media token as ?key= on
 // GET MEDIA_PATH) to its scope. Returns null if the key is missing/unknown.
 export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {

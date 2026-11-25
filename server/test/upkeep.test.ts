@@ -170,6 +170,33 @@ test("upkeep: a kid's job becomes a chore; ticking it logs the job, and undoing 
   } finally { await t.restore(); }
 });
 
+test('away upkeep: defer a child chore before its claim, preserving supplies and household notices', async () => {
+  const t = await setup();
+  try {
+    const list = (await t.req('/api/lists', 'POST', { name: 'Hardware store', kind: 'shopping', catalog: 'shopping' })).json;
+    const job = (await t.req('/api/upkeep/jobs', 'POST', { title: 'Test the smoke alarms', every: 1, unit: 'month', startOn: '2026-11-17', memberId: t.leo.id, chorePoints: 5, supplies: [{ name: 'Batteries' }], suppliesListId: list.id })).json;
+    assert.ok(job.id);
+    const draft = { label: 'Family visit', tripId: null, people: [{ memberId: t.leo.id, startDate: '2026-11-17', endDate: '2026-11-18', leaveDayAway: true, returnDayAway: true }], handoffs: [], keepDue: [] };
+    const preview = await t.req('/api/away/preview', 'POST', draft);
+    assert.equal(preview.status, 200, JSON.stringify(preview.json));
+    assert.equal((await t.req('/api/away', 'POST', { ...draft, token: preview.json.token })).status, 201);
+    await runUpkeep(t.env, t.env.DB, new Date('2026-11-17T09:30:00Z'), 'UTC', t.ctx);
+    assert.equal((await t.req(`/api/upkeep/jobs/${job.id}`)).json.handedChoreId, null);
+    assert.equal((await t.env.DB.prepare("SELECT key FROM upkeep_sent WHERE key LIKE 'upkeep:chore:%'").all()).results.length, 0, 'deferral must not consume the handout claim');
+    assert.equal((await t.req(`/api/lists/${list.id}`)).json.items.filter((i: any) => i.title === 'Batteries').length, 1, 'supplies continue');
+    const notes = (await t.env.DB.prepare("SELECT member_ids FROM notifications WHERE kind = 'upkeep'").all<{ member_ids: string }>()).results;
+    assert.ok(notes.length > 0, 'household upkeep awareness continues');
+    assert.ok(notes.some(n => JSON.parse(n.member_ids).includes(t.alex.id)));
+    assert.ok(notes.every(n => !JSON.parse(n.member_ids).includes(t.leo.id)), 'away child is not nudged about home upkeep');
+    await runUpkeep(t.env, t.env.DB, new Date('2026-11-19T09:30:00Z'), 'UTC', t.ctx);
+    await runUpkeep(t.env, t.env.DB, new Date('2026-11-19T09:31:00Z'), 'UTC', t.ctx);
+    const chores = (await t.req('/api/chores')).json.filter((c: any) => c.title === 'Test the smoke alarms');
+    assert.equal(chores.length, 1, 'return creates one chore, not duplicates or a backlog');
+    assert.equal(chores[0].dueDate, '2026-11-19');
+    assert.equal((await t.req(`/api/upkeep/jobs/${job.id}`)).json.nextDue, '2026-11-17', 'maintenance due date never moved');
+  } finally { await t.restore(); }
+});
+
 test('upkeep: supplies go on the shopping list once, without doubling up', async () => {
   const t = await setup();
   try {

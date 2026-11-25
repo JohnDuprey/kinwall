@@ -1,3 +1,5 @@
+import {travelRoutes} from './routes/travel.ts';
+import {awayRoutes} from './routes/away.ts';
 import { weeklyPlanningRoutes } from './routes/weekly-planning.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventFollowsRoutes } from './routes/event-follows.ts';
@@ -251,6 +253,8 @@ export function createApp() {
   app.route('/', trackersRoutes);
   app.route('/', newscastRoutes);
   app.route('/', pollsRoutes);
+  app.route('/', travelRoutes);
+  app.route('/', awayRoutes);
   app.route('/', announcementsRoutes);
   app.route('/', inboxRoutes(app)); // sorting adds the task, event or note through their own routes
   app.route('/', outingsRoutes);

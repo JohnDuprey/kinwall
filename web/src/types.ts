@@ -113,6 +113,7 @@ export interface Features {
   outings: boolean // Outings: the tab, the Board's Outings button and its reminders (their routes answer 404 while off)
   upkeep: boolean // Home upkeep: the tab, its jobs in Due soon, its reminders, chores and supplies (on unless turned off; its routes answer 404 while off)
   school: boolean // School: the tab and its routes (off until a family turns it on; its routes answer 404 while off)
+  trips: boolean // Trips: the tab, its Board line and trip polls (off until a family turns it on; its routes answer 404 while off). Away days work either way.
   checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
 
@@ -522,6 +523,7 @@ export interface ChoreDay extends Chore {
   dismissed?: boolean // a missed day a parent marked not done: no points, not left; ticking it clears it
   completedAt: string | null
   completedBy: string | null
+  handoff?: { fromMemberId: string; until: string } | null // someone's away and handed this to the person it's listed under, until (inclusive) that day
   checklist: { listId: string; name: string; total: number; done: number } | null
   // The linked activity and the day's play; available false = removed or turned off (a plain chore then).
   activity: { pluginId: string; name: string | null; emoji: string | null; available: boolean; needSeconds: number; doneSeconds: number } | null
@@ -1228,6 +1230,7 @@ export interface Poll {
   id: string; question: string; date: string | null; slot: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null
   status: 'open' | 'closed'; winnerOptionId: string | null; mealId: string | null
   createdBy: string | null; createdAt: string; closedAt: string | null; options: PollOption[]
+  tripId?: string | null; stayGroupId?: string | null // a trip's vote on where to stay: it never picks a winner, a grown-up chooses on the trip
 }
 export interface PollInput { question: string; date?: string | null; slot?: Poll['slot']; options: { label?: string; recipeId?: string; restaurantId?: string }[] }
 

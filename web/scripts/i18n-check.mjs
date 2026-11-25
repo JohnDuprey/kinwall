@@ -27,7 +27,7 @@ const UI_ATTRS = new Set(['aria-label', 'title', 'placeholder', 'label', 'alt', 
 // Not UI copy: demo data, content files (translated as content later), test helpers.
 const SKIP_FILES = /^(mock[\w-]*|tidbits|coloringPages|catalog|choreLibrary)\.ts$/
 // Server: MCP and OpenAPI text stays English (AGENTS.md), and so do the migrations.
-const SERVER_SKIP_FILES = /^(mcp|schemas|meal-schemas|worker-migrations|redact)\.ts$/
+const SERVER_SKIP_FILES = /^(mcp|travel-mcp|schemas|meal-schemas|worker-migrations|redact)\.ts$/
 // Server: what isn't for people: OpenAPI and zod text, SQL, logs, headers.
 const SERVER_SKIP_CALLS = new Set(['describe', 'openapi', 'refine', 'regex', 'header', 'bind', 'all', 'first', 'run', 'createRoute', 'json'])
 const SERVER_SKIP_PROPS = new Set(['description', 'summary', 'example', 'path', 'method', 'tags', 'name', 'key', 'kind', 'url', 'tag', 'id', 'source'])

@@ -230,6 +230,10 @@ Some jobs don't fit a schedule: clean out the car, wash the windows, flip the ma
 
 "Last done" counts chores made from the library item and approved, so a tick still waiting for a parent's OK doesn't count yet. Wall screens and kids' devices can't open or change the library, but they do the chores handed out from it as usual. The library is included in [export and import](../your-data/export-import.md).
 
+## Away days
+
+When someone's away (band camp, a trip), a grown-up sets [away days](away.md) from **✈️ Away days** at the top of Chores. Their own chores pause on those days, stay due, or go to someone at home for a while ("From Maya until Tue" on the recipient's list) and come back afterward. Nothing piles up as late when they're back. While someone's away, the leaderboard marks them ✈️ **Away**.
+
 ## Points, late completion credit
 
 Points are fixed at the moment you tick a chore off. Changing a chore's points later doesn't rewrite history.
@@ -246,6 +250,7 @@ Points are fixed at the moment you tick a chore off. Changing a chore's points l
 A member's 🔥 streak counts consecutive days on which **every chore assigned to them and due that day** was completed.
 
 * Days with nothing due are skipped. They don't break the streak.
+* [Away days](away.md) are skipped the same way, without using a grace day, and a long trip doesn't lose a streak from before it. Paused schoolwork is skipped the same way.
 * Today only counts once its chores are done.
 * `streakGraceDays` (0–3, default **1**): a streak survives that many missed days in any rolling 7 days. Set it to 0 for the strict rule, where any miss ends the streak.
 * Streaks look back at most 60 days. 🔥*N* shows from 2 days up.

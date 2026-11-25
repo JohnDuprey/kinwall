@@ -23,6 +23,7 @@ import type { Meal, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-typ
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
+import { useTripLinks } from './tripLinks.tsx'
 import UseItUp from './UseItUp.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
@@ -79,6 +80,7 @@ export default function Meals() {
   const admin = me?.scope === 'admin'
   // An open family poll about a meal shows in its cell (polls off: none come back).
   const polls = usePolls('open')
+  const tripLinks = useTripLinks() // a meal planned for a trip shows the trip's name
   const [openPoll, setOpenPoll] = useState<string | null>(null)
   useEffect(() => {
     const read = () => {
@@ -205,7 +207,7 @@ export default function Meals() {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
             const recipe = recipes.find(r => r.id === meal.recipeId)
             const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipe?.totalMinutes
-            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setOpenMeal(meal)} aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, statusLabel(meal), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
+            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setOpenMeal(meal)} aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, tripLinks.get(`meal:${meal.id}`) && t('for the trip {title}', { title: tripLinks.get(`meal:${meal.id}`)!.title }), statusLabel(meal), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
               {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
               <strong>{meal.mealKind === 'dining_out' && <span aria-label={t('Eating out')}>↗ </span>}{meal.title}</strong>
               <span>{meal.plannedTime ? `${formatTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
@@ -214,6 +216,7 @@ export default function Meals() {
               {meal.mealKind === 'dining_out' && !!(meal.orderType || meal.orders?.length) && <span>{[meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.status === 'planned' && ordersLabel(meal)].filter(Boolean).join(' · ')}</span>}
               {meal.status !== 'planned' && <span>✓ {statusLabel(meal)}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
+              {tripLinks.get(`meal:${meal.id}`) && <span className="meal-trip-tag">{tripLinks.get(`meal:${meal.id}`)!.emoji || '✈️'} {tripLinks.get(`meal:${meal.id}`)!.title}</span>}
             </button>
           })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> {t('Vote open')}</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={t('Plan {meal} for {day}', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">{t('Plan meal')}</span></button> : !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label={t('No meal planned')}>—</span>}</td>)}
           {compactWeek && admin && freeSlot(date) && <td className="meal-day-add"><button className="meal-add" aria-label={t('Plan a meal for {day}', { day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot: freeSlot(date)! } })}><PlusIcon width={16} height={16} /> {t('Plan a meal')}</button></td>}

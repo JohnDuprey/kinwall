@@ -1,3 +1,4 @@
+import {loadAway} from '../away.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { goalProgressFor } from '../chore-goals.ts';
 // Activity plugins. A plugin is a small web page (HTML/JS/CSS/images) that shows up under Activities.
@@ -709,7 +710,7 @@ async function choreProgress(c: Context<{ Bindings: Env }>, id: string, member: 
   const [playRes, choresRes, doneRes, notYetRes] = await db.batch<unknown>([
     db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(date, member, id),
     // Theirs, and Anyone chores (whoever gets there first earns those).
-    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at`).bind(id, member),
+    db.prepare(`SELECT * FROM chores WHERE ${schoolworkVisibleSql()} AND active = 1 AND plugin_id = ? ORDER BY sort, created_at`).bind(id),
     db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(date),
     // A parent said "Not yet": play time alone doesn't send it back, the kid ticks it again.
     db.prepare('SELECT chore_id FROM chore_rejections WHERE date = ?').bind(date),
@@ -719,7 +720,8 @@ async function choreProgress(c: Context<{ Bindings: Env }>, id: string, member: 
   const done = new Set((doneRes.results as { chore_id: string }[]).map((r) => r.chore_id));
   const out: z.infer<typeof ActivityChoreProgressSchema>[] = [];
   const goalStates = await goalProgressFor(db, choresRes.results as ChoreRow[], date);
-  for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => dueOnDate(r, date, tz) && (!goalStates.get(r.id)?.full || done.has(r.id)))) {
+  const away=await loadAway(db,date,date);
+  for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => away.forMember(r,date,member) && dueOnDate(r, date, tz) && (!goalStates.get(r.id)?.full || done.has(r.id)))) {
     const needSeconds = (ch.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60;
     let completed = done.has(ch.id);
     let justCompleted = false;

@@ -247,7 +247,13 @@ test('mcp: tools/list returns the tools', async () => {
     'update_upkeep_job',
     'update_upkeep_thing',
     'vote_poll',
-  ]);
+  ].concat([
+    'list_trips', 'get_trip', 'create_trip', 'update_trip', 'delete_trip', 'mark_trip_interest',
+    'save_trip_stop', 'save_trip_stay_group', 'save_trip_stay', 'save_trip_leg', 'save_trip_activity',
+    'delete_trip_part', 'start_trip_stay_vote', 'choose_trip_stay', 'publish_trip_calendar',
+    'preview_trip_dates', 'preview_trip_stay', 'list_away_periods', 'get_away_period',
+    'preview_away_period', 'save_away_period', 'end_away_period',
+  ]).sort());
 });
 
 test('mcp: list_events and complete_chore round-trip against the sqlite adapter', async () => {
