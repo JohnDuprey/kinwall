@@ -35,6 +35,15 @@
 .recipe-card > strong { font-size: 1.0625rem; font-weight: 700; } /* a button's 13px otherwise: the name is what you scan for */
 .meals-filters-btn { flex: none; position: relative; width: 52px; height: 52px; align-self: flex-end; }
 .recipe-card p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-dim); white-space: pre-wrap; }
+.recipe-tag-filter { min-width: 0; max-width: 100%; }
+.meals-toolbar .recipe-tag-filter { width: 10rem; }
+.recipe-library-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.recipe-tag-action { min-height: 44px; min-width: 44px; }
+.recipe-tag-chips { margin: 0 0 12px; padding: 0; list-style: none; align-items: center; }
+.recipe-tag-chips .chip { max-width: 100%; min-width: 0; overflow-wrap: anywhere; text-align: start; }
+.recipe-tag-chips .chip > span { min-width: 0; }
+.recipe-tag-chips .chip > svg { flex: none; }
+.recipe-tag-row > span { min-width: 0; overflow-wrap: anywhere; }
 .meal-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .meal-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 /* The shared .field inputs (styles.css) cover text, date, time and URL; number and search look the same here. */

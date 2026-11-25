@@ -84,9 +84,11 @@ in plaintext. Each process retains at most 128 cached counts per database.
 
 ### Recipe reads
 
-Single-recipe reads use direct equality filters for the recipe, ingredients, ratings and
-favorites, so opening one recipe does not scan the library. Query-plan regression tests
-cover these reads.
+Single-recipe reads use direct equality filters for the recipe and related rows, including tags,
+so opening one recipe does not scan the library. Tag filtering starts with the reverse tag link
+index and limits related recipe data to the matching IDs in one database batch. The browser
+filters its existing library data as picks change. Query-plan and read-cost regression tests
+cover the indexed paths.
 
 ### Home routine polling
 

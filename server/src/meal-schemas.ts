@@ -44,13 +44,21 @@ export const RecipeStepSchema = z.object({
 }).openapi('RecipeStep');
 const steps = z.array(RecipeStepInputSchema).max(100).nullable()
   .describe('Structured steps; when set they replace instructions, which is kept as the same steps in numbered text. null clears them (instructions stays as sent).');
+export const RecipeTagIdSchema = z.string().uuid();
+export const RecipeTagIdsSchema = z.array(RecipeTagIdSchema).max(50)
+  .describe('Up to 50 household recipe tag IDs. When supplied on a save, replaces the recipe tags.');
+export const RecipeTagNameSchema = z.string().trim().overwrite(name => name.replace(/\s+/gu, ' ')).min(1).max(60)
+  .refine(name => !/\p{Cc}/u.test(name), 'must be a name without control characters');
+export const RecipeTagSchema = z.object({ id: RecipeTagIdSchema, name: RecipeTagNameSchema }).openapi('RecipeTag');
+export type RecipeTag = z.infer<typeof RecipeTagSchema>;
+
 export const RecipeInputSchema = z.object({
   name: z.string().trim().min(1).max(200), description: text.optional(), instructions: text.optional(),
   preparationNotes: text.optional(), sourceUrl: url.optional(), imageUrl: url.optional().describe('Photo link (served through GET /api/recipes/{id}/image).'), defaultServings: servings.optional(),
   steps: steps.optional(),
   prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   archived: z.boolean().optional(), ingredients: z.array(IngredientInputSchema).max(300).optional(),
-  kind: RecipeKindSchema.optional(), makes: makes.optional(),
+  kind: RecipeKindSchema.optional(), makes: makes.optional(), tagIds: RecipeTagIdsSchema.optional(),
 }).strict().openapi('RecipeInput');
 export const RecipeSchema = z.object({
   id: z.string(), name: z.string(), description: text, instructions: text, preparationNotes: text, sourceUrl: url,
@@ -68,6 +76,7 @@ export const RecipeSchema = z.object({
   }).optional(),
   cookedCount: z.number().int().nonnegative().optional().describe('Number of linked meals marked prepared, across all dates.'),
   lastCookedDate: z.string().nullable().optional().describe('Latest meal date marked prepared (null when never cooked); not the time it was marked.'),
+  tags: z.array(RecipeTagSchema).max(50).optional().describe('Household recipe tags. Optional in older exports.'),
   favoritedBy: z.array(z.string()).optional().describe('Member ids who marked it a favorite (a heart).'),
   share: z.object({ url: z.string(), createdAt: z.string() }).nullable().optional().describe('Admin keys only: the public link (POST /api/recipes/{id}/share), or null when not shared.'),
   createdAt: z.string(), updatedAt: z.string(),
@@ -86,7 +95,7 @@ export const RecipeImportSchema = z.object({
   source: z.string().trim().min(1).max(50).describe('Where the recipe comes from, e.g. hellofresh.'),
   externalId: z.string().trim().min(1).max(2000).describe("The source's own recipe id (for a web page, its address); importing it again updates the same recipe."),
   name: z.string().trim().min(1).max(200), description: text.optional(), sourceUrl: url.optional().describe('Recipe card link.'), imageUrl: url.optional(),
-  kind: RecipeKindSchema.optional(), makes: makes.optional(),
+  kind: RecipeKindSchema.optional(), makes: makes.optional(), tagIds: RecipeTagIdsSchema.optional(),
   servings: servings.optional().describe('Servings the ingredient amounts are for.'),
   prepMinutes: minutes.optional().describe('Hands-on prep time in minutes.'), totalMinutes: minutes.optional().describe('Total time in minutes, prep included.'),
   ingredients: z.array(z.union([

@@ -1,7 +1,7 @@
 // Meal planning domain: recipes are definitions; a meal owns the snapshot it was planned with.
 import type { KinwallDb, KinwallStatement } from './db.ts';
 import type { Actor } from './auth.ts';
-import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type RecipeStep, type Projection } from './meal-schemas.ts';
+import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type RecipeTag, type RecipeStep, type Projection } from './meal-schemas.ts';
 import { fillPlace, itemKey, recall } from './item-memory.ts';
 import { words, type Lang } from './i18n.ts';
 
@@ -103,17 +103,35 @@ const snapshotApi = (s: NonNullable<Meal['recipeSnapshot']>) => ({ ...s, ingredi
 export function mealApi(r: MealRow): Meal {
   return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? snapshotApi(JSON.parse(r.recipe_snapshot)) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, eaterIds: r.eater_ids ? JSON.parse(r.eater_ids) : [], notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, calendarEventStart: r.calendar_event_start ?? null, status: r.status, sourceUrl: r.source_url, restaurantId: r.restaurant_id ?? null, orderType: r.order_type ?? null, orders: r.orders_json ? JSON.parse(r.orders_json) : [], createdAt: r.created_at, updatedAt: r.updated_at };
 }
-export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string; kind?: Recipe['kind']; favoriteOf?: string } = {}): Promise<Recipe[]> {
-  // Direct equality lets SQLite seek one recipe and its related rows, rather than scanning
-  // the whole library for an optional (? IS NULL OR id = ?) filter.
-  const related = opts.id === undefined ? [] : [opts.id];
-  const [recipes, ingredients, ratings, favorites, cooking] = await db.batch<unknown>([
-    db.prepare(`SELECT * FROM recipes WHERE ${related.length ? 'id=?' : '1'} AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, '')), lower(?)) > 0) ORDER BY name, id`).bind(...related, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
-    db.prepare(`SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id${related.length ? ' WHERE i.recipe_id = ?' : ''} ORDER BY i.sort, i.id`).bind(...related),
-    db.prepare(`SELECT recipe_id, member_id, stars FROM recipe_ratings${related.length ? ' WHERE recipe_id = ?' : ''}`).bind(...related),
-    db.prepare(`SELECT recipe_id, member_id FROM recipe_favorites${related.length ? ' WHERE recipe_id = ?' : ''} ORDER BY member_id`).bind(...related),
-    db.prepare(`SELECT recipe_id, count(*) AS cooked_count, max(date) AS last_cooked_date FROM meals WHERE status = 'prepared' AND recipe_id IS NOT NULL${related.length ? ' AND recipe_id = ?' : ''} GROUP BY recipe_id`).bind(...related),
+export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string; kind?: Recipe['kind']; favoriteOf?: string; tagIds?: string[]; includeTags?: boolean } = {}): Promise<Recipe[]> {
+  // The reverse index finds recipes with all requested tags. The same candidate set bounds
+  // all related reads in the batch. Single-recipe reads still use direct equality.
+  const tagIds = [...new Set(opts.tagIds)];
+  const candidates = tagIds.length ? `WITH matching_recipes AS (
+    SELECT links.recipe_id FROM json_each(?) AS chosen
+    CROSS JOIN recipe_tag_links links ON links.tag_id = chosen.value
+    ${opts.id === undefined ? '' : 'WHERE links.recipe_id = ?'}
+    GROUP BY links.recipe_id HAVING count(*) = ?
+  ) ` : '';
+  const exact = opts.id === undefined ? [] : [opts.id];
+  const related = candidates ? [JSON.stringify(tagIds), ...exact, tagIds.length] : exact;
+  const match = (column: string) => candidates ? `${column} IN (SELECT recipe_id FROM matching_recipes)` : opts.id === undefined ? '1' : `${column} = ?`;
+  const includeTags = opts.includeTags || tagIds.length > 0;
+  const [recipes, ingredients, ratings, favorites, cooking, tags] = await db.batch<unknown>([
+    db.prepare(`${candidates}SELECT * FROM recipes WHERE ${match('id')} AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, '')), lower(?)) > 0) ORDER BY name, id`).bind(...related, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
+    db.prepare(`${candidates}SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id WHERE ${match('i.recipe_id')} ORDER BY i.sort, i.id`).bind(...related),
+    db.prepare(`${candidates}SELECT recipe_id, member_id, stars FROM recipe_ratings WHERE ${match('recipe_id')}`).bind(...related),
+    db.prepare(`${candidates}SELECT recipe_id, member_id FROM recipe_favorites WHERE ${match('recipe_id')} ORDER BY member_id`).bind(...related),
+    db.prepare(`${candidates}SELECT recipe_id, count(*) AS cooked_count, max(date) AS last_cooked_date FROM meals WHERE status = 'prepared' AND recipe_id IS NOT NULL AND ${match('recipe_id')} GROUP BY recipe_id`).bind(...related),
+    ...(includeTags ? [db.prepare(`${candidates}SELECT links.recipe_id, t.id, t.name FROM recipe_tag_links links
+      JOIN recipe_tags t ON t.id = links.tag_id WHERE ${match('links.recipe_id')} ORDER BY t.name_key, t.id`).bind(...related)] : []),
   ]);
+  const tagsByRecipe = new Map<string, RecipeTag[]>();
+  for (const { recipe_id, id, name } of (tags?.results ?? []) as (RecipeTag & { recipe_id: string })[]) {
+    const values = tagsByRecipe.get(recipe_id) ?? [];
+    values.push({ id, name });
+    tagsByRecipe.set(recipe_id, values);
+  }
   const cookedBy = new Map((cooking.results as { recipe_id: string; cooked_count: number; last_cooked_date: string }[]).map(r => [r.recipe_id, r]));
   const starsBy = new Map<string, Record<string, number>>();
   for (const r of ratings.results as { recipe_id: string; member_id: string; stars: number }[]) starsBy.set(r.recipe_id, { ...starsBy.get(r.recipe_id), [r.member_id]: r.stars });
@@ -124,7 +142,14 @@ export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: s
     const values = byRecipe.get(row.recipe_id) ?? [];
     values.push(ingredientApi(row)); byRecipe.set(row.recipe_id, values);
   }
-  return (recipes.results as RecipeRow[]).map((r) => ({ ...recipeApi(r, byRecipe.get(r.id) ?? []), cookedCount: cookedBy.get(r.id)?.cooked_count ?? 0, lastCookedDate: cookedBy.get(r.id)?.last_cooked_date ?? null, rating: ratingApi(starsBy.get(r.id) ?? {}), favoritedBy: lovedBy.get(r.id) ?? [] }))
+  return (recipes.results as RecipeRow[]).map((r) => ({
+    ...recipeApi(r, byRecipe.get(r.id) ?? []),
+    ...(includeTags && { tags: tagsByRecipe.get(r.id) ?? [] }),
+    cookedCount: cookedBy.get(r.id)?.cooked_count ?? 0,
+    lastCookedDate: cookedBy.get(r.id)?.last_cooked_date ?? null,
+    rating: ratingApi(starsBy.get(r.id) ?? {}),
+    favoritedBy: lovedBy.get(r.id) ?? [],
+  }))
     .filter((r) => (!opts.category || r.ingredients.some((i) => normalizeIngredient(i.category ?? '') === normalizeIngredient(opts.category!))) && (!opts.favoriteOf || r.favoritedBy.includes(opts.favoriteOf)));
 }
 // Each meal's orders ride along as JSON, so reading meals stays one query.

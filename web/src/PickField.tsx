@@ -14,7 +14,7 @@ export const PickSwatch = ({ color }: { color: string }) => <span className="pic
  * Single choice picks and closes; multiple toggles, with Clear and Done. Search shows for long
  * lists. `top` rows (a detected timezone) are listed first, with the rest in `options` order.
  * `add`: a first row to make a new one ("New school…"); it closes the sheet and hands over the search text. */
-export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = t('Search'), none = t('None'), summary, add }: {
+export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = t('Search'), none = t('None'), summary, add, maxSelections, hint }: {
   id?: string
   label: string // what the row is for, read with its value: "Categories: Medical, School"
   title?: string
@@ -26,6 +26,8 @@ export default function PickField({ id, label, title = label, options: given, va
   placeholder?: string
   none?: string // what an empty choice says
   summary?: string // the row's text, when the options' labels don't say it best
+  maxSelections?: number
+  hint?: string
   add?: { label: string; onAdd: (query: string) => void }
 }) {
   const [open, setOpen] = useState(false)
@@ -36,14 +38,16 @@ export default function PickField({ id, label, title = label, options: given, va
   const text = summary ?? pickSummary(options, value, none)
   const lead = !multiple ? options.find(o => o.value === value[0])?.lead : null
   const close = () => { setOpen(false); setQuery('') }
+  const atLimit = multiple && maxSelections !== undefined && value.length >= maxSelections
   const choose = (v: string) => {
+    if (atLimit && !value.includes(v)) return
     if (!multiple) { onChange([v]); close(); return }
     onChange(value.includes(v) ? value.filter(x => x !== v) : options.filter(o => o.value === v || value.includes(o.value)).map(o => o.value))
   }
   // Arrows move between the search field and the rows, as in the recipe picker.
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('input, .sheet-link')]
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('input, .sheet-link:not(:disabled)')]
     const next = items[items.indexOf(document.activeElement as HTMLElement) + (e.key === 'ArrowDown' ? 1 : -1)]
     if (next) { e.preventDefault(); next.focus() }
   }
@@ -58,11 +62,13 @@ export default function PickField({ id, label, title = label, options: given, va
       <div className={searchable ? 'pick-sheet pick-sheet-search' : 'pick-sheet'} onKeyDown={onKey}>
         {searchable && <div className="field"><input type="search" aria-label={t('Search {what}', { what: lang() === 'de' ? title : title.toLocaleLowerCase() })} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); choose(shown[0].value) } }} /></div>}
+        {hint && <p className="field-hint">{hint}</p>}
+        {atLimit && <p className="field-hint" role="status">{t('You can choose up to {n}.', { n: maxSelections! })}</p>}
         <div className="sheet-links">
           {add && <button type="button" className="sheet-link pick-add" onClick={() => { const q = query.trim(); close(); add.onAdd(q) }}><PlusIcon aria-hidden="true" /><span>{add.label}</span></button>}
           {shown.map(o => {
             const on = value.includes(o.value)
-            return <button key={o.value} type="button" className="sheet-link" aria-pressed={on} onClick={() => choose(o.value)}>
+            return <button key={o.value} type="button" className="sheet-link" disabled={atLimit && !on} aria-pressed={on} onClick={() => choose(o.value)}>
               {o.lead}<span>{o.label}{o.detail && <small>{o.detail}</small>}</span>{on && <CheckIcon className="pick-check" />}
             </button>
           })}

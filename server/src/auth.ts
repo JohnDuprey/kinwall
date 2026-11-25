@@ -208,6 +208,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/announcements$/ },
   { method: 'PUT', pattern: /^\/api\/push\/(native|android)$/ },
   { method: 'GET', pattern: /^\/api\/recipes(\/[^/]+)?$/ },
+  { method: 'GET', pattern: /^\/api\/recipe-tags$/ },
   { method: 'PUT', pattern: /^\/api\/recipes\/[^/]+\/(rating|favorite)$/ }, // family members rate and heart dinners (a member's own device only for them)
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/source\.pdf$/ }, // the recipe card viewer
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/image$/ }, // recipe photos

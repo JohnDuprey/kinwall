@@ -180,6 +180,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_outings',
     'list_pending_approvals',
     'list_polls',
+    'list_recipe_tags',
     'list_recipes',
     'list_remembered_items',
     'list_restaurants',
@@ -560,7 +561,7 @@ test('mcp: every tool declares permission hints, and the server advertises its i
   assert.equal(byName.create_list.readOnlyHint, false);
   assert.equal(byName.delete_event.destructiveHint, true);
   for (const t of tools.filter((x) => x.name.startsWith('delete_'))) assert.equal(t.annotations.destructiveHint, true, t.name);
-  for (const name of ['list_recipes', 'get_recipe', 'list_meals', 'get_meal_projection']) {
+  for (const name of ['list_recipe_tags', 'list_recipes', 'get_recipe', 'list_meals', 'get_meal_projection']) {
     assert.equal(byName[name].readOnlyHint, true, name);
     assert.equal(byName[name].idempotentHint, true, name);
     assert.equal(byName[name].openWorldHint, false, name);

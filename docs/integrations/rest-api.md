@@ -133,6 +133,20 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 | Security activity | `GET /api/security-events?limit=&before=&q=&kinds=` (admin only). See [Security activity](#security-activity). |
 
+**Recipe tags.** `GET /api/recipe-tags` lists the household's reusable tags as `{ id, name }`
+entries, including tags with no recipes. Use `POST /api/recipe-tags` or
+`PATCH /api/recipe-tags/{id}` with `{ name }` to create or rename a tag. Names are 1–60
+characters after collapsing whitespace, and names that differ only in case or whitespace
+return `409`. `DELETE /api/recipe-tags/{id}` removes the tag from every recipe and leaves the
+recipes in place. Display keys can read tags. Managing or assigning tags requires full access.
+
+Recipe responses include `tags` (an array of `{ id, name }` entries). Recipe create, edit and
+structured import accept optional `tagIds` (up to 50 IDs). On edit or reimport, omitting
+`tagIds` keeps existing assignments, and `[]` removes all assignments. A tag ID outside the
+household or no longer available returns `400` and leaves the recipe unchanged.
+`GET /api/recipes?tagIds=id1,id2` requires every listed tag and can be combined with the existing
+query filters.
+
 Recipe reads include `cookedCount` (the number of linked meals marked `prepared` across all dates) and `lastCookedDate` (the latest such meal date, or `null`). These are derived from meal history and update when meals are edited or deleted. `createdAt` remains the date the recipe was first added.
 
 `GET /api/medications/due` also returns `checkedAt` (the server time for its answer)

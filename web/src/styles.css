@@ -841,6 +841,7 @@ button.month-cell .month-daynum { flex: none; }
 .sheet-link > svg:last-child { color: var(--text-dim); }
 .sheet-link[aria-current], .sheet-link[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-alt)); }
 /* PickField: a .sheet-link row that opens a sheet of choices (a leading swatch or avatar, a check on the chosen). */
+.pick-sheet .sheet-link > span { overflow-wrap: anywhere; }
 .pick-btn > .pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .sheet-link > svg.pick-check { color: var(--accent-strong); }
 .sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch { flex: none; } /* not the label's flex: 1 */

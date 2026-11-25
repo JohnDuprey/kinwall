@@ -15,7 +15,7 @@ import { libraryQuery } from './library.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeTag, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
 import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolDays, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
@@ -279,7 +279,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockWeeklyPlanningRequest } = await import('./mock-weekly-planning.ts')
     return mockWeeklyPlanningRequest(path, opts) as Promise<T>
   }
-  if (MOCK && /^api\/(meals|recipes|restaurants)([/?]|$)/.test(path)) {
+  if (MOCK && /^api\/(meals|recipes|recipe-tags|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
   }
@@ -352,6 +352,8 @@ const qs = (q: Record<string, string | undefined>) => { const p = new URLSearchP
 
 const routinePath = (id: string) => ['api', 'routine-mode', U(id)].join('/')
 
+const recipeTagsPath = 'api/recipe-tags'
+
 export const api = {
   getWeeklyPlanning: (weekStart?: string) => get<WeeklyPlanning>('api/weekly-plan' + qs({ weekStart })),
   saveWeeklyDraft: (weekStart: string, revision: number, draft: PlanningDraft) => put<WeeklyPlanning>('api/weekly-plan/' + encodeURIComponent(weekStart), { revision, draft }),
@@ -369,6 +371,10 @@ export const api = {
   previewContactImport: (body: { vcard: string } | { contacts: ContactInput[] }) => MOCK ? mock.previewContactImport(body) : post<{ entries: ImportPreviewEntry[] }>('api/contacts/import/preview', body),
   importContacts: (body: { contacts: ContactInput[]; strategy: 'create' | 'merge'; mergeTargets?: string[]; confirmMerge?: true }) => MOCK ? mock.importContacts(body) : post<{ created: number; merged: number; skipped: number; ids: string[] }>('api/contacts/import', body),
   getRecipes: (archived = false) => get<Recipe[]>(`api/recipes?archived=${archived}`),
+  getRecipeTags: () => get<RecipeTag[]>(recipeTagsPath),
+  createRecipeTag: (name: string) => post<RecipeTag>(recipeTagsPath, { name }),
+  renameRecipeTag: (id: string, name: string) => patch<RecipeTag>(`${recipeTagsPath}/${encodeURIComponent(id)}`, { name }),
+  deleteRecipeTag: (id: string) => del(`${recipeTagsPath}/${encodeURIComponent(id)}`),
   createRecipe: (body: RecipeInput) => post<Recipe>('api/recipes', body),
   getRecipe: (id: string) => get<Recipe>(`api/recipes/${encodeURIComponent(id)}`),
   // Read a recipe page (or pasted text) into a preview; nothing is saved until importRecipe.

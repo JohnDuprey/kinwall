@@ -14,10 +14,11 @@ import { createRouter } from '../router.ts';
 import { emit, type BusEventType } from '../bus.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
 import type { Env } from '../env.ts';
-import { RecipeSchema, MealSchema, RestaurantSchema } from '../meal-schemas.ts';
+import { RecipeSchema, RecipeTagSchema, MealSchema, RestaurantSchema } from '../meal-schemas.ts';
 import { readRestaurants } from './restaurants.ts';
 import { parseFilter } from '../calendar-filter.ts';
 import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
+import { readRecipeTags, recipeTagImportWrites } from '../recipe-tags.ts';
 import { CATALOGS, itemKey, looksLikeGroceries, type Catalog } from '../item-memory.ts';
 import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
@@ -209,6 +210,7 @@ const ExportSchema = z
     rewardMilestones: z.array(MilestoneExportSchema),
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
     recipes: z.array(RecipeSchema),
+    recipeTags: z.array(RecipeTagSchema).optional(),
     meals: z.array(MealSchema),
     // The restaurant binder (0100), each with its menu.
     restaurants: z.array(RestaurantSchema),
@@ -449,7 +451,8 @@ dataRoutes.openapi(
         rewardMilestones: await exportMilestones(db),
         // opened: the export is the family's own backup; a connected app without aiHealthAccess gets no health
         trackers: (await Promise.all((trackers as TrackerRow[]).filter((r) => r.kind !== 'health' || !healthHidden).map((r) => openRow(c.env, r)))).map(toTrackerApi),
-        recipes: await readRecipes(db, { archived: true }),
+        recipes: await readRecipes(db, { archived: true, includeTags: true }),
+        recipeTags: await readRecipeTags(db),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         restaurants: await readRestaurants(db, { archived: true }),
         weeklyPlans: await exportWeeklyPlans(db),
@@ -1132,6 +1135,7 @@ dataRoutes.openapi(
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
       ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, steps: r.steps ? JSON.stringify(r.steps) : null, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, prep_minutes: r.prepMinutes ?? null, total_minutes: r.totalMinutes ?? null, archived: r.archived ? 1 : 0, source: r.source ?? null, external_id: r.externalId ?? null, image_url: r.imageUrl ?? null, kind: r.kind, makes: r.makes, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
+      ...recipeTagImportWrites(db, body.recipeTags ?? [], body.recipes),
       // Replace each imported recipe's ingredient set, including intentionally empty sets.
       db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.recipes.map((r) => r.id))),
       ...upserts(db, 'recipe_ingredients', 'id', body.recipes.flatMap((r) => r.ingredients.map((i) => ({ id: i.id, recipe_id: r.id, name: i.name, normalized_name: normalizeIngredient(i.name), quantity: i.quantity, unit: i.unit, preparation: i.preparation, qualifier: i.qualifier, category: i.category, sort: i.sort, basic_id: i.basicId ?? null }))),
@@ -1218,6 +1222,7 @@ dataRoutes.openapi(
       ['tempcheck.changed', tempChecks.length],
       ['journal.changed', journalEntries.length],
       ['recipe.changed', body.recipes.length],
+      ['recipe.tag.changed', body.recipeTags?.length ?? 0],
       ['meal.changed', body.meals.length],
       ['restaurant.changed', body.restaurants.length],
       ['weekly-plan.changed', body.weeklyPlans.length],

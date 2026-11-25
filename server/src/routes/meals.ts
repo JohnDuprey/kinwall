@@ -1,12 +1,13 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { createRouter } from '../router.ts';
 import { actorOf, ownerBlock, resolveKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipeTagIdsSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, importIngredient, matchBasic, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
@@ -17,7 +18,7 @@ import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.t
 import { parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
 import { checkRate } from '../ratelimit.ts';
-import { familyLang, msg, perLang, requestLang, tm, words } from '../i18n.ts';
+import { familyLang, msg, perLang, requestLang, stored, tm, words } from '../i18n.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -30,20 +31,25 @@ const errors = {
 const ASK_ORDERS_PER_HOUR = 10;
 const providerError = { 502: { description: 'the calendar provider refused the event change', content: { 'application/json': { schema: ErrorSchema } } } };
 const ok = { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } };
+const recipeTagQuery = z.string().max(50 * 37 - 1)
+  .refine(value => RecipeTagIdsSchema.safeParse(value.split(',')).success, 'must be a comma-separated list of up to 50 recipe tag IDs')
+  .describe('Comma-separated recipe tag IDs. Every selected tag must match.');
 const recipeResponse = { description: 'recipe', content: { 'application/json': { schema: RecipeSchema } } };
 const mealResponse = { description: 'meal', content: { 'application/json': { schema: MealSchema } } };
 const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
 
-mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes; favoriteOf=<member id> only their favorites)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional(), kind: RecipeKindSchema.optional(), favoriteOf: z.string().optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } } } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes; favoriteOf=<member id> only their favorites)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional(), kind: RecipeKindSchema.optional(), favoriteOf: z.string().optional(), tagIds: recipeTagQuery.optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } }, 400: errors[400] } }), async (c) => {
   const query = c.req.valid('query');
-  return c.json(await withShares(c, await readRecipes(c.env.DB, { ...query, archived: query.archived === 'true' })), 200);
+  return c.json(await withShares(c, await readRecipes(c.env.DB, { ...query, archived: query.archived === 'true', tagIds: query.tagIds?.split(','), includeTags: true })), 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Get a recipe', security: [{ Bearer: [] }], request: { params }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
-  const recipe = (await withShares(c, await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true })))[0];
+  const recipe = (await withShares(c, await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true, includeTags: true })))[0];
   return recipe ? c.json(recipe, 200) : c.json({ error: 'recipe not found' }, 404);
 });
 
-async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema>, old: Recipe | undefined, createdBy: string | null): Promise<Recipe> {
+type RecipeImportSource = Pick<z.infer<typeof RecipeImportSchema>, 'source' | 'externalId' | 'imageUrl'>;
+
+async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema>, old: Recipe | undefined, createdBy: string | null, imported?: RecipeImportSource): Promise<Recipe> {
   const id = old?.id ?? crypto.randomUUID();
   const now = new Date().toISOString();
   // Structured steps win: instructions follows them. Instructions sent alone replace the steps.
@@ -52,6 +58,8 @@ async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema
   if (recipe.steps) recipe.instructions = stepsText(recipe.steps);
   const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,steps,preparation_notes,source_url,image_url,default_servings,prep_minutes,total_minutes,archived,kind,makes,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,steps=excluded.steps,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,image_url=excluded.image_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,kind=excluded.kind,makes=excluded.makes,updated_at=excluded.updated_at`)
     .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.steps ? JSON.stringify(recipe.steps) : null, recipe.preparationNotes, recipe.sourceUrl, recipe.imageUrl ?? null, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, recipe.kind, recipe.makes || null, createdBy, recipe.createdAt, now)];
+  if (imported) writes.push(db.prepare('UPDATE recipes SET source = ?, external_id = ?, image_url = coalesce(?, image_url) WHERE id = ?')
+    .bind(imported.source, imported.externalId, imported.imageUrl ?? null, id));
   // No longer a basic: lines made from it keep their text, unlinked.
   if (recipe.kind !== 'basic') writes.push(db.prepare('UPDATE recipe_ingredients SET basic_id = NULL WHERE basic_id = ?').bind(id));
   if (input.ingredients !== undefined || !old) {
@@ -69,8 +77,23 @@ async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema
       SELECT value->>'id',?,value->>'name',value->>'normalized_name',value->>'quantity',value->>'unit',value->>'preparation',value->>'qualifier',value->>'category',value->>'sort',
         (SELECT b.id FROM recipes b WHERE b.id = value->>'basic_id' AND b.kind = 'basic' AND b.id != ?) FROM json_each(?)`).bind(id, id, JSON.stringify(ingredients)));
   }
-  await db.batch(writes);
-  return (await readRecipes(db, { id, archived: true }))[0];
+  if (input.tagIds !== undefined) {
+    writes.push(
+      db.prepare('DELETE FROM recipe_tag_links WHERE recipe_id = ?').bind(id),
+      db.prepare('INSERT INTO recipe_tag_links (recipe_id, tag_id) SELECT ?, value FROM json_each(?)')
+        .bind(id, JSON.stringify([...new Set(input.tagIds)])),
+    );
+  }
+  try {
+    await db.batch(writes);
+  } catch (error) {
+    // The FK check is in the write batch, so a missing or just-deleted tag rolls back the whole save.
+    if (input.tagIds?.length && error instanceof Error && /FOREIGN KEY constraint failed/i.test(error.message)) {
+      throw new HTTPException(400, { message: stored('error', 'A selected recipe tag is no longer available.') });
+    }
+    throw error;
+  }
+  return (await readRecipes(db, { id, archived: true, includeTags: true }))[0];
 }
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes', tags: ['Meals'], summary: 'Create a recipe (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeInputSchema) }, responses: { 201: recipeResponse, ...errors } }), async (c) => {
   const recipe = await saveRecipe(c.env.DB, c.req.valid('json'), undefined, (await resolveKey(c))?.id ?? null);
@@ -79,32 +102,46 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes', tags: ['
 /** Save an imported recipe, updating the one with the same source + externalId. */
 async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchema>, 'plan'>): Promise<{ recipe: Recipe; created: boolean }> {
   const db = c.env.DB;
-  const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
-  const old = found ? (await readRecipes(db, { id: found.id, archived: true }))[0] : undefined;
-  // A line links to the family's basic of the same name: the basic a share link names, else its own
-  // name ("Taco Seasoning Blend" is "Taco seasoning"). Otherwise it keeps the link it had.
+  const find = () => db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
+  const found = await find();
   const basics = await readRecipes(db, { kind: 'basic' });
-  const ingredients = input.ingredients.map((line, sort) => {
-    const { basic, ...ingredient } = importIngredient(line);
-    const linked = (basic && matchBasic(basic, basics, old?.id)) || matchBasic(ingredient.name, basics, old?.id);
-    return { ...ingredient, sort, ...(linked && { basicId: linked.id }) };
-  });
-  const recipe = await saveRecipe(db, {
-    name: input.name, ingredients,
-    ...(input.kind !== undefined && { kind: input.kind }),
-    ...(input.makes !== undefined && { makes: input.makes }),
-    ...(input.description !== undefined && { description: input.description }),
-    ...(input.sourceUrl !== undefined && { sourceUrl: input.sourceUrl }),
-    ...(input.servings !== undefined && { defaultServings: input.servings }),
-    ...(input.prepMinutes !== undefined && { prepMinutes: input.prepMinutes }),
-    ...(input.totalMinutes !== undefined && { totalMinutes: input.totalMinutes }),
-    ...(input.steps !== undefined && { steps: input.steps.length ? normalizeSteps(input.steps) : null, instructions: null }),
-  }, old, old ? null : (await resolveKey(c))?.id ?? null);
-  // ponytail: two simultaneous first imports of one recipe race here; the unique index turns the loser into an error.
-  await db.prepare('UPDATE recipes SET source = ?, external_id = ?, image_url = coalesce(?, image_url) WHERE id = ?').bind(input.source, input.externalId, input.imageUrl ?? null, recipe.id).run();
-  emit(c, 'recipe.changed', { id: recipe.id });
-  return { recipe, created: !old };
+  const save = async (existingId?: string) => {
+    const old = existingId ? (await readRecipes(db, { id: existingId, archived: true }))[0] : undefined;
+    // A line links to the family's basic of the same name: the basic a share link names, else its own
+    // name ("Taco Seasoning Blend" is "Taco seasoning"). Otherwise it keeps the link it had.
+    const ingredients = input.ingredients.map((line, sort) => {
+      const { basic, ...ingredient } = importIngredient(line);
+      const linked = (basic && matchBasic(basic, basics, old?.id)) || matchBasic(ingredient.name, basics, old?.id);
+      return { ...ingredient, sort, ...(linked && { basicId: linked.id }) };
+    });
+    const recipe = await saveRecipe(db, {
+      name: input.name, ingredients, tagIds: input.tagIds,
+      ...(input.kind !== undefined && { kind: input.kind }),
+      ...(input.makes !== undefined && { makes: input.makes }),
+      ...(input.description !== undefined && { description: input.description }),
+      ...(input.sourceUrl !== undefined && { sourceUrl: input.sourceUrl }),
+      ...(input.servings !== undefined && { defaultServings: input.servings }),
+      ...(input.prepMinutes !== undefined && { prepMinutes: input.prepMinutes }),
+      ...(input.totalMinutes !== undefined && { totalMinutes: input.totalMinutes }),
+      ...(input.steps !== undefined && { steps: input.steps.length ? normalizeSteps(input.steps) : null, instructions: null }),
+    }, old, old ? null : (await resolveKey(c))?.id ?? null, input);
+    return { recipe, created: !old };
+  };
+  let result;
+  try {
+    result = await save(found?.id);
+  } catch (error) {
+    // A simultaneous first import may have claimed this source. The batch has rolled back,
+    // so retry as an edit of the winner without leaving an extra recipe or tag links.
+    if (found || !(error instanceof Error) || !/UNIQUE constraint failed: recipes.source, recipes.external_id/i.test(error.message)) throw error;
+    const winner = await find();
+    if (!winner) throw error;
+    result = await save(winner.id);
+  }
+  emit(c, 'recipe.changed', { id: result.recipe.id });
+  return result;
 }
+
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it and put it on a calendar (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
   const input = c.req.valid('json');
   const db = c.env.DB;
@@ -209,7 +246,7 @@ mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/rating
     ? c.env.DB.prepare('INSERT INTO recipe_ratings (recipe_id, member_id, stars) VALUES (?, ?, ?) ON CONFLICT(recipe_id, member_id) DO UPDATE SET stars = excluded.stars').bind(id, memberId, stars)
     : c.env.DB.prepare('DELETE FROM recipe_ratings WHERE recipe_id = ? AND member_id = ?').bind(id, memberId)).run();
   emit(c, 'recipe.changed', { id });
-  return c.json((await readRecipes(c.env.DB, { id, archived: true }))[0], 200);
+  return c.json((await readRecipes(c.env.DB, { id, archived: true, includeTags: true }))[0], 200);
 });
 // A favorite (heart) is a family action like rating, with the same rule: a member's own device only for them.
 mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/favorite', tags: ['Meals'], summary: "Mark or unmark a recipe as a family member's favorite", security: [{ Bearer: [] }], request: { params, body: body(RecipeFavoriteInputSchema) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
@@ -225,7 +262,7 @@ mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/favori
   if (!member.results.length) return c.json({ error: 'member not found' }, 404);
   await c.env.DB.prepare(favorite ? 'INSERT OR IGNORE INTO recipe_favorites (recipe_id, member_id) VALUES (?, ?)' : 'DELETE FROM recipe_favorites WHERE recipe_id = ? AND member_id = ?').bind(id, memberId).run();
   emit(c, 'recipe.changed', { id });
-  return c.json((await readRecipes(c.env.DB, { id, archived: true }))[0], 200);
+  return c.json((await readRecipes(c.env.DB, { id, archived: true, includeTags: true }))[0], 200);
 });
 
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals', tags: ['Meals'], summary: 'Meals in an inclusive date range', security: [{ Bearer: [] }], request: { query: MealRangeSchema }, responses: { 200: { description: 'meals', content: { 'application/json': { schema: z.array(MealSchema) } } }, ...errors } }), async (c) => {
