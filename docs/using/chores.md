@@ -347,3 +347,5 @@ A checklist can still be required; a reusable checklist resets after each tick.
 ## Schoolwork alongside chores
 
 With [School](school.md#schoolwork) on, homework, lessons, tests and projects also appear in each kid’s daily chores. Schoolwork is grouped together after each kid’s ordinary chores, under one **Schoolwork** heading. Pick **Schoolwork** in the category filter to show just that group. A backpack badge names the kind so homework, lessons, tests and projects are easy to tell apart. Tick it off here or in School; both show the same completion and log the same school time. Schoolwork waiting for a parent’s OK carries the same badge in **To approve**. Editing it opens the School editor with its subject, kind and school-time settings. The date strip includes schoolwork, skipping days off unless it is still due or already ticked.
+
+When suggesting a chore, **Make it repeat** and **I already did it today** are on/off switches.
