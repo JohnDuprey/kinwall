@@ -2,8 +2,9 @@
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
+import { t } from './i18n.ts'
 import { matchBasic } from './recipe-search.ts'
-import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type MenuItem, type OrderItem, type Recipe, type RecipeInput, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type MenuItem, type OrderItem, type Recipe, type RecipeInput, type RecipeTag, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
@@ -127,6 +128,17 @@ const link = (recipeId: string, ingredient: string, basicId: string) => {
 }
 link('demo-tacos', 'Taco seasoning', 'demo-taco-seasoning')
 link('demo-pizza', 'Pizza dough', 'demo-pizza-dough')
+const dinnerTag = { id: '00000000-0000-4000-8000-000000000001', name: 'Dinner' }
+const quickTag = { id: '00000000-0000-4000-8000-000000000002', name: 'Quick & Easy' }
+const breakfastTag = { id: '00000000-0000-4000-8000-000000000003', name: 'Breakfast' }
+let recipeTags: RecipeTag[] = [breakfastTag, dinnerTag, quickTag]
+const seedTags: Record<string, RecipeTag[]> = {
+  'demo-tacos': [dinnerTag, quickTag], 'demo-pizza': [dinnerTag], 'demo-oats': [breakfastTag],
+  'demo-pancakes': [breakfastTag, quickTag],
+}
+recipes = recipes.map(recipe => ({ ...recipe, tags: seedTags[recipe.id] ?? [] }))
+const recipeTagKey = (name: string) => name.toLowerCase().normalize('NFC')
+
 // New demo recipes start blank, not as a copy of a seeded one (its description, favorites and steps).
 const blankRecipe: Recipe = { ...seedRecipe('new', '', '', '', '', []), description: null, instructions: null, preparationNotes: null }
 // Each row is Sunday through Saturday; columns match breakfast, lunch, dinner, snack.
@@ -334,14 +346,36 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
       menu: input.menu ? input.menu.map((i, sort) => ({ ...i, id: i.id && old?.menu.some(o => o.id === i.id) ? i.id : crypto.randomUUID(), sort })) : old?.menu ?? [], createdAt: old?.createdAt ?? now, updatedAt: now }
     restaurants = [...restaurants.filter(r => r.id !== saved.id), saved]; return saved
   }
+  if (resource === 'recipe-tags') {
+    if (method === 'GET') return [...recipeTags].sort((a, b) => a.name.localeCompare(b.name))
+    if (id && !recipeTags.some(tag => tag.id === id)) throw new Error(t('Recipe tag not found.'))
+    if (method === 'DELETE') {
+      recipeTags = recipeTags.filter(tag => tag.id !== id)
+      recipes = recipes.map(recipe => ({ ...recipe, tags: recipe.tags?.filter(tag => tag.id !== id) }))
+      return { ok: true }
+    }
+    const name = String(body.name ?? '').trim().replace(/\s+/gu, ' ')
+    if (!name || name.length > 60 || /\p{Cc}/u.test(name)) throw new Error(t('Enter a tag name of up to 60 characters.'))
+    if (recipeTags.some(tag => tag.id !== id && recipeTagKey(tag.name) === recipeTagKey(name))) throw new Error(t('A recipe tag with that name already exists.'))
+    const saved = { id: id ?? crypto.randomUUID(), name }
+    recipeTags = [...recipeTags.filter(tag => tag.id !== id), saved]
+    if (id) recipes = recipes.map(recipe => ({ ...recipe, tags: recipe.tags?.map(tag => tag.id === id ? saved : tag) }))
+    return saved
+  }
   if (resource === 'recipes') {
     if (id === 'import-url' || id === 'parse-text' || id === 'import') throw new Error('The demo can’t read recipe pages. Try it on your own Kinwall.')
-    if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).map(r => {
-      const dates = meals.filter(m => m.recipeId === r.id && m.status === 'prepared').map(m => m.date).sort()
-      return { kind: 'meal' as const, makes: null, ...r, cookedCount: dates.length, lastCookedDate: dates.at(-1) ?? null }
-    })
     const old = recipes.find(r => r.id === id)
     if (id && !old) throw new Error('Recipe not found')
+    if (method === 'GET') {
+      const tagIds = url.searchParams.get('tagIds')?.split(',') ?? []
+      const list = old ? [old] : recipes.filter(r => (url.searchParams.get('archived') === 'true' || !r.archived)
+        && tagIds.every(tagId => r.tags?.some(tag => tag.id === tagId)))
+      const result = list.map(r => {
+        const dates = meals.filter(m => m.recipeId === r.id && m.status === 'prepared').map(m => m.date).sort()
+        return { kind: 'meal' as const, makes: null, ...r, cookedCount: dates.length, lastCookedDate: dates.at(-1) ?? null }
+      })
+      return old ? result[0] : result
+    }
     if (action === 'share') {
       // The demo's links go nowhere: there's no server to show the page.
       const share = method === 'DELETE' ? null : old!.share ?? { url: `${location.origin}/r/demo-${old!.id}`, createdAt: new Date().toISOString() }
@@ -365,8 +399,10 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
       recipes = recipes.map(r => r.id === saved.id ? saved : r); return saved
     }
     if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id).map(r => ({ ...r, ingredients: r.ingredients.map(i => i.basicId === id ? { ...i, basicId: null, basicName: null } : i) })); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
-    const input = body as Partial<RecipeInput>
-    const saved: Recipe = { ...blankRecipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const { tagIds, ...input } = body as Partial<RecipeInput>
+    const selected = tagIds === undefined ? undefined : recipeTags.filter(tag => tagIds.includes(tag.id))
+    if (selected && selected.length !== new Set(tagIds).size) throw new Error(t('A selected recipe tag is no longer available.'))
+    const saved: Recipe = { ...blankRecipe, rating: rated({}), ...old, ...input, tags: selected ?? old?.tags ?? [], id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
     recipes = [...recipes.filter(r => r.id !== saved.id), saved]; return saved
   }
   if (id === 'projection') {

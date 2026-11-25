@@ -5,7 +5,7 @@ import { useApp } from './AppContext.tsx'
 import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
-import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
+import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon, XIcon } from './icons.tsx'
 import { t, tm, tn } from './i18n.ts'
 import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, planDay, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
@@ -13,12 +13,13 @@ import RecipeSheet, { Stars, ratingOwner } from './RecipeSheet.tsx'
 import Sheet from './Sheet.tsx'
 import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
+import { RecipeTagFilter, RecipeTagManager, type RecipeTagChange } from './RecipeTags.tsx'
 import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
-import { useIsPhone } from './useIsPhone.ts'
-import { browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
+import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
+import { availableRecipeTagIds, browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
 import RecipeBrowseControls from './RecipeBrowseControls.tsx'
-import type { Meal, Recipe, RecipeKind, Restaurant } from './meal-types.ts'
+import type { Meal, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
@@ -35,6 +36,8 @@ export default function Meals() {
   const from = days[0], to = days[6]
   // Phones start on one day (a week of cards is a long scroll); Week is a tap away.
   const isPhone = useIsPhone()
+  const shortLandscape = useMediaQuery(SHORT_LANDSCAPE)
+  const compactRecipeFilters = isPhone || shortLandscape
   const [span, setSpan] = useState<'day' | 'week'>('day')
   const dayView = isPhone && span === 'day'
   const step = dayView ? 1 : 7
@@ -46,6 +49,10 @@ export default function Meals() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [recipesLoaded, setRecipesLoaded] = useState(false)
   const [recipeError, setRecipeError] = useState('')
+  const [tagCatalog, setTagCatalog] = useState<RecipeTag[]>()
+  const [tagError, setTagError] = useState('')
+  const [tagIds, setTagIds] = useState<string[]>([])
+  const [managingTags, setManagingTags] = useState(false)
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [restaurantsLoaded, setRestaurantsLoaded] = useState(false)
   const [restaurantError, setRestaurantError] = useState('')
@@ -107,6 +114,18 @@ export default function Meals() {
     api.getRecipes(true).then(values => { if (!canceled) { setRecipes(values); setRecipesLoaded(true); setRecipeError('') } }).catch(e => { if (!canceled) setRecipeError(e instanceof Error ? e.message : t('Could not load recipes.')) })
     return () => { canceled = true }
   }, [tick, refreshTick])
+  const needsTags = view === 'recipes' || !!importing || (!!recipeSheet && !recipeSheet.readOnly)
+  useEffect(() => {
+    if (!needsTags) return
+    let canceled = false
+    api.getRecipeTags().then(tags => {
+      if (canceled) return
+      setTagCatalog(tags)
+      setTagIds(selected => availableRecipeTagIds(selected, tags))
+      setTagError('')
+    }).catch(e => { if (!canceled) setTagError(e instanceof Error ? e.message : t('Could not load recipe tags.')) })
+    return () => { canceled = true }
+  }, [needsTags, tick, refreshTick])
   useEffect(() => {
     let canceled = false
     api.getRestaurants(true).then(values => { if (!canceled) { setRestaurants(values); setRestaurantsLoaded(true); setRestaurantError('') } }).catch(e => { if (!canceled) setRestaurantError(e instanceof Error ? e.message : t('Could not load restaurants.')) })
@@ -128,19 +147,34 @@ export default function Meals() {
   const saved = () => { setEditing(null); setOpenMeal(null); setPendingMeal(null); setRecipeSheet(null); setTick(n => n + 1); reloadCore() }
   const meals = data?.from === from && data.to === to ? data.meals : null
   const mealError = data?.from === from && data.to === to ? data.error : undefined
+  const tagChanged: RecipeTagChange = (id, tag) => {
+    setTagCatalog(current => current && [...current.filter(item => item.id !== id), ...(tag ? [tag] : [])]
+      .sort((a, b) => a.name.localeCompare(b.name)))
+    setRecipes(current => current.map(recipe => recipe.tags?.some(item => item.id === id)
+      ? { ...recipe, tags: recipe.tags.flatMap(item => item.id === id ? (tag ? [tag] : []) : [item]) } : recipe))
+    if (!tag) setTagIds(ids => ids.filter(value => value !== id))
+    setTick(n => n + 1)
+  }
+  const activeTags = tagCatalog?.filter(tag => tagIds.includes(tag.id)) ?? []
+  const clearTags = (keyboard = false) => {
+    if (keyboard) document.getElementById('recipe-search')?.focus()
+    setTagIds([])
+  }
+  const currentRecipe = recipeSheet?.recipe && (recipes.find(r => r.id === recipeSheet.recipe?.id) ?? recipeSheet.recipe)
   // A linked meal (#/meals?meal=: notifications, Spotlight, Siri) opens like a tap here, once access and the library are known.
   const linkedMeal = me && pendingMeal && (recipesLoaded || recipeError) ? meals?.find(meal => meal.id === pendingMeal) : null
   const shownMeal = openMeal ?? linkedMeal
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
-  const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked })
-  const filterCount = [kind, filter !== 'active', category, loved, cooked !== 'all', sort !== 'name'].filter(Boolean).length
+  const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked, tagIds })
+  const filterCount = [kind, filter !== 'active', category, loved, cooked !== 'all', sort !== 'name', tagIds.length > 0].filter(Boolean).length
   const filters = <>
     <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">{t('All')}</option><option value="meal">{t('Meals')}</option><option value="basic">{t('Basics')}</option></select></div>
     <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">{t('Active recipes')}</option><option value="archived">{t('Archived recipes')}</option><option value="all">{t('All recipes')}</option></select></div>
     <div className="field"><label htmlFor="recipe-category">{t('Ingredient category')}</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">{t('All categories')}</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>
     <div className="field"><label htmlFor="recipe-loved">{t('Favorites')}</label><select id="recipe-loved" value={loved} onChange={e => setLoved(e.target.value)}><option value="">{t('All recipes')}</option><option value="any">{t("Anyone's favorites")}</option>{members.map(m => <option key={m.id} value={m.id}>{t("{name}'s favorites", { name: m.name })}</option>)}</select></div>
+    <RecipeTagFilter tags={tagCatalog ?? []} value={tagIds} onChange={setTagIds} />
     <RecipeBrowseControls sort={sort} cooked={cooked} onSort={setSort} onCooked={setCooked} />
   </>
   // Phone Week: a day's empty slots fold into one "+" row (the slot to plan: dinner when it's free).
@@ -189,18 +223,33 @@ export default function Meals() {
     </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       <div className="meals-toolbar">
         <div className="field meals-search"><label htmlFor="recipe-search">{t('Find a recipe')}</label><input id="recipe-search" type="search" placeholder={t('Tacos, rice…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
-        {/* A phone: the search alone, the rest a tap away in a sheet. */}
-        {isPhone ? <button type="button" className={`icon-btn filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
+        {/* Keep results and active tags visible on short screens. */}
+        {compactRecipeFilters ? <button type="button" className={`icon-btn filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
           <FilterIcon width={20} height={20} />{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}</button> : filters}
       </div>
-      {showFilters && isPhone && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
-        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name') }}>{t('Clear filters')}</button>}
+      {showFilters && compactRecipeFilters && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
+        {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name'); setTagIds([]) }}>{t('Clear filters')}</button>}
         <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>{tn(shownRecipes.length, 'Show {n} recipe', 'Show {n} recipes')}</button>
       </>}>{filters}</Sheet>}
+      {activeTags.length > 0 && <div className="chip-row recipe-tag-chips" role="group" aria-label={t('Active recipe tags')}>
+        {activeTags.map(tag => <button key={tag.id} type="button" className="chip" aria-label={t('Remove tag filter: {name}', { name: tag.name })}
+          onClick={event => {
+            if (activeTags.length === 1) clearTags(event.detail === 0)
+            else {
+              (event.currentTarget.nextElementSibling as HTMLElement | null)?.focus()
+              setTagIds(ids => ids.filter(id => id !== tag.id))
+            }
+          }}><span>{tag.name}</span><XIcon width={16} height={16} aria-hidden="true" /></button>)}
+        <button type="button" className="link-btn recipe-tag-action" onClick={event => clearTags(event.detail === 0)}>{t('Clear tags')}</button>
+      </div>}
+      {tagError && <p role="alert" className="field-error">{tagError} <button type="button" className="link-btn recipe-tag-action" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
       {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(n => n + 1)} />}
       {!recipesLoaded && !recipeError ? <p role="status">{t('Loading recipes…')}</p> : <>
-        <p className="field-hint" role="status">{tn(shownRecipes.length, '{n} recipe', '{n} recipes')}</p>
-        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || cooked !== 'all' || filter !== 'active' ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
+        <div className="recipe-library-summary">
+          <p className="field-hint" role="status">{tn(shownRecipes.length, '{n} recipe', '{n} recipes')}</p>
+          {admin && <button type="button" className="link-btn recipe-tag-action" onClick={() => setManagingTags(true)}>{t('Manage tags')}</button>}
+        </div>
+        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || cooked !== 'all' || filter !== 'active' || tagIds.length ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
           <strong>{recipe.name}{recipe.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && t('Makes {amount}', { amount: recipe.makes }) : servingsLabel(recipe.defaultServings), tn(recipe.ingredients.length, '{n} ingredient', '{n} ingredients'), recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && t('Archived')].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{!!recipe.favoritedBy?.length && <span className="recipe-loved"><span aria-hidden="true">♥</span><EaterAvatars ids={recipe.favoritedBy} members={members} label={t('Favorite of')} /></span>}{recipe.description && <p>{recipe.description}</p>}
@@ -209,8 +258,9 @@ export default function Meals() {
     </section>}
     {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(n => n + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
     {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(n => n + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(n => n + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly || !admin ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
-    {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(n => n + 1); setRecipeSheet({ recipe }) }} />}
+    {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={currentRecipe ?? null} library={recipes} tagCatalog={tagCatalog} onTagChanged={tagChanged} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(n => n + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly || !admin ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {importing && me && <RecipeImportSheet url={importing.url} admin={admin} library={recipes} tagCatalog={tagCatalog} onTagChanged={tagChanged} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(n => n + 1); setRecipeSheet({ recipe }) }} />}
+    {managingTags && admin && <RecipeTagManager tags={tagCatalog ?? []} onChange={tagChanged} onClose={() => setManagingTags(false)} />}
     {place && !place.editing && place.restaurant && <RestaurantSheet key={place.restaurant.id} restaurant={place.restaurant} admin={admin} onClose={() => setPlace(null)} onEdit={() => setPlace({ ...place, editing: true })}
       onPlan={async restaurant => {
         // A night out is for a dinner coming up: the first one in the next two weeks with nothing planned.

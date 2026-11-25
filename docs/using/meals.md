@@ -39,6 +39,27 @@ A link to `#/meals?recipe=<recipe id>` opens that recipe's view, the same as tap
 
 A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
 
+### Recipe tags
+
+Give any recipe one or more tags, such as **Dinner**, **Quick & Easy** or **Freezer friendly**.
+Tap a recipe to see its tags. Tags describe the whole recipe. An ingredient category still
+describes an ingredient, such as **Produce**.
+
+When adding, editing or reviewing an imported recipe, a grown-up can open **Tags** and choose
+existing tags, or tap **New tag…** to make one and select it. The new tag is ready to reuse right
+away. Finish choosing tags, then save the recipe to keep its selection. Tap a selected tag in the picker
+to remove it from this recipe.
+
+In the **Recipe library**, choose **Tags** under **Filter and sort** on a phone in either
+orientation, or next to the other filters on a larger screen. The library shows recipes with **all** the selected tags.
+Search, favorites, ingredient categories and the other filters still apply. Tap a tag's remove
+button under search to take off one filter, or **Clear tags** to take them all off.
+
+A grown-up can open **Manage tags** from the library to add, rename or delete tags. Renaming a
+tag updates it everywhere it appears. Deleting a tag removes it from every recipe that uses it.
+The recipes stay in the library. Tags travel with your [family export](../your-data/export-import.md)
+and stay private when you [share a recipe](#sharing-a-recipe).
+
 ### Basics
 
 A **basic** is a recipe for something you make to use in other recipes: a seasoning blend, a sauce, a dough, a stock. In the recipe editor, set **Type** to **Basic** (it's **Meal** otherwise, and every recipe from before basics is a meal). A basic has **Makes** ("about ¼ cup", "2 crusts") instead of default servings, and its view shows "Makes about ¼ cup" with a small **Basic** tag, without the servings buttons: a basic is made as written.

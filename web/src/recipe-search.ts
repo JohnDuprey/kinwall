@@ -1,5 +1,5 @@
 // Finding a recipe: the Recipe library's search box and the meal sheet's recipe picker.
-export type Searchable = { id: string; name: string; description?: string | null; archived?: boolean; kind?: 'meal' | 'basic'; ingredients?: { name: string }[]; favoritedBy?: string[]; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; rating?: { average: number | null; count: number } }
+export type Searchable = { id: string; name: string; description?: string | null; archived?: boolean; kind?: 'meal' | 'basic'; ingredients?: { name: string }[]; favoritedBy?: string[]; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; rating?: { average: number | null; count: number }; tags?: { id: string }[] }
 
 /** Name, description or an ingredient contains the text (any case); blank matches every recipe. */
 export function recipeMatches(recipe: Searchable, query: string): boolean {
@@ -9,11 +9,11 @@ export function recipeMatches(recipe: Searchable, query: string): boolean {
 
 export type RecipeSort = 'suggested' | 'name' | 'favorites' | 'rating' | 'newest' | 'oldest' | 'most-cooked' | 'last-cooked'
 export type CookedFilter = 'all' | 'cooked' | 'never'
-export type RecipeBrowse = { query?: string; sort?: RecipeSort; cooked?: CookedFilter; suggestedIds?: Set<string> }
+export type RecipeBrowse = { query?: string; sort?: RecipeSort; cooked?: CookedFilter; suggestedIds?: Set<string>; tagIds?: string[] }
 
 /** Shared by the library, meal chooser and poll picker. History covers marked-cooked meals only. */
-export function browseRecipes<R extends Searchable>(recipes: R[], { query = '', sort = 'name', cooked = 'all', suggestedIds }: RecipeBrowse = {}): R[] {
-  return recipes.filter(r => recipeMatches(r, query) && (cooked === 'all' || (cooked === 'cooked' ? (r.cookedCount ?? 0) > 0 : !(r.cookedCount ?? 0))))
+export function browseRecipes<R extends Searchable>(recipes: R[], { query = '', sort = 'name', cooked = 'all', suggestedIds, tagIds = [] }: RecipeBrowse = {}): R[] {
+  return recipes.filter(r => tagIds.every(id => r.tags?.some(tag => tag.id === id)) && recipeMatches(r, query) && (cooked === 'all' || (cooked === 'cooked' ? (r.cookedCount ?? 0) > 0 : !(r.cookedCount ?? 0))))
     .sort((a, b) => {
       let order = 0
       if (sort === 'suggested') order = Number(suggestedIds?.has(b.id) ?? false) - Number(suggestedIds?.has(a.id) ?? false)
@@ -24,6 +24,12 @@ export function browseRecipes<R extends Searchable>(recipes: R[], { query = '', 
       if (sort === 'last-cooked') order = (b.lastCookedDate ?? '').localeCompare(a.lastCookedDate ?? '')
       return order || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id)
     })
+}
+
+export function availableRecipeTagIds(selected: string[], tags: { id: string }[]): string[] {
+  const available = new Set(tags.map(tag => tag.id))
+  const next = selected.filter(id => available.has(id))
+  return next.length === selected.length ? selected : next
 }
 
 /** Archived recipes and basics stay out unless already chosen or explicitly requested. */

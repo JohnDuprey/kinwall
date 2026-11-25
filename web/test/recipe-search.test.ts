@@ -81,3 +81,19 @@ test('week planner suggestions lead by default but explicit sorting takes preced
   assert.deepEqual(pickerRecipes(all, '', null, false, { sort: 'suggested', suggestedIds }).map(r => r.id), ['a', 'b'])
   assert.deepEqual(pickerRecipes(all, '', null, false, { sort: 'newest', suggestedIds }).map(r => r.id), ['b', 'a'])
 })
+
+test('recipe browsing matches all selected tags and combines them with ingredient search and history', async () => {
+  const { browseRecipes, availableRecipeTagIds } = await import('../src/recipe-search.ts')
+  const dinner = { id: 'dinner', name: 'Dinner' }
+  const quick = { id: 'quick', name: 'Quick & Easy' }
+  const all = [
+    { ...recipe('tacos', 'Tuesday Tacos', ['Corn tortillas']), tags: [dinner, quick], cookedCount: 2 },
+    { ...recipe('pizza', 'Garden vegetable pizza', ['Mozzarella']), tags: [dinner] },
+    recipe('oats', 'Apple cinnamon oatmeal', ['Rolled oats']),
+  ]
+  assert.deepEqual(browseRecipes(all, { tagIds: [dinner.id] }).map(r => r.id), ['pizza', 'tacos'])
+  assert.deepEqual(browseRecipes(all, { tagIds: [dinner.id, quick.id], query: 'TORTILLAS', cooked: 'cooked' }).map(r => r.id), ['tacos'])
+  assert.deepEqual(browseRecipes(all, { tagIds: [dinner.id, quick.id], query: 'oats' }), [])
+  assert.deepEqual(browseRecipes(all, { tagIds: [] }).map(r => r.id), ['oats', 'pizza', 'tacos'])
+  assert.deepEqual(availableRecipeTagIds([dinner.id, quick.id], [{ ...quick, name: 'Weeknight meals' }]), [quick.id])
+})

@@ -7,12 +7,13 @@ import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { BookIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
-import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
+import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeTag, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { matchBasic } from './recipe-search.ts'
 import CookingMode from './CookingMode.tsx'
 import { cookingSteps, savedStep } from './cooking.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
+import { RecipeTagField, type RecipeTagChange } from './RecipeTags.tsx'
 import PickField, { type PickOption } from './PickField.tsx'
 import RecipeShare from './RecipeShare.tsx'
 import { holdAwake } from './wakeLock.ts'
@@ -142,8 +143,8 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
 
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close).
  * `library` is every recipe: where linked basics are found. */
-export default function RecipeSheet({ recipe, library = [], admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal, meal }: {
-  recipe: Recipe | null; library?: Recipe[]; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
+export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagChanged, admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal, meal }: {
+  recipe: Recipe | null; library?: Recipe[]; tagCatalog?: RecipeTag[]; onTagChanged?: RecipeTagChange; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
   /** Opened from a planned meal: that meal's when, who and status first (MealQuickSheet's MealStrip). */
   meal?: ReactNode
   /** Opened from a planned meal: a button back to that meal's details. */
@@ -159,8 +160,8 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
   const cooking = !!recipe && cook === recipe.id
   // A linked basic, opened over this recipe; closing it comes back here.
   const [basic, setBasic] = useState<Recipe | null>(null)
-  if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
-  if (basic) return <RecipeSheet key={basic.id} recipe={basic} library={library} admin={admin} owner={owner} onClose={() => setBasic(null)} onSaved={onSaved} onRated={onRated}
+  if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
+  if (basic) return <RecipeSheet key={basic.id} recipe={library.find(item => item.id === basic.id) ?? basic} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} admin={admin} owner={owner} onClose={() => setBasic(null)} onSaved={onSaved} onRated={onRated}
     onEditMeal={{ label: t('Back to {name}', { name: recipe.name }), open: () => setBasic(null), back: true }} />
   const openBasic = (id: string) => { const found = library.find(r => r.id === id); if (found) setBasic(found) }
   const isBasic = recipe.kind === 'basic'
@@ -175,6 +176,9 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
     {meal}
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
+    {!!recipe.tags?.length && <ul className="chip-row recipe-tag-chips" aria-label={t('Tags')}>
+      {recipe.tags.map(tag => <li className="chip chip-static" key={tag.id}>{tag.name}</li>)}
+    </ul>}
     {(time || recipe.archived || isBasic || recipe.makes) && <p className="recipe-time">{isBasic && <span className="kit-tag recipe-kind-tag">{t('Basic')}</span>}{[recipe.makes && t('Makes {amount}', { amount: recipe.makes }), time && `⏱ ${time}`, recipe.archived && t('Archived')].filter(Boolean).join(' · ')}</p>}
     {cookSteps.length > 0 && <button type="button" className="btn btn-primary cook-start" onClick={() => setCook(recipe.id)}>
       🍳 {resumeAt > 0 && resumeAt < cookSteps.length ? t('Resume cooking · step {n}', { n: resumeAt + 1 }) : t('Start cooking')}
@@ -199,7 +203,7 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
   </>
 }
 
-function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | null; library: Recipe[]; onClose: () => void; onSaved: () => void }) {
+function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSaved }: { recipe: Recipe | null; library: Recipe[]; tagCatalog?: RecipeTag[]; onTagChanged?: RecipeTagChange; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
   const dialog = useDialog()
   const formId = useId()
@@ -210,6 +214,7 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
     kind: recipe?.kind ?? 'meal', makes: recipe?.makes ?? null,
     ingredients: recipe?.ingredients.map(({ name, quantity, unit, preparation, qualifier, category, sort, basicId }) => ({ name, quantity, unit, preparation, qualifier, category, sort, basicId: basicId ?? null })) ?? [],
   }))
+  const [tagIds, setTagIds] = useState<string[]>()
   // Basics an ingredient can be made from: every other active basic (a linked one stays listed).
   const basics = library.filter(r => r.kind === 'basic' && r.id !== recipe?.id && (!r.archived || draft.ingredients.some(i => i.basicId === r.id))).sort((a, b) => a.name.localeCompare(b.name))
   // The "Made from a basic" picker's rows, like the meal sheet's recipe picker (photo or book, then name).
@@ -236,7 +241,7 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
   }
   const save = () => {
     // Structured steps are the source: the server writes instructions from them.
-    const body = { ...draft, ...(draft.steps && { instructions: null }), name: draft.name.trim(), ingredients: draft.ingredients.map((row, sort) => ({ ...row, name: row.name.trim(), sort })) }
+    const body = { ...draft, tagIds, ...(draft.steps && { instructions: null }), name: draft.name.trim(), ingredients: draft.ingredients.map((row, sort) => ({ ...row, name: row.name.trim(), sort })) }
     if (!body.name || body.ingredients.some(row => !row.name)) { setError(t('Give the recipe and each ingredient a name.')); return }
     void run(() => recipe ? api.updateRecipe(recipe.id, body) : api.createRecipe(body), t('Recipe saved'))
   }
@@ -253,7 +258,7 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
-  return <Sheet title={recipe ? t('Edit recipe') : t('New recipe')} onClose={close} dismissable={!busy} dirty="auto" actions={<>
+  return <Sheet title={recipe ? t('Edit recipe') : t('New recipe')} onClose={close} dismissable={!busy} dirty={tagIds !== undefined || 'auto'} actions={<>
     {recipe && <select className="settings-select actions-select" aria-label={t('Recipe actions')} value="" disabled={busy} onChange={e => {
       if (e.target.value === 'archive') void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? t('Recipe restored') : t('Recipe archived'))
       if (e.target.value === 'delete') void remove()
@@ -271,6 +276,8 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
         <div className="field"><label htmlFor={`${formId}-name`}>{t('Name')}</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>
         <div className="field"><label htmlFor={`${formId}-kind`}>{t('Type')}</label><select id={`${formId}-kind`} value={draft.kind} onChange={e => update('kind', e.target.value as RecipeKind)}><option value="meal">{t('Meal')}</option><option value="basic">{t('Basic')}</option></select>
           {draft.kind === 'basic' && <p className="field-hint">{t('Something you make to use in other recipes, like a seasoning blend, sauce or dough. Basics stay out of meal planning unless you ask for them.')}</p>}</div>
+        {onTagChanged && <RecipeTagField catalog={tagCatalog} initial={recipe?.tags} value={tagIds ?? recipe?.tags?.map(tag => tag.id) ?? []}
+          onChange={setTagIds} onCatalogChange={onTagChanged} />}
         <div className="field"><label htmlFor={`${formId}-description`}>{t('Description')}</label><textarea id={`${formId}-description`} maxLength={10000} value={draft.description ?? ''} onChange={e => update('description', e.target.value || null)} /></div>
         {recipe?.imageUrl && draft.imageUrl && <div className="field"><span className="recipe-photo-label">{t('Photo')}</span><RecipePhoto id={recipe.id} className="recipe-hero" /><button type="button" className="link-btn" onClick={() => update('imageUrl', null)}>{t('Remove photo')}</button></div>}
         {draft.kind === 'basic'

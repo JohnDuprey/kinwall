@@ -38,6 +38,7 @@ The file contains ICS feed URLs, which can be secret. Treat it like a password.
 **Import from a Kinwall export** asks for the file, shows what it contains ("Merges 4 members, 12 chores, … into this family. Existing items with the same ids are updated.") and waits for **Import**.
 
 * **Merge by ID**: importing the same file twice changes nothing more (idempotent). Items already here with the same ID are updated. Nothing else is deleted.
+* **Recipe tags** come with their recipe assignments, including tags you have created but haven't used yet. When merging, a tag with the same name (ignoring case and extra spaces) reuses the tag already here. If a recipe in the file has a tag list, that list replaces its assignments. Older exports without a tag list keep the recipe's current tags.
 * **Settings** go through the normal settings validation. Keys this version doesn't know are ignored.
 * **Local calendars** come back complete.
 * **ICS calendars** come back connected if their URL is in the file and passes the [private-address check](../calendars/private-feeds.md).

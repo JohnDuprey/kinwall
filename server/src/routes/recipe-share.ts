@@ -25,8 +25,9 @@ const shareUrl = (c: Ctx, token: string) => `${origin(c)}/r/${token}`;
 
 /** Adds `share` ({ url, createdAt } or null) to recipes for admin keys; other keys get them as they are. */
 export async function withShares(c: Ctx, recipes: Recipe[]): Promise<Recipe[]> {
-  if ((await requestKey(c))?.scope !== 'admin') return recipes;
-  const { results } = await c.env.DB.prepare('SELECT recipe_id, token, created_at FROM recipe_shares').all<ShareRow>();
+  if (!recipes.length || (await requestKey(c))?.scope !== 'admin') return recipes;
+  const { results } = await c.env.DB.prepare('SELECT recipe_id, token, created_at FROM recipe_shares WHERE recipe_id IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(recipes.map(recipe => recipe.id))).all<ShareRow>();
   const by = new Map(results.map((r) => [r.recipe_id, r]));
   return recipes.map((r) => {
     const s = by.get(r.id);

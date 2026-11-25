@@ -20,7 +20,9 @@ export interface StepTimer { name: string | null; minutes: number }
 /** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly.
  * title and timers are optional: steps saved before them (and plain-text steps) have neither. */
 export interface RecipeStep { text: string; bullets: string[]; imageUrl?: string | null; title?: string | null; timers?: StepTimer[] }
+export interface RecipeTag { id: string; name: string }
 export interface RecipeInput {
+  tagIds?: string[]
   name: string
   description: string | null
   instructions: string | null
@@ -39,7 +41,8 @@ export interface RecipeInput {
 export interface RecipeRating { average: number | null; count: number; byMember: Record<string, number> /* member id -> 1-5 stars */ }
 /** A recipe's public link (/r/{token}); parents' devices only. */
 export interface RecipeShare { url: string; createdAt: string }
-export interface Recipe extends Omit<RecipeInput, 'ingredients'> {
+export interface Recipe extends Omit<RecipeInput, 'ingredients' | 'tagIds'> {
+  tags?: RecipeTag[]
   id: string
   ingredients: RecipeIngredient[]
   rating?: RecipeRating
@@ -63,6 +66,7 @@ export interface RecipePreview {
 export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[]; updates?: { id: string; name: string } }
 /** POST /api/recipes/import: upserts by source + externalId (a web recipe is keyed by its address). */
 export interface RecipeImport {
+  tagIds?: string[]
   source: string; externalId: string; name: string; description?: string | null; sourceUrl?: string | null; imageUrl?: string
   servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; kind?: RecipeKind; makes?: string | null; ingredients: (string | RecipePreview['ingredients'][number])[]; steps?: RecipeStep[]
 }
