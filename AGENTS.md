@@ -77,7 +77,7 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
 
 - Plain CSS custom properties in `web/src/styles.css`; use the existing tokens (`--card`, `--bg-alt`,
   `--text`, `--text-dim`, `--accent…`, `--radius…`, `--shadow`) and existing classes (`.btn`,
-  `.field`, `.settings-select`, `.board-card`, `Sheet`) before adding new ones. No UI kits.
+  `.field`, `.board-card`, `Sheet`) before adding new ones. No UI kits.
 - Every screen works on a phone, a tablet, a wall display and in phone landscape, in light and dark.
 - Touch first: targets at least 44px, nothing that needs hover or a precise click.
 - Pointer and hover: everything clickable is a real `<button>` or `<a>` (or `role="button"` with
@@ -86,15 +86,14 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   `@media (hover: hover) and (pointer: fine)`.
 - Scrollbars: hidden only on touch screens (`pointer: coarse`); mouse users always see them. Don't
   hide a scrollbar anywhere else.
-- No native `<select>` in new or reworked screens (older screens still have them; replace them
-  when you touch the screen). Pick by the choices:
+- No native `<select>` anywhere in the web app. Pick by the choices:
   - Up to three short choices (about 40 characters together) are a segmented control
     (`Segmented` in `a11y.tsx`), labeled like any field: Idea | Planning | Ready.
   - More choices, longer ones, or a list that grows (days, people, calendars) are a row that opens
     a sheet (`PickField`), with the choice's emoji as its lead when it has one.
   - Picking several, or choices that need a preview (color schemes, typefaces, timezones,
     categories, members), are always a sheet (`PickField`, `SchemePicker`), never `<select multiple>`.
-  - For a single choice, `Choose` in `tripShared.tsx` picks between those two for you.
+  - For a single choice, `Choose` in `PickField.tsx` picks between those two for you.
 - Actions are buttons, not a "More…" dropdown: the main one top right (`.meal-actions`), the rest
   as buttons in the row they act on.
 - A card summing up settings shows them as read-only `.chip-static` chips, one per setting with an

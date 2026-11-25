@@ -146,9 +146,9 @@ html { font-size: calc(16px * var(--text-scale) * var(--screen-k)); }
 :root[data-bg="midnight"] { --bg: #0F1420; --bg-alt: #161D2C; --card: #1B2333; --card-soft: #212A3C; --border: #2C3750; --text: #E7ECF7; --text-dim: #9AA6BF; }
 
 /* Base look for every text-like control. :where() keeps specificity at zero, so any component
-   class (.field, .inline-form, .settings-select, …) still wins - but nothing can fall back to the
+   class (.field, .inline-form, .choose-control, …) still wins - but nothing can fall back to the
    browser's native gray box. */
-:where(input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"], [type="file"], [type="hidden"]), select, textarea) {
+:where(input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"], [type="file"], [type="hidden"]), textarea) {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   border: 2px solid var(--border);
@@ -160,8 +160,8 @@ html { font-size: calc(16px * var(--text-scale) * var(--screen-k)); }
   min-height: 44px;
   max-width: 100%;
 }
-:where(input, select, textarea)::placeholder { color: var(--text-dim); opacity: 1; font-weight: 600; }
-:where(input, select, textarea):focus-visible { border-color: var(--accent-text); outline: none; } /* the 2px border is the ring; no second one */
+:where(input, textarea)::placeholder { color: var(--text-dim); opacity: 1; font-weight: 600; }
+:where(input, textarea):focus-visible { border-color: var(--accent-text); outline: none; } /* the 2px border is the ring; no second one */
 
 * { box-sizing: border-box; }
 
@@ -789,7 +789,6 @@ button.month-cell .month-daynum { flex: none; }
 /* Leave room above the first field for its outside focus ring, including increased contrast. */
 .sheet-body { padding: 6px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .sheet-actions { display: flex; gap: 10px; padding: 10px 20px 4px; flex-shrink: 0; }
-.sheet-actions .actions-select { flex: 1; min-width: 0; min-height: 48px; border-radius: 999px; font-weight: 800; }
 /* A sheet with little height left (the keyboard up on a phone on its side leaves ~170px): a fixed
    header and footer would squeeze the fields to nothing. The whole sheet scrolls as one instead, the
    title scrolling away and Save staying on the bottom edge, and the field you're typing in lands
@@ -846,6 +845,15 @@ button.month-cell .month-daynum { flex: none; }
 .sheet-link > svg.pick-check { color: var(--accent-strong); }
 .sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch, .sheet-link > .pick-lead { flex: none; } /* not the label's flex: 1 */
 .pick-lead { display: flex; }
+/* Shared choices stay compact in toolbars and grow with their existing field or settings row. */
+.choose-control { min-width: 0; max-width: 100%; }
+.choose-control > .pick-btn, .settings-row .choose-control > .pick-btn { width: 100%; max-width: none; min-height: 44px; }
+.choose-control .segmented, .choose-field .segmented { max-width: 100%; }
+.choose-control .segmented button, .choose-field .segmented button { min-width: 44px; min-height: 44px; flex: 1 1 auto; overflow-wrap: normal; }
+.settings-row > .choose-control { flex: none; max-width: 60%; }
+.choice-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.choice-actions > .btn, .choice-actions > .link-btn { flex: none; min-height: 44px; }
+
 /* Hidden events (Calendar's Show hidden, parents only): faded, dashed and marked "Hidden", never by color alone. */
 .ev-hidden { opacity: 0.5; outline: 2px dashed var(--text-dim); outline-offset: -2px; }
 .ev-hidden-mark { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-weight: 800; vertical-align: bottom; }
@@ -902,7 +910,7 @@ button.month-cell .month-daynum { flex: none; }
 .suggest-send .field-hint { margin: 0; text-align: center; }
 .field label { display: block; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
 .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="url"],
-.field input[type="password"], .field input[type="search"], .field select, .field textarea, .meds-ends-detail input[type="number"] {
+.field input[type="password"], .field input[type="search"], .field textarea, .meds-ends-detail input[type="number"] {
   width: 100%;
   padding: 13px 14px;
   border-radius: var(--radius-sm);
@@ -924,16 +932,7 @@ button.month-cell .month-daynum { flex: none; }
 .field input::-webkit-date-and-time-value { text-align: left; }
 .field-error { color: var(--danger); font-size: 0.875rem; font-weight: 700; margin: -6px 0 14px; }
 
-/* Selects: our own chevron at the same inset as the date/time field icons, instead of the native one */
-.field select, .settings-select {
-  -webkit-appearance: none; appearance: none; padding-right: 44px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a7068' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 16px center; background-size: 14px;
-}
-:root[data-theme="dark"] .field select, :root[data-theme="dark"] .settings-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23b0a79c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-}
-/* Date/time icon: same 16px inset as the select chevron */
+/* Date/time inputs keep room for their calendar icon. */
 .field input[type="date"], .field input[type="time"] { padding-right: 14px; }
 .field input::-webkit-calendar-picker-indicator { margin: 0 2px 0 8px; opacity: 0.75; cursor: pointer; }
 
@@ -1002,8 +1001,8 @@ button.month-cell .month-daynum { flex: none; }
 .skin-dots span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
 .scheme-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 /* Color scheme row (opens the sheet) and the sheet's preview cards (SchemePicker.tsx). */
-.scheme-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; text-align: left; cursor: pointer; font-family: inherit; }
-.scheme-row .scheme-swatch-lg { border-width: 3px; }
+.scheme-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; text-align: left; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 700; }
+.scheme-row .scheme-swatch-lg { flex: none; border-width: 3px; }
 .scheme-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet:has(.scheme-groups) { max-width: 960px; }
 .scheme-group { margin-bottom: 18px; }
@@ -1353,8 +1352,7 @@ button.month-cell .month-daynum { flex: none; }
 .settings-row:first-of-type { border-top: none; }
 .settings-row-label { font-weight: 800; font-size: 0.9375rem; }
 .settings-row-sub { font-size: 0.78125rem; color: var(--text-dim); font-weight: 600; margin-top: 2px; }
-.settings-select { padding: 10px 44px 10px 12px; border-radius: 10px; border: 2px solid var(--border); background-color: var(--bg-alt); font-weight: 700; color: var(--text); font-size: 0.875rem; min-height: 44px; max-width: 100%; }
-/* Field look comes from the :where() input base rule (same box as .settings-select); just right-aligned in the row. */
+/* Field look comes from the :where() input base rule (same box as the choice row); right-aligned in the row. */
 .family-name-input { text-align: right; min-width: 140px; padding: 10px 12px; border-radius: 10px; }
 .theme-toggle { display: flex; background: var(--bg-alt); border-radius: 999px; padding: 3px; }
 .theme-toggle button { border: none; background: none; padding: 8px 14px; border-radius: 999px; color: var(--text-dim); display: flex; align-items: center; min-height: 40px; }
@@ -1440,7 +1438,7 @@ button.month-cell .month-daynum { flex: none; }
 @media (max-width: 600px) {
   .key-item-owned { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "info remove" "owner owner"; align-items: center; }
   .key-item-owned .key-item-info { grid-area: info; }
-  .key-item-owned > select, .key-item-owned > .owner-select { grid-area: owner; width: 100%; max-width: none; }
+  .key-item-owned > .choose-control, .key-item-owned > .owner-select { grid-area: owner; width: 100%; max-width: none; }
   .key-item-owned > .icon-btn { grid-area: remove; }
 }
 .new-key-banner { background: var(--bg-alt); border: 2px dashed var(--accent-strong); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -1816,10 +1814,10 @@ button.month-cell .month-daynum { flex: none; }
 .catalog-summary { display: flex; align-items: center; gap: 12px; margin: -6px 0 4px; }
 .catalog-summary .filter-summary { flex: 0 1 auto; min-width: 0; }
 .catalog-summary .link-btn { flex: none; }
-/* The Filter & sort sheet: chip sections, then sort and group as selects side by side (stacked on a phone). */
+/* The Filter & sort sheet: chip sections, then sort and group choices side by side (stacked on a phone). */
 .catalog-view { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 var(--gap); margin-top: 16px; }
 .catalog-view .field { flex: 1 1 180px; min-width: 0; }
-.catalog-view .settings-select { width: 100%; }
+.catalog-view .choose-control { width: 100%; }
 .catalog-group { display: flex; align-items: baseline; gap: 6px; margin-top: calc(var(--gap) * 1.5); }
 .catalog-group-count { font-weight: 700; letter-spacing: 0; }
 .catalog-row { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }
@@ -2024,9 +2022,9 @@ button.month-cell .month-daynum { flex: none; }
   /* ---------- Settings: label above control, nothing wider than the viewport ---------- */
   .settings-scroll { padding-left: 14px; padding-right: 14px; }
   .settings-row { flex-direction: column; align-items: stretch; gap: 6px; }
-  .settings-row .settings-select, .settings-row select, .settings-row .theme-toggle { width: 100%; }
-  .settings-row .pick-btn { width: 100%; max-width: none; }
-  .settings-select { width: 100%; }
+  .settings-row .choose-control, .settings-row .theme-toggle { width: 100%; }
+  .settings-row .pick-btn, .settings-row > .choose-control { width: 100%; max-width: none; }
+  .choose-control { width: 100%; }
   .family-name-input { text-align: left; width: 100%; min-width: 0; }
   /* Four tabs across a phone: stretch the segmented control to the full width. */
   .settings-tabs .segmented { width: 100%; }
@@ -2155,8 +2153,8 @@ button.month-cell .month-daynum { flex: none; }
 /* Rows sit inside .drag-row wrappers: draw the divider between wrappers, not on every (first-child) row. */
 .drag-row + .drag-row .list-item-row { border-top: 1px solid var(--border); }
 .inline-form .link-btn { flex: none; align-self: center; }
-/* The label column is a fixed width so the selects line up down a section; a longer label wraps
-   onto a second line instead of running under the select. */
+/* The label column is a fixed width so the choices line up down a section; a longer label wraps
+   onto a second line instead of running under the choice. */
 .device-pref-row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); align-items: center; gap: 12px; }
 .device-pref-row > span { font-weight: 700; font-size: 0.9375rem; min-width: 0; overflow-wrap: break-word; line-height: 1.25; }
 .device-pref-row.tall { align-items: start; }
@@ -2175,11 +2173,11 @@ button.month-cell .month-daynum { flex: none; }
 .google-photos-account > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
 .google-photos-avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--text); font-weight: 800; font-size: 1.1rem; border: 1px solid var(--border); }
 .google-photos-scopes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-.device-pref-row .settings-select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.device-pref-row .choose-control { width: 100%; min-width: 0; text-overflow: ellipsis; }
 /* Transition times (MinutesPicker): "[20] min before [Add]" and "Every [5 min] during the last [30 min]" read as one line. */
 .minutes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
 .minutes-row input[type=number] { width: 5.5em; }
-.minutes-row .settings-select, .field .minutes-row select { width: auto; }
+.minutes-row .choose-control, .field .minutes-row .choose-control { width: auto; }
 /* The Night screen (wall screens at night): near-black screen with a dim clock, above sheets and toasts. */
 .quiet-overlay { position: fixed; inset: 0; z-index: 1000; background: #050403; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 /* Night screen clock position (nightClock.ts): x% / y% of the free space, pulled back by its own
@@ -2502,7 +2500,7 @@ a.activity-card:active { transform: scale(0.98); }
 /* iOS Safari zooms the page when a focused field's font is under 16px. Pinch-zoom stays enabled for
  * accessibility, so on touch devices every field is held at 16px regardless of the rules above. */
 @media (pointer: coarse) {
-  input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"], [type="file"], [type="hidden"]), select, textarea { font-size: max(1rem, 16px) !important; }
+  input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"], [type="file"], [type="hidden"]), textarea { font-size: max(1rem, 16px) !important; }
 }
 
 /* ---------- Notification bell + feed (Notifications.tsx) ---------- */
@@ -2770,7 +2768,7 @@ button.notif-item:active { transform: scale(0.99); }
 .lib-again { flex: none; min-height: 44px; padding: 8px 14px; }
 .lib-every { display: flex; gap: 8px; }
 .lib-every input { flex: 0 0 5.5em; }
-.lib-every select { flex: 1; }
+.lib-every .choose-control { flex: 1; }
 .chore-col-spend { font-size: 0.75rem; font-weight: 800; color: var(--accent-text); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
 .board-card-link { float: right; text-transform: none; letter-spacing: 0; color: var(--accent-text); text-decoration: none; }
 .reward-card.goal { box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
@@ -3041,7 +3039,9 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-editor-card-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .board-editor-card-head .icon-btn, .board-editor-moves .icon-btn { width: 44px; height: 44px; box-shadow: none; background: var(--bg-alt); font-weight: 800; font-size: 1.125rem; }
 .board-editor-card-controls { display: flex; flex-wrap: wrap; gap: 6px; }
-.board-editor-card-controls .settings-select { flex: 1 1 110px; min-width: 0; }
+.board-editor-card-controls .choose-control { flex: 1 1 110px; min-width: 0; }
+.board-editor-card-controls .choose-control:has(.segmented) { flex-basis: 100%; }
+.board-editor-card-controls .segmented { width: 100%; }
 .board-editor-moves { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
 .board-layout-edit.btn, .board-editor-delete.btn { flex: none; align-self: flex-start; }
 .board-editor-delete.btn { margin-top: 24px; }
@@ -3510,9 +3510,9 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trk-status { max-width: 100%; }
 .trk-measures { border: 0; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
 .trk-measures legend { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 6px; padding: 0; }
-.trk-measure { display: grid; grid-template-columns: 7.5rem 1fr 5rem; gap: 8px; align-items: center; }
+.trk-measure { display: grid; grid-template-columns: 7.5rem minmax(4rem, 1fr) max-content; gap: 8px; align-items: center; }
 .trk-measure label { font-weight: 700; }
-.trk-measure input, .trk-measure select { min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; min-width: 0; }
+.trk-measure input { min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; min-width: 0; }
 .trk-photo-pick { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .trk-photo-pick img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
 .trk-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -3520,7 +3520,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trk-photo-on { outline: 3px solid var(--accent-strong); outline-offset: -3px; }
 @media (max-width: 480px) {
   .trk-grid { grid-template-columns: 1fr; }
-  .trk-measure { grid-template-columns: 6.5rem 1fr 4.5rem; }
+  .trk-measure { grid-template-columns: 6.5rem minmax(4rem, 1fr) max-content; }
 }
 .features-section { margin: 22px 0 2px; font-size: 1rem; font-weight: 800; }
 .features-section + .toggle-row, .features-section + .features-group { margin-top: 0; }
@@ -3620,7 +3620,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 /* Every person page (profile, insights, journal, medicines) shares this header: the hero, then its controls at their natural width and 44px tall. */
 .profile-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .profile-actions .btn { flex: none; width: auto; min-height: 44px; padding: 6px 18px; text-decoration: none; }
-.profile-actions .settings-select { min-height: 44px; }
+.profile-actions .choose-control { min-height: 44px; }
 /* Journal and medicines are one reading column; the header lines up with it. */
 .profile-narrow > * { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
 .profile-hero { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -3758,7 +3758,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 /* Energy battery (Battery.tsx): on a person's day and their Insights, in their color (--m). */
 .battery { display: flex; flex-direction: column; gap: 8px; }
 .snap-section.battery { margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: var(--bg-alt); } /* a card, like the weather below it */
-.battery .settings-select { min-height: 44px; align-self: flex-start; }
+.battery .choose-control { min-height: 44px; align-self: flex-start; }
 .battery-now { margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
 .battery-level { font-size: 1.75rem; font-weight: 800; }
 .battery-meter { height: 14px; border-radius: 7px; margin-top: 0; }
@@ -3789,7 +3789,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-now-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .meds-now-actions .btn { min-height: 44px; padding: 8px 16px; flex: none; }
 @media (max-width: 560px) { .meds-now-actions { width: 100%; flex-wrap: nowrap; } .meds-now-actions .btn { flex: 1 1 auto; padding: 8px 10px; } }
-/* Medicine sheet → Ends: the date or dose count sits under the select, like the other fields. */
+/* Medicine sheet → Ends: the date or dose count sits under the choice, like the other fields. */
 .meds-ends-detail { margin-top: 8px; display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text-dim); }
 .meds-ends-detail input[type="number"] { width: 7em; flex: none; }
 .meds-today { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -3820,7 +3820,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-times legend { padding: 0; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
 .meds-grid thead th.meds-grid-today { color: var(--text); }
 .meds-time-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; align-self: stretch; }
-.meds-time-row select { width: auto; flex: 1 1 12em; min-height: 44px; }
+.meds-time-row .choose-control { width: auto; flex: 1 1 12em; min-height: 44px; }
 .meds-time-row input[type="time"] { width: auto; flex: 1 1 8em; min-width: 0; }
 .meds-time-row .btn { flex: none; }
 .field .meds-latest { display: flex; flex: 1 1 10em; align-items: center; gap: 8px; margin: 0; font-size: 1rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text-dim); }
@@ -3868,7 +3868,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .refill-fields { align-items: stretch; }
 .refill-fields > .btn { align-self: flex-start; flex: none; }
 .refill-label { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); margin-top: 4px; }
-.refill-fields .meds-time-row select { flex: 1 1 12em; width: auto; }
+.refill-fields .meds-time-row .choose-control { flex: 1 1 12em; width: auto; }
 .refill-second { margin-top: 8px; }
 /* The phone-menu step editor (Refills.tsx PhoneMenuEditor): one card per step, 44px controls. */
 .dial-editor { align-items: stretch; }
@@ -3941,7 +3941,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .news-compose textarea { width: 100%; resize: vertical; min-height: 84px; }
 .news-count { text-align: right; font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
 .news-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.news-row .settings-select { flex: 1 1 140px; }
+.news-row .choose-control { flex: 1 1 140px; }
 .news-row .spacer { flex: 1; }
 .news-row .btn { flex: none; }
 .news-photo-btn { cursor: pointer; }
@@ -4173,11 +4173,11 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 :root[data-density="compact"] .sheet-header { padding: 2px 14px 4px; }
 :root[data-density="compact"] .sheet-body { padding: 6px 14px 10px; }
 :root[data-density="compact"] .sheet-actions { gap: 8px; padding: 6px 14px 0; }
-:root[data-density="compact"] .sheet-actions :is(.btn, .actions-select) { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+:root[data-density="compact"] .sheet-actions .btn { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .sheet-body .btn { min-height: 44px; padding: 8px 16px; }
 :root[data-density="compact"] .field { margin-bottom: 8px; }
 :root[data-density="compact"] .field label { font-size: 0.75rem; margin-bottom: 3px; }
-:root[data-density="compact"] .field :is(input[type="text"], input[type="date"], input[type="time"], input[type="url"], input[type="password"], input[type="search"], input[type="number"], select) { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+:root[data-density="compact"] .field :is(input[type="text"], input[type="date"], input[type="time"], input[type="url"], input[type="password"], input[type="search"], input[type="number"]) { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .field textarea { min-height: 60px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .field-hint { margin-top: 3px; font-size: 0.75rem; }
 :root[data-density="compact"] .toggle-row { padding: 4px 2px; }
@@ -4287,15 +4287,15 @@ html:root[data-cast] {
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */
-:where(button, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="option"], a[href], select, summary,
+:where(button, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="option"], a[href], summary,
   label:has(input[type="checkbox"], input[type="radio"]), input[type="checkbox"], input[type="radio"], input[type="color"],
   .schedule-item, .member-list-item, .month-cell, .day-col, .note) { cursor: pointer; }
-:is(button, select, input, textarea):disabled, [aria-disabled="true"], label:has(input:disabled) { cursor: not-allowed; }
+:is(button, input, textarea):disabled, [aria-disabled="true"], label:has(input:disabled) { cursor: not-allowed; }
 /* Hover only where there's a mouse, so a tap never leaves a stuck highlight. Chosen/selected states
    and focus rings keep their own look. No transition, so low-stimulation mode shows it the same. */
 @media (hover: hover) and (pointer: fine) {
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
-  :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
+  :where(.sheet-link, .btn-secondary, button.chip, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .school-work-check, .meal-card, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item, .setup-check-row
@@ -4351,7 +4351,7 @@ html:root[data-cast] {
 /* Keep the repeat interval and its unit usable on a narrow phone. */
 .chore-repeat-interval { display: flex; gap: 8px; }
 .chore-repeat-interval input { flex: 0 1 90px; min-width: 0; }
-.chore-repeat-interval select { flex: 1; min-width: 0; }
+.chore-repeat-interval .choose-control { flex: 1; min-width: 0; }
 
 .chore-card-goal-met { cursor: default; }
 .chore-card-goal-met:active { transform: none; }
@@ -4474,7 +4474,7 @@ html:root[data-cast] {
 .weekly-decisions, .weekly-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .weekly-review .weekly-card:last-child { grid-column: 1 / -1; }
 .weekly-card .field { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
-.weekly-card select { width: 100%; min-height: 44px; }
+.weekly-card .choose-control { width: 100%; min-height: 44px; }
 @media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
   .weekly-invite { flex-wrap: wrap; gap: 12px; padding: 16px; }
   .weekly-invite-icon { display: none; }
@@ -4543,4 +4543,4 @@ html:root[data-cast] {
 .recipe-picker > .recipe-browse-controls { margin-block: 16px; }
 .recipe-browse-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 16px 12px; }
 .recipe-browse-controls .field { min-width: 0; margin-bottom: 0; }
-.recipe-browse-controls select { width: 100%; }
+.recipe-browse-controls .choose-control { width: 100%; }
