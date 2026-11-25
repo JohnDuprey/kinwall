@@ -12,7 +12,7 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { useDialog } from './dialog.tsx'
-import { LoadError, Segmented } from './a11y.tsx'
+import { CheckRow, Switch, LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import { Face } from './Face'
 import { ChevronRight, PlusIcon } from './icons.tsx'
@@ -542,7 +542,7 @@ function JobEditSheet({ job, things, areas, onClose, onSaved }: { job: UpkeepJob
             ]} /></div>
         </div>}
         {d.repeatKind === 'on' && <>
-          <fieldset className="upkeep-months"><legend>{t('Months')}</legend>{ALL_MONTHS.map(m => <label key={m} className="meal-check"><input type="checkbox" checked={d.onMonths.includes(m)} onChange={e => set('onMonths', e.target.checked ? [...d.onMonths, m].sort((a, b) => a - b) : d.onMonths.filter(x => x !== m))} /> {monthName(m)}</label>)}</fieldset>
+          <fieldset className="upkeep-months chip-row"><legend>{t('Months')}</legend>{ALL_MONTHS.map(m => <button key={m} type="button" className={d.onMonths.includes(m) ? 'chip active' : 'chip'} aria-pressed={d.onMonths.includes(m)} onClick={() => set('onMonths', !d.onMonths.includes(m) ? [...d.onMonths, m].sort((a, b) => a - b) : d.onMonths.filter(x => x !== m))}>{monthName(m)}</button>)}</fieldset>
           <div className="field"><label htmlFor={`${id}-day`}>{t('Day of the month')}</label><input id={`${id}-day`} type="number" min={1} max={31} inputMode="numeric" value={d.onDay} onChange={e => set('onDay', e.target.value)} /></div>
         </>}
         {d.repeatKind === 'once'
@@ -563,10 +563,10 @@ function JobEditSheet({ job, things, areas, onClose, onSaved }: { job: UpkeepJob
             ]} /></div>}
         </div>
         {kid && <>
-          <label className="meal-check"><input type="checkbox" checked={d.chore} onChange={e => set('chore', e.target.checked)} /> {t('Make it {name}’s chore on the day it’s due', { name: kid.name })}</label>
+          <Switch checked={d.chore} onChange={next => set('chore', next)} label={t('Make it {name}’s chore on the day it’s due', { name: kid.name })} />
           {d.chore && <div className="field"><label htmlFor={`${id}-pts`}>{t('Points')}</label><input id={`${id}-pts`} type="number" min={0} max={1000} inputMode="numeric" value={d.chorePoints} onChange={e => set('chorePoints', e.target.value)} /></div>}
         </>}
-        <label className="meal-check"><input type="checkbox" checked={d.wallVisible} onChange={e => set('wallVisible', e.target.checked)} /> {t('Show it on wall screens')}</label>
+        <Switch checked={d.wallVisible} onChange={next => set('wallVisible', next)} label={t('Show it on wall screens')} />
         <h3>{t('Details')}</h3>
         <div className="field"><label htmlFor={`${id}-cost`}>{t('Usual cost')}</label><input id={`${id}-cost`} type="text" inputMode="decimal" maxLength={12} placeholder="25" value={d.cost} onChange={e => set('cost', e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-steps`}>{t('How to, one step per line')}</label><textarea id={`${id}-steps`} maxLength={9000} value={d.steps} onChange={e => set('steps', e.target.value)} /></div>
@@ -676,10 +676,7 @@ function StartersSheet({ onClose }: { onClose: () => void }) {
   </>}>
     <p className="field-hint">{t('Usual schedules to start from. Check your manual, and change any of them later.')}</p>
     {!starters ? <p role="status">{t('Loading…')}</p> : !starters.length ? <p className="state-card">{t('You’ve added all of them.')}</p>
-      : <fieldset className="meal-fieldset" disabled={busy}>{starters.map(s => <label key={s.key} className="meal-check upkeep-starter">
-        <input type="checkbox" checked={picked.includes(s.key)} onChange={e => setPicked(p => e.target.checked ? [...p, s.key] : p.filter(k => k !== s.key))} />
-        <span><span aria-hidden="true">{s.emoji}</span> {s.title} <small className="field-hint">{repeatLabel({ ...s, dueOn: null })}</small></span>
-      </label>)}</fieldset>}
+      : <fieldset className="meal-fieldset" disabled={busy}>{starters.map(s => <CheckRow checked={picked.includes(s.key)} onChange={next => setPicked(p => next ? [...p, s.key] : p.filter(k => k !== s.key))} label={<><span><span aria-hidden="true">{s.emoji}</span> {s.title} <small className="field-hint">{repeatLabel({ ...s, dueOn: null })}</small></span></>} key={s.key} />)}</fieldset>}
   </Sheet>
 }
 
@@ -719,7 +716,7 @@ function CalendarSheet({ job, onClose, onSaved }: { job: UpkeepJob; onClose: () 
     <p>{job.title}</p>
     <fieldset className="meal-fieldset" disabled={busy}>
       <div className="field"><label htmlFor={`${id}-day`}>{t('Day')}</label><input id={`${id}-day`} type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
-      <label className="meal-check"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> {t('All day')}</label>
+      <Switch checked={allDay} onChange={next => setAllDay(next)} label={t('All day')} />
       {!allDay && <div className="meal-form-row">
         <div className="field"><label htmlFor={`${id}-t1`}>{t('Starts')}</label><input id={`${id}-t1`} type="time" value={start} onChange={e => setStart(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-t2`}>{t('Ends')}</label><input id={`${id}-t2`} type="time" value={end} onChange={e => setEnd(e.target.value)} /></div>

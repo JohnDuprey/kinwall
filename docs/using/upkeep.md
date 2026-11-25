@@ -94,3 +94,5 @@ Kinwall leaves the hidden parts out of what it sends, not just off the screen. N
 ## For automations
 
 Upkeep has REST routes under `/api/upkeep` ([REST API](../integrations/rest-api.md)), the webhooks `upkeep.changed`, `upkeep.done` and `upkeep.due` ([Webhooks](../integrations/webhooks.md)), and MCP tools like `list_upkeep_jobs`, `log_upkeep_done` and `list_upkeep_history`, so you can ask "When did we last change the furnace filter?" ([MCP](../integrations/mcp.md)). Its things, jobs and history are in the [export](../your-data/export-import.md); receipts and manuals are in the photo backup zip. Each file can be up to 2 MB, and they count toward the server's [storage limit](photos.md#limits) if it sets one.
+
+Job options use on/off switches. Tap month chips to choose the months for a job, or checkable rows to pick common jobs to add.
