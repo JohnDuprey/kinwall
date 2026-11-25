@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Settings → For the whole family → Quotes & facts: which sources the Board's quote / fact card
 // draws from, and the categories within each. A sheet of its own so the settings list stays short.
 // The same sheet edits a device's own cards (Settings → This display, DeviceTidbitRows below).
@@ -81,11 +82,11 @@ export default function TidbitsSheet({ value, onClose, onSave, title, intro, onR
             {cfg.onThisDay.includes('births') && (
               <div className="settings-row">
                 <label className="settings-row-label" htmlFor="births-after">{t('Birthdays of people born')}</label>
-                <select id="births-after" className="settings-select" value={cfg.birthsAfter ?? ''}
-                  onChange={e => { const v = e.target.value; setT(x => ({ ...x, birthsAfter: v === '' ? null : Number(v) })) }}>
-                  {[1800, 1900, 1950, 1970, 1990].map(y => <option key={y} value={y}>{t('Since {year}', { year: y })}</option>)}
-                  <option value="">{t('Any time')}</option>
-                </select>
+                <Choose hideLabel label={t('Birthdays of people born')} id="births-after" value={String(cfg.birthsAfter ?? '')} onChange={next => { const v = next; setT(x => ({ ...x, birthsAfter: v === '' ? null : Number(v) })) }}
+                  options={[
+                    ...([1800, 1900, 1950, 1970, 1990].map(y => ({ value: String(y), label: t('Since {year}', { year: y }) }))),
+                    { value: '', label: t('Any time') },
+                  ]} />
               </div>
             )}
             {cfg.onThisDay.includes('events') && <p className="settings-row-sub">{t('History leaves out wars, disasters and crimes, but it’s the least kid-proof of the three.')}</p>}
@@ -135,14 +136,14 @@ export function DeviceTidbitRows() {
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="device-pref-row">
         <span>{t('Board quotes & facts')}</span>
-        <select className="settings-select" aria-label={t('Board quotes and facts')} value={cards.length ? 'own' : ''}
-          onChange={e => {
-            if (e.target.value) { save([{ ...settings.tidbits }]); announce(t('This device picks its own quotes and facts')) }
+        <Choose hideLabel label={t('Board quotes and facts')} value={String(cards.length ? 'own' : '')} onChange={next => {
+            if (next) { save([{ ...settings.tidbits }]); announce(t('This device picks its own quotes and facts')) }
             else { save(undefined); announce(t("This device follows the family's quotes and facts")) }
-          }}>
-          <option value="">{t('Family’s choice')}</option>
-          <option value="own">{t('Own picks')}</option>
-        </select>
+          }}
+          options={[
+            { value: '', label: t('Family’s choice') },
+            { value: 'own', label: t('Own picks') },
+          ]} />
       </div>
       {!cards.length ? <div className="settings-row-sub">{t('This screen shows the family’s quote card ({summary}).', { summary: tidbitSummary(settings.tidbits) })}</div> : <>
         <div className="settings-row-sub">{t('Up to {n} cards, each taking turns through its own picks. A phone, or a tablet on its side, shows the first one.', { n: MAX_TIDBIT_CARDS })}</div>

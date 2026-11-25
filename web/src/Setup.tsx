@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { handOffPasskeyStep, readSetupResume, saveResume } from './setupResume.ts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HelpButton } from './Help.tsx'
@@ -349,11 +350,11 @@ function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             <div key={m.id} className="member-list-item">
               <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
               <div className="name">{m.name}</div>
-              <select className="settings-select setup-kind-select" value={m.grownUp ? 'grown' : 'kid'} aria-label={t('{name}: grown-up or kid', { name: m.name })}
-                onChange={e => setKind(m, e.target.value === 'grown')}>
-                <option value="grown">{`🧑 ${t('Grown-up')}`}</option>
-                <option value="kid">{`🧒 ${t('Kid')}`}</option>
-              </select>
+              <Choose hideLabel label={t('{name}: grown-up or kid', { name: m.name })} className="setup-kind-select" value={String(m.grownUp ? 'grown' : 'kid')} onChange={next => setKind(m, next === 'grown')}
+                options={[
+                  { value: 'grown', label: `🧑 ${t('Grown-up')}` },
+                  { value: 'kid', label: `🧒 ${t('Kid')}` },
+                ]} />
               <button className="icon-btn" onClick={() => remove(m.id)} aria-label={t('Remove {name}', { name: m.name })}><TrashIcon width={16} height={16} /></button>
             </div>
           ))}

@@ -20,7 +20,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import CalendarFilterSheet, { HiddenEventsSheet } from './CalendarFilterSheet.tsx'
 import { filterSummary } from './calendarFilter.ts'
 import TimezoneField from './TimezoneField.tsx'
-import PickField, { PickSwatch } from './PickField.tsx'
+import PickField, { Choose, PickSwatch } from './PickField.tsx'
 import { AnyEmojiField, AvatarPicker } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
@@ -394,18 +394,16 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
           <label className="settings-row-label" htmlFor="family-language">{t('Language')}</label>
           <div className="settings-row-sub">{t('Walls and shared screens use it, and so does anyone who hasn\'t picked their own.')}</div>
         </div>
-        <select id="family-language" className="settings-select" value={pickLang({ family: settings.language })} onChange={e => save({ language: pickLang({ family: e.target.value }) })}>
-          {LANGUAGES.map(l => <option key={l.key} value={l.key} lang={l.key}>{l.label}</option>)}
-        </select>
+        <Choose hideLabel label={t('Language')} id="family-language" value={String(pickLang({ family: settings.language }))} onChange={next => save({ language: pickLang({ family: next }) })} sheet
+          options={LANGUAGES.map(l => ({ value: String(l.key), label: l.label, lang: l.key }))} />
       </div>
       <div className="settings-row">
         <div>
           <label className="settings-row-label" htmlFor="family-currency">{t('Currency')}</label>
           <div className="settings-row-sub">{t('For prices on restaurant menus.')}</div>
         </div>
-        <select id="family-currency" className="settings-select" value={settings.currency ?? 'USD'} onChange={e => save({ currency: e.target.value })}>
-          {currencies().map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-        </select>
+        <Choose hideLabel label={t('Currency')} id="family-currency" value={String(settings.currency ?? 'USD')} onChange={next => save({ currency: next })} sheet
+          options={currencies().map(c => ({ value: String(c.code), label: c.label }))} />
       </div>
       <div className="settings-row">
         <div className="settings-row-label">{t('Timezone')}</div>
@@ -413,19 +411,19 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
       </div>
       <div className="settings-row">
         <div className="settings-row-label">{t('Week starts on')}</div>
-        <select className="settings-select" aria-label={t('Week starts on')} value={settings.weekStart} onChange={e => save({ weekStart: Number(e.target.value) as 0 | 1 })}>
-          <option value={0}>{t('Sunday')}</option>
-          <option value={1}>{t('Monday')}</option>
-        </select>
+        <Choose hideLabel label={t('Week starts on')} value={String(settings.weekStart)} onChange={next => save({ weekStart: Number(next) as 0 | 1 })}
+          options={[
+            { value: String(0), label: t('Sunday') },
+            { value: String(1), label: t('Monday') },
+          ]} />
       </div>
       <div className="settings-row">
         <div>
           <div className="settings-row-label">{t('Time format')}</div>
           <div className="settings-row-sub">{t("Automatic follows each device's language and region. A device can pick its own.")}</div>
         </div>
-        <select className="settings-select" aria-label={t('Time format')} value={settings.timeFormat ?? 'auto'} onChange={e => save({ timeFormat: e.target.value as TimeFormat })}>
-          {TIME_FORMATS.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
-        </select>
+        <Choose hideLabel label={t('Time format')} value={String(settings.timeFormat ?? 'auto')} onChange={next => save({ timeFormat: next as TimeFormat })}
+          options={TIME_FORMATS.map(o => ({ value: String(o.key), label: tm(o.label) }))} />
       </div>
       {!isDisplay && (
         <div className="settings-row">
@@ -433,10 +431,8 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
             <div className="settings-row-label">{t('Default reminder')}</div>
             <div className="settings-row-sub">{t('Used for events with no reminder of their own.')}</div>
           </div>
-          <select className="settings-select" aria-label={t('Default reminder')} value={settings.defaultReminderMinutes[0] !== undefined ? String(settings.defaultReminderMinutes[0]) : 'none'}
-            onChange={e => save({ defaultReminderMinutes: e.target.value === 'none' ? [] : [Number(e.target.value)] })}>
-            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{tm(o.label)}</option>)}
-          </select>
+          <Choose hideLabel label={t('Default reminder')} value={String(settings.defaultReminderMinutes[0] !== undefined ? String(settings.defaultReminderMinutes[0]) : 'none')} onChange={next => save({ defaultReminderMinutes: next === 'none' ? [] : [Number(next)] })} sheet
+            options={REMINDER_OPTIONS.map(o => ({ value: String(o.value), label: tm(o.label) }))} />
         </div>
       )}
     </Section>
@@ -588,10 +584,11 @@ function WeatherLocationRows({ settings, save, toast }: { settings: Settings; sa
       {settings.location && (
         <div className="settings-row">
           <div className="settings-row-label">{t('Temperature')}</div>
-          <select className="settings-select" aria-label={t('Temperature unit')} value={settings.temperatureUnit} onChange={e => save({ temperatureUnit: e.target.value as Settings['temperatureUnit'] })}>
-            <option value="fahrenheit">{t('°F Fahrenheit')}</option>
-            <option value="celsius">{t('°C Celsius')}</option>
-          </select>
+          <Choose hideLabel label={t('Temperature unit')} value={String(settings.temperatureUnit)} onChange={next => save({ temperatureUnit: next as Settings['temperatureUnit'] })}
+            options={[
+              { value: 'fahrenheit', label: t('°F Fahrenheit') },
+              { value: 'celsius', label: t('°C Celsius') },
+            ]} />
         </div>
       )}
     </>
@@ -658,17 +655,17 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
           <span>{t('Mode')}</span>
-          <select className="settings-select" aria-label={t('Mode')} value={settings.themeMode} onChange={e => save({ themeMode: e.target.value as ThemeMode })}>
-            {THEME_MODES.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
-          </select>
+          <Choose hideLabel label={t('Mode')} value={String(settings.themeMode)} onChange={next => save({ themeMode: next as ThemeMode })}
+            options={THEME_MODES.map(o => ({ value: String(o.key), label: tm(o.label) }))} />
         </div>
         {settings.themeMode === 'scheduled' && <>
           <div className="device-pref-row">
             <span>{t('Dark hours')}</span>
-            <select className="settings-select" aria-label={t('Dark hours')} value={settings.darkWithNight ? 'night' : ''} onChange={e => save({ darkWithNight: !!e.target.value })}>
-              <option value="night">{t('Same as night')}</option>
-              <option value="">{t('Their own times')}</option>
-            </select>
+            <Choose hideLabel label={t('Dark hours')} value={String(settings.darkWithNight ? 'night' : '')} onChange={next => save({ darkWithNight: !!next })}
+              options={[
+                { value: 'night', label: t('Same as night') },
+                { value: '', label: t('Their own times') },
+              ]} />
           </div>
           {settings.darkWithNight
             ? <div className="settings-row-sub">{settings.quietFrom && settings.quietTo ? t('Dark {from}–{to}, the night hours set under Night.', { from: formatTime(settings.darkFrom), to: formatTime(settings.darkTo) }) : t("Night hours are off, so it's dark {from}–{to}.", { from: formatTime(settings.darkFrom), to: formatTime(settings.darkTo) })}</div>
@@ -692,15 +689,13 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         <TypefaceRow options={fontOptions()} value={settings.typeface ?? 'default'} onPick={key => { if (key) { save({ typeface: key }); announce(t('{name} typeface', { name: fontName(key) ?? '' })) } }} />
         <div className="device-pref-row">
           <span>{t('Text size')}</span>
-          <select className="settings-select" aria-label={t('Text size')} value={settings.textScale} onChange={e => save({ textScale: e.target.value as TextScale })}>
-            {TEXT_SCALES.map(o => <option key={o.key} value={o.key}>{tm(TEXT_SCALE_NAMES[o.key])}</option>)}
-          </select>
+          <Choose hideLabel label={t('Text size')} value={String(settings.textScale)} onChange={next => save({ textScale: next as TextScale })} sheet
+            options={TEXT_SCALES.map(o => ({ value: String(o.key), label: tm(TEXT_SCALE_NAMES[o.key]) }))} />
         </div>
         <div className="device-pref-row">
           <span>{t('Density')}</span>
-          <select className="settings-select" aria-label={t('Density')} value={settings.density} onChange={e => save({ density: e.target.value as Density })}>
-            {DENSITIES.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
-          </select>
+          <Choose hideLabel label={t('Density')} value={String(settings.density)} onChange={next => save({ density: next as Density })}
+            options={DENSITIES.map(o => ({ value: String(o.key), label: tm(o.label) }))} />
         </div>
         <div className="settings-row-sub">{t("Comfortable is roomy, made to read across the room. Compact fits more on every screen: tighter spacing, smaller choice buttons and shorter forms. A parent's phone is compact unless it picks otherwise. Icon-first is set per device, under Appearance on this device.")}</div>
       </div>
@@ -728,14 +723,9 @@ function QuietPinRow({ settings, onSaved, toast }: { settings: Settings; onSaved
       <div className="settings-row-label">{settings.quietPin ? t('PIN to wake at night: on') : t('PIN to wake at night')}</div>
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="btn btn-secondary" style={{ flex: 1 }} onClick={setPin}>{settings.quietPin ? t('Change PIN') : t('Set PIN')}</button>
-        {settings.quietPin && (
-          <select className="settings-select" style={{ width: 'auto' }} aria-label={t('More')} value="" onChange={e => more(e.target.value)}>
-            <option value="" disabled hidden>{t('More…')}</option>
-            <option value="remove">{t('Remove PIN')}</option>
-          </select>
-        )}
       </div>
       <div className="settings-row-sub">{t("A wall screen asks for it before waking during night hours, so little ones can't turn the wall on at night. Forgot it? Remove it here on any parent device.")}</div>
+      {settings.quietPin && <button type="button" className="link-btn link-danger" onClick={() => more('remove')}>{t('Remove PIN')}</button>}
     </div>
   )
 }
@@ -755,7 +745,7 @@ function MealSettingsSection({ settings, onSaved, toast, readOnly = false }: { s
       {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(slot => (
         <div className="settings-row" key={slot}>
           <div className="settings-row-label">{{ breakfast: t('Breakfast'), lunch: t('Lunch'), dinner: t('Dinner'), snack: t('Snack') }[slot]}</div>
-          <input type="time" className="settings-select" aria-label={{ breakfast: t('Usual breakfast time'), lunch: t('Usual lunch time'), dinner: t('Usual dinner time'), snack: t('Usual snack time') }[slot]} defaultValue={settings.mealTimes[slot]} disabled={readOnly} onBlur={e => void save(slot, e.target.value)} />
+          <input type="time" aria-label={{ breakfast: t('Usual breakfast time'), lunch: t('Usual lunch time'), dinner: t('Usual dinner time'), snack: t('Usual snack time') }[slot]} defaultValue={settings.mealTimes[slot]} disabled={readOnly} onBlur={e => void save(slot, e.target.value)} />
         </div>
       ))}
     </Section>
@@ -784,10 +774,11 @@ function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Setti
               <div className="settings-row-label">{tm(r.label)}</div>
               <div className="settings-row-sub">{options.length ? tm(r.sub) : t('Pick a store on an item first.')}</div>
             </div>
-            <select className="settings-select" aria-label={tm(r.label)} value={value} disabled={!options.length} onChange={e => save({ [r.key]: e.target.value || null })}>
-              <option value="">{t('None')}</option>
-              {options.map(st => <option key={st} value={st}>{st}</option>)}
-            </select>
+            <Choose hideLabel label={tm(r.label)} value={String(value)} disabled={!options.length} onChange={next => save({ [r.key]: next || null })} sheet
+              options={[
+                { value: '', label: t('None') },
+                ...(options.map(st => ({ value: String(st), label: st }))),
+              ]} />
           </div>
         )
       })}
@@ -796,9 +787,8 @@ function ShoppingSettingsSection({ settings, onSaved, toast }: { settings: Setti
           <div className="settings-row-label">{t('Clear ticked items after')}</div>
           <div className="settings-row-sub">{t('Ticked items leave grocery and shopping lists after this long. Kinwall still remembers their stores and aisles.')}</div>
         </div>
-        <select className="settings-select" aria-label={t('Clear ticked items after')} value={settings.clearCheckedAfterDays} onChange={e => save({ clearCheckedAfterDays: Number(e.target.value) })}>
-          {[...new Set([1, 2, 3, 7, 14, 30, settings.clearCheckedAfterDays])].sort((a, b) => a - b).map(n => <option key={n} value={n}>{tn(n, '{n} day', '{n} days')}</option>)}
-        </select>
+        <Choose hideLabel label={t('Clear ticked items after')} value={String(settings.clearCheckedAfterDays)} onChange={next => save({ clearCheckedAfterDays: Number(next) })}
+          options={[...new Set([1, 2, 3, 7, 14, 30, settings.clearCheckedAfterDays])].sort((a, b) => a - b).map(n => ({ value: String(n), label: tn(n, '{n} day', '{n} days') }))} />
       </div>
     </Section>
   )
@@ -815,27 +805,24 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
           <div className="settings-row-label">{t('Late completion credit')}</div>
           <div className="settings-row-sub">{t('Chores ticked off for a past day earn this share of their points.')}</div>
         </div>
-        <select className="settings-select" aria-label={t('Late completion credit')} value={settings.lateCompletionCredit} onChange={e => save({ lateCompletionCredit: Number(e.target.value) })}>
-          {[0, 25, 50, 75, 100].map(p => <option key={p} value={p}>{p}%</option>)}
-        </select>
+        <Choose hideLabel label={t('Late completion credit')} value={String(settings.lateCompletionCredit)} onChange={next => save({ lateCompletionCredit: Number(next) })}
+          options={[0, 25, 50, 75, 100].map(p => ({ value: String(p), label: [p, "%"].join('') }))} />
       </div>
       <div className="settings-row">
         <div>
           <div className="settings-row-label">{t('Streak grace days')}</div>
           <div className="settings-row-sub">{t('A streak survives this many missed days in any week.')}</div>
         </div>
-        <select className="settings-select" aria-label={t('Streak grace days')} value={settings.streakGraceDays} onChange={e => save({ streakGraceDays: Number(e.target.value) })}>
-          {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? t('None') : tn(n, '{n} day', '{n} days')}</option>)}
-        </select>
+        <Choose hideLabel label={t('Streak grace days')} value={String(settings.streakGraceDays)} onChange={next => save({ streakGraceDays: Number(next) })}
+          options={[0, 1, 2, 3].map(n => ({ value: String(n), label: n === 0 ? t('None') : tn(n, '{n} day', '{n} days') }))} />
       </div>
       {settings.features.checkIns && <div className="settings-row">
         <div>
           <div className="settings-row-label">{t('Daily check-in points')}</div>
           <div className="settings-row-sub">{t('Reading your day to the end and tapping "I\'m all caught up" earns these, once a day.')}</div>
         </div>
-        <select className="settings-select" aria-label={t('Daily check-in points')} value={settings.checkInPoints} onChange={e => save({ checkInPoints: Number(e.target.value) })}>
-          {[0, 1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n === 0 ? t('Off') : tn(n, '{n} point', '{n} points')}</option>)}
-        </select>
+        <Choose hideLabel label={t('Daily check-in points')} value={String(settings.checkInPoints)} onChange={next => save({ checkInPoints: Number(next) })}
+          options={[0, 1, 2, 3, 5, 10].map(n => ({ value: String(n), label: n === 0 ? t('Off') : tn(n, '{n} point', '{n} points') }))} />
       </div>}
       <div className="toggle-row">
         <label id="leaderboard-label">{t('Show leaderboard')}</label>
@@ -869,9 +856,8 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
             <div className="settings-row-label">{t('Sticker prices')}</div>
             <div className="settings-row-sub">{t('Kids spend chore points on sticker packs in Activities → Sticker book.')}</div>
           </div>
-          <select className="settings-select" aria-label={t('Sticker prices')} value={settings.stickerPriceScale} onChange={e => save({ stickerPriceScale: Number(e.target.value) })}>
-            {[...new Set([0, 50, 100, 150, settings.stickerPriceScale])].sort((a, b) => a - b).map(p => <option key={p} value={p}>{p === 0 ? t('Free') : `${p}%`}</option>)}
-          </select>
+          <Choose hideLabel label={t('Sticker prices')} value={String(settings.stickerPriceScale)} onChange={next => save({ stickerPriceScale: Number(next) })}
+          options={[...new Set([0, 50, 100, 150, settings.stickerPriceScale])].sort((a, b) => a - b).map(p => ({ value: String(p), label: p === 0 ? t('Free') : `${p}%` }))} />
         </div>
       )}
     </Section>
@@ -1288,9 +1274,10 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="device-pref-row">
         <span aria-hidden="true">{t('Color scheme')}</span>
-        <button type="button" className="settings-select scheme-row" aria-label={t('Color scheme')} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setPicking(true)}>
+        <button type="button" className="sheet-link scheme-row" aria-label={t('Color scheme')} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setPicking(true)}>
           <span className="scheme-swatch scheme-swatch-lg" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${lightT.bg} 50%, ${darkT.bg} 50%)`, borderColor: lightT.accentStrong }} />
           <span id={valueId} className="scheme-row-name">{rowValue}</span>
+          <ChevronRight />
         </button>
       </div>
       {picking && (
@@ -1456,12 +1443,13 @@ function LanguageSection() {
             ? t("Saved in {name}'s profile, so it follows them to all their devices.", { name: me.name })
             : t('Saved on this device only. A device that belongs to someone uses their language.')}</div>
         </div>
-        <select id="language-select" className="settings-select" value={(me ? me.language : device.language) ?? ''} disabled={saving} onChange={e => pick(e.target.value)}>
-          <option value="">{fallback === family && !(me && device.language)
+        <Choose hideLabel label={t('Language')} id="language-select" value={String((me ? me.language : device.language) ?? '')} disabled={saving} onChange={next => pick(next)} sheet
+          options={[
+            { value: '', label: fallback === family && !(me && device.language)
             ? t("🏠 Use the family's ({language})", { language: languageName(family) })
-            : t("Use this device's ({language})", { language: languageName(fallback) })}</option>
-          {LANGUAGES.map(l => <option key={l.key} value={l.key} lang={l.key}>{l.label}</option>)}
-        </select>
+            : t("Use this device's ({language})", { language: languageName(fallback) }) },
+            ...(LANGUAGES.map(l => ({ value: String(l.key), label: l.label, lang: l.key }))),
+          ]} />
       </div>
     </Section>
   )
@@ -1500,10 +1488,11 @@ function DeviceAppearanceRows() {
         return (
           <div key={r.key} className="device-pref-row">
             <span>{tm(r.label)}</span>
-            <select className="settings-select" aria-label={t('{setting} on this device', { setting: tm(r.label) })} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">{t("🏠 Use the family's ({name})", { name: household })}</option>
-              {r.options.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
-            </select>
+            <Choose hideLabel label={t('{setting} on this device', { setting: tm(r.label) })} value={String(device[r.key] ?? '')} onChange={next => set({ [r.key]: next || undefined })} sheet
+              options={[
+                { value: '', label: t("🏠 Use the family's ({name})", { name: household }) },
+                ...(r.options.map(o => ({ value: String(o.key), label: tm(o.label) }))),
+              ]} />
           </div>
         )
       })}
@@ -1524,27 +1513,30 @@ function DeviceAppearanceRows() {
         return (
           <div key={r.key} className="device-pref-row">
             <span>{tm(r.label)}</span>
-            <select className="settings-select" aria-label={t('{setting} on this device', { setting: tm(r.label) })} value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
-              <option value="">{phoneDensity ? t('Phone default (Compact)') : t("🏠 Use the family's ({name})", { name: household })}</option>
-              {r.options.map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
-            </select>
+            <Choose hideLabel label={t('{setting} on this device', { setting: tm(r.label) })} value={String(device[r.key] ?? '')} onChange={next => set({ [r.key]: next || undefined })} sheet
+              options={[
+                { value: '', label: phoneDensity ? t('Phone default (Compact)') : t("🏠 Use the family's ({name})", { name: household }) },
+                ...(r.options.map(o => ({ value: String(o.key), label: tm(o.label) }))),
+              ]} />
           </div>
         )
       })}
       <TypefaceRow options={fontOptions()} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? t('{name} typeface', { name: fontName(key) ?? '' }) : t("The family's typeface")) }} />
       <div className="device-pref-row">
         <span>{t('Time format')}</span>
-        <select className="settings-select" aria-label={t('Time format on this device')} value={device.timeFormat ?? ''} onChange={e => set({ timeFormat: deviceTimeFormat(e.target.value) })}>
-          <option value="">🏠 {t("Use the family's ({name})", { name: tm(TIME_FORMATS.find(o => o.key === (settings.timeFormat ?? 'auto'))?.label ?? '').split(' (')[0] })}</option>
-          {TIME_FORMATS.slice(1).map(o => <option key={o.key} value={o.key}>{tm(o.label)}</option>)}
-        </select>
+        <Choose hideLabel label={t('Time format on this device')} value={String(device.timeFormat ?? '')} onChange={next => set({ timeFormat: deviceTimeFormat(next) })} sheet
+          options={[
+            { value: '', label: ["🏠 ", t("Use the family's ({name})", { name: tm(TIME_FORMATS.find(o => o.key === (settings.timeFormat ?? 'auto'))?.label ?? '').split(' (')[0] })].join('') },
+            ...(TIME_FORMATS.slice(1).map(o => ({ value: String(o.key), label: tm(o.label) }))),
+          ]} />
       </div>
       <div className="device-pref-row">
         <span>{t('Clock time zone')}</span>
-        <select className="settings-select" aria-label={t('Clock time zone on this device')} value={device.clockZone ?? ''} onChange={e => { set({ clockZone: e.target.value === 'device' ? 'device' : undefined }); announce(e.target.value ? t("The clock shows this device's time zone") : t("The clock shows the family's time zone")) }}>
-          <option value="">🏠 {t("The family's ({name})", { name: tzCity(settings.timezone ?? 'UTC') })}</option>
-          <option value="device">{t("This device's ({name})", { name: tzCity(Intl.DateTimeFormat().resolvedOptions().timeZone) })}</option>
-        </select>
+        <Choose hideLabel label={t('Clock time zone on this device')} value={String(device.clockZone ?? '')} onChange={next => { set({ clockZone: next === 'device' ? 'device' : undefined }); announce(next ? t("The clock shows this device's time zone") : t("The clock shows the family's time zone")) }}
+          options={[
+            { value: '', label: ["🏠 ", t("The family's ({name})", { name: tzCity(settings.timezone ?? 'UTC') })].join('') },
+            { value: 'device', label: t("This device's ({name})", { name: tzCity(Intl.DateTimeFormat().resolvedOptions().timeZone) }) },
+          ]} />
       </div>
       <div className="toggle-row">
         <label id="lowstim-label">{t('Low-stimulation mode')}</label>
@@ -1573,24 +1565,25 @@ function DevicePinRows() {
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="device-pref-row" id="pin-checklist">
         <span>{t('Pin a checklist')}</span>
-        <select className="settings-select" aria-label={t('Pin a checklist')} value={device.pinList ?? ''} onChange={e => {
-          const id = e.target.value
+        <Choose hideLabel label={t('Pin a checklist')} value={String(device.pinList ?? '')} onChange={next => {
+          const id = next
           set(id ? { pinList: id } : { pinList: undefined, pinFrom: undefined, pinTo: undefined })
           announce(id ? t('Pinned: {name}', { name: choices.find(l => l.id === id)?.name ?? '' }) : t('No checklist pinned'))
-        }}>
-          <option value="">{t('Off')}</option>
-          {device.pinList && !pinned && lists.length > 0 && <option value={device.pinList}>{t("A list that's gone")}</option>}
-          {choices.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
-        </select>
+        }} sheet
+          options={[
+            { value: '', label: t('Off') },
+            ...(device.pinList && !pinned && lists.length > 0 ? [{ value: String(device.pinList), label: t("A list that's gone") }] : []),
+            ...(choices.map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name].join('') }))),
+          ]} />
       </div>
       {device.pinList && (
         <div className="device-pref-row">
           <span>{t('When')}</span>
-          <select className="settings-select" aria-label={t('When the checklist is pinned')} value={timed ? 'window' : ''}
-            onChange={e => set(e.target.value ? { pinFrom: '19:00', pinTo: '20:30' } : { pinFrom: undefined, pinTo: undefined })}>
-            <option value="">{t('All day')}</option>
-            <option value="window">{t('Between set times')}</option>
-          </select>
+          <Choose hideLabel label={t('When the checklist is pinned')} value={String(timed ? 'window' : '')} onChange={next => set(next ? { pinFrom: '19:00', pinTo: '20:30' } : { pinFrom: undefined, pinTo: undefined })}
+            options={[
+              { value: '', label: t('All day') },
+              { value: 'window', label: t('Between set times') },
+            ]} />
         </div>
       )}
       {timed && (
@@ -1623,11 +1616,11 @@ function ScreenFocusRows() {
         <div className="device-pref-row">
           <span>{t('Show only')}</span>
           {focusLocked ? <span className="settings-row-sub" style={{ margin: 0 }}>{focus ? `${focus.avatar} ${focus.name}` : t('Everyone')} · {t('Set by a parent')}</span> : (
-          <select className="settings-select" aria-label={t('Show only')} value={focus?.id ?? ''}
-            onChange={e => { set({ focusMemberId: e.target.value || undefined }); announce(e.target.value ? t('Showing only {name}', { name: members.find(m => m.id === e.target.value)?.name ?? '' }) : t('Showing everyone')) }}>
-            <option value="">{t('Everyone')}</option>
-            {members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
-          </select>
+          <Choose hideLabel label={t('Show only')} value={String(focus?.id ?? '')} onChange={next => { set({ focusMemberId: next || undefined }); announce(next ? t('Showing only {name}', { name: members.find(m => m.id === next)?.name ?? '' }) : t('Showing everyone')) }} sheet
+            options={[
+              { value: '', label: t('Everyone') },
+              ...(members.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+            ]} />
           )}
         </div>
         {focus && (
@@ -1641,25 +1634,22 @@ function ScreenFocusRows() {
         <div className="device-pref-row">
           <span>{t('Lock view')}</span>
           {/* Home's views, then Calendar's. Locked to a calendar view, Calendar takes Home's place in the nav. */}
-          <select className="settings-select" aria-label={t('Lock view')} value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
-            <option value="">{t('Off')}</option>
-            <optgroup label={t('Home')}>
-              <option value="board">{t('Board')}</option>
-              {settings.features.newscast !== false && <option value="newscast">{t('Newscast')}</option>}
-            </optgroup>
-            <optgroup label={t('Calendar')}>
-              {CALENDAR_VIEWS.map(v => <option key={v} value={v}>{viewLabel(v, isPhone)}</option>)}
-            </optgroup>
-          </select>
+          <Choose hideLabel label={t('Lock view')} value={String(device.lockView ?? '')} onChange={next => set({ lockView: (next || undefined) as LockedView | undefined })}
+            options={[
+              { value: '', label: t('Off') },
+              ...([{ value: 'board', label: t('Board'), detail: t('Home') }, ...(settings.features.newscast !== false ? [{ value: 'newscast', label: t('Newscast'), detail: t('Home') }] : [])]),
+              ...([...(CALENDAR_VIEWS.map(v => ({ value: String(v), label: viewLabel(v, isPhone), detail: t('Calendar') })))]),
+            ]} />
         </div>
         <DeviceBoardLayoutRows />
         {!device.boardLayout && <div className="device-pref-row">
           <span>{t('Board chores & to-dos')}</span>
-          <select className="settings-select" aria-label={t('Board chores and to-dos')} value={device.boardLists ?? ''} onChange={e => set({ boardLists: (e.target.value || undefined) as DeviceAppearance['boardLists'] })}>
-            <option value="">{t('Auto')}</option>
-            <option value="counts">{t('Counts')}</option>
-            <option value="full">{t('Full lists')}</option>
-          </select>
+          <Choose hideLabel label={t('Board chores and to-dos')} value={String(device.boardLists ?? '')} onChange={next => set({ boardLists: (next || undefined) as DeviceAppearance['boardLists'] })}
+            options={[
+              { value: '', label: t('Auto') },
+              { value: 'counts', label: t('Counts') },
+              { value: 'full', label: t('Full lists') },
+            ]} />
         </div>}
       </div>
       <DeviceTidbitRows />
@@ -1808,14 +1798,11 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
       {repeat && (
         <div className="minutes-row">
           <span>{t('Every')}</span>
-          <select className="settings-select" aria-label={t('Repeat every')} value={repeat.every}
-            onChange={e => { const every = Number(e.target.value); onChange(minutes, { every, within: Math.max(every, repeat.within) }) }}>
-            {REPEAT_EVERY.filter(v => v >= minEvery).map(v => <option key={v} value={v}>{t('{n} min', { n: v })}</option>)}
-          </select>
+          <Choose hideLabel label={t('Repeat every')} value={String(repeat.every)} onChange={next => { const every = Number(next); onChange(minutes, { every, within: Math.max(every, repeat.within) }) }} sheet
+            options={REPEAT_EVERY.filter(v => v >= minEvery).map(v => ({ value: String(v), label: t('{n} min', { n: v }) }))} />
           <span>{t('during the last')}</span>
-          <select className="settings-select" aria-label={t('During the last')} value={repeat.within} onChange={e => onChange(minutes, { ...repeat, within: Number(e.target.value) })}>
-            {REPEAT_WITHIN.filter(v => v >= repeat.every).map(v => <option key={v} value={v}>{t('{n} min', { n: v })}</option>)}
-          </select>
+          <Choose hideLabel label={t('During the last')} value={String(repeat.within)} onChange={next => onChange(minutes, { ...repeat, within: Number(next) })} sheet
+            options={REPEAT_WITHIN.filter(v => v >= repeat.every).map(v => ({ value: String(v), label: t('{n} min', { n: v }) }))} />
         </div>
       )}
     </>
@@ -1943,14 +1930,14 @@ function NightScreenSection() {
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
           <span>{t('Night screen')}</span>
-          <select className="settings-select" aria-label={t('Night screen')} value={own ? 'own' : ''}
-            onChange={e => {
-              if (e.target.value) { setDeviceAppearance({ ...device, ...clear, nightOwn: true, ...familyNightFields(settings.nightLook) }); announce(t('This screen picks its own Night screen')) }
+          <Choose hideLabel label={t('Night screen')} value={String(own ? 'own' : '')} onChange={next => {
+              if (next) { setDeviceAppearance({ ...device, ...clear, nightOwn: true, ...familyNightFields(settings.nightLook) }); announce(t('This screen picks its own Night screen')) }
               else { setDeviceAppearance({ ...device, ...clear }); announce(t("This screen follows the family's Night screen")) }
-            }}>
-            <option value="">{t('Family’s choice')}</option>
-            <option value="own">{t('This screen’s own')}</option>
-          </select>
+            }}
+            options={[
+              { value: '', label: t('Family’s choice') },
+              { value: 'own', label: t('This screen’s own') },
+            ]} />
         </div>
         {own
           ? <NightRows value={nightFieldsFor(device, settings.nightLook)} onChange={patch => setDeviceAppearance({ ...device, ...patch })} here />
@@ -2010,9 +1997,8 @@ function NightRows({ value, onChange, here = false, label = t('Show') }: { value
     {(sources.length === 0 || value.saverClock !== false) && <>
       <div className="device-pref-row">
         <span>{t('Clock position')}</span>
-        <select className="settings-select" aria-label={t('Clock position')} value={value.clockPos ?? ''} onChange={e => onChange({ clockPos: (e.target.value || undefined) as ClockPos | undefined })}>
-          {CLOCK_POSITIONS.map(p => <option key={p.key} value={p.key}>{tm(p.label)}</option>)}
-        </select>
+        <Choose hideLabel label={t('Clock position')} value={String(value.clockPos ?? '')} onChange={next => onChange({ clockPos: (next || undefined) as ClockPos | undefined })} sheet
+          options={CLOCK_POSITIONS.map(p => ({ value: String(p.key), label: tm(p.label) }))} />
       </div>
       <div className="settings-row-sub">{value.clockPos ? t('The clock stays put. Moves around protects the screen from burn-in.') : t('Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.')}</div>
     </>}
@@ -2184,11 +2170,11 @@ function ScreenScaleRow() {
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
       <div className="device-pref-row">
         <span>{t('Screen scale')}</span>
-        <select className="settings-select" aria-label={t('Screen scale')} value={device.screenScale ?? ''}
-          onChange={e => setDeviceAppearance({ ...device, screenScale: Number(e.target.value) || undefined })}>
-          <option value="">{t('Auto ({n}%)', { n: auto })}</option>
-          {SCREEN_SCALES.map(p => <option key={p} value={p}>{p}%</option>)}
-        </select>
+        <Choose hideLabel label={t('Screen scale')} value={String(device.screenScale ?? '')} onChange={next => setDeviceAppearance({ ...device, screenScale: Number(next) || undefined })} sheet
+          options={[
+            { value: '', label: t('Auto ({n}%)', { n: auto }) },
+            ...(SCREEN_SCALES.map(p => ({ value: String(p), label: [p, "%"].join('') }))),
+          ]} />
       </div>
       <div className="settings-row-sub">{t('Makes everything on this screen smaller or bigger. Auto draws a 10" tablet a little smaller so it gets the tablet layout; other screens stay at 100%.')}</div>
     </div>
@@ -2340,10 +2326,11 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       {canDelete && (
         <div className="field">
           <label htmlFor="member-language">{t('Language')}</label>
-          <select id="member-language" className="settings-select" value={language ?? ''} onChange={e => setLanguage(LANGUAGES.find(l => l.key === e.target.value)?.key ?? null)}>
-            <option value="">{t("🏠 Use the family's ({language})", { language: languageName(pickLang({ family: settings.language })) })}</option>
-            {LANGUAGES.map(l => <option key={l.key} value={l.key} lang={l.key}>{l.label}</option>)}
-          </select>
+          <Choose hideLabel label={t('Language')} id="member-language" value={String(language ?? '')} onChange={next => setLanguage(LANGUAGES.find(l => l.key === next)?.key ?? null)} sheet
+            options={[
+              { value: '', label: t("🏠 Use the family's ({language})", { language: languageName(pickLang({ family: settings.language })) }) },
+              ...(LANGUAGES.map(l => ({ value: String(l.key), label: l.label, lang: l.key }))),
+            ]} />
           <p className="field-hint">{t('Kinwall uses this language on their own devices and in the activities they play. They can change it on their own device too.')}</p>
         </div>
       )}
@@ -2468,9 +2455,8 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
               <div className="settings-row-label" id="member-tc-time">{t('Ask at')}</div>
               <div className="settings-row-sub">{t('"Did you finish your goal?" on {name}\'s devices and their day, until midnight.', { name })}</div>
             </div>
-            <select className="settings-select" aria-labelledby="member-tc-time" value={value.eveningTime} onChange={e => set({ eveningTime: e.target.value })}>
-              {EVENING_TIMES.map(tm => <option key={tm} value={tm}>{formatTime(tm)}</option>)}
-            </select>
+            <Choose hideLabel label={t('Ask at')} aria-labelledby="member-tc-time" value={String(value.eveningTime)} onChange={next => set({ eveningTime: next })} sheet
+              options={EVENING_TIMES.map(tm => ({ value: String(tm), label: formatTime(tm) }))} />
           </div>
           {row('journal', t('Keep answers in the journal'))}
           <div className="settings-row-sub">{value.journal ? t("What helped, what got in the way and next time go in {name}'s journal.", { name }) : t('Only yes, partly or not today is kept, never the notes.')}</div>
@@ -2483,10 +2469,11 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
               <div className="settings-row-label">{t("{name}'s own feelings", { name })}</div>
               <div className="settings-row-sub">{custom.join(', ')}</div>
             </div>
-            <select className="settings-select" aria-label={t("Remove one of {name}'s feelings", { name })} value="" onChange={e => e.target.value && remove(e.target.value)}>
-              <option value="">{t('Remove…')}</option>
-              {custom.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
+            <Choose hideLabel label={t("Remove one of {name}'s feelings", { name })} value={''} onChange={next => next && remove(next)} sheet
+              options={[
+                { value: '', label: t('Remove…') },
+                ...(custom.map(f => ({ value: String(f), label: f }))),
+              ]} />
           </div>
         )}
         {member && savedOn && (
@@ -2709,9 +2696,8 @@ function EventLengthRow({ toast }: { toast: (m: string, persist?: boolean) => vo
         <div className="settings-row-label">{t('New events last')}</div>
         <div className="settings-row-sub">{t('Picking a start fills in the end this long after it.')}</div>
       </div>
-      <select className="settings-select" aria-label={t('New events last')} value={settings.defaultEventMinutes ?? 60} onChange={e => void save(Number(e.target.value))}>
-        {EVENT_LENGTHS.map(m => <option key={m} value={m}>{label(m)}</option>)}
-      </select>
+      <Choose hideLabel label={t('New events last')} value={String(settings.defaultEventMinutes ?? 60)} onChange={next => void save(Number(next))} sheet
+        options={EVENT_LENGTHS.map(m => ({ value: String(m), label: label(m) }))} />
     </div>
   )
 }
@@ -2857,10 +2843,11 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} />
       <div className="field">
         <label>{t('Default category')}</label>
-        <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)}>
-          <option value="">{t('None')}</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>)}
-        </select>
+        <Choose hideLabel label={t('Default category')} value={String(categoryId ?? '')} onChange={next => setCategoryId(next || null)} sheet
+          options={[
+            { value: '', label: t('None') },
+            ...(categories.map(c => ({ value: String(c.id), label: [c.emoji ? `${c.emoji} ` : '', c.name].join('') }))),
+          ]} />
         <div className="settings-row-sub">{t('Applied to events here with no keyword match or their own category.')}</div>
       </div>
       <div className="field">
@@ -3389,10 +3376,11 @@ function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, pers
           <div className="settings-row-label" id="this-device-owner">{t('Whose device is this?')}</div>
           <div className="settings-row-sub">{t("It opens that person's private journal. Their own devices get a note when this changes, and it's in Access → Security activity.")}</div>
         </div>
-        <select className="settings-select" aria-labelledby="this-device-owner" value={meMemberId ?? 'shared'} onChange={e => change(e.target.value)}>
-          <option value="shared">{t('Shared (whole family)')}</option>
-          {grownUps.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
-        </select>
+        <Choose hideLabel label={t('Whose device is this?')} aria-labelledby="this-device-owner" value={String(meMemberId ?? 'shared')} onChange={next => change(next)} sheet
+          options={[
+            { value: 'shared', label: t('Shared (whole family)') },
+            ...(grownUps.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+          ]} />
       </div>
     </Section>
   )
@@ -3493,10 +3481,11 @@ export function OwnerSelect({ value, onChange, members, id, label }: { value: st
   const ctx = useContext(AppContext)
   const list = members ?? ctx?.members ?? []
   return (
-    <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="shared">{t('Anyone (whole family)')}</option>
-      {list.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
-    </select>
+    <Choose hideLabel label={label ?? t('Whose device is this?')} id={id} value={String(value)} onChange={next => onChange(next)} sheet
+      options={[
+        { value: 'shared', label: t('Anyone (whole family)') },
+        ...(list.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+      ]} />
   )
 }
 

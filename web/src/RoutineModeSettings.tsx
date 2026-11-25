@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import type { RoutineDaySchedule, RoutineState } from './routineMode.ts'
 import { useEffect, useState } from 'react'
 import { schoolDomain } from './routineWebsites.ts'
@@ -45,7 +46,8 @@ function RoutineModeSettingsBody() {
   const [statuses, setStatuses] = useState<Record<string, RoutineSaveStatus>>({})
   const pending = (id: string) => !!statuses[id] && !['idle', 'saved'].includes(statuses[id]!.phase)
   return <div className="routine-settings">
-    <label className="field">{t('Child')}<select className="settings-select" disabled={nativeBusy} value={picked} onChange={e => { setPicked(e.target.value); setNative(null) }}>{children.map(m => <option value={m.id} key={m.id}>{statuses[m.id]?.phase === 'error' || statuses[m.id]?.phase === 'invalid' ? t('{name} (not saved)', { name: m.name }) : m.name}</option>)}</select></label>
+    <label className="field">{t('Child')}<Choose hideLabel label={t('Child')} disabled={nativeBusy} value={String(picked)} onChange={next => { setPicked(next); setNative(null) }} sheet
+      options={children.map(m => ({ value: String(m.id), label: statuses[m.id]?.phase === 'error' || statuses[m.id]?.phase === 'invalid' ? t('{name} (not saved)', { name: m.name }) : m.name }))} /></label>
     <p className="settings-row-sub">{t('Changes save automatically for the selected child.')}</p>
     {!memberId && <p>{t('Add a child to your family before setting up routine mode.')}</p>}
     {error && <p role="alert">{error}</p>}
@@ -90,20 +92,32 @@ function RoutineSettingsForm({ memberId, childName, state, active, onSaved, onSt
     }, delay)
   }
   const seed = editor.seed
-  // React onChange covers typing and committed picker changes. An earlier input event can
-  // start a save before a native picker commits its controlled value.
-  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onChange={e => changed(e.currentTarget, ((e.target instanceof HTMLInputElement && e.target.type !== 'checkbox') || e.target instanceof HTMLTextAreaElement) ? 500 : 0)} onBlur={() => { void autosave.flush() }}>
+  // Text and checkboxes use React onChange; Choose commits its named hidden value with an input
+  // event so the autosave reads the new choice from FormData immediately.
+  return <form key={editor.revision} className="routine-settings-form" onSubmit={e => { e.preventDefault(); void autosave.flush() }} onChange={e => changed(e.currentTarget, ((e.target instanceof HTMLInputElement && e.target.type !== 'checkbox') || e.target instanceof HTMLTextAreaElement) ? 500 : 0)} onInput={e => { if (e.target instanceof HTMLInputElement && e.target.type === 'hidden') changed(e.currentTarget, 0) }} onBlur={() => { void autosave.flush() }}>
     <fieldset className="routine-form-fields">
         <h3 className="routine-child-settings-title">{t('Settings for {name}', { name: childName })}</h3>
         <p role="status" className="settings-row-sub">{status.phase === 'pending' || status.phase === 'saving' ? t('Saving…') : status.phase === 'saved' ? t('Saved') : status.phase === 'error' || status.phase === 'invalid' ? t('Changes have not been saved.') : t('Changes save automatically.')}</p>
         {status.error && <p role="alert">{status.error}</p>}
         {status.phase === 'error' && <button type="button" className="btn btn-secondary" onClick={() => { void autosave.retry() }}>{t('Try again')}</button>}
-        <label className="field">{t('Routine mode')}<select name="enabled" className="settings-select" defaultValue={String(seed.enabled)}><option value="false">{t('Off')}</option><option value="true">{t('On')}</option></select></label>
-        <label className="field">{t('Apps during routine mode')}<select name="appMode" className="settings-select" defaultValue={seed.appMode ?? 'selected'}><option value="selected">{t('Pause selected apps and categories')}</option><option value="all">{t('Pause all apps except allowed apps')}</option></select></label>
+        <label className="field">{t('Routine mode')}<Choose hideLabel label={t('Routine mode')} name="enabled" defaultValue={String(seed.enabled)}
+          options={[
+            { value: 'false', label: t('Off') },
+            { value: 'true', label: t('On') },
+          ]} /></label>
+        <label className="field">{t('Apps during routine mode')}<Choose hideLabel label={t('Apps during routine mode')} name="appMode" defaultValue={String(seed.appMode ?? 'selected')}
+          options={[
+            { value: 'selected', label: t('Pause selected apps and categories') },
+            { value: 'all', label: t('Pause all apps except allowed apps') },
+          ]} /></label>
         <p className="settings-row-sub">{t('Allowed apps stay available even inside a paused category. In all-apps mode, Kinwall stays available. With only allowed websites on, select Safari or your school browser under Keep available.')}</p>
         <RoutineChoreFields selected={seed.requiredChoreIds ?? null} names={seed.requiredOneTimeChoreNames ?? []} chores={state.availableChores ?? []} />
         <RoutineScheduleFields start={seed.start ?? '00:00'} cutoff={seed.cutoff} days={seed.daySchedules ?? Array(7).fill(null)} />
-        <label className="field">{t('Websites during routine mode')}<select name="allowedWebsitesOnly" className="settings-select" defaultValue={String(seed.allowedWebsitesOnly)}><option value="false">{t('Allow all websites')}</option><option value="true">{t('Only allowed websites')}</option></select></label>
+        <label className="field">{t('Websites during routine mode')}<Choose hideLabel label={t('Websites during routine mode')} name="allowedWebsitesOnly" defaultValue={String(seed.allowedWebsitesOnly)}
+          options={[
+            { value: 'false', label: t('Allow all websites') },
+            { value: 'true', label: t('Only allowed websites') },
+          ]} /></label>
         <SchoolWebsiteFields domains={seed.allowedWebDomains} links={seed.schoolLinkDomains ?? seed.allowedWebDomains} />
         <p className="settings-row-sub">{t('With only allowed websites on, these sites stay available while other browsing is paused. Add your school’s sign-in sites too. Website access does not mark schoolwork complete.')}</p>
         <p className="settings-row-sub">{t('On the child’s device, put Safari or their school browser under Keep available. An allowed website cannot open inside a blocked browser.')}</p>
@@ -133,7 +147,11 @@ function RoutineScheduleFields({ start, cutoff, days }: { start: string; cutoff:
   const [dailyEnd, setDailyEnd] = useState(cutoff)
   const names = [t('Sunday'), t('Monday'), t('Tuesday'), t('Wednesday'), t('Thursday'), t('Friday'), t('Saturday')]
   return <>
-    <label className="field">{t('Schedule')}<select name="scheduleMode" className="settings-select" value={custom ? 'custom' : 'daily'} onChange={e => setCustom(e.target.value === 'custom')}><option value="daily">{t('Same times every day')}</option><option value="custom">{t('Customize by day')}</option></select></label>
+    <label className="field">{t('Schedule')}<Choose hideLabel label={t('Schedule')} name="scheduleMode" value={String(custom ? 'custom' : 'daily')} onChange={next => setCustom(next === 'custom')}
+      options={[
+        { value: 'daily', label: t('Same times every day') },
+        { value: 'custom', label: t('Customize by day') },
+      ]} /></label>
     <div className="routine-time-pair">
       <label className="field">{t('Routine mode starts')}<input type="time" name="start" required defaultValue={start} onChange={e => setDailyStart(e.target.value)} /></label>
       <label className="field">{t('Free time ends')}<input type="time" name="cutoff" required defaultValue={cutoff} onChange={e => setDailyEnd(e.target.value)} /></label>
@@ -160,7 +178,11 @@ function RoutineChoreFields({ selected, names, chores }: { selected: string[] | 
   const repeating = chores.filter(chore => !chore.oneTime)
   const oneTimeNames = routineChoreNames([...names, ...chores.filter(chore => chore.oneTime).map(chore => chore.title), ...chosenNames.values()])
   return <>
-    <label className="field">{t('Chores required for free time')}<select name="choreRequirement" className="settings-select" value={specific ? 'selected' : 'all'} onChange={e => setSpecific(e.target.value === 'selected')}><option value="all">{t('All assigned chores due today')}</option><option value="selected">{t('Selected chores')}</option></select></label>
+    <label className="field">{t('Chores required for free time')}<Choose hideLabel label={t('Chores required for free time')} name="choreRequirement" value={String(specific ? 'selected' : 'all')} onChange={next => setSpecific(next === 'selected')}
+      options={[
+        { value: 'all', label: t('All assigned chores due today') },
+        { value: 'selected', label: t('Selected chores') },
+      ]} /></label>
     {specific && <fieldset className="routine-school-visibility">
       <legend>{t('Required chores')}</legend>
       <p className="settings-row-sub">{t('Choose active chores assigned to this child. Each chore is required only on the days it is due. Inactive, deleted, or reassigned chores do not count.')}</p>

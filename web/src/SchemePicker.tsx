@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
 import Sheet from './Sheet.tsx'
+import { ChevronRight } from './icons.tsx'
 import { loadFont } from './useTheme.ts'
 import type { Typeface } from './types.ts'
 import { findSkin, getSkin, SCHEME_BLURBS, SCHEME_GROUPS, seasonalNote, seasonalSkinId, skinName, tokensFor, type CustomScheme, type Skin } from './skins.ts'
@@ -131,8 +132,9 @@ export function TypefaceRow({ options, value, family, onPick }: {
   return (
     <div className="device-pref-row">
       <span aria-hidden="true">{t('Typeface')}</span>
-      <button type="button" className="settings-select scheme-row" aria-label={family ? t('Typeface on this device') : t('Typeface')} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <button type="button" className="sheet-link scheme-row" aria-label={family ? t('Typeface on this device') : t('Typeface')} aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <span id={valueId} className="scheme-row-name" style={{ fontFamily: loadFont(shown) }}>{rowValue}</span>
+        <ChevronRight />
       </button>
       {open && (
         <Sheet title={t('Typeface')} onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>{t('Done')}</button>}>

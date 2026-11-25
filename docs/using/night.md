@@ -42,7 +42,7 @@ So little ones can't turn the wall on at night, a parent can set a PIN under **S
 * A wrong PIN says "Try again". After 5 wrong tries in a row the keypad waits a minute, then longer after each further wrong try (up to 30 minutes). The server also allows only 5 wrong tries per 15 minutes from each screen, so one screen guessing doesn't lock the others out, and 30 for the whole family across every screen, so even a 4-digit PIN would take days to guess. Past that every screen waits, a parent's device too (or set a new PIN, which ends the wait). The right PIN never counts.
 * The keypad hides after 30 seconds without a touch. If the server can't be reached, the screen stays asleep.
 * Outside the night hours there's no PIN. The Night screen button and **Preview Night screen** never ask for it either, unless it's night and the screen has already gone back to sleep.
-* **Forgot it?** Remove it under **More… → Remove PIN** on any parent device.
+* **Forgot it?** Remove it under **Remove PIN** on any parent device.
 * Only a salted hash of the PIN is stored, and it isn't in the [export](../your-data/export-import.md): set it again after a restore. See [Privacy](../your-data/privacy.md).
 
 ## Night screen now

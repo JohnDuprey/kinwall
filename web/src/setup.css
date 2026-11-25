@@ -85,7 +85,7 @@
 
 .setup-add-btn { width: 100%; justify-content: center; margin-top: 4px; }
 .setup-member-list { margin: 0 0 12px; }
-.setup-kind-select { flex: none; width: auto; } /* not the phone-width 100% of .settings-select */
+.setup-kind-select { flex: none; width: auto; } /* keep the short choices beside the name */
 
 .setup-provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 4px; }
 .setup-provider-card {

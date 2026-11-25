@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { useBackClose } from './backStack.ts'
 import { leaveRoutine } from './pageNavigation.ts'
 import { t, tn } from './i18n.ts'
@@ -13,7 +14,8 @@ export default function RoutineMode() {
     <h1>{t('Free time')}</h1>
     {native?.simulator && <p className="chip-static">{t('Simulator preview — apps are not blocked')}</p>}
     <p>{t('Finish today’s required chores to unlock the apps your family has chosen.')}</p>
-    {parentDevice && <label className="field">{t('Child')}<select className="settings-select" value={picked} onChange={e => { setPicked(e.target.value); setNative(null) }}>{children.map(m => <option value={m.id} key={m.id}>{m.name}</option>)}</select></label>}
+    {parentDevice && <label className="field">{t('Child')}<Choose hideLabel label={t('Child')} value={String(picked)} onChange={next => { setPicked(next); setNative(null) }} sheet
+      options={children.map(m => ({ value: String(m.id), label: m.name }))} /></label>}
     {!memberId && <p>{t('A grown-up needs to assign this device to a child first.')}</p>}
     {error && <p role="alert">{error}</p>}
     {state && <>
