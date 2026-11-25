@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // The family's library (server: routes/library.ts), a Trackers view: the books the family owns or
 // has borrowed (due back on a date; returned ones stay, under Returned), apart from who's reading
 // what. Search, the Filters sheet (what, where, whose shelf; filtered here, libraries are small), scan books in one after another
@@ -354,19 +355,21 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       )}
       <div className="field">
         <label htmlFor="lib-whose">{t('Whose book')}</label>
-        <select id="lib-whose" value={whose} onChange={e => pickWhose(e.target.value)}>
-          <option value="ours">{t('Ours')}</option>
-          <option value="borrowed">{t('Borrowed')}</option>
-          <option value="wanted">{t("Wishlist (don't have it yet)")}</option>
-        </select>
+        <Choose hideLabel label={t('Whose book')} id="lib-whose" value={String(whose)} onChange={next => pickWhose(next)}
+          options={[
+            { value: 'ours', label: t('Ours') },
+            { value: 'borrowed', label: t('Borrowed') },
+            { value: 'wanted', label: t("Wishlist (don't have it yet)") },
+          ]} />
         {book.wanted && !picking && <p className="field-hint">{t('Got it? Pick Ours.')}</p>}
       </div>
       <div className="field">
         <label htmlFor="lib-shelf">{t('Shelf')}</label>
-        <select id="lib-shelf" value={book.shelf ?? ''} disabled={!canRemove} onChange={e => { const v = (e.target.value || null) as BookShelf | null; save({ shelf: v }, t('Shelf: {shelf}', { shelf: v ? tm(SHELF_WORD[v]) : t('Auto') })) }}>
-          <option value="">{book.shelf ? t('Auto') : t('Auto ({shelf})', { shelf: tm(SHELF_WORD[book.effectiveShelf ?? 'grownups']) })}</option>
-          {(Object.keys(SHELF_WORD) as BookShelf[]).map(k => <option key={k} value={k}>{tm(SHELF_WORD[k])}</option>)}
-        </select>
+        <Choose hideLabel label={t('Shelf')} id="lib-shelf" value={String(book.shelf ?? '')} disabled={!canRemove} onChange={next => { const v = (next || null) as BookShelf | null; save({ shelf: v }, t('Shelf: {shelf}', { shelf: v ? tm(SHELF_WORD[v]) : t('Auto') })) }} sheet
+          options={[
+            { value: '', label: book.shelf ? t('Auto') : t('Auto ({shelf})', { shelf: tm(SHELF_WORD[book.effectiveShelf ?? 'grownups']) }) },
+            ...((Object.keys(SHELF_WORD) as BookShelf[]).map(k => ({ value: String(k), label: tm(SHELF_WORD[k]) }))),
+          ]} />
         <p className="field-hint">{canRemove ? t("Who it's for. Auto goes by its genres, reading level, length and who reads it.") : t("Who it's for. A parent can change it.")}</p>
       </div>
       {picking === 'borrowed' && <BorrowFields sources={sources} today={today} onCancel={() => setPicking(null)}
@@ -442,11 +445,12 @@ function PlacePicker({ value, places, onChange }: { value: string; places: strin
           <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={() => { onChange(draft.trim()); setTyping(false) }}>{t('Save')}</button>
         </div>
       ) : (
-        <select id="lib-place" value={value} onChange={e => { if (e.target.value === '\u0000new') { setDraft(''); setTyping(true) } else onChange(e.target.value) }}>
-          <option value="">{t('Not set')}</option>
-          {options.map(p => <option key={p} value={p}>{p}</option>)}
-          <option value={'\u0000new'}>{t('New place…')}</option>
-        </select>
+        <Choose hideLabel label={t('Where it lives')} id="lib-place" value={String(value)} onChange={next => { if (next === '\u0000new') { setDraft(''); setTyping(true) } else onChange(next) }} sheet
+          options={[
+            { value: '', label: t('Not set') },
+            ...(options.map(p => ({ value: String(p), label: p }))),
+            { value: String('\u0000new'), label: t('New place…') },
+          ]} />
       )}
     </div>
   )

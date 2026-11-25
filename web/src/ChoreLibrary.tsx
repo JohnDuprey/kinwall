@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Chores → Library (parent devices): saved chores that aren't on a schedule, due-ish ones on top.
 // Tap one → who → when → it's a normal one-off chore (a linked copy each for several people); "Again"
 // hands it to whoever had it last, today;
@@ -129,11 +130,7 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Sho
     <Sheet title={`${item.emoji ?? '⭐'} ${item.title}`} onClose={onBack}
       actions={
         <>
-          <select className="settings-select actions-select" aria-label={t('Library chore actions')} value="" onChange={e => { if (e.target.value === 'repeat') { void adopt(item).catch(() => { /* the library keeps the English title */ }); onRepeat({ item, memberIds, oneOf: shared, date: day }) } if (e.target.value === 'edit') onEdit() }}>
-            <option value="" disabled hidden>{t('More…')}</option>
-            <option value="repeat">{t('Make it repeat…')}</option>
-            <option value="edit">{t('Edit library chore…')}</option>
-          </select>
+
           <button className="btn btn-primary" onClick={assign}>{t('Add chore')}</button>
         </>
       }>
@@ -152,22 +149,27 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Sho
             {t('Anyone')}
           </button>
         </div>
-        {memberIds.length > 1 && <select aria-label={t('How many of them do it')} value={oneOf ? 'one' : 'each'} onChange={e => setOneOf(e.target.value === 'one')} style={{ marginTop: 8 }}>
-          <option value="each">{t('Each of them does it')}</option>
-          <option value="one">{t('Just one of them does it')}</option>
-        </select>}
+        {memberIds.length > 1 && <Choose hideLabel label={t('How many of them do it')} value={String(oneOf ? 'one' : 'each')} onChange={next => setOneOf(next === 'one')} style={{ marginTop: 8 }}
+          options={[
+            { value: 'each', label: t('Each of them does it') },
+            { value: 'one', label: t('Just one of them does it') },
+          ]} />}
         <p className="field-hint" id="lib-who-hint">{memberIds.length > 1
           ? oneOf ? t('The first of them to tick it off gets the points, and it is done for all of them.') : t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
           : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
       </div>
       <div className="field">
         <label htmlFor="lib-when">{t('When')}</label>
-        <select id="lib-when" value={when} onChange={e => setWhen(e.target.value as WhenPick | 'date')}>
-          {WHEN.map(([v, label]) => <option key={v} value={v}>{tm(label)}{v !== 'date' ? ` (${formatDate(new Date(`${whenDate(v)}T00:00:00`), DAY)})` : ''}</option>)}
-        </select>
+        <Choose hideLabel label={t('When')} id="lib-when" value={String(when)} onChange={next => setWhen(next as WhenPick | 'date')} sheet
+          options={WHEN.map(([v, label]) => ({ value: String(v), label: [tm(label), v !== 'date' ? ` (${formatDate(new Date(`${whenDate(v)}T00:00:00`), DAY)})` : ''].join('') }))} />
         {when === 'date' && <input type="date" aria-label={t('Date')} value={date} min={dateKey(new Date())} onChange={e => setDate(e.target.value || dateKey(new Date()))} style={{ marginTop: 8 }} />}
       </div>
-    </Sheet>
+
+    <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Library chore actions')}>
+      <button type="button" className="btn btn-secondary" onClick={() => { void adopt(item).catch(() => { /* the library keeps the English title */ }); onRepeat({ item, memberIds, oneOf: shared, date: day }) }}>{t('Make it repeat…')}</button>
+      <button type="button" className="btn btn-secondary" onClick={() => { onEdit() }}>{t('Edit library chore…')}</button>
+    </div>
+  </Sheet>
   )
 }
 
@@ -208,10 +210,7 @@ export function LibraryEditSheet({ item, onClose, onSaved }: { item: LibraryChor
     <Sheet title={item ? t('Edit library chore') : t('New library chore')} onClose={onClose} dirty="auto"
       actions={
         <>
-          {item && <select className="settings-select actions-select" aria-label={t('Library chore actions')} value="" onChange={e => { if (e.target.value === 'delete') void remove() }}>
-            <option value="" disabled hidden>{t('More…')}</option>
-            <option value="delete">{t('Remove from library…')}</option>
-          </select>}
+
           <button className="btn btn-primary" onClick={save} disabled={!ok}>{t('Save')}</button>
         </>
       }>
@@ -236,39 +235,47 @@ export function LibraryEditSheet({ item, onClose, onSaved }: { item: LibraryChor
         <label htmlFor="lib-every">{t('About every (optional)')}</label>
         <div className="lib-every">
           {unit && <input id="lib-every-n" type="number" inputMode="numeric" min={1} max={365} aria-label={t('How many')} value={everyN} onChange={e => setEveryN(Math.min(365, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setEveryN(n => Math.max(1, n))} />}
-          <select id="lib-every" value={unit} onChange={e => setUnit(e.target.value as LibraryUnit | '')}>
-            <option value="">{t('No set time')}</option>
-            {UNITS.map(([u, label]) => <option key={u} value={u}>{tm(label)}</option>)}
-          </select>
+          <Choose hideLabel label={t('About every (optional)')} id="lib-every" value={String(unit)} onChange={next => setUnit(next as LibraryUnit | '')} sheet
+            options={[
+              { value: '', label: t('No set time') },
+              ...(UNITS.map(([u, label]) => ({ value: String(u), label: tm(label) }))),
+            ]} />
         </div>
         <p className="field-hint">{t("Not a schedule: once it's been about that long, it moves to the top of the library.")}</p>
       </div>
       <div className="field">
         <label htmlFor="lib-member">{t('Usually goes to')}</label>
-        <select id="lib-member" value={memberId ?? ''} onChange={e => setMemberId(e.target.value || null)}>
-          <option value="">{t('Anyone')}</option>
-          {members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
-        </select>
+        <Choose hideLabel label={t('Usually goes to')} id="lib-member" value={String(memberId ?? '')} onChange={next => setMemberId(next || null)} sheet
+          options={[
+            { value: '', label: t('Anyone') },
+            ...(members.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+          ]} />
       </div>
       <div className="field">
         <label htmlFor="lib-checklist">{t('Checklist (optional)')}</label>
-        <select id="lib-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
-          <option value="">{t('None')}</option>
-          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
-        </select>
+        <Choose hideLabel label={t('Checklist (optional)')} id="lib-checklist" value={String(listId ?? '')} onChange={next => setListId(next || null)} sheet
+          options={[
+            { value: '', label: t('None') },
+            ...(lists.filter(l => !l.archived || l.id === listId).map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name, l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`].join('') }))),
+          ]} />
       </div>
       <div className="field">
         <label htmlFor="lib-approval">{t("Needs a parent's OK")}</label>
-        <select id="lib-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>
-          <option value="default">{t("Default (the person's setting)")}</option>
-          <option value="yes">{t('Yes')}</option>
-          <option value="no">{t('No')}</option>
-        </select>
+        <Choose hideLabel label={t("Needs a parent's OK")} id="lib-approval" value={String(needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
+          options={[
+            { value: 'default', label: t("Default (the person's setting)") },
+            { value: 'yes', label: t('Yes') },
+            { value: 'no', label: t('No') },
+          ]} />
       </div>
       <div className="field">
         <label htmlFor="lib-notes">{t('Notes (optional)')}</label>
         <textarea id="lib-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('Vacuum the mats too')} />
       </div>
-    </Sheet>
+
+    {item && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Library chore actions')}>
+      <button type="button" className="link-btn link-danger" onClick={() => { void remove() }}>{t('Remove from library…')}</button>
+    </div>}
+  </Sheet>
   )
 }

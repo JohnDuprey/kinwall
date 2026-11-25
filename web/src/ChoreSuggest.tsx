@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Kids suggest chores (server: routes/chore-suggestions.ts). A kid's own device, or a wall after
 // picking who, sends an idea with the points they think it's worth; it waits on their Chores screen
 // until a parent says yes (maybe with other points or a changed schedule) or "Not this time", with a
@@ -62,10 +63,11 @@ function RepeatFields({ days, setDays, time, setTime, timer, setTimer, idPrefix 
       </div>
       <div className="field">
         <label htmlFor={`${idPrefix}-timer`}>{t('How long? (optional)')}</label>
-        <select id={`${idPrefix}-timer`} value={timer ?? ''} onChange={e => setTimer(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">{t('No timer')}</option>
-          {[...new Set([...TIMERS, ...(timer ? [timer] : [])])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
-        </select>
+        <Choose hideLabel label={t('How long? (optional)')} id={`${idPrefix}-timer`} value={String(timer ?? '')} onChange={next => setTimer(next ? Number(next) : null)}
+          options={[
+            { value: '', label: t('No timer') },
+            ...([...new Set([...TIMERS, ...(timer ? [timer] : [])])].sort((a, b) => a - b).map(m => ({ value: String(m), label: durationLabel(m) }))),
+          ]} />
         <p className="field-hint">{t('For things like practicing: tap the chore to start a timer this long.')}</p>
       </div>
     </>

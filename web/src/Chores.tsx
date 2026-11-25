@@ -16,7 +16,7 @@ import type { Chore, ChoreDay, ChoreDateCount, ChoreSuggestion, LeaderboardEntry
 import { MEMBER_EMOJI, rewardsOn } from './types.ts'
 import { dateKey, todayKeyInTz } from './date.ts'
 import Sheet from './Sheet.tsx'
-import PickField from './PickField.tsx'
+import PickField, { Choose } from './PickField.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { CheckIcon, EditIcon, PlusIcon } from './icons.tsx'
@@ -98,9 +98,8 @@ function Leaderboard({ away }: { away: Set<string> }) {
 
   return (
     <div className="leaderboard-strip">
-      <select className="settings-select lb-period" aria-label={t('Leaderboard period')} value={period} onChange={e => setPeriod(e.target.value as LeaderboardPeriod)}>
-        {LB_PERIODS.map(p => <option key={p} value={p}>{tm(LB_PERIOD_LABEL[p])}</option>)}
-      </select>
+      <Choose hideLabel label={t('Leaderboard period')} className="lb-period" value={String(period)} onChange={next => setPeriod(next as LeaderboardPeriod)}
+        options={LB_PERIODS.map(p => ({ value: String(p), label: tm(LB_PERIOD_LABEL[p]) }))} />
       <div className="leaderboard-pills" role="list" aria-label={t('Leaderboard')}>
         {board.map(e => (
           <div key={e.memberId} role="listitem" className="leaderboard-item">
@@ -940,12 +939,7 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
     <Sheet title={chore ? t('Edit chore') : draft ? t('Make it repeat') : t('New chore')} onClose={onClose} dirty="auto"
       actions={
         <>
-          {chore && <select className="settings-select actions-select" aria-label={t('Chore actions')} value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary(); if (e.target.value === 'reset') resetTime?.run() }}>
-            <option value="" disabled hidden>{t('More…')}</option>
-            {!chore.libraryId && <option value="library">{t('Save to library')}</option>}
-            {resetTime && <option value="reset">{resetTime.label}</option>}
-            <option value="delete">{t('Delete chore…')}</option>
-          </select>}
+
           <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji) || !scheduleValid || !groupLoaded}>{chore ? t('Save') : t('Add chore')}</button>
         </>
       }>
@@ -975,10 +969,11 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
       </div>
       <div className="field">
         <label htmlFor="chore-ongoing">{t('Completion')}</label>
-        <select id="chore-ongoing" value={ongoing ? 'ongoing' : 'once'} onChange={e => { const on = e.target.value === 'ongoing'; setOngoing(on); if (on) { setMemberIds([]); setPluginId(null); setRepeatGoal(null) } }}>
-          <option value="once">{t('Once each time it is due')}</option>
-          <option value="ongoing">{t('Keep available for anyone')}</option>
-        </select>
+        <Choose hideLabel label={t('Completion')} id="chore-ongoing" value={String(ongoing ? 'ongoing' : 'once')} onChange={next => { const on = next === 'ongoing'; setOngoing(on); if (on) { setMemberIds([]); setPluginId(null); setRepeatGoal(null) } }}
+          options={[
+            { value: 'once', label: t('Once each time it is due') },
+            { value: 'ongoing', label: t('Keep available for anyone') },
+          ]} />
         {ongoing && <p className="field-hint">{t('Anyone can do it as often as needed. Each tick earns points and stays in the history. This optional chore does not count toward daily progress or become late.')}</p>}
       </div>
       {!ongoing && <div className="field">
@@ -989,10 +984,11 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
             <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
-        {memberIds.length > 1 && <select aria-label={t('How many of them do it')} value={oneOf ? 'one' : 'each'} onChange={e => setOneOf(e.target.value === 'one')} style={{ marginTop: 8 }}>
-          <option value="each">{t('Each of them does it')}</option>
-          <option value="one">{t('Just one of them does it')}</option>
-        </select>}
+        {memberIds.length > 1 && <Choose hideLabel label={t('How many of them do it')} value={String(oneOf ? 'one' : 'each')} onChange={next => setOneOf(next === 'one')} style={{ marginTop: 8 }}
+          options={[
+            { value: 'each', label: t('Each of them does it') },
+            { value: 'one', label: t('Just one of them does it') },
+          ]} />}
         <p className="field-hint" id="chore-assign-hint">{memberIds.length > 1
           ? oneOf ? t('The first of them to tick it off gets the points, and it is done for all of them.') : t('Each person ticks it off on their own and gets the points. Changes apply to all of them.')
           : memberIds.length === 0 ? t('Whoever does it first gets the points. Pick several people to give each of them their own.') : t('Pick more people to give each of them their own.')}</p>
@@ -1003,20 +999,22 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         <summary>{t('More options')}</summary>
         {settings.features.lists && <div className="field">
           <label htmlFor="chore-checklist">{t('Checklist (optional)')}</label>
-          <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
-            <option value="">{t('None')}</option>
-            {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`}</option>)}
-          </select>
+          <Choose hideLabel label={t('Checklist (optional)')} id="chore-checklist" value={String(listId ?? '')} onChange={next => setListId(next || null)} sheet
+            options={[
+              { value: '', label: t('None') },
+              ...(lists.filter(l => !l.archived || l.id === listId).map(l => ({ value: String(l.id), label: [l.emoji ? `${l.emoji} ` : '', l.name, l.kind === 'reusable' ? '' : ` (${t(l.purpose === 'pantry' ? 'pantry' : l.kind === 'todo' ? 'todo' : 'shopping')})`].join('') }))),
+            ]} />
           <p className="field-hint">{t('Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.')}</p>
         </div>}
         {!ongoing && (activities.length > 0 || pluginId) && (
           <div className="field">
             <label htmlFor="chore-activity">{t('Do an activity (optional)')}</label>
-            <select id="chore-activity" value={pluginId ?? ''} onChange={e => setPluginId(e.target.value || null)}>
-              <option value="">{t('None')}</option>
-              {activities.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.enabled ? p.name : t('{name} (off)', { name: p.name })}</option>)}
-              {pluginId && !activities.some(p => p.id === pluginId) && <option value={pluginId}>{t('Activity not available')}</option>}
-            </select>
+            <Choose hideLabel label={t('Do an activity (optional)')} id="chore-activity" value={String(pluginId ?? '')} onChange={next => setPluginId(next || null)} sheet
+              options={[
+                { value: '', label: t('None') },
+                ...(activities.map(p => ({ value: String(p.id), label: [p.emoji, " ", p.enabled ? p.name : t('{name} (off)', { name: p.name })].join('') }))),
+                ...(pluginId && !activities.some(p => p.id === pluginId) ? [{ value: String(pluginId), label: t('Activity not available') }] : []),
+              ]} />
             {pluginId && (
               <div className="chore-minutes">
                 <label htmlFor="chore-minutes">{t('Minutes')}</label>
@@ -1043,24 +1041,32 @@ function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: 
         </div>
         {!pluginId && <div className="field">
           <label htmlFor="chore-timer">{t('Timer (optional)')}</label>
-          <select id="chore-timer" value={timerMinutes ?? ''} onChange={e => setTimerMinutes(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">{t('None')}</option>
-            {[...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
-          </select>
+          <Choose hideLabel label={t('Timer (optional)')} id="chore-timer" value={String(timerMinutes ?? '')} onChange={next => setTimerMinutes(next ? Number(next) : null)}
+            options={[
+              { value: '', label: t('None') },
+              ...([...new Set([5, 10, 15, 20, 25, 30, 45, 60, 90, 120, ...(timerMinutes ? [timerMinutes] : [])])].sort((a, b) => a - b).map(m => ({ value: String(m), label: durationLabel(m) }))),
+            ]} />
           <p className="field-hint">{t('Tap the chore to start a timer this long. When it rings, it offers to mark the chore done.')}</p>
         </div>}
         <div className="field">
           <label htmlFor="chore-approval">{t("Needs a parent's OK")}</label>
-          <select id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>
-            <option value="default">{assignee ? (defaultApproval ? t('Default (yes)') : t('Default (no)')) : t('Default')}</option>
-            <option value="yes">{t('Yes')}</option>
-            <option value="no">{t('No')}</option>
-          </select>
+          <Choose hideLabel label={t("Needs a parent's OK")} id="chore-approval" value={String(needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'default' ? null : next === 'yes')}
+            options={[
+              { value: 'default', label: assignee ? (defaultApproval ? t('Default (yes)') : t('Default (no)')) : t('Default') },
+              { value: 'yes', label: t('Yes') },
+              { value: 'no', label: t('No') },
+            ]} />
           <p className="field-hint">{t("Ticks from wall screens and kids' devices wait for a parent to approve before the points count.")} {assignee
             ? (pluginId ? t("Default follows {name}'s setting in Settings → Family; timed play approves itself unless the switch above is on.", { name: assignee.name }) : t("Default follows {name}'s setting in Settings → Family.", { name: assignee.name }))
             : (pluginId ? t('Default follows the setting of whoever does it in Settings → Family; timed play approves itself unless the switch above is on.') : t('Default follows the setting of whoever does it in Settings → Family.'))}</p>
         </div>
       </details>
-    </Sheet>
+
+    {chore && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Chore actions')}>
+      {!chore.libraryId && <button type="button" className="btn btn-secondary" onClick={() => { void saveToLibrary(); }}>{t('Save to library')}</button>}
+      {resetTime && <button type="button" className="btn btn-secondary" onClick={() => { resetTime?.run() }}>{resetTime.label}</button>}
+      <button type="button" className="link-btn link-danger" onClick={() => { void del(); }}>{t('Delete chore…')}</button>
+    </div>}
+  </Sheet>
   )
 }

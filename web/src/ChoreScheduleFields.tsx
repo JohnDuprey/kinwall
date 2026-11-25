@@ -1,7 +1,7 @@
 import { goalLabel, goalPeriod, maxGoalTimes, validGoal } from './choreGoal.ts'
 import type { ChoreGoal } from './choreGoal.ts'
 import { useState } from 'react'
-import PickField from './PickField.tsx'
+import PickField, { Choose } from './PickField.tsx'
 import { RR_DAYS, dateParts, dayName, formToRrule, ordinalDay, rruleToForm, scheduleDates, scheduleText, validDate, validSchedule } from './choreSchedule.ts'
 import type { Repeat, ScheduleForm } from './choreSchedule.ts'
 import { formatDate, msg, t, tm } from './i18n.ts'
@@ -36,18 +36,25 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
   return <>
     <div className="field">
       <label htmlFor="chore-repeat">{t('Repeat')}</label>
-      <select id="chore-repeat" value={goal ? 'goal' : f.custom ? 'stored' : advanced && f.repeat !== 'once' ? 'custom' : f.repeat} onChange={e => chooseRepeat(e.target.value)}>
-        {f.custom && <option value="stored" disabled>{t('Custom schedule')}</option>}
-        {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{tm(REPEATS[r])}</option>)}
-        <option value="custom">{t('Custom…')}</option>
-        <option value="goal">{t('A few times a week or month…')}</option>
-      </select>
+      <Choose hideLabel label={t('Repeat')} id="chore-repeat" value={String(goal ? 'goal' : f.custom ? 'stored' : advanced && f.repeat !== 'once' ? 'custom' : f.repeat)} onChange={next => chooseRepeat(next)}
+        options={[
+          ...(f.custom ? [{ value: 'stored', label: t('Custom schedule'), disabled: true }] : []),
+          ...((['once', 'daily', 'weekly'] as const).map(r => ({ value: String(r), label: tm(REPEATS[r]) }))),
+          { value: 'custom', label: t('Custom…') },
+          { value: 'goal', label: t('A few times a week or month…') },
+        ]} />
       {f.custom && <p className="field-hint">{t('This schedule has options this editor cannot change. It stays as it is unless you pick another repeat option.')}</p>}
     </div>
     {goal && <>
       <div className="field"><label htmlFor="chore-goal-times">{t('Times')}</label><input id="chore-goal-times" type="number" min={1} max={maxGoalTimes(goal)} step={1} value={goal.times || ''} onChange={e => onGoal({ ...goal, times: Number(e.target.value) })} /></div>
-      <div className="field"><label htmlFor="chore-goal-every">{t('Every')}</label><div className="chore-repeat-interval"><input id="chore-goal-every" type="number" min={1} max={365} step={1} value={goal.every || ''} onChange={e => onGoal({ ...goal, every: Number(e.target.value) })} /><select aria-label={t('Goal period')} value={goal.unit} onChange={e => onGoal({ ...goal, unit: e.target.value as ChoreGoal['unit'] })}><option value="day">{t('Days')}</option><option value="week">{t('Weeks')}</option><option value="month">{t('Months')}</option></select></div></div>
-      {goal.unit === 'week' && <div className="field"><label htmlFor="chore-goal-week">{t('Weeks begin on')}</label><select id="chore-goal-week" value={goal.weekStart} onChange={e => onGoal({ ...goal, weekStart: Number(e.target.value) })}>{order.map(d => <option key={d} value={d}>{dayName(d, 'long')}</option>)}</select></div>}
+      <div className="field"><label htmlFor="chore-goal-every">{t('Every')}</label><div className="chore-repeat-interval"><input id="chore-goal-every" type="number" min={1} max={365} step={1} value={goal.every || ''} onChange={e => onGoal({ ...goal, every: Number(e.target.value) })} /><Choose hideLabel label={t('Goal period')} value={String(goal.unit)} onChange={next => onGoal({ ...goal, unit: next as ChoreGoal['unit'] })}
+        options={[
+          { value: 'day', label: t('Days') },
+          { value: 'week', label: t('Weeks') },
+          { value: 'month', label: t('Months') },
+        ]} /></div></div>
+      {goal.unit === 'week' && <div className="field"><label htmlFor="chore-goal-week">{t('Weeks begin on')}</label><Choose hideLabel label={t('Weeks begin on')} id="chore-goal-week" value={String(goal.weekStart)} onChange={next => onGoal({ ...goal, weekStart: Number(next) })} sheet
+        options={order.map(d => ({ value: String(d), label: dayName(d, 'long') }))} /></div>}
       <p className="field-hint">{t('Choose any days in the period. Counts at most once per day, with points for each completion. Pending approvals reserve a place in the goal.')}</p>
       {!validGoal(goal) && <p className="field-hint" role="alert">{t('Choose whole numbers and enough days for this goal. Monthly goals allow up to 28 completions per month so every month has enough days.')}</p>}
     </>}
@@ -56,9 +63,8 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
         <label htmlFor="chore-interval">{t('Repeat every')}</label>
         <div className="chore-repeat-interval">
           <input id="chore-interval" type="number" min={1} max={9999} step={1} value={f.interval || ''} onChange={e => onChange({ interval: Number(e.target.value) })} />
-          <select aria-label={t('Repeat unit')} value={f.repeat} onChange={e => onChange({ repeat: e.target.value as Repeat })}>
-            {(['daily', 'weekly', 'monthly', 'yearly'] as const).map(r => <option key={r} value={r}>{tm(UNITS[r])}</option>)}
-          </select>
+          <Choose hideLabel label={t('Repeat unit')} value={String(f.repeat)} onChange={next => onChange({ repeat: next as Repeat })}
+            options={(['daily', 'weekly', 'monthly', 'yearly'] as const).map(r => ({ value: String(r), label: tm(UNITS[r]) }))} />
         </div>
       </div>
     </>}
@@ -72,19 +78,19 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
     </div>
       {advanced && <div className="field">
         <label htmlFor="chore-week-start">{t('Weeks begin on')}</label>
-        <select id="chore-week-start" value={f.weekStart} onChange={e => onChange({ weekStart: Number(e.target.value) })}>
-          {order.map(d => <option key={d} value={d}>{dayName(d, 'long')}</option>)}
-        </select>
+        <Choose hideLabel label={t('Weeks begin on')} id="chore-week-start" value={String(f.weekStart)} onChange={next => onChange({ weekStart: Number(next) })} sheet
+          options={order.map(d => ({ value: String(d), label: dayName(d, 'long') }))} />
         {f.interval === 2 && <p className="field-hint">{t('For alternating weeks, select all seven days and start on the first day of the week. Add a chore for the other person starting one week later.')}</p>}
       </div>}
     </>}
     {!f.custom && f.repeat === 'monthly' && <>
       <div className="field">
         <label htmlFor="chore-monthly">{t('Repeat on')}</label>
-        <select id="chore-monthly" value={f.monthly} onChange={e => onChange({ monthly: e.target.value as ScheduleForm['monthly'], monthWeekdays: f.monthWeekdays.length ? f.monthWeekdays : [`${parts.ordinal}${RR_DAYS[parts.weekday]}`] })}>
-          <option value="date">{t('Day of the month')}</option>
-          <option value="weekday">{t('Weekday of the month')}</option>
-        </select>
+        <Choose hideLabel label={t('Repeat on')} id="chore-monthly" value={String(f.monthly)} onChange={next => onChange({ monthly: next as ScheduleForm['monthly'], monthWeekdays: f.monthWeekdays.length ? f.monthWeekdays : [`${parts.ordinal}${RR_DAYS[parts.weekday]}`] })}
+          options={[
+            { value: 'date', label: t('Day of the month') },
+            { value: 'weekday', label: t('Weekday of the month') },
+          ]} />
       </div>
       {f.monthly === 'date' ? <div className="field">
         <label htmlFor="chore-month-days">{t('Days of the month')}</label>
@@ -112,9 +118,12 @@ export function ChoreScheduleFields({ value: f, start, today, onChange, onStart,
     {!f.custom && f.repeat !== 'once' && <>
       <div className="field">
         <label htmlFor="chore-end">{t('Ends')}</label>
-        <select id="chore-end" value={f.end} onChange={e => onChange({ end: e.target.value as ScheduleForm['end'], until: f.until || start || today })}>
-          <option value="never">{t('Never')}</option><option value="on">{t('On a date')}</option>{!goal && <option value="after">{t('After a number of occurrences')}</option>}
-        </select>
+        <Choose hideLabel label={t('Ends')} id="chore-end" value={String(f.end)} onChange={next => onChange({ end: next as ScheduleForm['end'], until: f.until || start || today })}
+          options={[
+            { value: 'never', label: t('Never') },
+            { value: 'on', label: t('On a date') },
+            ...(!goal ? [{ value: 'after', label: t('After a number of occurrences') }] : []),
+          ]} />
       </div>
       {f.end === 'on' && <div className="field">
         <label htmlFor="chore-until">{t('Last date')}</label>
