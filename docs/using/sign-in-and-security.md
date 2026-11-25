@@ -117,3 +117,5 @@ And when a device now belongs to someone, their private journal changes, or they
 * **Workers**: you can put Cloudflare Access in front of the UI as a second layer (free for up to 50 users), with a service-token bypass for `/api/*`.
 * **Docker**: prefer Cloudflare Tunnel or Tailscale over port forwarding.
 * **Home Assistant add-on**: it uses ingress, so there's no open port.
+
+After saving recovery codes during setup, tap **I've saved them** to continue. That button confirms the codes are saved.

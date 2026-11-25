@@ -124,7 +124,7 @@ school login and content on the child's physical device; simulator browsing is n
 School access remains available after the evening cutoff under this policy. Turning routine mode
 off or earning free time clears Kinwall's routine website filter.
 
-In Settings, each allowed host has a **Show in website links** checkbox. Only checked hosts appear
+In Settings, each allowed host has a **Show in website links** choice. Only selected hosts appear
 on the child’s routine page; unchecked hosts remain permitted by the website filter. For example,
 show Clever as the starting link and hide Freckle when school access must begin through Clever.
 All links can be hidden without changing website permissions.
@@ -183,3 +183,5 @@ Completions must be approved; pending approvals still wait for a grown-up. Other
 remain on the child’s chore list but do not prevent free time. Inactive, archived, deleted or
 reassigned chores stop counting. Selecting no chores makes access depend on the schedule alone.
 Shared chores cannot be selected.
+
+Routine settings use checkable rows to choose apps, categories, websites and required chores. Each day’s **Use different times** switch opens its own time fields.

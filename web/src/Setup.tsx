@@ -221,7 +221,6 @@ function PasskeyStep({ adminKeyId, onDone, onNoPasskey }: { adminKeyId: string |
 function RecoveryStep({ required, onNext }: { required?: boolean; onNext: () => void }) {
   const [codes, setCodes] = useState<string[] | null>(null)
   const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
   const generated = useRef(false)
   useEffect(() => {
     if (generated.current) return // StrictMode double-mount would otherwise replace the set
@@ -234,13 +233,7 @@ function RecoveryStep({ required, onNext }: { required?: boolean; onNext: () => 
       <p className="setup-sub">{t('If this device is ever lost, one of these signs you back in. Each works once. Keep them in a password manager or printed with your important papers.')}</p>
       {codes ? <RecoveryCodesView codes={codes} /> : !error && <p className="setup-sub">{t('Creating…')}</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
-      {codes && (
-        <label className="setup-check-row">
-          <input type="checkbox" checked={saved} onChange={e => setSaved(e.target.checked)} />
-          {t("I've saved these somewhere safe")}
-        </label>
-      )}
-      <StepNav onNext={onNext} nextDisabled={!saved} />
+      <StepNav onNext={onNext} nextLabel={t("I've saved them")} nextDisabled={!codes} />
       {(!required || error) && <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>{t("I'll do this later (not recommended)")}</button>}
     </div>
   )

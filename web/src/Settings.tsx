@@ -50,7 +50,7 @@ import { EVENING_TIMES } from './journal.ts'
 import { deviceTimeFormat, formatTime, resolveHour12 } from './timeFormat.ts'
 import { tzCity } from './timezone.ts'
 import { MedicationsToggle } from './MedicationSettings.tsx'
-import { Switch, announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
+import { CheckRow, Switch, announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
 import { filterSettings, linkTab, SEARCH_ALIASES, matchesAll, queryWords, readOpen, tabsShown, writeOpen } from './settingsSearch.ts'
@@ -2778,20 +2778,17 @@ export function CaldavHint() {
 
 const PROVIDER_LABEL: Record<string, string> = { google: 'Google', microsoft: 'Outlook', caldav: 'CalDAV' }
 
-/** One row of an account's calendar picker (Settings and the setup wizard): a 44px checkbox row
- * with the calendar's color, name and badges. `added` rows are shown checked and locked. */
+/** One row of an account's calendar picker (Settings and the setup wizard): a checkable row
+ * with the calendar's color, name and badges. `added` rows are shown selected and locked. */
 export function CalendarCheckRow({ name, color, checked, added, badge, readOnly, onChange }: {
   name: string; color: string; checked: boolean; added?: boolean; badge?: string; readOnly?: boolean; onChange: (v: boolean) => void
 }) {
   return (
-    <label className={`cal-check-row ${added ? 'disabled' : ''}`}>
-      <input type="checkbox" checked={checked || !!added} disabled={added} onChange={e => onChange(e.target.checked)} />
-      <span className="cal-dot" style={{ background: color }} aria-hidden="true" />
+    <CheckRow checked={checked || !!added} onChange={next => onChange(next)} label={<span className="cal-choice"><span className="cal-dot" style={{ background: color }} aria-hidden="true" />
       <span className="cal-name">{name}</span>
       {added && <span className="cal-kind-badge">{t('Added')}</span>}
       {!added && badge && <span className="cal-kind-badge">{badge}</span>}
-      {readOnly && <span className="cal-kind-badge">{t('read-only')}</span>}
-    </label>
+      {readOnly && <span className="cal-kind-badge">{t('read-only')}</span>}</span>} disabled={added} />
   )
 }
 
