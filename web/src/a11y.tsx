@@ -1,9 +1,10 @@
 // Shared accessibility plumbing: screen-reader announcements, arrow-key movement inside picker
 // rows, label <-> field wiring for the `.field` pattern, the segmented control, roving focus for
 // the calendar's day cells, and keyboard activation for tappable non-button elements.
-import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { loadErrorText } from './failureMessage.ts'
 import { t } from './i18n.ts'
+import { CheckIcon } from './icons.tsx'
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -77,6 +78,56 @@ export function Segmented<T extends string | number>({ label, value, options, on
       ))}
     </div>
   )
+}
+
+/** Boolean controls keep native checkbox form semantics: unchecked values are omitted, and
+ * changes reach dirty="auto" sheets before the caller's state update. */
+function useBooleanControl(checked: boolean, onChange: (next: boolean) => void, disabled?: boolean) {
+  const button = useRef<HTMLButtonElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const change = () => {
+    if (disabled) return
+    const next = !checked
+    if (input.current) input.current.disabled = !next || !!disabled
+    const source = input.current ?? button.current
+    source?.dispatchEvent(new Event('input', { bubbles: true }))
+    onChange(next)
+  }
+  return { button, input, change }
+}
+
+type BooleanControlProps = {
+  checked: boolean
+  onChange: (next: boolean) => void
+  label: ReactNode
+  disabled?: boolean
+  id?: string
+  name?: string
+  value?: string
+}
+
+/** One on/off setting, using the app's existing switch and a visible row label. */
+export function Switch({ checked, onChange, label, hint, disabled, id: givenId, name, value = 'on' }: BooleanControlProps & { hint?: ReactNode }) {
+  const generatedId = useId()
+  const id = givenId ?? generatedId
+  const { button, input, change } = useBooleanControl(checked, onChange, disabled)
+  return <div className="toggle-row">
+    <div><label htmlFor={id} id={`${id}-label`}>{label}</label>{hint && <p className="settings-row-sub" id={`${id}-hint`}>{hint}</p>}</div>
+    {name && <input ref={input} type="hidden" name={name} value={value} disabled={disabled || !checked} />}
+    <button ref={button} id={id} type="button" className={`switch ${checked ? 'on' : ''}`} role="switch" aria-checked={checked}
+      aria-labelledby={`${id}-label`} aria-describedby={hint ? `${id}-hint` : undefined} disabled={disabled} onClick={change}><span className="knob" /></button>
+  </div>
+}
+
+/** A choice in a multiple-choice list. The whole row is a touch target. */
+export function CheckRow({ checked, onChange, label, disabled, id, name, value = 'on' }: BooleanControlProps) {
+  const { button, input, change } = useBooleanControl(checked, onChange, disabled)
+  return <>
+    {name && <input ref={input} type="hidden" name={name} value={value} disabled={disabled || !checked} />}
+    <button ref={button} id={id} type="button" className="sheet-link" aria-pressed={checked} disabled={disabled} onClick={change}>
+      <span>{label}</span>{checked && <CheckIcon className="pick-check" aria-hidden="true" />}
+    </button>
+  </>
 }
 
 /** Roving tabindex over the `[data-roving]` cells of a grid `cols` wide: one Tab stop, arrow keys
