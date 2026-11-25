@@ -94,6 +94,14 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   - Picking several, or choices that need a preview (color schemes, typefaces, timezones,
     categories, members), are always a sheet (`PickField`, `SchemePicker`), never `<select multiple>`.
   - For a single choice, `Choose` in `PickField.tsx` picks between those two for you.
+- No native checkboxes in the web app. Choose the control by what it does:
+  - One setting, on or off: use `Switch` in `a11y.tsx`, with a visible row label and any hint below it.
+  - Picking several: use toggle chips (`aria-pressed`) for short fixed sets, such as months or
+    weekdays; use checkable rows (`CheckRow`, the `sheet-link` pattern) for longer or growing lists,
+    or `PickField multiple` when the choices belong in a sheet. Keep select-all and counts.
+  - Ticking off a to-do: use the existing done-tick control from Lists or Chores, never a switch.
+  - Keep accessible names, disabled states and form names/values; named boolean controls omit
+    unchecked values and notify automatic dirty tracking like `Choose`.
 - Actions are buttons, not a "More…" dropdown: the main one top right (`.meal-actions`), the rest
   as buttons in the row they act on.
 - A card summing up settings shows them as read-only `.chip-static` chips, one per setting with an
