@@ -174,15 +174,32 @@ Some things about a place to stay or a leg are private: a place's **street addre
 
 **Show on wall** is off by default and works only with Everyone in the family, like [Contacts](contacts.md). Where details are hidden, a row says **🔒 Booking details are for grown-ups**, so kids know to ask.
 
-Everything else is plans the whole family sees on every device, including trips they aren't going on: names, dates, towns, place names, prices, travel times and the day plan. Keep codes out of a trip's description and notes, which everyone reads.
+Everything else is plans the whole family sees on every device, including trips they aren't going on: names, dates, towns, place names, prices, travel times and the day plan, unless the trip is set so only some see it (below). Keep codes out of a trip's description and notes, which everyone reads.
 
 Your server leaves booking details out of what it sends to devices that may not see them, keeps them encrypted, and never puts them in notifications, webhooks, a person's day, the Board or [connected apps (MCP)](../integrations/mcp.md). Trips are never kept in the app's offline storage. Changing the setting stops new reads at once; it can't take back a screenshot.
+
+## A surprise trip: who can see it
+
+**Who can see this trip**, in **Add trip** and **Edit trip**, is **Everyone in the family** by default. To plan a surprise, choose:
+
+* **🔒 Grown-ups only**: grown-ups' own devices see the trip; kids' own devices don't.
+* **👥 Only some people**, then **Who can see it**: only those people's own devices see the trip.
+
+Either way, devices with full access always see it (they're the ones that change and delete trips), and wall screens never do. [Connected apps (MCP)](../integrations/mcp.md) see it only with **Connected apps can see it** turned on for that trip (off by default): an assistant connected to Kinwall may answer anyone in the family who asks it. Anyone else doesn't see the trip at all: not in Trips, its stay votes, trip tags on meals, outings and events, or the trip named on away days. The trip shows **🔒 Grown-ups only** or **👥 Only some people** to those who see it. Choose it when you add the trip, so it's never shown to the wrong people. A surprise for a grown-up works only if their devices don't have full access.
+
+A few things still show, because they live outside the trip:
+
+* Away days made from it stay (they pause chores) and everyone sees their dates. Filled in from a trip like this, they're named **Away** instead of the trip's name.
+* Events you put on a calendar are seen by everyone who sees that calendar.
+* Linked lists, meals and outings are seen as usual, without the trip's name.
+
+Only a grown-up with full access changes these settings; a connected app can't.
 
 ## Who can do what
 
 | | Grown-up's device | Kid's own device | Wall screen |
 |---|---|---|---|
-| See every family trip's plans | ✓ | ✓ | ✓ |
+| See every family trip's plans (except trips set so only some see them) | ✓ | ✓ | ✓ |
 | Mark ideas and activities 👀 / ⭐ | ✓ | as themselves | after **Who?** |
 | Suggest something to do | ✓ | ✓ | |
 | Vote on a stay | as themselves if going, or **Someone else** going | as themselves, if going | after **Who?** (people going) |

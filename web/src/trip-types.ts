@@ -4,6 +4,7 @@
 
 export type TripStatus = 'idea' | 'planning' | 'ready' // chosen by a grown-up; Underway and Past come from the dates
 export type DetailsAudience = 'grownups' | 'everyone'
+export type TripAudience = 'everyone' | 'grownups' | 'people'
 export type MarkKind = 'interested' | 'really'
 export interface TripMark { memberId: string; kind: MarkKind }
 
@@ -15,6 +16,9 @@ export interface TripSummary {
   dateNote: string | null // "Sometime in February": shown as written, never turned into dates
   status: TripStatus; archivedAt: string | null; canceledAt: string | null
   memberIds: string[] // who's going
+  audience: TripAudience // who sees the trip at all; anything but everyone hides it from walls and connected apps
+  audienceMemberIds: string[] // with people: whose own devices see it (full access always does)
+  connectedApps: boolean // a trip not shared with everyone: connected apps (MCP) see it too
   detailsAudience: DetailsAudience; detailsOnWall: boolean
   marks: TripMark[]
   counts: TripCounts
@@ -111,7 +115,7 @@ export interface Trip extends TripSummary {
 }
 export interface TripCan { edit: boolean; addStays: boolean; choose: boolean; suggest: boolean; vote: boolean }
 
-export type TripInput = Partial<Pick<Trip, 'title' | 'emoji' | 'description' | 'location' | 'startDate' | 'endDate' | 'dateNote' | 'status' | 'memberIds' | 'detailsAudience' | 'detailsOnWall' | 'packingListIds' | 'archivedAt' | 'canceledAt' | 'viewTimeZone'>> & { revision?: number }
+export type TripInput = Partial<Pick<Trip, 'title' | 'emoji' | 'description' | 'location' | 'startDate' | 'endDate' | 'dateNote' | 'status' | 'memberIds' | 'audience' | 'audienceMemberIds' | 'connectedApps' | 'detailsAudience' | 'detailsOnWall' | 'packingListIds' | 'archivedAt' | 'canceledAt' | 'viewTimeZone'>> & { revision?: number }
 export type StopInput = Partial<Omit<TripStop, 'id'>>
 export type StayGroupInput = Partial<Pick<StayGroup, 'stopId' | 'label' | 'checkIn' | 'checkOut' | 'sort'>>
 export type StayOptionInput = Partial<Omit<StayOption, 'id' | 'groupId' | 'details' | 'hasDetails' | 'bookedBy' | 'addedBy'>> & { groupId?: string; details?: Partial<StayDetails> | null }

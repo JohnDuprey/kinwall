@@ -75,11 +75,11 @@ export function registerTravelTools(tool: McpServer['registerTool'], request: Re
       catch (error) { return { content: [{ type: 'text', text: error instanceof Error ? error.message : 'The request could not be completed.' }], isError: true }; }
     });
   };
-  const basicTrip = TripInputSchema.omit({ detailsAudience: true, detailsOnWall: true });
+  const basicTrip = TripInputSchema.omit({ audience: true, audienceMemberIds: true, connectedApps: true, detailsAudience: true, detailsOnWall: true });
   add('list_trips', 'List family trips', 'Family trip ideas and plans, including trips this person is not on. Basic plans only: booking codes, private addresses and booking-management links are never returned to connected apps.', { archived: z.boolean().optional() }, async a => response('GET', `/api/trips${a.archived ? '?archived=1' : ''}`, undefined, 'trips', 'Family trips.'));
   add('get_trip', 'Read a trip', 'Read the overview, stops, places to stay, transportation and explicitly linked day plan. Booking details remain protected. Exact trip id or exact title only.', tripRef, async a => response('GET', `/api/trips/${enc(await findTrip(a.trip))}`, undefined, 'trip', 'Trip plan.'));
   add('create_trip', 'Create a trip', 'Grown-up: save a family trip idea or plan. Only title is required. Dates may be unknown; dateNote is not a calendar date. Ready does not mean booked. No booking or calendar write occurs.', basicTrip.shape, async a => response('POST', '/api/trips', a, 'trip', 'Trip saved.'));
-  add('update_trip', 'Update a trip', 'Grown-up: update basic trip information with the revision from get_trip. Date changes do not shift arrangements, events or away days. Review impacts with preview_trip_dates first. Booking visibility is changed only in Kinwall.', { ...optionalFields(basicTrip.shape), ...changed }, async a => {
+  add('update_trip', 'Update a trip', 'Grown-up: update basic trip information with the revision from get_trip. Date changes do not shift arrangements, events or away days. Review impacts with preview_trip_dates first. Who sees the trip and its booking details is changed only in Kinwall.', { ...optionalFields(basicTrip.shape), ...changed }, async a => {
     const { trip, ...body } = a;
     return response('PATCH', `/api/trips/${enc(await findTrip(trip))}`, body, 'trip', 'Trip updated.');
   });

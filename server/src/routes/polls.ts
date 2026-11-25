@@ -21,6 +21,7 @@ import { emit } from '../bus.ts';
 import { actorOf, changedBy, ownerBlock } from '../auth.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { MealDateSchema, MealSlotSchema } from '../meal-schemas.ts';
+import { hiddenTripIds } from '../trip-audience.ts';
 import { readFeatures } from './settings.ts';
 import { loadSubs, notBy, recordNotification, sendToSub } from '../notify.ts';
 import { familyLang, perLang, words } from '../i18n.ts';
@@ -117,7 +118,9 @@ export const leader = (poll: Pick<Poll, 'options'>) => poll.options.reduce<Poll[
 async function pollsOff(c: Context<{ Bindings: Env }>) {
   const features=await readFeatures(c.env.DB);
   if(!features.polls)return true;
-  return !features.trips && !!c.req.param('id') && !!await c.env.DB.prepare('SELECT poll_id FROM trip_stay_polls WHERE poll_id=?').bind(c.req.param('id')).first();
+  const trip=c.req.param('id')?await c.env.DB.prepare('SELECT trip_id FROM trip_stay_polls WHERE poll_id=?').bind(c.req.param('id')).first<{trip_id:string}>():null;
+  // A trip's stay vote reads as missing to anyone who can't see the trip.
+  return !!trip && (!features.trips || (await hiddenTripIds(c)).has(trip.trip_id));
 }
 async function onePoll(db: KinwallDb, id: string) {
   return (await readPolls(db, { id }))[0];
@@ -148,7 +151,8 @@ pollsRoutes.openapi(
   async (c) => {
     if (await pollsOff(c)) return c.json(OFF, 404);
     const { status, limit = 50 } = c.req.valid('query');
-    return c.json(await readPolls(c.env.DB, { status, limit }), 200);
+    const hidden = await hiddenTripIds(c);
+    return c.json((await readPolls(c.env.DB, { status, limit })).filter((p) => !p.tripId || !hidden.has(p.tripId)), 200);
   },
 );
 

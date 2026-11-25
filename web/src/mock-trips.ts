@@ -22,7 +22,7 @@ const grownUp = () => { if (kid()) throw fail(403, 'Only a grown-up can do that.
 type Stored = Omit<Trip, 'counts' | 'canSeeDetails' | 'can' | 'canSeeCare' | 'canEditCare' | 'checks' | 'travelDay'> & { care: CareArrangement[] }
 const base = (p: Partial<Stored> & Pick<Stored, 'id' | 'title'>): Stored => ({
   emoji: null, description: null, location: null, startDate: null, endDate: null, dateNote: null, status: 'idea', archivedAt: null, canceledAt: null,
-  memberIds: [], detailsAudience: 'grownups', detailsOnWall: false, marks: [], revision: 1, createdBy: 'm1', createdAt: now(), updatedAt: now(),
+  memberIds: [], audience: 'everyone', audienceMemberIds: [], connectedApps: false, detailsAudience: 'grownups', detailsOnWall: false, marks: [], revision: 1, createdBy: 'm1', createdAt: now(), updatedAt: now(),
   stops: [], stayGroups: [], legs: [], items: [], packingListIds: [], calendar: { span: null, items: [] }, awayPeriodIds: [], care: [], viewTimeZone: null, ...p,
 })
 const option = (p: Partial<StayOption> & Pick<StayOption, 'id' | 'groupId' | 'name'>): StayOption => ({

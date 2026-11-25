@@ -28,6 +28,7 @@ import { readFeatures } from './settings.ts';
 import { actorOf, requestKey, isConnectedApp, ownerBlock, deviceOwner } from '../auth.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
+import { grownUpViewer, hiddenTripIds, tripVisible } from '../trip-audience.ts';
 import { readPolls } from './polls.ts';
 import { fetchRecipeImage, fetchRecipePage } from '../outbound.ts';
 import { clean, openingTags, jsonLdNodes, isType } from '../recipe-web.ts';
@@ -86,18 +87,11 @@ async function members(c: C, ids: string[]) {
 }
 async function privateAllowed(c: C, t: Trip): Promise<boolean> {
   if (await isConnectedApp(c)) return false;
+  if (await grownUpViewer(c)) return true;
   const k = await requestKey(c);
-  if (k?.scope === 'admin') return true;
   if (!k?.owner || k.owner === 'shared')
     return t.detailsAudience === 'everyone' && t.detailsOnWall;
-  return (
-    t.detailsAudience === 'everyone' ||
-    !!(
-      await c.env.DB.prepare('SELECT grown_up FROM members WHERE id=?')
-        .bind(k.owner)
-        .first<{ grown_up: number }>()
-    )?.grown_up
-  );
+  return t.detailsAudience === 'everyone';
 }
 export async function careAllowed(c: C): Promise<boolean> {
   if (await isConnectedApp(c)) return false;
@@ -140,6 +134,7 @@ export async function readTrip(
       ),
   );
   const t = {
+    audience: 'everyone', audienceMemberIds: [], connectedApps: false, // saved before the settings existed
     ...JSON.parse(row.data),
     id,
     revision: row.revision,
@@ -288,7 +283,8 @@ export async function readTrip(
 }
 async function trip(c: C): Promise<Trip> {
   const t = await readTrip(c, c.req.param('id')!);
-  if (!t) fail(stored('error', 'Trip not found.'), 404);
+  // A trip someone may not see reads as missing, so a surprise stays one.
+  if (!t || !(await tripVisible(c, t))) fail(stored('error', 'Trip not found.'), 404);
   return t;
 }
 function tripData(t: Trip) {
@@ -337,6 +333,7 @@ async function validateTrip(c: C, t: z.infer<typeof TripInputSchema>) {
   if (t.detailsOnWall && t.detailsAudience !== 'everyone')
     fail(stored('error', 'Choose Everyone before showing booking details on the wall.'));
   await members(c, t.memberIds);
+  await members(c, t.audienceMemberIds);
   for (const id of t.packingListIds)
     if (
       !(await c.env.DB.prepare(
@@ -364,7 +361,8 @@ travelRoutes.openapi(createRoute({
     db.prepare('SELECT trip_id,data FROM trip_items'),
     db.prepare("SELECT trip_id,event_id FROM trip_publications WHERE event_id IS NOT NULL AND state='added'"),
   ]);
-  const byId = new Map(trips.results.map(row => [row.id, TripInputSchema.strip().parse(JSON.parse(row.data))]));
+  const hidden = await hiddenTripIds(c);
+  const byId = new Map(trips.results.filter(row => !hidden.has(row.id)).map(row => [row.id, TripInputSchema.strip().parse(JSON.parse(row.data))]));
   const links = new Map<string,{kind:'meal'|'event'|'outing';refId:string;tripId:string;title:string;emoji:string|null}>();
   const add = (kind:'meal'|'event'|'outing', refId:string, tripId:string) => {
     const trip = byId.get(tripId); if (!trip) return;
@@ -388,11 +386,12 @@ travelRoutes.openapi(
     responses: { 200: response(z.array(TripSummarySchema)), ...errors },
   }),
   async (c) => {
+    const hidden = await hiddenTripIds(c);
     const rows = (
       await c.env.DB.prepare(
         'SELECT id FROM trips ORDER BY updated_at DESC,id',
       ).all<{ id: string }>()
-    ).results;
+    ).results.filter((r) => !hidden.has(r.id));
     const all = await Promise.all(rows.map((r) => readTrip(c, r.id, false)));
     return c.json(
       all
@@ -429,9 +428,9 @@ travelRoutes.openapi(
     const raw=await c.req.json();
     if (
       (await isConnectedApp(c)) &&
-      ('detailsAudience' in raw || 'detailsOnWall' in raw)
+      ('detailsAudience' in raw || 'detailsOnWall' in raw || 'audience' in raw || 'audienceMemberIds' in raw || 'connectedApps' in raw)
     )
-      fail(stored('error', 'Connected apps cannot change booking-detail visibility.'), 403);
+      fail(stored('error', 'Connected apps cannot change who sees a trip or its booking details.'), 403);
     await validateTrip(c, input);
     const id = crypto.randomUUID(),
       now = new Date().toISOString();
@@ -473,13 +472,13 @@ travelRoutes.openapi(
   }),
   async (c) => {
     await parent(c);
-    const t = await trip(c),
-      { revision: rev, ...input } = c.req.valid('json');
+    const { revision: rev, ...input } = c.req.valid('json');
     if (
       (await isConnectedApp(c)) &&
-      ('detailsAudience' in input || 'detailsOnWall' in input)
+      ('detailsAudience' in input || 'detailsOnWall' in input || 'audience' in input || 'audienceMemberIds' in input || 'connectedApps' in input)
     )
-      fail(stored('error', 'Connected apps cannot change booking-detail visibility.'), 403);
+      fail(stored('error', 'Connected apps cannot change who sees a trip or its booking details.'), 403);
+    const t = await trip(c);
     if (
       input.memberIds &&
       JSON.stringify(input.memberIds) !== JSON.stringify(t.memberIds) &&

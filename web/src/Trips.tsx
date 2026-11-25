@@ -31,7 +31,7 @@ import { CarePage } from './TripCare.tsx'
 import { tripClock } from './travelContext.ts'
 import { tzName } from './timezone.ts'
 import type { CalendarEntry, List } from './types.ts'
-import type { DateChangePreview, MarkKind, Trip, TripInput, TripStatus, TripSummary } from './trip-types.ts'
+import type { DateChangePreview, MarkKind, TripAudience, Trip, TripInput, TripStatus, TripSummary } from './trip-types.ts'
 import './meals.css'
 import './outings.css'
 import './trips.css'
@@ -55,6 +55,8 @@ export const STATUS: Record<TripStatus, { emoji: string; label: () => string }> 
   planning: { emoji: '🗺️', label: () => t('Planning') },
   ready: { emoji: '✅', label: () => t('Ready') },
 }
+/** A chip for a trip not everyone sees; null for an everyone trip. */
+export const audienceChip = (x: Pick<TripSummary, 'audience'>) => x.audience === 'grownups' ? t('🔒 Grown-ups only') : x.audience === 'people' ? t('👥 Only some people') : null
 /** The status chip's words: the family's own status, or Underway / Past from the dates. */
 export function statusChip(x: TripSummary, today: string): string {
   if (x.canceledAt) return t('✕ Not this time')
@@ -140,6 +142,7 @@ function TripRow({ x, today: homeToday, members }: { x: TripSummary; today: stri
   const meta = [tripWhen(x), tripCountdown(x, today) ?? tripDayLabel(x, today), x.location].filter(Boolean).join(' · ')
   const chips = [
     statusChip(x, today),
+    audienceChip(x),
     x.counts.openVotes > 0 && t('🗳 Vote open'),
     x.counts.stayGroups > 1 && tn(x.counts.stayGroups, '{n} stop', '{n} stops'),
     x.counts.staysBooked > 0 && tn(x.counts.staysBooked, '✓ {n} stay set', '✓ {n} stays set'),
@@ -325,6 +328,7 @@ function Overview({ t_: { trip, save, busy }, canEdit }: { t_: TripApi; canEdit:
           {trip.location && <span className="chip chip-static">📍 {trip.location}</span>}
           <span className="chip chip-static trip-going"><Faces ids={trip.memberIds} members={members} /> {going}</span>
           <span className="chip chip-static">{statusChip(trip, who.today)}</span>
+          {audienceChip(trip) && <span className="chip chip-static">{audienceChip(trip)}</span>}
         </p>
       </div>
       {canEdit && <button type="button" className="btn btn-secondary" aria-haspopup="dialog" disabled={busy} onClick={() => setEditing(true)}>{t('Edit trip')}</button>}
@@ -487,7 +491,7 @@ function TripEditSheet({ trip, onClose, onSaved, save, tz }: { trip: Trip | null
   const id = useId()
   const [d, setD] = useState<TripInput & { title: string }>(() => ({
     title: trip?.title ?? '', emoji: trip?.emoji ?? null, startDate: trip?.startDate ?? null, endDate: trip?.endDate ?? null, dateNote: trip?.dateNote ?? null,
-    location: trip?.location ?? null, description: trip?.description ?? null, memberIds: trip?.memberIds ?? members.map(m => m.id), status: trip?.status ?? 'idea',
+    location: trip?.location ?? null, description: trip?.description ?? null, memberIds: trip?.memberIds ?? members.map(m => m.id), status: trip?.status ?? 'idea', audience: trip?.audience ?? 'everyone', audienceMemberIds: trip?.audienceMemberIds ?? [], connectedApps: trip?.connectedApps ?? false,
   }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -534,6 +538,18 @@ function TripEditSheet({ trip, onClose, onSaved, save, tz }: { trip: Trip | null
           <Segmented label={t('Plan status')} value={d.status ?? 'idea'} onChange={s => set('status', s)}
             options={(['idea', 'planning', 'ready'] as const).map(s => ({ key: s, label: <><span aria-hidden="true">{STATUS[s].emoji} </span>{STATUS[s].label()}</> }))} />
           <p className="field-hint">{t('Ready means “we’re set”, not “we paid”: a stay at a family home with nothing to book can be Ready.')}</p></div>}
+        <Choose<TripAudience> label={t('Who can see this trip')} value={d.audience ?? 'everyone'} onChange={v => set('audience', v)}
+          options={[{ value: 'everyone', label: t('Everyone in the family') }, { value: 'grownups', emoji: '🔒', label: t('Grown-ups only') }, { value: 'people', emoji: '👥', label: t('Only some people') }]} />
+        {d.audience === 'people' && <Labeled label={t('Who can see it')}>{fid => <PickField id={fid} label={t('Who can see it')} multiple none={t('Nobody yet')} value={d.audienceMemberIds ?? []} onChange={v => set('audienceMemberIds', v)} options={members.map(m => ({ value: m.id, label: m.name, lead: <Face m={m} /> }))} />}</Labeled>}
+        <p className="field-hint">{d.audience === 'grownups' ? t('For a surprise: kids’ devices and wall screens don’t see this trip at all. Booking details have their own setting.')
+          : d.audience === 'people' ? t('For a surprise: only these people’s own devices see this trip. Devices with full access always do; wall screens don’t.')
+          : t('Everyone sees the plans. Booking details have their own setting.')}</p>
+        {d.audience && d.audience !== 'everyone' && <div className="toggle-row">
+          <div><label id={`${id}-apps-label`}>{t('Connected apps can see it')}</label>
+            <div className="settings-row-sub" id={`${id}-apps-sub`}>{t('An assistant connected to Kinwall may answer anyone in the family who asks it. Booking details stay private either way.')}</div></div>
+          <button type="button" className={`switch ${d.connectedApps ? 'on' : ''}`} role="switch" aria-checked={!!d.connectedApps} aria-labelledby={`${id}-apps-label`} aria-describedby={`${id}-apps-sub`}
+            onClick={() => set('connectedApps', !d.connectedApps)}><span className="knob" /></button>
+        </div>}
         <h3>{t('When')}</h3>
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${id}-start`}>{t('First day')}</label><input id={`${id}-start`} type="date" value={d.startDate ?? ''} onChange={e => set('startDate', e.target.value || null)} /></div>
@@ -676,6 +692,7 @@ function CalendarPage({ t_: { trip, save, busy } }: { t_: TripApi }) {
   return <>
     <div className="meals-heading"><div><h1>{t('On our calendar')}</h1><p className="field-hint">{t('Nothing goes on the calendar until you pick it. If something fails, trying again adds only what’s missing.')}</p></div></div>
     {error && <p className="field-error" role="alert">{error}</p>}
+    {trip.audience !== 'everyone' && <p className="field-hint">{t('🔒 Not everyone sees this trip, but events on a calendar are seen by everyone who sees that calendar.')}</p>}
     {!calendars ? <p role="status">{t('Loading calendars…')}</p> : <>
       <Labeled label={t('Calendar')}>{id => <PickField id={id} label={t('Calendar')} value={calendarId ? [calendarId] : []} onChange={v => setCalendarId(v[0] ?? '')}
         options={calendars.map(c => ({ value: c.id, label: c.name }))} />}</Labeled>

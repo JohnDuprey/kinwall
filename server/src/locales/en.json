@@ -374,7 +374,7 @@
   "error|Connected apps can't create or change sign-ins. Do this from a parent's own device.": "Connected apps can't create or change sign-ins. Do this from a parent's own device.",
   "error|Connected apps can't get push notifications. Turn them on from a family member's own device.": "Connected apps can't get push notifications. Turn them on from a family member's own device.",
   "error|Connected apps can't set up webhooks. Do this from a parent's own device.": "Connected apps can't set up webhooks. Do this from a parent's own device.",
-  "error|Connected apps cannot change booking-detail visibility.": "Connected apps cannot change booking-detail visibility.",
+  "error|Connected apps cannot change who sees a trip or its booking details.": "Connected apps cannot change who sees a trip or its booking details.",
   "error|Connected apps cannot check the PIN": "Connected apps cannot check the PIN",
   "error|Connected apps cannot read or change booking details.": "Connected apps cannot read or change booking details.",
   "error|contact not found": "contact not found",

@@ -81,7 +81,7 @@ export default function Away() {
       if (canceled) return
       setBackTo({ id: trip.id, title: trip.title })
       if (!trip.startDate) { setFromTrip(null); return }
-      setFromTrip({ label: trip.title, tripId: trip.id, handoffs: [], keepDue: [], people: trip.memberIds.map(memberId => ({ memberId, startDate: trip.startDate!, endDate: trip.endDate ?? trip.startDate!, leaveDayAway: true, returnDayAway: true })) })
+      setFromTrip({ label: trip.audience !== 'everyone' ? t('Away') : trip.title, tripId: trip.id, handoffs: [], keepDue: [], people: trip.memberIds.map(memberId => ({ memberId, startDate: trip.startDate!, endDate: trip.endDate ?? trip.startDate!, leaveDayAway: true, returnDayAway: true })) })
       setEditing('new')
     }).catch(() => { /* the trip is gone: start empty */ })
     return () => { canceled = true }

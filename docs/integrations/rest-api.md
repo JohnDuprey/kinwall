@@ -675,7 +675,14 @@ at `/docs` (tags **Trips** and **Away**).
   `confirmation`, `manageUrl`, `codes`) or a leg (`confirmation`, `manageUrl`, `notes`). They're
   encrypted at rest and returned only to devices the trip allows: `detailsAudience` (`grownups`
   or `everyone`) and `detailsOnWall` (only with `everyone`). A connected app never gets them and
-  gets 403 sending `details`, `detailsAudience` or `detailsOnWall`.
+  gets 403 sending `details`, `detailsAudience`, `detailsOnWall`, `audience`, `audienceMemberIds` or
+  `connectedApps`.
+- `audience` is who sees the trip at all: `everyone` (the default), `grownups` (grown-ups' own
+  devices) or `people` (the own devices of `audienceMemberIds`). Full access always sees every
+  trip; wall screens only `everyone` trips, and connected apps also trips with `connectedApps: true`
+  (default `false`). For anyone else the trip is left out
+  of `GET /api/trips`, `/api/trips/links` and `/api/polls`, reads as 404 (with its parts and stay
+  vote), and isn't named on away periods (`tripId` and `tripTitle` are null).
 - `POST /api/trips/{id}/stay-groups/{stayId}/vote` (grown-up, `{ revision, restart? }`) starts a
   [family poll](../using/polls.md) with the stay's places as its choices (two to twelve), one vote
   for each person going. It needs Family polls on and the trip's `memberIds` set. A stay that

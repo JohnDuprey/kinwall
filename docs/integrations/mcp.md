@@ -371,4 +371,9 @@ full-access key used through MCP gets the same answer. Place names, towns and pr
 included. A backup with booking details can only be downloaded or restored from a grown-up's own
 device (see [Export & import](../your-data/export-import.md#trips-and-away-days)).
 
+**Surprise trips stay out unless a trip allows them.** A trip set to **🔒 Grown-ups only** or
+**👥 Only some people** isn't listed, read or changed through MCP, since a connected app may answer
+anyone in the family, unless a grown-up turns on **Connected apps can see it** for that trip in
+Kinwall. No tool changes who can see a trip.
+
 Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.

@@ -27,6 +27,7 @@ import { derivedMac } from '../crypto.ts';
 import { loadSchoolDays,classifyDay } from '../school-days.ts';
 import { readFeatures } from './settings.ts';
 import { readJobs } from '../upkeep.ts';
+import { hiddenTripIds } from '../trip-audience.ts';
 export const awayRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
 type Period = z.infer<typeof AwayPeriodSchema>;
@@ -56,6 +57,8 @@ const errors = Object.fromEntries(
   ]),
 );
 const params = z.object({ id: z.string() });
+/** Away days stay (they pause the chores), but a trip they came from isn't named to anyone who can't see it. */
+const unlinkHidden = (hidden: Set<string>) => (p: Period): Period => (p.tripId && hidden.has(p.tripId) ? { ...p, tripId: null, tripTitle: null } : p);
 export async function readAwayPeriods(
   db: KinwallDb,
   from?: string,
@@ -415,11 +418,11 @@ awayRoutes.openapi(
   }),
   async (c) =>
     c.json(
-      await readAwayPeriods(
+      (await readAwayPeriods(
         c.env.DB,
         c.req.valid('query').from,
         c.req.valid('query').to,
-      ),
+      )).map(unlinkHidden(await hiddenTripIds(c))),
       200,
     ),
 );
@@ -448,7 +451,7 @@ awayRoutes.openapi(
       (p) => p.id === c.req.valid('param').id,
     );
     if (!p) fail(stored('error', 'Away period not found.'), 404);
-    return c.json(p, 200);
+    return c.json(unlinkHidden(await hiddenTripIds(c))(p), 200);
   },
 );
 for (const method of ['post', 'patch'] as const)
