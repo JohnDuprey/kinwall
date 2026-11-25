@@ -154,3 +154,12 @@ test('features: a client that leaves a switch out keeps what was saved (an older
   assert.equal((await request('/api/settings', 'PATCH', { features: { ...ALL_ON, school: false } })).status, 200);
   assert.equal(((await (await request('/api/settings')).json()) as any).features.school, false, 'sent: it changes');
 });
+
+test('features: an older app that leaves Trips out never turns it back off', async () => {
+  const { request } = setup();
+  assert.equal((await request('/api/settings', 'PATCH', { features: { ...ALL_ON, trips: true } })).status, 200);
+  const { trips: _trips, ...olderClient } = ALL_ON;
+  assert.equal((await request('/api/settings', 'PATCH', { features: { ...olderClient, chores: false } })).status, 200);
+  const saved = ((await (await request('/api/settings')).json()) as any).features;
+  assert.deepEqual([saved.trips, saved.chores], [true, false]);
+});

@@ -104,7 +104,7 @@ a.outing-row { text-decoration: none; }
 .trip-currency { flex: 0 0 96px; }
 .trip-details-fields { margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
 .trip-details-fields legend { padding: 0 6px; font-weight: 800; }
-.trip-name-row .trip-emoji-field { flex: 0 0 84px; }
+.meal-form-row.trip-name-row { grid-template-columns: 5em minmax(0, 1fr); } /* emoji narrow, the name gets the rest */
 .trip-name-row .trip-emoji-field input { text-align: center; }
 
 /* Getting there */

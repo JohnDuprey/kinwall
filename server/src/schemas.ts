@@ -451,9 +451,9 @@ export const SettingsPatchSchema = z
       .max(MAX_BOARD_PRESETS)
       .refine((l) => new Set(l.map((x) => x.id)).size === l.length, 'preset ids must be unique')
       .optional(), // the whole list
-    // admin keys only (a display key gets 403). School has no default here: a client from before it
-    // leaves it out, and the saved switch stays (settings.ts settingsWrites merges over what's saved).
-    features: FeaturesSchema.extend({ school: z.boolean().optional() }).optional(),
+    // admin keys only (a display key gets 403). School and Trips have no default here: a client from
+    // before them leaves them out, and the saved switch stays (settings.ts settingsWrites merges over what's saved).
+    features: FeaturesSchema.extend({ school: z.boolean().optional(), trips: z.boolean().optional() }).optional(),
     defaultGroceryStore: z.string().trim().max(60).nullable().optional(), // null clears it
     defaultShoppingStore: z.string().trim().max(60).nullable().optional(),
     mealTimes: MealTimesSchema.optional(),
