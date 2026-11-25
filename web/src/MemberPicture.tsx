@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // "Change picture": a member's emoji, or a profile picture from the family photos, a drawing, the
 // camera or a file, cropped to a circle (picture.ts does the math) and saved as a 256 px square
 // (PUT /api/members/{id}/picture). Parents' devices for anyone, a kid's own device for themselves
@@ -70,9 +71,8 @@ export function PictureSheet({ member, onClose, withEmoji = false }: { member: M
       actions={mode === 'emoji' ? <button className="btn btn-primary" onClick={saveEmoji} disabled={busy || !isValidAvatar(avatar)}>{t('Save')}</button> : undefined}>
       <div className="field">
         <label htmlFor="picture-mode">{t('Picture')}</label>
-        <select id="picture-mode" className="settings-select" value={mode} onChange={e => setMode(e.target.value as Mode)}>
-          {modes.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-        </select>
+        <Choose hideLabel label={t('Picture')} id="picture-mode" value={String(mode)} onChange={next => setMode(next as Mode)} sheet
+          options={modes.map(m => ({ value: String(m.key), label: m.label }))} />
       </div>
       {mode === 'emoji' && <AvatarPicker value={avatar} onChange={setAvatar} />}
       {(mode === 'photos' || mode === 'drawings') && <Album drawings={mode === 'drawings'} onPick={setSource} />}

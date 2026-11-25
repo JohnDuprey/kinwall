@@ -16,7 +16,7 @@ import { Face } from './Face'
 import { MedicineCards } from './Refills.tsx'
 import { ChevronLeft } from './icons.tsx'
 import { MedicationSheet } from './MedicationSettings.tsx'
-import PickField from './PickField.tsx'
+import PickField, { Choose } from './PickField.tsx'
 import { doseChanges } from './doseChanges.ts'
 
 type Day = MedicationHistory['days'][number]
@@ -220,11 +220,12 @@ function ChangeDoseSheet({ dose, date, today, name, onSave, onClose }: { dose: D
       <p className="snap-dim">{name} · {doseTimeLabel(dose)}{date !== today ? ` ${t('(yesterday)')}` : ''}</p>
       <div className="field">
         <label htmlFor="dose-status">{t('What happened')}</label>
-        <select id="dose-status" className="settings-select" value={status} onChange={e => setStatus(e.target.value as typeof status)}>
-          <option value="taken">{t('Taken')}</option>
-          <option value="skipped">{t('Skipped')}</option>
-          <option value="unmark">{t('Not marked')}</option>
-        </select>
+        <Choose hideLabel label={t('What happened')} id="dose-status" value={String(status)} onChange={next => setStatus(next as typeof status)}
+          options={[
+            { value: 'taken', label: t('Taken') },
+            { value: 'skipped', label: t('Skipped') },
+            { value: 'unmark', label: t('Not marked') },
+          ]} />
       </div>
       {status === 'taken' && <div className="field">
         <label htmlFor="dose-at">{t('Taken at')}</label>

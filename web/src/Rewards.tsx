@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Rewards: things a parent sets up ("🍿 Movie night, 100 points") that a member spends chore points
 // on (server: routes/rewards.ts). Points are earned on Chores and spent here: the screen shows one
 // member's balance, their goal, what they can get now and what they're saving for, requests
@@ -522,12 +523,13 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
         </div>
       </div>
       <div className="field">
-        {/* The same select as a chore's (which also has Default, following the person). */}
+        {/* The same choice as a chore's (which also has Default, following the person). */}
         <label htmlFor="reward-approval">{t("Needs a parent's OK")}</label>
-        <select id="reward-approval" value={needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'yes')}>
-          <option value="yes">{t('Yes')}</option>
-          <option value="no">{t('No')}</option>
-        </select>
+        <Choose hideLabel label={t("Needs a parent's OK")} id="reward-approval" value={String(needsApproval ? 'yes' : 'no')} onChange={next => setNeedsApproval(next === 'yes')}
+          options={[
+            { value: 'yes', label: t('Yes') },
+            { value: 'no', label: t('No') },
+          ]} />
         <p className="field-hint">{t("With Yes, redeeming on a wall screen or kid's device waits for a parent to approve. The points are set aside meanwhile and come back if you say not this time.")}</p>
       </div>
       <div className="field">

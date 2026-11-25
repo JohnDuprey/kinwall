@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // A person's journal (#/journal/{memberId}): their days, newest first, with that day's Temp check and
 // evening goal check, and their own entries (a few lines and a mood), the start of bullet journaling.
 // Opens on their own device and parents' devices only; the server refuses everyone else (403), and
@@ -173,7 +174,7 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
   return (
     <Sheet title={entry ? t('Edit entry') : t('New entry')} onClose={onClose}
       actions={<>
-        {entry && <select className="settings-select" aria-label={t('More')} value="" onChange={e => more(e.target.value)}><option value="">{t('More…')}</option><option value="delete">{t('Delete entry')}</option></select>}
+
         <button className="btn btn-primary" onClick={save} disabled={!text.trim()}>{t('Save')}</button>
       </>}>
       <div className="field">
@@ -183,15 +184,20 @@ function EntrySheet({ member, entry, today, onClose, onSaved }: { member: Member
       </div>
       <div className="field">
         <label htmlFor="journal-mood">{t('Mood')} <span className="settings-row-sub">{t('(optional)')}</span></label>
-        <select id="journal-mood" className="settings-select" value={mood} onChange={e => setMood(e.target.value)}>
-          <option value="">{t('None')}</option>
-          {[...new Set([...MOODS, ...(mood ? [mood] : [])])].map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
+        <Choose hideLabel label={[t('Mood'), " ", t('(optional)')].join('')} id="journal-mood" value={String(mood)} onChange={next => setMood(next)}
+          options={[
+            { value: '', label: t('None') },
+            ...([...new Set([...MOODS, ...(mood ? [mood] : [])])].map(m => ({ value: String(m), label: m }))),
+          ]} />
       </div>
       <div className="field">
         <label htmlFor="journal-date">{t('Day')}</label>
         <input id="journal-date" type="date" value={date} max={today} onChange={e => setDate(e.target.value || today)} />
       </div>
-    </Sheet>
+
+    {entry && <div className="sheet-danger-zone choice-actions">
+      <button type="button" className="link-btn link-danger" onClick={() => more("delete")}>{t('Delete entry')}</button>
+    </div>}
+  </Sheet>
   )
 }

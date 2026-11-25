@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -108,7 +109,11 @@ function AnnouncementEditor({ announcement: a, onClose, onSaved }: { announcemen
     <div className="field"><label htmlFor={`${id}-expires`}>{t('Expires')}</label><input id={`${id}-expires`} type="datetime-local" required value={expires} min={starts} onChange={e => setExpires(e.target.value)} /></div>
     <p className="field-hint">{t('Times are shown in {timezone}.', { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })}</p>
     {(!startsAt || !expiresAt || expiresAt <= startsAt) && <p role="alert" className="field-hint">{t('Choose valid dates and an expiration after the announcement starts.')}</p>}
-    <div className="field"><label htmlFor={`${id}-priority`}>{t('Emphasis')}</label><select id={`${id}-priority`} value={priority} onChange={e => setPriority(e.target.value as AnnouncementInput['priority'])}><option value="normal">{t('Normal')}</option><option value="important">{t('Important')}</option></select></div>
+    <div className="field"><label htmlFor={`${id}-priority`}>{t('Emphasis')}</label><Choose hideLabel label={t('Emphasis')} id={`${id}-priority`} value={String(priority)} onChange={next => setPriority(next as AnnouncementInput['priority'])}
+      options={[
+        { value: 'normal', label: t('Normal') },
+        { value: 'important', label: t('Important') },
+      ]} /></div>
     {error && <p role="alert">{error}</p>}
     {a && <div className="sheet-danger-zone"><button type="button" className="btn btn-danger" disabled={busy} onClick={remove}>{t('Delete announcement…')}</button></div>}
   </Sheet>

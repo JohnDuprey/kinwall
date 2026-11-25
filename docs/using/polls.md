@@ -37,7 +37,7 @@ On a parent's device, open the poll and tap **End voting…**. The choice with t
 
 With Meals on, a poll whose voting has ended has **Plan it**. It opens the meal the poll was about with the winner filled in: the meal already planned in that slot if there is one, else a new meal on that day (today's dinner for a poll without a date). A recipe choice plans that recipe, a restaurant plans dining out there, and an idea becomes the meal's name. Save it and the poll links to that meal (**Open the meal** next time).
 
-To delete a poll and its votes: open it, then **More… → Delete poll**.
+To delete a poll and its votes: open it, then **Delete poll**.
 
 In the Kinwall app for iPhone, the Shortcuts app has a **Vote in a poll** action: pick the poll, your choice and who's voting. A phone that belongs to someone always votes for them; on a shared phone, it asks who's voting.
 

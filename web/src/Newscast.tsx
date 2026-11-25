@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Home → Newscast (docs/using/newscast.md): what the family did and shared, a day at a time.
 // Calm by design: no unread badge, no pushes, no jumping. A fresh load with new items waits behind
 // a quiet "New: N · Show"; it's asked for only while this tab is showing and /api/rev moved
@@ -300,21 +301,24 @@ function Composer({ inSheet, onPosted }: { inSheet: boolean; onPosted: () => voi
         <div className="news-count" id="news-count">{tn(MAX - text.length, '{n} left', '{n} left')}</div>
         <div className="news-row">
           {!meMemberId && (
-            <select className="settings-select" aria-label={t('Post as')} value={as} onChange={e => setAs(e.target.value)}>
-              <option value="">{t('Post as…')}</option>
-              {members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
-            </select>
+            <Choose hideLabel label={t('Post as')} value={String(as)} onChange={next => setAs(next)} sheet
+              options={[
+                { value: '', label: t('Post as…') },
+                ...(members.map(m => ({ value: String(m.id), label: [m.avatar, " ", m.name].join('') }))),
+              ]} />
           )}
           {who?.grownUp && (
-            <select className="settings-select" aria-label={t('Who sees it')} value={audience} onChange={e => setAudience(e.target.value as 'everyone' | 'grownups')}>
-              <option value="everyone">{t('👪 Everyone')}</option>
-              <option value="grownups">{t('🔒 Grown-ups only')}</option>
-            </select>
+            <Choose hideLabel label={t('Who sees it')} value={String(audience)} onChange={next => setAudience(next as 'everyone' | 'grownups')}
+              options={[
+                { value: 'everyone', label: t('👪 Everyone') },
+                { value: 'grownups', label: t('🔒 Grown-ups only') },
+              ]} />
           )}
-          <select className="settings-select" aria-label={t('Emoji')} value={emoji} onChange={e => setEmoji(e.target.value)}>
-            <option value="">{t('No emoji')}</option>
-            {EMOJI.map(x => <option key={x} value={x}>{x}</option>)}
-          </select>
+          <Choose hideLabel label={t('Emoji')} value={String(emoji)} onChange={next => setEmoji(next)} sheet
+            options={[
+              { value: '', label: t('No emoji') },
+              ...(EMOJI.map(x => ({ value: String(x), label: x }))),
+            ]} />
         </div>
         {photo && (
           <div className="news-photo-pick">

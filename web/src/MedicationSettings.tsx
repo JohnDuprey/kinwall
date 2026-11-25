@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Medication reminders, part of the Health tracker (off unless both are on, server-side too):
 // - MedicationsToggle: the switch under Health in Settings → Features, with a one-time notice about
 //   what's kept and who sees it;
@@ -81,10 +82,9 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
         </div>
         <div className="settings-row">
           <div className="settings-row-sub">{t('Reminders come through at night too.')}</div>
-          <select className="settings-select" aria-label={t('More medication actions')} value="" onChange={e => more(e.target.value)}>
-            <option value="">{t('More…')}</option>
-            <option value="delete-all">{t('Delete all medication data')}</option>
-          </select>
+          <div className="choice-actions" role="group" aria-label={t('More medication actions')}>
+            <button type="button" className="link-btn link-danger" onClick={() => more("delete-all")}>{t('Delete all medication data')}</button>
+          </div>
         </div>
       </details>
     </section>
@@ -149,11 +149,11 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
         <legend>{t('Times')}</legend>
         {times.map((time, i) => (
           <div key={i} className="meds-time-row">
-            <select className="settings-select" aria-label={t('Time {n}: when', { n: i + 1 })} value={typeof time === 'string' ? 'at' : 'wake'}
-              onChange={e => setTime(i, e.target.value === 'wake' ? { wake: true, latest: '12:00' } : '08:00')}>
-              <option value="at">{t('At a time')}</option>
-              <option value="wake" disabled={hasWake && typeof time === 'string'}>{t('When I start my day')}</option>
-            </select>
+            <Choose hideLabel label={t('Time {n}: when', { n: i + 1 })} value={String(typeof time === 'string' ? 'at' : 'wake')} onChange={next => setTime(i, next === 'wake' ? { wake: true, latest: '12:00' } : '08:00')}
+              options={[
+                { value: 'at', label: t('At a time') },
+                { value: 'wake', label: t('When I start my day'), disabled: hasWake && typeof time === 'string' },
+              ]} />
             {typeof time === 'string'
               ? <input type="time" aria-label={t('Time {n}', { n: i + 1 })} value={time} onChange={e => setTime(i, e.target.value)} />
               : <label className="meds-latest">{t('By')} <input type="time" aria-label={t('Time {n}: at the latest', { n: i + 1 })} value={time.latest} onChange={e => setTime(i, { wake: true, latest: e.target.value })} /></label>}
@@ -165,12 +165,13 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
       </fieldset>
       <div className="field">
         <label htmlFor="med-days">{t('Days')}</label>
-        <select id="med-days" className="settings-select" value={mode} onChange={e => pickMode(e.target.value as DaysMode)}>
-          <option value="every">{t('Every day')}</option>
-          <option value="weekdays">{t('Weekdays')}</option>
-          <option value="weekends">{t('Weekends')}</option>
-          <option value="some">{t('Certain days')}</option>
-        </select>
+        <Choose hideLabel label={t('Days')} id="med-days" value={String(mode)} onChange={next => pickMode(next as DaysMode)}
+          options={[
+            { value: 'every', label: t('Every day') },
+            { value: 'weekdays', label: t('Weekdays') },
+            { value: 'weekends', label: t('Weekends') },
+            { value: 'some', label: t('Certain days') },
+          ]} />
         {mode === 'some' && (
           <div className="chip-row meds-days" role="group" aria-label={t('Which days')}>
             {WEEKDAYS.map((d, i) => (
@@ -182,23 +183,25 @@ export function MedicationSheet({ med, member, siblings, onClose, onSaved }: { m
       </div>
       <div className="field">
         <label htmlFor="med-late">{t('Can be taken late')}</label>
-        <select id="med-late" className="settings-select" value={lateWindow} onChange={e => setLateWindow(e.target.value as LateWindow)} aria-describedby="med-late-hint">
-          <option value="3h">{t('Up to 3 hours')}</option>
-          <option value="evening">{t('Until evening (8 PM)')}</option>
-          <option value="endOfDay">{t('Until the end of the day')}</option>
-          <option value="none">{t("Don't take late")}</option>
-        </select>
+        <Choose hideLabel label={t('Can be taken late')} id="med-late" value={String(lateWindow)} onChange={next => setLateWindow(next as LateWindow)} aria-describedby="med-late-hint"
+          options={[
+            { value: '3h', label: t('Up to 3 hours') },
+            { value: 'evening', label: t('Until evening (8 PM)') },
+            { value: 'endOfDay', label: t('Until the end of the day') },
+            { value: 'none', label: t("Don't take late") },
+          ]} />
         <p className="field-hint" id="med-late-hint">{t("Some medicines shouldn't be taken late. Check with your doctor or pharmacist.")}</p>
       </div>
       <details className="meds-options" open={ends !== 'never' || undefined}>
         <summary>{t('Course length (optional)')}</summary>
         <div className="field">
           <label htmlFor="med-ends">{t('Ends')}</label>
-          <select id="med-ends" className="settings-select" value={ends} onChange={e => setEnds(e.target.value as typeof ends)}>
-            <option value="never">{t('No end')}</option>
-            <option value="date">{t('On a date')}</option>
-            <option value="doses">{t('After a number of doses')}</option>
-          </select>
+          <Choose hideLabel label={t('Ends')} id="med-ends" value={String(ends)} onChange={next => setEnds(next as typeof ends)}
+            options={[
+              { value: 'never', label: t('No end') },
+              { value: 'date', label: t('On a date') },
+              { value: 'doses', label: t('After a number of doses') },
+            ]} />
           {ends === 'date' && <div className="meds-ends-detail"><input type="date" aria-label={t('Last day')} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>}
           {ends === 'doses' && (
             <div className="meds-ends-detail">

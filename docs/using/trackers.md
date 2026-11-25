@@ -97,7 +97,7 @@ The visit and the event stay linked. The event's sheet then shows **Health visit
 
 **Add from the calendar**, near the top of the Health tab, lists the last month's and the next three months' events that look like a visit (the same words as above) and aren't one yet. Pick one to open the same filled-in form. For an event with any other title, open it on the calendar and tap **Make it a health visit**.
 
-When [medication reminders](medications.md) are on, the Health tab also has **💊 Medicines**: each person's medicines, where parents add and change them, **Show medicine names on shared screens**, and **More… → Delete all medication data**.
+When [medication reminders](medications.md) are on, the Health tab also has **💊 Medicines**: each person's medicines, where parents add and change them, **Show medicine names on shared screens**, and **Delete all medication data**.
 
 ### Health stays off the wall
 

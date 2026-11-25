@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // The energy battery (docs/using/battery.md): today's level with everything behind it and any
 // heads-up, and on the Insights page (full) the week and the days ahead. The server works it all
 // out (server/src/battery.ts) and refuses anyone but their own device and parents' devices; callers
@@ -30,9 +31,8 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
       {full && (
         <>
           <label htmlFor={`battery-day-${member.id}`} className="sr-only">{t('Day')}</label>
-          <select id={`battery-day-${member.id}`} className="settings-select" value={pick || shown.today} onChange={e => setPick(e.target.value)}>
-            {shown.days.map(d => <option key={d.date} value={d.date}>{d.forecast ? t('{day} (a guess)', { day: label(d.date) }) : label(d.date)}</option>)}
-          </select>
+          <Choose hideLabel label={t('Day')} id={`battery-day-${member.id}`} value={String(pick || shown.today)} onChange={next => setPick(next)} sheet
+            options={shown.days.map(d => ({ value: String(d.date), label: d.forecast ? t('{day} (a guess)', { day: label(d.date) }) : label(d.date) }))} />
         </>
       )}
       <p className="battery-now">

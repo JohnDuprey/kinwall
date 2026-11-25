@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // A person's insights (#/insights/{memberId}): their check-ins over time next to chores, activity
 // and how busy their calendar was, with plain summaries and, after about 3 weeks, connections.
 // Everything is worked out on the server (server/src/insights.ts); this page only draws it. Hand-rolled
@@ -48,9 +49,8 @@ export default function Insights({ memberId }: { memberId?: string }) {
         {!error && (
           <div className="profile-actions">
             <label htmlFor="insights-range" className="sr-only">{t('Time range')}</label>
-            <select id="insights-range" className="settings-select" value={range} onChange={e => setRange(e.target.value as InsightRange)}>
-              {RANGES.map(r => <option key={r.key} value={r.key}>{tm(r.label)}</option>)}
-            </select>
+            <Choose hideLabel label={t('Time range')} id="insights-range" value={String(range)} onChange={next => setRange(next as InsightRange)}
+              options={RANGES.map(r => ({ value: String(r.key), label: tm(r.label) }))} />
           </div>
         )}
       </section>

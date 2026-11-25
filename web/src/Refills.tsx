@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // Medicine refills (routes/medication-refills.ts on the server):
 // - MedicineCards: stable cards combining each medicine’s schedule, editing and refill actions;
 // - RefillSheet: the refill card: where to ask (the contact's phones, each with its phone menu and a Call
@@ -141,22 +142,23 @@ export function RefillFields({ refill, onChange, siblings }: { refill: Medicatio
       {blank && from && <button type="button" className="btn btn-secondary" onClick={() => set({ contactId: from.refill.contactId, pharmacyContactId: from.refill.pharmacyContactId, pharmacy: from.refill.pharmacy, dateOfBirth: from.refill.dateOfBirth, callback: from.refill.callback })}>{t('Same as {name}', { name: from.name })}</button>}
       <label className="refill-label" htmlFor="refill-place">{t('Ask for refills at')}</label>
       <div className="meds-time-row">
-        <select id="refill-place" className="settings-select" value={refill.contactId ?? ''} onChange={e => (e.target.value === 'new' ? setEditing('new') : set({ contactId: e.target.value || null }))}>
-          <option value="">{t('Not set')}</option>
-          {offices.map(g => g.list.length > 0 && <optgroup key={g.label} label={tm(g.label)}>{g.list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
-          {refill.contactId && !askAt && <option value={refill.contactId}>{t('A contact')}</option>}
-          <option value="new">{t('Add a contact…')}</option>
-        </select>
+        <Choose hideLabel label={t('Ask for refills at')} id="refill-place" value={String(refill.contactId ?? '')} onChange={next => (next === 'new' ? setEditing('new') : set({ contactId: next || null }))} sheet
+          options={[
+            { value: '', label: t('Not set') },
+            ...(offices.flatMap(g => g.list.length > 0 ? [...(g.list.map(c => ({ value: String(c.id), label: c.name, detail: tm(g.label) })))] : [])),
+            ...(refill.contactId && !askAt ? [{ value: String(refill.contactId), label: t('A contact') }] : []),
+            { value: 'new', label: t('Add a contact…') },
+          ]} />
         {askAt && <button type="button" className="btn btn-secondary" onClick={() => setEditing(askAt)}>{t('Edit contact')}</button>}
       </div>
       <p className="field-hint">{t("The doctor's office or pharmacy from Contacts. Its phone menu and websites show on the refill card.")}</p>
       <label className="refill-label" htmlFor="refill-pharmacy">{t('Pharmacy')}</label>
-      <select id="refill-pharmacy" className="settings-select" value={refill.pharmacyContactId ?? ''}
-        onChange={e => { const c = contacts.find(x => x.id === e.target.value); set(c ? { pharmacyContactId: c.id, pharmacy: c.name } : { pharmacyContactId: null }) }}>
-        <option value="">{t('Not in contacts: type its name')}</option>
-        {pharmacies.map(g => g.list.length > 0 && <optgroup key={g.label} label={tm(g.label)}>{g.list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
-        {refill.pharmacyContactId && !picked && <option value={refill.pharmacyContactId}>{refill.pharmacy || t('A contact')}</option>}
-      </select>
+      <Choose hideLabel label={t('Pharmacy')} id="refill-pharmacy" value={String(refill.pharmacyContactId ?? '')} onChange={next => { const c = contacts.find(x => x.id === next); set(c ? { pharmacyContactId: c.id, pharmacy: c.name } : { pharmacyContactId: null }) }} sheet
+        options={[
+          { value: '', label: t('Not in contacts: type its name') },
+          ...(pharmacies.flatMap(g => g.list.length > 0 ? [...(g.list.map(c => ({ value: String(c.id), label: c.name, detail: tm(g.label) })))] : [])),
+          ...(refill.pharmacyContactId && !picked ? [{ value: String(refill.pharmacyContactId), label: refill.pharmacy || t('A contact') }] : []),
+        ]} />
       {!refill.pharmacyContactId && <input aria-label={t('Pharmacy name')} type="text" maxLength={120} value={refill.pharmacy} onChange={e => set({ pharmacy: e.target.value })} placeholder={t('The pharmacy on Main Street')} autoComplete="off" className="refill-second" />}
       <label className="refill-label" htmlFor="refill-dob">{t('Date of birth')}</label>
       <input id="refill-dob" type="date" value={refill.dateOfBirth ?? ''} onChange={e => set({ dateOfBirth: e.target.value || null })} />

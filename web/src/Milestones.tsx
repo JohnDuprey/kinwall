@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -73,7 +74,11 @@ function MilestoneEditor({ memberId, onClose, onSaved }: { memberId: string; onC
     <div className="field"><label htmlFor="milestone-name">{t('Name')}</label><input id="milestone-name" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} autoComplete="off" autoFocus /></div>
     <div className="field"><label>{t('Emoji')}</label><AnyEmojiField value={emoji} onChange={setEmoji} /></div>
     <div className="field"><label htmlFor="milestone-reward">{t('Reward')}</label><textarea id="milestone-reward" maxLength={300} value={reward} onChange={e => setReward(e.target.value)} placeholder={t('Pick the family movie')} /></div>
-    <div className="field"><label htmlFor="milestone-type">{t('Count toward the target')}</label><select id="milestone-type" value={metric} onChange={e => setMetric(e.target.value as MilestoneInput['metric'])}><option value="points">{t('Points earned')}</option><option value="chores">{t('Approved chores')}</option></select></div>
+    <div className="field"><label htmlFor="milestone-type">{t('Count toward the target')}</label><Choose hideLabel label={t('Count toward the target')} id="milestone-type" value={String(metric)} onChange={next => setMetric(next as MilestoneInput['metric'])}
+      options={[
+        { value: 'points', label: t('Points earned') },
+        { value: 'chores', label: t('Approved chores') },
+      ]} /></div>
     <div className="field"><label htmlFor="milestone-target">{t('Target')}</label><input id="milestone-target" type="number" inputMode="numeric" min={1} max={1000000} step={1} value={target} onChange={e => setTarget(e.target.value)} /></div>
     <div className="field"><label id="milestone-for">{t('For')}</label><div className="chip-row" role="group" aria-labelledby="milestone-for">{members.map(m => <button key={m.id} className={`chip ${ids.includes(m.id) ? 'active' : ''}`} aria-pressed={ids.includes(m.id)} onClick={() => setIds(ids.includes(m.id) ? ids.filter(id => id !== m.id) : [...ids, m.id])}><ChipFace m={m} />{m.name}</button>)}</div></div>
     <p className="field-hint">{t('Each person starts at zero now and earns the reward once. Earlier points and chores do not count. The target and people cannot be changed later.')}</p>

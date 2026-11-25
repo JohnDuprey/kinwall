@@ -21,7 +21,7 @@ import type { EventInstance, HealthData, HealthType, Member, MemoryData, Photo, 
 import { dayAmount, FINISHED_SHOWN, STATUS_EMOJI, STATUS_WORDS, hoursMinutes, shelfBooks, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
-import PickField from './PickField.tsx'
+import PickField, { Choose } from './PickField.tsx'
 import { forPerson, HEALTH_PERSON_KEY, personIn, startPerson } from './trackerPerson.ts'
 import { Face, ChipFace } from './Face'
 import { hashPath, hashQuery } from './hashQuery.ts'
@@ -604,10 +604,11 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, prefill, 
       {kind === 'reading' && <>
         <div className="field">
           <label htmlFor="trk-format">{t('Format')}</label>
-          <select id="trk-format" value={f.format} onChange={e => set({ format: e.target.value as ReadingFormat })}>
-            <option value="book">{t('📖 Book')}</option>
-            <option value="audiobook">{t('🎧 Audiobook')}</option>
-          </select>
+          <Choose hideLabel label={t('Format')} id="trk-format" value={String(f.format)} onChange={next => set({ format: next as ReadingFormat })}
+            options={[
+              { value: 'book', label: t('📖 Book') },
+              { value: 'audiobook', label: t('🎧 Audiobook') },
+            ]} />
         </div>
         <BookLookup initial={f.title} onPick={b => set({
           title: b.title, author: b.author ?? f.author, coverUrl: b.coverUrl ?? f.coverUrl, coverThumb: b.coverUrl ? api.bookThumbUrl(b) : f.coverThumb,
@@ -701,9 +702,8 @@ function MeasureInput({ id, label, value, unit, units, onValue, onUnit }: { id: 
     <div className="trk-measure">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="text" inputMode="decimal" value={value} onChange={e => onValue(e.target.value.replace(/[^\d.]/g, ''))} />
-      <select aria-label={t('{label} unit', { label })} value={unit} onChange={e => onUnit(e.target.value)}>
-        {units.map(u => <option key={u} value={u}>{u === 'F' || u === 'C' ? `°${u}` : u}</option>)}
-      </select>
+      <Choose hideLabel label={t('{label} unit', { label })} value={String(unit)} onChange={next => onUnit(next)}
+        options={units.map(u => ({ value: String(u), label: u === 'F' || u === 'C' ? `°${u}` : u }))} />
     </div>
   )
 }

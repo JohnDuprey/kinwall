@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // To-do apps: Settings → Calendars → To-do apps (connect Todoist, Google Tasks, Microsoft To Do),
 // a to-do list's "Sync with…" in its Edit sheet, and the synced list's status line. Server:
 // routes/tasks.ts. Connecting and linking are for parent devices; every screen sees the status.
@@ -251,17 +252,17 @@ function TaskSyncSheet({ list, link, onClose, onChanged }: { list: List; link: T
         )}
         <div className="field">
           <label htmlFor="task-sync-account">{t('Account')}</label>
-          <select id="task-sync-account" value={accountId} onChange={e => setAccountId(e.target.value)}>
-            {accounts.map(a => <option key={a.id} value={a.id}>{label(a.kind, a.name)}</option>)}
-          </select>
+          <Choose hideLabel label={t('Account')} id="task-sync-account" value={String(accountId)} onChange={next => setAccountId(next)} sheet
+            options={accounts.map(a => ({ value: String(a.id), label: label(a.kind, a.name) }))} />
         </div>
         <div className="field">
           <label htmlFor="task-sync-list">{account ? t('List in {app}', { app: appName(account.kind) }) : t('List')}</label>
-          <select id="task-sync-list" value={remoteId} onChange={e => setRemoteId(e.target.value)} disabled={!remote}>
-            {!remote && <option value={remoteId}>{t('Loading…')}</option>}
-            {remote?.map(r => <option key={r.remoteId} value={r.remoteId}>{r.name}</option>)}
-            {remote && <option value={NEW}>{t('Make a new one: {name}', { name: list.name })}</option>}
-          </select>
+          <Choose hideLabel label={account ? t('List in {app}', { app: appName(account.kind) }) : t('List')} id="task-sync-list" value={String(remoteId)} onChange={next => setRemoteId(next)} disabled={!remote} sheet
+            options={[
+              ...(!remote ? [{ value: String(remoteId), label: t('Loading…') }] : []),
+              ...(remote?.map(r => ({ value: String(r.remoteId), label: r.name })) ?? []),
+              ...(remote ? [{ value: String(NEW), label: t('Make a new one: {name}', { name: list.name }) }] : []),
+            ]} />
         </div>
         <p className="field-hint">{t('Titles, done, due dates, notes and steps sync both ways, and priority with Todoist and Microsoft To Do. Who it’s for and the discussion stay in Kinwall.')}</p>
         <p className="field-hint">{link ? t('Picking another list starts over: items with the same title are matched, the rest are copied across.') : t('Items with the same title are matched; the rest are copied across. Done items stay where they are.')}</p>

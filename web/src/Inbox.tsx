@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // The quick-capture inbox, at the top of a parent's screen (App.tsx Header, lazy): jot a thought
 // down, then later make it a task, an event or a note on the family board. The server keeps it
 // (routes/inbox.ts) and makes what it becomes; inbox.ts has the screen's state and rules.
@@ -180,9 +181,8 @@ function OrganizeSheet({ id, onClose }: { id: string; onClose: () => void }) {
     <p className="inbox-original">{t('You wrote: “{text}”', { text: item.text })}</p>
     <div className="field">
       <label htmlFor="inbox-kind">{t('Make it')}</label>
-      <select id="inbox-kind" value={kind} onChange={e => setKind(e.target.value as InboxKind)}>
-        {shown.map(k => <option key={k.key} value={k.key}>{tm(k.label)}</option>)}
-      </select>
+      <Choose hideLabel label={t('Make it')} id="inbox-kind" value={String(kind)} onChange={next => setKind(next as InboxKind)}
+        options={shown.map(k => ({ value: String(k.key), label: tm(k.label) }))} />
     </div>
     <div className="field">
       <label htmlFor="inbox-title">{kind === 'note' ? t('Note') : kind === 'event' ? t('Event title') : t('Task')}</label>
@@ -191,9 +191,8 @@ function OrganizeSheet({ id, onClose }: { id: string; onClose: () => void }) {
     {kind === 'task' && <div className="field">
       <label htmlFor="inbox-list">{t('List')}</label>
       {lists && !lists.length ? <p className="field-hint">{t('Make a to-do list in Lists first.')}</p>
-        : <select id="inbox-list" value={listId} onChange={e => setListId(e.target.value)} disabled={!lists}>
-          {(lists ?? []).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ${l.name}` : l.name}</option>)}
-        </select>}
+        : <Choose hideLabel label={t('List')} id="inbox-list" value={String(listId)} onChange={next => setListId(next)} disabled={!lists} sheet
+          options={(lists ?? []).map(l => ({ value: String(l.id), label: l.emoji ? `${l.emoji} ${l.name}` : l.name }))} />}
     </div>}
     {kind === 'event' && !calendars.length && <p className="field-hint">{t('Add a calendar that takes new events in Settings → Calendars first.')}</p>}
     <div className="field">

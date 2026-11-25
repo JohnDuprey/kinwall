@@ -102,7 +102,7 @@ The [energy battery](../using/battery.md) is worked out from sleep and feelings,
 * **Webhooks and Home Assistant** get no medication events at all.
 * **Connected apps** get nothing (403; the refill MCP tools are refused too) until a parent turns on **Let connected apps see health entries**. They can't turn medications on or change its settings either.
 * **Snapshots, profiles and share links** never include medicines. A profile only links to the medicines page, on the person's own device and parents' devices.
-* The [export](export-import.md) holds medicines and their log in plain form (it's your backup); importing encrypts them again. **Delete all medication data** (Trackers → Health → Medicines → More…) removes every medicine, its log and its notifications. Deleting one medicine removes its log.
+* The [export](export-import.md) holds medicines and their log in plain form (it's your backup); importing encrypts them again. **Delete all medication data** (Trackers → Health → Medicines → Medicine privacy and settings) removes every medicine, its log and its notifications. Deleting one medicine removes its log.
 
 ## Stored as one-way hashes (SHA-256)
 
