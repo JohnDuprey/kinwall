@@ -100,7 +100,7 @@ A **stay** is where you sleep for some nights: one for the whole trip, or one pe
 
 What each place can keep: kind, name, town, a link, a picture, cost, how many it sleeps and notes.
 
-**Cost** is one of **Not set yet**, **Free**, **We'll offer to chip in** or **A price**. "Not set yet" shows as **Cost not set yet** and never counts as free. A price keeps its amount in its own currency (no conversions), what it's for (**a night**, **the whole stay**, **a week**, **a person**), whether fees and taxes are included, and the date you saw it ("as listed Mon, Nov 2"). **Sort by price** appears only when every place has a price in the same currency for the same thing.
+**Cost** is one of **Not set yet**, **Free**, **We'll offer to chip in** or **A price**. "Not set yet" shows as **Cost not set yet** and never counts as free. A price keeps its amount in its own currency (no conversions), what it's for (**a night**, **the whole stay**, **a week**, **a person**), whether fees and taxes are included, and the date you saw it ("as listed Mon, Nov 2"). The **Added order | Lowest price** picker appears only when every place has a price in the same currency for the same thing.
 
 ### Pictures
 
@@ -217,3 +217,5 @@ With Trips off there's no Trips tab, no trip line on the Board, and trip votes l
 ## Deleting a trip
 
 **Delete trip…** at the foot of the trip removes the trip, its stops, stays, places, legs, day plan and stay votes. A grown-up confirms first. Calendar events, meals, outings and away days made from it stay.
+
+Places to stay can be sorted with **Added order** or **Lowest price**; added order keeps the existing order of the places. Calendar links use checkable rows, and home-care tasks use the same done-tick as list items.

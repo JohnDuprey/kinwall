@@ -7,7 +7,7 @@ import { useEffect, useId, useLayoutEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { LoadError } from './a11y.tsx'
+import { Switch, LoadError } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import { Face } from './Face'
 import { PlusIcon } from './icons.tsx'
@@ -220,9 +220,9 @@ function AwayEditor({ period, start, others, onClose }: { period: AwayPeriod | n
           <div className="field"><label htmlFor={`${id}-${i}-s`}>{t('Leaves')}</label><input id={`${id}-${i}-s`} type="date" value={p.startDate} onChange={e => e.target.value && setPerson(i, { startDate: e.target.value })} /></div>
           <div className="field"><label htmlFor={`${id}-${i}-e`}>{t('Back')}</label><input id={`${id}-${i}-e`} type="date" min={p.startDate} value={p.endDate} onChange={e => e.target.value && setPerson(i, { endDate: e.target.value })} /></div>
         </div>
-        <label className="meal-check"><input type="checkbox" checked={p.leaveDayAway} onChange={e => setPerson(i, { leaveDayAway: e.target.checked })} /> {t('Away on the day they leave')}</label>
-        <label className="meal-check"><input type="checkbox" checked={p.returnDayAway} onChange={e => setPerson(i, { returnDayAway: e.target.checked })} /> {t('Away on the day they’re back')}</label>
-        <p className={awayDays(p) ? 'field-hint' : 'field-hint trip-warn'}>{awayDays(p) ? t('Away {from} to {to}', { from: longDay(awayDays(p)!.from), to: longDay(awayDays(p)!.to) }) : t('No away days: both boundary days are unticked.')}</p>
+        <Switch checked={p.leaveDayAway} onChange={next => setPerson(i, { leaveDayAway: next })} label={t('Away on the day they leave')} />
+        <Switch checked={p.returnDayAway} onChange={next => setPerson(i, { returnDayAway: next })} label={t('Away on the day they’re back')} />
+        <p className={awayDays(p) ? 'field-hint' : 'field-hint trip-warn'}>{awayDays(p) ? t('Away {from} to {to}', { from: longDay(awayDays(p)!.from), to: longDay(awayDays(p)!.to) }) : t('No away days: both boundary day switches are off.')}</p>
         <button type="button" className="link-btn" onClick={() => setPeople(ps => ps.filter((_, j) => j !== i))}>{t('Remove {name}', { name: name(p.memberId) })}</button>
       </fieldset>)}
       {members.some(m => !people.some(p => p.memberId === m.id)) && <Choose label={t('Add someone who’s away')} value="" none={t('Pick a person')} onChange={addPerson}

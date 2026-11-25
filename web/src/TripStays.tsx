@@ -4,6 +4,7 @@
 // added up. A family home needs only a name. Booking details come from the server only to devices
 // this trip allows.
 import { useId, useState } from 'react'
+import { Segmented } from './a11y.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -88,7 +89,8 @@ function StayGroupSection({ g, t_, can, single, onEdit }: { g: StayGroup; t_: Tr
       {open && can.vote && acting.picker('vote')}
     </div>}
     {can.choose && !g.chosenOptionId && g.options.length > 0 && <p className="trip-choice-hint">{lead ? t('{name} is in the lead with {n} votes. Choosing is up to a grown-up; votes don’t decide it.', { name: lead.name, n: n!.counts[lead.id] }) : n?.tie ? t('It’s a tie. A grown-up picks one; Kinwall never picks for you.') : t('When you’re ready, a grown-up chooses one.')}</p>}
-    {sortable && <label className="meal-check trip-sort"><input type="checkbox" checked={byPrice} onChange={e => setByPrice(e.target.checked)} /> {t('Sort by price')}</label>}
+    {sortable && <div className="field"><label>{t('Sort places')}</label><Segmented label={t('Sort places')} value={byPrice ? 'price' : 'added'} onChange={next => setByPrice(next === 'price')}
+      options={[{ key: 'added', label: t('Added order') }, { key: 'price', label: t('Lowest price') }]} /></div>}
     {!sortable && g.options.length > 1 && g.options.some(o => o.cost === 'price') && <p className="field-hint">{t('Sort by price is off: these aren’t priced the same way (a night, the whole stay, a currency). Kinwall compares like with like only.')}</p>}
     {!g.options.length && <p className="state-card">{can.addStays ? t('Paste a link or add one by hand. Families often compare two or three.') : t('Grown-ups will add places to stay here. You’ll be able to vote.')}</p>}
     <div className="trip-stay-cards">{options.map(o => <StayCard key={o.id} o={o} g={g} busy={busy} chosen={g.chosenOptionId === o.id}

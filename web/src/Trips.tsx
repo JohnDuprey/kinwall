@@ -12,7 +12,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { api, getKey } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { Switch, LoadError, Segmented } from './a11y.tsx'
+import { CheckRow, Switch, LoadError, Segmented } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import PickField from './PickField.tsx'
 import { Face } from './Face'
@@ -670,7 +670,7 @@ function CalendarPage({ t_: { trip, save, busy } }: { t_: TripApi }) {
   }, [])
   const toggle = (k: string) => setPicked(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const box = (key: string, label: ReactNode, link: Trip['calendar']['span'], disabledWhy?: string) => <li key={key} className="trip-cal-row">
-    <label className="meal-check"><input type="checkbox" disabled={!!disabledWhy || link?.state === 'added' || link?.state === 'pending'} checked={link?.state === 'added' || picked.has(key)} onChange={() => toggle(key)} /> <span>{label}</span></label>
+    <CheckRow checked={link?.state === 'added' || picked.has(key)} onChange={() => toggle(key)} label={<><span>{label}</span></>} disabled={!!disabledWhy || link?.state === 'added' || link?.state === 'pending'} />
     {link?.state === 'added' && <span className="chip chip-static">{t('✓ On the calendar')}</span>}
     {link?.state === 'failed' && <span className="field-error">{link.error || t('Couldn’t add this one.')}</span>}
     {link?.state === 'pending' && <span className="chip chip-static">{t('⏳ Not sure it was added')}</span>}

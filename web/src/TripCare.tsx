@@ -7,7 +7,7 @@ import { useId, useState } from 'react'
 import { api } from './api.ts'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { PlusIcon } from './icons.tsx'
+import { CheckIcon, PlusIcon } from './icons.tsx'
 import { t } from './i18n.ts'
 import { CARE_EMOJI, careStatusLabel, longDay } from './trips.ts'
 import { Choose } from './tripShared.tsx'
@@ -52,7 +52,7 @@ export function CarePage({ t_ }: { t_: TripApi }) {
       <p className="trip-head-meta"><span className={`chip chip-static trip-care-status trip-care-${c.status}`}>{careStatusLabel(c.status)}</span>
         {c.helperContact && <span className="chip chip-static">📞 {c.helperContact}</span>}</p>
       {c.tasks.length > 0 && <ul className="trip-care-tasks" aria-label={t('Checklist for {name}', { name: c.title })}>{c.tasks.map(task => <li key={task.id}>
-        <label className="trip-care-task"><input type="checkbox" checked={task.done} disabled={!canEdit || busy} onChange={() => tick(c, task)} /><span>{task.text}</span></label>
+        <div className="trip-care-task"><button type="button" className={`list-item-check ${task.done ? 'done' : ''}`} role="checkbox" aria-checked={task.done} aria-label={task.text} disabled={!canEdit || busy} onClick={() => tick(c, task)}>{task.done && <CheckIcon width={20} height={20} />}</button><span>{task.text}</span></div>
       </li>)}</ul>}
       {(c.instructions || c.entry || c.emergency) && <dl className="trip-care-private-list">
         {c.instructions && <><dt>{t('🔒 Instructions')}</dt><dd>{c.instructions}</dd></>}
