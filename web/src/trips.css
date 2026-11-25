@@ -139,7 +139,6 @@ a.outing-row { text-decoration: none; }
 .trip-away-chores h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 1rem; }
 .trip-away-chore { margin: 0 0 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-alt); }
 .trip-away-chore > label { display: block; margin-bottom: 6px; font-weight: 800; }
-.trip-away-chore .settings-select { width: 100%; }
 .trip-away-chore .field-hint { margin: 6px 0 0; }
 .trip-problems { margin: 8px 0 0; padding-left: 20px; }
 

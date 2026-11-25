@@ -5,7 +5,6 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import PickField from './PickField.tsx'
-import { Segmented } from './a11y.tsx'
 import { Face } from './Face'
 import { todayKeyInTz } from './date.ts'
 import { t } from './i18n.ts'
@@ -111,16 +110,4 @@ export function Labeled({ label, children }: { label: string; children: (id: str
   return <div className="field"><label htmlFor={id}>{label}</label>{children(id)}</div>
 }
 
-/** One choice, never a native <select>: a few short choices are a segmented control; more open a
- * sheet (PickField). `none` is what the row says while nothing is picked. */
-export function Choose<T extends string>({ label, value, options, onChange, none }: {
-  label: string; value: T; options: { value: T; label: string; emoji?: string }[]; onChange: (v: T) => void; none?: string
-}) {
-  const id = useId()
-  if (options.length <= 3 && options.reduce((n, o) => n + o.label.length, 0) <= 40) return <div className="field"><label id={id}>{label}</label>
-    <Segmented label={label} value={value} onChange={onChange}
-      options={options.map(o => ({ key: o.value, label: o.emoji ? <><span aria-hidden="true">{o.emoji} </span>{o.label}</> : o.label }))} /></div>
-  return <div className="field"><label htmlFor={id}>{label}</label>
-    <PickField id={id} label={label} value={[value]} none={none} onChange={v => onChange(v[0] as T)}
-      options={options.map(o => ({ value: o.value, label: o.label, lead: o.emoji && <span aria-hidden="true">{o.emoji}</span> }))} /></div>
-}
+export { Choose } from './PickField.tsx'
