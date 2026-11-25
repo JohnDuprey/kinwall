@@ -7,7 +7,7 @@ import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { CONTACTS_SHARED_EVENT, takeSharedContacts } from './native.ts'
-import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
+import PickField, { Choose, PickSwatch, type PickOption } from './PickField.tsx'
 import type { Member } from './types.ts'
 import { activeContactFilters, applyContactTemplate, CONTACT_TEMPLATES, contactDate, contactFilterSummary, contactLabel, labelText, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
   type Contact, type ContactFilters, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
@@ -89,10 +89,11 @@ function MethodLabel({ id, title, labelTitle, choices, value, onChange }: { id: 
   const shown = contactLabel(value)
   const [custom, setCustom] = useState(() => !choices.includes(shown))
   return <div className="field"><label htmlFor={id}>{labelTitle}</label>
-    <select id={id} value={custom ? '' : shown} onChange={e => { const v = e.target.value; setCustom(!v); onChange(v) }}>
-      {choices.map(l => <option key={l} value={l}>{labelText(l)}</option>)}
-      <option value="">{t('Custom…')}</option>
-    </select>
+    <Choose hideLabel label={labelTitle} id={id} value={String(custom ? '' : shown)} onChange={next => { const v = next; setCustom(!v); onChange(v) }} sheet
+      options={[
+        ...(choices.map(l => ({ value: String(l), label: labelText(l) }))),
+        { value: '', label: t('Custom…') },
+      ]} />
     {custom && <input type="text" value={value} onChange={e => onChange(e.target.value)} aria-label={labelTitle} placeholder={title === 'Phone' ? t("Grandma's house…") : t('Soccer club…')} maxLength={40} autoFocus={!value} />}
   </div>
 }
@@ -157,12 +158,19 @@ export function ContactForm({ initial, draft: start, categories, members, onClos
   return <Sheet title={initial ? t('Edit contact') : t('New contact')} onClose={onClose} dismissable={!saving} dirty="auto"
     actions={<><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? t('Saving…') : initial ? t('Save') : t('Add contact')}</button></>}>
     {!initial && <div className="field"><label htmlFor={`${id}-template`}>{t('Start from a template (optional)')}</label>
-      <select id={`${id}-template`} value={template} onChange={e => { const to = e.target.value; setForm(f => applyContactTemplate(f, template, to, categories)); setTemplate(to) }}>
-        <option value="">{t('Blank contact')}</option>
-        {CONTACT_TEMPLATES.map(x => <option key={x.label} value={x.label}>{tm(x.label)}</option>)}
-      </select></div>}
+      <Choose hideLabel label={t('Start from a template (optional)')} id={`${id}-template`} value={String(template)} onChange={next => { const to = next; setForm(f => applyContactTemplate(f, template, to, categories)); setTemplate(to) }} sheet
+        options={[
+          { value: '', label: t('Blank contact') },
+          ...(CONTACT_TEMPLATES.map(x => ({ value: String(x.label), label: tm(x.label) }))),
+        ]} /></div>}
     <div className="field"><label htmlFor={`${id}-name`}>{t('Name *')}</label><input id={`${id}-name`} type="text" value={form.name} onChange={e => change('name', e.target.value)} maxLength={160} autoComplete="name" /></div>
-    <div className="field"><label htmlFor={`${id}-kind`}>{t('Contact kind')}</label><select id={`${id}-kind`} value={form.kind ?? 'person'} onChange={e => change('kind', e.target.value as ContactInput['kind'])}><option value="person">{t('Person')}</option><option value="service">{t('Service')}</option><option value="organization">{t('Organization')}</option><option value="place">{t('Place')}</option></select></div>
+    <div className="field"><label htmlFor={`${id}-kind`}>{t('Contact kind')}</label><Choose hideLabel label={t('Contact kind')} id={`${id}-kind`} value={String(form.kind ?? 'person')} onChange={next => change('kind', next as ContactInput['kind'])}
+      options={[
+        { value: 'person', label: t('Person') },
+        { value: 'service', label: t('Service') },
+        { value: 'organization', label: t('Organization') },
+        { value: 'place', label: t('Place') },
+      ]} /></div>
     <div className="row-2"><div className="field"><label htmlFor={`${id}-relationship`}>{t('Relationship')}</label><input id={`${id}-relationship`} type="text" value={form.relationship ?? ''} onChange={e => change('relationship', e.target.value)} placeholder={t('School, doctor, neighbor…')} maxLength={100} /></div>
       <div className="field"><label htmlFor={`${id}-org`}>{t('Organization')}</label><input id={`${id}-org`} type="text" value={form.organization ?? ''} onChange={e => change('organization', e.target.value)} maxLength={160} autoComplete="organization" /></div></div>
     <Methods kind="phone" methods={form.phones} onChange={v => change('phones', v)} />
@@ -184,7 +192,13 @@ export function ContactForm({ initial, draft: start, categories, members, onClos
       <label><input type="checkbox" checked={form.alwaysOpen ?? false} onChange={e => change('alwaysOpen', e.target.checked)} /> {t('Available 24/7')}</label>
     </fieldset>
     <fieldset className="contact-options"><legend>{t('Who can see it')}</legend>
-      <div className="field"><label htmlFor={`${id}-visibility`} className="sr-only">{t('Who can see it')}</label><select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">{t('Everyone in the family')}</option><option value="adults">{t('Grown-ups only')}</option><option value="selected_members">{t('Only the people I choose')}</option><option value="private">{t('Parent devices only')}</option></select>
+      <div className="field"><label htmlFor={`${id}-visibility`} className="sr-only">{t('Who can see it')}</label><Choose hideLabel label={t('Who can see it')} id={`${id}-visibility`} value={String(form.visibility ?? 'household')} onChange={next => change('visibility', next as ContactInput['visibility'])}
+        options={[
+          { value: 'household', label: t('Everyone in the family') },
+          { value: 'adults', label: t('Grown-ups only') },
+          { value: 'selected_members', label: t('Only the people I choose') },
+          { value: 'private', label: t('Parent devices only') },
+        ]} />
         <p className="field-hint">{tm(VISIBILITY_HINTS[form.visibility ?? 'household'])}</p></div>
       {form.visibility === 'selected_members' && <div className="field"><label htmlFor={`${id}-selected`}>{t('Who can see it on their own device')}</label><PickField id={`${id}-selected`} label={t('Who can see it on their own device')} title={t('Who can see it')} multiple none={t('Nobody yet')} options={memberOptions(members)} value={form.selectedMemberIds ?? []} onChange={v => change('selectedMemberIds', v)} /></div>}
     </fieldset>
@@ -197,26 +211,20 @@ export function ContactForm({ initial, draft: start, categories, members, onClos
   </Sheet>
 }
 
-/** Text, FaceTime (Apple devices), Google Meet (the Android app) and Copy for a number or email, in a
- *  More… select so each line has one main button. */
+/** Other ways to reach someone, beside the line's main action. */
 function MoreWays({ label, value, ways }: { label: string; value: string; ways: [string, string | null | false][] }) {
   const links = ways.filter((w): w is [string, string] => !!w[1])
-  return <select className="contact-action contact-more" aria-label={t('More ways to reach {name}', { name: label })} value=""
-    onChange={e => { const v = e.target.value; if (v === 'copy') void navigator.clipboard?.writeText(value); else if (v) location.href = v }}>
-    <option value="" disabled hidden>{t('More…')}</option>
-    {links.map(([name, href]) => <option key={name} value={href}>{name}</option>)}
-    <option value="copy">{t('Copy')}</option>
-  </select>
+  return <span className="choice-actions" role="group" aria-label={t('More ways to reach {name}', { name: label })}>
+    {links.map(([name, href]) => <a key={href} className="contact-action" href={href}>{name}</a>)}
+    <button type="button" className="contact-action" onClick={() => void navigator.clipboard?.writeText(value)}>{t('Copy')}</button>
+  </span>
 }
 
 function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit, onDelete }: { contact: Contact; categories: ContactCategory[]; members: Member[]; canEdit: boolean; onClose: () => void; onEdit: () => void; onDelete: () => void }) {
   const categoryNames = (contact.categoryIds ?? []).map(id => categories.find(category => category.id === id)?.name).filter(Boolean)
   const memberNames = (contact.memberIds ?? []).map(id => members.find(member => member.id === id)?.name).filter(Boolean)
   return <Sheet title={contact.name} onClose={onClose} actions={canEdit ? <>
-    <select className="settings-select actions-select" aria-label={t('Contact actions')} value="" onChange={e => { if (e.target.value === 'delete') onDelete() }}>
-      <option value="" disabled hidden>{t('More…')}</option>
-      <option value="delete">{t('Delete contact…')}</option>
-    </select>
+
     <button className="btn btn-primary" onClick={onEdit}>{t('Edit')}</button>
   </> : undefined}>
     <div className="contact-detail-head"><span className="contact-avatar contact-avatar-large" aria-hidden="true">{initials(contact.name)}</span>
@@ -229,6 +237,10 @@ function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit,
     {contact.websites?.length ? <section className="contact-detail-section"><h4>{t('Websites')}</h4>{contact.websites.map((site, i) => webHref(site.value) ? <p key={i}><a href={webHref(site.value)!} target="_blank" rel="noreferrer">{labelText(site.label) || site.value}</a></p> : null)}</section> : null}
     {contact.dates?.length ? <section className="contact-detail-section"><h4>{t('Dates')}</h4>{contact.dates.map((d, i) => <div className="contact-detail-line" key={i}><span>{labelText(d.label)}</span><strong>{contactDate(d.date)}</strong></div>)}</section> : null}
     {canEdit && contact.notes && <section className="contact-detail-section"><h4>{t('Notes')}</h4><p>{contact.notes}</p></section>}
+
+    {canEdit && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Contact actions')}>
+      <button type="button" className="link-btn link-danger" onClick={() => { onDelete() }}>{t('Delete contact…')}</button>
+    </div>}
   </Sheet>
 }
 
@@ -330,16 +342,22 @@ function ImportSheet({ contacts, categories, members, shared, onClose, onImporte
               <span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? t('＋ New contact') : t('⚠ Already in Kinwall?')}</span></div>
           </div>
           <ContactFacts contact={c} />
-          <div className="field contact-review-action"><label htmlFor={`${f}-action`}>{row.status === 'new' ? t('Add to Kinwall') : t('What to do')}</label><select id={`${f}-action`} value={row.decision} onChange={e => decide(row.key, e.target.value as ImportDecision)}>
-            {(row.status === 'new' ? [{ value: 'add', label: t('Add this contact') }, { value: 'skip', label: t('Skip it') }] : [
+          <div className="field contact-review-action"><label htmlFor={`${f}-action`}>{row.status === 'new' ? t('Add to Kinwall') : t('What to do')}</label><Choose hideLabel label={row.status === 'new' ? t('Add to Kinwall') : t('What to do')} id={`${f}-action`} value={String(row.decision)} onChange={next => decide(row.key, next as ImportDecision)}
+            options={(row.status === 'new' ? [{ value: 'add', label: t('Add this contact') }, { value: 'skip', label: t('Skip it') }] : [
               ...(matched ? [{ value: 'merge', label: t('Update {name} with new details', { name: matched.name }) }] : []), { value: 'skip', label: t('Skip it') }, { value: 'keep', label: t('Add as a separate contact') }]).map(option =>
-              <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+              ({ value: String(option.value), label: option.label }))} />
             {matched && <p className="field-hint contact-match">{t('Looks like {name}, already saved', { name: `${matched.name}${matched.phones[0] ? ` · ${matched.phones[0].value}` : ''}` })}</p>}</div>
           {(row.decision === 'add' || row.decision === 'keep') && <section className="contact-detail-section">
             <h4>{t('In Kinwall')}</h4>
             <div className="field"><label htmlFor={`${f}-name`}>{t('Name')}</label><input id={`${f}-name`} type="text" value={c.name} maxLength={160} onChange={e => edit(row.key, { name: e.target.value })} /></div>
             <div className="row-2">
-              <div className="field"><label htmlFor={`${f}-kind`}>{t('Contact kind')}</label><select id={`${f}-kind`} value={c.kind ?? 'person'} onChange={e => edit(row.key, { kind: e.target.value as ContactInput['kind'] })}><option value="person">{t('Person')}</option><option value="service">{t('Service')}</option><option value="organization">{t('Organization')}</option><option value="place">{t('Place')}</option></select></div>
+              <div className="field"><label htmlFor={`${f}-kind`}>{t('Contact kind')}</label><Choose hideLabel label={t('Contact kind')} id={`${f}-kind`} value={String(c.kind ?? 'person')} onChange={next => edit(row.key, { kind: next as ContactInput['kind'] })}
+                options={[
+                  { value: 'person', label: t('Person') },
+                  { value: 'service', label: t('Service') },
+                  { value: 'organization', label: t('Organization') },
+                  { value: 'place', label: t('Place') },
+                ]} /></div>
               <div className="field"><label htmlFor={`${f}-relationship`}>{t('Relationship')}</label><input id={`${f}-relationship`} type="text" value={c.relationship ?? ''} placeholder={t('Grandparent, doctor…')} maxLength={100} onChange={e => edit(row.key, { relationship: e.target.value || null })} /></div>
             </div>
             <div className="field"><label htmlFor={`${f}-categories`}>{t('Categories')}</label><PickField id={`${f}-categories`} label={t('Categories for {name}', { name: c.name })} title={t('Categories')} multiple options={categoryOptions(categories)} value={c.categoryIds ?? []} onChange={v => edit(row.key, { categoryIds: v })} /></div>
@@ -376,15 +394,22 @@ function ContactFacts({ contact: c }: { contact: ContactInput }) {
 function FiltersSheet({ filters, categories, onChange, onClose }: { filters: ContactFilters; categories: ContactCategory[]; onChange: (f: ContactFilters) => void; onClose: () => void }) {
   const id = useId()
   const set = <K extends keyof ContactFilters>(key: K, value: ContactFilters[K]) => onChange({ ...filters, [key]: value })
-  const options = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{tm(label)}</option>)
+  const options = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => ({ value: String(value), label: tm(label) }))
   return <Sheet title={t('Filter and sort')} onClose={onClose} actions={<>
     <button className="btn btn-secondary" onClick={() => onChange(DEFAULT_CONTACT_FILTERS)} disabled={contactFilterSummary(filters, () => '') === ''}>{t('Clear filters')}</button>
     <button className="btn btn-primary" onClick={onClose}>{t('Done')}</button>
   </>}>
-    <div className="field"><label htmlFor={`${id}-sort`}>{t('Sort')}</label><select id={`${id}-sort`} value={filters.sort} onChange={e => set('sort', e.target.value as ContactFilters['sort'])}>{options(CONTACT_SORT_LABELS)}</select></div>
-    <div className="field"><label htmlFor={`${id}-show`}>{t('Show')}</label><select id={`${id}-show`} value={filters.show} onChange={e => set('show', e.target.value as ContactFilters['show'])}>{options(CONTACT_SHOW_LABELS)}</select></div>
-    <div className="field"><label htmlFor={`${id}-kind`}>{t('Contact kind')}</label><select id={`${id}-kind`} value={filters.kind} onChange={e => set('kind', e.target.value as ContactFilters['kind'])}>{options(CONTACT_KIND_LABELS)}</select></div>
-    <div className="field"><label htmlFor={`${id}-category`}>{t('Category')}</label><select id={`${id}-category`} value={filters.category} onChange={e => set('category', e.target.value)}><option value="all">{t('All categories')}</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+    <div className="field"><label htmlFor={`${id}-sort`}>{t('Sort')}</label><Choose hideLabel label={t('Sort')} id={`${id}-sort`} value={String(filters.sort)} onChange={next => set('sort', next as ContactFilters['sort'])}
+      options={options(CONTACT_SORT_LABELS)} /></div>
+    <div className="field"><label htmlFor={`${id}-show`}>{t('Show')}</label><Choose hideLabel label={t('Show')} id={`${id}-show`} value={String(filters.show)} onChange={next => set('show', next as ContactFilters['show'])} sheet
+      options={options(CONTACT_SHOW_LABELS)} /></div>
+    <div className="field"><label htmlFor={`${id}-kind`}>{t('Contact kind')}</label><Choose hideLabel label={t('Contact kind')} id={`${id}-kind`} value={String(filters.kind)} onChange={next => set('kind', next as ContactFilters['kind'])} sheet
+      options={options(CONTACT_KIND_LABELS)} /></div>
+    <div className="field"><label htmlFor={`${id}-category`}>{t('Category')}</label><Choose hideLabel label={t('Category')} id={`${id}-category`} value={String(filters.category)} onChange={next => set('category', next)} sheet
+      options={[
+        { value: 'all', label: t('All categories') },
+        ...(categories.map(category => ({ value: String(category.id), label: category.name }))),
+      ]} /></div>
     <p className="field-hint">{t('In the list: ★ Favorite · ✚ Emergency · ▣ On the wall')}</p>
   </Sheet>
 }

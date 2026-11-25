@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 // A contact phone's menu, step by step (Contacts.tsx, under each number): wait some seconds, press keys,
 // or wait for me, each with an optional label. Under it, the steps in words, the dial string and Try it.
 // The dial string and words come from dialSteps.ts (the server checks the steps: schemas.ts DialStepSchema).
@@ -23,9 +24,8 @@ export default function PhoneMenuEditor({ steps, onChange, phone }: { steps: Dia
           <li key={i} className="dial-step">
             <div className="meds-time-row">
               <span className="dial-step-n" aria-hidden="true">{i + 1}</span>
-              <select className="settings-select" aria-label={t('Step {n}', { n: i + 1 })} value={s.kind} onChange={e => put(i, kindOf(e.target.value as DialStep['kind'], s.label))}>
-                {(['wait', 'press', 'confirm'] as const).map(k => <option key={k} value={k}>{tm(KIND_NAMES[k])}</option>)}
-              </select>
+              <Choose hideLabel label={t('Step {n}', { n: i + 1 })} value={String(s.kind)} onChange={next => put(i, kindOf(next as DialStep['kind'], s.label))}
+                options={(['wait', 'press', 'confirm'] as const).map(k => ({ value: String(k), label: tm(KIND_NAMES[k]) }))} />
               {s.kind === 'wait' && <div className="dial-stepper" role="group" aria-label={t('Step {n}: seconds', { n: i + 1 })}>
                 <button type="button" className="btn btn-secondary" aria-label={t('1 second less')} disabled={s.seconds <= 1} onClick={() => put(i, { ...s, seconds: s.seconds - 1 })}>−</button>
                 <span className="dial-seconds" aria-live="polite">{t('{n} s', { n: s.seconds })}</span>
