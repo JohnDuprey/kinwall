@@ -37,18 +37,23 @@ export default function PickField({ id, label, title = label, options: given, va
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const textId = useId()
+  const trigger = useRef<HTMLButtonElement>(null)
   const options = typeof given === 'function' ? (open ? given() : []) : given
   const searchable = search ?? options.length > 8
   const shown = options.filter(o => pickMatches(o, query))
   const text = summary ?? pickSummary(options, value, none)
   const lead = !multiple ? options.find(o => o.value === value[0])?.lead : null
   const close = () => { setOpen(false); setQuery('') }
+  const change = (next: string[]) => {
+    if (next.length !== value.length || next.some((v, i) => v !== value[i])) trigger.current?.dispatchEvent(new Event('input', { bubbles: true }))
+    onChange(next)
+  }
   const atLimit = multiple && maxSelections !== undefined && value.length >= maxSelections
   const choose = (v: string) => {
     if (disabled || options.find(o => o.value === v)?.disabled) return
     if (atLimit && !value.includes(v)) return
-    if (!multiple) { onChange([v]); close(); return }
-    onChange(value.includes(v) ? value.filter(x => x !== v) : options.filter(o => o.value === v || value.includes(o.value)).map(o => o.value))
+    if (!multiple) { change([v]); close(); return }
+    change(value.includes(v) ? value.filter(x => x !== v) : options.filter(o => o.value === v || value.includes(o.value)).map(o => o.value))
   }
   // Arrows move between the search field and the rows, as in the recipe picker.
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -58,15 +63,15 @@ export default function PickField({ id, label, title = label, options: given, va
     if (next) { e.preventDefault(); next.focus() }
   }
   return <>
-    <button id={id} type="button" className="sheet-link pick-btn" disabled={disabled} aria-haspopup="dialog" aria-label={`${label}: ${text}`} aria-describedby={describedBy} aria-labelledby={labelledBy ? `${labelledBy} ${textId}` : undefined} onClick={() => setOpen(true)}>
+    <button ref={trigger} id={id} type="button" className="sheet-link pick-btn" disabled={disabled} aria-haspopup="dialog" aria-label={`${label}: ${text}`} aria-describedby={describedBy} aria-labelledby={labelledBy ? `${labelledBy} ${textId}` : undefined} onClick={() => setOpen(true)}>
       {lead && <span className="pick-lead">{lead}</span>}<span id={textId} className="pick-text">{text}</span><ChevronRight />
     </button>
     {open && <Sheet title={title} onClose={close} actions={<>
-      {multiple && <button type="button" className="btn btn-secondary" disabled={disabled || !value.length} onClick={() => onChange([])}>{t('Clear')}</button>}
+      {multiple && <button type="button" className="btn btn-secondary" disabled={disabled || !value.length} onClick={() => change([])}>{t('Clear')}</button>}
       <button type="button" className="btn btn-primary" onClick={close}>{t('Done')}</button>
     </>}>
       <div className={searchable ? 'pick-sheet pick-sheet-search' : 'pick-sheet'} onKeyDown={onKey}>
-        {searchable && <div className="field"><input type="search" aria-label={t('Search {what}', { what: lang() === 'de' ? title : title.toLocaleLowerCase() })} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
+        {searchable && <div className="field"><input type="search" aria-label={t('Search {what}', { what: lang() === 'de' ? title : title.toLocaleLowerCase() })} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)} onInput={e => e.stopPropagation()}
           onKeyDown={e => { const first = shown.find(o => !o.disabled); if (e.key === 'Enter' && first) { e.preventDefault(); choose(first.value) } }} /></div>}
         {hint && <p className="field-hint">{hint}</p>}
         {atLimit && <p className="field-hint" role="status">{t('You can choose up to {n}.', { n: maxSelections! })}</p>}
