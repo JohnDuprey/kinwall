@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { listType } from './listSections.ts'
 import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
@@ -87,7 +88,11 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
         <div className="field"><label htmlFor={`${id}-to`}>{t('Through')}</label><input id={`${id}-to`} type="date" required min={from} value={to} onChange={e => { setTo(e.target.value); setOmitted([]) }} /></div>
       </div>
       {!validRange && <p className="field-error" role="alert">{t('Choose an ordered date range of up to 367 days.')}</p>}
-      {lists && lists.length > 1 && <div className="field"><label htmlFor={`${id}-list`}>{t('Grocery list')}</label><select id={`${id}-list`} value={listId} onChange={e => { setListId(e.target.value); setOmitted([]) }}><option value="">{t('Choose a grocery list')}</option>{lists.map(list => <option key={list.id} value={list.id}>{list.emoji} {list.name}</option>)}</select></div>}
+      {lists && lists.length > 1 && <div className="field"><label htmlFor={`${id}-list`}>{t('Grocery list')}</label><Choose hideLabel label={t('Grocery list')} id={`${id}-list`} value={String(listId)} onChange={next => { setListId(next); setOmitted([]) }} sheet
+        options={[
+          { value: '', label: t('Choose a grocery list') },
+          ...(lists.map(list => ({ value: String(list.id), label: [list.emoji, " ", list.name].join('') }))),
+        ]} /></div>}
       {lists?.length === 1 && <p className="field-hint">{t('Adding to {list}.', { list: `${lists[0].emoji} ${lists[0].name}` })}</p>}
       {lists?.length === 0 && <p>{noLists[0]}<a href="#/lists" onClick={close}>{t('Create a Groceries list in Lists')}</a>{noLists[1]}</p>}
       {admin && <label className="meal-check"><input type="checkbox" checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)} /> {t('Add a note on each item saying which meals need it')}</label>}
@@ -120,9 +125,11 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
     </>}>
       <p className="meal-sheet-intro">{basics.length === 1 ? t('This is something you make yourself.') : t('These are things you make yourself.')} {t("If it's made already, it stays off the list. If not, what goes into it is added instead.")}</p>
       {basics.map(([basicId, name]) => <div key={basicId} className="field"><label htmlFor={`${id}-basic-${basicId}`}>{t('{name}: made already?', { name })}</label>
-        <select id={`${id}-basic-${basicId}`} value={asking[basicId] ?? 'ingredients'} onChange={e => setAsking(a => ({ ...a, [basicId]: e.target.value as BasicChoices[string] }))}>
-          <option value="made">{t('Made already')}</option><option value="ingredients">{t('Add its ingredients')}</option>
-        </select></div>)}
+        <Choose hideLabel label={t('{name}: made already?', { name })} id={`${id}-basic-${basicId}`} value={String(asking[basicId] ?? 'ingredients')} onChange={next => setAsking(a => ({ ...a, [basicId]: next as BasicChoices[string] }))}
+          options={[
+            { value: 'made', label: t('Made already') },
+            { value: 'ingredients', label: t('Add its ingredients') },
+          ]} /></div>)}
     </Sheet>}
     {(applyError || error || listError) && <div role="alert"><p className="field-error">{applyError || error || listError}</p><button className="btn btn-secondary" disabled={busy} onClick={() => { setApplyError(''); setTick(n => n + 1) }}>{t('Refresh preview')}</button></div>}
   </Sheet>

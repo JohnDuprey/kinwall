@@ -33,7 +33,7 @@ When the header is filtered to one person, the planner and the Board's **Today's
 
 The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category or [favorites](#favorites), or show archived ones. On a phone the search is on its own and the **Filter and sort** button (the funnel) next to it opens the rest in a sheet; the button shows how many are on, and **Clear filters** puts them back. Tablets and larger show them all in a row. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
 
-Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where **More…** next to **Save** also archives or deletes it) and **Plan this meal**, which opens a new meal with the recipe chosen. A kid's device doesn't get **Plan this meal**: a grown-up plans the meals. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
+Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, with archive and delete buttons at the bottom) and **Plan this meal**, which opens a new meal with the recipe chosen. A kid's device doesn't get **Plan this meal**: a grown-up plans the meals. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
 
 A link to `#/meals?recipe=<recipe id>` opens that recipe's view, the same as tapping it in the library (Spotlight and Siri in the phone app use it). An id that doesn't exist just opens Meals.
 
@@ -70,7 +70,7 @@ A **basic** is a recipe for something you make to use in other recipes: a season
 * In a recipe's view, a linked ingredient's name is a link: tap it to open the basic, and **Back to Tuesday Tacos** returns to the recipe.
 * In [cooking mode](#start-cooking), a linked ingredient in **This step's ingredients** has **Make it**, which opens the basic's own cooking mode on top. Closing it (**✕** or **Done**) comes back to the step you were on.
 * Deleting a basic, or changing it back to a meal, unlinks the lines made from it; their text stays. Planned meals keep their own copy as usual.
-* A basic added after the recipes that use it can catch up once: in its editor, **More… → Link to recipes that use it** links every other recipe's ingredient that names it and isn't linked yet (same matching as above), and says how many it linked. Kinwall doesn't do this on its own when a basic is created or renamed.
+* A basic added after the recipes that use it can catch up once: in its editor, **Link to recipes that use it** links every other recipe's ingredient that names it and isn't linked yet (same matching as above), and says how many it linked. Kinwall doesn't do this on its own when a basic is created or renamed.
 * [Adding to the grocery list](#adding-to-the-grocery-list) asks whether a basic is made already.
 
 ### Ratings
@@ -136,7 +136,7 @@ The link opens a simple page that works in any browser, no Kinwall needed: the r
 
 The page shows the recipe and nothing else: never your family's name, who's in it, ratings, planned meals, meal notes or the recipe's preparation notes. Search engines are asked not to list it, and the link is long and random, so it can't be guessed.
 
-**More… → Stop sharing…** turns the link off for everyone who has it (a copy someone already saved stays theirs). Sharing again later makes a new link. Deleting the recipe also turns its link off. Links aren't part of your data export.
+**Stop sharing…** turns the link off for everyone who has it (a copy someone already saved stays theirs). Sharing again later makes a new link. Deleting the recipe also turns its link off. Links aren't part of your data export.
 
 ## Import from a link
 
@@ -213,7 +213,7 @@ Tap a restaurant to open it:
 * Avatars beside a favorite show who had it last time.
 * Notes ("Cash only", "Ask for the crust well done").
 
-Parents add a place with **New restaurant** and change it with **Edit**; **More…** archives (or restores) or deletes it. Wall screens and kids' devices can look but not change the binder.
+Parents add a place with **New restaurant** and change it with **Edit**; buttons at the bottom of its sheet archive (or restore) or delete it. Wall screens and kids' devices can look but not change the binder.
 
 ### Adding the menu
 

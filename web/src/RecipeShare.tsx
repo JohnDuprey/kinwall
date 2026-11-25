@@ -44,10 +44,7 @@ export default function RecipeShare({ recipe }: { recipe: Recipe }) {
       </button>
     </div>
     {open && <Sheet title={t('Share recipe')} onClose={() => setOpen(false)} dismissable={!busy} actions={share ? <>
-      <select className="settings-select actions-select" aria-label={t('Sharing actions')} value="" disabled={busy} onChange={e => { if (e.target.value === 'stop') void stop() }}>
-        <option value="" disabled hidden>{t('More…')}</option>
-        <option value="stop">{t('Stop sharing…')}</option>
-      </select>
+
       <button type="button" className={`btn ${canShare ? 'btn-secondary' : 'btn-primary'}`} onClick={() => void copy()}>{t('Copy link')}</button>
       {canShare && <button type="button" className="btn btn-primary" onClick={() => void send()}>{t('Share')}</button>}
     </> : undefined}>
@@ -61,6 +58,10 @@ export default function RecipeShare({ recipe }: { recipe: Recipe }) {
       </div>
       <p className="field-hint">{t('They can save it to their own Kinwall from the page.')}</p>
       </>}
-    </Sheet>}
+
+    {share && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Sharing actions')}>
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => { void stop() }}>{t('Stop sharing…')}</button>
+    </div>}
+</Sheet>}
   </>
 }

@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { useEffect, useState } from 'react'
 import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -64,34 +65,27 @@ export function EventFollow({ event }: { event: EventInstance }) {
       {(event.rrule || event.seriesId) && (
         <label className="field">
           {t('Apply to')}
-          <select
-            className="settings-select"
-            value={scope}
-            onChange={(e) => setScope(e.target.value as 'occurrence' | 'series')}
-          >
-            <option value="occurrence">{t('Just this event')}</option>
-            <option value="series">{t('Every occurrence')}</option>
-          </select>
+          <Choose hideLabel label={t('Apply to')} value={String(scope)} onChange={next => setScope(next as 'occurrence' | 'series')}
+            options={[
+              { value: 'occurrence', label: t('Just this event') },
+              { value: 'series', label: t('Every occurrence') },
+            ]} />
         </label>
       )}
       <label className="field">
         {t('Show countdown')}
-        <select
-          className="settings-select"
-          value={choice.minutes}
-          disabled={busy || !ready}
-          onChange={(e) => {
-            const minutes = Number(e.target.value)
+        <Choose hideLabel label={t('Show countdown')} value={String(choice.minutes)} disabled={busy || !ready} onChange={next => {
+            const minutes = Number(next)
             setChoice({ ...choice, minutes })
             if (choice.enabled) void save(true, false, minutes)
           }}
-        >
-          <option value={0}>{t('At the start')}</option>
-          <option value={5}>{t('5 minutes before')}</option>
-          <option value={15}>{t('15 minutes before')}</option>
-          <option value={30}>{t('30 minutes before')}</option>
-          <option value={60}>{t('60 minutes before')}</option>
-        </select>
+          options={[
+            { value: String(0), label: t('At the start') },
+            { value: String(5), label: t('5 minutes before') },
+            { value: String(15), label: t('15 minutes before') },
+            { value: String(30), label: t('30 minutes before') },
+            { value: String(60), label: t('60 minutes before') },
+          ]} />
       </label>
       <p className="settings-row-sub">
         {t('When travel or prep time is set, the countdown begins before that time.')}

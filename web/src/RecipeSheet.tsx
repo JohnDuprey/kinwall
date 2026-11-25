@@ -14,7 +14,7 @@ import { cookingSteps, savedStep } from './cooking.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { RecipeTagField, type RecipeTagChange } from './RecipeTags.tsx'
-import PickField, { type PickOption } from './PickField.tsx'
+import PickField, { Choose, type PickOption } from './PickField.tsx'
 import RecipeShare from './RecipeShare.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { Face } from './Face'
@@ -259,22 +259,17 @@ function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSa
   }
   const close = () => { if (!busy) onClose() }
   return <Sheet title={recipe ? t('Edit recipe') : t('New recipe')} onClose={close} dismissable={!busy} dirty={tagIds !== undefined || 'auto'} actions={<>
-    {recipe && <select className="settings-select actions-select" aria-label={t('Recipe actions')} value="" disabled={busy} onChange={e => {
-      if (e.target.value === 'archive') void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? t('Recipe restored') : t('Recipe archived'))
-      if (e.target.value === 'delete') void remove()
-      if (e.target.value === 'link-uses') void linkUses()
-    }}>
-      <option value="" disabled hidden>{t('More…')}</option>
-      {recipe.kind === 'basic' && <option value="link-uses">{t('Link to recipes that use it')}</option>}
-      <option value="archive">{recipe.archived ? t('Restore recipe') : t('Archive recipe')}</option>
-      <option value="delete">{t('Delete recipe…')}</option>
-    </select>}
+
     <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? t('Saving…') : recipe ? t('Save') : t('Add recipe')}</button>
   </>}>
     <form id={formId} onSubmit={e => { e.preventDefault(); save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${formId}-name`}>{t('Name')}</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>
-        <div className="field"><label htmlFor={`${formId}-kind`}>{t('Type')}</label><select id={`${formId}-kind`} value={draft.kind} onChange={e => update('kind', e.target.value as RecipeKind)}><option value="meal">{t('Meal')}</option><option value="basic">{t('Basic')}</option></select>
+        <div className="field"><label htmlFor={`${formId}-kind`}>{t('Type')}</label><Choose hideLabel label={t('Type')} id={`${formId}-kind`} value={String(draft.kind)} onChange={next => update('kind', next as RecipeKind)}
+          options={[
+            { value: 'meal', label: t('Meal') },
+            { value: 'basic', label: t('Basic') },
+          ]} />
           {draft.kind === 'basic' && <p className="field-hint">{t('Something you make to use in other recipes, like a seasoning blend, sauce or dough. Basics stay out of meal planning unless you ask for them.')}</p>}</div>
         {onTagChanged && <RecipeTagField catalog={tagCatalog} initial={recipe?.tags} value={tagIds ?? recipe?.tags?.map(tag => tag.id) ?? []}
           onChange={setTagIds} onCatalogChange={onTagChanged} />}
@@ -337,5 +332,11 @@ function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSa
       </fieldset>
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
+
+    {recipe && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Recipe actions')}>
+      {recipe.kind === 'basic' && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => { void linkUses() }}>{t('Link to recipes that use it')}</button>}
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => { void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? t('Recipe restored') : t('Recipe archived')) }}>{recipe.archived ? t('Restore recipe') : t('Archive recipe')}</button>
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => { void remove() }}>{t('Delete recipe…')}</button>
+    </div>}
   </Sheet>
 }

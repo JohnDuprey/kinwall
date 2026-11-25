@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { useId } from 'react'
 import { t } from './i18n.ts'
 import type { CookedFilter, RecipeSort } from './recipe-search.ts'
@@ -8,14 +9,22 @@ export default function RecipeBrowseControls({ sort, cooked, onSort, onCooked, s
 }) {
   const id = useId()
   return <>
-    <div className="field"><label htmlFor={`${id}-cooked`}>{t('Cooking history')}</label><select id={`${id}-cooked`} value={cooked} onChange={e => onCooked(e.target.value as CookedFilter)}>
-      <option value="all">{t('All recipes')}</option><option value="cooked">{t('Cooked')}</option><option value="never">{t('Never cooked')}</option>
-    </select></div>
-    <div className="field"><label htmlFor={`${id}-sort`}>{t('Sort')}</label><select id={`${id}-sort`} value={sort} onChange={e => onSort(e.target.value as RecipeSort)}>
-      {suggested && <option value="suggested">{t('Use food soon first')}</option>}
-      <option value="name">{t('Name')}</option><option value="favorites">{t('Favorites first')}</option><option value="rating">{t('Top rated')}</option>
-      <option value="newest">{t('Date added: newest first')}</option><option value="oldest">{t('Date added: oldest first')}</option>
-      <option value="most-cooked">{t('Most cooked')}</option><option value="last-cooked">{t('Last cooked')}</option>
-    </select></div>
+    <div className="field"><label htmlFor={`${id}-cooked`}>{t('Cooking history')}</label><Choose hideLabel label={t('Cooking history')} id={`${id}-cooked`} value={String(cooked)} onChange={next => onCooked(next as CookedFilter)}
+      options={[
+        { value: 'all', label: t('All recipes') },
+        { value: 'cooked', label: t('Cooked') },
+        { value: 'never', label: t('Never cooked') },
+      ]} /></div>
+    <div className="field"><label htmlFor={`${id}-sort`}>{t('Sort')}</label><Choose hideLabel label={t('Sort')} id={`${id}-sort`} value={String(sort)} onChange={next => onSort(next as RecipeSort)}
+      options={[
+        ...(suggested ? [{ value: 'suggested', label: t('Use food soon first') }] : []),
+        { value: 'name', label: t('Name') },
+        { value: 'favorites', label: t('Favorites first') },
+        { value: 'rating', label: t('Top rated') },
+        { value: 'newest', label: t('Date added: newest first') },
+        { value: 'oldest', label: t('Date added: oldest first') },
+        { value: 'most-cooked', label: t('Most cooked') },
+        { value: 'last-cooked', label: t('Last cooked') },
+      ]} /></div>
   </>
 }

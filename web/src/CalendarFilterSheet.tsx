@@ -6,7 +6,7 @@ import { DAY, formatDate, t, tm, tn } from './i18n.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import Sheet from './Sheet.tsx'
-import PickField, { PickSwatch } from './PickField.tsx'
+import PickField, { Choose, PickSwatch } from './PickField.tsx'
 import { ChevronRight, EyeIcon } from './icons.tsx'
 import { formatTime } from './timeFormat.ts'
 import { FILTER_PRESETS, NO_FILTER, filterActive, parseKeywordList, previewFilter, type CalendarFilter } from './calendarFilter.ts'
@@ -61,18 +61,20 @@ export default function CalendarFilterSheet({ calendar, onClose, onSaved }: { ca
       <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{t('Decide which events the family sees from this calendar, everywhere: the calendar, the Board, reminders and connected apps. Nothing is deleted, and you can change it any time.')}</p>
       <div className="field">
         <label htmlFor="filter-preset">{t('Start from a preset')}</label>
-        <select id="filter-preset" value={preset} onChange={e => pickPreset(e.target.value)}>
-          <option value="">{t('Choose…')}</option>
-          {FILTER_PRESETS.map(p => <option key={p.id} value={p.id}>{tm(p.label)}</option>)}
-        </select>
+        <Choose hideLabel label={t('Start from a preset')} id="filter-preset" value={String(preset)} onChange={next => pickPreset(next)} sheet
+          options={[
+            { value: '', label: t('Choose…') },
+            ...(FILTER_PRESETS.map(p => ({ value: String(p.id), label: tm(p.label) }))),
+          ]} />
       </div>
       <div className="field">
         <label htmlFor="filter-mode">{t('Show')}</label>
-        <select id="filter-mode" value={filter.mode} onChange={e => setFilter(f => ({ ...f, mode: e.target.value as CalendarFilter['mode'] }))}>
-          <option value="all">{t('All events')}</option>
-          <option value="only">{t('Only events that match')}</option>
-          <option value="except">{t('All except events that match')}</option>
-        </select>
+        <Choose hideLabel label={t('Show')} id="filter-mode" value={String(filter.mode)} onChange={next => setFilter(f => ({ ...f, mode: next as CalendarFilter['mode'] }))}
+          options={[
+            { value: 'all', label: t('All events') },
+            { value: 'only', label: t('Only events that match') },
+            { value: 'except', label: t('All except events that match') },
+          ]} />
       </div>
       {filter.mode !== 'all' && <>
         <div className="field">
@@ -82,11 +84,12 @@ export default function CalendarFilterSheet({ calendar, onClose, onSaved }: { ca
         </div>
         <div className="field">
           <label htmlFor="filter-allday">{t('All-day or timed')}</label>
-          <select id="filter-allday" value={filter.allDay} onChange={e => setFilter(f => ({ ...f, allDay: e.target.value as CalendarFilter['allDay'] }))}>
-            <option value="any">{t('Either')}</option>
-            <option value="allDay">{t('All-day only')}</option>
-            <option value="timed">{t('Timed only')}</option>
-          </select>
+          <Choose hideLabel label={t('All-day or timed')} id="filter-allday" value={String(filter.allDay)} onChange={next => setFilter(f => ({ ...f, allDay: next as CalendarFilter['allDay'] }))}
+            options={[
+              { value: 'any', label: t('Either') },
+              { value: 'allDay', label: t('All-day only') },
+              { value: 'timed', label: t('Timed only') },
+            ]} />
         </div>
         {categories.length > 0 && <div className="field">
           <label htmlFor="filter-cats">{t('Categories')}</label>

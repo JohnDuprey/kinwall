@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import RecipeSelector from './RecipeSelector.tsx'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useApp } from './AppContext.tsx'
@@ -60,9 +61,12 @@ export default function WeeklyPlanner({ home }: { home: boolean }) {
       <button type="button" className="btn btn-primary" onClick={hideHome}>{t('Hide planner')}</button>
     </>}>
       <p>{t('This only hides the Home prompt on this device. You can still open the planner from Calendar.')}</p>
-      <div className="field"><label htmlFor={dismissId}>{t('For how long?')}</label><select id={dismissId} value={duration} onChange={e => setDuration(e.target.value as PlannerDismissDuration)}>
-        <option value="today">{t('Today')}</option><option value="week">{t('This week')}</option><option value="always">{t('Until I show it again')}</option>
-      </select></div>
+      <div className="field"><label htmlFor={dismissId}>{t('For how long?')}</label><Choose hideLabel label={t('For how long?')} id={dismissId} value={String(duration)} onChange={next => setDuration(next as PlannerDismissDuration)}
+        options={[
+          { value: 'today', label: t('Today') },
+          { value: 'week', label: t('This week') },
+          { value: 'always', label: t('Until I show it again') },
+        ]} /></div>
     </Sheet>}
     {open && (data ? <Planner initial={data} onClose={() => setOpen(false)} onSaved={setData} onShowHome={hidden ? showHome : undefined} /> : <Sheet title={t('Plan the week')} onClose={() => setOpen(false)}><p role="status">{error || t('Loading next week…')}</p>{error && <button className="btn btn-secondary" onClick={() => setRetry(n => n + 1)}>{t('Try again')}</button>}</Sheet>)}
   </>
@@ -163,7 +167,12 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
               <button className="btn btn-secondary" onClick={() => void openMeals()}>{t('Open Meals')}</button>
             </>}
           </div>)}</> : appliedDinner(date) ? <p>{t('A meal was already added from this plan. Make further changes in Meals.')}</p> : <>
-            <label className="field">{t('Dinner')}<select className="settings-select" value={choice?.kind ?? 'later'} onChange={e => { if (e.target.value === 'meal') chooseDinner(date); else dinner(date, e.target.value === 'open' ? { date, kind: 'open' } : undefined) }}><option value="later">{t('Decide later')}</option><option value="open">{t('Leave dinner open on purpose')}</option><option value="meal">{t('Plan a meal')}</option></select></label>
+            <label className="field">{t('Dinner')}<Choose hideLabel label={t('Dinner')} value={String(choice?.kind ?? 'later')} onChange={next => { if (next === 'meal') chooseDinner(date); else dinner(date, next === 'open' ? { date, kind: 'open' } : undefined) }}
+              options={[
+                { value: 'later', label: t('Decide later') },
+                { value: 'open', label: t('Leave dinner open on purpose') },
+                { value: 'meal', label: t('Plan a meal') },
+              ]} /></label>
             {choice?.kind === 'meal' && <><h3>{choice.title}</h3><button className="btn btn-secondary" onClick={() => chooseDinner(date)}>{t('Choose another meal')}</button></>}
           </>}</article>
         })}</div></>}

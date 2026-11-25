@@ -1,3 +1,4 @@
+import { Choose } from './PickField.tsx'
 import { useId, useState, type ReactNode } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -25,7 +26,12 @@ export function RestaurantBinder({ restaurants, loaded, error, onRetry, onOpen }
   return <section role="tabpanel" aria-labelledby="meals-tab-restaurants">
     <div className="meals-toolbar">
       <div className="field meals-search"><label htmlFor="restaurant-search">{t('Find a restaurant')}</label><input id="restaurant-search" type="search" placeholder={t('Pizza, lo mein…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
-      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><select id="restaurant-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">{t('Active')}</option><option value="archived">{t('Archived')}</option><option value="all">{t('All')}</option></select></div>
+      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="restaurant-filter" value={String(filter)} onChange={next => setFilter(next)}
+        options={[
+          { value: 'active', label: t('Active') },
+          { value: 'archived', label: t('Archived') },
+          { value: 'all', label: t('All') },
+        ]} /></div>
     </div>
     {error && <LoadError what="restaurants" error={error} onRetry={onRetry} />}
     {!loaded && !error ? <p role="status">{t('Loading restaurants…')}</p> : <>
@@ -65,14 +71,7 @@ export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved, o
     void run(async () => { await api.deleteRestaurant(restaurant.id); return null }, t('Restaurant deleted'))
   }
   return <Sheet title={restaurant.name} onClose={onClose} actions={admin ? <>
-    <select className="settings-select actions-select" aria-label={t('Restaurant actions')} value="" disabled={busy} onChange={e => {
-      if (e.target.value === 'archive') void run(() => api.updateRestaurant(restaurant.id, { archived: !restaurant.archived }), restaurant.archived ? t('Restaurant restored') : t('Restaurant archived'))
-      if (e.target.value === 'delete') void remove()
-    }}>
-      <option value="" disabled hidden>{t('More…')}</option>
-      <option value="archive">{restaurant.archived ? t('Restore restaurant') : t('Archive restaurant')}</option>
-      <option value="delete">{t('Delete restaurant…')}</option>
-    </select>
+
     <button className="btn btn-primary" disabled={busy} onClick={onEdit}>{t('Edit')}</button>
   </> : undefined}>
     {(restaurant.cuisine || restaurant.archived) && <p className="field-hint">{[restaurant.cuisine, restaurant.archived && t('Archived')].filter(Boolean).join(' · ')}</p>}
@@ -98,6 +97,11 @@ export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved, o
     <MenuList menu={restaurant.menu} onStar={admin && !busy ? item => void star(item) : undefined} lastBy={lastBy} />
     {!restaurant.menu.length && <p className="state-card">{admin ? t('No menu yet. Edit to add items or paste the menu.') : t('No menu yet.')}</p>}
     {restaurant.notes && <section className="restaurant-section"><h3>{t('Notes')}</h3><p className="meal-prose">{restaurant.notes}</p></section>}
+
+    {admin && <div className="sheet-danger-zone choice-actions" role="group" aria-label={t('Restaurant actions')}>
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => { void run(() => api.updateRestaurant(restaurant.id, { archived: !restaurant.archived }), restaurant.archived ? t('Restaurant restored') : t('Restaurant archived')) }}>{restaurant.archived ? t('Restore restaurant') : t('Archive restaurant')}</button>
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => { void remove() }}>{t('Delete restaurant…')}</button>
+    </div>}
   </Sheet>
 }
 
