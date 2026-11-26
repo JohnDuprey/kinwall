@@ -4,9 +4,9 @@ The **Meals** tab answers two questions: what are we eating this week, and what 
 
 ## Planning the week
 
-The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day, showing only the slots with something planned and one **Plan a meal** row for the day (it plans dinner when that's free, else the first open slot).
+The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)). On a wall display or a tablet in landscape it's a column per day, like the [calendar](calendar.md)'s week, with today's date circled; each meal is a row with its time, its meal (**Breakfast**, **Lunch**, **Dinner** or **Snack**, each with its own color) and its name, in the order you'll eat them, and dinner shows its recipe's photo. On a phone or a tablet in portrait it's a list, a card per day, each meal with who's cooking and a small photo, and it opens at today. Use the arrows to page through weeks and **This week** (**Today** on a phone) to come back. Servings, who's eating and notes are in the meal's sheet: tap a meal to open it.
 
-Tap **+** in a slot to add a meal. You can also use the **+** beside **Today** on a phone, or **Plan meal** on larger screens. This starts on the day you're looking at (today in this week's view) in its first empty slot, and the sheet starts with **What's for dinner on Tuesday?** (or breakfast, lunch or snack, and the day): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
+To add a meal, tap **+ Dinner** (or **+ Add** once dinner is planned) at the bottom of a day's column, or on a phone a day's **+ Breakfast**, **+ Lunch**, **+ Dinner** or **+ Snack**. You can also use the **+** beside **Today** on a phone, or **Plan meal** on larger screens. This starts on today (in this week's view, else the week's first day) in its first empty slot, dinner first, and the sheet starts with **What's for dinner on Tuesday?** (or breakfast, lunch or snack, and the day): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
 
 * **What are we eating?**: **A recipe** (from the library), **Something else** (just a name) or **Eating out** (like "Pizza place"). Change it here if you picked the wrong one.
 * For eating out, **Restaurant** picks a place from the [binder](#restaurants) (its name becomes the meal's name) or **Somewhere else**, and **How** is **Eating there**, **Pickup** or **Delivery**. A night from the binder gets everyone's [orders](#ordering-together).
@@ -359,9 +359,9 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 
 ## Use it up
 
-![Use it up above the week planner: six foods to use this week, one past its date, and three recipes that use them with Plan it](../screenshots/ipad-use-it-up.png)
+![Use it up on the week planner: six foods to use this week, one past its date, and three recipes that use them with Plan it](../screenshots/ipad-use-it-up.png)
 
-When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** above the week (on a phone's Day view it sits below the day's meals):
+When something on a [Pantry list](lists.md#pantry) has a use-by date in the next 7 days (or already past), the week planner shows **🥫 Use it up** below the week:
 
 * What to use this week, soonest first: "Spinach (expired)", "Chicken breast (tomorrow)", "Greek yogurt (Tue)". Past its date is marked **⚠** and counted ("1 past its date"), so you can check it before cooking.
 * Up to three of your recipes that use those things up, best first, each with what it uses ("Uses Spinach (today), Chicken breast (tomorrow)") and what you'd still need ("Needs Garlic", or "You have everything"). **Show more recipes** lists the rest.

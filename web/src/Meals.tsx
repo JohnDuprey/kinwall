@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Choose } from './PickField.tsx'
 import { withHashParam } from './hashQuery.ts'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { filterSortLabel, LoadError, Segmented } from './a11y.tsx'
+import { filterSortLabel, LoadError, reducedMotion, Segmented } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon, XIcon } from './icons.tsx'
@@ -17,10 +17,10 @@ import RecipePhoto from './RecipePhoto.tsx'
 import { RecipeTagFilter, RecipeTagManager, type RecipeTagChange } from './RecipeTags.tsx'
 import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
-import { useIsPhone, useMediaQuery, SHORT_LANDSCAPE } from './useIsPhone.ts'
+import { useIsPhone, useMediaQuery, usePhoneHeader, SHORT_LANDSCAPE } from './useIsPhone.ts'
 import { availableRecipeTagIds, browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
 import RecipeBrowseControls from './RecipeBrowseControls.tsx'
-import type { Meal, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
+import type { Meal, MealSlot, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
@@ -36,14 +36,12 @@ export default function Meals() {
   const [anchor, setAnchor] = useState(today)
   const days = mealWeek(anchor, settings.weekStart)
   const from = days[0], to = days[6]
-  // Phones start on one day (a week of cards is a long scroll); Week is a tap away.
   const narrow = useIsPhone()
   const shortLandscape = useMediaQuery(SHORT_LANDSCAPE)
   const isPhone = narrow || shortLandscape
-  const [span, setSpan] = useState<'day' | 'week'>('day')
-  const dayView = isPhone && span === 'day'
-  const step = dayView ? 1 : 7
-  const shown = dayView ? [anchor] : days
+  // Phones and portrait tablets list the week day by day (like the Board's Coming up); wider screens
+  // show it as day columns (like Calendar's week).
+  const agenda = usePhoneHeader() || shortLandscape
   const [view, setView] = useState<'week' | 'recipes' | 'restaurants'>('week')
   const [me, setMe] = useState<Me | null>(null)
   const [authError, setAuthError] = useState('')
@@ -172,6 +170,13 @@ export default function Meals() {
   const shownMeal = openMeal ?? linkedMeal
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
+  // The day-by-day list opens at today, as phones used to open on today's meals.
+  const atToday = useRef(false)
+  useEffect(() => {
+    if (!agenda || !meals || atToday.current) return
+    atToday.current = true
+    document.getElementById(`meal-day-${today}`)?.scrollIntoView({ block: 'start' })
+  }, [agenda, meals, today])
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
   const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked, tagIds })
   const filterCount = [kind, filter !== 'active', category, loved, cooked !== 'all', sort !== 'name', tagIds.length > 0].filter(Boolean).length
@@ -206,22 +211,44 @@ export default function Meals() {
     </div>
     <RecipeBrowseControls sort={sort} cooked={cooked} onSort={setSort} onCooked={setCooked} />
   </>
-  // Phone Week: a day's empty slots fold into one "+" row (the slot to plan: dinner when it's free).
-  const compactWeek = isPhone && span === 'week'
   const freeSlot = (date: string) => ['dinner', ...MEAL_SLOTS].find(slot => !bySlot.has(`${date}:${slot}`)) as typeof MEAL_SLOTS[number] | undefined
-  const planMeal = () => { const date = planDay(dayView, anchor, today, from, to); setEditing({ meal: null, initial: { date, slot: freeSlot(date) ?? 'dinner' } }) }
+  const planMeal = () => { const date = planDay(today, from, to); setEditing({ meal: null, initial: { date, slot: freeSlot(date) ?? 'dinner' } }) }
   const restaurantQuery = restaurantSearch.trim().toLocaleLowerCase()
   const shownRestaurants = restaurants.filter(r => (restaurantFilter === 'all' || r.archived === (restaurantFilter === 'archived'))
     && (!restaurantQuery || [r.name, r.cuisine ?? '', ...r.menu.map(i => i.name)].some(s => s.toLocaleLowerCase().includes(restaurantQuery))))
   const restaurantFilters = <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="restaurant-filter" value={restaurantFilter} onChange={setRestaurantFilter}
     options={[{ value: 'active', label: t('Active') }, { value: 'archived', label: t('Archived') }, { value: 'all', label: t('All') }]} /></div>
   const restaurantSearchField = <div className="field meals-search"><label className={isPhone ? 'sr-only' : undefined} htmlFor="restaurant-search">{t('Find a restaurant')}</label><input id="restaurant-search" type="search" placeholder={t('Pizza, lo mein…')} value={restaurantSearch} onChange={e => setRestaurantSearch(e.target.value)} /></div>
+  // Today: this week, then (in the day-by-day list) scroll to today's meals.
+  const showToday = () => { setAnchor(today); if (agenda) requestAnimationFrame(() => document.getElementById(`meal-day-${today}`)?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })) }
   const plannerControls = <>
-    {isPhone && <Segmented label={t('Show')} value={span} onChange={setSpan} options={[{ key: 'day', label: t('Day') }, { key: 'week', label: t('Week') }]} />}
-    <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? t('Previous day') : t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{isPhone ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={dayView ? t('Next day') : t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
+    <div className="meal-actions"><button className="icon-btn" aria-label={t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -7))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={showToday}>{agenda ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, 7))}><ChevronRight /></button></div>
   </>
-  // Phone day view lists the day's meals first; elsewhere the card sits above the planner.
   const useItUp = settings.features.lists && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={recipe => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } })} />
+  // The day's meals in clock order: a 3:30 snack before a 6:00 dinner. Without a time, a meal sits
+  // where its slot usually falls.
+  const mealClock = (meal: Meal, slot: MealSlot) => meal.plannedTime ?? { breakfast: '08:00', lunch: '12:00', snack: '15:00', dinner: '18:00' }[slot]
+  // A meal as one row, like an event on the Board: when and which meal, the name, who's cooking.
+  // Servings, eaters and notes stay in the meal's sheet.
+  const mealRow = (meal: Meal, date: string, slot: MealSlot) => {
+    const assignee = members.find(member => member.id === meal.assigneeMemberId)
+    const recipe = recipes.find(r => r.id === meal.recipeId)
+    const trip = tripLinks.get(`meal:${meal.id}`)
+    const meta = [meal.mealKind === 'dining_out' && meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length && ordersLabel(meal), meal.status !== 'planned' && `✓ ${statusLabel(meal)}`].filter(Boolean).join(' · ')
+    return <button key={meal.id} type="button" className={`snap-row meal-row meal-${slot}${meal.status !== 'planned' ? ' meal-complete' : ''}`} onClick={() => setOpenMeal(meal)}
+      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
+      {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
+      <span className="board-bar" aria-hidden="true" />
+      <span className="snap-main" aria-hidden="true">
+        <span className="board-when">{[meal.plannedTime && formatTime(meal.plannedTime), tm(SLOT_LABEL[slot])].filter(Boolean).join(' · ')}</span>
+        <span className="snap-title">{meal.mealKind === 'dining_out' && '↗ '}{meal.title}</span>
+        {meta && <span className="snap-meta">{meta}</span>}
+        {trip && <span className="meal-trip-tag">{trip.emoji || '✈️'} {trip.title}</span>}
+      </span>
+      {assignee && <span className="board-avatars meal-cook" aria-hidden="true">{assignee.avatar}</span>}
+    </button>
+  }
+
   return <div className="meals-view scroll-y">
     <div className="meals-heading"><div><h1>{t('Meals')}</h1><p className="field-hint">{t('What are we eating, and what do we need to buy?')}</p></div>
       {admin && <button type="button" className="icon-btn meals-phone-groceries" aria-label={t('Groceries')} onClick={() => setProjection(true)}><ListIcon /></button>}
@@ -248,33 +275,29 @@ export default function Meals() {
     {view === 'week' ? <section role="tabpanel" aria-labelledby="meals-tab-week">
       <div className="meals-toolbar">
         {!isPhone && plannerControls}
-        <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : t('{from} – {to}', { from: mealDayLabel(from, { month: 'short', day: 'numeric' }), to: mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' }) })}</h2>
+        <h2 aria-live="polite">{t('{from} – {to}', { from: mealDayLabel(from, { month: 'short', day: 'numeric' }), to: mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' }) })}</h2>
       </div>
-      {!dayView && useItUp}
       {recipeError && <p className="field-error" role="alert">{t('The recipe library could not refresh.')} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
-      {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(n => n + 1)} /> : !meals ? <p role="status">{t('Loading meals…')}</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label={t('Weekly meal plan')}>
-        <table className={`meal-grid${compactWeek ? ' meal-grid-compact' : ''}`}><caption className="sr-only">{t('Meals from {from} through {to}', { from, to })}</caption><thead><tr><th scope="col">{t('Date')}</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{tm(SLOT_LABEL[slot])}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
-          <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">{t('Today')}</span>}</th>
-          {MEAL_SLOTS.map(slot => <td key={slot} data-slot={tm(SLOT_LABEL[slot])}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
-            const assignee = members.find(member => member.id === meal.assigneeMemberId)
-            const recipe = recipes.find(r => r.id === meal.recipeId)
-            const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipe?.totalMinutes
-            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setOpenMeal(meal)} aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, tripLinks.get(`meal:${meal.id}`) && t('for the trip {title}', { title: tripLinks.get(`meal:${meal.id}`)!.title }), statusLabel(meal), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
-              {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
-              <strong>{meal.mealKind === 'dining_out' && <span aria-label={t('Eating out')}>↗ </span>}{meal.title}</strong>
-              <span>{meal.plannedTime ? `${formatTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
-              {assignee && <span>{t('Cooking: {who}', { who: `${assignee.avatar} ${assignee.name}` })}</span>}
-              <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
-              {meal.mealKind === 'dining_out' && !!(meal.orderType || meal.orders?.length) && <span>{[meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.status === 'planned' && ordersLabel(meal)].filter(Boolean).join(' · ')}</span>}
-              {meal.status !== 'planned' && <span>✓ {statusLabel(meal)}</span>}
-              {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
-              {tripLinks.get(`meal:${meal.id}`) && <span className="meal-trip-tag">{tripLinks.get(`meal:${meal.id}`)!.emoji || '✈️'} {tripLinks.get(`meal:${meal.id}`)!.title}</span>}
-            </button>
-          })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> {t('Vote open')}</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={t('Plan {meal} for {day}', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">{t('Plan meal')}</span></button> : !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label={t('No meal planned')}>—</span>}</td>)}
-          {compactWeek && admin && freeSlot(date) && <td className="meal-day-add"><button className="meal-add" aria-label={t('Plan a meal for {day}', { day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot: freeSlot(date)! } })}><PlusIcon width={16} height={16} /> {t('Plan a meal')}</button></td>}
-        </tr>)}</tbody></table>
-      </div>}
-      {dayView && useItUp}
+      {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(n => n + 1)} /> : !meals ? <p role="status">{t('Loading meals…')}</p>
+        : <div className={agenda ? 'meal-week meal-agenda' : 'meal-week'} role="region" aria-label={t('Weekly meal plan')}>{days.map(date => {
+          const isToday = date === today
+          const open = MEAL_SLOTS.filter(slot => !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot))
+          return <section key={date} id={`meal-day-${date}`} className={`meal-day${isToday ? ' today' : ''}`} aria-labelledby={`meal-day-${date}-name`}>
+            {agenda
+              ? <h3 className="meal-day-head" id={`meal-day-${date}-name`}>{mealDayLabel(date, { weekday: 'long', month: 'short', day: 'numeric' })}{isToday && <span className="meal-today-label">{t('Today')}</span>}</h3>
+              : <h3 className={`week-header-cell meal-day-head${isToday ? ' today' : ''}`} id={`meal-day-${date}-name`} aria-label={[mealDayLabel(date, { weekday: 'long', month: 'short', day: 'numeric' }), isToday && t('Today')].filter(Boolean).join(', ')}>
+                <span className="wd" aria-hidden="true">{mealDayLabel(date, { weekday: 'short' })}</span><span className="dn" aria-hidden="true">{mealDayLabel(date, { day: 'numeric' })}</span></h3>}
+            {MEAL_SLOTS.flatMap(slot => (bySlot.get(`${date}:${slot}`) ?? []).map(meal => ({ meal, slot }))).sort((a, b) => mealClock(a.meal, a.slot).localeCompare(mealClock(b.meal, b.slot))).map(({ meal, slot }) => mealRow(meal, date, slot))}
+            {polls.filter(p => p.date === date).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> {t('Vote open')}</span><small>{p.question}</small></button>)}
+            {admin && (agenda
+              // Each empty slot as a small chip (a full day: one "Add", for a second dish); on the week's
+              // columns, one button (dinner first, the slot families plan most). Any slot can hold more than one meal.
+              ? <div className="meal-add-chips">{(open.length ? open : ['dinner' as MealSlot]).map(slot => <button key={slot} type="button" className="meal-add-chip" aria-label={t('Plan {meal} for {day}', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={14} height={14} aria-hidden="true" /> {open.length ? tm(SLOT_LABEL[slot]) : t('Add')}</button>)}</div>
+              : <button type="button" className="meal-add" aria-label={t('Plan a meal for {day}', { day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot: freeSlot(date) ?? 'dinner' } })}><PlusIcon width={16} height={16} aria-hidden="true" /> {open.includes('dinner') ? tm(SLOT_LABEL.dinner) : t('Add')}</button>)}
+            {!admin && open.length === MEAL_SLOTS.length && <p className="meal-empty">{t('Nothing planned')}</p>}
+          </section>
+        })}</div>}
+      {useItUp}
     </section> : view === 'restaurants' ? <RestaurantBinder restaurants={shownRestaurants} search={restaurantSearch} filter={restaurantFilter} controls={!isPhone && <div className="meals-toolbar">{restaurantSearchField}{restaurantFilters}</div>} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       {showFilters && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
         {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name'); setTagIds([]) }}>{t('Clear filters')}</button>}

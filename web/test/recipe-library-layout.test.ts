@@ -36,7 +36,7 @@ test('phone planner and restaurants share the pinned action row below the tabs',
 test('recipe filters use the sheet at every screen size', () => {
   assert.doesNotMatch(meals, /compactRecipeFilters/)
   assert.match(meals, /showFilters && <Sheet/)
-  const filters = meals.slice(meals.indexOf('const filters ='), meals.indexOf('// Phone Week:'))
+  const filters = meals.slice(meals.indexOf('const filters ='), meals.indexOf('const freeSlot'))
   assert.match(filters, /RecipeTagFilter/)
   assert.match(filters, /Manage tags/)
   assert.match(filters, /RecipeBrowseControls/)
@@ -49,4 +49,15 @@ test('recipe card descriptions clamp to two lines without changing recipe text',
   assert.match(description, /(?:^|;)\s*line-clamp:\s*2/)
   assert.match(description, /overflow:\s*hidden/)
   assert.match(meals, /<p>\{recipe.description\}<\/p>/)
+})
+
+test('week planner: day columns on wide screens, a day-by-day list on phones, no Day/Week switch', () => {
+  assert.doesNotMatch(meals, /<table className=\{`meal-grid/)
+  assert.doesNotMatch(meals, /key: 'day', label: t\('Day'\)/)
+  assert.match(meals, /className=\{agenda \? 'meal-week meal-agenda' : 'meal-week'\}/)
+  assert.match(css, /\.meal-week\s*\{[^}]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/)
+  assert.match(css, /\.meal-agenda\s*\{[^}]*flex-direction: column/)
+  // A slot holds any number of meals: a full day still offers Add (a dessert or side beside dinner).
+  assert.doesNotMatch(meals, /admin && open\.length > 0/)
+  assert.match(meals, /open\.length \? open : \['dinner' as MealSlot\]/)
 })

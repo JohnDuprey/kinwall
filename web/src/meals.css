@@ -58,8 +58,6 @@
   .meals-filters-label { display: none; }
   .meals-navigation .meals-add-recipe { display: flex; grid-column: 3; grid-row: 2; flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; }
   .meals-navigation .meals-planner-controls { display: flex; grid-column: 1 / -1; grid-row: 2; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
-  .meals-planner-controls > .segmented { flex: none; padding: 2px; }
-  .meals-planner-controls > .segmented button { min-width: 44px; min-height: 44px; padding: 0 6px; }
   .meals-planner-controls .meal-actions { flex-wrap: nowrap; gap: 0; }
   .meals-planner-controls .meal-actions .btn { flex: none; padding-inline: 8px; }
   .meals-planner-controls .icon-btn, .meals-planner-controls .meals-plan { flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; }
@@ -69,26 +67,58 @@
   .recipe-import-entry { display: flex; margin-bottom: 16px; }
 }
 .meal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.meal-grid-scroll { overflow-x: auto; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
-.meal-grid { width: 100%; min-width: 640px; border-collapse: separate; border-spacing: 0; table-layout: fixed; } /* fits a 720px-wide portrait tablet (an iPad mini, a 10" tablet at Auto scale) without scrolling sideways */
-.meal-grid th, .meal-grid td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
-.meal-grid thead th { font-size: 0.875rem; color: var(--text-dim); }
-.meal-grid th:first-child { width: 130px; }
-.meal-grid tbody th { font-size: 0.9375rem; }
-.meal-grid tbody th span { display: block; margin-top: 4px; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); }
-.meal-grid tr:last-child > * { border-bottom: 0; }
-.meal-grid .meal-today > th { border-left: 4px solid var(--accent); }
-.meal-grid .meal-today-label { color: var(--accent-text); font-weight: 800; }
-.meal-card, .recipe-card { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px; text-align: left; color: var(--text); border: 1px solid var(--border); border-radius: 12px; background: var(--card-soft); overflow-wrap: anywhere; }
-.meal-card { margin-bottom: 8px; }
-.meal-card strong { font-size: 0.9375rem; }
-.meal-card > span, .recipe-card > span { color: var(--text-dim); font-size: 0.8125rem; }
-.meal-complete { border-style: dashed; }
-.meal-note-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.meal-add { display: flex; align-items: center; justify-content: center; min-height: 44px; width: 100%; color: var(--text-dim); border: 1px dashed var(--border); border-radius: 10px; background: transparent; }
+.recipe-card { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px; text-align: left; color: var(--text); border: 1px solid var(--border); border-radius: 12px; background: var(--card-soft); overflow-wrap: anywhere; }
+.recipe-card > span { color: var(--text-dim); font-size: 0.8125rem; }
+.meal-add { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; width: 100%; color: var(--text-dim); font-weight: 700; border: 1px dashed var(--border); border-radius: 10px; background: transparent; }
 .meal-poll { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 44px; margin-bottom: 6px; padding: 8px 10px; border: 2px solid var(--accent); border-radius: 10px; background: var(--accent-tint); color: var(--text); font: inherit; font-weight: 800; text-align: left; }
 .meal-poll small { font-weight: 600; color: var(--text-dim); }
 .meal-empty { display: block; padding: 12px; color: var(--text-dim); }
+/* The week: day columns with Calendar's day header (.week-header-cell); each meal is a Board event
+   row (.snap-row) whose bar is the meal's color, named in the row too. Phones and portrait tablets
+   (.meal-agenda) list the days instead, like the Board's Coming up. */
+:root { --slot-breakfast: #C77D02; --slot-lunch: #2B8A4E; --slot-dinner: #7353D1; --slot-snack: #C93A6E; }
+:root[data-theme="dark"] { --slot-breakfast: #F2B84B; --slot-lunch: #5CC08A; --slot-dinner: #A78BFA; --slot-snack: #F59AB0; }
+.meal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.meal-day { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0 6px 8px; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
+.meal-day.today { background: color-mix(in srgb, var(--accent-strong) 7%, var(--card)); }
+.meal-day-head { margin: 0; font: inherit; }
+.meal-day-head .wd, .meal-day-head .dn { display: block; }
+.meal-day-head.today .dn { display: flex; }
+.meal-row { flex-wrap: wrap; gap: 8px; padding: 8px; border-radius: 12px; }
+.meal-row .snap-title { font-size: 0.9375rem; overflow-wrap: break-word; hyphens: auto; }
+.meal-row .board-when { font-size: 0.75rem; }
+.meal-row .board-bar { background: var(--slot); }
+.meal-breakfast { --slot: var(--slot-breakfast); }
+.meal-lunch { --slot: var(--slot-lunch); }
+.meal-dinner { --slot: var(--slot-dinner); }
+.meal-snack { --slot: var(--slot-snack); }
+.meal-row.meal-complete .snap-title { color: var(--text-dim); }
+.meal-cook { font-size: 1.125rem; line-height: 1; }
+.meal-row .meal-trip-tag { margin-top: 2px; }
+/* Dinner leads each column with its photo; other meals stay one line. */
+.meal-thumb { flex: 0 0 auto; object-fit: cover; background: var(--bg-alt); }
+.meal-week:not(.meal-agenda) .meal-thumb { order: -1; flex-basis: 100%; width: 100%; height: 72px; border-radius: 8px; }
+.meal-week:not(.meal-agenda) .meal-row:not(.meal-dinner) .meal-thumb { display: none; }
+.meal-week:not(.meal-agenda) .meal-cook { display: none; } /* too narrow: who's cooking is in the meal's sheet */
+.meal-agenda { display: flex; flex-direction: column; align-items: stretch; gap: var(--gap); max-width: 760px; }
+.meal-agenda .meal-day { padding: 12px; gap: 8px; scroll-margin-top: 116px; } /* clear of the pinned tabs */
+.meal-agenda .meal-day-head { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); }
+.meal-agenda .meal-row { flex-wrap: nowrap; align-items: center; }
+.meal-agenda .meal-thumb { order: 3; width: 44px; height: 44px; border-radius: 10px; }
+.meal-today-label { padding: 1px 8px; border-radius: 999px; background: var(--accent-strong); color: var(--accent-ink); font-size: 0.6875rem; letter-spacing: 0.04em; }
+.meal-add-chips { display: flex; gap: 6px; }
+.meal-add-chip svg { flex: none; } /* the day's empty meals on one line, each as wide as its word */
+.meal-add-chip { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 44px; padding: 0 6px; border: 1px dashed var(--border); border-radius: 999px; background: transparent; color: var(--text-dim); font: inherit; font-size: 0.75rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.meal-week .meal-empty { margin: 0; padding: 8px 4px; font-size: 0.8125rem; text-align: center; }
+.meal-week + .use-it-up { margin-top: var(--gap); }
+/* A landscape tablet's seven columns are narrow: smaller rows, so names wrap at words. */
+@media (max-width: 1199px) {
+  .meal-week:not(.meal-agenda) { gap: 6px; }
+  .meal-week:not(.meal-agenda) .meal-day { padding-inline: 4px; }
+  .meal-week:not(.meal-agenda) .meal-row { padding: 6px; gap: 6px; }
+  .meal-week:not(.meal-agenda) .meal-row .snap-title { font-size: 0.8125rem; }
+  .meal-week:not(.meal-agenda) .meal-row .board-when { font-size: 0.6875rem; }
+}
 .recipe-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--gap); margin-top: 16px; }
 .recipe-card { background: var(--card); padding: 20px; box-shadow: var(--shadow); }
 .recipe-card > strong { font-size: 1.0625rem; font-weight: 700; } /* a button's 13px otherwise: the name is what you scan for */
@@ -173,19 +203,6 @@
   .meals-heading .meal-actions { width: 100%; }
   .meals-heading .btn { flex: 1 1 0; }
   .meals-toolbar > .field { flex: 1; min-width: 160px; }
-  /* Phones: one card per day, its slots listed (data-slot) instead of a sideways-scrolling table. */
-  .meal-grid-scroll { overflow: visible; background: none; box-shadow: none; }
-  .meal-grid thead { display: none; }
-  .meal-grid, .meal-grid tbody, .meal-grid tr, .meal-grid th, .meal-grid td { display: block; width: auto; min-width: 0; }
-  .meal-grid tr { margin-bottom: var(--gap); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
-  .meal-grid tr > th[scope="row"] { width: auto; border-bottom: 1px solid var(--border); }
-  .meal-grid td { border-bottom: 0; }
-  .meal-grid td::before { content: attr(data-slot); display: block; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
-  /* Week on a phone: only the slots with something in them, then one "Plan a meal" row for the day. */
-  .meal-grid-compact td:not(:has(.meal-card, .meal-poll)), .meal-grid-compact td .meal-add { display: none; }
-  .meal-grid-compact td.meal-day-add { display: block; }
-  .meal-grid-compact td.meal-day-add::before { content: none; }
-  .meal-grid-compact td.meal-day-add .meal-add { display: flex; gap: 6px; font-weight: 700; }
   .meals-toolbar .segmented button { min-width: 72px; min-height: 44px; }
 }
 @media (max-width: 360px) { .meal-form-row { grid-template-columns: 1fr; gap: 0; } }
@@ -250,9 +267,6 @@
 .recipe-hero { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 280px; object-fit: cover; border-radius: 12px; background: var(--bg-alt); margin-bottom: 12px; }
 .recipe-photo-label { display: block; font-weight: 700; margin-bottom: 8px; }
 .recipe-card-photo { display: block; width: calc(100% + 40px); margin: -20px -20px 6px; aspect-ratio: 16 / 9; max-height: 160px; object-fit: cover; border-radius: 12px 12px 0 0; background: var(--bg-alt); }
-.meal-card { position: relative; }
-.meal-card:has(.meal-thumb) { padding-right: 60px; }
-.meal-thumb { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; object-fit: cover; border-radius: 8px; background: var(--bg-alt); }
 .meal-thumb-board { flex: 0 0 auto; width: 44px; height: 44px; object-fit: cover; border-radius: 10px; background: var(--card-soft); }
 .meal-sheet-photo { float: right; width: 96px; height: 72px; margin: 0 0 8px 12px; object-fit: cover; border-radius: 10px; background: var(--bg-alt); }
 /* Family ratings: one row per member with big tappable stars (wall and touch friendly). */
