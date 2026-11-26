@@ -496,6 +496,19 @@ span.menu-star { width: 44px; text-align: center; }
 .use-it-up-recipe .btn { flex: none; width: auto; align-self: center; }
 .use-it-up > .link-btn { margin-top: 8px; min-height: 44px; }
 .use-it-up > .field-hint:last-child { margin: 10px 0 0; }
+.use-it-up-strip-scroll { overflow-x: auto; margin-top: 16px; }
+.use-it-up-strip-scroll:first-child { margin-top: 0; }
+.use-it-up-strip { display: flex; align-items: center; gap: 8px; min-width: 320px; }
+.use-it-up-strip h2 { flex: none; margin: 0; font-size: 0.9375rem; white-space: nowrap; }
+.use-it-up-strip-food { position: relative; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; overflow: clip; }
+.use-it-up-strip-items { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.use-it-up-strip .use-it-up-item { flex: none; white-space: nowrap; font-size: 0.8125rem; }
+.use-it-up-strip .btn { flex: none; width: auto; min-width: 44px; min-height: 44px; padding: 8px 12px; white-space: nowrap; }
+.use-it-up-measure { position: absolute; display: flex; gap: 8px; width: max-content; visibility: hidden; pointer-events: none; }
+@media (max-width: 599px) {
+  .use-it-up-strip h2 span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (pointer: coarse) { .use-it-up-strip-scroll { scrollbar-width: none; } }
 
 /* A meal planned for a trip (tripLinks.tsx): the trip's name, so a far-away dinner makes sense in the week. */
 .meal-trip-tag { align-self: flex-start; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.75rem; font-weight: 800; }

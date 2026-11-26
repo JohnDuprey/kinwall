@@ -1,9 +1,11 @@
-// Meals' "Use it up" card: food on pantry lists that expires soon, and the family's recipes that use
+// Meals' "Use it up" strip: food on pantry lists that expires soon, and the family's recipes that use
 // it (GET /api/pantry/suggestions), alongside meal kits on hand.
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { kitIcon, kitLabel, kitPast, kitWhen } from './meal-kits.ts'
+import Sheet from './Sheet.tsx'
+import { chipsThatFit, stripFood } from './pantry-strip.ts'
 import ReadyItemSheet from './ReadyItemSheet.tsx'
 import { api } from './api.ts'
 import { t, tn } from './i18n.ts'
@@ -11,13 +13,45 @@ import { expiryShort } from './pantry.ts'
 import type { PantryItem, PantrySuggestions } from './types.ts'
 import type { MealKitDetail, Recipe } from './meal-types.ts'
 
-/** How many recipes the card shows; the rest are a tap away. */
-const SHOWN = 3
 /** The family-wide refresh (any change anywhere) refetches at most this often: suggestions read every recipe. */
 const POLL_EVERY = 5 * 60_000
 
 /** "Spinach (expired)", "Chicken breast (tomorrow)". */
 const itemWhen = (i: Pick<PantryItem, 'title' | 'useBy' | 'daysLeft' | 'status'>) => t('{item} ({when})', { item: i.title, when: expiryShort(i) })
+
+function PantryStrip({ items, count, onIdeas }: { items: PantryItem[]; count: number; onIdeas: () => void }) {
+  const space = useRef<HTMLDivElement>(null)
+  const measure = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(0)
+  const food = stripFood(items)
+  useEffect(() => {
+    const fit = () => {
+      const widths = [...measure.current!.querySelectorAll<HTMLElement>('.use-it-up-item')].map(el => el.getBoundingClientRect().width)
+      const more = measure.current!.querySelector<HTMLElement>('.use-it-up-more')!.getBoundingClientRect().width
+      setVisible(chipsThatFit(widths, space.current!.clientWidth, more, 8))
+    }
+    const observer = new ResizeObserver(fit)
+    observer.observe(space.current!)
+    observer.observe(measure.current!)
+    return () => observer.disconnect()
+  }, [items])
+  return <div className="use-it-up-strip-scroll">
+    <div className="use-it-up-strip">
+      <h2 id="use-it-up-title">🥫 <span>{t('Use it up')}</span></h2>
+      <div className="use-it-up-strip-food" ref={space}>
+        <ul className="use-it-up-strip-items" aria-label={t('Food to use soon')}>
+          {food.slice(0, visible).map(i => <li key={i.id} className="chip chip-static use-it-up-item">{itemWhen(i)}</li>)}
+        </ul>
+        {visible < food.length && <button type="button" className="btn btn-secondary use-it-up-more" aria-label={tn(food.length - visible, '{n} more thing to use soon', '{n} more things to use soon')} onClick={onIdeas}>+{food.length - visible}</button>}
+        <div className="use-it-up-measure" ref={measure} aria-hidden="true">
+          {food.map(i => <span key={i.id} className="chip chip-static use-it-up-item">{itemWhen(i)}</span>)}
+          <span className="btn btn-secondary use-it-up-more">+{food.length}</span>
+        </div>
+      </div>
+      <button type="button" className="btn btn-secondary use-it-up-ideas" aria-haspopup="dialog" onClick={onIdeas}>{t('Ideas ({n})', { n: count })}</button>
+    </div>
+  </div>
+}
 
 export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }: {
   recipes: Recipe[]; admin: boolean
@@ -30,7 +64,7 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [data, setData] = useState<PantrySuggestions | null>(null)
-  const [all, setAll] = useState(false)
+  const [ideas, setIdeas] = useState(false)
   const [ready, setReady] = useState<MealKitDetail[]>([])
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<MealKitDetail | null>(null)
@@ -62,7 +96,7 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
   }
   if (!admin && !kits.length && !data?.expiring.length) return null
   const expired = data?.expiring.filter(i => i.status === 'expired').length ?? 0
-  const shown = all ? data?.suggestions ?? [] : data?.suggestions.slice(0, SHOWN) ?? []
+  const shown = data?.suggestions ?? []
   return (
     <section className="use-it-up" aria-labelledby="use-it-up-title">
       {(admin || kits.length > 0) && <>
@@ -75,45 +109,43 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
       </>}
       {(adding || editing) && <ReadyItemSheet recipes={recipes} item={editing ?? undefined} onClose={() => { setAdding(false); setEditing(null) }} onSaved={() => { setAdding(false); setEditing(null); setReadyTick(n => n + 1) }} />}
       {!!data?.expiring.length && <>
-      <div className="use-it-up-head">
-        <h2 id="use-it-up-title"><span aria-hidden="true">🥫 </span>{t('Use it up')}</h2>
-        <p className="field-hint">
-          {tn(data.expiring.length, '{n} thing in your pantry to use this week', '{n} things in your pantry to use this week')}
-          {expired > 0 && <> · <span className="list-overdue">⚠ {tn(expired, '{n} past its date', '{n} past their date')}</span></>}
-        </p>
-      </div>
-      <ul className="use-it-up-items" aria-label={t('Food to use soon')}>
-        {data.expiring.map(i => (
-          <li key={i.id} className={`chip chip-static use-it-up-item ${i.status ?? ''}`}>
-            <span aria-hidden="true">{i.status === 'expired' ? '⚠ ' : i.status === 'later' ? '' : '⏳ '}</span>{itemWhen(i)}
-          </li>
-        ))}
-      </ul>
-      {shown.length > 0 ? (
-        <ul className="use-it-up-recipes">
-          {shown.map(s => {
-            const recipe = recipes.find(r => r.id === s.recipe.id)
-            return (
-              <li key={s.recipe.id} className="use-it-up-recipe">
-                <button type="button" className="use-it-up-open" disabled={!recipe} onClick={() => recipe && onOpen(recipe)}>
-                  <strong>{s.recipe.name}</strong>
-                  <span>{t('Uses {items}', { items: s.uses.map(itemWhen).join(', ') })}</span>
-                  <span className="use-it-up-missing">{s.missing.length ? t('Needs {items}', { items: s.missing.join(', ') }) : t('You have everything')}</span>
-                </button>
-                {admin && recipe && <button type="button" className="btn btn-secondary" onClick={() => onPlan(recipe)}>{t('Plan it')}</button>}
-              </li>
-            )
-          })}
+      <PantryStrip items={data.expiring} count={data.suggestions.length} onIdeas={() => setIdeas(true)} />
+      {ideas && <Sheet title={t('Use it up')} onClose={() => setIdeas(false)}>
+        <div className="use-it-up-head">
+          <p className="field-hint">
+            {tn(data.expiring.length, '{n} thing in your pantry to use this week', '{n} things in your pantry to use this week')}
+            {expired > 0 && <> · <span className="list-overdue">⚠ {tn(expired, '{n} past its date', '{n} past their date')}</span></>}
+          </p>
+        </div>
+        <ul className="use-it-up-items" aria-label={t('Food to use soon')}>
+          {data.expiring.map(i => (
+            <li key={i.id} className={`chip chip-static use-it-up-item ${i.status ?? ''}`}>
+              <span aria-hidden="true">{i.status === 'expired' ? '⚠ ' : i.status === 'later' ? '' : '⏳ '}</span>{itemWhen(i)}
+            </li>
+          ))}
         </ul>
-      ) : <p className="field-hint">{t('None of your recipes use these yet.')}</p>}
-      {data.suggestions.length > SHOWN && (
-        <button type="button" className="link-btn" aria-expanded={all} onClick={() => setAll(v => !v)}>
-          {all ? t('Show fewer') : tn(data.suggestions.length - SHOWN, 'Show {n} more recipe', 'Show {n} more recipes')}
-        </button>
-      )}
-      {shown.length > 0 && data.unmatched.length > 0 && (
-        <p className="field-hint">{t('No recipe uses {items} yet.', { items: data.unmatched.map(i => i.title).join(', ') })}</p>
-      )}
+        {shown.length > 0 ? (
+          <ul className="use-it-up-recipes">
+            {shown.map(s => {
+              const recipe = recipes.find(r => r.id === s.recipe.id)
+              return (
+                <li key={s.recipe.id} className="use-it-up-recipe">
+                  <button type="button" className="use-it-up-open" disabled={!recipe} onClick={() => { if (recipe) { setIdeas(false); onOpen(recipe) } }}>
+                    <strong>{s.recipe.name}</strong>
+                    <span>{t('Uses {items}', { items: s.uses.map(itemWhen).join(', ') })}</span>
+                    <span className="use-it-up-missing">{s.missing.length ? t('Needs {items}', { items: s.missing.join(', ') }) : t('You have everything')}</span>
+                  </button>
+                  {admin && recipe && <button type="button" className="btn btn-secondary" onClick={() => { setIdeas(false); onPlan(recipe) }}>{t('Plan it')}</button>}
+                </li>
+              )
+            })}
+          </ul>
+        ) : <p className="field-hint">{t('None of your recipes use these yet.')}</p>}
+        {data.unmatched.length > 0 && (
+          <p className="field-hint">{t('No recipe uses {items} yet.', { items: data.unmatched.map(i => i.title).join(', ') })}</p>
+        )}
+        <p className="field-hint">{t('Ask an AI assistant connected over MCP for more ideas for food to use up.')}</p>
+      </Sheet>}
       </>}
     </section>
   )

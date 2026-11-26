@@ -5603,5 +5603,9 @@
   "Meal kit · cook by {date}": "Kochbox · bis {date} kochen",
   "Prepped · eat by {date}": "Vorbereitet · bis {date} essen",
   "Several": "Mehrere",
-  "Ready to cook saved": "Vorbereitetes Essen gespeichert"
+  "Ready to cook saved": "Vorbereitetes Essen gespeichert",
+  "Ideas ({n})": "Ideen ({n})",
+  "{n} more thing to use soon": "{n} weiteres Lebensmittel bald aufbrauchen",
+  "{n} more things to use soon": "{n} weitere Lebensmittel bald aufbrauchen",
+  "Ask an AI assistant connected over MCP for more ideas for food to use up.": "Frag einen über MCP verbundenen KI-Assistenten nach weiteren Ideen zum Aufbrauchen."
 }
