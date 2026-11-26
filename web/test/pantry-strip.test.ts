@@ -10,7 +10,7 @@ test('strip fits a prefix, reserving room for the remaining count only when need
   assert.equal(chipsThatFit([], 100, 40, 8), 0)
 })
 
-test('strip food is soonest first, with past dates marked today without changing sheet data', () => {
+test('strip food is soonest first and food past its date stays expired', () => {
   const items = [
     { id: 'later', title: 'Chicken', useBy: '2026-11-27', daysLeft: 1, status: 'soon' as const },
     { id: 'past', title: 'Spinach', useBy: '2026-11-24', daysLeft: -2, status: 'expired' as const },
@@ -18,8 +18,6 @@ test('strip food is soonest first, with past dates marked today without changing
   ]
   const food = stripFood(items)
   assert.deepEqual(food.map(i => i.id), ['past', 'today', 'later'])
-  assert.equal(food[0].status, 'today')
-  assert.equal(food[0].daysLeft, 0)
-  assert.equal(items[1].status, 'expired')
+  assert.equal(food[0].status, 'expired')
   assert.equal(items[0].id, 'later')
 })

@@ -14,8 +14,7 @@ export function chipsThatFit(widths: number[], available: number, more: number, 
   return count
 }
 
-/** The strip is a prompt to use food today; the sheet keeps the actual expired status. */
+/** Soonest first; food past its date stays marked as expired, as in the sheet. */
 export function stripFood<T extends Pick<PantryItem, 'useBy' | 'daysLeft' | 'status'>>(items: T[]): T[] {
   return [...items].sort((a, b) => (a.useBy ?? '').localeCompare(b.useBy ?? ''))
-    .map(item => item.status === 'expired' ? { ...item, daysLeft: 0, status: 'today' } : item)
 }

@@ -40,11 +40,11 @@ function PantryStrip({ items, count, onIdeas }: { items: PantryItem[]; count: nu
       <h2 id="use-it-up-title">🥫 <span>{t('Use it up')}</span></h2>
       <div className="use-it-up-strip-food" ref={space}>
         <ul className="use-it-up-strip-items" aria-label={t('Food to use soon')}>
-          {food.slice(0, visible).map(i => <li key={i.id} className="chip chip-static use-it-up-item">{itemWhen(i)}</li>)}
+          {food.slice(0, visible).map(i => <li key={i.id} className={`chip chip-static use-it-up-item ${i.status ?? ''}`}>{i.status === 'expired' && <span aria-hidden="true">⚠ </span>}{itemWhen(i)}</li>)}
         </ul>
         {visible < food.length && <button type="button" className="btn btn-secondary use-it-up-more" aria-label={tn(food.length - visible, '{n} more thing to use soon', '{n} more things to use soon')} onClick={onIdeas}>+{food.length - visible}</button>}
         <div className="use-it-up-measure" ref={measure} aria-hidden="true">
-          {food.map(i => <span key={i.id} className="chip chip-static use-it-up-item">{itemWhen(i)}</span>)}
+          {food.map(i => <span key={i.id} className={`chip chip-static use-it-up-item ${i.status ?? ''}`}>{i.status === 'expired' && <span aria-hidden="true">⚠ </span>}{itemWhen(i)}</span>)}
           <span className="btn btn-secondary use-it-up-more">+{food.length}</span>
         </div>
       </div>
