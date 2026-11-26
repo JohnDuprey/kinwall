@@ -144,10 +144,11 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
 
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close).
  * `library` is every recipe: where linked basics are found. */
-export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagChanged, admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal, meal }: {
+export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagChanged, admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal, meal, onImport }: {
   recipe: Recipe | null; library?: Recipe[]; tagCatalog?: RecipeTag[]; onTagChanged?: RecipeTagChange; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
   /** Opened from a planned meal: that meal's when, who and status first (MealQuickSheet's MealStrip). */
   meal?: ReactNode
+  onImport?: () => void
   /** Opened from a planned meal: a button back to that meal's details. */
   onEditMeal?: { label: string; open: () => void; back?: boolean }
 }) {
@@ -162,7 +163,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
   // A linked basic, opened over this recipe; closing it comes back here.
   const [basic, setBasic] = useState<Recipe | null>(null)
   const [reader, setReader] = useState<'read' | 'print' | null>(null)
-  if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
+  if (editing || !recipe) return <RecipeEditor onImport={onImport} recipe={recipe} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
   if (basic) return <RecipeSheet key={basic.id} recipe={library.find(item => item.id === basic.id) ?? basic} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} admin={admin} owner={owner} onClose={() => setBasic(null)} onSaved={onSaved} onRated={onRated}
     onEditMeal={{ label: t('Back to {name}', { name: recipe.name }), open: () => setBasic(null), back: true }} />
   const openBasic = (id: string) => { const found = library.find(r => r.id === id); if (found) setBasic(found) }
@@ -210,7 +211,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
   </>
 }
 
-function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSaved }: { recipe: Recipe | null; library: Recipe[]; tagCatalog?: RecipeTag[]; onTagChanged?: RecipeTagChange; onClose: () => void; onSaved: () => void }) {
+function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSaved, onImport }: { recipe: Recipe | null; library: Recipe[]; tagCatalog?: RecipeTag[]; onTagChanged?: RecipeTagChange; onImport?: () => void; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
   const dialog = useDialog()
   const formId = useId()
@@ -269,6 +270,7 @@ function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSa
 
     <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? t('Saving…') : recipe ? t('Save') : t('Add recipe')}</button>
   </>}>
+    {!recipe && onImport && <div className="recipe-import-entry sheet-links"><button type="button" className="sheet-link" disabled={busy} onClick={onImport}><LinkIcon /><span>{t('Import from a link')}</span><ChevronRight /></button></div>}
     <form id={formId} onSubmit={e => { e.preventDefault(); save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${formId}-name`}>{t('Name')}</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>

@@ -2,8 +2,11 @@
 .meals-view { height: 100%; padding: 4px var(--pad) var(--pad); }
 .meals-heading, .meals-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
 /* The header's buttons match: same height, one line, icon + label. */
-.meals-heading .meal-actions .btn { box-sizing: border-box; height: 48px; min-height: 48px; padding-block: 0; white-space: nowrap; gap: 8px; }
+.meals-heading .meal-actions .btn { box-sizing: border-box; height: 48px; min-height: 48px; padding-block: 0; white-space: nowrap; gap: 8px; flex: none; }
 .meals-heading .meal-actions .btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+.meals-heading .meals-heading-add { display: flex; justify-content: flex-end; min-width: 172px; }
+.meals-import-placeholder { visibility: hidden; }
+.meals-phone-groceries, .meals-add-recipe, .meals-phone-action, .recipe-import-entry { display: none; }
 .meals-heading h1 { margin: 0; font-size: 1.75rem; }
 .meals-toolbar { margin-top: 20px; }
 .meals-toolbar h2 { margin: 0; font-size: 1.125rem; }
@@ -35,6 +38,28 @@
   .meals-navigation .meals-search { grid-column: 1; }
   .meals-navigation .meals-filters-btn { grid-row: 2; width: 52px; padding: 0; }
   .meals-filters-label { display: none; }
+}
+/* Like Settings' tabs and Lists' add bar: sticky inside the page's own scroll area.
+   The app shell already clears the header, native safe areas and the keyboard, so top: 0
+   needs no second inset. The title scrolls out naturally, without a motion effect. */
+@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+  .meals-view { padding-top: 0; }
+  .meals-view .meals-heading { flex-wrap: nowrap; align-items: center; min-height: 44px; margin-top: 4px; margin-bottom: 4px; }
+  .meals-heading h1 { font-size: 1.375rem; }
+  .meals-heading .field-hint, .meals-heading .meals-desktop-actions { display: none; }
+  .meals-heading .meals-phone-groceries { display: flex; flex: none; width: 44px; height: 44px; min-height: 44px; }
+  .meals-navigation { position: sticky; top: 0; z-index: 3; background: var(--bg); grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; margin: 0 calc(var(--pad) * -1) 8px; padding: 4px var(--pad) 8px; }
+  .meals-navigation:has(.meals-add-recipe) { grid-template-columns: minmax(0, 1fr) 44px 44px; }
+  .meals-navigation > .segmented { grid-column: 1 / -1; grid-row: 1; width: 100%; height: 52px; }
+  .meals-navigation > .segmented button { flex: 1; min-width: 0; min-height: 44px; padding-inline: 8px; }
+  .meals-navigation .meals-search { grid-column: 1; grid-row: 2; }
+  .meals-view .meals-navigation .meals-search input[type="search"] { height: 44px; min-height: 44px; padding-inline: 12px; }
+  .meals-navigation .meals-filters-btn { grid-column: 2; grid-row: 2; width: 44px; height: 44px; min-height: 44px; padding: 0; }
+  .meals-filters-label { display: none; }
+  .meals-navigation .meals-add-recipe { display: flex; grid-column: 3; grid-row: 2; flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; }
+  .meals-phone-action { display: flex; grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
+  .meals-phone-action .btn { flex: none; height: 44px; min-height: 44px; }
+  .recipe-import-entry { display: flex; margin-bottom: 16px; }
 }
 .meal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .meal-grid-scroll { overflow-x: auto; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }

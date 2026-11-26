@@ -4,6 +4,20 @@ import { readFileSync } from 'node:fs'
 
 const meals = readFileSync(new URL('../src/Meals.tsx', import.meta.url), 'utf8')
 const css = readFileSync(new URL('../src/meals.css', import.meta.url), 'utf8')
+const recipeSheet = readFileSync(new URL('../src/RecipeSheet.tsx', import.meta.url), 'utf8')
+
+test('phone recipe actions sit below stable tabs and importing is offered only for a new recipe', () => {
+  assert.match(meals, /className="icon-btn meals-phone-groceries"/)
+  assert.match(meals, /className="btn btn-primary meals-add-recipe"/)
+  assert.match(meals, /aria-label=\{t\('Add a recipe'\)\}/)
+  assert.match(recipeSheet, /!recipe && onImport/)
+  assert.match(recipeSheet, /onClick=\{onImport\}/)
+})
+
+test('phone navigation sticks within the existing safe-area-aware scroll container', () => {
+  assert.match(css, /@media \(max-width: 600px\), \(max-height: 500px\) and \(orientation: landscape\)/)
+  assert.match(css, /\.meals-navigation\s*\{[^}]*position: sticky;[^}]*top: 0;[^}]*background: var\(--bg\)/)
+})
 
 test('recipe filters use the sheet at every screen size', () => {
   assert.doesNotMatch(meals, /compactRecipeFilters/)
