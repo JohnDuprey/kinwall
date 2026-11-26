@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import ReadyItemSheet from './ReadyItemSheet.tsx'
-import { kitDate } from './meal-kits.ts'
+import { kitIcon, kitPlanLabel } from './meal-kits.ts'
 import { useHashParam } from './hashQuery.ts'
 import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -195,7 +195,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
       <button type="button" className="btn btn-secondary" onClick={() => setReader('read')}><FitIcon width={20} height={20} /> {t('Full screen')}</button>
       <button type="button" className="btn btn-secondary recipe-print-btn" onClick={() => setReader('print')}><PrinterIcon width={20} height={20} /> {t('Print')}</button>
     </div>
-    {!!recipe.kits?.length && <p className="chip chip-static">📦 {tn(recipe.kits.reduce((n, k) => n + k.left, 0), '{n} ready to cook · use by {date}', '{n} ready to cook · use by {date}', { date: kitDate(recipe.kits[0].cookBy) })}</p>}
+    {!!recipe.kits?.length && <p className="chip chip-static">{kitIcon(recipe.kits[0])} {tn(recipe.kits.reduce((n, k) => n + k.left, 0), '{n} meal left', '{n} meals left')} · {kitPlanLabel(recipe.kits[0])}</p>}
     {recipe.description && <p>{recipe.description}</p>}
     {!!recipe.tags?.length && <ul className="chip-row recipe-tag-chips" aria-label={t('Tags')}>
       {recipe.tags.map(tag => <li className="chip chip-static" key={tag.id}>{tag.name}</li>)}
