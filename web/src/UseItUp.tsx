@@ -26,9 +26,12 @@ function PantryStrip({ items, count, onIdeas }: { items: PantryItem[]; count: nu
   const food = stripFood(items)
   useEffect(() => {
     const fit = () => {
-      const widths = [...measure.current!.querySelectorAll<HTMLElement>('.use-it-up-item')].map(el => el.getBoundingClientRect().width)
-      const more = measure.current!.querySelector<HTMLElement>('.use-it-up-more')!.getBoundingClientRect().width
-      setVisible(chipsThatFit(widths, space.current!.clientWidth, more, 8))
+      // A last resize can arrive after the strip has left the page.
+      const box = measure.current, row = space.current
+      if (!box || !row) return
+      const widths = [...box.querySelectorAll<HTMLElement>('.use-it-up-item')].map(el => el.getBoundingClientRect().width)
+      const more = box.querySelector<HTMLElement>('.use-it-up-more')?.getBoundingClientRect().width ?? 0
+      setVisible(chipsThatFit(widths, row.clientWidth, more, 8))
     }
     const observer = new ResizeObserver(fit)
     observer.observe(space.current!)
