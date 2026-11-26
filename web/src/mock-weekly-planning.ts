@@ -54,7 +54,7 @@ async function read(requested?: string): Promise<WeeklyPlanning> {
     ...saved, weekStart: dates[0], dates, timezone, sourceVersion,
     features: { meals: settings.features.meals, lists: settings.features.lists, upkeep: settings.features.upkeep },
     events: events.map(e => ({ id:e.id,title:e.title,start:e.start,end:e.end,allDay:e.allDay,memberIds:e.memberIds,occurrenceStart:e.occurrenceStart })),
-    meals: settings.features.meals ? meals.map(m => ({ recipeId:m.recipeId,id:m.id,date:m.date,slot:m.slot,title:m.title,canSwap:m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })) : [],
+    meals: settings.features.meals ? meals.map(m => ({ recipeId:m.recipeId,status:m.status,id:m.id,date:m.date,slot:m.slot,title:m.title,canSwap:m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })) : [],
     pantry: settings.features.meals && settings.features.lists ? pantry.expiring.filter(i => i.useBy && i.useBy >= dates[0] && i.useBy <= dates[6]).map(i => ({id:i.id,title:i.title,useBy:i.useBy!})) : [],
     recipes: settings.features.meals ? recipes.filter(r => r.kind !== 'basic').map(r => ({ id:r.id,kits:r.kits,kind:r.kind ?? 'meal',name:r.name,totalMinutes:r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })) : [],
     lists: settings.features.lists ? todos.map(l => ({ id:l.id,name:l.name })) : [],

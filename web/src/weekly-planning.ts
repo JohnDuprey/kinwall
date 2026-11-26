@@ -16,7 +16,7 @@ export type WeeklyPlanning = {
   weekStart: string; dates: string[]; timezone: string; sourceVersion: number; revision: number; draft: PlanningDraft; applied: PlanningApplied
   features: { meals: boolean; lists: boolean; upkeep: boolean }
   events: { id: string; title: string; start: string; end: string; allDay: boolean; memberIds: string[]; occurrenceStart: string | null }[]
-  meals: { recipeId?: string | null; id: string; date: string; slot: string; title: string; canSwap: boolean }[]
+  meals: { recipeId?: string | null; status?: 'planned' | 'prepared'; id: string; date: string; slot: string; title: string; canSwap: boolean }[]
   tasks: { id: string; title: string; dueDate: string | null; eventId: string | null; listId: string; done: boolean }[]
   jobs: { id: string; title: string; date: string }[]
   lists: { id: string; name: string }[]
@@ -25,6 +25,24 @@ export type WeeklyPlanning = {
   suggestions: { kit?: MealKit; id: string; name: string; totalMinutes: number | null; uses: { title: string; useBy: string | null }[] }[]
 }
 export const planningDay = (event: WeeklyPlanning['events'][number], timezone: string) => event.allDay ? event.start.slice(0, 10) : zonedDayKey(event.start, timezone)
+/** Reserve each on-hand unit once across existing meals and unsaved choices. Cooked units are
+ * already removed from `left`; applied draft entries are already represented by their meals. */
+export function planningKitChoices(plan: WeeklyPlanning, draft: PlanningDraft, date: string, replaceMealId?: string, mainDishesOnly = true) {
+  const pending = draft.dinners.filter(d => d.kind === 'meal' && plan.applied.dinners[d.date]?.choice !== JSON.stringify(d))
+  const replaced = new Set(pending.flatMap(d => d.kind === 'meal' && d.replaceMealId ? [d.replaceMealId] : []))
+  const reservations = [
+    ...plan.meals.filter(m => m.status !== 'prepared' && m.id !== replaceMealId && !replaced.has(m.id)),
+    ...pending.flatMap(d => d.kind === 'meal' && d.date !== date ? [d] : []),
+  ].sort((a, b) => a.date.localeCompare(b.date))
+  return plan.recipes.filter(r => !mainDishesOnly || (r.kind ?? 'meal') === 'meal').flatMap(recipe => {
+    const boxes = [...recipe.kits ?? []].sort((a, b) => a.receivedOn.localeCompare(b.receivedOn) || a.id.localeCompare(b.id)).map(kit => ({ kit, left: kit.left }))
+    for (const meal of reservations.filter(m => m.recipeId === recipe.id)) {
+      const box = boxes.find(b => b.left > 0 && b.kit.receivedOn <= meal.date)
+      if (box) box.left--
+    }
+    return boxes.filter(b => b.left > 0 && b.kit.receivedOn <= date && date <= b.kit.cookBy).map(b => ({ recipe, ...b }))
+  }).sort((a, b) => a.kit.receivedOn.localeCompare(b.kit.receivedOn) || a.kit.id.localeCompare(b.kit.id))
+}
 export function planningDays(plan: WeeklyPlanning) {
   return plan.dates.map(date => {
     const events = plan.events.filter(e => {

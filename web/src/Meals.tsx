@@ -25,7 +25,7 @@ import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restau
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
 import { useTripLinks } from './tripLinks.tsx'
-import { kitDate } from './meal-kits.ts'
+import { kitDate, plannedMealKit } from './meal-kits.ts'
 import UseItUp from './UseItUp.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
@@ -247,7 +247,7 @@ export default function Meals() {
     const assignee = members.find(member => member.id === meal.assigneeMemberId)
     const recipe = recipes.find(r => r.id === meal.recipeId)
     const trip = tripLinks.get(`meal:${meal.id}`)
-    const kit = recipe?.kits?.[0]
+    const kit = plannedMealKit(meal, recipe?.kits)
     const meta = [meal.mealKind === 'dining_out' && meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length && ordersLabel(meal), meal.status !== 'planned' && `✓ ${statusLabel(meal)}`].filter(Boolean).join(' · ')
     return <button key={meal.id} type="button" className={`snap-row meal-row meal-${slot}${meal.status !== 'planned' ? ' meal-complete' : ''}`} onClick={() => setOpenMeal(meal)}
       aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), kit && t('Cook by {date}', { date: kitDate(kit.cookBy) }), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>

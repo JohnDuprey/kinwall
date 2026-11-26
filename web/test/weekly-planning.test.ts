@@ -1,7 +1,37 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { planningWeek, planningDays, dinnerCount, planConflicts, type WeeklyPlanning } from '../src/weekly-planning.ts'
+import { planningKitChoices, planningWeek, planningDays, dinnerCount, planConflicts, type WeeklyPlanning } from '../src/weekly-planning.ts'
 const source = (): WeeklyPlanning => ({ weekStart: '2026-11-15', dates: ['2026-11-15','2026-11-16','2026-11-17','2026-11-18','2026-11-19','2026-11-20','2026-11-21'], timezone: 'America/New_York', sourceVersion: 0, revision: 0, draft: { dinners: [], prep: [] }, applied: { dinners: {}, prep: {} }, features: { meals: true, lists: true, upkeep: true }, events: [], meals: [], tasks: [], jobs: [], lists: [], pantry: [], recipes: [], suggestions: [] })
+test('direct dinner kit choices count units reserved by the week and draft, oldest first within their dates', () => {
+  const plan = source()
+  const kit = (id: string, receivedOn: string, left: number, cookBy = '2026-11-19') => ({ id, provider: 'Box service', receivedOn, cookBy, left, quantity: left })
+  plan.recipes = [
+    { id: 'new', name: 'Chicken', kind: 'meal', totalMinutes: 20, kits: [kit('b', '2026-11-16', 1)] },
+    { id: 'old', name: 'Tacos', kind: 'meal', totalMinutes: 20, kits: [kit('a', '2026-11-15', 3)] },
+    { id: 'side', name: 'Salad', kind: 'side', totalMinutes: 10, kits: [kit('s', '2026-11-15', 1)] },
+  ]
+  plan.meals = [
+    { id: 'planned', recipeId: 'old', date: '2026-11-16', slot: 'dinner', title: 'Tacos', canSwap: true, status: 'planned' },
+    { id: 'cooked', recipeId: 'old', date: '2026-11-15', slot: 'dinner', title: 'Tacos', canSwap: false, status: 'prepared' },
+  ]
+  const draft = { dinners: [{ date: '2026-11-17', kind: 'meal' as const, recipeId: 'old', title: 'Tacos' }], prep: [] }
+  assert.deepEqual(planningKitChoices(plan, draft, '2026-11-18').map(c => [c.kit.id, c.left]), [['a', 1], ['b', 1]])
+  draft.dinners.push({ date: '2026-11-19', kind: 'meal', recipeId: 'old', title: 'Tacos' })
+  assert.deepEqual(planningKitChoices(plan, draft, '2026-11-18').map(c => c.kit.id), ['b'])
+  assert.deepEqual(planningKitChoices(plan, draft, '2026-11-20'), [], 'past cook-by')
+  assert.deepEqual(planningKitChoices(plan, draft, '2026-11-14'), [], 'before arrival')
+  assert.ok(planningKitChoices(plan, draft, '2026-11-19').some(c => c.kit.id === 'a'), 'the current night can keep its choice')
+})
+test('applied draft meals reserve once and a draft swap releases the replaced meal’s kit', () => {
+  const plan = source()
+  plan.recipes = [{ id: 'r', name: 'Tacos', totalMinutes: 20, kits: [{ id: 'k', provider: 'Box service', receivedOn: '2026-11-15', cookBy: '2026-11-22', left: 2, quantity: 2 }] }]
+  const choice = { date: '2026-11-16', kind: 'meal' as const, recipeId: 'r', title: 'Tacos' }
+  plan.meals = [{ id: 'meal', recipeId: 'r', date: choice.date, slot: 'dinner', title: 'Tacos', canSwap: true, status: 'planned' }]
+  plan.applied.dinners[choice.date] = { id: 'meal', choice: JSON.stringify(choice) }
+  assert.equal(planningKitChoices(plan, { dinners: [choice], prep: [] }, '2026-11-17')[0].left, 1)
+  const swap = { ...choice, recipeId: undefined, title: 'Leftovers', replaceMealId: 'meal' }
+  assert.equal(planningKitChoices(plan, { dinners: [swap], prep: [] }, '2026-11-17')[0].left, 2)
+})
 test('planning overview uses family dates, spans events across midnight, and notices overlapping commitments', () => {
   const plan = source()
   plan.events = [

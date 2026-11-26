@@ -68,7 +68,7 @@ export async function readWeeklyPlanning(db: KinwallDb, requested?: string): Pro
       draft: row ? { dinners: features.meals ? JSON.parse(row.draft).dinners : [], prep: features.lists ? JSON.parse(row.draft).prep : [] } : emptyDraft(),
       applied: row ? { dinners: features.meals ? JSON.parse(row.applied).dinners : {}, prep: features.lists ? JSON.parse(row.applied).prep : {} } : emptyApplied(), features,
       events: events.map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, allDay: e.allDay, memberIds: e.memberIds, occurrenceStart: e.occurrenceStart })),
-      meals: meals.map(m => ({ recipeId: m.recipeId, id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
+      meals: meals.map(m => ({ recipeId: m.recipeId, status: m.status, id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
       pantry: expiringWithin(safePantry, 6).filter(i => i.useBy).map(i => ({ id: i.id, title: i.title, useBy: i.useBy! })),
       recipes: recipes.filter(r => r.kind !== 'basic').map(r => ({ id: r.id, kind: r.kind, kits: r.kits, name: r.name, totalMinutes: r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })),
       suggestions: [...kitChoices, ...suggestions.filter(s => !kitChoices.some(k => k.id === s.recipe.id)).map(s => ({ ...s.recipe, uses: s.uses.map(i => ({ title: i.title, useBy: i.useBy })) }))],

@@ -394,3 +394,6 @@ there is no general settings-write MCP tool. Marking a linked meal Cooked (`upda
 status `prepared`) uses an arrived kit automatically; undoing it returns the unit. Past
 cook-by boxes stay on hand until used or marked done. Weekly planning suggests main-dish
 kits oldest first and allows kit choices only within their arrived/cook-by dates.
+
+Weekly-plan meal entries include `status` (`planned` or `prepared`) so kit availability can
+reserve planned units without counting units already used by cooking a second time.

@@ -25,7 +25,7 @@ export const WeeklyPlanningSchema = z.object({
   draft: PlanningDraftSchema, applied: PlanningAppliedSchema,
   features: z.object({ meals: z.boolean(), lists: z.boolean(), upkeep: z.boolean() }),
   events: z.array(z.object({ id: z.string(), title: z.string(), start: z.string(), end: z.string(), allDay: z.boolean(), memberIds: z.array(z.string()), occurrenceStart: z.string().nullable() })),
-  meals: z.array(z.object({ recipeId: z.string().nullable().optional(), id: z.string(), date: z.string(), slot: z.string(), title: z.string(), canSwap: z.boolean() })),
+  meals: z.array(z.object({ recipeId: z.string().nullable().optional(), status: z.enum(['planned', 'prepared']).optional(), id: z.string(), date: z.string(), slot: z.string(), title: z.string(), canSwap: z.boolean() })),
   tasks: z.array(z.object({ id: z.string(), title: z.string(), dueDate: z.string().nullable(), eventId: z.string().nullable(), listId: z.string(), done: z.boolean() })),
   jobs: z.array(z.object({ id: z.string(), title: z.string(), date: z.string() })),
   lists: z.array(z.object({ id: z.string(), name: z.string() })),

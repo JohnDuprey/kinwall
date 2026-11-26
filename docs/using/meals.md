@@ -504,8 +504,13 @@ food itself before cooking.
 The Board shows how many kits need cooking. Planned meals show a box and cook-by date; recipe
 sheets show kits on hand. Choose **Meal kits on hand** in the recipe library's filter sheet.
 Recipe and swap pickers put on-hand kits first. **Plan the week** offers main-dish kits oldest
-first on nights from their arrived date through their cook-by date, leaving out kits already
+first on nights from their arrived date through their cook-by date, leaving out units already
 planned that week. Side dishes and desserts still count as on hand.
+
+In **Plan the week → A few decisions**, each night's **Dinner** choices include meal kits you
+can cook that night, with arrived and cook-by dates. Tap one to choose its recipe directly.
+Kits are offered oldest first, only while units remain after counting that week's planned meals
+and your other draft choices. A recipe with two kits can therefore be chosen for two nights.
 
 Reimporting the same recipe, provider and arrived date updates that box's quantity. Another
 delivery date records a separate box. Ingredients marked **In the kit** stay off the grocery

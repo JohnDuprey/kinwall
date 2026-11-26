@@ -58,7 +58,7 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
       {kits.length > 0 && <>
         <div className="use-it-up-head"><h2 id={data?.expiring.length ? undefined : 'use-it-up-title'}>📦 {t('From your meal kits')}</h2></div>
         {error && <p className="field-error" role="alert">{error}</p>}
-        <ul className="use-it-up-recipes">{kits.map(({ recipe, kit }) => <li key={kit.id} className="use-it-up-recipe">
+        <ul className="use-it-up-recipes">{kits.map(({ recipe, kit }) => <li key={kit.id} className="use-it-up-recipe meal-kit-recipe">
           <button type="button" className="use-it-up-open" onClick={() => onOpen(recipe)}><strong>{recipe.name}</strong><span>{kitWhen(kit)}</span><span>{tn(kit.left, '{n} kit on hand', '{n} kits on hand')}</span>{kitPast(kit, settings.timezone) && <span className="list-overdue">⚠ {t('Past its cook-by')}</span>}</button>
           {admin && <div className="meal-kit-actions"><button type="button" className="btn btn-secondary" onClick={() => onPlan(recipe)}>{t('Plan it')}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void markDone(kit.id, recipe.name)}>{t('Done')}</button></div>}
         </li>)}</ul>

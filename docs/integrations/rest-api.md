@@ -774,3 +774,8 @@ explicit Done counts as `mealKits`, including consumed boxes; `left` is never st
 suggested, oldest first, excluding recipes already planned that week. Weekly apply refuses
 a kit dinner outside its arrived/cook-by dates. Box and cook-by setting changes invalidate
 an earlier weekly review.
+
+Weekly meal entries also include `status` (`planned` or `prepared`). The browser reserves
+kit units for planned meals and unapplied draft choices, avoiding double-counting cooked meals
+or draft choices already applied to the meal plan. Eligible remaining kits appear directly in
+each night's Dinner choices, from their arrived date through their cook-by date.

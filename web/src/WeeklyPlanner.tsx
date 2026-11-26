@@ -15,7 +15,7 @@ import { onMinute } from './minuteTick.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance } from './useTheme.ts'
 import { XIcon } from './icons.tsx'
 import { dateKey, zonedDayKey } from './date.ts'
-import { plannerDismissUntil, plannerInviteHidden, type PlannerDismissDuration, dinnerCount, dinnerNeedsApply, leavePlanning, planConflicts, planningDay, planningDays, type PlanningDinner, type PlanningDraft, type PlanningPrep, type WeeklyPlanning } from './weekly-planning.ts'
+import { planningKitChoices, plannerDismissUntil, plannerInviteHidden, type PlannerDismissDuration, dinnerCount, dinnerNeedsApply, leavePlanning, planConflicts, planningDay, planningDays, type PlanningDinner, type PlanningDraft, type PlanningPrep, type WeeklyPlanning } from './weekly-planning.ts'
 
 const steps = [msg('The week ahead'), msg('A few decisions'), msg('Ready for the week')]
 const labelDate = (key: string) => formatDate(new Date(`${key}T12:00:00Z`), DAY, 'UTC')
@@ -93,10 +93,6 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
   useLayoutEffect(() => { body.current?.closest('.sheet-body')?.scrollTo(0, 0) }, [step])
   const dirty = baseline !== JSON.stringify(draft)
   const conflicts = planConflicts(source, draft)
-  const usedRecipes = new Set([
-    ...source.meals.filter(m => m.date !== recipeDay).map(m => m.recipeId),
-    ...draft.dinners.flatMap(m => m.date !== recipeDay && m.kind === 'meal' ? [m.recipeId] : []),
-  ].filter((id): id is string => !!id))
   const change = (next: PlanningDraft) => { setDraft(next); setStatus(''); setError('') }
   const dinner = (date: string, choice?: PlanningDinner) => change({ ...draft, dinners: [...draft.dinners.filter(m => m.date !== date), ...(choice ? [choice] : [])] })
   const appliedDinner = (date: string) => source.applied.dinners[date]
@@ -163,6 +159,8 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
       {step === 1 && <>
         {source.features.meals && <><h3>{t('Dinners')}</h3><div className="weekly-decisions">{source.dates.map(date => {
           const meals = source.meals.filter(m => m.date === date && m.slot === 'dinner'), choice = draft.dinners.find(m => m.date === date)
+          const kits = planningKitChoices(source, draft, date)
+          const selectedKit = choice?.kind === 'meal' ? kits.find(k => k.recipe.id === choice.recipeId) : undefined
           return <article className="weekly-card" key={date}><span className="weekly-eyebrow">{labelDate(date)}</span>{meals.length ? <>{meals.map(meal => <div key={meal.id}>
             <h3>{meal.title}</h3><p>{t('Already on your meal plan.')}</p>
             {choice?.kind === 'meal' && choice.replaceMealId === meal.id && isSwap(choice) ? <>
@@ -174,10 +172,16 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
               <button className="btn btn-secondary" onClick={() => void openMeals()}>{t('Open Meals')}</button>
             </>}
           </div>)}</> : appliedDinner(date) ? <p>{t('A meal was already added from this plan. Make further changes in Meals.')}</p> : <>
-            <label className="field">{t('Dinner')}<Choose hideLabel label={t('Dinner')} value={choice?.kind ?? 'later'} onChange={next => { if (next === 'meal') chooseDinner(date); else dinner(date, next === 'open' ? { date, kind: 'open' } : undefined) }}
+            <label className="field">{t('Dinner')}<Choose hideLabel label={t('Dinner')} value={selectedKit ? `kit:${selectedKit.kit.id}` : choice?.kind ?? 'later'} onChange={next => {
+              const kit = kits.find(k => `kit:${k.kit.id}` === next)
+              if (kit) dinner(date, { date, kind: 'meal', title: kit.recipe.name, recipeId: kit.recipe.id })
+              else if (next === 'meal') chooseDinner(date)
+              else dinner(date, next === 'open' ? { date, kind: 'open' } : undefined)
+            }}
               options={[
                 { value: 'later', label: t('Decide later') },
                 { value: 'open', label: t('Leave dinner open on purpose') },
+                ...kits.map(({ kit, recipe }) => ({ value: `kit:${kit.id}`, label: recipe.name, detail: `📦 ${kitWhen(kit)}` })),
                 { value: 'meal', label: t('Plan a meal') },
               ]} /></label>
             {choice?.kind === 'meal' && <><h3>{choice.title}</h3><button className="btn btn-secondary" onClick={() => chooseDinner(date)}>{t('Choose another meal')}</button></>}
@@ -199,12 +203,12 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
         <p className="weekly-note">{t('Save draft keeps these choices for later. Add to the week adds meals and to-dos, swaps the dinners shown above and remembers dinners left open. Other meals stay as they are. No pickup requests or timed alerts are sent.')}</p>
       </>}
     </div>
-    {recipeDay && <MealPicker source={source} usedIds={usedRecipes} swapping={!!replaceMealId} date={recipeDay} onClose={() => setRecipeDay(null)} onChoose={choice => { dinner(recipeDay, choice.kind === 'meal' && replaceMealId ? { ...choice, replaceMealId } : choice); setRecipeDay(null) }} />}
+    {recipeDay && <MealPicker source={source} kitChoices={planningKitChoices(source, draft, recipeDay, replaceMealId, false)} swapping={!!replaceMealId} date={recipeDay} onClose={() => setRecipeDay(null)} onChoose={choice => { dinner(recipeDay, choice.kind === 'meal' && replaceMealId ? { ...choice, replaceMealId } : choice); setRecipeDay(null) }} />}
     {prepOpen && <PrepPicker source={source} onClose={() => setPrepOpen(false)} onAdd={prep => { change({ ...draft, prep: [...draft.prep, prep] }); setPrepOpen(false) }} />}
   </Sheet>
 }
 
-function MealPicker({ source, usedIds, swapping, date, onClose, onChoose }: { source: WeeklyPlanning; usedIds: Set<string>; swapping: boolean; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
+function MealPicker({ source, kitChoices, swapping, date, onClose, onChoose }: { source: WeeklyPlanning; kitChoices: ReturnType<typeof planningKitChoices>; swapping: boolean; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
   const formId = useId()
   const [title, setTitle] = useState('')
   const suggested = new Set(source.suggestions.filter(s => s.kit ? s.kit.receivedOn <= date && date <= s.kit.cookBy : s.uses.some(i => !i.useBy || date <= i.useBy)).map(r => r.id))
@@ -215,11 +219,11 @@ function MealPicker({ source, usedIds, swapping, date, onClose, onChoose }: { so
         <button className="btn btn-primary" disabled={!title.trim()} onClick={() => onChoose({ date, kind:'meal', title:title.trim() })}>{t('Use this dinner')}</button>
       </section>
       <section className="weekly-picker-recipes">
-        <RecipeSelector recipes={(swapping ? source.recipes.filter(mainDish) : source.recipes).filter(r => !r.kits?.length || (!usedIds.has(r.id) && r.kits.some(k => k.receivedOn <= date && date <= k.cookBy)))} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
+        <RecipeSelector recipes={(swapping ? source.recipes.filter(mainDish) : source.recipes).filter(r => !r.kits?.length || kitChoices.some(k => k.recipe.id === r.id))} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
           onPick={recipe => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}
           renderRecipe={recipe => {
             const suggestion = source.suggestions.find(s => s.id === recipe.id)
-            const kit = recipe.kits?.find(k => k.receivedOn <= date && date <= k.cookBy)
+            const kit = kitChoices.find(k => k.recipe.id === recipe.id)?.kit
             const usable = suggestion?.uses.filter(i => !i.useBy || date <= i.useBy)
             return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}><strong>{recipe.name}{recipe.kind && recipe.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(recipe.kind)}</span>}</strong>{kit && <span>📦 {kitWhen(kit)}</span>}{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food: item.title, date: labelDate(item.useBy!) })}</span>)}</button>
           }} />
