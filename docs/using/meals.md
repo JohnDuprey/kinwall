@@ -31,7 +31,7 @@ When the header is filtered to one person, the planner and the Board's **Today's
 
 ## Recipes
 
-The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category or [favorites](#favorites), or show archived ones. On a phone the search is on its own and the **Filter and sort** button (the funnel) next to it opens the rest in a sheet; the button shows how many are on, and **Clear filters** puts them back. Tablets and larger show them all in a row. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
+The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category or [favorites](#favorites), or show archived ones. Use **Filters** (the funnel) to open Type, Show, Ingredient category, Favorites, Tags, Cooking history and Sort in a sheet on any screen. The badge counts choices that differ from the defaults; **Clear filters** resets those choices and keeps your search. The button sits beside the meal tabs, or beside search on a narrow phone. Search stays visible beside the tabs when there is room and just below them otherwise. **Manage tags** is next to Tags in the sheet. Card descriptions show up to two lines; open a recipe to read the full description. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
 
 Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, with archive and delete buttons at the bottom) and **Plan this meal**, which opens a new meal with the recipe chosen. A kid's device doesn't get **Plan this meal**: a grown-up plans the meals. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
 
@@ -50,12 +50,11 @@ existing tags, or tap **New tag…** to make one and select it. The new tag is r
 away. Finish choosing tags, then save the recipe to keep its selection. Tap a selected tag in the picker
 to remove it from this recipe.
 
-In the **Recipe library**, choose **Tags** under **Filter and sort** on a phone in either
-orientation, or next to the other filters on a larger screen. The library shows recipes with **all** the selected tags.
+In the **Recipe library**, open **Filters** and choose **Tags** on any screen. The library shows recipes with **all** the selected tags.
 Search, favorites, ingredient categories and the other filters still apply. Tap a tag's remove
 button under search to take off one filter, or **Clear tags** to take them all off.
 
-A grown-up can open **Manage tags** from the library to add, rename or delete tags. Renaming a
+A grown-up can open **Manage tags** beside Tags in the library’s **Filters** sheet to add, rename or delete tags. Renaming a
 tag updates it everywhere it appears. Deleting a tag removes it from every recipe that uses it.
 The recipes stay in the library. Tags travel with your [family export](../your-data/export-import.md)
 and stay private when you [share a recipe](#sharing-a-recipe).

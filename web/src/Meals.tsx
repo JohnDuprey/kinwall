@@ -17,7 +17,7 @@ import RecipePhoto from './RecipePhoto.tsx'
 import { RecipeTagFilter, RecipeTagManager, type RecipeTagChange } from './RecipeTags.tsx'
 import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
-import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
+import { useIsPhone } from './useIsPhone.ts'
 import { availableRecipeTagIds, browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
 import RecipeBrowseControls from './RecipeBrowseControls.tsx'
 import type { Meal, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
@@ -38,8 +38,6 @@ export default function Meals() {
   const from = days[0], to = days[6]
   // Phones start on one day (a week of cards is a long scroll); Week is a tap away.
   const isPhone = useIsPhone()
-  const shortLandscape = useMediaQuery(SHORT_LANDSCAPE)
-  const compactRecipeFilters = isPhone || shortLandscape
   const [span, setSpan] = useState<'day' | 'week'>('day')
   const dayView = isPhone && span === 'day'
   const step = dayView ? 1 : 7
@@ -67,7 +65,7 @@ export default function Meals() {
   // '' everything, 'any' anyone's favorites, else one member's ("Sam's favorites").
   const [loved, setLoved] = useState('')
   const [kind, setKind] = useState<'' | RecipeKind>('')
-  const [showFilters, setShowFilters] = useState(false) // a phone's filters, in a sheet
+  const [showFilters, setShowFilters] = useState(false)
   const [editing, setEditing] = useState<{ meal: Meal | null; initial: MealDraft } | null>(null)
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean } | null>(null)
   const [openMeal, setOpenMeal] = useState<Meal | null>(null)
@@ -196,7 +194,9 @@ export default function Meals() {
         { value: 'any', label: t("Anyone's favorites") },
         ...members.map(m => ({ value: m.id, label: t("{name}'s favorites", { name: m.name }) })),
       ]} /></div>
-    <RecipeTagFilter tags={tagCatalog ?? []} value={tagIds} onChange={setTagIds} />
+    <div className="recipe-filter-tags"><RecipeTagFilter tags={tagCatalog ?? []} value={tagIds} onChange={setTagIds} />
+      {admin && <button type="button" className="link-btn recipe-tag-action" onClick={() => setManagingTags(true)}>{t('Manage tags')}</button>}
+    </div>
     <RecipeBrowseControls sort={sort} cooked={cooked} onSort={setSort} onCooked={setCooked} />
   </>
   // Phone Week: a day's empty slots fold into one "+" row (the slot to plan: dinner when it's free).
@@ -209,7 +209,15 @@ export default function Meals() {
     <div className="meals-heading"><div><h1>{t('Meals')}</h1><p className="field-hint">{t('What are we eating, and what do we need to buy?')}</p></div>
       <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> {t('Groceries')}</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> {t('Import from a link')}</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? planMeal() : view === 'recipes' ? setRecipeSheet({ recipe: null }) : setPlace({ restaurant: null, editing: true })}><PlusIcon /> {view === 'week' ? t('Plan meal') : view === 'recipes' ? t('New recipe') : t('New restaurant')}</button>}</div>
     </div>
-    <Segmented tabs idBase="meals-tab" label={t('Meals sections')} value={view} onChange={setView} options={[{ key: 'week', label: t('Week planner') }, { key: 'recipes', label: t('Recipe library') }, { key: 'restaurants', label: t('Restaurants') }]} />
+    <div className="meals-navigation">
+      <Segmented tabs idBase="meals-tab" label={t('Meals sections')} value={view} onChange={setView} options={[{ key: 'week', label: t('Week planner') }, { key: 'recipes', label: t('Recipe library') }, { key: 'restaurants', label: t('Restaurants') }]} />
+      {view === 'recipes' && <>
+        <div className="field meals-search"><label className="sr-only" htmlFor="recipe-search">{t('Find a recipe')}</label><input id="recipe-search" type="search" placeholder={t('Find a recipe')} value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <button type="button" className={`btn btn-secondary filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-haspopup="dialog" aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
+          <FilterIcon width={20} height={20} /><span className="meals-filters-label">{t('Filters')}</span>{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}
+        </button>
+      </>}
+    </div>
     {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
     {me && !admin && <p className="field-hint">{t('A grown-up plans the meals. You can rate recipes, add your order on a takeout night and mark a meal you cook as done.')}</p>}
     {view === 'week' ? <section role="tabpanel" aria-labelledby="meals-tab-week">
@@ -244,13 +252,7 @@ export default function Meals() {
       </div>}
       {dayView && useItUp}
     </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
-      <div className="meals-toolbar">
-        <div className="field meals-search"><label htmlFor="recipe-search">{t('Find a recipe')}</label><input id="recipe-search" type="search" placeholder={t('Tacos, rice…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
-        {/* Keep results and active tags visible on short screens. */}
-        {compactRecipeFilters ? <button type="button" className={`icon-btn filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
-          <FilterIcon width={20} height={20} />{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}</button> : filters}
-      </div>
-      {showFilters && compactRecipeFilters && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
+      {showFilters && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
         {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name'); setTagIds([]) }}>{t('Clear filters')}</button>}
         <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>{tn(shownRecipes.length, 'Show {n} recipe', 'Show {n} recipes')}</button>
       </>}>{filters}</Sheet>}
@@ -268,10 +270,7 @@ export default function Meals() {
       {tagError && <p role="alert" className="field-error">{tagError} <button type="button" className="link-btn recipe-tag-action" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
       {recipeError && <LoadError what="recipes" error={recipeError} onRetry={() => setTick(n => n + 1)} />}
       {!recipesLoaded && !recipeError ? <p role="status">{t('Loading recipes…')}</p> : <>
-        <div className="recipe-library-summary">
-          <p className="field-hint" role="status">{tn(shownRecipes.length, '{n} recipe', '{n} recipes')}</p>
-          {admin && <button type="button" className="link-btn recipe-tag-action" onClick={() => setManagingTags(true)}>{t('Manage tags')}</button>}
-        </div>
+        <p className="sr-only" role="status" aria-live="polite">{tn(shownRecipes.length, '{n} recipe', '{n} recipes')}</p>
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || cooked !== 'all' || filter !== 'active' || tagIds.length ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
