@@ -47,10 +47,44 @@ test('ideas count recipes once, exclude tags and staples, and require ten percen
   assert.equal(suggestNewTags([...library, ...Array.from({ length: 27 }, () => recipe('Dinner'))], [])[0]?.count, 3);
   assert.deepEqual(suggestNewTags([...library, ...Array.from({ length: 28 }, () => recipe('Dinner'))], []), []);
 });
-test('ingredient ideas keep meaningful names together instead of suggesting modifiers', () => {
+test('ingredient evidence alone does not suggest dairy or modifiers', () => {
   const library = Array.from({ length: 3 }, () => recipe('Bowl', ['Greek yogurt', 'olive oil']));
   const ideas = suggestNewTags(library, [{ id: 'b', name: 'Bowl' }]);
-  assert.deepEqual(ideas.map(i => i.name), ['Greek yogurt']);
+  assert.deepEqual(ideas, []);
+});
+test('nine-recipe library offers chicken, not incidental ingredients or pasta already covered by a tag', () => {
+  const library = [
+    recipe('Lemon chicken', ['chicken breast', 'tomato', 'basil', 'parmesan']),
+    recipe('Roast chicken', ['chicken thigh', 'tomato', 'basil', 'parmesan']),
+    recipe('Skillet', ['chicken', 'tomato', 'basil', 'parmesan']),
+    recipe('Family bowl', ['tomato', 'tortilla']),
+    recipe('Lunch', ['tortilla']),
+    recipe('Picnic', ['tortilla']),
+    recipe('Pasta bake', ['pasta']),
+    recipe('Evening', ['pasta']),
+    recipe('Sunday'),
+  ];
+  assert.deepEqual(suggestNewTags(library, []).map(i => i.name), ['Chicken']);
+  const twoNames = library.map((r, i) => i === 7 ? { ...r, name: 'Pasta salad' } : r);
+  assert.deepEqual(suggestNewTags(twoNames, []).map(i => i.name), ['Chicken', 'Pasta']);
+  assert.deepEqual(suggestNewTags(twoNames, [{ id: 'p', name: 'Pásta nights' }]).map(i => i.name), ['Chicken']);
+});
+test('name and hint evidence needs two recipes and ranks ahead of ingredient-only ideas', () => {
+  const library = [
+    recipe('Tomato bowl', ['chicken'], { cuisine: ['Italian'], keywords: ['Italian'] }),
+    recipe('Tomato toast', ['chicken'], { recipeCategory: ['Italian'] }),
+    recipe('Plate', ['chicken', 'basil']), recipe('Dish', ['chicken', 'basil']), recipe('Supper', ['chicken', 'basil']),
+  ];
+  const ideas = suggestNewTags(library, []);
+  assert.deepEqual(ideas.map(i => [i.name, i.count]), [['Italian', 2], ['Tomato', 2], ['Chicken', 5]]);
+  assert.deepEqual(ideas[0].examples, ['Tomato bowl', 'Tomato toast']);
+  assert.deepEqual(suggestNewTags(library.slice(0, 1), []), []);
+});
+test('main ingredients still require three recipes and ten percent of large libraries', () => {
+  const main = Array.from({ length: 3 }, () => recipe('Dinner', ['eggs', 'lentils', 'beans', 'rice']));
+  assert.deepEqual(suggestNewTags(main.slice(0, 2), []), []);
+  assert.equal(suggestNewTags([...main, ...Array.from({ length: 27 }, () => recipe('Dinner'))], []).length, 4);
+  assert.deepEqual(suggestNewTags([...main, ...Array.from({ length: 28 }, () => recipe('Dinner'))], []), []);
 });
 test('three shared ingredient names can qualify even when Jaccard is below forty percent', () => {
   const tags = [{ id: 'p', name: 'Pasta night' }];

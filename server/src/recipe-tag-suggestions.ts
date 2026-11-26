@@ -14,6 +14,7 @@ export const PANTRY_STAPLES = ['salt', 'pepper', 'oil', 'water', 'butter', 'suga
 const STOP = new Set('a an the and or with without of for in on to from fresh dried chopped diced minced sliced ground large small medium cup tbsp tsp tablespoon teaspoon oz lb ounce pound gram kg ml clove can optional taste divided recipe dinner lunch meal easy homemade'.split(' '));
 const MEAT = new Set('chicken beef pork turkey bacon sausage ham lamb fish salmon tuna shrimp prawn anchovy cod haddock trout sardine crab lobster mussel oyster clam duck veal venison gelatin lard'.split(' '));
 const DAIRY_EGG = new Set('milk cream cheese butter yogurt yoghurt egg whey casein ghee honey parmesan mozzarella cheddar feta'.split(' '));
+const MAIN_INGREDIENTS = new Set('chicken beef pork turkey fish salmon shrimp tofu bean lentil pasta rice egg'.split(' '));
 function singular(word: string): string {
   if (/^(cookies|brownies|smoothies|pies|veggies)$/.test(word)) return word.slice(0, -1);
   if (word.endsWith('ies')) return word.slice(0, -3) + 'y';
@@ -68,20 +69,32 @@ export function suggestTags(recipe: SuggestionRecipe, tags: readonly Tag[], libr
   return matches.sort((a, b) => a.priority - b.priority || b.score - a.score || a.index - b.index).slice(0, 5).map(({ tagId, rule, reason, fact }) => ({ tagId, rule, reason, ...(fact && { fact }) }));
 }
 export function suggestNewTags(library: readonly SuggestionRecipe[], tags: readonly Tag[], staples: readonly string[] = PANTRY_STAPLES): NewTagIdea[] {
-  const existing = new Set(tags.map(t => phrase(t.name)));
-  const counts = new Map<string, { count: number; examples: string[] }>();
+  // A whole word in an existing tag covers that idea too: Pasta night already covers Pasta.
+  const existing = new Set(tags.flatMap(t => words(t.name)));
+  const ignored = new Set(staples.flatMap(words));
+  const counts = new Map<string, { named: number; count: number; namedExamples: string[]; examples: string[] }>();
   for (const recipe of library) {
-    const ignored = new Set(staples.flatMap(words));
-    const tokens = new Set([...ingredients(recipe, staples), ...[recipe.name, ...hints(recipe)].flatMap(words).filter(w => w.length > 2 && !STOP.has(w) && !ignored.has(w) && !/\p{N}/u.test(w))]);
+    const named = new Set([recipe.name, ...hints(recipe)].flatMap(words).filter(w => w.length > 2 && !STOP.has(w) && !ignored.has(w) && !/\p{N}/u.test(w)));
+    const main = [...ingredients(recipe, staples)].flatMap(words).filter(w => MAIN_INGREDIENTS.has(w));
+    const tokens = new Set([...named, ...main]);
     for (const word of tokens) {
       if (existing.has(word)) continue;
-      const entry = counts.get(word) ?? { count: 0, examples: [] };
+      const entry = counts.get(word) ?? { named: 0, count: 0, namedExamples: [], examples: [] };
       entry.count++;
       if (entry.examples.length < 3) entry.examples.push(recipe.name);
+      if (named.has(word)) {
+        entry.named++;
+        if (entry.namedExamples.length < 3) entry.namedExamples.push(recipe.name);
+      }
       counts.set(word, entry);
     }
   }
-  const minimum = Math.max(3, Math.ceil(library.length * 0.1));
-  return [...counts].filter(([, v]) => v.count >= minimum).sort(([a, x], [b, y]) => y.count - x.count || (a < b ? -1 : a > b ? 1 : 0)).slice(0, 8)
-    .map(([word, value]) => ({ name: word[0].toUpperCase() + word.slice(1), ...value }));
+  const namedMinimum = Math.max(2, Math.ceil(library.length * 0.1));
+  const mainMinimum = Math.max(3, Math.ceil(library.length * 0.1));
+  return [...counts].flatMap(([word, value]) => {
+    const named = value.named >= namedMinimum;
+    if (!named && (!MAIN_INGREDIENTS.has(word) || value.count < mainMinimum)) return [];
+    return [{ word, priority: named ? 0 : 1, count: named ? value.named : value.count, examples: named ? value.namedExamples : value.examples }];
+  }).sort((a, b) => a.priority - b.priority || b.count - a.count || (a.word < b.word ? -1 : a.word > b.word ? 1 : 0)).slice(0, 8)
+    .map(({ word, count, examples }) => ({ name: word[0].toUpperCase() + word.slice(1), count, examples }));
 }

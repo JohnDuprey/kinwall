@@ -51,8 +51,16 @@ suggested** for a recipe. **Add all** asks you to confirm the number of tags bef
 whole review. Saving shows progress; **Retry failed recipes** tries the recipes that failed.
 Recipes with no suggestions are folded at the end.
 
-**Tags you might add** shows common words found in at least three recipes and at least 10% of
-your library. Each idea includes a count and example recipes. **Add tag** creates the tag and
+**Tags you might add** first looks for words in the names or known page details of at least two
+recipes and at least 10% of your library. Ingredient matches alone can suggest only a few main
+ingredients: chicken, beef, pork, turkey, fish, salmon, shrimp, tofu, beans, lentils, pasta, rice
+or eggs. Those need at least three recipes and at least 10% of the library; herbs, cheeses,
+vegetables and tortillas never qualify from ingredients alone. Name and page-detail matches
+come first. Their counts and examples use those matches; main-ingredient ideas count recipes
+where the word appears in the name, page details or ingredients, once per recipe.
+
+A word already in an existing tag name is covered: **Pasta night** prevents a separate **Pasta**
+idea. Each idea includes a count and example recipes. **Add tag** creates the tag and
 makes it available in suggestions immediately; it does not tag any recipes. These actions are
 available on parent devices, like the other tag controls. The rules use English word lists;
 food preference suggestions are simple ingredient matches, so check the recipe yourself.
