@@ -4282,6 +4282,7 @@ html:root[data-cast] {
 .board-custom-column > .board-card { grid-area: auto !important; }
 .board-custom-columns > .board-tiles { grid-area: auto; grid-column: 1 / -1; }
 
+.recipe-tag-suggestions > .field-hint { margin: 0 0 8px; } /* the Suggested label, clear of its chips */
 .recipe-suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .recipe-suggestion-chip { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; text-align: left; white-space: normal; min-height: 44px; max-width: 100%; padding: 6px 16px; border-radius: 16px; line-height: 1.2; }
 .recipe-suggestion-chip small { color: var(--text-dim); font-weight: normal; font-size: 0.75rem; line-height: 1.2; }
