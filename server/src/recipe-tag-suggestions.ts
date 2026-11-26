@@ -14,6 +14,8 @@ export const PANTRY_STAPLES = ['salt', 'pepper', 'oil', 'water', 'butter', 'suga
 const STOP = new Set('a an the and or with without of for in on to from fresh dried chopped diced minced sliced ground large small medium cup tbsp tsp tablespoon teaspoon oz lb ounce pound gram kg ml clove can optional taste divided recipe dinner lunch meal easy homemade'.split(' '));
 const MEAT = new Set('chicken beef pork turkey bacon sausage ham lamb fish salmon tuna shrimp prawn anchovy cod haddock trout sardine crab lobster mussel oyster clam duck veal venison gelatin lard'.split(' '));
 const DAIRY_EGG = new Set('milk cream cheese butter yogurt yoghurt egg whey casein ghee honey parmesan mozzarella cheddar feta'.split(' '));
+// Words that describe a dish rather than group it: fine on a family's own tags, never offered as new ones.
+const DESCRIBING = new Set('organic style creamy crispy crunchy cheesy loaded classic ultimate best simple perfect tasty delicious famous favorite extra double topped smothered'.split(' '));
 const MAIN_INGREDIENTS = new Set('chicken beef pork turkey fish salmon shrimp tofu bean lentil pasta rice egg'.split(' '));
 function singular(word: string): string {
   if (/^(cookies|brownies|smoothies|pies|veggies)$/.test(word)) return word.slice(0, -1);
@@ -74,7 +76,9 @@ export function suggestNewTags(library: readonly SuggestionRecipe[], tags: reado
   const ignored = new Set(staples.flatMap(words));
   const counts = new Map<string, { named: number; count: number; namedExamples: string[]; examples: string[] }>();
   for (const recipe of library) {
-    const named = new Set([recipe.name, ...hints(recipe)].flatMap(words).filter(w => w.length > 2 && !STOP.has(w) && !ignored.has(w) && !/\p{N}/u.test(w)));
+    // "No-Bake bars" aren't baked: the phrase doesn't count toward a Bake tag.
+    const text = [recipe.name, ...hints(recipe)].map(t => t.replace(/\bno[\s-]+bake[ds]?\b/gi, ' '));
+    const named = new Set(text.flatMap(words).filter(w => w.length > 2 && !STOP.has(w) && !DESCRIBING.has(w) && !ignored.has(w) && !/\p{N}/u.test(w)));
     const main = [...ingredients(recipe, staples)].flatMap(words).filter(w => MAIN_INGREDIENTS.has(w));
     const tokens = new Set([...named, ...main]);
     for (const word of tokens) {

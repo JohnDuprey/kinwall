@@ -57,7 +57,7 @@ ingredients: chicken, beef, pork, turkey, fish, salmon, shrimp, tofu, beans, len
 or eggs. Those need at least three recipes and at least 10% of the library; herbs, cheeses,
 vegetables and tortillas never qualify from ingredients alone. Name and page-detail matches
 come first. Their counts and examples use those matches; main-ingredient ideas count recipes
-where the word appears in the name, page details or ingredients, once per recipe.
+where the word appears in the name, page details or ingredients, once per recipe. Words that only describe a dish (Organic, Creamy, Style, Crispy, Classic and the like) are never offered, and "No-Bake" doesn't count toward Bake.
 
 A word already in an existing tag name is covered: **Pasta night** prevents a separate **Pasta**
 idea. Each idea includes a count and example recipes. **Add tag** creates the tag and

@@ -116,3 +116,14 @@ test('the staple list is configurable and the current recipe does not count as a
   assert.deepEqual(suggestTags(recipe('New', ['tomato']), [tag], library, ['tomato']), []);
   assert.deepEqual(suggestTags(recipe('One', ['tomato'], { id: 'one' }), [tag], library), []);
 });
+
+test('new tag ideas skip words that describe a dish, and No-Bake never counts as Bake', () => {
+  // Names like a family's HelloFresh library: Organic, Creamy and Style describe dishes, not groups.
+  const library = [
+    recipe('Organic Beef Shepherd\'s Pie'), recipe('Creamy Organic Chicken Tacos'), recipe('Tex-Mex Style Organic Chicken Bowls'),
+    recipe('Creamy Tuscan Chicken'), recipe('Southern Style Chicken Bake'), recipe('No-Bake Peanut Butter Bars'), recipe('No Bake Cheesecake'),
+  ];
+  const ideas = suggestNewTags(library, []).map(i => i.name.toLowerCase());
+  assert.ok(ideas.includes('chicken'));
+  for (const word of ['organic', 'creamy', 'style', 'bake']) assert.ok(!ideas.includes(word), word);
+});
