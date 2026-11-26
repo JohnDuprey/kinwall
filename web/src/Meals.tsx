@@ -170,12 +170,23 @@ export default function Meals() {
   const shownMeal = openMeal ?? linkedMeal
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
-  // The day-by-day list opens at today, as phones used to open on today's meals.
+  // The day-by-day list opens at today, as phones used to open on today's meals. What loads after the
+  // plan (Use it up, photos) makes the page tall enough to reach today, so keep today in place as the
+  // page grows, until the person scrolls, taps or a few seconds pass.
   const atToday = useRef(false)
   useEffect(() => {
     if (!agenda || !meals || atToday.current) return
+    const day = document.getElementById(`meal-day-${today}`)
+    const view = day?.closest('.meals-view')
+    if (!day || !view) return
     atToday.current = true
-    document.getElementById(`meal-day-${today}`)?.scrollIntoView({ block: 'start' })
+    const go = () => day.scrollIntoView({ block: 'start' })
+    go()
+    const growing = new ResizeObserver(go)
+    for (const part of view.children) growing.observe(part)
+    const stop = () => { growing.disconnect(); clearTimeout(timer); for (const type of ['pointerdown', 'wheel', 'keydown']) view.removeEventListener(type, stop) }
+    const timer = setTimeout(stop, 4000)
+    for (const type of ['pointerdown', 'wheel', 'keydown']) view.addEventListener(type, stop)
   }, [agenda, meals, today])
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
   const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked, tagIds })
