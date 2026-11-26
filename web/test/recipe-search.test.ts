@@ -36,6 +36,14 @@ test('pickerRecipes: basics stay out unless asked for, or already chosen', () =>
   assert.deepEqual(pickerRecipes(all, '', '3').map(r => r.id), ['3', '1'])
 })
 
+test('pickerRecipes: sides and desserts can be planned by hand; only main dishes are swap suggestions', async () => {
+  const { mainDish } = await import('../src/recipe-search.ts')
+  const all = (['meal', 'side', 'dessert', 'basic'] as const).map((kind, i) => ({ ...recipe(`${i}`, kind), kind }))
+  assert.deepEqual(pickerRecipes(all, '').map(r => r.kind), ['dessert', 'meal', 'side'])
+  assert.deepEqual(all.filter(mainDish).map(r => r.kind), ['meal'])
+  assert.ok(mainDish(recipe('old', 'Old recipe')))
+})
+
 test('basicKey: any case, punctuation and spacing; filler words like blend and mix drop out', () => {
   assert.equal(basicKey('Taco Seasoning'), 'taco seasoning')
   assert.equal(basicKey('  taco   seasoning blend '), 'taco seasoning')

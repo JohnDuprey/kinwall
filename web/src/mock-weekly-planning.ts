@@ -56,7 +56,7 @@ async function read(requested?: string): Promise<WeeklyPlanning> {
     events: events.map(e => ({ id:e.id,title:e.title,start:e.start,end:e.end,allDay:e.allDay,memberIds:e.memberIds,occurrenceStart:e.occurrenceStart })),
     meals: settings.features.meals ? meals.map(m => ({ id:m.id,date:m.date,slot:m.slot,title:m.title,canSwap:m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })) : [],
     pantry: settings.features.meals && settings.features.lists ? pantry.expiring.filter(i => i.useBy && i.useBy >= dates[0] && i.useBy <= dates[6]).map(i => ({id:i.id,title:i.title,useBy:i.useBy!})) : [],
-    recipes: settings.features.meals ? recipes.filter(r => r.kind !== 'basic').map(r => ({ id:r.id,name:r.name,totalMinutes:r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })) : [],
+    recipes: settings.features.meals ? recipes.filter(r => r.kind !== 'basic').map(r => ({ id:r.id,kind:r.kind ?? 'meal',name:r.name,totalMinutes:r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })) : [],
     lists: settings.features.lists ? todos.map(l => ({ id:l.id,name:l.name })) : [],
     tasks: settings.features.lists ? taskRows.filter(i => !i.done && i.dueDate && i.dueDate >= dates[0] && i.dueDate <= dates[6]).map(i => ({ id:i.id,title:i.title,dueDate:i.dueDate,eventId:i.eventId,listId:i.listId,done:i.done })) : [],
     jobs: settings.features.upkeep ? jobs.filter(j => j.nextDue && j.nextDue <= dates[6]).map(j => ({ id:j.id,title:j.title,date:j.nextDue! })) : [],
@@ -82,7 +82,7 @@ export async function mockWeeklyPlanningRequest(path: string, options: RequestIn
       if (dinner.replaceMealId) {
         if (!snapshot.meals.some(m => m.id === dinner.replaceMealId && m.date === dinner.date && m.slot === 'dinner' && m.canSwap)) error('This dinner can no longer be swapped here. Refresh the week or open Meals.')
       } else if (snapshot.applied.dinners[dinner.date] || snapshot.meals.some(m => m.date === dinner.date && m.slot === 'dinner')) error('Dinner is already planned for that day.')
-      if (dinner.recipeId && !snapshot.recipes.some(r => r.id === dinner.recipeId)) error('Choose a meal recipe that is still in your library.', 400)
+      if (dinner.recipeId && !snapshot.recipes.some(r => r.id === dinner.recipeId && (!dinner.replaceMealId || (r.kind ?? 'meal') === 'meal'))) error('Choose a meal recipe that is still in your library.', 400)
     }
     for (const prep of input.draft.prep) if (!snapshot.applied.prep[prep.id] && (!snapshot.events.some(e => e.id === prep.eventId && e.occurrenceStart === prep.occurrenceStart) || !snapshot.lists.some(l => l.id === prep.listId))) error('Choose a visible event and an active to-do list.', 400)
     for (const dinner of input.draft.dinners) if (dinner.kind === 'meal' && snapshot.applied.dinners[dinner.date]?.choice !== JSON.stringify(dinner)) {

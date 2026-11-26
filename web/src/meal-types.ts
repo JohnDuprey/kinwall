@@ -13,8 +13,8 @@ export interface IngredientInput {
   basicId?: string | null // the basic this line is made from (a recipe with kind 'basic')
 }
 export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string; scalable: boolean /* amount scales with servings */; basicName?: string | null }
-/** meal: the default; basic: a component used inside other recipes (seasoning blend, sauce, dough). */
-export type RecipeKind = 'meal' | 'basic'
+/** meal: a main dish (the default); side and dessert: plannable recipes; basic: a component used inside other recipes (seasoning blend, sauce, dough). */
+export type RecipeKind = 'meal' | 'side' | 'dessert' | 'basic'
 /** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly. */
 export interface StepTimer { name: string | null; minutes: number }
 /** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly.

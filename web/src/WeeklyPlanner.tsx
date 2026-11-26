@@ -1,4 +1,6 @@
 import RecipeSelector from './RecipeSelector.tsx'
+import { mainDish } from './recipe-search.ts'
+import { recipeTypeLabel } from './meal-date.ts'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Choose } from './PickField.tsx'
 import { useApp } from './AppContext.tsx'
@@ -192,12 +194,12 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
         <p className="weekly-note">{t('Save draft keeps these choices for later. Add to the week adds meals and to-dos, swaps the dinners shown above and remembers dinners left open. Other meals stay as they are. No pickup requests or timed alerts are sent.')}</p>
       </>}
     </div>
-    {recipeDay && <MealPicker source={source} date={recipeDay} onClose={() => setRecipeDay(null)} onChoose={choice => { dinner(recipeDay, choice.kind === 'meal' && replaceMealId ? { ...choice, replaceMealId } : choice); setRecipeDay(null) }} />}
+    {recipeDay && <MealPicker source={source} swapping={!!replaceMealId} date={recipeDay} onClose={() => setRecipeDay(null)} onChoose={choice => { dinner(recipeDay, choice.kind === 'meal' && replaceMealId ? { ...choice, replaceMealId } : choice); setRecipeDay(null) }} />}
     {prepOpen && <PrepPicker source={source} onClose={() => setPrepOpen(false)} onAdd={prep => { change({ ...draft, prep: [...draft.prep, prep] }); setPrepOpen(false) }} />}
   </Sheet>
 }
 
-function MealPicker({ source, date, onClose, onChoose }: { source: WeeklyPlanning; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
+function MealPicker({ source, swapping, date, onClose, onChoose }: { source: WeeklyPlanning; swapping: boolean; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
   const formId = useId()
   const [title, setTitle] = useState('')
   const suggested = new Set(source.suggestions.filter(s => s.uses.some(i => !i.useBy || date <= i.useBy)).map(r => r.id))
@@ -208,12 +210,12 @@ function MealPicker({ source, date, onClose, onChoose }: { source: WeeklyPlannin
         <button className="btn btn-primary" disabled={!title.trim()} onClick={() => onChoose({ date, kind:'meal', title:title.trim() })}>{t('Use this dinner')}</button>
       </section>
       <section className="weekly-picker-recipes">
-        <RecipeSelector recipes={source.recipes} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
+        <RecipeSelector recipes={swapping ? source.recipes.filter(mainDish) : source.recipes} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
           onPick={recipe => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}
           renderRecipe={recipe => {
             const suggestion = source.suggestions.find(s => s.id === recipe.id)
             const usable = suggestion?.uses.filter(i => !i.useBy || date <= i.useBy)
-            return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}><strong>{recipe.name}</strong>{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food: item.title, date: labelDate(item.useBy!) })}</span>)}</button>
+            return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}><strong>{recipe.name}{recipe.kind && recipe.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(recipe.kind)}</span>}</strong>{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food: item.title, date: labelDate(item.useBy!) })}</span>)}</button>
           }} />
       </section>
     </div>

@@ -10,6 +10,21 @@ const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migra
 const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
 const migrations = files.map((name) => ({ name, sql: readFileSync(path.join(dir, name), 'utf8') }));
 
+test('recipe types migration adds an empty column without rebuilding or changing existing family rows', async () => {
+  const db = openDb(':memory:');
+  await runMigrations(db, migrations.filter(m => m.name < '0160'));
+  await db.prepare("INSERT INTO recipes (id,name,kind,default_servings,created_at,updated_at) VALUES ('main','Soup','meal',4,'2026-11-25','2026-11-25'),('basic','Dough','basic',4,'2026-11-25','2026-11-25')").run();
+  await db.prepare("INSERT INTO recipe_ingredients (id,recipe_id,name,normalized_name) VALUES ('ingredient','main','Dough','dough')").run();
+  const before = await db.prepare('SELECT * FROM recipes ORDER BY id').all();
+  const migration = migrations.find(m => m.name === '0160_recipe_types.sql')!;
+  assert.deepEqual(sqlStatements(migration.sql), ["ALTER TABLE recipes ADD COLUMN course TEXT CHECK(course IN ('side','dessert'))"]);
+  await runMigrations(db, migrations);
+  const after = await db.prepare('SELECT * FROM recipes ORDER BY id').all<Record<string, unknown>>();
+  assert.deepEqual(after.results.map(({ course, ...recipe }) => { assert.equal(course, null); return recipe; }), before.results.map(recipe => ({ ...recipe })));
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM recipe_ingredients').first<{ n: number }>())!.n, 1);
+  assert.throws(() => db.prepare("UPDATE recipes SET course = 'other'").run(), /CHECK constraint/);
+});
+
 test('worker runtime migrations: apply every file once, then no-op', async () => {
   const db = openDb(':memory:') as unknown as D1Database;
   await runMigrations(db, migrations);

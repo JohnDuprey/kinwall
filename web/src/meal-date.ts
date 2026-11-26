@@ -1,6 +1,6 @@
 import { addDays, startOfWeek } from 'date-fns'
 import { dateKey } from './date.ts'
-import type { MealKind, MealSlot, MealStatus } from './meal-types.ts'
+import type { MealKind, MealSlot, MealStatus, RecipeKind } from './meal-types.ts'
 import { ordersInLabel } from './orders.ts'
 import { formatDate, intlLocale, msg, t, tm, tn } from './i18n.ts'
 
@@ -95,3 +95,5 @@ export const mealForMember = (meal: { eaterIds?: string[]; assigneeMemberId: str
 /** Tapping a planned meal opens its recipe (read-only, "Edit meal" a tap away) when the library has it; otherwise the meal's own sheet. */
 export const mealRecipe = <R extends { id: string }>(meal: { mealKind: string; recipeId: string | null }, recipes: R[]): R | undefined =>
   meal.mealKind === 'recipe' ? recipes.find(r => r.id === meal.recipeId) : undefined
+
+export const recipeTypeLabel = (kind: RecipeKind) => kind === 'side' ? t('Side') : kind === 'dessert' ? t('Dessert') : kind === 'basic' ? t('Basic') : t('Main dish')

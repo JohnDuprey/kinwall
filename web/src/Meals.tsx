@@ -8,7 +8,7 @@ import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, FilterIcon, LinkIcon, ListIcon, PlusIcon, XIcon } from './icons.tsx'
 import { t, tm, tn } from './i18n.ts'
-import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, planDay, servingsLabel } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, mealDayLabel, statusLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, planDay, recipeTypeLabel, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet, { Stars, ratingOwner } from './RecipeSheet.tsx'
 import Sheet from './Sheet.tsx'
@@ -174,7 +174,9 @@ export default function Meals() {
     <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><Choose hideLabel label={t('Type')} id="recipe-kind" value={kind} onChange={next => setKind(next as '' | RecipeKind)}
       options={[
         { value: '', label: t('All') },
-        { value: 'meal', label: t('Meals') },
+        { value: 'meal', label: t('Main dishes') },
+        { value: 'side', label: t('Sides') },
+        { value: 'dessert', label: t('Desserts') },
         { value: 'basic', label: t('Basics') },
       ]} /></div>
     <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={filter} onChange={setFilter}
@@ -274,7 +276,7 @@ export default function Meals() {
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || loved || cooked !== 'all' || filter !== 'active' || tagIds.length ? t('No recipes match these filters.') : t('Your recipe library is ready. Add a recipe with ingredients to start planning.')}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
-          <strong>{recipe.name}{recipe.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && t('Makes {amount}', { amount: recipe.makes }) : servingsLabel(recipe.defaultServings), tn(recipe.ingredients.length, '{n} ingredient', '{n} ingredients'), recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && t('Archived')].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{!!recipe.favoritedBy?.length && <span className="recipe-loved"><span aria-hidden="true">♥</span><EaterAvatars ids={recipe.favoritedBy} members={members} label={t('Favorite of')} /></span>}{recipe.description && <p>{recipe.description}</p>}
+          <strong>{recipe.name}{recipe.kind && recipe.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(recipe.kind)}</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && t('Makes {amount}', { amount: recipe.makes }) : servingsLabel(recipe.defaultServings), tn(recipe.ingredients.length, '{n} ingredient', '{n} ingredients'), recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && t('Archived')].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{!!recipe.favoritedBy?.length && <span className="recipe-loved"><span aria-hidden="true">♥</span><EaterAvatars ids={recipe.favoritedBy} members={members} label={t('Favorite of')} /></span>}{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}
     </section>}

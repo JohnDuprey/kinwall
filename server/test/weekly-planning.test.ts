@@ -21,6 +21,26 @@ function fixture() {
 const empty = () => ({ dinners: [], prep: [] });
 const applyBody = (plan: any, draft: unknown, requestId = crypto.randomUUID()) => ({ revision: plan.revision, sourceVersion: plan.sourceVersion, requestId, draft });
 
+test('weekly planning permits sides and desserts by hand but swaps accept only main dishes', async () => {
+  const f = fixture();
+  let plan = await f.json('/api/weekly-plan');
+  const original = await f.json('/api/meals', 'POST', { date: plan.dates[0], slot: 'dinner', title: 'Soup' });
+  for (const kind of ['side', 'dessert', 'basic', 'meal']) {
+    const recipe = await f.json('/api/recipes', 'POST', { name: kind, kind });
+    plan = await f.json('/api/weekly-plan');
+    const draft = { ...empty(), dinners: [{ date: plan.dates[0], kind: 'meal', title: recipe.name, recipeId: recipe.id, replaceMealId: original.id }] };
+    const response = await f.request(`/api/weekly-plan/${plan.weekStart}/apply`, 'POST', applyBody(plan, draft));
+    assert.equal(response.status, kind === 'meal' ? 200 : 400);
+  }
+  for (const [i, kind] of ['side', 'dessert'].entries()) {
+    const recipe = (await f.json(`/api/recipes?kind=${kind}`))[0];
+    plan = await f.json('/api/weekly-plan');
+    const draft = { ...empty(), dinners: [{ date: plan.dates[i + 1], kind: 'meal', title: recipe.name, recipeId: recipe.id }] };
+    const applied = await f.json(`/api/weekly-plan/${plan.weekStart}/apply`, 'POST', applyBody(plan, draft));
+    assert.equal((await f.json(`/api/meals/${applied.meals.find((m: any) => m.date === plan.dates[i + 1]).id}`)).recipeId, recipe.id);
+  }
+});
+
 async function seed(f: ReturnType<typeof fixture>) {
   const plan = await f.json('/api/weekly-plan');
   const calendar = await f.json('/api/calendars', 'POST', { name: 'Our Family', kind: 'local', color: '#123857' });

@@ -13,8 +13,9 @@ import MealCalendarSheet from './MealCalendarSheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import type { Member } from './types.ts'
 import { t, tm } from './i18n.ts'
-import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, isOrderNight, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy, statusLabel, swapCandidates, swapWindow } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, SLOT_WORD, isOrderNight, mealDayLabel, minutesLabel, recipeTime, recipeTypeLabel, servingsLabel, startBy, statusLabel, swapCandidates, swapWindow } from './meal-date.ts'
 import RecipeSelector from './RecipeSelector.tsx'
+import { mainDish } from './recipe-search.ts'
 import type { Meal, MealInput, MealKind, MealSlot, MealStatus, OrderType, Recipe, Restaurant } from './meal-types.ts'
 import type { Me } from './types.ts'
 import PickField, { Choose } from './PickField.tsx'
@@ -227,7 +228,7 @@ function MealChooser({ recipes, slot, date, onRecipe, onOther }: {
     emptyMessage={recipes.some(r => !r.archived) ? t('No recipes match. Tap Something else to plan it by name.') : t('No recipes yet. Tap Something else to plan a meal by name.')}
     renderRecipe={r => <button key={r.id} type="button" className="sheet-link" onClick={() => onRecipe(r)}>
       {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
-      <span>{r.name}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+      <span><span>{r.name}{r.kind && r.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(r.kind)}</span>}</span>{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
     </button>} />
 }
 
@@ -243,13 +244,13 @@ export function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
     <RecipeSelector recipes={recipes} currentId={currentId} basics={basics} onPick={onPick}
       extraControls={hasBasics && <div className="field"><label htmlFor={`${formId}-show`}>{t('Show')}</label><Choose hideLabel label={t('Show')} id={`${formId}-show`} value={basics ? 'all' : 'meals'} onChange={next => setBasics(next === 'all')}
         options={[
-          { value: 'meals', label: t('Meals') },
-          { value: 'all', label: t('Meals and basics') },
+          { value: 'meals', label: t('Recipes') },
+          { value: 'all', label: t('Recipes and basics') },
         ]} /></div>}
       savedRow={saved && <button type="button" className="sheet-link" aria-current={currentId === saved.id || undefined} onClick={() => onPick(null)}><BookIcon /><span>{t('{name} (saved recipe)', { name: saved.name })}<small>{t('Kept with this meal')}</small></span></button>}
       renderRecipe={r => <button key={r.id} type="button" className="sheet-link" aria-current={r.id === currentId || undefined} onClick={() => onPick(r)}>
         {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
-        <span>{r.name}{r.archived ? ` ${t('(archived)')}` : ''}{r.kind === 'basic' && <span className="kit-tag">{t('Basic')}</span>}{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+        <span><span>{r.name}{r.archived ? ` ${t('(archived)')}` : ''}{r.kind && r.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(r.kind)}</span>}</span>{(!!r.totalMinutes || r.rating?.average != null || !!r.favoritedBy?.length) && <small>{[r.favoritedBy?.length ? `♥ ${t('Favorite')}` : '', r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
       </button>} />
   </Sheet>
 }
@@ -260,21 +261,16 @@ function SwapPicker({ meal, range, recipes, onPick, onClose }: {
 }) {
   const [meals, setMeals] = useState<Meal[] | null>(null)
   const [error, setError] = useState('')
-  // Like the recipe picker: a basic planned as a meal (a prep session) shows only when asked for.
-  const [basics, setBasics] = useState(false)
-  const isBasic = (m: Meal) => recipes.find(r => r.id === m.recipeId)?.kind === 'basic'
-  const shown = meals?.filter(m => basics || !isBasic(m)) ?? null
+  const shown = meals?.filter(m => {
+    const recipe = recipes.find(r => r.id === m.recipeId)
+    return !recipe || mainDish(recipe)
+  }) ?? null
   useEffect(() => {
     let canceled = false
     api.getMeals(range.from, range.to).then(all => { if (!canceled) setMeals(swapCandidates(all, meal.id)) }).catch(e => { if (!canceled) setError(e instanceof Error ? e.message : t('Could not load meals.')) })
     return () => { canceled = true }
   }, [meal.id, range.from, range.to])
   return <Sheet title={t('Swap “{title}” with…', { title: meal.title })} onClose={onClose}>
-    {meals?.some(isBasic) && <div className="field"><label htmlFor="swap-show">{t('Show')}</label><Choose hideLabel label={t('Show')} id="swap-show" value={basics ? 'all' : 'meals'} onChange={next => setBasics(next === 'all')}
-      options={[
-        { value: 'meals', label: t('Meals') },
-        { value: 'all', label: t('Meals and basics') },
-      ]} /></div>}
     {error ? <p className="field-error" role="alert">{error}</p> : !shown ? <p role="status">{t('Loading meals…')}</p> : !shown.length ? <p className="state-card">{t('No other meals planned for the rest of this week.')}</p> :
       <div className="sheet-links">{shown.map(m => {
         const recipe = recipes.find(r => r.id === m.recipeId)

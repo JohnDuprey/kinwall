@@ -97,6 +97,13 @@ let recipes: Recipe[] = [
       ['Pita bread', 2, null, 'Bakery'], ['Cherry tomatoes', 1, 'cup', 'Produce', 'Quartered'],
     ]),
 ]
+recipes.find(r => r.id === 'demo-snack')!.kind = 'side'
+recipes.push({ ...seedRecipe('apple-crumble', 'Apple crumble', 'Warm apples with a crisp oat topping.',
+  'Slice the apples into a baking dish. Rub the butter into the oats, flour and brown sugar. Sprinkle over the apples and bake at 375°F for 35 minutes.',
+  'Let it cool for 10 minutes before serving.', [
+    ['Apples', 4, null, 'Produce'], ['Oats', 1, 'cup', 'Pantry'], ['Flour', 0.5, 'cup', 'Pantry'],
+    ['Brown sugar', 0.5, 'cup', 'Baking'], ['Butter', 4, 'tbsp', 'Dairy'],
+  ]), kind: 'dessert', totalMinutes: 45, prepMinutes: 10 })
 // Demo family ratings (m1 Alex, m2 Sam, m3 Maya, m4 Leo), as the server sends them.
 const rated = (byMember: Record<string, number>) => {
   const stars = Object.values(byMember)

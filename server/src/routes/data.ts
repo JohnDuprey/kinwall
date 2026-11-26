@@ -20,7 +20,7 @@ import type { Env } from '../env.ts';
 import { RecipeSchema, RecipeTagSchema, MealSchema, RestaurantSchema } from '../meal-schemas.ts';
 import { readRestaurants } from './restaurants.ts';
 import { parseFilter } from '../calendar-filter.ts';
-import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
+import { readRecipes, readMeals, recipeStorageKind, normalizeIngredient } from '../meals.ts';
 import { readRecipeTags, recipeTagImportWrites } from '../recipe-tags.ts';
 import { CATALOGS, itemKey, looksLikeGroceries, type Catalog } from '../item-memory.ts';
 import { readSettings, settingsWrites } from './settings.ts';
@@ -1165,7 +1165,7 @@ dataRoutes.openapi(
         // Photos travel in their own zip: a photo not on this instance is dropped, not an FK error.
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
-      ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, steps: r.steps ? JSON.stringify(r.steps) : null, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, prep_minutes: r.prepMinutes ?? null, total_minutes: r.totalMinutes ?? null, archived: r.archived ? 1 : 0, source: r.source ?? null, external_id: r.externalId ?? null, image_url: r.imageUrl ?? null, kind: r.kind, makes: r.makes, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
+      ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, steps: r.steps ? JSON.stringify(r.steps) : null, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, prep_minutes: r.prepMinutes ?? null, total_minutes: r.totalMinutes ?? null, archived: r.archived ? 1 : 0, source: r.source ?? null, external_id: r.externalId ?? null, image_url: r.imageUrl ?? null, ...recipeStorageKind(r.kind), makes: r.makes, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
       ...recipeTagImportWrites(db, body.recipeTags ?? [], body.recipes),
       // Replace each imported recipe's ingredient set, including intentionally empty sets.
       db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.recipes.map((r) => r.id))),

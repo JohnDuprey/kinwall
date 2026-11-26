@@ -1869,7 +1869,7 @@ export const mock = {
     const expiring = pantry.filter(i => i.daysLeft !== null && i.daysLeft <= days)
     const { mockMealRequest } = await import('./mock-meals.ts')
     const recipes = await mockMealRequest('api/recipes', {}) as Recipe[]
-    const suggestions = recipes.filter(r => !r.archived && r.kind !== 'basic').flatMap(recipe => {
+    const suggestions = recipes.filter(r => !r.archived && (r.kind ?? 'meal') === 'meal').flatMap(recipe => {
       const uses = expiring.flatMap(item => {
         const ingredient = recipe.ingredients.find(i => i.name.toLowerCase().includes(item.title.toLowerCase()))
         return ingredient ? [{ ...item, ingredient: ingredient.name }] : []

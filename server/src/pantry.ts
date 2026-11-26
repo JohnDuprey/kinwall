@@ -90,7 +90,7 @@ export type PantrySuggestion = {
 // How much using an item counts: today (or past it) 1, tomorrow ½, in six days ⅐.
 const urgency = (i: PantryItem) => 1 / (1 + Math.max(0, i.daysLeft ?? Infinity));
 
-/** The family's meals (not basics, not archived) that use at least one expiring item, best first:
+/** The family's main dishes (not archived) that use at least one expiring item, best first:
  * the more and sooner-expiring items a recipe uses up the higher it ranks, then what else it uses
  * from the pantry, then fewer things to buy, then the family's rating, then A-Z. */
 export function rankRecipes(recipes: Recipe[], pantry: PantryItem[], expiring: PantryItem[]): PantrySuggestion[] {
@@ -99,7 +99,7 @@ export function rankRecipes(recipes: Recipe[], pantry: PantryItem[], expiring: P
   // Soonest to expire first, so each ingredient uses up the item that needs it most.
   const ordered = [...pantry].sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
   for (const recipe of recipes) {
-    if (recipe.archived || recipe.kind === 'basic') continue;
+    if (recipe.archived || recipe.kind !== 'meal') continue;
     const uses: PantryUse[] = [], alsoHave: PantryUse[] = [], missing: string[] = [];
     const seen = new Set<string>();
     for (const ing of recipe.ingredients) {

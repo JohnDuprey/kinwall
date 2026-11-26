@@ -44,10 +44,61 @@ test('basics: kind defaults to meal, including recipes saved before basics; make
   assert.deepEqual((await json('/api/recipes?kind=basic')).map((r: any) => r.name), ['Taco seasoning']);
   assert.deepEqual((await json('/api/recipes?kind=meal')).map((r: any) => r.name), ['Old soup', 'Toast']);
   assert.equal((await json('/api/recipes')).length, 3);
-  assert.equal((await request('/api/recipes', 'POST', { name: 'X', kind: 'side' })).status, 400);
+  assert.equal((await request('/api/recipes', 'POST', { name: 'X', kind: 'unknown' })).status, 400);
   const edited = await json(`/api/recipes/${basic.id}`, 'PATCH', { makes: null });
   assert.equal(edited.makes, null);
   assert.equal(edited.kind, 'basic', 'a patch without kind keeps it');
+});
+
+test('recipe types round-trip through REST, MCP and data export without changing the stored kind constraint', async () => {
+  const { db, json, tool } = fixture();
+  for (const kind of ['meal', 'side', 'dessert', 'basic']) {
+    const { recipe } = await tool('create_recipe', { name: kind, kind });
+    assert.equal(recipe.kind, kind);
+    assert.equal((await json(`/api/recipes/${recipe.id}`)).kind, kind);
+    assert.deepEqual((await tool('list_recipes', { kind })).recipes.map((r: any) => r.id), [recipe.id]);
+    assert.deepEqual((await json(`/api/recipes?kind=${kind}`)).map((r: any) => r.id), [recipe.id]);
+    assert.deepEqual({ ...await db.prepare('SELECT kind, course FROM recipes WHERE id = ?').bind(recipe.id).first<{ kind: string; course: string | null }>() }, { kind: kind === 'basic' ? 'basic' : 'meal', course: ['side', 'dessert'].includes(kind) ? kind : null });
+  }
+  const dessert = (await json('/api/recipes?kind=dessert'))[0];
+  for (const kind of ['basic', 'side', 'meal', 'dessert']) {
+    assert.equal((await tool('update_recipe', { id: dessert.id, kind })).recipe.kind, kind);
+    assert.equal((await db.prepare('SELECT course FROM recipes WHERE id = ?').bind(dessert.id).first<{ course: string | null }>())!.course, ['side', 'dessert'].includes(kind) ? kind : null);
+    assert.equal((await json(`/api/recipes/${dessert.id}`, 'PATCH', { description: 'Kept type' })).kind, kind);
+  }
+  const file = await json('/api/export');
+  const target = fixture();
+  await target.json('/api/import', 'POST', file);
+  assert.deepEqual((await target.json('/api/recipes')).map((r: any) => r.kind), (await json('/api/recipes')).map((r: any) => r.kind));
+});
+
+test('recipe types: shared dessert imports as dessert; older shared recipes default to main dishes', async () => {
+  const { json, request } = fixture();
+  const dessert = await json('/api/recipes', 'POST', { name: 'Apple crumble', kind: 'dessert', ingredients: [{ name: 'Apples' }] });
+  const share = await json(`/api/recipes/${dessert.id}/share`, 'POST');
+  const html = await (await request(`/r/${share.token}`)).text();
+  assert.equal(parseRecipeHtml(html, share.url)!.kind, 'dessert');
+  for (const kind of ['dessert', 'meal', undefined]) {
+    const source = html.replace('"kind":"dessert",', kind ? `"kind":"${kind}",` : '');
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(source, { headers: { 'Content-Type': 'text/html' } })) as typeof fetch;
+    try {
+      const target = fixture();
+      const imported = await target.json('/api/recipes/import-url', 'POST', { url: share.url, save: true });
+      assert.equal((await target.json(`/api/recipes/${imported.recipeId}`)).kind, kind ?? 'meal');
+    } finally { globalThis.fetch = realFetch; }
+  }
+});
+
+test('recipe types: pantry ranking and weekly swap suggestions offer main dishes only', async () => {
+  const { json } = fixture();
+  const { rankRecipes } = await import('../src/pantry.ts');
+  const recipes = [];
+  for (const kind of ['meal', 'side', 'dessert', 'basic']) recipes.push(await json('/api/recipes', 'POST', { name: kind, kind, ingredients: [{ name: 'Apples' }] }));
+  const apple = { id: 'apple', title: 'Apples', listId: 'pantry', listName: 'Pantry', quantity: null, kept: null, useBy: '2026-11-26', daysLeft: 1, status: null };
+  assert.deepEqual(rankRecipes(recipes, [apple], [apple]).map(s => s.recipe.id), [recipes[0].id]);
+  assert.deepEqual((await json('/api/weekly-plan')).recipes.map((r: any) => r.kind).sort(), ['dessert', 'meal', 'side']);
+  for (const recipe of recipes) assert.equal((await json('/api/meals', 'POST', { date: '2026-11-26', slot: 'snack', recipeId: recipe.id })).recipeId, recipe.id);
 });
 
 test('basics: an ingredient links to a basic; edits keep the link; bad links are dropped; deleting the basic unlinks', async () => {

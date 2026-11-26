@@ -8,7 +8,7 @@ const text = z.string().trim().max(10000).nullable();
 const url = z.string().url().max(2000).refine((s) => /^https?:\/\//i.test(s), 'must be an HTTP or HTTPS URL').nullable();
 const servings = z.number().positive().max(10000);
 const minutes = z.number().int().min(0).max(10000).nullable();
-export const RecipeKindSchema = z.enum(['meal', 'basic']).describe('meal (the default), or basic: a component used inside other recipes, like a seasoning blend, sauce or dough.');
+export const RecipeKindSchema = z.enum(['meal', 'side', 'dessert', 'basic']).describe('meal: a main dish (the default), side, dessert, or basic: a component used inside other recipes, like a seasoning blend, sauce or dough. Only main dishes appear in swap and pantry suggestions.');
 const makes = z.string().trim().max(200).nullable().describe('How much it makes, e.g. "about ½ cup" (shown on basics).');
 const eaterIds = z.array(z.string().min(1)).max(100).describe("Who's eating (member ids). Without servings, servings becomes how many.");
 export const MealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);

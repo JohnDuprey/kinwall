@@ -30,7 +30,7 @@ export const WeeklyPlanningSchema = z.object({
   jobs: z.array(z.object({ id: z.string(), title: z.string(), date: z.string() })),
   lists: z.array(z.object({ id: z.string(), name: z.string() })),
   pantry: z.array(z.object({ id: z.string(), title: z.string(), useBy: z.string() })),
-  recipes: z.array(RecipeSchema.pick({ id: true, name: true, createdAt: true, cookedCount: true, lastCookedDate: true, favoritedBy: true, rating: true, description: true }).extend({ totalMinutes: z.number().nullable(), ingredients: z.array(z.object({ name: z.string() })) })),
+  recipes: z.array(RecipeSchema.pick({ id: true, kind: true, name: true, createdAt: true, cookedCount: true, lastCookedDate: true, favoritedBy: true, rating: true, description: true }).extend({ totalMinutes: z.number().nullable(), ingredients: z.array(z.object({ name: z.string() })) })),
   suggestions: z.array(z.object({ id: z.string(), name: z.string(), totalMinutes: z.number().nullable(), uses: z.array(z.object({ title: z.string(), useBy: z.string().nullable() })) })),
 }).openapi('WeeklyPlanning');
 export const PlanningExportSchema = z.object({ weekStart: MealDateSchema, revision: z.number().int().min(0), draft: PlanningDraftSchema, applied: PlanningAppliedSchema });

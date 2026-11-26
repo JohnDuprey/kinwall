@@ -13,7 +13,7 @@ export type RecipePreview = {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null;
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null;
   ingredients: PreviewIngredient[]; steps: Step[];
-  kind?: 'meal' | 'basic'; makes?: string | null; // from a Kinwall share link
+  kind?: 'meal' | 'side' | 'dessert' | 'basic'; makes?: string | null; // from a Kinwall share link
 };
 
 const NAMED: Record<string, string> = {

@@ -1,5 +1,5 @@
 // Finding a recipe: the Recipe library's search box and the meal sheet's recipe picker.
-export type Searchable = { id: string; name: string; description?: string | null; archived?: boolean; kind?: 'meal' | 'basic'; ingredients?: { name: string }[]; favoritedBy?: string[]; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; rating?: { average: number | null; count: number }; tags?: { id: string }[] }
+export type Searchable = { id: string; name: string; description?: string | null; archived?: boolean; kind?: 'meal' | 'side' | 'dessert' | 'basic'; ingredients?: { name: string }[]; favoritedBy?: string[]; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; rating?: { average: number | null; count: number }; tags?: { id: string }[] }
 
 /** Name, description or an ingredient contains the text (any case); blank matches every recipe. */
 export function recipeMatches(recipe: Searchable, query: string): boolean {
@@ -52,3 +52,6 @@ export function matchBasic<B extends { id: string; name: string }>(name: string,
   const found = key ? basics.filter(b => b.id !== selfId && basicKey(b.name) === key) : []
   return found.length === 1 ? found[0] : null
 }
+
+/** Suggestions offer main dishes only; older recipes have no explicit kind. */
+export const mainDish = (recipe: { kind?: string }) => (recipe.kind ?? 'meal') === 'meal'

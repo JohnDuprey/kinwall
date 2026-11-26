@@ -59,12 +59,16 @@ tag updates it everywhere it appears. Deleting a tag removes it from every recip
 The recipes stay in the library. Tags travel with your [family export](../your-data/export-import.md)
 and stay private when you [share a recipe](#sharing-a-recipe).
 
+### Types
+
+Set a recipe’s **Type** to **Main dish**, **Side**, **Dessert** or **Basic**. Existing recipes stay main dishes or basics. Only main dishes appear in swap suggestions and use-it-up suggestions. You can still plan sides and desserts by hand. Sides and desserts show a small type tag in the library and recipe picker. Shared recipes keep their type when another family imports them.
+
 ### Basics
 
-A **basic** is a recipe for something you make to use in other recipes: a seasoning blend, a sauce, a dough, a stock. In the recipe editor, set **Type** to **Basic** (it's **Meal** otherwise, and every recipe from before basics is a meal). A basic has **Makes** ("about ¼ cup", "2 crusts") instead of default servings, and its view shows "Makes about ¼ cup" with a small **Basic** tag, without the servings buttons: a basic is made as written.
+A **basic** is a recipe for something you make to use in other recipes: a seasoning blend, a sauce, a dough, a stock. In the recipe editor, set **Type** to **Basic** (**Main dish** is the default). A basic has **Makes** ("about ¼ cup", "2 crusts") instead of default servings, and its view shows "Makes about ¼ cup" with a small **Basic** tag, without the servings buttons: a basic is made as written.
 
-* The library's **Type** filter shows **All**, **Meals** or **Basics**, and a basic's card has a **Basic** tag.
-* Basics stay out of meal planning: the meal sheet's recipe picker lists meals only until you switch its **Show** to **Meals and basics** (a prep session, say). A basic already planned as a meal is left out of **Swap with…** the same way.
+* The library's **Type** filter shows **All**, **Main dishes**, **Sides**, **Desserts** or **Basics**, and a basic's card has a **Basic** tag.
+* Basics stay out of meal planning: the meal sheet's recipe picker lists main dishes, sides and desserts until you switch its **Show** to **Recipes and basics** (a prep session, say). Basics stay out of swap suggestions.
 * An ingredient can be **made from a basic**. In the editor, each ingredient has **Made from a basic** under **More** (shown once the family has a basic): tap it to pick one from a list, or **Not from a basic** to unlink it (a long list has a search box), and when an ingredient's name matches a basic Kinwall offers **Link to basic: Taco seasoning** right under the name. Names match in any case and spacing, and words like "blend", "mix" and "homemade" don't count ("Taco Seasoning Blend" matches "Taco seasoning"); when two basics match, nothing is offered.
 * In a recipe's view, a linked ingredient's name is a link: tap it to open the basic, and **Back to Tuesday Tacos** returns to the recipe.
 * In [cooking mode](#start-cooking), a linked ingredient in **This step's ingredients** has **Make it**, which opens the basic's own cooking mode on top. Closing it (**✕** or **Done**) comes back to the step you were on.
@@ -365,7 +369,7 @@ When something on a [Pantry list](lists.md#pantry) has a use-by date in the next
 
 How recipes are picked:
 
-* Only meals count, not [basics](#basics) or archived recipes.
+* Only main dishes count; sides, desserts, [basics](#basics) and archived recipes stay out.
 * A recipe ranks higher the more expiring food it uses and the sooner that food expires: something to use today counts most, tomorrow half as much, and so on. Using other things you have helps a little, and each missing ingredient costs a little.
 * Names match when they're the same food, in any case or plural: "Chicken" matches "chicken thighs", "Tomatoes" matches "cherry tomatoes", "Spinach" matches "fresh baby spinach". A different food doesn't match: "Milk" isn't "coconut milk", "Garlic" isn't "garlic powder", "Potatoes" aren't "sweet potatoes", "Beans" aren't "green beans".
 * Each ingredient uses up one thing: with chicken breasts and chicken thighs in the fridge, "Chicken" counts the one that expires first.

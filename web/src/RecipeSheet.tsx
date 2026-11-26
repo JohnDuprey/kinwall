@@ -274,7 +274,9 @@ function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSa
         <div className="field"><label htmlFor={`${formId}-name`}>{t('Name')}</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>
         <div className="field"><label htmlFor={`${formId}-kind`}>{t('Type')}</label><Choose hideLabel label={t('Type')} id={`${formId}-kind`} value={draft.kind} onChange={next => update('kind', next as RecipeKind)}
           options={[
-            { value: 'meal', label: t('Meal') },
+            { value: 'meal', label: t('Main dish') },
+            { value: 'side', label: t('Side') },
+            { value: 'dessert', label: t('Dessert') },
             { value: 'basic', label: t('Basic') },
           ]} />
           {draft.kind === 'basic' && <p className="field-hint">{t('Something you make to use in other recipes, like a seasoning blend, sauce or dough. Basics stay out of meal planning unless you ask for them.')}</p>}</div>

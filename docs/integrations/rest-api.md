@@ -133,6 +133,8 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 | Security activity | `GET /api/security-events?limit=&before=&q=&kinds=` (admin only). See [Security activity](#security-activity). |
 
+Recipe `kind` accepts `meal` (main dish, the default), `side`, `dessert` or `basic` in recipe reads, writes, imports and the recipe list filter. Shared recipes keep this type. Older imports with `meal` or no kind remain main dishes. Only main dishes appear in swap and pantry suggestions; sides and desserts can be planned by hand.
+
 **Recipe tags.** `GET /api/recipe-tags` lists the household's reusable tags as `{ id, name }`
 entries, including tags with no recipes. Use `POST /api/recipe-tags` or
 `PATCH /api/recipe-tags/{id}` with `{ name }` to create or rename a tag. Names are 1–60
