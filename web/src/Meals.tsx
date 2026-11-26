@@ -20,12 +20,13 @@ import { PlannedMealSheet } from './MealQuickSheet.tsx'
 import { useIsPhone, useMediaQuery, usePhoneHeader, SHORT_LANDSCAPE } from './useIsPhone.ts'
 import { availableRecipeTagIds, browseRecipes, recipeSuggestions, type RecipeSort, type CookedFilter } from './recipe-search.ts'
 import RecipeBrowseControls from './RecipeBrowseControls.tsx'
-import type { Meal, MealSlot, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
+import type { MealKitDetail, Meal, MealSlot, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
 import { useTripLinks } from './tripLinks.tsx'
-import { kitDate, plannedMealKit } from './meal-kits.ts'
+import { kitDate, kitIcon, kitLabel, plannedMealKit } from './meal-kits.ts'
+import PrepToday from './PrepToday.tsx'
 import UseItUp from './UseItUp.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
@@ -47,6 +48,7 @@ export default function Meals() {
   const [me, setMe] = useState<Me | null>(null)
   const [authError, setAuthError] = useState('')
   const [data, setData] = useState<{ from: string; to: string; meals: Meal[]; error?: string } | null>(null)
+  const [readyItems, setReadyItems] = useState<MealKitDetail[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [recipesLoaded, setRecipesLoaded] = useState(false)
   const [recipeError, setRecipeError] = useState('')
@@ -116,6 +118,7 @@ export default function Meals() {
   }, [from, to, tick, refreshTick])
   useEffect(() => {
     let canceled = false
+    api.getMealKits().then(items => { if (!canceled) setReadyItems(items) }).catch(() => {})
     api.getRecipes(true).then(values => { if (!canceled) { setRecipes(values); setRecipesLoaded(true); setRecipeError('') } }).catch(e => { if (!canceled) setRecipeError(e instanceof Error ? e.message : t('Could not load recipes.')) })
     return () => { canceled = true }
   }, [tick, refreshTick])
@@ -204,7 +207,7 @@ export default function Meals() {
     <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={filter} onChange={setFilter}
       options={[
         { value: 'active', label: t('Active recipes') },
-        { value: 'kits', label: t('Meal kits on hand') },
+        { value: 'kits', label: t('Ready to cook') },
         { value: 'archived', label: t('Archived recipes') },
         { value: 'all', label: t('All recipes') },
       ]} /></div>
@@ -237,7 +240,7 @@ export default function Meals() {
   const plannerControls = <>
     <div className="meal-actions"><button className="icon-btn" aria-label={t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -7))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={showToday}>{agenda ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, 7))}><ChevronRight /></button></div>
   </>
-  const useItUp = settings.features.meals && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={recipe => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } })} />
+  const useItUp = settings.features.meals && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={(recipe, item) => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe, readyId: item?.id, ...(!recipe && item ? { title: item.recipeName } : {}) } })} />
   // The day's meals in clock order: a 3:30 snack before a 6:00 dinner. Without a time, a meal sits
   // where its slot usually falls.
   const mealClock = (meal: Meal, slot: MealSlot) => meal.plannedTime ?? { breakfast: '08:00', lunch: '12:00', snack: '15:00', dinner: '18:00' }[slot]
@@ -247,16 +250,17 @@ export default function Meals() {
     const assignee = members.find(member => member.id === meal.assigneeMemberId)
     const recipe = recipes.find(r => r.id === meal.recipeId)
     const trip = tripLinks.get(`meal:${meal.id}`)
-    const kit = plannedMealKit(meal, recipe?.kits)
+    const kit = plannedMealKit(meal, meal.readyId ? readyItems : recipe?.kits)
     const meta = [meal.mealKind === 'dining_out' && meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length && ordersLabel(meal), meal.status !== 'planned' && `✓ ${statusLabel(meal)}`].filter(Boolean).join(' · ')
     return <button key={meal.id} type="button" className={`snap-row meal-row meal-${slot}${meal.status !== 'planned' ? ' meal-complete' : ''}`} onClick={() => setOpenMeal(meal)}
-      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), kit && t('Cook by {date}', { date: kitDate(kit.cookBy) }), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
+      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), kit && kitLabel(kit), kit && t('Cook by {date}', { date: kitDate(kit.cookBy) }), meal.prepOn && t('Prep {date}', { date: kitDate(meal.prepOn) }), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
       {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
       <span className="board-bar" aria-hidden="true" />
       <span className="snap-main" aria-hidden="true">
         <span className="board-when">{[meal.plannedTime && formatTime(meal.plannedTime), tm(SLOT_LABEL[slot])].filter(Boolean).join(' · ')}</span>
         <span className="snap-title">{meal.mealKind === 'dining_out' && '↗ '}{meal.title}</span>
-        {kit && <span className="kit-tag meal-kit-tag">📦 <span>{t('Cook by {date}', { date: kitDate(kit.cookBy) })}</span></span>}
+        {meal.prepOn && <span className="kit-tag meal-kit-tag">🔪 {t('Prep {date}', { date: kitDate(meal.prepOn) })}</span>}
+        {kit && <span className="kit-tag meal-kit-tag">{kitIcon(kit)} {kitLabel(kit)} <span>{t('Cook by {date}', { date: kitDate(kit.cookBy) })}</span></span>}
         {meta && <span className="snap-meta">{meta}</span>}
         {trip && <span className="meal-trip-tag">{trip.emoji || '✈️'} {trip.title}</span>}
       </span>
@@ -312,7 +316,7 @@ export default function Meals() {
             {!admin && open.length === MEAL_SLOTS.length && <p className="meal-empty">{t('Nothing planned')}</p>}
           </section>
         })}</div>}
-      {useItUp}
+      <PrepToday date={today} />{useItUp}
     </section> : view === 'restaurants' ? <RestaurantBinder restaurants={shownRestaurants} search={restaurantSearch} filter={restaurantFilter} controls={!isPhone && <div className="meals-toolbar">{restaurantSearchField}{restaurantFilters}</div>} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       {showFilters && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
         {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name'); setTagIds([]) }}>{t('Clear filters')}</button>}

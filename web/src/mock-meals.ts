@@ -5,7 +5,7 @@ import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
 import { t } from './i18n.ts'
 import { matchBasic } from './recipe-search.ts'
-import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type MenuItem, type OrderItem, type Recipe, type RecipeInput, type RecipeTag, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type ReadyKind, type BasicChoices, type Meal, type MealInput, type MenuItem, type OrderItem, type Recipe, type RecipeInput, type RecipeTag, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
@@ -336,13 +336,18 @@ async function projection(from: string, to: string, listId: string | null, basic
 export const mockMeals = (from: string, to: string) => meals.filter(m => m.date >= from && m.date <= to)
 
 const arrived = dateKey(new Date(Date.now() - 2 * 86400000))
-let kitBoxes = [{ id: 'demo-box', recipe_id: 'demo-salmon', provider: 'Meal kit', received_on: arrived, quantity: 1, done: 0 }]
-export async function mockMealKits() {
+let kitBoxes: { id: string; recipe_id: string | null; title: string | null; kind: ReadyKind; cook_by: string | null; provider: string; received_on: string; quantity: number; done: number }[] = [
+  { id: 'demo-box', recipe_id: 'demo-salmon', title: null, kind: 'kit', cook_by: null, provider: 'Meal kit', received_on: arrived, quantity: 1, done: 0 },
+  { id: 'demo-prepped', recipe_id: 'demo-tacos', title: null, kind: 'prepped', cook_by: null, provider: 'demo-prepped', received_on: arrived, quantity: 2, done: 0 },
+  { id: 'demo-leftovers', recipe_id: null, title: 'Leftover lasagna', kind: 'prepped', cook_by: null, provider: 'demo-leftovers', received_on: arrived, quantity: 2, done: 0 },
+]
+const tomorrowPrep = meals.find(m => m.status === 'planned' && m.recipeId && m.date === dateKey(new Date(Date.now() + 86400000)))
+if (tomorrowPrep) tomorrowPrep.prepOn = dateKey(new Date())
+export async function mockMealKits(includeUsed = false) {
   const settings = await mock.getSettings()
-  return kitBoxes.flatMap(box => {
-    const recipe = recipes.find(r => r.id === box.recipe_id)
-    if (!recipe) return []
-    return kitBalances([box], meals.filter(m => m.recipeId === box.recipe_id).map(m => ({ date: m.date, status: m.status, meal_kind: m.mealKind })), settings.mealKitDays ?? 7).filter(k => k.left > 0).map(k => ({ id: k.id, recipeId: recipe.id, recipeName: recipe.name, provider: k.provider, receivedOn: k.received_on, cookBy: k.cookBy, quantity: k.quantity, left: k.left, imageUrl: recipe.imageUrl ?? null }))
+  return kitBalances(kitBoxes, meals.map(m => ({ date: m.date, status: m.status, meal_kind: m.mealKind, recipe_id: m.recipeId, ready_id: m.readyId })), settings.mealKitDays ?? 7).filter(k => includeUsed || k.left > 0).map(k => {
+    const recipe = recipes.find(r => r.id === k.recipe_id)
+    return { id: k.id, recipeId: k.recipe_id, recipeName: recipe?.name ?? k.title ?? '', title: k.title, kind: k.kind, provider: k.provider, receivedOn: k.received_on, cookBy: k.cookBy, quantity: k.quantity, left: k.left, imageUrl: recipe?.imageUrl ?? null }
   })
 }
 export async function mockMealRequest(path: string, options: RequestInit): Promise<unknown> {
@@ -354,7 +359,12 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   if (resource === 'meal-kits') {
     if (method === 'GET') return mockMealKits()
     if (mock.demoKid()) throw new Error('A grown-up must do that.')
-    if (method === 'DELETE') { kitBoxes = kitBoxes.filter(k => k.id !== id); return { ok: true } }
+    if (method === 'DELETE') { kitBoxes = kitBoxes.filter(k => k.id !== id); meals = meals.map(m => m.readyId === id ? { ...m, readyId: null } : m); return { ok: true } }
+    if (method === 'POST' && !id) {
+      const newId = crypto.randomUUID(); kitBoxes.push({ id: newId, recipe_id: body.recipeId ?? null, title: body.title ?? null, kind: body.kind, cook_by: body.cookBy ?? null, provider: body.provider ?? newId, received_on: body.receivedOn, quantity: body.quantity, done: 0 });
+      return (await mockMealKits(true)).find(k => k.id === newId)
+    }
+    if (method === 'PATCH') { kitBoxes = kitBoxes.map(k => k.id === id ? { ...k, kind: body.kind ?? k.kind, title: body.title ?? k.title, quantity: body.quantity ?? k.quantity, cook_by: body.cookBy === undefined ? k.cook_by : body.cookBy } : k); return { ok: true } }
     const kit = (await mockMealKits()).find(k => k.id === id)
     if (!kit || action !== 'done') throw new Error('Meal kit not found')
     const count = body.count ?? kit.left
@@ -451,6 +461,19 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     }
     return { added: itemIds.length, itemIds, projection: await projection(from, to, listId) }
   }
+  if (id === 'prep') {
+    if (method === 'GET') return meals.filter(m => m.prepOn === url.searchParams.get('date') && !m.readyId && m.status === 'planned')
+    if (mock.demoKid()) throw new Error('A grown-up must do that.')
+    const selected = meals.filter(m => body.mealIds.includes(m.id) && m.prepOn === body.date && !m.readyId && m.status === 'planned')
+    const groups = new Map<string, Meal[]>()
+    for (const meal of selected) groups.set(meal.recipeId ?? meal.id, [...groups.get(meal.recipeId ?? meal.id) ?? [], meal])
+    for (const group of groups.values()) {
+      const readyId = crypto.randomUUID(), latest = group.map(m => m.date).sort().at(-1)!, limit = dateKey(new Date(Date.parse(body.date) + 4 * 86400000))
+      kitBoxes.push({ id: readyId, recipe_id: group[0].recipeId, title: group[0].recipeId ? null : group[0].title, kind: 'prepped', cook_by: latest < limit ? latest : limit, received_on: body.date, quantity: group.length, done: 0, provider: readyId })
+      for (const meal of group) meal.readyId = readyId
+    }
+    return { ok: true }
+  }
   const old = meals.find(m => m.id === id)
   if (method === 'GET') return meals.filter(m => m.date >= url.searchParams.get('from')! && m.date <= url.searchParams.get('to')!)
   if (id && !old) throw new Error('Meal not found')
@@ -486,7 +509,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   }
   if (method === 'DELETE') { meals = meals.filter(m => m.id !== id); return { ok: true } }
   const input = body as MealInput & { refreshRecipe?: boolean }
-  const saved: Meal = { ...meals[0], ...old, ...input, id: old?.id ?? crypto.randomUUID(), recipeSnapshot: old?.recipeSnapshot ?? null, calendarEventId: old?.calendarEventId ?? null, createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+  const saved: Meal = { ...meals[0], ...old, ...input, id: old?.id ?? crypto.randomUUID(), readyId: input.readyId === undefined ? old?.readyId ?? null : input.readyId, prepOn: input.prepOn === undefined ? old?.prepOn ?? null : input.prepOn, recipeSnapshot: old?.recipeSnapshot ?? null, calendarEventId: old?.calendarEventId ?? null, createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
   if (saved.mealKind === 'recipe' && (!old || saved.recipeId !== old.recipeId || input.refreshRecipe || !saved.recipeSnapshot)) {
     const chosen = recipes.find(r => r.id === saved.recipeId && !r.archived)
     if (!chosen) throw new Error('Recipe not found or archived')

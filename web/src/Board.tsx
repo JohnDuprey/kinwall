@@ -23,6 +23,7 @@ import { fitPicture, useSlideshowPictures } from './Screensaver.tsx'
 import { boardSources, nightFieldsFor } from './saverSources.ts'
 import { tidbitCardTitle, tidbitCards, tidbitFor, tidbitQuery, tidbitSlot, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
+import PrepToday from './PrepToday.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses, useTakeNowSlot } from './TakeNow.tsx'
@@ -580,9 +581,9 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     },
     f.meals && !!data.mealKitCount && {
       key: 'meal-kits',
-      chip: <a className="board-slot-chip" href="#/meals"><span aria-hidden="true">📦</span><span className="board-slot-chip-text">{tn(data.mealKitCount, '{n} meal kit to cook', '{n} meal kits to cook')}</span></a>,
-      row: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} meal kit to cook', '{n} meal kits to cook')}</a>,
-      full: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} meal kit to cook', '{n} meal kits to cook')}</a>,
+      chip: <a className="board-slot-chip" href="#/meals"><span aria-hidden="true">📦</span><span className="board-slot-chip-text">{tn(data.mealKitCount, '{n} ready to cook', '{n} ready to cook')}</span></a>,
+      row: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} ready to cook', '{n} ready to cook')}</a>,
+      full: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} ready to cook', '{n} ready to cook')}</a>,
     },
     // Who's away and a trip that's close (tripGlance.tsx): after the day's own things.
     ...(todayTiles ? travel : []),
@@ -730,7 +731,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
         </Sheet>}
 
-        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
+        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS}><PrepToday date={today} /><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
         {has('coming') && <Card title={t('Coming up')} area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
           {later.length === 0 ? <p className="snap-empty">{t('Nothing planned this week.')}</p> : later.map(d => {

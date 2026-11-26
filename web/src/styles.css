@@ -4552,6 +4552,15 @@ html:root[data-cast] {
 
 .meal-kit-actions { display: flex; flex: none; flex-wrap: wrap; gap: .5rem; }
 .meal-kit-actions .btn { flex: none; }
+.use-it-up-head > .btn, .prep-today .btn { flex: none; }
+.prep-today { margin-block: 1rem; }
+.prep-today-head, .prep-today-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.prep-today-head h3 { margin: 0; }
+.prep-today-list { list-style: none; padding: 0; margin: .5rem 0 0; display: grid; gap: .5rem; }
+.prep-today-row { padding-block: .5rem; border-bottom: 1px solid var(--border); }
+.prep-today-row > span { min-width: 0; overflow-wrap: anywhere; }
+.prep-today .field-hint { display: block; }
+.ready-item-fields { margin: 0; padding: 0; border: 0; min-width: 0; }
 .meal-kit-tag { align-self: flex-start; width: fit-content; }
 .use-it-up-recipes + .use-it-up-head { margin-top: 20px; }
 .meal-kit-recipe { flex-direction: column; }

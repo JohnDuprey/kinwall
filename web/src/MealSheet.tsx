@@ -24,7 +24,7 @@ import { ORDER_TYPE_LABEL } from './orders.ts'
 import { Face } from './Face'
 
 /** Where a new meal starts. recipe, restaurant or title (a poll's winner: Polls.tsx) also prefill an existing meal. */
-export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe; restaurant?: Restaurant; title?: string }
+export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe; restaurant?: Restaurant; title?: string; readyId?: string }
 
 /** Small overlapping avatars of who's eating (planner card, Board, meal sheet). */
 export function EaterAvatars({ ids, members, label }: { ids: string[]; members: Member[]; label?: string }) {
@@ -44,6 +44,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
   const dialog = useDialog()
   const formId = useId()
   const [draft, setDraft] = useState<MealInput>(() => ({
+    readyId: meal?.readyId ?? initial.readyId ?? null, prepOn: meal?.prepOn ?? null,
     date: meal?.date ?? initial.date, slot: meal?.slot ?? initial.slot, title: meal?.title ?? initial.recipe?.name ?? initial.restaurant?.name ?? '',
     mealKind: meal?.mealKind ?? (initial.recipe ? 'recipe' : initial.restaurant ? 'dining_out' : 'freeform'), recipeId: meal?.recipeId ?? initial.recipe?.id ?? null,
     restaurantId: meal?.restaurantId ?? initial.restaurant?.id ?? null, orderType: meal?.orderType ?? (initial.restaurant ? 'pickup' : null),
@@ -88,7 +89,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
   const savedRecipe = meal?.mealKind === 'recipe' && meal.recipeSnapshot && !recipes.some(r => r.id === meal.recipeId) ? { id: meal.recipeId, name: meal.recipeSnapshot.name } : null
   const recipeLabel = selectedRecipe?.name ?? (snapshot ? t('{name} (saved recipe)', { name: snapshot.name }) : t('Choose a recipe'))
   const pick = (recipe: Recipe | null) => {
-    setDraft(d => recipe ? { ...d, recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings } : { ...d, recipeId: meal!.recipeId, title: meal!.recipeSnapshot!.name, servings: meal!.servings })
+    setDraft(d => recipe ? { ...d, readyId: null, recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings } : { ...d, recipeId: meal!.recipeId, title: meal!.recipeSnapshot!.name, servings: meal!.servings })
     setRefreshRecipe(false); setPicking(false)
   }
   const update = <K extends keyof MealInput>(key: K, value: MealInput[K]) => setDraft(d => ({ ...d, [key]: value }))
@@ -130,7 +131,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       {/* An order night's orders have their own view (Orders.tsx OrderNightSheet); eating out somewhere else keeps them here, on top. */}
       {showOrders && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {admin ? <fieldset className="meal-fieldset" disabled={busy}>
-        <div className="field"><label htmlFor={`${formId}-kind`}>{t('What are we eating?')}</label><Choose hideLabel label={t('What are we eating?')} id={`${formId}-kind`} value={draft.mealKind} onChange={next => update('mealKind', next as MealKind)}
+        <div className="field"><label htmlFor={`${formId}-kind`}>{t('What are we eating?')}</label><Choose hideLabel label={t('What are we eating?')} id={`${formId}-kind`} value={draft.mealKind} onChange={next => setDraft(d => ({ ...d, mealKind: next as MealKind, readyId: null, ...(next === 'dining_out' ? { prepOn: null } : {}) }))}
           options={[
             { value: 'recipe', label: t('A recipe') },
             { value: 'freeform', label: t('Something else') },
@@ -143,6 +144,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
           </button>
           {!recipes.some(r => !r.archived) && !snapshot && <p className="field-hint">{t('Create a recipe in the Recipe library first.')}</p>}
         </div>}
+        {admin && draft.status === 'planned' && draft.mealKind !== 'dining_out' && <div className="field"><Switch label={t('Prep ahead')} checked={!!draft.prepOn} onChange={checked => update('prepOn', checked ? new Date(Date.parse(draft.date) - 86400000).toISOString().slice(0, 10) : null)} />{draft.prepOn && <div className="field"><label htmlFor={`${formId}-prep`}>{t('Prep on')}</label><input id={`${formId}-prep`} type="date" required max={new Date(Date.parse(draft.date) - 86400000).toISOString().slice(0, 10)} value={draft.prepOn} onChange={e => update('prepOn', e.target.value || null)} /></div>}</div>}
         {draft.mealKind === 'dining_out' && <>
           <div className="field"><label htmlFor={`${formId}-restaurant`}>{t('Restaurant')}</label>
             <PickField id={`${formId}-restaurant`} label={t('Restaurant')} title={t('Choose a restaurant')} placeholder={t('Restaurant name')}

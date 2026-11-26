@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { kitPast, kitWhen } from './meal-kits.ts'
+import { kitIcon, kitLabel, kitPast, kitWhen } from './meal-kits.ts'
+import ReadyItemSheet from './ReadyItemSheet.tsx'
 import { api } from './api.ts'
 import { t, tn } from './i18n.ts'
 import { expiryShort } from './pantry.ts'
 import type { PantryItem, PantrySuggestions } from './types.ts'
-import type { Recipe } from './meal-types.ts'
+import type { MealKitDetail, Recipe } from './meal-types.ts'
 
 /** How many recipes the card shows; the rest are a tap away. */
 const SHOWN = 3
@@ -22,7 +23,7 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
   recipes: Recipe[]; admin: boolean
   reload: number // a change made here (a meal planned, a recipe saved): refetch now
   poll: number // the app's refresh after a change anywhere: refetch, at most every POLL_EVERY
-  onOpen: (recipe: Recipe) => void; onPlan: (recipe: Recipe) => void
+  onOpen: (recipe: Recipe) => void; onPlan: (recipe: Recipe | undefined, item?: MealKitDetail) => void
 }) {
   const { settings, toast, reloadCore } = useApp()
   const dialog = useDialog()
@@ -30,6 +31,15 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
   const [error, setError] = useState('')
   const [data, setData] = useState<PantrySuggestions | null>(null)
   const [all, setAll] = useState(false)
+  const [ready, setReady] = useState<MealKitDetail[]>([])
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<MealKitDetail | null>(null)
+  const [readyTick, setReadyTick] = useState(0)
+  useEffect(() => {
+    let canceled = false
+    api.getMealKits().then(items => { if (!canceled) setReady(items) }).catch(() => {})
+    return () => { canceled = true }
+  }, [reload, poll, readyTick])
   const fetched = useRef<{ reload: number; at: number } | null>(null)
   useEffect(() => {
     if (!settings.features.lists) { setData(null); return }
@@ -42,27 +52,28 @@ export default function UseItUp({ recipes, admin, reload, poll, onOpen, onPlan }
     api.getPantrySuggestions(7).then(d => { if (!canceled) { setData(d); done() } }).catch(() => { if (!canceled) { setData(null); done() } })
     return () => { canceled = true }
   }, [reload, poll, settings.features.lists])
-  const kits = recipes.flatMap(recipe => (recipe.kits ?? []).map(kit => ({ recipe, kit }))).sort((a, b) => a.kit.receivedOn.localeCompare(b.kit.receivedOn))
+  const kits = ready.map(kit => ({ recipe: recipes.find(r => r.id === kit.recipeId), kit }))
   const markDone = async (id: string, name: string) => {
-    if (!await dialog.confirm({ title: t('Done with “{name}”?', { name }), body: t('Mark the remaining meal kits used or tossed.'), confirmLabel: t('Done') })) return
+    if (!await dialog.confirm({ title: t('Done with “{name}”?', { name }), body: t('Mark the remaining food used or tossed.'), confirmLabel: t('Done') })) return
     setBusy(true); setError('')
-    try { await api.markMealKitDone(id); toast(t('Saved: {name}', { name })); reloadCore() }
+    try { await api.markMealKitDone(id); toast(t('Saved: {name}', { name })); reloadCore(); setReadyTick(n => n + 1) }
     catch (e) { setError(e instanceof Error ? e.message : t('Could not save meal kit.')) }
     finally { setBusy(false) }
   }
-  if (!kits.length && !data?.expiring.length) return null
+  if (!admin && !kits.length && !data?.expiring.length) return null
   const expired = data?.expiring.filter(i => i.status === 'expired').length ?? 0
   const shown = all ? data?.suggestions ?? [] : data?.suggestions.slice(0, SHOWN) ?? []
   return (
     <section className="use-it-up" aria-labelledby="use-it-up-title">
-      {kits.length > 0 && <>
-        <div className="use-it-up-head"><h2 id={data?.expiring.length ? undefined : 'use-it-up-title'}>📦 {t('From your meal kits')}</h2></div>
+      {(admin || kits.length > 0) && <>
+        <div className="use-it-up-head"><h2 id={data?.expiring.length ? undefined : 'use-it-up-title'}>📦 {t('Ready to cook')}</h2>{admin && <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)}>{t('+ Add')}</button>}</div>
         {error && <p className="field-error" role="alert">{error}</p>}
         <ul className="use-it-up-recipes">{kits.map(({ recipe, kit }) => <li key={kit.id} className="use-it-up-recipe meal-kit-recipe">
-          <button type="button" className="use-it-up-open" onClick={() => onOpen(recipe)}><strong>{recipe.name}</strong><span>{kitWhen(kit)}</span><span>{tn(kit.left, '{n} kit on hand', '{n} kits on hand')}</span>{kitPast(kit, settings.timezone) && <span className="list-overdue">⚠ {t('Past its cook-by')}</span>}</button>
-          {admin && <div className="meal-kit-actions"><button type="button" className="btn btn-secondary" onClick={() => onPlan(recipe)}>{t('Plan it')}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void markDone(kit.id, recipe.name)}>{t('Done')}</button></div>}
+          <button type="button" className="use-it-up-open" disabled={!recipe && !admin} onClick={() => recipe ? onOpen(recipe) : setEditing(kit)}><strong>{kit.recipeName}</strong><span>{kitIcon(kit)} {kitLabel(kit)}</span><span>{kitWhen(kit)}</span><span>{tn(kit.left, '{n} meal left', '{n} meals left')}</span>{kitPast(kit, settings.timezone) && <span className="list-overdue">⚠ {t('Past its date')}</span>}</button>
+          {admin && <div className="meal-kit-actions"><button type="button" className="btn btn-secondary" onClick={() => onPlan(recipe, kit)}>{t('Plan it')}</button><button type="button" className="btn btn-secondary" onClick={() => setEditing(kit)}>{t('Edit')}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void markDone(kit.id, kit.recipeName)}>{t('Done')}</button></div>}
         </li>)}</ul>
       </>}
+      {(adding || editing) && <ReadyItemSheet recipes={recipes} item={editing ?? undefined} onClose={() => { setAdding(false); setEditing(null) }} onSaved={() => { setAdding(false); setEditing(null); setReadyTick(n => n + 1) }} />}
       {!!data?.expiring.length && <>
       <div className="use-it-up-head">
         <h2 id="use-it-up-title"><span aria-hidden="true">🥫 </span>{t('Use it up')}</h2>

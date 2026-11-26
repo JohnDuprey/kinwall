@@ -21,8 +21,10 @@ export interface StepTimer { name: string | null; minutes: number }
  * title and timers are optional: steps saved before them (and plain-text steps) have neither. */
 export interface RecipeStep { text: string; bullets: string[]; imageUrl?: string | null; title?: string | null; timers?: StepTimer[] }
 export interface RecipeTag { id: string; name: string }
-export interface MealKit { id: string; provider: string; receivedOn: string; cookBy: string; quantity: number; left: number }
-export interface MealKitDetail extends MealKit { recipeId: string; recipeName: string; imageUrl: string | null }
+export type ReadyKind = 'kit' | 'prepped' | 'frozen'
+export interface MealKit { id: string; kind?: ReadyKind; title?: string | null; provider: string; receivedOn: string; cookBy: string; quantity: number; left: number }
+export interface MealKitDetail extends MealKit { recipeId: string | null; recipeName: string; imageUrl: string | null }
+export interface ReadyInput { kind: ReadyKind; recipeId?: string; title?: string; receivedOn: string; quantity: number; cookBy?: string | null; provider?: string }
 export interface RecipeInput {
   tagIds?: string[]
   name: string
@@ -76,6 +78,8 @@ export interface RecipeImport {
 }
 export interface RecipeSnapshot { name: string; defaultServings: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: RecipeIngredient[] }
 export interface MealInput {
+  readyId?: string | null
+  prepOn?: string | null
   date: string
   slot: MealSlot
   title: string

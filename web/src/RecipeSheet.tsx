@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
+import ReadyItemSheet from './ReadyItemSheet.tsx'
 import { kitDate } from './meal-kits.ts'
 import { useHashParam } from './hashQuery.ts'
 import { api, MOCK } from './api.ts'
@@ -161,6 +162,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
   /** Opened from a planned meal: a button back to that meal's details. */
   onEditMeal?: { label: string; open: () => void; back?: boolean }
 }) {
+  const [prepped, setPrepped] = useState(false)
   const [editing, setEditing] = useState(!recipe)
   // Reading a recipe while cooking: keep the screen on until it's closed (not while editing).
   const reading = !editing && !!recipe
@@ -182,6 +184,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
   const cookSteps = cookingSteps(recipe), resumeAt = savedStep(recipe.id)
   return <><Sheet title={recipe.name} onClose={onClose} actions={admin || onEditMeal || (onPlan && !recipe.archived) ? <>
     {onEditMeal && <button className="btn btn-secondary" onClick={onEditMeal.open}>{onEditMeal.back ? <ChevronLeft width={20} height={20} /> : <EditIcon width={20} height={20} />} {onEditMeal.label}</button>}
+    {admin && !recipe.archived && <button className="btn btn-secondary" onClick={() => setPrepped(true)}>{t('Prepped this')}</button>}
     {admin && <button className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> {t('Edit')}</button>}
     {onPlan && !recipe.archived && <button className="btn btn-primary" onClick={() => onPlan(recipe)}>{t('Plan this meal')}</button>}
   </> : undefined}>
@@ -192,7 +195,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
       <button type="button" className="btn btn-secondary" onClick={() => setReader('read')}><FitIcon width={20} height={20} /> {t('Full screen')}</button>
       <button type="button" className="btn btn-secondary recipe-print-btn" onClick={() => setReader('print')}><PrinterIcon width={20} height={20} /> {t('Print')}</button>
     </div>
-    {!!recipe.kits?.length && <p className="chip chip-static">📦 {tn(recipe.kits.reduce((n, k) => n + k.left, 0), '{n} kit on hand · cook by {date}', '{n} kits on hand · cook by {date}', { date: kitDate(recipe.kits[0].cookBy) })}</p>}
+    {!!recipe.kits?.length && <p className="chip chip-static">📦 {tn(recipe.kits.reduce((n, k) => n + k.left, 0), '{n} ready to cook · use by {date}', '{n} ready to cook · use by {date}', { date: kitDate(recipe.kits[0].cookBy) })}</p>}
     {recipe.description && <p>{recipe.description}</p>}
     {!!recipe.tags?.length && <ul className="chip-row recipe-tag-chips" aria-label={t('Tags')}>
       {recipe.tags.map(tag => <li className="chip chip-static" key={tag.id}>{tag.name}</li>)}
@@ -216,6 +219,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
     {recipe.preparationNotes && <><h3>{t('Preparation notes')}</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
   </Sheet>
+    {prepped && <ReadyItemSheet recipes={library} recipe={recipe} onClose={() => setPrepped(false)} onSaved={() => { setPrepped(false); onSaved() }} />}
   {reader && <RecipeReader recipe={recipe} servings={servings} printOnOpen={reader === 'print'} onClose={() => setReader(null)} />}
   {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} library={library} onClose={() => setCook(null)} />}
   </>

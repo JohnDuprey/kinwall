@@ -15,7 +15,7 @@ import { libraryQuery } from './library.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { BasicChoices, MealKitDetail, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeTag, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { BasicChoices, ReadyInput, MealKitDetail, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeTag, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
 import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolDays, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
@@ -377,6 +377,10 @@ export const api = {
   previewContactImport: (body: { vcard: string } | { contacts: ContactInput[] }) => MOCK ? mock.previewContactImport(body) : post<{ entries: ImportPreviewEntry[] }>('api/contacts/import/preview', body),
   importContacts: (body: { contacts: ContactInput[]; strategy: 'create' | 'merge'; mergeTargets?: string[]; confirmMerge?: true }) => MOCK ? mock.importContacts(body) : post<{ created: number; merged: number; skipped: number; ids: string[] }>('api/contacts/import', body),
   getMealKits: () => get<MealKitDetail[]>('api/meal-kits'),
+  addReadyItem: (input: ReadyInput) => post<MealKitDetail>('api/meal-kits', input),
+  updateReadyItem: (id: string, input: Partial<Pick<ReadyInput, 'kind' | 'title' | 'quantity' | 'cookBy'>>) => patch<{ ok: boolean }>('api/meal-kits/' + encodeURIComponent(id), input),
+  getMealPrep: (date: string) => get<Meal[]>('api/meals/prep?date=' + encodeURIComponent(date)),
+  finishMealPrep: (date: string, mealIds: string[]) => post<{ ok: boolean }>('api/meals/prep', { date, mealIds }),
   markMealKitDone: (id: string, count?: number) => post<{ ok: boolean }>('api/meal-kits/' + encodeURIComponent(id) + '/done', { count }),
   deleteMealKit: (id: string) => del('api/meal-kits/' + encodeURIComponent(id)),
   getRecipes: (archived = false) => get<Recipe[]>(`api/recipes?archived=${archived}`),

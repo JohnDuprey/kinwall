@@ -1,7 +1,27 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { planningKitChoices, planningWeek, planningDays, dinnerCount, planConflicts, type WeeklyPlanning } from '../src/weekly-planning.ts'
+import { planningLeftoverChoices, planningKitChoices, planningWeek, planningDays, dinnerCount, planConflicts, type WeeklyPlanning } from '../src/weekly-planning.ts'
 const source = (): WeeklyPlanning => ({ weekStart: '2026-11-15', dates: ['2026-11-15','2026-11-16','2026-11-17','2026-11-18','2026-11-19','2026-11-20','2026-11-21'], timezone: 'America/New_York', sourceVersion: 0, revision: 0, draft: { dinners: [], prep: [] }, applied: { dinners: {}, prep: {} }, features: { meals: true, lists: true, upkeep: true }, events: [], meals: [], tasks: [], jobs: [], lists: [], pantry: [], recipes: [], suggestions: [] })
+test('leftover choices reserve units and release the dinner being swapped', () => {
+  const plan = source()
+  plan.readyItems = [{ id: 'leftover', kind: 'prepped', recipeId: null, title: 'Lasagna', recipeName: 'Lasagna', imageUrl: null, provider: '', receivedOn: '2026-11-15', cookBy: '2026-11-19', quantity: 1, left: 1 }]
+  plan.meals = [{ id: 'm', readyId: 'leftover', date: '2026-11-17', slot: 'dinner', title: 'Lasagna', status: 'planned', canSwap: true }]
+  assert.equal(planningLeftoverChoices(plan, plan.draft, '2026-11-18').length, 0)
+  assert.equal(planningLeftoverChoices(plan, plan.draft, '2026-11-17', 'm').length, 1)
+  assert.equal(planningLeftoverChoices(plan, plan.draft, '2026-11-20', 'm').length, 0)
+})
+test('weekly choices reserve explicit mixed-kind items before automatic recipe use', () => {
+  const plan = source()
+  plan.recipes = [{ id: 'r', name: 'Tacos', totalMinutes: 20, kits: [
+    { id: 'k', kind: 'kit', provider: '', receivedOn: '2026-11-15', cookBy: '2026-11-22', left: 1, quantity: 1 },
+    { id: 'p', kind: 'prepped', provider: '', receivedOn: '2026-11-16', cookBy: '2026-11-20', left: 1, quantity: 1 },
+  ] }]
+  plan.meals = [
+    { id: 'automatic', recipeId: 'r', date: '2026-11-17', slot: 'dinner', title: 'Tacos', canSwap: true, status: 'planned' },
+    { id: 'linked', recipeId: 'r', readyId: 'k', date: '2026-11-18', slot: 'dinner', title: 'Tacos', canSwap: true, status: 'planned' },
+  ]
+  assert.deepEqual(planningKitChoices(plan, { dinners: [], prep: [] }, '2026-11-19'), [])
+})
 test('direct dinner kit choices count units reserved by the week and draft, oldest first within their dates', () => {
   const plan = source()
   const kit = (id: string, receivedOn: string, left: number, cookBy = '2026-11-19') => ({ id, provider: 'Box service', receivedOn, cookBy, left, quantity: left })

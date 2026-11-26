@@ -1,4 +1,4 @@
-import type { MealKit, RecipeKind, RecipeRating } from './meal-types.ts'
+import type { MealKitDetail, MealKit, RecipeKind, RecipeRating } from './meal-types.ts'
 import { zonedDayKey } from './date.ts'
 
 /** Leaving a review never saves or applies its choices. */
@@ -8,7 +8,7 @@ export async function leavePlanning({ busy, dirty, confirmDiscard, onLeave }: {
   if (busy || (dirty && !await confirmDiscard())) return
   onLeave()
 }
-export type PlanningDinner = { date: string; kind: 'open' } | { date: string; kind: 'meal'; title: string; recipeId?: string; replaceMealId?: string }
+export type PlanningDinner = { date: string; kind: 'open' } | { date: string; kind: 'meal'; title: string; readyId?: string; recipeId?: string; replaceMealId?: string }
 export type PlanningPrep = { id: string; eventId: string; occurrenceStart: string | null; title: string; dueDate: string; listId: string }
 export type PlanningDraft = { dinners: PlanningDinner[]; prep: PlanningPrep[] }
 export type PlanningApplied = { dinners: Record<string, { id: string; choice: string }>; prep: Record<string, { id: string; choice: string }> }
@@ -16,11 +16,12 @@ export type WeeklyPlanning = {
   weekStart: string; dates: string[]; timezone: string; sourceVersion: number; revision: number; draft: PlanningDraft; applied: PlanningApplied
   features: { meals: boolean; lists: boolean; upkeep: boolean }
   events: { id: string; title: string; start: string; end: string; allDay: boolean; memberIds: string[]; occurrenceStart: string | null }[]
-  meals: { recipeId?: string | null; status?: 'planned' | 'prepared'; id: string; date: string; slot: string; title: string; canSwap: boolean }[]
+  meals: { readyId?: string | null; recipeId?: string | null; status?: 'planned' | 'prepared'; id: string; date: string; slot: string; title: string; canSwap: boolean }[]
   tasks: { id: string; title: string; dueDate: string | null; eventId: string | null; listId: string; done: boolean }[]
   jobs: { id: string; title: string; date: string }[]
   lists: { id: string; name: string }[]
   pantry: { id: string; title: string; useBy: string }[]
+  readyItems?: MealKitDetail[]
   recipes: { kits?: MealKit[]; id: string; kind?: RecipeKind; name: string; totalMinutes: number | null; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; favoritedBy?: string[]; rating?: RecipeRating; description?: string | null; ingredients?: { name: string }[] }[]
   suggestions: { kit?: MealKit; id: string; name: string; totalMinutes: number | null; uses: { title: string; useBy: string | null }[] }[]
 }
@@ -33,15 +34,24 @@ export function planningKitChoices(plan: WeeklyPlanning, draft: PlanningDraft, d
   const reservations = [
     ...plan.meals.filter(m => m.status !== 'prepared' && m.id !== replaceMealId && !replaced.has(m.id)),
     ...pending.flatMap(d => d.kind === 'meal' && d.date !== date ? [d] : []),
-  ].sort((a, b) => a.date.localeCompare(b.date))
+  ].sort((a, b) => Number(!!b.readyId) - Number(!!a.readyId) || a.date.localeCompare(b.date))
   return plan.recipes.filter(r => !mainDishesOnly || (r.kind ?? 'meal') === 'meal').flatMap(recipe => {
     const boxes = [...recipe.kits ?? []].sort((a, b) => a.receivedOn.localeCompare(b.receivedOn) || a.id.localeCompare(b.id)).map(kit => ({ kit, left: kit.left }))
     for (const meal of reservations.filter(m => m.recipeId === recipe.id)) {
-      const box = boxes.find(b => b.left > 0 && b.kit.receivedOn <= meal.date)
+      const box = boxes.find(b => b.left > 0 && ('readyId' in meal && meal.readyId ? b.kit.id === meal.readyId : b.kit.receivedOn <= meal.date))
       if (box) box.left--
     }
     return boxes.filter(b => b.left > 0 && b.kit.receivedOn <= date && date <= b.kit.cookBy).map(b => ({ recipe, ...b }))
   }).sort((a, b) => a.kit.receivedOn.localeCompare(b.kit.receivedOn) || a.kit.id.localeCompare(b.kit.id))
+}
+export function planningLeftoverChoices(plan: WeeklyPlanning, draft: PlanningDraft, date: string, replaceMealId?: string) {
+  const pending = draft.dinners.filter(d => d.kind === 'meal' && plan.applied.dinners[d.date]?.choice !== JSON.stringify(d))
+  const replaced = new Set(pending.flatMap(d => d.kind === 'meal' && d.replaceMealId ? [d.replaceMealId] : []))
+  const reservations = [
+    ...plan.meals.filter(m => m.status !== 'prepared' && m.id !== replaceMealId && !replaced.has(m.id)),
+    ...pending.flatMap(d => d.kind === 'meal' && d.date !== date ? [d] : []),
+  ]
+  return plan.readyItems?.filter(k => !k.recipeId && k.receivedOn <= date && date <= k.cookBy && k.left > reservations.filter(m => m.readyId === k.id).length) ?? []
 }
 export function planningDays(plan: WeeklyPlanning) {
   return plan.dates.map(date => {
