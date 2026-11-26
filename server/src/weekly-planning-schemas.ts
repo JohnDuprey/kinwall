@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { MealDateSchema, RecipeSchema } from './meal-schemas.ts';
+import { MealDateSchema, MealKitSchema, RecipeSchema } from './meal-schemas.ts';
 
 export const PlanningDinnerSchema = z.discriminatedUnion('kind', [
   z.object({ date: MealDateSchema, kind: z.literal('open') }).strict(),
@@ -25,13 +25,13 @@ export const WeeklyPlanningSchema = z.object({
   draft: PlanningDraftSchema, applied: PlanningAppliedSchema,
   features: z.object({ meals: z.boolean(), lists: z.boolean(), upkeep: z.boolean() }),
   events: z.array(z.object({ id: z.string(), title: z.string(), start: z.string(), end: z.string(), allDay: z.boolean(), memberIds: z.array(z.string()), occurrenceStart: z.string().nullable() })),
-  meals: z.array(z.object({ id: z.string(), date: z.string(), slot: z.string(), title: z.string(), canSwap: z.boolean() })),
+  meals: z.array(z.object({ recipeId: z.string().nullable().optional(), id: z.string(), date: z.string(), slot: z.string(), title: z.string(), canSwap: z.boolean() })),
   tasks: z.array(z.object({ id: z.string(), title: z.string(), dueDate: z.string().nullable(), eventId: z.string().nullable(), listId: z.string(), done: z.boolean() })),
   jobs: z.array(z.object({ id: z.string(), title: z.string(), date: z.string() })),
   lists: z.array(z.object({ id: z.string(), name: z.string() })),
   pantry: z.array(z.object({ id: z.string(), title: z.string(), useBy: z.string() })),
-  recipes: z.array(RecipeSchema.pick({ id: true, kind: true, name: true, createdAt: true, cookedCount: true, lastCookedDate: true, favoritedBy: true, rating: true, description: true }).extend({ totalMinutes: z.number().nullable(), ingredients: z.array(z.object({ name: z.string() })) })),
-  suggestions: z.array(z.object({ id: z.string(), name: z.string(), totalMinutes: z.number().nullable(), uses: z.array(z.object({ title: z.string(), useBy: z.string().nullable() })) })),
+  recipes: z.array(RecipeSchema.pick({ id: true, kind: true, kits: true, name: true, createdAt: true, cookedCount: true, lastCookedDate: true, favoritedBy: true, rating: true, description: true }).extend({ totalMinutes: z.number().nullable(), ingredients: z.array(z.object({ name: z.string() })) })),
+  suggestions: z.array(z.object({ kit: MealKitSchema.optional(), id: z.string(), name: z.string(), totalMinutes: z.number().nullable(), uses: z.array(z.object({ title: z.string(), useBy: z.string().nullable() })) })),
 }).openapi('WeeklyPlanning');
 export const PlanningExportSchema = z.object({ weekStart: MealDateSchema, revision: z.number().int().min(0), draft: PlanningDraftSchema, applied: PlanningAppliedSchema });
 export type PlanningDraft = z.infer<typeof PlanningDraftSchema>;

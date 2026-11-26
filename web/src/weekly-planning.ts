@@ -1,4 +1,4 @@
-import type { RecipeKind, RecipeRating } from './meal-types.ts'
+import type { MealKit, RecipeKind, RecipeRating } from './meal-types.ts'
 import { zonedDayKey } from './date.ts'
 
 /** Leaving a review never saves or applies its choices. */
@@ -16,13 +16,13 @@ export type WeeklyPlanning = {
   weekStart: string; dates: string[]; timezone: string; sourceVersion: number; revision: number; draft: PlanningDraft; applied: PlanningApplied
   features: { meals: boolean; lists: boolean; upkeep: boolean }
   events: { id: string; title: string; start: string; end: string; allDay: boolean; memberIds: string[]; occurrenceStart: string | null }[]
-  meals: { id: string; date: string; slot: string; title: string; canSwap: boolean }[]
+  meals: { recipeId?: string | null; id: string; date: string; slot: string; title: string; canSwap: boolean }[]
   tasks: { id: string; title: string; dueDate: string | null; eventId: string | null; listId: string; done: boolean }[]
   jobs: { id: string; title: string; date: string }[]
   lists: { id: string; name: string }[]
   pantry: { id: string; title: string; useBy: string }[]
-  recipes: { id: string; kind?: RecipeKind; name: string; totalMinutes: number | null; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; favoritedBy?: string[]; rating?: RecipeRating; description?: string | null; ingredients?: { name: string }[] }[]
-  suggestions: { id: string; name: string; totalMinutes: number | null; uses: { title: string; useBy: string | null }[] }[]
+  recipes: { kits?: MealKit[]; id: string; kind?: RecipeKind; name: string; totalMinutes: number | null; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; favoritedBy?: string[]; rating?: RecipeRating; description?: string | null; ingredients?: { name: string }[] }[]
+  suggestions: { kit?: MealKit; id: string; name: string; totalMinutes: number | null; uses: { title: string; useBy: string | null }[] }[]
 }
 export const planningDay = (event: WeeklyPlanning['events'][number], timezone: string) => event.allDay ? event.start.slice(0, 10) : zonedDayKey(event.start, timezone)
 export function planningDays(plan: WeeklyPlanning) {

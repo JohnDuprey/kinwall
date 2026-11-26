@@ -486,3 +486,27 @@ Recipes have `kind` (`meal`, the default, or `basic`) and `makes` (free text, or
 The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list_meals`, `get_meal_projection`, `create_recipe`, `update_recipe`, `rate_recipe`, `import_recipe`, `create_meal`, `update_meal` and `apply_meal_projection`.
 
 In the grocery preview, tap ingredient rows to include or leave them out. **Add a note on each item saying which meals need it** is an on/off switch.
+
+## Meal kits
+
+An integration can record when a meal kit box arrived as it imports a recipe, from any provider.
+Cook-by is the arrived date plus **Cook meal kits within** in **Settings → Family → Meals**:
+7 days by default, adjustable from 1 to 14. Changing it updates boxes already on hand too.
+
+**From your meal kits** appears first in **Use it up**, oldest boxes first, even without pantry
+food expiring. **Plan it** opens today's dinner with that recipe. Marking a linked meal
+**Cooked** uses one kit from the oldest box that had arrived by the meal's date. Unmarking
+**Cooked** gives it back. Cooking before a box arrived and ordering takeout do not use that box.
+A grown-up can tap **Done** and confirm to mark the remaining kits used or tossed without cooking.
+Boxes past cook-by stay visible with **Past its cook-by** until used or marked done; check the
+food itself before cooking.
+
+The Board shows how many kits need cooking. Planned meals show a box and cook-by date; recipe
+sheets show kits on hand. Choose **Meal kits on hand** in the recipe library's filter sheet.
+Recipe and swap pickers put on-hand kits first. **Plan the week** offers main-dish kits oldest
+first on nights from their arrived date through their cook-by date, leaving out kits already
+planned that week. Side dishes and desserts still count as on hand.
+
+Reimporting the same recipe, provider and arrived date updates that box's quantity. Another
+delivery date records a separate box. Ingredients marked **In the kit** stay off the grocery
+list as before. Kits follow the **Meals** switch; pantry suggestions follow **Lists**.

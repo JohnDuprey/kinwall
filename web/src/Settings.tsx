@@ -733,6 +733,12 @@ function MealSettingsSection({ settings, onSaved, toast, readOnly = false }: { s
   }
   return (
     <Section id="meals" title={t('Meals')} keywords={[t('Meal times')]}>
+      <div className="settings-row">
+        <div className="settings-row-label">{t('Cook meal kits within')}</div>
+        <Choose label={t('Cook meal kits within')} hideLabel value={String(settings.mealKitDays ?? 7)} disabled={readOnly}
+          options={Array.from({ length: 14 }, (_, i) => ({ value: String(i + 1), label: tn(i + 1, '{n} day', '{n} days') }))}
+          onChange={value => { void api.updateSettings({ mealKitDays: Number(value) }).then(onSaved).catch(e => toast(e instanceof ApiError ? e.message : t('Could not save settings'), true)) }} />
+      </div>
       <p className="settings-row-sub">{t('Usual meal times. A meal without its own time goes on the calendar at these.')}</p>
       {readOnly && <p className="settings-row-sub">{t('Only a parent device can change these times.')}</p>}
       {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(slot => (

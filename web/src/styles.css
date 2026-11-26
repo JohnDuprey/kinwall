@@ -4549,3 +4549,13 @@ html:root[data-cast] {
 .trip-care-task > .list-item-check { flex: none; }
 .cal-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .trip-care-task > .done + span { color: var(--text-dim); text-decoration: line-through; }
+
+.meal-kit-actions { display: flex; flex: none; flex-wrap: wrap; gap: .5rem; }
+.meal-kit-actions .btn { flex: none; }
+.meal-kit-tag { align-self: flex-start; width: fit-content; }
+.use-it-up-recipes + .use-it-up-head { margin-top: 20px; }
+@media (max-width: 600px) {
+  .use-it-up-recipe:has(.meal-kit-actions) { flex-wrap: wrap; }
+  .use-it-up-recipe:has(.meal-kit-actions) .use-it-up-open { flex-basis: 100%; }
+}
+@media (min-width: 701px) { .meal-week .meal-kit-tag > span { display: none; } }

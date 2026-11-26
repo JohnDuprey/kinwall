@@ -212,6 +212,7 @@ const ExportSchema = z
     rewardRedemptions: z.array(RedemptionSchema),
     rewardMilestones: z.array(MilestoneExportSchema),
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
+    mealKits: z.array(z.object({ id: z.string(), recipeId: z.string(), provider: z.string().trim().min(1).max(50), receivedOn: MealDateSchema, quantity: z.number().int().min(1).max(20), done: z.number().int().nonnegative(), createdAt: z.string(), updatedAt: z.string() })).optional(),
     recipes: z.array(RecipeSchema),
     recipeTags: z.array(RecipeTagSchema).optional(),
     meals: z.array(MealSchema),
@@ -468,6 +469,7 @@ dataRoutes.openapi(
         rewardMilestones: await exportMilestones(db),
         // opened: the export is the family's own backup; a connected app without aiHealthAccess gets no health
         trackers: (await Promise.all((trackers as TrackerRow[]).filter((r) => r.kind !== 'health' || !healthHidden).map((r) => openRow(c.env, r)))).map(toTrackerApi),
+        mealKits: (await db.prepare('SELECT * FROM meal_kits ORDER BY received_on, id').all<{ id: string; recipe_id: string; provider: string; received_on: string; quantity: number; done: number; created_at: string; updated_at: string }>()).results.map(k => ({ id: k.id, recipeId: k.recipe_id, provider: k.provider, receivedOn: k.received_on, quantity: k.quantity, done: k.done, createdAt: k.created_at, updatedAt: k.updated_at })),
         recipes: await readRecipes(db, { archived: true, includeTags: true }),
         recipeTags: await readRecipeTags(db),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
@@ -547,6 +549,7 @@ const ImportSchema = ExportSchema.extend({
   rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
   rewardMilestones: ExportSchema.shape.rewardMilestones.default([]),
   trackers: ExportSchema.shape.trackers.default([]),
+  mealKits: ExportSchema.shape.mealKits.default([]),
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
   restaurants: ExportSchema.shape.restaurants.default([]),
@@ -1166,6 +1169,7 @@ dataRoutes.openapi(
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
       ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, steps: r.steps ? JSON.stringify(r.steps) : null, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, prep_minutes: r.prepMinutes ?? null, total_minutes: r.totalMinutes ?? null, archived: r.archived ? 1 : 0, source: r.source ?? null, external_id: r.externalId ?? null, image_url: r.imageUrl ?? null, ...recipeStorageKind(r.kind), makes: r.makes, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
+      ...upserts(db, 'meal_kits', 'recipe_id, provider, received_on', (body.mealKits ?? []).map(k => ({ id: k.id, recipe_id: k.recipeId, provider: k.provider, received_on: k.receivedOn, quantity: k.quantity, done: k.done, created_at: k.createdAt, updated_at: k.updatedAt })), keepCreated),
       ...recipeTagImportWrites(db, body.recipeTags ?? [], body.recipes),
       // Replace each imported recipe's ingredient set, including intentionally empty sets.
       db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.recipes.map((r) => r.id))),

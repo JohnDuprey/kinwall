@@ -264,6 +264,9 @@ function SwapPicker({ meal, range, recipes, onPick, onClose }: {
   const shown = meals?.filter(m => {
     const recipe = recipes.find(r => r.id === m.recipeId)
     return !recipe || mainDish(recipe)
+  }).sort((a, b) => {
+    const ka = recipes.find(r => r.id === a.recipeId)?.kits?.[0], kb = recipes.find(r => r.id === b.recipeId)?.kits?.[0]
+    return ka && kb ? ka.receivedOn.localeCompare(kb.receivedOn) : Number(!!kb) - Number(!!ka)
   }) ?? null
   useEffect(() => {
     let canceled = false

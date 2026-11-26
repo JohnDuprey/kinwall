@@ -25,6 +25,7 @@ import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restau
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
 import { useTripLinks } from './tripLinks.tsx'
+import { kitDate } from './meal-kits.ts'
 import UseItUp from './UseItUp.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
@@ -189,7 +190,7 @@ export default function Meals() {
     for (const type of ['pointerdown', 'wheel', 'keydown']) view.addEventListener(type, stop)
   }, [agenda, meals, today])
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
-  const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked, tagIds })
+  const shownRecipes = browseRecipes(recipes.filter(recipe => (filter === 'kits' ? !!recipe.kits?.length : filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && (!loved || (loved === 'any' ? !!recipe.favoritedBy?.length : !!recipe.favoritedBy?.includes(loved)))), { query: search, sort, cooked, tagIds })
   const filterCount = [kind, filter !== 'active', category, loved, cooked !== 'all', sort !== 'name', tagIds.length > 0].filter(Boolean).length
   const filters = <>
     <div className="field"><label htmlFor="recipe-kind">{t('Type')}</label><Choose hideLabel label={t('Type')} id="recipe-kind" value={kind} onChange={next => setKind(next as '' | RecipeKind)}
@@ -203,6 +204,7 @@ export default function Meals() {
     <div className="field"><label htmlFor="recipe-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="recipe-filter" value={filter} onChange={setFilter}
       options={[
         { value: 'active', label: t('Active recipes') },
+        { value: 'kits', label: t('Meal kits on hand') },
         { value: 'archived', label: t('Archived recipes') },
         { value: 'all', label: t('All recipes') },
       ]} /></div>
@@ -235,7 +237,7 @@ export default function Meals() {
   const plannerControls = <>
     <div className="meal-actions"><button className="icon-btn" aria-label={t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -7))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={showToday}>{agenda ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, 7))}><ChevronRight /></button></div>
   </>
-  const useItUp = settings.features.lists && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={recipe => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } })} />
+  const useItUp = settings.features.meals && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={recipe => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } })} />
   // The day's meals in clock order: a 3:30 snack before a 6:00 dinner. Without a time, a meal sits
   // where its slot usually falls.
   const mealClock = (meal: Meal, slot: MealSlot) => meal.plannedTime ?? { breakfast: '08:00', lunch: '12:00', snack: '15:00', dinner: '18:00' }[slot]
@@ -245,14 +247,16 @@ export default function Meals() {
     const assignee = members.find(member => member.id === meal.assigneeMemberId)
     const recipe = recipes.find(r => r.id === meal.recipeId)
     const trip = tripLinks.get(`meal:${meal.id}`)
+    const kit = recipe?.kits?.[0]
     const meta = [meal.mealKind === 'dining_out' && meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length && ordersLabel(meal), meal.status !== 'planned' && `✓ ${statusLabel(meal)}`].filter(Boolean).join(' · ')
     return <button key={meal.id} type="button" className={`snap-row meal-row meal-${slot}${meal.status !== 'planned' ? ' meal-complete' : ''}`} onClick={() => setOpenMeal(meal)}
-      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
+      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), kit && t('Cook by {date}', { date: kitDate(kit.cookBy) }), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
       {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
       <span className="board-bar" aria-hidden="true" />
       <span className="snap-main" aria-hidden="true">
         <span className="board-when">{[meal.plannedTime && formatTime(meal.plannedTime), tm(SLOT_LABEL[slot])].filter(Boolean).join(' · ')}</span>
         <span className="snap-title">{meal.mealKind === 'dining_out' && '↗ '}{meal.title}</span>
+        {kit && <span className="kit-tag meal-kit-tag">📦 <span>{t('Cook by {date}', { date: kitDate(kit.cookBy) })}</span></span>}
         {meta && <span className="snap-meta">{meta}</span>}
         {trip && <span className="meal-trip-tag">{trip.emoji || '✈️'} {trip.title}</span>}
       </span>

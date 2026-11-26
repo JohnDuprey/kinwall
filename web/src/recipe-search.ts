@@ -1,5 +1,5 @@
 // Finding a recipe: the Recipe library's search box and the meal sheet's recipe picker.
-export type Searchable = { id: string; name: string; description?: string | null; archived?: boolean; kind?: 'meal' | 'side' | 'dessert' | 'basic'; ingredients?: { name: string }[]; favoritedBy?: string[]; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; rating?: { average: number | null; count: number }; tags?: { id: string }[] }
+export type Searchable = { kits?: { receivedOn: string; cookBy: string; left: number }[]; id: string; name: string; description?: string | null; archived?: boolean; kind?: 'meal' | 'side' | 'dessert' | 'basic'; ingredients?: { name: string }[]; favoritedBy?: string[]; createdAt?: string; cookedCount?: number; lastCookedDate?: string | null; rating?: { average: number | null; count: number }; tags?: { id: string }[] }
 
 /** Name, description or an ingredient contains the text (any case); blank matches every recipe. */
 export function recipeMatches(recipe: Searchable, query: string): boolean {
@@ -34,7 +34,10 @@ export function availableRecipeTagIds(selected: string[], tags: { id: string }[]
 
 /** Archived recipes and basics stay out unless already chosen or explicitly requested. */
 export function pickerRecipes<R extends Searchable>(recipes: R[], query: string, currentId?: string | null, basics = false, options: RecipeBrowse = {}): R[] {
-  return browseRecipes(recipes.filter(r => (!r.archived && (basics || r.kind !== 'basic')) || r.id === currentId), { sort: 'favorites', ...options, query })
+  return browseRecipes(recipes.filter(r => (!r.archived && (basics || r.kind !== 'basic')) || r.id === currentId), { sort: 'favorites', ...options, query }).sort((a, b) => {
+    const ka = a.kits?.find(k => k.left > 0), kb = b.kits?.find(k => k.left > 0)
+    return ka && kb ? ka.receivedOn.localeCompare(kb.receivedOn) : Number(!!kb) - Number(!!ka)
+  })
 }
 
 // Words an ingredient line adds to a basic's name without meaning another thing ("Taco seasoning blend").

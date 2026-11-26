@@ -23,7 +23,7 @@ import { zonedTimeToUtc } from './recurrence.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { ChoreGoalSchema, BoardSchema, ChoreDateCountSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, PantryExpiringSchema, PantrySuggestionsSchema, MemberSchema, LanguageSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, MilestoneSchema, MilestoneInputSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
-import { RecipeSchema, RecipeTagSchema, RecipeTagIdsSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
+import { MealKitDetailSchema, MealKitDoneSchema, RecipeSchema, RecipeTagSchema, RecipeTagIdsSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
 import { registerTravelTools, TRAVEL_TOOL_OUTPUT, TRAVEL_TOOL_HINTS } from './travel-mcp.ts';
@@ -257,6 +257,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable' | 'pantry
 }
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   ...TRAVEL_TOOL_OUTPUT,
+  list_meal_kits: { kits: z.array(MealKitDetailSchema) }, mark_meal_kit_done: { ok: z.boolean() },
   list_recipe_tags: { tags: z.array(RecipeTagSchema) }, list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, favorite_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
@@ -373,6 +374,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   ...TRAVEL_TOOL_HINTS,
   list_inbox: READ, add_to_inbox: WRITE,
   list_announcements: READ, create_announcement: WRITE, update_announcement: SET, delete_announcement: DELETE,
+  list_meal_kits: READ, mark_meal_kit_done: WRITE,
   list_recipe_tags: READ, list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_chore_counts: READ,
   get_weekly_plan: READ, save_weekly_plan_draft: SET, apply_weekly_plan: SET,
@@ -428,6 +430,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     return res.status >= 400 ? errorResult(res.json, 'failed to apply the plan') : okResult('Reviewed choices added to the week.', res.json as Record<string, unknown>);
   });
 
+  tool('list_meal_kits', { title: 'List meal kits', description: 'List meal kits on hand, oldest boxes first, with arrived and cook-by dates. Past cook-by kits stay listed until cooked or marked done.', inputSchema: {} }, async () => {
+    const result = await call(app, env, auth, 'GET', '/api/meal-kits');
+    return result.status >= 400 ? errorResult(result.json, 'failed to list meal kits') : okResult('Meal kits', { kits: result.json });
+  });
+  tool('mark_meal_kit_done', { title: 'Mark meal kit done', description: 'Full access: mark meal kits used or tossed without cooking. Omit count to mark all remaining units done.', inputSchema: { id: z.string(), ...MealKitDoneSchema.shape } }, async ({ id, ...input }) => {
+    const result = await call(app, env, auth, 'POST', '/api/meal-kits/' + encodeURIComponent(id) + '/done', input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to mark meal kit done') : okResult('Meal kit done', result.json as Record<string, unknown>);
+  });
   tool('list_recipe_tags', { title: 'List recipe tags', description: 'Find the household’s recipe tag IDs to filter or edit recipes.', inputSchema: {} }, async () => {
     const result = await call(app, env, auth, 'GET', '/api/recipe-tags');
     return result.status >= 400 ? errorResult(result.json, 'failed to list recipe tags') : okResult('Recipe tags', { tags: result.json });
@@ -448,7 +458,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', '/api/recipes', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to create recipe') : okResult('Recipe created', { recipe: result.json });
   });
-  tool('import_recipe', { title: 'Import recipe', description: 'Full access: import a recipe from another app (e.g. a meal kit), keyed by source + externalId so importing again updates it. The recipe type is detected from its name when kind is omitted; an explicit kind wins. Ingredient lines like "1.5 tablespoon Sour Cream" are parsed; pantry: false marks one that ships in the kit (left off grocery lists by default). steps are text (several lines become bullets) or { text, bullets, imageUrl, title, timers: [{ name, minutes }] }; instructions keeps them as numbered text. plan also plans it on that date/slot unless the slot already has a meal (planned: false, with reason); a meal it planned before for that slot within the week is reused. plan.calendarId (a Kinwall calendar id, any writable one) also puts the planned meal on that calendar unless it already has an event; plan.eventStart "cooking" starts it when cooking starts. Only a calendar named here is written to.', inputSchema: { ...RecipeImportSchema.shape, ingredients: jsonList(RecipeImportSchema.shape.ingredients), steps: jsonList(RecipeImportSchema.shape.steps), tagIds: jsonList(RecipeImportSchema.shape.tagIds) } }, async (input) => {
+  tool('import_recipe', { title: 'Import recipe', description: 'Full access: import a recipe from another app (e.g. a meal kit), keyed by source + externalId so importing again updates it. Optional kit records an arrived box (receivedOn, quantity default 1, provider default source); reimporting the same recipe/provider/date updates quantity. cookBy follows the family mealKitDays setting (default 7). The recipe type is detected from its name when kind is omitted; an explicit kind wins. Ingredient lines like "1.5 tablespoon Sour Cream" are parsed; pantry: false marks one that ships in the kit (left off grocery lists by default). steps are text (several lines become bullets) or { text, bullets, imageUrl, title, timers: [{ name, minutes }] }; instructions keeps them as numbered text. plan also plans it on that date/slot unless the slot already has a meal (planned: false, with reason); a meal it planned before for that slot within the week is reused. plan.calendarId (a Kinwall calendar id, any writable one) also puts the planned meal on that calendar unless it already has an event; plan.eventStart "cooking" starts it when cooking starts. Only a calendar named here is written to.', inputSchema: { ...RecipeImportSchema.shape, ingredients: jsonList(RecipeImportSchema.shape.ingredients), steps: jsonList(RecipeImportSchema.shape.steps), tagIds: jsonList(RecipeImportSchema.shape.tagIds) } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to import recipe') : okResult((result.json as { planned?: boolean }).planned ? 'Recipe imported and planned' : 'Recipe imported', result.json as Record<string, unknown>);
   });

@@ -829,5 +829,10 @@
   "error|preferences belong to a start token": "Diese Einstellungen gehören zu einem Start-Token.",
   "error|Only parent devices can show kids’ medicine activities": "Nur Elterngeräte können Medikamentenaktivitäten für Kinder anzeigen.",
   "error|Medicine activities are for the family’s own devices": "Medikamentenaktivitäten sind nur für die eigenen Geräte der Familie verfügbar.",
-  "New chore": "Neue Aufgabe"
+  "New chore": "Neue Aufgabe",
+  "error|Choose a dinner on or before the meal kit’s cook-by date.": "Wähle ein Abendessen spätestens am Kochdatum des Kochbox-Gerichts.",
+  "error|Choose no more than the number of meal kits left.": "Wähle höchstens so viele Kochbox-Gerichte, wie noch übrig sind.",
+  "error|Meal kits changed. Refresh and try again.": "Die Kochbox-Gerichte haben sich geändert. Lade neu und versuche es noch einmal.",
+  "error|This meal kit has already been used or removed.": "Dieses Kochbox-Gericht wurde bereits verbraucht oder entfernt.",
+  "error|This meal kit has been removed.": "Dieses Kochbox-Gericht wurde entfernt."
 }

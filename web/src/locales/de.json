@@ -5552,5 +5552,20 @@
   "Selected sites appear on the child’s routine page. Other sites stay allowed, so school sign-in and redirects can still work.": "Ausgewählte Websites erscheinen auf der Routineseite des Kindes. Andere Websites bleiben erlaubt, damit die Schulanmeldung und Weiterleitungen weiterhin funktionieren.",
   "Existing matches: {matches}. Deselect it if you already have enough.": "Bereits vorhanden: {matches}. Wähle es ab, wenn du schon genug hast.",
   "No away days: both boundary day switches are off.": "Keine Abwesenheitstage: Beide Schalter für die Randtage sind aus.",
-  "Completed one-time chores are hidden. Selected names also require future one-time chores with the same name for this child, only when due. Capitalization and extra spaces do not matter. Deselect a name to stop requiring it.": "Erledigte einmalige Aufgaben werden ausgeblendet. Ausgewählte Namen gelten für dieses Kind auch für zukünftige einmalige Aufgaben mit demselben Namen, wenn sie fällig sind. Groß- und Kleinschreibung und zusätzliche Leerzeichen spielen keine Rolle. Entferne das Häkchen, wenn der Name nicht mehr erforderlich sein soll."
+  "Completed one-time chores are hidden. Selected names also require future one-time chores with the same name for this child, only when due. Capitalization and extra spaces do not matter. Deselect a name to stop requiring it.": "Erledigte einmalige Aufgaben werden ausgeblendet. Ausgewählte Namen gelten für dieses Kind auch für zukünftige einmalige Aufgaben mit demselben Namen, wenn sie fällig sind. Groß- und Kleinschreibung und zusätzliche Leerzeichen spielen keine Rolle. Entferne das Häkchen, wenn der Name nicht mehr erforderlich sein soll.",
+  "{n} kit on hand": "{n} Kochbox-Gericht vorrätig",
+  "{n} kits on hand": "{n} Kochbox-Gerichte vorrätig",
+  "{n} kit on hand · cook by {date}": "{n} Kochbox-Gericht vorrätig · bis {date} kochen",
+  "{n} kits on hand · cook by {date}": "{n} Kochbox-Gerichte vorrätig · bis {date} kochen",
+  "{n} meal kit to cook": "{n} Kochbox-Gericht zum Kochen",
+  "{n} meal kits to cook": "{n} Kochbox-Gerichte zum Kochen",
+  "Arrived {arrived} · cook by {date}": "Angekommen {arrived} · bis {date} kochen",
+  "Cook by {date}": "Bis {date} kochen",
+  "Cook meal kits within": "Kochbox-Gerichte kochen innerhalb von",
+  "Could not save meal kit.": "Das Kochbox-Gericht konnte nicht gespeichert werden.",
+  "Done with “{name}”?": "Mit „{name}“ fertig?",
+  "From your meal kits": "Aus euren Kochboxen",
+  "Mark the remaining meal kits used or tossed.": "Die übrigen Kochbox-Gerichte als verbraucht oder entsorgt markieren.",
+  "Meal kits on hand": "Kochbox-Gerichte auf Vorrat",
+  "Past its cook-by": "Kochdatum überschritten"
 }

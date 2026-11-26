@@ -1,3 +1,4 @@
+import { kitWhen } from './meal-kits.ts'
 import RecipeSelector from './RecipeSelector.tsx'
 import { mainDish } from './recipe-search.ts'
 import { recipeTypeLabel } from './meal-date.ts'
@@ -92,6 +93,10 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
   useLayoutEffect(() => { body.current?.closest('.sheet-body')?.scrollTo(0, 0) }, [step])
   const dirty = baseline !== JSON.stringify(draft)
   const conflicts = planConflicts(source, draft)
+  const usedRecipes = new Set([
+    ...source.meals.filter(m => m.date !== recipeDay).map(m => m.recipeId),
+    ...draft.dinners.flatMap(m => m.date !== recipeDay && m.kind === 'meal' ? [m.recipeId] : []),
+  ].filter((id): id is string => !!id))
   const change = (next: PlanningDraft) => { setDraft(next); setStatus(''); setError('') }
   const dinner = (date: string, choice?: PlanningDinner) => change({ ...draft, dinners: [...draft.dinners.filter(m => m.date !== date), ...(choice ? [choice] : [])] })
   const appliedDinner = (date: string) => source.applied.dinners[date]
@@ -194,15 +199,15 @@ function Planner({ initial, onClose, onSaved, onShowHome }: { initial: WeeklyPla
         <p className="weekly-note">{t('Save draft keeps these choices for later. Add to the week adds meals and to-dos, swaps the dinners shown above and remembers dinners left open. Other meals stay as they are. No pickup requests or timed alerts are sent.')}</p>
       </>}
     </div>
-    {recipeDay && <MealPicker source={source} swapping={!!replaceMealId} date={recipeDay} onClose={() => setRecipeDay(null)} onChoose={choice => { dinner(recipeDay, choice.kind === 'meal' && replaceMealId ? { ...choice, replaceMealId } : choice); setRecipeDay(null) }} />}
+    {recipeDay && <MealPicker source={source} usedIds={usedRecipes} swapping={!!replaceMealId} date={recipeDay} onClose={() => setRecipeDay(null)} onChoose={choice => { dinner(recipeDay, choice.kind === 'meal' && replaceMealId ? { ...choice, replaceMealId } : choice); setRecipeDay(null) }} />}
     {prepOpen && <PrepPicker source={source} onClose={() => setPrepOpen(false)} onAdd={prep => { change({ ...draft, prep: [...draft.prep, prep] }); setPrepOpen(false) }} />}
   </Sheet>
 }
 
-function MealPicker({ source, swapping, date, onClose, onChoose }: { source: WeeklyPlanning; swapping: boolean; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
+function MealPicker({ source, usedIds, swapping, date, onClose, onChoose }: { source: WeeklyPlanning; usedIds: Set<string>; swapping: boolean; date: string; onClose: () => void; onChoose: (choice: PlanningDinner) => void }) {
   const formId = useId()
   const [title, setTitle] = useState('')
-  const suggested = new Set(source.suggestions.filter(s => s.uses.some(i => !i.useBy || date <= i.useBy)).map(r => r.id))
+  const suggested = new Set(source.suggestions.filter(s => s.kit ? s.kit.receivedOn <= date && date <= s.kit.cookBy : s.uses.some(i => !i.useBy || date <= i.useBy)).map(r => r.id))
   return <Sheet title={t('Choose dinner for {date}', { date: labelDate(date) })} onClose={onClose} dirty={!!title.trim()}>
     <div className="weekly-meal-picker">
       <section className="weekly-picker-custom">
@@ -210,12 +215,13 @@ function MealPicker({ source, swapping, date, onClose, onChoose }: { source: Wee
         <button className="btn btn-primary" disabled={!title.trim()} onClick={() => onChoose({ date, kind:'meal', title:title.trim() })}>{t('Use this dinner')}</button>
       </section>
       <section className="weekly-picker-recipes">
-        <RecipeSelector recipes={swapping ? source.recipes.filter(mainDish) : source.recipes} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
+        <RecipeSelector recipes={(swapping ? source.recipes.filter(mainDish) : source.recipes).filter(r => !r.kits?.length || (!usedIds.has(r.id) && r.kits.some(k => k.receivedOn <= date && date <= k.cookBy)))} autoFocus={false} searchLabel={t('Or choose a recipe')} suggestedIds={suggested}
           onPick={recipe => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}
           renderRecipe={recipe => {
             const suggestion = source.suggestions.find(s => s.id === recipe.id)
+            const kit = recipe.kits?.find(k => k.receivedOn <= date && date <= k.cookBy)
             const usable = suggestion?.uses.filter(i => !i.useBy || date <= i.useBy)
-            return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}><strong>{recipe.name}{recipe.kind && recipe.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(recipe.kind)}</span>}</strong>{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food: item.title, date: labelDate(item.useBy!) })}</span>)}</button>
+            return <button className="btn btn-secondary weekly-recipe" key={recipe.id} onClick={() => onChoose({ date, kind: 'meal', title: recipe.name, recipeId: recipe.id })}><strong>{recipe.name}{recipe.kind && recipe.kind !== 'meal' && <span className="kit-tag">{recipeTypeLabel(recipe.kind)}</span>}</strong>{kit && <span>📦 {kitWhen(kit)}</span>}{recipe.totalMinutes != null && <span>{tn(recipe.totalMinutes, '{n} minute', '{n} minutes')}</span>}{usable?.map(item => <span key={`${item.title}:${item.useBy}`}>{t('Use {food} by {date}', { food: item.title, date: labelDate(item.useBy!) })}</span>)}</button>
           }} />
       </section>
     </div>

@@ -1,3 +1,4 @@
+import m0161 from '../migrations/0161_meal_kits.sql';
 import m0160 from '../migrations/0160_recipe_types.sql';
 import m0159 from '../migrations/0159_trip_care.sql';
 import m0158 from '../migrations/0158_trips_away.sql';
@@ -323,4 +324,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0158_trips_away.sql', sql: m0158 },
   { name: '0159_trip_care.sql', sql: m0159 },
   { name: '0160_recipe_types.sql', sql: m0160 },
+  { name: '0161_meal_kits.sql', sql: m0161 },
 ];

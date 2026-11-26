@@ -72,6 +72,7 @@ export interface Settings {
   nightLook: NightLook // what wall screens show during night hours unless a screen picks its own (saverSources.ts)
   boardPresets: BoardPreset[] // Board layouts a parent saved for the family (boardLayout.ts)
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
+  mealKitDays?: number
   mealTimes: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', string> // HH:MM each meal usually is; a meal without its own time uses it on the calendar
   aiHealthAccess: boolean // false (default): MCP and connected apps can't see or change the Health tracker
   medications: boolean // Medication reminders (off by default; only on with the Health tracker); off hides them everywhere, data kept
@@ -1138,6 +1139,7 @@ export interface OverdueChore { id: string; title: string; emoji: string | null;
 export interface TimedChore { id: string; title: string; emoji: string | null; memberId: string | null; dueTime: string | null; timerMinutes: number | null; done: boolean; pending: boolean; school?: boolean }
 
 export interface Board {
+  mealKitCount?: number
   today: string
   to: string
   generatedAt: string

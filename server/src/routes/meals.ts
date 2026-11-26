@@ -7,7 +7,7 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipeTagIdsSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { MealKitDetailSchema, MealKitDoneSchema, IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipeTagIdsSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, recipeStorageKind, importIngredient, matchBasic, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
@@ -17,6 +17,7 @@ import { pushToMembers, recordNotification } from '../notify.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
 import { detectRecipeKind, parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
+import { readMealKits } from '../meal-kits.ts';
 import { checkRate } from '../ratelimit.ts';
 import { familyLang, msg, perLang, requestLang, stored, tm, words } from '../i18n.ts';
 
@@ -140,6 +141,12 @@ async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchem
     const winner = await find();
     if (!winner) throw error;
     result = await save(winner.id);
+  }
+  if (input.kit) {
+    const now = new Date().toISOString();
+    await db.prepare('INSERT INTO meal_kits (id,recipe_id,provider,received_on,quantity,done,created_at,updated_at) VALUES (?,?,?,?,?,0,?,?) ON CONFLICT(recipe_id,provider,received_on) DO UPDATE SET quantity=excluded.quantity,updated_at=excluded.updated_at')
+      .bind(crypto.randomUUID(), result.recipe.id, input.kit.provider ?? input.source, input.kit.receivedOn, input.kit.quantity, now, now).run();
+    result.recipe = (await readRecipes(db, { id: result.recipe.id, archived: true, includeTags: true }))[0];
   }
   emit(c, 'recipe.changed', { id: result.recipe.id });
   return result;
@@ -596,4 +603,25 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}/steps/
   const result = await fetchRecipeImage(c.env, imageUrl);
   if ('error' in result) return c.json({ error: result.error }, result.status);
   return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
+});
+
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meal-kits', tags: ['Meals'], summary: 'List meal kits on hand, oldest box first', security: [{ Bearer: [] }], responses: { 200: { description: 'meal kits', content: { 'application/json': { schema: z.array(MealKitDetailSchema) } } } } }), async c => c.json(await readMealKits(c.env.DB), 200));
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meal-kits/{id}/done', tags: ['Meals'], summary: 'Mark meal kits used or tossed (parent only)', security: [{ Bearer: [] }], request: { params, body: body(MealKitDoneSchema) }, responses: { 200: ok, ...errors } }), async c => {
+  const id = c.req.valid('param').id;
+  const version = await c.env.DB.prepare('SELECT version FROM weekly_plan_source WHERE id = 1').first<{ version: number }>();
+  const kit = (await readMealKits(c.env.DB)).find(k => k.id === id);
+  if (!kit) return c.json({ error: stored('error', 'This meal kit has already been used or removed.') }, 404);
+  const count = c.req.valid('json').count ?? kit.left;
+  if (count > kit.left) return c.json({ error: stored('error', 'Choose no more than the number of meal kits left.') }, 400);
+  const result = await c.env.DB.prepare('UPDATE meal_kits SET done = done + ?, updated_at = ? WHERE id = ? AND (SELECT version FROM weekly_plan_source WHERE id = 1) = ?').bind(count, new Date().toISOString(), id, version?.version).run();
+  if (!result.meta.changes) return c.json({ error: stored('error', 'Meal kits changed. Refresh and try again.') }, 400);
+  emit(c, 'recipe.changed', { id: kit.recipeId });
+  return c.json({ ok: true }, 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meal-kits/{id}', tags: ['Meals'], summary: 'Remove a mistaken meal kit (parent only)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }), async c => {
+  const kit = await c.env.DB.prepare('SELECT recipe_id FROM meal_kits WHERE id = ?').bind(c.req.valid('param').id).first<{ recipe_id: string }>();
+  if (!kit) return c.json({ error: stored('error', 'This meal kit has been removed.') }, 404);
+  await c.env.DB.prepare('DELETE FROM meal_kits WHERE id = ?').bind(c.req.valid('param').id).run();
+  emit(c, 'recipe.changed', { id: kit.recipe_id });
+  return c.json({ ok: true }, 200);
 });

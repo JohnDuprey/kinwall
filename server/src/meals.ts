@@ -4,6 +4,7 @@ import type { Actor } from './auth.ts';
 import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type RecipeTag, type RecipeStep, type Projection } from './meal-schemas.ts';
 import { fillPlace, itemKey, recall } from './item-memory.ts';
 import { words, type Lang } from './i18n.ts';
+import { readMealKits } from './meal-kits.ts';
 
 export function normalizeIngredient(value: string): string {
   return value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -130,6 +131,7 @@ export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: s
     ...(includeTags ? [db.prepare(`${candidates}SELECT links.recipe_id, t.id, t.name FROM recipe_tag_links links
       JOIN recipe_tags t ON t.id = links.tag_id WHERE ${match('links.recipe_id')} ORDER BY t.name_key, t.id`).bind(...related)] : []),
   ]);
+  const kits = await readMealKits(db, opts.id ?? (recipes.results as RecipeRow[]).map(r => r.id));
   const tagsByRecipe = new Map<string, RecipeTag[]>();
   for (const { recipe_id, id, name } of (tags?.results ?? []) as (RecipeTag & { recipe_id: string })[]) {
     const values = tagsByRecipe.get(recipe_id) ?? [];
@@ -148,6 +150,7 @@ export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: s
   }
   return (recipes.results as RecipeRow[]).map((r) => ({
     ...recipeApi(r, byRecipe.get(r.id) ?? []),
+    kits: kits.filter(k => k.recipeId === r.id).map(({ id, provider, receivedOn, cookBy, quantity, left }) => ({ id, provider, receivedOn, cookBy, quantity, left })),
     ...(includeTags && { tags: tagsByRecipe.get(r.id) ?? [] }),
     cookedCount: cookedBy.get(r.id)?.cooked_count ?? 0,
     lastCookedDate: cookedBy.get(r.id)?.last_cooked_date ?? null,

@@ -15,7 +15,7 @@ import { libraryQuery } from './library.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeTag, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { BasicChoices, MealKitDetail, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeTag, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
 import type { SchoolGrade, SchoolRecords, SchoolKid, SchoolKidInput, SchoolDays, SchoolLog, SchoolLogInput, SchoolSubject, SchoolSummary } from './types.ts'
 import type { UpkeepArea, UpkeepDoneInput, UpkeepEntry, UpkeepFile, UpkeepJob, UpkeepJobInput, UpkeepStarter, UpkeepThing, UpkeepThingInput } from './types.ts'
 import type { Outing, OutingCategory, OutingFeed, OutingFeedInput, OutingIdeas, OutingInput, OutingPile, Poll, PollInput, ChoreSuggestion, ChoreSuggestionAnswer, ChoreSuggestionInput, TaskAccount, TaskAppList, TaskLink, PantrySuggestions } from './types.ts'
@@ -280,7 +280,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockWeeklyPlanningRequest } = await import('./mock-weekly-planning.ts')
     return mockWeeklyPlanningRequest(path, opts) as Promise<T>
   }
-  if (MOCK && /^api\/(meals|recipes|recipe-tags|restaurants)([/?]|$)/.test(path)) {
+  if (MOCK && /^api\/(meal-kits|meals|recipes|recipe-tags|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
   }
@@ -376,6 +376,9 @@ export const api = {
   // The server parses vCard text (or checks drafts from the device's contact picker) and finds duplicates.
   previewContactImport: (body: { vcard: string } | { contacts: ContactInput[] }) => MOCK ? mock.previewContactImport(body) : post<{ entries: ImportPreviewEntry[] }>('api/contacts/import/preview', body),
   importContacts: (body: { contacts: ContactInput[]; strategy: 'create' | 'merge'; mergeTargets?: string[]; confirmMerge?: true }) => MOCK ? mock.importContacts(body) : post<{ created: number; merged: number; skipped: number; ids: string[] }>('api/contacts/import', body),
+  getMealKits: () => get<MealKitDetail[]>('api/meal-kits'),
+  markMealKitDone: (id: string, count?: number) => post<{ ok: boolean }>('api/meal-kits/' + encodeURIComponent(id) + '/done', { count }),
+  deleteMealKit: (id: string) => del('api/meal-kits/' + encodeURIComponent(id)),
   getRecipes: (archived = false) => get<Recipe[]>(`api/recipes?archived=${archived}`),
   getRecipeTags: () => get<RecipeTag[]>(recipeTagsPath),
   createRecipeTag: (name: string) => post<RecipeTag>(recipeTagsPath, { name }),
@@ -604,7 +607,7 @@ export const api = {
       ({ ...s, meals: mockMeals(s.from, s.to), tomorrow: s.tomorrow && { ...s.tomorrow, meals: mockMeals(s.tomorrow.date, s.tomorrow.date) } }))
     : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
-  getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts')]).then(([b, { mockMeals }]) => ({ ...b, meals: mockMeals(b.today, b.to) })) : get<Board>(`api/board?days=${days}`),
+  getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts'), mock.getSettings()]).then(async ([b, { mockMeals, mockMealKits }, settings]) => ({ ...b, mealKitCount: settings.features.meals ? (await mockMealKits()).reduce((n, k) => n + k.left, 0) : 0, meals: settings.features.meals ? mockMeals(b.today, b.to) : [] })) : get<Board>(`api/board?days=${days}`),
   // `query`: a display's own sources and categories (tidbitQuery); none = the family's.
   getTidbits: (query?: string) => MOCK ? mock.getTidbits() : get<OnlineTidbits>(query ? `api/tidbits?${query}` : 'api/tidbits'),
 

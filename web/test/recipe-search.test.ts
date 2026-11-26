@@ -6,6 +6,13 @@ import { basicKey, matchBasic, pickerRecipes, recipeMatches } from '../src/recip
 const recipe = (id: string, name: string, ingredients: string[] = [], archived = false, description: string | null = null) =>
   ({ id, name, description, archived, ingredients: ingredients.map(name => ({ name })) })
 
+test('recipe pickers put on-hand meal kits first, oldest arrived box first', () => {
+  const kit = (receivedOn: string) => [{ receivedOn, cookBy: '2026-11-27', left: 1 }]
+  const recipes = [recipe('plain', 'Apple pie'), { ...recipe('new', 'Chicken'), kits: kit('2026-11-20') }, { ...recipe('old', 'Tacos'), kits: kit('2026-11-18') }]
+  assert.deepEqual(pickerRecipes(recipes, '').map(r => r.id), ['old', 'new', 'plain'])
+  assert.deepEqual(pickerRecipes(recipes, 'chicken').map(r => r.id), ['new'])
+})
+
 test('recipeMatches: name, description or an ingredient, any case; blank matches all', () => {
   const tacos = recipe('1', 'Fish tacos', ['Cod', 'Lime'], false, 'Friday favorite')
   assert.ok(recipeMatches(tacos, 'TACO'))

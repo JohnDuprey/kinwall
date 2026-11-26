@@ -377,3 +377,20 @@ anyone in the family, unless a grown-up turns on **Connected apps can see it** f
 Kinwall. No tool changes who can see a trip.
 
 Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.
+
+## Meal kits
+
+`list_meal_kits` reads on-hand boxes oldest first, with recipe, provider, arrived and cook-by
+dates, quantity and units left. `import_recipe` accepts optional
+`kit: { receivedOn: 'YYYY-MM-DD', quantity?: 1–20, provider?: string }`; quantity defaults to 1
+and provider to `source`. Reimporting a recipe/provider/arrived-date updates that box's quantity.
+Recipe reads include `kits` with units left. `mark_meal_kit_done` takes `{ id, count? }` and
+marks units used or tossed; leaving out count marks all remaining units done. It requires
+full parent access, as imports do; wall and child devices cannot perform these writes.
+
+Cook-by follows **Cook meal kits within** (`mealKitDays`, 1–14, default 7), available in
+`get_household.settings`. A parent changes it in Settings or through `PATCH /api/settings`;
+there is no general settings-write MCP tool. Marking a linked meal Cooked (`update_meal`,
+status `prepared`) uses an arrived kit automatically; undoing it returns the unit. Past
+cook-by boxes stay on hand until used or marked done. Weekly planning suggests main-dish
+kits oldest first and allows kit choices only within their arrived/cook-by dates.

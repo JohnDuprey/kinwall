@@ -9,6 +9,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
+import { readMealKits } from '../meal-kits.ts';
 import { BoardSchema, ErrorSchema, SnapshotSchema } from '../schemas.ts';
 import { readMeals } from '../meals.ts';
 import { checkInPointsFor, readSettings } from './settings.ts';
@@ -304,6 +305,7 @@ snapshotRoutes.openapi(
 
     const weather = weatherIn(await getWeather(db, now), lang);
 
+    const mealKitCount = settings.features.meals ? (await readMealKits(db)).reduce((n, k) => n + k.left, 0) : 0;
     const meals = settings.features.meals ? await readMeals(db, today, to) : [];
     // Borrowed library books due back (routes/library.ts), on their day; an overdue one stays on today.
     const booksDue = settings.features.trackersReading
@@ -323,6 +325,7 @@ snapshotRoutes.openapi(
       schoolwork,
       overdueChores,
       birthdays: birthdays.filter((b) => b.date <= to),
+      mealKitCount,
       meals: meals.filter((m) => m.date <= to),
       booksDue,
     };

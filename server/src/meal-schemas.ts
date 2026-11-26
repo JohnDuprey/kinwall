@@ -60,7 +60,12 @@ export const RecipeInputSchema = z.object({
   archived: z.boolean().optional(), ingredients: z.array(IngredientInputSchema).max(300).optional(),
   kind: RecipeKindSchema.optional(), makes: makes.optional(), tagIds: RecipeTagIdsSchema.optional(),
 }).strict().openapi('RecipeInput');
+export const MealKitSchema = z.object({ id: z.string(), provider: z.string(), receivedOn: MealDateSchema, cookBy: MealDateSchema, quantity: z.number().int(), left: z.number().int() });
+export const MealKitDetailSchema = MealKitSchema.extend({ recipeId: z.string(), recipeName: z.string(), imageUrl: z.string().nullable() });
+export const MealKitDoneSchema = z.object({ count: z.number().int().min(1).max(20).optional() }).strict();
+export const MealKitImportSchema = z.object({ receivedOn: MealDateSchema, quantity: z.number().int().min(1).max(20).default(1), provider: z.string().trim().min(1).max(50).optional() }).strict();
 export const RecipeSchema = z.object({
+  kits: z.array(MealKitSchema).optional(),
   id: z.string(), name: z.string(), description: text, instructions: text, preparationNotes: text, sourceUrl: url,
   defaultServings: servings, archived: z.boolean(), ingredients: z.array(IngredientSchema),
   // Defaults so older exports still import.
@@ -92,6 +97,7 @@ export const KIT_QUALIFIER = 'in the kit';
 /** A meal's calendar event starts at the meal time, or when cooking starts (ending at the meal time). */
 export const MealEventStartSchema = z.enum(['meal', 'cooking']);
 export const RecipeImportSchema = z.object({
+  kit: MealKitImportSchema.optional(),
   source: z.string().trim().min(1).max(50).describe('Where the recipe comes from, e.g. hellofresh.'),
   externalId: z.string().trim().min(1).max(2000).describe("The source's own recipe id (for a web page, its address); importing it again updates the same recipe."),
   name: z.string().trim().min(1).max(200), description: text.optional(), sourceUrl: url.optional().describe('Recipe card link.'), imageUrl: url.optional(),

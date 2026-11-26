@@ -99,6 +99,7 @@ export async function readSettings(db: KinwallDb) {
     nightLook: parseNightLook(map.get('nightLook')),
     boardPresets: parseBoardPresets(map.get('boardPresets')),
     features: parseFeatures(map.get('features')),
+    mealKitDays: Number(map.get('mealKitDays') ?? 7),
     mealTimes: parseMealTimes(map.get('mealTimes')),
     aiHealthAccess: map.get('aiHealthAccess') === 'true', // off until a parent turns it on, for every family
     // Medication reminders (routes/medications.ts): off until a parent turns it on, and part of the Health tracker.

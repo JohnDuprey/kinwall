@@ -741,3 +741,36 @@ at `/docs` (tags **Trips** and **Away**).
 Backups: see [Export & import](../your-data/export-import.md#trips-and-away-days).
 
 Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.
+
+## Meal kits
+
+`POST /api/recipes/import` accepts optional
+`kit: { receivedOn: 'YYYY-MM-DD', quantity?: integer 1–20, provider?: string }`.
+`receivedOn` must be a real date; quantity defaults to 1; provider is nonempty, up to 50
+characters, and defaults to the import's `source`. The recipe is still keyed by
+`(source, externalId)`. One box is upserted per `(recipe, provider, receivedOn)`; reimporting
+updates quantity, never adds another box. Omitting `kit` keeps existing import behavior.
+
+Recipe reads include `kits: [{ id, provider, receivedOn, cookBy, quantity, left }]`, only
+entries with `left > 0`, oldest first. `cookBy` is `receivedOn + mealKitDays` calendar days.
+`mealKitDays` is a family setting, integer 1–14, default 7, in `GET` / `PATCH /api/settings`.
+Updating it recalculates existing boxes' dates.
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/api/meal-kits` | On-hand boxes, oldest first: `[{ id, recipeId, recipeName, provider, receivedOn, cookBy, quantity, left, imageUrl }]`. |
+| POST | `/api/meal-kits/{id}/done` | Parent only. Body `{ count?: integer }`, 1–20 and no more than `left`; omitted means all left. Marks units used or tossed; returns `{ ok: true }`. |
+| DELETE | `/api/meal-kits/{id}` | Parent only. Removes a mistaken box; returns `{ ok: true }`, or 404 if missing. |
+
+Wall and child devices can read boxes but get 403 for Done, deletion, imports and settings
+changes. Remaining units are derived: a linked recipe meal marked `prepared` (Cooked) uses
+one unit of the oldest arrived box available on that meal's date; `done` units are reserved
+too. Unmarking Cooked returns the unit. Dining-out meals do not use kits. Past cook-by boxes
+remain on hand until used or marked done. Full exports/imports include all boxes and their
+explicit Done counts as `mealKits`, including consumed boxes; `left` is never stored.
+
+`GET /api/board` includes `mealKitCount` (0 while Meals is off). Weekly planning recipes carry
+`kits`; kit suggestions carry `kit` with the same dates and counts. Only main-dish kits are
+suggested, oldest first, excluding recipes already planned that week. Weekly apply refuses
+a kit dinner outside its arrived/cook-by dates. Box and cook-by setting changes invalidate
+an earlier weekly review.

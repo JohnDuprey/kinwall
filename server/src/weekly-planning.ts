@@ -56,16 +56,22 @@ export async function readWeeklyPlanning(db: KinwallDb, requested?: string): Pro
     if (version !== await sourceVersion(db)) continue;
     // Expired food never becomes a suggestion for a future meal.
     const safePantry = pantry.filter(i => !i.useBy || i.useBy >= weekStart);
-    const suggestions = rankRecipes(recipes, safePantry, expiringWithin(safePantry, 6)).slice(0, 8);
+    const planned = new Set(meals.map(m => m.recipeId));
+    const kitChoices = recipes.filter(r => r.kind === 'meal' && !planned.has(r.id)).flatMap(recipe => {
+      const kit = recipe.kits?.find(k => k.cookBy >= weekStart && k.receivedOn <= end);
+      return kit ? [{ id: recipe.id, name: recipe.name, totalMinutes: recipe.totalMinutes ?? null, kit, uses: [] }] : [];
+    }).sort((a, b) => a.kit.receivedOn.localeCompare(b.kit.receivedOn));
+    // A pantry match must not reintroduce a kit already planned, or one past its cook-by.
+    const suggestions = rankRecipes(recipes.filter(r => !r.kits?.length), safePantry, expiringWithin(safePantry, 6)).slice(0, 8);
     return {
       weekStart, dates, timezone, sourceVersion: version, revision: row?.revision ?? 0,
       draft: row ? { dinners: features.meals ? JSON.parse(row.draft).dinners : [], prep: features.lists ? JSON.parse(row.draft).prep : [] } : emptyDraft(),
       applied: row ? { dinners: features.meals ? JSON.parse(row.applied).dinners : {}, prep: features.lists ? JSON.parse(row.applied).prep : {} } : emptyApplied(), features,
       events: events.map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, allDay: e.allDay, memberIds: e.memberIds, occurrenceStart: e.occurrenceStart })),
-      meals: meals.map(m => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
+      meals: meals.map(m => ({ recipeId: m.recipeId, id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
       pantry: expiringWithin(safePantry, 6).filter(i => i.useBy).map(i => ({ id: i.id, title: i.title, useBy: i.useBy! })),
-      recipes: recipes.filter(r => r.kind !== 'basic').map(r => ({ id: r.id, kind: r.kind, name: r.name, totalMinutes: r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })),
-      suggestions: suggestions.map(s => ({ ...s.recipe, uses: s.uses.map(i => ({ title: i.title, useBy: i.useBy })) })),
+      recipes: recipes.filter(r => r.kind !== 'basic').map(r => ({ id: r.id, kind: r.kind, kits: r.kits, name: r.name, totalMinutes: r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })),
+      suggestions: [...kitChoices, ...suggestions.filter(s => !kitChoices.some(k => k.id === s.recipe.id)).map(s => ({ ...s.recipe, uses: s.uses.map(i => ({ title: i.title, useBy: i.useBy })) }))],
       tasks: taskRows.results.map(i => ({ id: i.id, title: i.title, dueDate: i.due_date, eventId: i.event_id, listId: i.list_id, done: !!i.done })),
       jobs: jobs.filter(j => !j.archived && j.nextDue && j.nextDue <= end).map(j => ({ id: j.id, title: j.title, date: j.nextDue! })),
       lists: listRows.results,
@@ -122,6 +128,8 @@ export async function applyWeeklyPlan(db: KinwallDb, week: string, input: { revi
     if (!dinner.replaceMealId && (snapshot.meals.some(m => m.date === dinner.date && m.slot === 'dinner') || previous)) throw new PlanningError(stored('error', 'Dinner is already planned for that day. Change it in Meals.'), 409);
     const old = target ? await readMeal(db, target.id) : undefined;
     if (target && !old) throw new PlanningError(stored('error', 'This dinner can no longer be swapped here. Refresh the week or open Meals.'), 409);
+    const recipe = dinner.recipeId ? snapshot.recipes.find(r => r.id === dinner.recipeId) : undefined;
+    if (recipe?.kits?.length && !recipe.kits.some(k => k.receivedOn <= dinner.date && dinner.date <= k.cookBy)) throw new PlanningError(stored('error', 'Choose a dinner on or before the meal kit’s cook-by date.'));
     const meal = await buildMeal(db, { date: dinner.date, slot: 'dinner', title: dinner.title, mealKind: dinner.recipeId ? 'recipe' : 'freeform', recipeId: dinner.recipeId ?? null, ...(old ? { servings: old.servings, sourceUrl: null } : {}) }, old ?? undefined);
     if (typeof meal === 'string') throw new PlanningError(meal);
     if (dinner.recipeId && !(await readRecipes(db, { id: dinner.recipeId })).some(r => dinner.replaceMealId ? r.kind === 'meal' : r.kind !== 'basic')) throw new PlanningError(stored('error', 'Choose a meal recipe that is still in your library.'));

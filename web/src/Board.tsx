@@ -578,6 +578,12 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
       row: upkeepRow,
       full: upkeepRow,
     },
+    f.meals && !!data.mealKitCount && {
+      key: 'meal-kits',
+      chip: <a className="board-slot-chip" href="#/meals"><span aria-hidden="true">📦</span><span className="board-slot-chip-text">{tn(data.mealKitCount, '{n} meal kit to cook', '{n} meal kits to cook')}</span></a>,
+      row: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} meal kit to cook', '{n} meal kits to cook')}</a>,
+      full: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} meal kit to cook', '{n} meal kits to cook')}</a>,
+    },
     // Who's away and a trip that's close (tripGlance.tsx): after the day's own things.
     ...(todayTiles ? travel : []),
     pollHost(shown) === 'today' && pollSlot.item,

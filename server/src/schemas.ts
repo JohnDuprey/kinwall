@@ -388,6 +388,7 @@ export const SettingsSchema = z
     features: FeaturesSchema,
     defaultGroceryStore: z.string().nullable().openapi({ description: 'The store Shop starts at on Groceries lists (no store step), listed first in their store pickers. null: none (Shop asks).' }),
     defaultShoppingStore: z.string().nullable().openapi({ description: 'The same for Shopping lists (hardware store, department store...).' }),
+    mealKitDays: z.number().int().min(1).max(14).default(7),
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
     aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
     medications: z.boolean().openapi({ description: 'Medication reminders (off by default). Off: the medication routes answer 404; the data is kept.' }),
@@ -456,6 +457,7 @@ export const SettingsPatchSchema = z
     features: FeaturesSchema.extend({ school: z.boolean().optional(), trips: z.boolean().optional() }).optional(),
     defaultGroceryStore: z.string().trim().max(60).nullable().optional(), // null clears it
     defaultShoppingStore: z.string().trim().max(60).nullable().optional(),
+    mealKitDays: z.number().int().min(1).max(14).optional(),
     mealTimes: MealTimesSchema.optional(),
     aiHealthAccess: z.boolean().optional(), // the family's own devices only: a connected app gets 403
     medications: z.boolean().optional(), // likewise
@@ -1636,6 +1638,7 @@ export const SnapshotSchema = z
 
 export const BoardSchema = z
   .object({
+    mealKitCount: z.number().int().nonnegative().optional(),
     today: z.string(), // YYYY-MM-DD, household tz
     to: z.string(), // last day, inclusive
     generatedAt: z.string(),

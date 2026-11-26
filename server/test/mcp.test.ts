@@ -180,6 +180,8 @@ test('mcp: tools/list returns the tools', async () => {
     'list_outings',
     'list_pending_approvals',
     'list_polls',
+    'list_meal_kits',
+    'mark_meal_kit_done',
     'list_recipe_tags',
     'list_recipes',
     'list_remembered_items',
@@ -854,6 +856,29 @@ test('mcp: meal planning recipes, weekly retrieval, assignment, and reviewed sho
   assert.equal((await call('list_meals', range)).meals[0].recipeSnapshot.name, 'Rice bowl');
   assert.equal((await call('update_recipe', { id: recipe.id, archived: false })).recipe.archived, false);
   assert.deepEqual(await (await rest('/api/events?from=2026-09-20&to=2026-09-29')).json(), []);
+});
+
+test('mcp: meal kit imports, reads and parent-only Done use the REST contract', async () => {
+  const { rest, mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: Record<string, unknown> = {}, key = ADMIN_KEY) => {
+    const body = await (await mcp('tools/call', { name, arguments: args }, key)).json() as any;
+    assert.equal(body.error, undefined);
+    return body.result;
+  };
+  const input = { source: 'box-service', externalId: 'tacos', name: 'Tacos', ingredients: [], kit: { receivedOn: '2026-11-20', quantity: 2 } };
+  const imported = await call('import_recipe', input);
+  assert.notEqual(imported.isError, true);
+  await call('import_recipe', input);
+  const kits = (await call('list_meal_kits')).structuredContent.kits;
+  assert.equal(kits.length, 1);
+  assert.deepEqual([kits[0].provider, kits[0].cookBy, kits[0].left], ['box-service', '2026-11-27', 2]);
+  const recipe = (await call('get_recipe', { id: imported.structuredContent.recipeId })).structuredContent.recipe;
+  assert.equal(recipe.kits[0].id, kits[0].id);
+  const wall = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json() as any;
+  assert.notEqual((await call('list_meal_kits', {}, wall.key)).isError, true);
+  assert.equal((await call('mark_meal_kit_done', { id: kits[0].id }, wall.key)).isError, true);
+  assert.notEqual((await call('mark_meal_kit_done', { id: kits[0].id, count: 1 })).isError, true);
+  assert.equal((await call('list_meal_kits')).structuredContent.kits[0].left, 1);
 });
 
 test('mcp: meal planning preserves route authorization and returns resolution/validation errors', async () => {

@@ -1,4 +1,5 @@
 // In-memory meal fixtures for VITE_MOCK only; production always uses the meal API.
+import { kitBalances } from '../../server/src/kit-balances.ts'
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
@@ -334,12 +335,33 @@ async function projection(from: string, to: string, listId: string | null, basic
 /** The demo menu for the Board and a member's day (the server's readMeals). */
 export const mockMeals = (from: string, to: string) => meals.filter(m => m.date >= from && m.date <= to)
 
+const arrived = dateKey(new Date(Date.now() - 2 * 86400000))
+let kitBoxes = [{ id: 'demo-box', recipe_id: 'demo-salmon', provider: 'Meal kit', received_on: arrived, quantity: 1, done: 0 }]
+export async function mockMealKits() {
+  const settings = await mock.getSettings()
+  return kitBoxes.flatMap(box => {
+    const recipe = recipes.find(r => r.id === box.recipe_id)
+    if (!recipe) return []
+    return kitBalances([box], meals.filter(m => m.recipeId === box.recipe_id).map(m => ({ date: m.date, status: m.status, meal_kind: m.mealKind })), settings.mealKitDays ?? 7).filter(k => k.left > 0).map(k => ({ id: k.id, recipeId: recipe.id, recipeName: recipe.name, provider: k.provider, receivedOn: k.received_on, cookBy: k.cookBy, quantity: k.quantity, left: k.left, imageUrl: recipe.imageUrl ?? null }))
+  })
+}
 export async function mockMealRequest(path: string, options: RequestInit): Promise<unknown> {
   const url = new URL(path, 'https://demo.invalid/')
   const [, resource, rawId, action, sub] = url.pathname.slice(1).split('/')
   const id = rawId ? decodeURIComponent(rawId) : undefined
   const method = options.method ?? 'GET'
   const body = options.body ? JSON.parse(String(options.body)) : {}
+  if (resource === 'meal-kits') {
+    if (method === 'GET') return mockMealKits()
+    if (mock.demoKid()) throw new Error('A grown-up must do that.')
+    if (method === 'DELETE') { kitBoxes = kitBoxes.filter(k => k.id !== id); return { ok: true } }
+    const kit = (await mockMealKits()).find(k => k.id === id)
+    if (!kit || action !== 'done') throw new Error('Meal kit not found')
+    const count = body.count ?? kit.left
+    if (!Number.isInteger(count) || count < 1 || count > kit.left) throw new Error('Check the number of meal kits.')
+    kitBoxes = kitBoxes.map(k => k.id === id ? { ...k, done: k.done + count } : k)
+    return { ok: true }
+  }
   if (resource === 'restaurants') {
     if (id === 'details') throw new Error('The demo can’t read websites. Try it on your own Kinwall.')
     if (id === 'parse-menu') throw new Error('The demo can’t read pasted menus. Try it on your own Kinwall, or add items one at a time.')
@@ -377,9 +399,10 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
       const tagIds = url.searchParams.get('tagIds')?.split(',') ?? []
       const list = old ? [old] : recipes.filter(r => (url.searchParams.get('archived') === 'true' || !r.archived)
         && tagIds.every(tagId => r.tags?.some(tag => tag.id === tagId)))
+      const kits = await mockMealKits()
       const result = list.map(r => {
         const dates = meals.filter(m => m.recipeId === r.id && m.status === 'prepared').map(m => m.date).sort()
-        return { kind: 'meal' as const, makes: null, ...r, cookedCount: dates.length, lastCookedDate: dates.at(-1) ?? null }
+        return { kind: 'meal' as const, makes: null, ...r, kits: kits.filter(k => k.recipeId === r.id), cookedCount: dates.length, lastCookedDate: dates.at(-1) ?? null }
       })
       return old ? result[0] : result
     }
