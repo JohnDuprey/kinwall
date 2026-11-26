@@ -139,10 +139,10 @@ you chose in the recipe sheet. Everyone who can open a recipe can use the reader
 needed. Family ratings, planned meals, tags and preparation notes stay out of this view. Close it
 with **Close**, Escape or Back to return to the recipe sheet.
 
-In a browser or installed web app, **Print** near the top of the recipe sheet opens the reader and
-the print dialog. You can also print from inside the reader. Only the recipe prints, in black on
-white with its photos, without app buttons or navigation. The iPhone and Android apps have the
-full-screen reader; printing is available in browsers and installed web apps.
+**Print** near the top of the recipe sheet opens the reader and the print dialog. You can also print
+from inside the reader. Only the recipe prints, in black on white with its photos, without app
+buttons or navigation. In the iPhone, iPad and Android apps, Print shows once the app can print
+(its next version); the reader stays open behind the print sheet, so close it when you're done.
 
 ### Sharing a recipe
 

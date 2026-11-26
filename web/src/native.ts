@@ -40,6 +40,7 @@ export function markNativeApp() {
   const p = appPlatform()
   if (p) {
     document.documentElement.dataset.native = p
+    if (appCanPrint()) document.documentElement.dataset.nativePrint = ''
     document.documentElement.dataset.statusBar = (appStatusBarHidden() ?? p === 'ios') ? 'hidden' : 'visible'
   }
 }
@@ -347,4 +348,15 @@ export function appChoreNudgeAnyone(): boolean | null {
 export function setAppChoreNudgeAnyone(on: boolean) {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'choreNudgeAnyone', on })
+}
+
+/** An app that prints the page it shows (kinwallNative.print); WebViews ignore window.print(). */
+export function appCanPrint(): boolean {
+  return inNativeApp() && (window as Window & { kinwallNative?: { print?: unknown } }).kinwallNative?.print === true
+}
+
+/** Asks the app to print this page as it looks now (print styles applied). */
+export function printInApp(title: string) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'print', title }) } catch { /* app unavailable */ }
 }

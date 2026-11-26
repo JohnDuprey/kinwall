@@ -7,6 +7,7 @@ import { recipeReaderContent } from './recipe-reader.ts'
 import { recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import type { Recipe } from './meal-types.ts'
 import { t } from './i18n.ts'
+import { appCanPrint, printInApp } from './native.ts'
 import './meals.css'
 
 /** A private reader with the public page's layout. Sheet supplies focus, Escape, browser Back
@@ -32,7 +33,10 @@ export default function RecipeReader({ recipe, servings, printOnOpen = false, on
     const timeout = new Promise<void>(resolve => { timer = setTimeout(resolve, 5000) })
     void Promise.race([ready, timeout]).then(() => {
       clearTimeout(timer)
-      if (!canceled) window.print()
+      if (canceled) return
+      // The app prints the reader as it is on screen, after this returns, so it stays open
+      // (no afterprint there); the person closes it when done.
+      if (appCanPrint()) { printInApp(shown.name); setPrinting(false) } else window.print()
     })
     return () => { canceled = true; clearTimeout(timer); window.removeEventListener('afterprint', done) }
   }, [printing, printOnOpen])

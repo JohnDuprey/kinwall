@@ -126,7 +126,7 @@
 .recipe-view-actions, .recipe-reader-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .recipe-view-actions .btn, .recipe-reader-actions .btn { flex: none; min-height: 44px; gap: 6px; }
 .sheet .sheet-body .recipe-view-actions > button.btn { padding-inline: 12px; }
-:root[data-native] .recipe-print-btn { display: none; }
+:root[data-native]:not([data-native-print]) .recipe-print-btn { display: none; } /* an app that can't print */
 .sheet-full:has(.recipe-reader) { background: var(--bg); }
 .sheet-full:has(.recipe-reader) .sheet-body { background: var(--bg); }
 .recipe-reader { max-width: 760px; margin: 0 auto; padding: 12px 16px 48px; font-size: 1.0625rem; line-height: 1.55; overflow-wrap: anywhere; }
