@@ -35,7 +35,7 @@ export function useBoardMeasure(ref: RefObject<HTMLElement | null>, measure: () 
     }
     watch()
     const children = new MutationObserver(() => { watch(); schedule() })
-    children.observe(card, { childList: true })
+    children.observe(card, { childList: true, subtree: true })
     return () => { active = false; children.disconnect(); resize.disconnect(); queued.cancel() }
   }, [ref, queued, enabled])
 }

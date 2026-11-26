@@ -10,6 +10,7 @@ import RecipePhoto from './RecipePhoto.tsx'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
+import MealPlanFacts from './MealPlanFacts.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import type { Member } from './types.ts'
 import { t, tm } from './i18n.ts'
@@ -128,6 +129,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
       onRecipe={recipe => { setDraft(d => ({ ...d, mealKind: 'recipe', recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings })); setChoosing(false) }}
       onOther={(kind, title) => { setDraft(d => ({ ...d, mealKind: kind, recipeId: null, title })); setChoosing(false) }} /> :
     <form id={formId} onSubmit={e => { e.preventDefault(); void save() }}>
+      {meal && <MealPlanFacts meal={meal} recipe={selectedRecipe} />}
       {/* An order night's orders have their own view (Orders.tsx OrderNightSheet); eating out somewhere else keeps them here, on top. */}
       {showOrders && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {admin ? <fieldset className="meal-fieldset" disabled={busy}>

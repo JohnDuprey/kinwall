@@ -18,6 +18,6 @@ export async function readMealKits(db: KinwallDb, recipeId?: string | string[], 
     readKitDays(db),
   ]);
   return kitBalances(kits.results, cooked.results, days)
-    .filter(k => includeUsed || k.left > 0).sort((a, b) => a.received_on.localeCompare(b.received_on) || a.id.localeCompare(b.id))
+    .filter(k => includeUsed || k.left > 0).sort((a, b) => a.cookBy.localeCompare(b.cookBy) || a.received_on.localeCompare(b.received_on) || a.id.localeCompare(b.id))
     .map(k => ({ id: k.id, recipeId: k.recipe_id, recipeName: k.recipe_name ?? k.title ?? '', kind: k.kind, title: k.title, provider: k.provider, receivedOn: k.received_on, cookBy: k.cookBy, quantity: k.quantity, left: k.left, imageUrl: k.image_url }));
 }

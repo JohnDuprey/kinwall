@@ -88,11 +88,11 @@ function BoardGrid({ columns, compact, style, children }: {
 }
 
 /** `foot`: something right under the rows that always shows (the "in Today" slot), taking its space from them. */
-function Card({ title, area, link, density, foot, what, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; what?: [string, string]; children: React.ReactNode }) {
+function Card({ title, area, link, density, foot, what, rows, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; foot?: React.ReactNode; what?: [string, string]; rows?: string; children: React.ReactNode }) {
   return (
     <section className={`board-card board-${area}${densityClass(density)}`} aria-label={title}>
       <h3 className="snap-heading">{title}{link}</h3>
-      <FitBody title={title} what={what}>{children}</FitBody>
+      <FitBody title={title} what={what} rows={rows}>{children}</FitBody>
       {foot}
     </section>
   )
@@ -581,9 +581,9 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
     },
     f.meals && !!data.mealKitCount && {
       key: 'meal-kits',
-      chip: <a className="board-slot-chip" href="#/meals"><span aria-hidden="true">📦</span><span className="board-slot-chip-text">{tn(data.mealKitCount, '{n} ready to cook', '{n} ready to cook')}</span></a>,
-      row: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} ready to cook', '{n} ready to cook')}</a>,
-      full: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} ready to cook', '{n} ready to cook')}</a>,
+      chip: <a className="board-slot-chip" href="#/meals"><span aria-hidden="true">📦</span><span className="board-slot-chip-text">{tn(data.mealKitCount, '{n} meal ready to cook', '{n} meals ready to cook')}</span></a>,
+      row: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} meal ready to cook', '{n} meals ready to cook')}</a>,
+      full: <a className="board-slot-chip" href="#/meals">📦 {tn(data.mealKitCount, '{n} meal ready to cook', '{n} meals ready to cook')}</a>,
     },
     // Who's away and a trip that's close (tripGlance.tsx): after the day's own things.
     ...(todayTiles ? travel : []),
@@ -731,7 +731,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
         </Sheet>}
 
-        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS}><PrepToday date={today} /><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
+        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS} rows=".prep-today-row, .snap-list > li"><PrepToday date={today} compact /><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
         {has('coming') && <Card title={t('Coming up')} area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
           {later.length === 0 ? <p className="snap-empty">{t('Nothing planned this week.')}</p> : later.map(d => {

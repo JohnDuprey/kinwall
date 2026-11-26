@@ -6,6 +6,7 @@ import { formatTime } from './timeFormat.ts'
 import { OrderNightFacts, OrderSheet, OrderSummary, OrderNightSheet, useMealRestaurant } from './Orders.tsx'
 import { CheckIcon, EditIcon } from './icons.tsx'
 import MealSheet, { EaterAvatars } from './MealSheet.tsx'
+import MealPlanFacts from './MealPlanFacts.tsx'
 import RecipeSheet, { ratingOwner } from './RecipeSheet.tsx'
 import type { Meal, Recipe } from './meal-types.ts'
 import type { Me } from './types.ts'
@@ -32,7 +33,7 @@ export function PlannedMealSheet({ meal: initial, recipes, me, startOrders, star
       : details || !recipe
       ? <MealSheet meal={meal} initial={{ date: meal.date, slot: meal.slot }} recipes={recipes} admin={admin} owner={me?.owner} me={me} startOrders={orderNight ? false : startOrders} onClose={orderNight && !startDetails ? () => setDetails(false) : onClose} onSaved={onSaved} onRecipe={setViewing} onChanged={onRated} />
       : <RecipeSheet key={recipe.id} recipe={recipe} library={recipes} admin={false} owner={ratingOwner(me)} onRated={onRated} onClose={onClose} onSaved={onSaved}
-        meal={<MealStrip meal={meal} me={me} onChanged={ordersChanged} />}
+        meal={<MealStrip meal={meal} recipe={recipe} me={me} onChanged={ordersChanged} />}
         onEditMeal={{ label: admin ? t('Edit meal') : t('Meal details'), open: () => setDetails(true) }} />}
     {viewing && <RecipeSheet key={viewing.id} recipe={viewing} library={recipes} admin={false} owner={ratingOwner(me)} onRated={onRated} onClose={() => setViewing(null)} onSaved={onSaved} />}
   </>
@@ -40,7 +41,7 @@ export function PlannedMealSheet({ meal: initial, recipes, me, startOrders, star
 
 /** A planned meal's recipe, on top: when, who's eating and its status, and Mark cooked for whoever may
  * (parents, and the cook's own device), with Undo. */
-function MealStrip({ meal, me, onChanged }: { meal: Meal; me: Me | null; onChanged: (meal: Meal) => void }) {
+function MealStrip({ meal, recipe, me, onChanged }: { meal: Meal; recipe: Recipe; me: Me | null; onChanged: (meal: Meal) => void }) {
   const { settings, members, toast } = useApp()
   const [busy, setBusy] = useState(false)
   const time = meal.plannedTime ?? settings.mealTimes[meal.slot]
@@ -55,6 +56,7 @@ function MealStrip({ meal, me, onChanged }: { meal: Meal; me: Me | null; onChang
   const when = { day: mealDayLabel(meal.date, { weekday: 'short', month: 'short', day: 'numeric' }), meal: tm(SLOT_WORD[meal.slot]) }
   return <div className="meal-strip">
     <span className="meal-strip-when">{time ? t('{day}, {meal} at {time}', { ...when, time: formatTime(time) }) : t('{day}, {meal}', when)}</span>
+    <MealPlanFacts meal={meal} recipe={recipe} />
     <EaterAvatars ids={meal.eaterIds} members={members} />
     {meal.status !== 'planned' ? <span className="chip chip-static">✓ {statusLabel(meal)}</span>
       : canMark ? <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void mark('prepared')}><CheckIcon width={20} height={20} /> {t('Mark cooked')}</button>

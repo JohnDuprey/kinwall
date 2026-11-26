@@ -25,7 +25,7 @@ import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restau
 import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { PollSheet, usePolls } from './Polls.tsx'
 import { useTripLinks } from './tripLinks.tsx'
-import { kitDate, kitIcon, kitLabel, plannedMealKit } from './meal-kits.ts'
+import { kitDate, kitIcon, kitPlanLabel, plannedMealKit } from './meal-kits.ts'
 import PrepToday from './PrepToday.tsx'
 import UseItUp from './UseItUp.tsx'
 import type { Me } from './types.ts'
@@ -253,14 +253,14 @@ export default function Meals() {
     const kit = plannedMealKit(meal, meal.readyId ? readyItems : recipe?.kits)
     const meta = [meal.mealKind === 'dining_out' && meal.orderType && tm(ORDER_TYPE_LABEL[meal.orderType]), meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length && ordersLabel(meal), meal.status !== 'planned' && `✓ ${statusLabel(meal)}`].filter(Boolean).join(' · ')
     return <button key={meal.id} type="button" className={`snap-row meal-row meal-${slot}${meal.status !== 'planned' ? ' meal-complete' : ''}`} onClick={() => setOpenMeal(meal)}
-      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), kit && kitLabel(kit), kit && t('Cook by {date}', { date: kitDate(kit.cookBy) }), meal.prepOn && t('Prep {date}', { date: kitDate(meal.prepOn) }), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
+      aria-label={[tm(SLOT_LABEL[slot]), mealDayLabel(date), meal.title, trip && t('for the trip {title}', { title: trip.title }), statusLabel(meal), kit && kitPlanLabel(kit), meal.prepOn && t('Prep {date}', { date: kitDate(meal.prepOn) }), assignee && t('cooked by {name}', { name: assignee.name }), meal.eaterIds?.length && t('for {names}', { names: members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ') })].filter(Boolean).join(', ')}>
       {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
       <span className="board-bar" aria-hidden="true" />
       <span className="snap-main" aria-hidden="true">
         <span className="board-when">{[meal.plannedTime && formatTime(meal.plannedTime), tm(SLOT_LABEL[slot])].filter(Boolean).join(' · ')}</span>
         <span className="snap-title">{meal.mealKind === 'dining_out' && '↗ '}{meal.title}</span>
         {meal.prepOn && <span className="kit-tag meal-kit-tag">🔪 {t('Prep {date}', { date: kitDate(meal.prepOn) })}</span>}
-        {kit && <span className="kit-tag meal-kit-tag">{kitIcon(kit)} {kitLabel(kit)} <span>{t('Cook by {date}', { date: kitDate(kit.cookBy) })}</span></span>}
+        {kit && <span className="kit-tag meal-kit-tag">{kitIcon(kit)} {kitPlanLabel(kit)}</span>}
         {meta && <span className="snap-meta">{meta}</span>}
         {trip && <span className="meal-trip-tag">{trip.emoji || '✈️'} {trip.title}</span>}
       </span>

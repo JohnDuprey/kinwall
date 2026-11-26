@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { MinusIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import PickField from './PickField.tsx'
 import { Segmented } from './a11y.tsx'
@@ -13,10 +14,10 @@ import type { MealKitDetail, ReadyKind, Recipe } from './meal-types.ts'
 const plusDays = (date: string, days: number) => new Date(Date.parse(date) + days * 86400000).toISOString().slice(0, 10)
 
 function MealCount({ name, value, onChange }: { name: string; value: number; onChange: (n: number) => void }) {
-  return <div className="recipe-servings"><span>{name}</span><div className="suggest-stepper" role="group" aria-label={name}>
-    <button type="button" className="icon-btn" aria-label={t('Fewer meals for {name}', { name })} disabled={value <= 1} onClick={() => onChange(value - 1)}>−</button>
+  return <div className="recipe-servings"><span>{name}</span><div className="recipe-stepper" role="group" aria-label={name}>
+    <button type="button" className="icon-btn" aria-label={t('Fewer meals for {name}', { name })} disabled={value <= 1} onClick={() => onChange(value - 1)}><MinusIcon width={20} height={20} /></button>
     <span aria-live="polite">{tn(value, '{n} meal', '{n} meals')}</span>
-    <button type="button" className="icon-btn" aria-label={t('More meals for {name}', { name })} disabled={value >= 20} onClick={() => onChange(value + 1)}>+</button>
+    <button type="button" className="icon-btn" aria-label={t('More meals for {name}', { name })} disabled={value >= 20} onClick={() => onChange(value + 1)}><PlusIcon width={20} height={20} /></button>
   </div></div>
 }
 
@@ -56,18 +57,18 @@ export default function ReadyItemSheet({ recipes, recipe, item, onClose, onSaved
     try { await api.deleteMealKit(item.id); reloadCore(); onSaved() }
     catch (e) { setError(e instanceof Error ? e.message : t('Could not save food.')); setBusy(false) }
   }
-  return <Sheet title={item ? item.recipeName : recipe ? t('Prepped this') : t('Add ready to cook food')} onClose={onClose} dirty="auto" dismissable={!busy} actions={<button className="btn btn-primary" form={formId} type="submit" disabled={busy || (!item && !ids.length && !title.trim())}>{busy ? t('Saving…') : t('Save')}</button>}>
+  return <Sheet title={item ? item.recipeName : recipe ? t('Prepped this') : t('Add to Ready to cook')} onClose={onClose} dirty="auto" dismissable={!busy} actions={<button className="btn btn-primary" form={formId} type="submit" disabled={busy || (!item && !ids.length && !title.trim())}>{busy ? t('Saving…') : t('Save')}</button>}>
     <form id={formId} onSubmit={e => { e.preventDefault(); void save() }}>
       {error && <p className="field-error" role="alert">{error}</p>}
       <fieldset className="ready-item-fields" disabled={busy || savedIds.length > 0}>
         {!item && !recipe && <>
-          <div className="meal-actions"><button type="button" className="btn btn-secondary" aria-pressed={several} onClick={() => { setSeveral(v => !v); setIds([]) }}>{several ? t('One item') : t('Prepped several')}</button></div>
+          <div className="field"><Segmented label={t('How many items?')} value={several ? 'several' : 'one'} options={[{ key: 'one', label: t('One item') }, { key: 'several', label: t('Several') }]} onChange={value => { setSeveral(value === 'several'); setIds([]) }} /></div>
           <div className="field"><label htmlFor={`${formId}-recipe`}>{t('What is it?')}</label><PickField id={`${formId}-recipe`} label={t('Recipe')} options={[...(!several ? [{ value: '', label: t('Name the food') }] : []), ...recipes.filter(r => !r.archived).map(r => ({ value: r.id, label: r.name }))]} value={ids} onChange={next => setIds(next.filter(Boolean))} multiple={several} search none={t('Pick a recipe')} /></div>
           {!several && <div className="field"><label htmlFor={`${formId}-name`}>{t('Or name the food')}</label><input id={`${formId}-name`} type="text" value={title} maxLength={200} disabled={!!ids.length} onChange={e => setTitle(e.target.value)} /></div>}
         </>}
         <div className="field"><label id={`${formId}-kind`}>{t('Type')}</label><Segmented aria-labelledby={`${formId}-kind`} label={t('Type')} value={kind} onChange={value => changedDate(date, value as ReadyKind)} options={(['prepped', 'frozen', 'kit'] as const).map(value => ({ key: value, label: kitLabel({ kind: value }) }))} /></div>
         <div className="field"><label htmlFor={`${formId}-date`}>{kind === 'kit' ? t('Arrived on') : kind === 'frozen' ? t('Frozen on') : t('Prepped on')}</label><input id={`${formId}-date`} type="date" required value={date} disabled={!!item} onChange={e => changedDate(e.target.value)} /></div>
-        {(item ? [''] : ids.length ? ids : ['']).map(id => <MealCount key={id} name={recipes.find(r => r.id === id)?.name ?? t('How many meals does it cover?')} value={counts[id] ?? 1} onChange={value => setCounts(old => ({ ...old, [id]: value }))} />)}
+        {(item ? [''] : ids.length ? ids : ['']).map(id => <MealCount key={id} name={several ? recipes.find(r => r.id === id)?.name ?? t('How many meals does it cover?') : t('How many meals does it cover?')} value={counts[id] ?? 1} onChange={value => setCounts(old => ({ ...old, [id]: value }))} />)}
         <div className="field"><label htmlFor={`${formId}-until`}>{kind === 'kit' ? t('Cook by') : kind === 'frozen' ? t('Use by') : t('Eat by')}</label><input id={`${formId}-until`} type="date" required value={cookBy} onChange={e => { setCookBy(e.target.value); setCustomDate(true) }} /></div>
         {item && !item.recipeId && <div className="field"><label htmlFor={`${formId}-name`}>{t('What is it?')}</label><input id={`${formId}-name`} type="text" required maxLength={200} value={title} onChange={e => setTitle(e.target.value)} /></div>}
       </fieldset>

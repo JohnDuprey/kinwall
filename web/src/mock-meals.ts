@@ -345,7 +345,7 @@ const tomorrowPrep = meals.find(m => m.status === 'planned' && m.recipeId && m.d
 if (tomorrowPrep) tomorrowPrep.prepOn = dateKey(new Date())
 export async function mockMealKits(includeUsed = false) {
   const settings = await mock.getSettings()
-  return kitBalances(kitBoxes, meals.map(m => ({ date: m.date, status: m.status, meal_kind: m.mealKind, recipe_id: m.recipeId, ready_id: m.readyId })), settings.mealKitDays ?? 7).filter(k => includeUsed || k.left > 0).map(k => {
+  return kitBalances(kitBoxes, meals.map(m => ({ date: m.date, status: m.status, meal_kind: m.mealKind, recipe_id: m.recipeId, ready_id: m.readyId })), settings.mealKitDays ?? 7).filter(k => includeUsed || k.left > 0).sort((a, b) => a.cookBy.localeCompare(b.cookBy) || a.received_on.localeCompare(b.received_on) || a.id.localeCompare(b.id)).map(k => {
     const recipe = recipes.find(r => r.id === k.recipe_id)
     return { id: k.id, recipeId: k.recipe_id, recipeName: recipe?.name ?? k.title ?? '', title: k.title, kind: k.kind, provider: k.provider, receivedOn: k.received_on, cookBy: k.cookBy, quantity: k.quantity, left: k.left, imageUrl: recipe?.imageUrl ?? null }
   })

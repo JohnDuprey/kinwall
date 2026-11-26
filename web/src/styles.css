@@ -4560,8 +4560,14 @@ html:root[data-cast] {
 .prep-today-row { padding-block: .5rem; border-bottom: 1px solid var(--border); }
 .prep-today-row > span { min-width: 0; overflow-wrap: anywhere; }
 .prep-today .field-hint { display: block; }
+.prep-today-compact { margin: 0 0 .5rem; }
+.prep-today-compact .prep-today-list { margin: 0; }
 .ready-item-fields { margin: 0; padding: 0; border: 0; min-width: 0; }
+.meal-plan-facts { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.meal-strip .meal-plan-facts { flex-basis: 100%; margin-bottom: 0; }
 .meal-kit-tag { align-self: flex-start; width: fit-content; }
+/* The narrow week columns: a long tag ends in … (its full words are in the row's accessible name). */
+.meal-week:not(.meal-agenda) .kit-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .use-it-up-recipes + .use-it-up-head { margin-top: 20px; }
 .meal-kit-recipe { flex-direction: column; }
 .meal-kit-recipe .use-it-up-open { flex: auto; }

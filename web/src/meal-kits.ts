@@ -8,6 +8,10 @@ export const plannedMealKit = (meal: { status: string; date: string; readyId?: s
 export const kitDate = (date: string) => formatDate(new Date(`${date}T12:00:00`), { weekday: 'short', month: 'short', day: 'numeric' })
 export const kitIcon = (kit: Pick<MealKit, 'kind'>) => kit.kind === 'prepped' ? '🥡' : kit.kind === 'frozen' ? '❄️' : '📦'
 export const kitLabel = (kit: Pick<MealKit, 'kind'>) => kit.kind === 'prepped' ? t('Prepped') : kit.kind === 'frozen' ? t('Frozen') : t('Meal kit')
+export const kitPlanLabel = (kit: Pick<MealKit, 'kind' | 'cookBy'>) => kit.kind === 'prepped'
+  ? t('Prepped · eat by {date}', { date: kitDate(kit.cookBy) })
+  : kit.kind === 'frozen' ? t('Frozen · use by {date}', { date: kitDate(kit.cookBy) })
+  : t('Meal kit · cook by {date}', { date: kitDate(kit.cookBy) })
 export const kitWhen = (kit: MealKit) => kit.kind === 'prepped'
   ? t('Prepped {date} · eat by {until}', { date: kitDate(kit.receivedOn), until: kitDate(kit.cookBy) })
   : kit.kind === 'frozen' ? t('Frozen {date} · use by {until}', { date: kitDate(kit.receivedOn), until: kitDate(kit.cookBy) })

@@ -125,4 +125,6 @@ test('ready API plans and eats leftovers, edits storage, completes prep once and
   const withProvider = { kind: 'kit', recipeId: pasta.id, provider: 'delivery', receivedOn: '2026-11-27', quantity: 2 };
   await call('/api/meal-kits', 'POST', withProvider);
   assert.equal((await request('/api/meal-kits', 'POST', withProvider)).status, 400);
+  const dates = (await call('/api/meal-kits')).map((k: any) => k.cookBy);
+  assert.deepEqual(dates, [...dates].sort(), 'ready food is shown by its effective use-by date, including overrides');
 });
