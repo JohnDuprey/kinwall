@@ -3,8 +3,9 @@
 // JSON-LD blocks are found with a regex and parsed as JSON.
 import { z } from '@hono/zod-openapi';
 import { importIngredient, normalizeSteps, parseIngredientLine } from './meals.ts';
-import { RecipeImportSchema, type RecipeStep } from './meal-schemas.ts';
+import { RecipeImportSchema, RecipeKindSchema, type RecipeStep } from './meal-schemas.ts';
 import { words, type Lang } from './i18n.ts';
+type RecipeKind = z.infer<typeof RecipeKindSchema>;
 
 /** qualifier, preparation and category are only set from a Kinwall share link's data. */
 export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null; basic?: string | null };
@@ -13,7 +14,7 @@ export type RecipePreview = {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null;
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null;
   ingredients: PreviewIngredient[]; steps: Step[];
-  kind?: 'meal' | 'side' | 'dessert' | 'basic'; makes?: string | null; // from a Kinwall share link
+  kind?: RecipeKind; makes?: string | null;
 };
 
 const NAMED: Record<string, string> = {
@@ -21,6 +22,20 @@ const NAMED: Record<string, string> = {
   lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', frac12: '½', frac13: '⅓', frac14: '¼', frac34: '¾', frac23: '⅔', reg: '®', copy: '©', trade: '™',
   eacute: 'é', egrave: 'è', ecirc: 'ê', aacute: 'á', agrave: 'à', acirc: 'â', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', ccedil: 'ç', auml: 'ä', ouml: 'ö', uuml: 'ü', szlig: 'ß',
 };
+
+/** English hints only; other languages fall back to main dish. Category beats keywords, then name. */
+export function detectRecipeKind(recipeCategory: unknown, keywords: unknown, name: unknown): RecipeKind {
+  for (const source of [recipeCategory, keywords, name]) {
+    const text = (Array.isArray(source) ? source : [source]).map(v => clean(v)).join(', ').toLowerCase();
+    // A savory pie or a pie crust is not a dessert just because it says "pie".
+    const dessert = text.replace(/\b(?:pot|shepherd['’]?s)\s+pie\b|\bpie\s+crust\b/g, '');
+    if (/\b(?:desserts?|cakes?|cupcakes?|cookies?|brownies?|pie|tart|cheesecake|pudding|ice cream|sorbet|candy|fudge|sweets?)\b/.test(dessert)) return 'dessert';
+    if (/\b(?:sides?|side dish|side salad|vegetable side|accompaniment)\b/.test(text)) return 'side';
+    if (/\b(?:sauce|condiment|dressing|marinade|seasoning|spice (?:blend|mix|rub)|dough|crust|stock|broth|frosting|icing|syrup|jam)\b/.test(text)) return 'basic';
+    if (/\b(?:main|main course|main dish|entree|entrée|dinner|lunch|breakfast|brunch|supper)\b/.test(text)) return 'meal';
+  }
+  return 'meal';
+}
 /** HTML entities, twice over for the sites that encode them twice ("&amp;#39;"). */
 export function decodeEntities(s: string): string {
   const once = (t: string) => t.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (m, e: string) => {
@@ -215,6 +230,7 @@ export function parseRecipeHtml(html: string, pageUrl: string): RecipePreview | 
   const ingredients = recipe.recipeIngredient ?? recipe.ingredients;
   return {
     name: clean(recipe.name).slice(0, 200), description: clean(recipe.description).slice(0, 10000) || null,
+    kind: detectRecipeKind(recipe.recipeCategory, recipe.keywords, recipe.name),
     imageUrl: imageUrl(recipe.image ?? recipe.thumbnailUrl, byId, pageUrl), sourceUrl,
     servings: yieldServings(recipe.recipeYield ?? recipe.yield), prepMinutes: prep,
     totalMinutes: isoMinutes(recipe.totalTime) ?? (prep || cook ? Math.min(10000, (prep ?? 0) + (cook ?? 0)) : null),

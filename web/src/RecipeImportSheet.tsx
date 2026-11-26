@@ -2,9 +2,10 @@ import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
+import { Choose } from './PickField.tsx'
 import { RecipeTagField, type RecipeTagChange } from './RecipeTags.tsx'
-import { ingredientAmount, recipeTime, urlHost } from './meal-date.ts'
-import type { Recipe, RecipePreviewResult, RecipeTag } from './meal-types.ts'
+import { ingredientAmount, recipeTime, recipeTypeLabel, urlHost } from './meal-date.ts'
+import type { Recipe, RecipeKind, RecipePreviewResult, RecipeTag } from './meal-types.ts'
 import { t, tn } from './i18n.ts'
 
 /** Import a recipe from a web page (or pasted text): read it, check it, then save. `url` comes
@@ -20,6 +21,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, library
   const [text, setText] = useState('')
   const [preview, setPreview] = useState<RecipePreviewResult | null>(null)
   const [name, setName] = useState('')
+  const [kind, setKind] = useState<RecipeKind>('meal')
   const [servings, setServings] = useState(4)
   const [tagIds, setTagIds] = useState<string[]>()
   const link = /^https?:\/\//i.test(url.trim()) ? url.trim() : undefined
@@ -27,7 +29,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, library
   const [busy, setBusy] = useState(admin && !!link)
   const [error, setError] = useState('')
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : t('Something went wrong.'))
-  const show = (result: RecipePreviewResult) => { setPreview(result); setTagIds(undefined); setName(result.recipe.name); setServings(result.recipe.servings ?? 4) }
+  const show = (result: RecipePreviewResult) => { setPreview(result); setTagIds(undefined); setName(result.recipe.name); setKind(result.recipe.kind ?? 'meal'); setServings(result.recipe.servings ?? 4) }
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError('')
     try { await action() } catch (e) { failed(e) } finally { setBusy(false) }
@@ -42,7 +44,10 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, library
   const save = (asNew = false) => run(async () => {
     const r = preview!.recipe
     if (!name.trim()) throw new Error(t('Give the recipe a name.'))
-    const common = { tagIds, name: name.trim(), description: r.description, prepMinutes: r.prepMinutes, totalMinutes: r.totalMinutes, steps: r.steps, ...(r.kind && { kind: r.kind, makes: r.makes ?? null }) }
+    // Updating a recipe already imported from this page keeps its type unless the person changed it here.
+    const keepsKind = !!preview!.updates && !asNew && kind === (r.kind ?? 'meal')
+    const common = { tagIds, name: name.trim(), description: r.description, prepMinutes: r.prepMinutes, totalMinutes: r.totalMinutes, steps: r.steps,
+      ...(!keepsKind && { kind }), ...(r.makes !== undefined && { makes: r.makes }) }
     // From a page: keyed by its address, so importing it again updates this recipe.
     const saved = r.sourceUrl && !asNew
       ? await api.getRecipe((await api.importRecipe({ ...common, source: 'web', externalId: r.sourceUrl, sourceUrl: r.sourceUrl, ...(r.imageUrl && { imageUrl: r.imageUrl }), servings, ingredients: r.ingredients.map(i => i.qualifier !== undefined ? i : i.text) })).recipeId)
@@ -68,7 +73,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, library
   // One sheet throughout (link or text, then the preview), so it doesn't slide in again at each stage.
   // Keyed buttons: React must not reuse the Back button as the submit button mid-click (the click
   // would then submit the form and read the recipe again).
-  return <Sheet title={r ? t('Check the recipe') : t('Import a recipe')} onClose={onClose} dismissable={!busy} dirty={!!r && tagIds !== undefined} actions={r ? <>
+  return <Sheet title={r ? t('Check the recipe') : t('Import a recipe')} onClose={onClose} dismissable={!busy} dirty={!!r && (tagIds !== undefined || kind !== (r.kind ?? 'meal'))} actions={r ? <>
     <button key="back" type="button" className="btn btn-secondary" disabled={busy} onClick={() => { setPreview(null); setError('') }}>{t('Back')}</button>
     <button key="save" type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? t('Saving…') : updates ? t('Save') : t('Add recipe')}</button>
   </> : <button key="read" className="btn btn-primary" type="submit" form={id} disabled={busy}>{busy ? t('Reading…') : mode === 'url' ? t('Get recipe') : t('Read recipe')}</button>}>
@@ -79,6 +84,8 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, library
       </div>}
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${id}-name`}>{t('Name')}</label><input id={`${id}-name`} type="text" required maxLength={200} value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${id}-kind`}>{t('Type')}</label><Choose hideLabel label={t('Type')} id={`${id}-kind`} value={kind} onChange={next => setKind(next as RecipeKind)}
+          options={(['meal', 'side', 'dessert', 'basic'] as const).map(value => ({ value, label: recipeTypeLabel(value) }))} /></div>
         <RecipeTagField catalog={tagCatalog} initial={initialTags} value={tagIds ?? initialTags?.map(tag => tag.id) ?? []}
           onChange={setTagIds} onCatalogChange={onTagChanged} />
         <div className="field"><label htmlFor={`${id}-servings`}>{t('Servings')}</label><input id={`${id}-servings`} type="number" min="1" max="10000" step="any" value={servings || ''} onChange={e => setServings(Number(e.target.value))} /></div>

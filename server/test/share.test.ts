@@ -11,6 +11,7 @@ import type { Env } from '../src/env.ts';
 
 const ld = (block: unknown) => `<!doctype html><html><head><script type="application/ld+json">${JSON.stringify(block)}</script></head><body>Hi</body></html>`;
 const PAGES: Record<string, string> = {
+  'https://food.example/cake': ld({ '@type': 'Recipe', name: 'Chocolate cake', recipeCategory: 'Dessert', recipeIngredient: ['2 cups flour'] }),
   'https://food.example/lemon-chicken': ld({ '@context': 'https://schema.org', '@type': 'Recipe', name: 'Lemon chicken', recipeYield: '4', recipeIngredient: ['1 lemon', '2 lb chicken thighs'], recipeInstructions: ['Roast it.'] }),
   'https://cornerslice.example/': ld({ '@type': ['Restaurant', 'LocalBusiness'], name: 'Corner Slice', telephone: '555-0100', servesCuisine: 'Pizza', url: 'https://cornerslice.example/' }),
   'https://food.example/tacos': ld({ '@type': 'Recipe', name: 'Fish tacos', image: 'https://food.example/tacos.jpg', recipeYield: '4 servings', totalTime: 'PT1H15M', recipeIngredient: ['1 lb cod', '8 tortillas', '1 lime'], recipeInstructions: ['Season the fish.', 'Cook it.'] }),
@@ -45,6 +46,44 @@ function fixture() {
   return { db, call, share, fetched };
 }
 const shape = (json: object) => Object.keys(json).sort();
+
+test('share: detected type previews and saves; explicit override wins and existing type is kept', async () => {
+  const { share, call } = fixture();
+  const url = 'https://food.example/cake';
+  const preview = (await share({ url, preview: true })).json.preview;
+  assert.equal(preview.recipe.kind, 'dessert');
+  assert.equal((await share({ url, token: preview.token })).status, 200);
+  let recipe = (await call('GET', '/api/recipes')).json[0];
+  assert.equal(recipe.kind, 'dessert');
+  await share({ url, recipeKind: 'basic' });
+  recipe = (await call('GET', '/api/recipes')).json[0];
+  assert.equal(recipe.kind, 'basic');
+  await share({ url });
+  assert.equal((await call('GET', `/api/recipes/${recipe.id}`)).json.kind, 'basic');
+  // Sharing it again previews the type the family has, not the page's guess.
+  assert.equal((await share({ url, preview: true })).json.preview.recipe.kind, 'basic');
+});
+
+test('recipe import: name detection applies unless kind is explicit', async () => {
+  const { call } = fixture();
+  const body = { source: 'test', externalId: 'cake', name: 'Cheesecake', ingredients: [] };
+  const saved = await call('POST', '/api/recipes/import', body);
+  assert.equal((await call('GET', `/api/recipes/${saved.json.recipeId}`)).json.kind, 'dessert');
+  await call('POST', '/api/recipes/import', { ...body, kind: 'side' });
+  assert.equal((await call('GET', `/api/recipes/${saved.json.recipeId}`)).json.kind, 'side');
+  // Importing it again (a meal-kit sync) keeps the type the family picked.
+  await call('POST', '/api/recipes/import', body);
+  assert.equal((await call('GET', `/api/recipes/${saved.json.recipeId}`)).json.kind, 'side');
+});
+
+test('recipe URL import: detects page type and accepts an explicit kind for preview and save', async () => {
+  const { call } = fixture();
+  const url = 'https://food.example/cake';
+  assert.equal((await call('POST', '/api/recipes/import-url', { url })).json.recipe.kind, 'dessert');
+  const saved = await call('POST', '/api/recipes/import-url', { url, kind: 'side', save: true });
+  assert.equal(saved.json.recipe.kind, 'side');
+  assert.equal((await call('GET', `/api/recipes/${saved.json.recipeId}`)).json.kind, 'side');
+});
 
 test('share: a recipe link (JSON-LD Recipe) is imported, read once', async () => {
   const { share, call, fetched } = fixture();
@@ -274,7 +313,7 @@ test('share preview: a recipe link shows what would be saved; the save with its 
     preview: {
       title: 'Fish tacos', imageUrl: 'https://food.example/tacos.jpg', exists: false, already: null,
       lines: ['Serves 4', '3 ingredients, 2 steps', 'Ready in 1 hr 15 min', 'From food.example'],
-      recipe: { servings: 4, ingredients: 3, steps: 2, totalMinutes: 75, site: 'food.example' },
+      recipe: { kind: 'meal', servings: 4, ingredients: 3, steps: 2, totalMinutes: 75, site: 'food.example' },
     },
   });
   assert.equal(await count(db, 'recipes'), 0, 'nothing saved');

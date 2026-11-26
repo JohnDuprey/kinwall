@@ -159,6 +159,7 @@ The page shows the recipe and nothing else: never your family's name, who's in i
 Most recipe websites describe their recipes in a standard, machine-readable form (schema.org Recipe data) alongside the page, and Kinwall can read it. In the **Recipe library**, an admin taps **Import from a link** (on a phone, tap **+** first), pastes the page's address and taps **Get recipe**. Kinwall shows what it found before saving anything:
 
 * The name and servings, which you can change here.
+* The detected **Type**: Main dish, Side, Dessert or Basic. You can change it before saving. Kinwall checks the page's category, then keywords, then recipe name for English hints; without a match it chooses Main dish. A Kinwall share link keeps the type the other family chose.
 * Its times and the website's name, the description, and **N ingredients** and **N steps**, which open to show them.
 * A note for anything missing ("No servings found", "No steps found"). A recipe without servings is saved for 4.
 * The photo isn't shown yet: it appears once the recipe is saved.

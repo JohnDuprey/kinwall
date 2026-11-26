@@ -45,6 +45,7 @@ import { zonedTimeToUtc } from '../recurrence.ts';
 import { fromRow, inputOf, insert, update, type ContactRow } from './contacts.ts';
 import { ContactInputSchema } from '../schemas.ts';
 import { emit } from '../bus.ts';
+import { RecipeKindSchema } from '../meal-schemas.ts';
 
 type C = Context<{ Bindings: Env }>;
 /** The app, to add a book through POST /api/library itself (as the MCP tools do). */
@@ -64,6 +65,7 @@ const EventDraftSchema = z.object({
   notes: z.string().max(5000).nullable().describe('Anything else worth knowing (what to bring, costs, how to RSVP); saved as the event\'s notes'),
 }).openapi('ShareEvent');
 export const ShareInputSchema = RestaurantImportSchema.extend({
+  recipeKind: RecipeKindSchema.optional().describe('kind recipe: the type the person chose on the preview card; leave it out to keep what Kinwall detected'),
   // Shortcuts sends an unset variable as "" and a menu item as typed ("Book"): both are fine.
   kind: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() || undefined : v), z.enum(KINDS).optional()).describe('What it is. Leave it out for a link: Kinwall reads the page (a recipe, a restaurant, or with Outings on an event or a place to visit), and a Maps place is a restaurant. outing: an outing to check first (preview), from a link, a flyer\'s text or the outing as checked; with a Maps link, a place to visit. place: a Maps place (or any place) as a contact of kind place, with its name, address, the link as its "Map" website, website (not a Maps link) and phone; a contact with the same name gets only its empty fields filled in. Photos and text need it (the Shortcut\'s "What is this?" menu).'),
   url: z.string().max(5000).nullable().optional().describe('A shared link: a recipe or restaurant page, or an Apple or Google Maps place (a short link is followed to the place).'),
@@ -87,7 +89,7 @@ export const ShareResultSchema = z.object({
     lines: z.array(z.string()).describe('The key facts as short lines to show, e.g. "Serves 4", "12 ingredients, 6 steps".'),
     already: z.string().nullable().describe('When it exists, one line saying so, e.g. "Already in Kinwall: 12 new items will be added."'),
     token: z.string().nullable().describe('A link\'s preview: send it back with the save.'),
-    recipe: z.object({ servings: z.number().nullable(), ingredients: z.number().int(), steps: z.number().int(), totalMinutes: z.number().nullable(), site: z.string().nullable() }).optional(),
+    recipe: z.object({ kind: RecipeKindSchema, servings: z.number().nullable(), ingredients: z.number().int(), steps: z.number().int(), totalMinutes: z.number().nullable(), site: z.string().nullable() }).optional(),
     restaurant: z.object({ cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(), items: z.number().int(), sections: z.number().int(),
       added: z.number().int().describe('Menu items saving adds.'), alreadyThere: z.number().int().describe('Menu items already on its menu.') }).optional(),
     book: z.object({ author: z.string().nullable(), format: z.enum(['book', 'audiobook']), shelf: z.enum(['kids', 'grownups', 'everyone']).describe('The shelf it lands on (Auto, unless a parent picked one for a book already there).') }).optional(),
@@ -304,17 +306,17 @@ export function shareRoutes(app: App) {
       if (recipe?.name) {
         if (!settings.features.meals) return fail(MEALS_OFF, 403);
         if (input.preview) {
-          const have = recipe.sourceUrl ? await c.env.DB.prepare("SELECT id FROM recipes WHERE source = 'web' AND external_id = ?").bind(recipe.sourceUrl).first<{ id: string }>() : null;
+          const have = recipe.sourceUrl ? await c.env.DB.prepare("SELECT id, CASE WHEN kind = 'basic' THEN 'basic' ELSE coalesce(course, 'meal') END AS type FROM recipes WHERE source = 'web' AND external_id = ?").bind(recipe.sourceUrl).first<{ id: string; type: 'meal' | 'side' | 'dessert' | 'basic' }>() : null;
           let site: string | null = null;
           try { site = new URL(recipe.sourceUrl ?? url).hostname.replace(/^www\./, ''); } catch { /* no address */ }
-          const r = { servings: recipe.servings, ingredients: recipe.ingredients.length, steps: recipe.steps.length, totalMinutes: recipe.totalMinutes, site };
+          const r = { kind: have?.type ?? recipe.kind ?? 'meal', servings: recipe.servings, ingredients: recipe.ingredients.length, steps: recipe.steps.length, totalMinutes: recipe.totalMinutes, site };
           const lines = [r.servings && `Serves ${r.servings}`, `${plural(r.ingredients, 'ingredient')}, ${plural(r.steps, 'step')}`, r.totalMinutes && `Ready in ${minutes(r.totalMinutes)}`, site && `From ${site}`];
           return shown('recipe', have ? `meals?recipe=${encodeURIComponent(have.id)}` : 'meals', {
             title: recipe.name, imageUrl: recipe.imageUrl, exists: !!have, lines: lines.filter((l): l is string => !!l),
             already: have ? 'Already in Kinwall: adding it again updates it.' : null, token, recipe: r,
           });
         }
-        const saved = await saveWebRecipe(c, { ...recipe, name: recipe.name });
+        const saved = await saveWebRecipe(c, { ...recipe, name: recipe.name }, input.recipeKind);
         return ok('recipe', `${saved.created ? 'Imported' : 'Updated'} ${saved.recipe.name}`, `meals?recipe=${encodeURIComponent(saved.recipe.id)}`);
       }
       // A restaurant stays a restaurant; an event or a place to visit is an outing (Outings on); any

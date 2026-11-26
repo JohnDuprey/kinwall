@@ -60,7 +60,7 @@ export interface RecipePreview {
   // qualifier, preparation and category come only from a Kinwall share link; import those whole.
   ingredients: { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null; basic?: string | null }[]
   steps: RecipeStep[]
-  kind?: RecipeKind; makes?: string | null // from a Kinwall share link
+  kind?: RecipeKind; makes?: string | null // type detected from the page; makes from a Kinwall share link
 }
 // updates: the recipe already imported from this address, which saving replaces.
 export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[]; updates?: { id: string; name: string } }

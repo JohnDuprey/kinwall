@@ -15,7 +15,7 @@ import { createEvent, deleteEvent, updateEvent } from './events.ts';
 import { readFeatures, readSettings } from './settings.ts';
 import { pushToMembers, recordNotification } from '../notify.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
-import { parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
+import { detectRecipeKind, parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
 import { checkRate } from '../ratelimit.ts';
 import { familyLang, msg, perLang, requestLang, stored, tm, words } from '../i18n.ts';
@@ -101,7 +101,9 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes', tags: ['
   emit(c, 'recipe.changed', { id: recipe.id }); return c.json(recipe, 201);
 });
 /** Save an imported recipe, updating the one with the same source + externalId. */
-async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchema>, 'plan'>): Promise<{ recipe: Recipe; created: boolean }> {
+/** detectedKind: Kinwall's guess at the type, used only for a new recipe so an import never undoes a
+ * type the family picked; an explicit kind always applies. */
+async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchema>, 'plan'> & { detectedKind?: Recipe['kind'] }): Promise<{ recipe: Recipe; created: boolean }> {
   const db = c.env.DB;
   const find = () => db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
   const found = await find();
@@ -117,7 +119,7 @@ async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchem
     });
     const recipe = await saveRecipe(db, {
       name: input.name, ingredients, tagIds: input.tagIds,
-      ...(input.kind !== undefined && { kind: input.kind }),
+      ...(input.kind !== undefined ? { kind: input.kind } : !old && input.detectedKind ? { kind: input.detectedKind } : {}),
       ...(input.makes !== undefined && { makes: input.makes }),
       ...(input.description !== undefined && { description: input.description }),
       ...(input.sourceUrl !== undefined && { sourceUrl: input.sourceUrl }),
@@ -143,10 +145,10 @@ async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchem
   return result;
 }
 
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it and put it on a calendar (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), detecting its type from the name unless kind is given, updating it when imported again, and optionally plan it and put it on a calendar (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
   const input = c.req.valid('json');
   const db = c.env.DB;
-  const { recipe, created } = await upsertImport(c, input);
+  const { recipe, created } = await upsertImport(c, { ...input, detectedKind: detectRecipeKind(undefined, undefined, input.name) });
   const result: z.infer<typeof RecipeImportResultSchema> = { recipeId: recipe.id, created, planned: false };
   if (!input.plan) return c.json(result, 200);
   const { date, slot } = input.plan;
@@ -171,10 +173,11 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
 });
 /** Saves a recipe read off a web page (source 'web', keyed by its address, so importing it again
  * updates it). Used by import-url with save and by POST /api/share. */
-export function saveWebRecipe(c: Ctx, recipe: RecipePreview & { name: string }) {
+/** kind: the type the person chose; otherwise the page's detected type, for a new recipe only. */
+export function saveWebRecipe(c: Ctx, recipe: RecipePreview & { name: string }, kind?: Recipe['kind']) {
   return upsertImport(c, {
     source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,
-    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes, kind: recipe.kind, makes: recipe.makes,
+    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes, kind, detectedKind: recipe.kind, makes: recipe.makes,
     ingredients: recipe.ingredients.map((i) => (i.qualifier !== undefined ? i : i.text)), steps: recipe.steps,
   });
 }
@@ -182,20 +185,23 @@ const unprocessable = { 422: { description: 'no recipe found', content: { 'appli
 const previewResponse = { description: 'what was read (and, with save, the saved recipe)', content: { 'application/json': { schema: RecipePreviewResultSchema } } };
 const upper = (s: string) => s[0].toUpperCase() + s.slice(1);
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url', tags: ['Meals'], summary: 'Read a recipe from a web page (its schema.org Recipe data) to preview, or with save: true also save it; importing the same page again updates it (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeUrlImportSchema) }, responses: { 200: previewResponse, ...errors, ...unprocessable, 502: { description: 'the page could not be fetched', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
-  const { url, save } = c.req.valid('json');
+  const { url, save, kind } = c.req.valid('json');
   // https only (an http:// link is tried as https), unless a self-hoster allows private addresses.
   const page = await fetchRecipePage(c.env, c.env.ALLOW_PRIVATE_FEED_URLS === '1' ? url : url.replace(/^http:/i, 'https:'));
   if ('error' in page) return c.json({ error: `${upper(page.error)}.` }, page.status);
   const recipe = parseRecipeHtml(page.html, page.url);
   if (!recipe) return c.json({ error: 'This page has no recipe data Kinwall can read. Paste the recipe text instead.' }, 422);
+  if (kind !== undefined) recipe.kind = kind;
   const warnings = previewWarnings(recipe, await requestLang(c));
   if (!save) {
     // Saving replaces the recipe already imported from this address; say so, since a page can claim any address.
-    const updates = recipe.sourceUrl ? await c.env.DB.prepare("SELECT id, name FROM recipes WHERE source = 'web' AND external_id = ?").bind(recipe.sourceUrl).first<{ id: string; name: string }>() : null;
+    const updates = recipe.sourceUrl ? await c.env.DB.prepare("SELECT id, name, CASE WHEN kind = 'basic' THEN 'basic' ELSE coalesce(course, 'meal') END AS type FROM recipes WHERE source = 'web' AND external_id = ?").bind(recipe.sourceUrl).first<{ id: string; name: string; type: Recipe['kind'] }>() : null;
+    // Updating a recipe: show the type the family has, not the page's guess.
+    if (updates && kind === undefined) recipe.kind = updates.type;
     return c.json({ recipe, warnings, ...(updates && { updates: { id: updates.id, name: updates.name } }) }, 200);
   }
   if (!recipe.name) return c.json({ error: 'This recipe has no name. Preview it, name it, then save.' }, 422);
-  const saved = await saveWebRecipe(c, recipe);
+  const saved = await saveWebRecipe(c, recipe, kind);
   return c.json({ recipe, warnings, recipeId: saved.recipe.id, created: saved.created }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/parse-text', tags: ['Meals'], summary: 'Read a pasted recipe (Ingredients and Directions headings) into the same preview as import-url, without saving (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeTextParseSchema) }, responses: { 200: previewResponse, ...errors, ...unprocessable } }), async (c) => {

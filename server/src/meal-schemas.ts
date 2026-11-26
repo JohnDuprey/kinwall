@@ -95,7 +95,7 @@ export const RecipeImportSchema = z.object({
   source: z.string().trim().min(1).max(50).describe('Where the recipe comes from, e.g. hellofresh.'),
   externalId: z.string().trim().min(1).max(2000).describe("The source's own recipe id (for a web page, its address); importing it again updates the same recipe."),
   name: z.string().trim().min(1).max(200), description: text.optional(), sourceUrl: url.optional().describe('Recipe card link.'), imageUrl: url.optional(),
-  kind: RecipeKindSchema.optional(), makes: makes.optional(), tagIds: RecipeTagIdsSchema.optional(),
+  kind: RecipeKindSchema.optional().describe("Recipe type; when omitted, detected from the name. An explicit kind wins."), makes: makes.optional(), tagIds: RecipeTagIdsSchema.optional(),
   servings: servings.optional().describe('Servings the ingredient amounts are for.'),
   prepMinutes: minutes.optional().describe('Hands-on prep time in minutes.'), totalMinutes: minutes.optional().describe('Total time in minutes, prep included.'),
   ingredients: z.array(z.union([
@@ -120,13 +120,14 @@ export const RecipeImportResultSchema = z.object({
 export const RecipePreviewSchema = z.object({
   name: z.string().describe('Empty when the page or text had no name.'), description: z.string().nullable(), imageUrl: z.string().nullable(), sourceUrl: z.string().nullable(),
   servings: z.number().nullable(), prepMinutes: z.number().nullable(), totalMinutes: z.number().nullable(),
-  kind: RecipeKindSchema.optional(), makes: z.string().nullable().optional().describe('kind and makes: from a Kinwall share link.'),
+  kind: RecipeKindSchema.optional(), makes: z.string().nullable().optional().describe('makes: from a Kinwall share link. kind: detected from category, keywords, then name, or kept from Kinwall share data.'),
   ingredients: z.array(z.object({ text: z.string().describe('The line as written; send these to POST /api/recipes/import to save.'), name: z.string(), quantity: z.number().nullable(), unit: z.string().nullable(),
     qualifier: z.string().nullable().optional(), preparation: z.string().nullable().optional(), category: z.string().nullable().optional(), basic: z.string().nullable().optional() })
     .describe('qualifier, preparation, category and basic are set when the page is a Kinwall share link; then send the whole ingredient to POST /api/recipes/import, not just its text.')),
   steps: z.array(z.object({ text: z.string(), bullets: z.array(z.string()), title: z.string().nullable().optional(), imageUrl: z.string().nullable().optional(), timers: z.array(StepTimerSchema).optional() })),
 }).openapi('RecipePreview');
 export const RecipeUrlImportSchema = z.object({
+  kind: RecipeKindSchema.optional().describe('Recipe type; leave it out to detect from category, keywords, then name. An explicit kind wins.'),
   url: z.string().trim().url().max(2000).describe('A recipe page (https). Read from its schema.org Recipe data.'),
   save: z.boolean().optional().describe('Also save it (source "web", keyed by the page address: importing it again updates the same recipe). Default: preview only.'),
 }).strict().openapi('RecipeUrlImport');
