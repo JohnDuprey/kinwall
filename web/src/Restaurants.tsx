@@ -1,5 +1,4 @@
 import { useId, useState, type ReactNode } from 'react'
-import { Choose } from './PickField.tsx'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -15,29 +14,17 @@ import { Switch, LoadError, reducedMotion } from './a11y.tsx'
 import type { MenuItem, MenuItemInput, Restaurant, RestaurantInput } from './meal-types.ts'
 
 /** The Restaurants tab in Meals: the binder, searchable, read-only for walls and kids. */
-export function RestaurantBinder({ restaurants, loaded, error, onRetry, onOpen }: {
-  restaurants: Restaurant[]; loaded: boolean; error: string; onRetry: () => void; onOpen: (r: Restaurant) => void
+export function RestaurantBinder({ restaurants, search, filter, controls, loaded, error, onRetry, onOpen }: {
+  restaurants: Restaurant[]; search: string; filter: string; controls: ReactNode; loaded: boolean; error: string; onRetry: () => void; onOpen: (r: Restaurant) => void
 }) {
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('active')
   const q = search.trim().toLocaleLowerCase()
-  const shown = restaurants.filter(r => (filter === 'all' || r.archived === (filter === 'archived'))
-    && (!q || [r.name, r.cuisine ?? '', ...r.menu.map(i => i.name)].some(s => s.toLocaleLowerCase().includes(q))))
   return <section role="tabpanel" aria-labelledby="meals-tab-restaurants">
-    <div className="meals-toolbar">
-      <div className="field meals-search"><label htmlFor="restaurant-search">{t('Find a restaurant')}</label><input id="restaurant-search" type="search" placeholder={t('Pizza, lo mein…')} value={search} onChange={e => setSearch(e.target.value)} /></div>
-      <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="restaurant-filter" value={filter} onChange={setFilter}
-        options={[
-          { value: 'active', label: t('Active') },
-          { value: 'archived', label: t('Archived') },
-          { value: 'all', label: t('All') },
-        ]} /></div>
-    </div>
+    {controls}
     {error && <LoadError what="restaurants" error={error} onRetry={onRetry} />}
     {!loaded && !error ? <p role="status">{t('Loading restaurants…')}</p> : <>
-      <p className="field-hint" role="status">{tn(shown.length, '{n} restaurant', '{n} restaurants')}</p>
-      {!shown.length && !error && <p className="state-card">{q || filter !== 'active' ? t('No restaurants match.') : t('Keep your takeout menus here: the places you order from, what everyone likes and how to call.')}</p>}
-      <div className="recipe-library">{shown.map(r => {
+      <p className="field-hint restaurant-count" role="status" aria-live="polite">{tn(restaurants.length, '{n} restaurant', '{n} restaurants')}</p>
+      {!restaurants.length && !error && <p className="state-card">{q || filter !== 'active' ? t('No restaurants match.') : t('Keep your takeout menus here: the places you order from, what everyone likes and how to call.')}</p>}
+      <div className="recipe-library">{restaurants.map(r => {
         const stars = r.menu.filter(i => i.favorite).length
         return <button key={r.id} className="recipe-card restaurant-card" onClick={() => onOpen(r)}>
           <strong>{r.name}</strong>

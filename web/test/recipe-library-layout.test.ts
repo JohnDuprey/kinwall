@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 const meals = readFileSync(new URL('../src/Meals.tsx', import.meta.url), 'utf8')
 const css = readFileSync(new URL('../src/meals.css', import.meta.url), 'utf8')
 const recipeSheet = readFileSync(new URL('../src/RecipeSheet.tsx', import.meta.url), 'utf8')
+const restaurants = readFileSync(new URL('../src/Restaurants.tsx', import.meta.url), 'utf8')
 
 test('phone recipe actions sit below stable tabs and importing is offered only for a new recipe', () => {
   assert.match(meals, /className="icon-btn meals-phone-groceries"/)
@@ -17,6 +18,19 @@ test('phone recipe actions sit below stable tabs and importing is offered only f
 test('phone navigation sticks within the existing safe-area-aware scroll container', () => {
   assert.match(css, /@media \(max-width: 600px\), \(max-height: 500px\) and \(orientation: landscape\)/)
   assert.match(css, /\.meals-navigation\s*\{[^}]*position: sticky;[^}]*top: 0;[^}]*background: var\(--bg\)/)
+})
+
+test('phone planner and restaurants share the pinned action row below the tabs', () => {
+  assert.doesNotMatch(meals, /meals-phone-action/)
+  assert.match(meals, /className="meals-planner-controls"/)
+  assert.match(meals, /aria-label=\{t\('Plan a meal'\)\}/)
+  assert.match(meals, /aria-label=\{t\('Add a restaurant'\)\}/)
+  assert.match(meals, /showRestaurantFilters && <Sheet/)
+  assert.match(meals, /Show \{n\} restaurants/)
+  assert.match(meals, /restaurantFilter !== 'active' && <span className="filter-badge"/)
+  assert.match(meals, /className=\{isPhone \? 'sr-only' : undefined\} htmlFor="restaurant-search"/)
+  assert.match(restaurants, /className="field-hint restaurant-count" role="status" aria-live="polite"/)
+  assert.match(css, /\.meals-navigation \.meals-planner-controls\s*\{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2/)
 })
 
 test('recipe filters use the sheet at every screen size', () => {

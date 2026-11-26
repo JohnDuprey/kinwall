@@ -6,7 +6,7 @@
 .meals-heading .meal-actions .btn svg { width: 20px; height: 20px; flex-shrink: 0; }
 .meals-heading .meals-heading-add { display: flex; justify-content: flex-end; min-width: 172px; }
 .meals-import-placeholder { visibility: hidden; }
-.meals-phone-groceries, .meals-add-recipe, .meals-phone-action, .recipe-import-entry { display: none; }
+.meals-phone-groceries, .meals-add-recipe, .recipe-import-entry { display: none; }
 .meals-heading h1 { margin: 0; font-size: 1.75rem; }
 .meals-toolbar { margin-top: 20px; }
 .meals-toolbar h2 { margin: 0; font-size: 1.125rem; }
@@ -57,8 +57,15 @@
   .meals-navigation .meals-filters-btn { grid-column: 2; grid-row: 2; width: 44px; height: 44px; min-height: 44px; padding: 0; }
   .meals-filters-label { display: none; }
   .meals-navigation .meals-add-recipe { display: flex; grid-column: 3; grid-row: 2; flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; }
-  .meals-phone-action { display: flex; grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
-  .meals-phone-action .btn { flex: none; height: 44px; min-height: 44px; }
+  .meals-navigation .meals-planner-controls { display: flex; grid-column: 1 / -1; grid-row: 2; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
+  .meals-planner-controls > .segmented { flex: none; padding: 2px; }
+  .meals-planner-controls > .segmented button { min-width: 44px; min-height: 44px; padding: 0 6px; }
+  .meals-planner-controls .meal-actions { flex-wrap: nowrap; gap: 0; }
+  .meals-planner-controls .meal-actions .btn { flex: none; padding-inline: 8px; }
+  .meals-planner-controls .icon-btn, .meals-planner-controls .meals-plan { flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; }
+  .meals-planner-controls .btn { height: 44px; min-height: 44px; }
+  .meals-view .meals-toolbar { margin-top: 12px; margin-bottom: 16px; }
+  .restaurant-count { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .recipe-import-entry { display: flex; margin-bottom: 16px; }
 }
 .meal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

@@ -6,7 +6,7 @@ The **Meals** tab answers two questions: what are we eating this week, and what 
 
 The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day, showing only the slots with something planned and one **Plan a meal** row for the day (it plans dinner when that's free, else the first open slot).
 
-Tap **+** in a slot (or **Plan meal**) to add a meal. **Plan meal** starts on the day you're looking at (today in this week's view) in its first empty slot, and the sheet starts with **What's for dinner on Tuesday?** (or breakfast, lunch or snack, and the day): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
+Tap **+** in a slot to add a meal. You can also use the **+** beside **Today** on a phone, or **Plan meal** on larger screens. This starts on the day you're looking at (today in this week's view) in its first empty slot, and the sheet starts with **What's for dinner on Tuesday?** (or breakfast, lunch or snack, and the day): type to find a recipe by name or ingredient and tap it (Enter picks the first one). Not a recipe? Tap **Something else** to plan it by name (like "Leftover soup"; what you typed becomes its name) or **Eating out**. Then the rest of the meal:
 
 * **What are we eating?**: **A recipe** (from the library), **Something else** (just a name) or **Eating out** (like "Pizza place"). Change it here if you picked the wrong one.
 * For eating out, **Restaurant** picks a place from the [binder](#restaurants) (its name becomes the meal's name) or **Somewhere else**, and **How** is **Eating there**, **Pickup** or **Delivery**. A night from the binder gets everyone's [orders](#ordering-together).
@@ -229,7 +229,7 @@ Tap a restaurant to open it:
 * Avatars beside a favorite show who had it last time.
 * Notes ("Cash only", "Ask for the crust well done").
 
-Parents add a place with **New restaurant** and change it with **Edit**; buttons at the bottom of its sheet archive (or restore) or delete it. Wall screens and kids' devices can look but not change the binder.
+Parents add a place with **+** beside the search on a phone, or **New restaurant** on larger screens. They change it with **Edit**; buttons at the bottom of its sheet archive (or restore) or delete it. On a phone, the filter button beside the search opens **Show** (**Active**, **Archived** or **All**); **Clear filters** returns to active places, and **Show 3 restaurants** (with the matching count) returns to the list. The tabs and search stay in place as you scroll. Wall screens and kids' devices can look but not change the binder.
 
 ### Adding the menu
 

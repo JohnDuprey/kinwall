@@ -17,7 +17,7 @@ import RecipePhoto from './RecipePhoto.tsx'
 import { RecipeTagFilter, RecipeTagManager, type RecipeTagChange } from './RecipeTags.tsx'
 import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
-import { useIsPhone } from './useIsPhone.ts'
+import { useIsPhone, useMediaQuery, SHORT_LANDSCAPE } from './useIsPhone.ts'
 import { availableRecipeTagIds, browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
 import RecipeBrowseControls from './RecipeBrowseControls.tsx'
 import type { Meal, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
@@ -37,7 +37,9 @@ export default function Meals() {
   const days = mealWeek(anchor, settings.weekStart)
   const from = days[0], to = days[6]
   // Phones start on one day (a week of cards is a long scroll); Week is a tap away.
-  const isPhone = useIsPhone()
+  const narrow = useIsPhone()
+  const shortLandscape = useMediaQuery(SHORT_LANDSCAPE)
+  const isPhone = narrow || shortLandscape
   const [span, setSpan] = useState<'day' | 'week'>('day')
   const dayView = isPhone && span === 'day'
   const step = dayView ? 1 : 7
@@ -66,6 +68,9 @@ export default function Meals() {
   const [loved, setLoved] = useState('')
   const [kind, setKind] = useState<'' | RecipeKind>('')
   const [showFilters, setShowFilters] = useState(false)
+  const [restaurantSearch, setRestaurantSearch] = useState('')
+  const [restaurantFilter, setRestaurantFilter] = useState('active')
+  const [showRestaurantFilters, setShowRestaurantFilters] = useState(false)
   const [editing, setEditing] = useState<{ meal: Meal | null; initial: MealDraft } | null>(null)
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean } | null>(null)
   const [openMeal, setOpenMeal] = useState<Meal | null>(null)
@@ -205,6 +210,16 @@ export default function Meals() {
   const compactWeek = isPhone && span === 'week'
   const freeSlot = (date: string) => ['dinner', ...MEAL_SLOTS].find(slot => !bySlot.has(`${date}:${slot}`)) as typeof MEAL_SLOTS[number] | undefined
   const planMeal = () => { const date = planDay(dayView, anchor, today, from, to); setEditing({ meal: null, initial: { date, slot: freeSlot(date) ?? 'dinner' } }) }
+  const restaurantQuery = restaurantSearch.trim().toLocaleLowerCase()
+  const shownRestaurants = restaurants.filter(r => (restaurantFilter === 'all' || r.archived === (restaurantFilter === 'archived'))
+    && (!restaurantQuery || [r.name, r.cuisine ?? '', ...r.menu.map(i => i.name)].some(s => s.toLocaleLowerCase().includes(restaurantQuery))))
+  const restaurantFilters = <div className="field"><label htmlFor="restaurant-filter">{t('Show')}</label><Choose hideLabel label={t('Show')} id="restaurant-filter" value={restaurantFilter} onChange={setRestaurantFilter}
+    options={[{ value: 'active', label: t('Active') }, { value: 'archived', label: t('Archived') }, { value: 'all', label: t('All') }]} /></div>
+  const restaurantSearchField = <div className="field meals-search"><label className={isPhone ? 'sr-only' : undefined} htmlFor="restaurant-search">{t('Find a restaurant')}</label><input id="restaurant-search" type="search" placeholder={t('Pizza, lo mein…')} value={restaurantSearch} onChange={e => setRestaurantSearch(e.target.value)} /></div>
+  const plannerControls = <>
+    {isPhone && <Segmented label={t('Show')} value={span} onChange={setSpan} options={[{ key: 'day', label: t('Day') }, { key: 'week', label: t('Week') }]} />}
+    <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? t('Previous day') : t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{isPhone ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={dayView ? t('Next day') : t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
+  </>
   // Phone day view lists the day's meals first; elsewhere the card sits above the planner.
   const useItUp = settings.features.lists && <UseItUp recipes={recipes} admin={admin} reload={tick} poll={refreshTick} onOpen={recipe => setRecipeSheet({ recipe })} onPlan={recipe => setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } })} />
   return <div className="meals-view scroll-y">
@@ -221,14 +236,18 @@ export default function Meals() {
         </button>
         {admin && <button type="button" className="btn btn-primary meals-add-recipe" aria-label={t('Add a recipe')} onClick={() => setRecipeSheet({ recipe: null })}><PlusIcon /></button>}
       </>}
-      {admin && view !== 'recipes' && <div className="meals-phone-action"><button type="button" className="btn btn-primary" onClick={() => view === 'week' ? planMeal() : setPlace({ restaurant: null, editing: true })}><PlusIcon />{view === 'week' ? t('Plan meal') : t('New restaurant')}</button></div>}
+      {isPhone && view === 'week' && <div className="meals-planner-controls">{plannerControls}{admin && <button type="button" className="btn btn-primary meals-plan" aria-label={t('Plan a meal')} onClick={planMeal}><PlusIcon /></button>}</div>}
+      {isPhone && view === 'restaurants' && <>
+        {restaurantSearchField}
+        <button type="button" className={`btn btn-secondary filter-btn meals-filters-btn ${restaurantFilter !== 'active' ? 'active' : ''}`} aria-haspopup="dialog" aria-label={filterSortLabel(restaurantFilter !== 'active' ? 1 : 0)} onClick={() => setShowRestaurantFilters(true)}><FilterIcon width={20} height={20} />{restaurantFilter !== 'active' && <span className="filter-badge" aria-hidden="true">1</span>}</button>
+        {admin && <button type="button" className="btn btn-primary meals-add-recipe" aria-label={t('Add a restaurant')} onClick={() => setPlace({ restaurant: null, editing: true })}><PlusIcon /></button>}
+      </>}
     </div>
     {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(n => n + 1)}>{t('Retry')}</button></p>}
     {me && !admin && <p className="field-hint">{t('A grown-up plans the meals. You can rate recipes, add your order on a takeout night and mark a meal you cook as done.')}</p>}
     {view === 'week' ? <section role="tabpanel" aria-labelledby="meals-tab-week">
       <div className="meals-toolbar">
-        {isPhone && <Segmented label={t('Show')} value={span} onChange={setSpan} options={[{ key: 'day', label: t('Day') }, { key: 'week', label: t('Week') }]} />}
-        <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? t('Previous day') : t('Previous meal week')} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{dayView ? t('Today') : t('This week')}</button><button className="icon-btn" aria-label={dayView ? t('Next day') : t('Next meal week')} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
+        {!isPhone && plannerControls}
         <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : t('{from} – {to}', { from: mealDayLabel(from, { month: 'short', day: 'numeric' }), to: mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' }) })}</h2>
       </div>
       {!dayView && useItUp}
@@ -256,7 +275,7 @@ export default function Meals() {
         </tr>)}</tbody></table>
       </div>}
       {dayView && useItUp}
-    </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
+    </section> : view === 'restaurants' ? <RestaurantBinder restaurants={shownRestaurants} search={restaurantSearch} filter={restaurantFilter} controls={!isPhone && <div className="meals-toolbar">{restaurantSearchField}{restaurantFilters}</div>} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(n => n + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       {showFilters && <Sheet title={t('Filter and sort')} onClose={() => setShowFilters(false)} actions={<>
         {filterCount > 0 && <button type="button" className="btn btn-secondary" onClick={() => { setKind(''); setFilter('active'); setCategory(''); setLoved(''); setCooked('all'); setSort('name'); setTagIds([]) }}>{t('Clear filters')}</button>}
         <button type="button" className="btn btn-primary" onClick={() => setShowFilters(false)}>{tn(shownRecipes.length, 'Show {n} recipe', 'Show {n} recipes')}</button>
@@ -283,6 +302,10 @@ export default function Meals() {
         </button>)}</div>
       </>}
     </section>}
+    {isPhone && showRestaurantFilters && <Sheet title={t('Filters')} onClose={() => setShowRestaurantFilters(false)} actions={<>
+      {restaurantFilter !== 'active' && <button type="button" className="btn btn-secondary" onClick={() => setRestaurantFilter('active')}>{t('Clear filters')}</button>}
+      <button type="button" className="btn btn-primary" onClick={() => setShowRestaurantFilters(false)}>{tn(shownRestaurants.length, 'Show {n} restaurant', 'Show {n} restaurants')}</button>
+    </>}>{restaurantFilters}</Sheet>}
     {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(n => n + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
     {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(n => n + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
     {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={currentRecipe ?? null} library={recipes} tagCatalog={tagCatalog} onTagChanged={tagChanged} onImport={() => setImporting({ url: '' })} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(n => n + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly || !admin ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
