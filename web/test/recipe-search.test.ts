@@ -112,3 +112,13 @@ test('recipe browsing matches all selected tags and combines them with ingredien
   assert.deepEqual(browseRecipes(all, { tagIds: [] }).map(r => r.id), ['oats', 'pizza', 'tacos'])
   assert.deepEqual(availableRecipeTagIds([dinner.id, quick.id], [{ ...quick, name: 'Weeknight meals' }]), [quick.id])
 })
+
+test('recipeSuggestions: names that start with the text, then a word that does, then any match', async () => {
+  const { recipeSuggestions } = await import('../src/recipe-search.ts')
+  const r = (name: string, archived = false) => ({ id: name, name, archived })
+  const recipes = [r('Chicken pot pie'), r('Lemon chicken'), r('Chickpea wraps'), r('Spinach pasta'), r('Old chili', true), r('Peach cobbler')]
+  assert.deepEqual(recipeSuggestions(recipes, 'chi').map(x => x.name), ['Chicken pot pie', 'Chickpea wraps', 'Lemon chicken'])
+  assert.deepEqual(recipeSuggestions(recipes, 'ach').map(x => x.name), ['Peach cobbler', 'Spinach pasta'])
+  assert.deepEqual(recipeSuggestions(recipes, '  '), [])
+  assert.equal(recipeSuggestions(recipes, 'c', 2).length, 2)
+})

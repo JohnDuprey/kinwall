@@ -7,6 +7,16 @@ export function recipeMatches(recipe: Searchable, query: string): boolean {
   return !needle || `${recipe.name} ${recipe.description ?? ''} ${(recipe.ingredients ?? []).map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle)
 }
 
+/** Names to finish what's typed in the library's search: names that start with it, then a word that
+ * starts with it, then any name containing it; archived recipes left out. */
+export function recipeSuggestions<R extends Searchable>(recipes: R[], query: string, limit = 6): R[] {
+  const needle = query.trim().toLocaleLowerCase()
+  if (!needle) return []
+  const rank = (name: string) => name.startsWith(needle) ? 0 : name.split(/[\s,(&/-]+/).some(word => word.startsWith(needle)) ? 1 : name.includes(needle) ? 2 : 3
+  return recipes.filter(r => !r.archived).map(r => ({ r, rank: rank(r.name.toLocaleLowerCase()) })).filter(x => x.rank < 3)
+    .sort((a, b) => a.rank - b.rank || a.r.name.localeCompare(b.r.name)).slice(0, limit).map(x => x.r)
+}
+
 export type RecipeSort = 'suggested' | 'name' | 'favorites' | 'rating' | 'newest' | 'oldest' | 'most-cooked' | 'last-cooked'
 export type CookedFilter = 'all' | 'cooked' | 'never'
 export type RecipeBrowse = { query?: string; sort?: RecipeSort; cooked?: CookedFilter; suggestedIds?: Set<string>; tagIds?: string[] }

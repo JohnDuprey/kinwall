@@ -24,10 +24,11 @@ import { t, tn } from './i18n.ts'
 
 const emptyIngredient = (): IngredientInput => ({ name: '', quantity: null, unit: null, preparation: null, qualifier: null, category: null, sort: 0 })
 
-/** "2 ounces", or "As needed"; a meal kit's own ingredient gets a quiet "In the kit" tag instead of trailing words. */
-export function IngredientAmount({ quantity, unit, qualifier }: { quantity: number | null; unit: string | null; qualifier: string | null }) {
+/** "2 ounces", or "As needed"; a meal kit's own ingredient gets a quiet "In the kit" tag instead of
+ * trailing words (`tag={false}` where the list already groups them). */
+export function IngredientAmount({ quantity, unit, qualifier, tag = true }: { quantity: number | null; unit: string | null; qualifier: string | null; tag?: boolean }) {
   const kit = qualifier === KIT_QUALIFIER
-  return <>{ingredientAmount(quantity, unit, kit ? null : qualifier) || t('As needed')}{kit && <span className="kit-tag">{t('In the kit')}</span>}</>
+  return <>{ingredientAmount(quantity, unit, kit ? null : qualifier) || t('As needed')}{kit && tag && <span className="kit-tag">{t('In the kit')}</span>}</>
 }
 
 /** A recipe's source link as a sheet row: a PDF recipe card opens in the app's viewer (`pdfPath`
@@ -46,20 +47,27 @@ export function SourceLink({ url, pdfPath, title, label }: { url: string; pdfPat
 
 /** A planned meal renders its snapshot here; changing servings never edits the recipe. A line made
  * from a basic opens it (`onBasic`): the name is the link, or with `makeIt` a "Make it" link follows. */
+/** A meal kit's recipe lists what came in the box, then what you supply; any other recipe is one list. */
 export function IngredientList({ recipe, servings, onBasic, makeIt }: { recipe: Pick<RecipeSnapshot, 'defaultServings' | 'ingredients'>; servings: number; onBasic?: (id: string) => void; makeIt?: boolean }) {
-  return <ul className="meal-ingredients">
-    {recipe.ingredients.map(ingredient => {
-      const { scalable, basicId } = ingredient
-      const amount = scalable ? ingredient.quantity! * servings / recipe.defaultServings : ingredient.quantity
-      const linked = basicId && onBasic ? basicId : null
-      return <li key={ingredient.id}>
-        {linked && !makeIt ? <button type="button" className="ingredient-basic" aria-label={t('{name}: open the basic', { name: ingredient.name })} onClick={() => onBasic!(linked)}>{ingredient.name}</button> : <strong>{ingredient.name}</strong>} — <IngredientAmount quantity={amount} unit={ingredient.unit} qualifier={ingredient.qualifier} />
-        {linked && makeIt && <> <button type="button" className="link-btn" aria-label={t('Make {name}', { name: ingredient.name })} onClick={() => onBasic!(linked)}>{t('Make it')}</button></>}
-        {ingredient.preparation && <span> · {ingredient.preparation}</span>}
-        {!scalable && servings !== recipe.defaultServings && <span className="field-hint"> · {t('Check amount for {servings} (recipe: {n})', { servings: servingsLabel(servings), n: recipe.defaultServings })}</span>}
-      </li>
-    })}
-  </ul>
+  const line = (ingredient: RecipeSnapshot['ingredients'][number]) => {
+    const { scalable, basicId } = ingredient
+    const amount = scalable ? ingredient.quantity! * servings / recipe.defaultServings : ingredient.quantity
+    const linked = basicId && onBasic ? basicId : null
+    return <li key={ingredient.id}>
+      {linked && !makeIt ? <button type="button" className="ingredient-basic" aria-label={t('{name}: open the basic', { name: ingredient.name })} onClick={() => onBasic!(linked)}>{ingredient.name}</button> : <strong>{ingredient.name}</strong>} — <IngredientAmount quantity={amount} unit={ingredient.unit} qualifier={ingredient.qualifier} tag={false} />
+      {linked && makeIt && <> <button type="button" className="link-btn" aria-label={t('Make {name}', { name: ingredient.name })} onClick={() => onBasic!(linked)}>{t('Make it')}</button></>}
+      {ingredient.preparation && <span> · {ingredient.preparation}</span>}
+      {!scalable && servings !== recipe.defaultServings && <span className="field-hint"> · {t('Check amount for {servings} (recipe: {n})', { servings: servingsLabel(servings), n: recipe.defaultServings })}</span>}
+    </li>
+  }
+  const kit = recipe.ingredients.filter(i => i.qualifier === KIT_QUALIFIER)
+  if (!kit.length) return <ul className="meal-ingredients">{recipe.ingredients.map(line)}</ul>
+  const pantry = recipe.ingredients.filter(i => i.qualifier !== KIT_QUALIFIER)
+  return <div className="ingredient-groups">
+    <h4 className="ingredient-group">{t('In the kit')}</h4>
+    <ul className="meal-ingredients">{kit.map(line)}</ul>
+    {pantry.length > 0 && <><h4 className="ingredient-group">{t('From your pantry')}</h4><ul className="meal-ingredients">{pantry.map(line)}</ul></>}
+  </div>
 }
 
 /** The steps (structured, or typed ones split the way cooking mode splits them) as numbered cards to cook along with: tapping one marks it done (only while this

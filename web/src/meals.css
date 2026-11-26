@@ -499,3 +499,11 @@ span.menu-star { width: 44px; text-align: center; }
 
 /* A meal planned for a trip (tripLinks.tsx): the trip's name, so a far-away dinner makes sense in the week. */
 .meal-trip-tag { align-self: flex-start; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.75rem; font-weight: 800; }
+/* A meal kit's ingredients in two groups (In the kit, From your pantry) instead of a tag on each line. */
+.ingredient-group { margin: 14px 0 4px; font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); }
+.ingredient-groups > .ingredient-group:first-child { margin-top: 4px; }
+.ingredient-groups > .meal-ingredients { margin-top: 0; }
+/* The library search's suggestions (.item-suggest, as on a shopping list): the typed letters in bold. */
+.recipe-search-field > input { flex: 1; min-width: 0; }
+.recipe-search-field .item-suggest-name { font-weight: 600; }
+.recipe-search-field mark { background: none; color: inherit; font-weight: 900; }

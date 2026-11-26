@@ -18,7 +18,7 @@ import { RecipeTagFilter, RecipeTagManager, type RecipeTagChange } from './Recip
 import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
 import { useIsPhone, useMediaQuery, usePhoneHeader, SHORT_LANDSCAPE } from './useIsPhone.ts'
-import { availableRecipeTagIds, browseRecipes, type RecipeSort, type CookedFilter } from './recipe-search.ts'
+import { availableRecipeTagIds, browseRecipes, recipeSuggestions, type RecipeSort, type CookedFilter } from './recipe-search.ts'
 import RecipeBrowseControls from './RecipeBrowseControls.tsx'
 import type { Meal, MealSlot, Recipe, RecipeKind, RecipeTag, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
@@ -272,7 +272,7 @@ export default function Meals() {
     <div className="meals-navigation">
       <Segmented tabs idBase="meals-tab" label={t('Meals sections')} value={view} onChange={setView} options={[{ key: 'week', label: t('Week planner') }, { key: 'recipes', label: t('Recipe library') }, { key: 'restaurants', label: t('Restaurants') }]} />
       {view === 'recipes' && <>
-        <div className="field meals-search"><label className="sr-only" htmlFor="recipe-search">{t('Find a recipe')}</label><input id="recipe-search" type="search" placeholder={t('Find a recipe')} value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="field meals-search"><label className="sr-only" htmlFor="recipe-search">{t('Find a recipe')}</label><RecipeSearchField id="recipe-search" value={search} onChange={setSearch} recipes={recipes} placeholder={t('Find a recipe')} /></div>
         <button type="button" className={`btn btn-secondary filter-btn meals-filters-btn ${filterCount ? 'active' : ''}`} aria-haspopup="dialog" aria-label={filterSortLabel(filterCount)} onClick={() => setShowFilters(true)}>
           <FilterIcon width={20} height={20} /><span className="meals-filters-label">{t('Filters')}</span>{filterCount > 0 && <span className="filter-badge" aria-hidden="true">{filterCount}</span>}
         </button>
@@ -361,5 +361,49 @@ export default function Meals() {
     {place?.editing && <RestaurantEditSheet restaurant={place.restaurant} onClose={() => setPlace(place.restaurant ? { ...place, editing: false } : null)} onSaved={saved => { setTick(n => n + 1); setPlace({ restaurant: saved, editing: false }) }} />}
     {openPoll && <PollSheet id={openPoll} onClose={() => { setOpenPoll(null); setTick(n => n + 1) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
+  </div>
+}
+
+/** The library's search, finishing names from the family's recipes as you type, like the shopping
+ * list's add field: ↑/↓ and Enter or a tap fill in a name, Escape closes the list. */
+function RecipeSearchField({ id, value, onChange, recipes, placeholder }: { id: string; value: string; onChange: (value: string) => void; recipes: Recipe[]; placeholder: string }) {
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  const needle = value.trim().toLocaleLowerCase()
+  const found = open ? recipeSuggestions(recipes, value) : []
+  // Nothing left to finish once the field holds the one name it would offer.
+  const matches = found.length === 1 && found[0].name.toLocaleLowerCase() === needle ? [] : found
+  const listId = `${id}-suggest`
+  const pick = (name: string) => { onChange(name); setOpen(false); setActive(-1) }
+  const close = () => { setOpen(false); setActive(-1) }
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && matches.length) {
+      e.preventDefault()
+      setActive(a => (e.key === 'ArrowDown' ? (a + 1) % matches.length : (a <= 0 ? matches.length : a) - 1))
+    } else if (e.key === 'Enter' && matches[active]) {
+      e.preventDefault()
+      pick(matches[active].name)
+    } else if (e.key === 'Escape' && matches.length) {
+      e.stopPropagation()
+      close()
+    }
+  }
+  // The typed letters in bold within each name.
+  const marked = (name: string) => {
+    const at = name.toLocaleLowerCase().indexOf(needle)
+    return at < 0 ? name : <>{name.slice(0, at)}<mark>{name.slice(at, at + needle.length)}</mark>{name.slice(at + needle.length)}</>
+  }
+  return <div className="item-add recipe-search-field">
+    <input id={id} type="search" value={value} placeholder={placeholder} autoComplete="off" role="combobox" aria-autocomplete="list" aria-expanded={matches.length > 0}
+      aria-controls={matches.length ? listId : undefined} aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
+      onChange={e => { onChange(e.target.value); setOpen(true); setActive(-1) }} onKeyDown={onKeyDown} onBlur={close} />
+    {matches.length > 0 && <ul id={listId} role="listbox" aria-label={t('Suggestions')} className="item-suggest">
+      {matches.map((recipe, i) => <li key={recipe.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} className={i === active ? 'active' : undefined}
+        onMouseDown={e => e.preventDefault()} onClick={() => pick(recipe.name)}>
+        <span className="item-suggest-name">{marked(recipe.name)}</span>
+        {recipe.kind && recipe.kind !== 'meal' && <span className="item-suggest-hint">{recipeTypeLabel(recipe.kind)}</span>}
+      </li>)}
+    </ul>}
   </div>
 }
