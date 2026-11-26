@@ -127,9 +127,22 @@ Like recipe cards, photos are fetched by the Kinwall server from the recipe's ow
 
 When you plan a recipe, the meal keeps its own copy of the ingredients. Editing, archiving or deleting the recipe later doesn't change meals already planned. To pick up the recipe's changes, tick **Refresh from the current recipe when saving** in the meal's sheet.
 
+### Full screen and printing
+
+Open a recipe and tap **Full screen** near the top for a reader with its photo, description,
+servings and times, ingredients, numbered steps with photos, and source link. It uses the servings
+you chose in the recipe sheet. Everyone who can open a recipe can use the reader; no share link is
+needed. Family ratings, planned meals, tags and preparation notes stay out of this view. Close it
+with **Close**, Escape or Back to return to the recipe sheet.
+
+In a browser or installed web app, **Print** near the top of the recipe sheet opens the reader and
+the print dialog. You can also print from inside the reader. Only the recipe prints, in black on
+white with its photos, without app buttons or navigation. The iPhone and Android apps have the
+full-screen reader; printing is available in browsers and installed web apps.
+
 ### Sharing a recipe
 
-To send a recipe to someone outside the family, open it and tap **Share recipe** (parents' devices only). The sheet explains who can see it; tap **Make a link** and Kinwall makes a link like `https://your-kinwall/r/…` (your Kinwall address) and shows it with **Copy link** and, on phones and tablets, **Share**. Tapping **Share recipe** again shows the same link. Nothing is shared until you tap **Make a link**.
+To send a recipe to someone outside the family, open it and tap **Share** near the top, under the title or photo (parents' devices only). The sheet explains who can see it; tap **Make a link** and Kinwall makes a link like `https://your-kinwall/r/…` (your Kinwall address) and shows it with **Copy link** and, on phones and tablets, **Share**. Once a link exists, the button says **Shared**; tapping it again shows the same link. Nothing is shared until you tap **Make a link**.
 
 The link opens a simple page that works in any browser, no Kinwall needed: the recipe's name, photo, description, servings (or, for a basic, how much it makes) and times, ingredients (amounts as in Kinwall, like "1½ cups"), numbered steps (with their photos) and its source link, with "Shared from Kinwall" at the bottom (linking to kinwall.family). It follows the viewer's light or dark setting, and printing it leaves out the save form. Recipe apps and websites that read recipe links can import it too (with the standard recipe data: ingredients as lines of text, and steps with their titles and photos). Under the recipe, **Save to my Kinwall** asks for the other family's Kinwall address (like `theirfamily.kinwall.family`, or their own server's), then opens their Kinwall's **Import from a link** with the recipe ready to save. The browser remembers that address for next time.
 

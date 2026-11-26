@@ -5,7 +5,7 @@ import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { BookIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
+import { BookIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon, FileIcon, FitIcon, LinkIcon, MinusIcon, PlusIcon, PrinterIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeTag, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { matchBasic } from './recipe-search.ts'
@@ -16,6 +16,7 @@ import RecipePhoto from './RecipePhoto.tsx'
 import { RecipeTagField, type RecipeTagChange } from './RecipeTags.tsx'
 import PickField, { Choose, type PickOption } from './PickField.tsx'
 import RecipeShare from './RecipeShare.tsx'
+import RecipeReader from './RecipeReader.tsx'
 import { holdAwake } from './wakeLock.ts'
 import { Face } from './Face'
 import { t, tn } from './i18n.ts'
@@ -44,7 +45,7 @@ export function SourceLink({ url, pdfPath, title, label }: { url: string; pdfPat
 
 /** A planned meal renders its snapshot here; changing servings never edits the recipe. A line made
  * from a basic opens it (`onBasic`): the name is the link, or with `makeIt` a "Make it" link follows. */
-export function IngredientList({ recipe, servings, onBasic, makeIt }: { recipe: RecipeSnapshot; servings: number; onBasic?: (id: string) => void; makeIt?: boolean }) {
+export function IngredientList({ recipe, servings, onBasic, makeIt }: { recipe: Pick<RecipeSnapshot, 'defaultServings' | 'ingredients'>; servings: number; onBasic?: (id: string) => void; makeIt?: boolean }) {
   return <ul className="meal-ingredients">
     {recipe.ingredients.map(ingredient => {
       const { scalable, basicId } = ingredient
@@ -160,6 +161,7 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
   const cooking = !!recipe && cook === recipe.id
   // A linked basic, opened over this recipe; closing it comes back here.
   const [basic, setBasic] = useState<Recipe | null>(null)
+  const [reader, setReader] = useState<'read' | 'print' | null>(null)
   if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
   if (basic) return <RecipeSheet key={basic.id} recipe={library.find(item => item.id === basic.id) ?? basic} library={library} tagCatalog={tagCatalog} onTagChanged={onTagChanged} admin={admin} owner={owner} onClose={() => setBasic(null)} onSaved={onSaved} onRated={onRated}
     onEditMeal={{ label: t('Back to {name}', { name: recipe.name }), open: () => setBasic(null), back: true }} />
@@ -175,6 +177,11 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
   </> : undefined}>
     {meal}
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
+    <div className="recipe-view-actions">
+      {admin && <RecipeShare key={`share:${recipe.id}`} recipe={recipe} />}
+      <button type="button" className="btn btn-secondary" onClick={() => setReader('read')}><FitIcon width={20} height={20} /> {t('Full screen')}</button>
+      <button type="button" className="btn btn-secondary recipe-print-btn" onClick={() => setReader('print')}><PrinterIcon width={20} height={20} /> {t('Print')}</button>
+    </div>
     {recipe.description && <p>{recipe.description}</p>}
     {!!recipe.tags?.length && <ul className="chip-row recipe-tag-chips" aria-label={t('Tags')}>
       {recipe.tags.map(tag => <li className="chip chip-static" key={tag.id}>{tag.name}</li>)}
@@ -197,8 +204,8 @@ export default function RecipeSheet({ recipe, library = [], tagCatalog, onTagCha
     {cookSteps.length > 0 && <StepCards key={`steps:${recipe.id}`} recipe={recipe} steps={cookSteps} />}
     {recipe.preparationNotes && <><h3>{t('Preparation notes')}</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
-    {admin && <RecipeShare key={`share:${recipe.id}`} recipe={recipe} />}
   </Sheet>
+  {reader && <RecipeReader recipe={recipe} servings={servings} printOnOpen={reader === 'print'} onClose={() => setReader(null)} />}
   {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} library={library} onClose={() => setCook(null)} />}
   </>
 }

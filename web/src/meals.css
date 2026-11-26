@@ -61,6 +61,47 @@
 .recipe-card { background: var(--card); padding: 20px; box-shadow: var(--shadow); }
 .recipe-card > strong { font-size: 1.0625rem; font-weight: 700; } /* a button's 13px otherwise: the name is what you scan for */
 .recipe-card p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; margin: 4px 0 0; font-size: 0.875rem; color: var(--text-dim); white-space: pre-wrap; }
+.recipe-view-actions, .recipe-reader-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.recipe-view-actions .btn, .recipe-reader-actions .btn { flex: none; min-height: 44px; gap: 6px; }
+.sheet .sheet-body .recipe-view-actions > button.btn { padding-inline: 12px; }
+:root[data-native] .recipe-print-btn { display: none; }
+.sheet-full:has(.recipe-reader) { background: var(--bg); }
+.sheet-full:has(.recipe-reader) .sheet-body { background: var(--bg); }
+.recipe-reader { max-width: 760px; margin: 0 auto; padding: 12px 16px 48px; font-size: 1.0625rem; line-height: 1.55; overflow-wrap: anywhere; }
+.recipe-reader-actions { justify-content: flex-end; margin: 0 0 16px; }
+.recipe-reader h1 { font-size: 1.9rem; line-height: 1.2; margin: 12px 0; }
+.recipe-reader h2 { font-size: 1.25rem; margin: 32px 0 12px; }
+.recipe-reader h3 { font-size: 1rem; margin: 0 0 4px; }
+.recipe-reader-hero { display: block; width: 100%; max-height: 420px; object-fit: cover; border-radius: 20px; background: var(--bg-alt); }
+.recipe-reader-description { margin: 8px 0 0; white-space: pre-line; }
+.recipe-reader-facts { color: var(--text-dim); font-weight: 600; margin: 8px 0 0; }
+.recipe-reader .meal-ingredients { margin: 0; padding: 16px 20px 16px 2.2em; background: var(--card); border: 1px solid var(--border); border-radius: 20px; }
+.recipe-reader .meal-ingredients li { margin: 0; padding: 4px 0; }
+.recipe-reader-steps { list-style: none; margin: 0; padding: 0; counter-reset: recipe-step; display: grid; gap: 16px; }
+.recipe-reader-steps > li { counter-increment: recipe-step; position: relative; padding-left: 48px; min-height: 36px; }
+.recipe-reader-steps > li::before { content: counter(recipe-step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 800; }
+.recipe-reader-steps h3 { margin: 6px 0 4px; }
+.recipe-reader-steps p { margin: 4px 0; white-space: pre-line; }
+.recipe-reader-steps ul { margin: 4px 0; padding-left: 1.2em; }
+.recipe-reader-step-photo { display: block; width: 100%; max-width: 420px; border-radius: 14px; margin: 8px 0; }
+.recipe-reader-source { margin: 24px 0 0; }
+.recipe-reader-source a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; text-underline-offset: 3px; }
+@media print {
+  body:has(.recipe-reader) { background: #fff !important; color: #000 !important; height: auto !important; overflow: visible !important; }
+  body:has(.recipe-reader) > :not(.sheet-backdrop:has(.recipe-reader)) { display: none !important; }
+  .sheet-backdrop:has(.recipe-reader) { position: static !important; display: block; height: auto !important; background: #fff; --bg: #fff; --bg-alt: #fff; --card: #fff; --text: #000; --text-dim: #444; --border: #ccc; --accent: #000; --accent-ink: #fff; }
+  .sheet-full:has(.recipe-reader), .sheet-full:has(.recipe-reader) .sheet-body { display: block; height: auto; max-height: none !important; overflow: visible; padding: 0; box-shadow: none; }
+  .sheet-full:has(.recipe-reader) .sheet-drag, .recipe-reader-actions { display: none; }
+  .recipe-reader { max-width: none; margin: 0; padding: 0; font: 12pt/1.5 system-ui, sans-serif; }
+  .recipe-reader-hero { max-height: 240px; width: auto; max-width: 100%; }
+  .recipe-reader-step-photo { max-width: 200px; max-height: 180px; object-fit: contain; }
+  .recipe-reader .meal-ingredients li, .recipe-reader-steps > li { break-inside: avoid; }
+  .recipe-reader h1, .recipe-reader h2, .recipe-reader h3 { break-after: avoid; }
+  .recipe-reader-steps { display: block; }
+  .recipe-reader-steps > li { margin-bottom: 16px; }
+  .recipe-reader-steps > li::before { background: transparent; color: #000; border: 1px solid #000; }
+  .recipe-reader-source a { min-height: 0; }
+}
 .recipe-tag-filter { min-width: 0; max-width: 100%; }
 .recipe-tag-action { min-height: 44px; min-width: 44px; }
 .recipe-tag-chips { margin: 0 0 12px; padding: 0; list-style: none; align-items: center; }

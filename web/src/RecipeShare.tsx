@@ -3,11 +3,11 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { ChevronRight, LinkIcon } from './icons.tsx'
+import { LinkIcon } from './icons.tsx'
 import type { Recipe, RecipeShare as Share } from './meal-types.ts'
 import { t } from './i18n.ts'
 
-/** A parent's "Share recipe" row in the recipe view: makes (or reopens) the recipe's public link and
+/** A parent's Share button in the recipe view: makes (or reopens) the recipe's public link and
  * shows it with Copy and Share; Stop sharing turns the link off. */
 export default function RecipeShare({ recipe }: { recipe: Recipe }) {
   const { toast } = useApp()
@@ -38,11 +38,9 @@ export default function RecipeShare({ recipe }: { recipe: Recipe }) {
   // The recipe's name shows in bold where the language puts {name}.
   const sees = t("Anyone with this link can see {name}: its photo, ingredients and steps. Not your family's names, ratings, meals or notes.").split('{name}')
   return <>
-    <div className="sheet-links">
-      <button type="button" className="sheet-link" onClick={() => setOpen(true)}>
-        <LinkIcon /><span>{t('Share recipe')}<small>{share ? t('Shared: anyone with the link can see it') : t('Make a link anyone can open')}</small></span><ChevronRight />
-      </button>
-    </div>
+    <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <LinkIcon width={20} height={20} /> {share ? t('Shared') : t('Share')}
+    </button>
     {open && <Sheet title={t('Share recipe')} onClose={() => setOpen(false)} dismissable={!busy} actions={share ? <>
 
       <button type="button" className={`btn ${canShare ? 'btn-secondary' : 'btn-primary'}`} onClick={() => void copy()}>{t('Copy link')}</button>
