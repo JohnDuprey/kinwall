@@ -834,5 +834,12 @@
   "error|Choose no more than the number of meal kits left.": "Wähle höchstens so viele Kochbox-Gerichte, wie noch übrig sind.",
   "error|Meal kits changed. Refresh and try again.": "Die Kochbox-Gerichte haben sich geändert. Lade neu und versuche es noch einmal.",
   "error|This meal kit has already been used or removed.": "Dieses Kochbox-Gericht wurde bereits verbraucht oder entfernt.",
-  "error|This meal kit has been removed.": "Dieses Kochbox-Gericht wurde entfernt."
+  "error|This meal kit has been removed.": "Dieses Kochbox-Gericht wurde entfernt.",
+  "error|Choose a meal within this food’s dates.": "Wähle eine Mahlzeit innerhalb der Daten dieses Essens.",
+  "error|Choose a prep day before the meal.": "Wähle einen Vorbereitungstag vor der Mahlzeit.",
+  "error|Choose planned meals for this prep day.": "Wähle geplante Mahlzeiten für diesen Vorbereitungstag.",
+  "error|Choose the recipe for this food.": "Wähle das Rezept für dieses Essen.",
+  "error|Keep at least the number already used.": "Behalte mindestens die bereits verbrauchte Anzahl.",
+  "error|This food has already been used or removed.": "Dieses Essen wurde bereits verbraucht oder entfernt.",
+  "error|This food is already recorded for that day.": "Dieses Essen ist für diesen Tag bereits erfasst."
 }

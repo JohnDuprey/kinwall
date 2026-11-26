@@ -1,9 +1,9 @@
 import { z } from '@hono/zod-openapi';
-import { MealDateSchema, MealKitSchema, RecipeSchema } from './meal-schemas.ts';
+import { MealDateSchema, MealKitDetailSchema, MealKitSchema, RecipeSchema } from './meal-schemas.ts';
 
 export const PlanningDinnerSchema = z.discriminatedUnion('kind', [
   z.object({ date: MealDateSchema, kind: z.literal('open') }).strict(),
-  z.object({ date: MealDateSchema, kind: z.literal('meal'), title: z.string().trim().min(1).max(200), recipeId: z.string().min(1).max(100).optional(), replaceMealId: z.string().min(1).max(100).optional().describe('Explicitly swap this planned dinner in place; must match the reviewed date and canSwap.') }).strict(),
+  z.object({ date: MealDateSchema, kind: z.literal('meal'), title: z.string().trim().min(1).max(200), readyId: z.string().min(1).optional(), recipeId: z.string().min(1).max(100).optional(), replaceMealId: z.string().min(1).max(100).optional().describe('Explicitly swap this planned dinner in place; must match the reviewed date and canSwap.') }).strict(),
 ]);
 export const PlanningPrepSchema = z.object({
   id: z.string().uuid(), eventId: z.string().min(1).max(200), occurrenceStart: z.string().datetime({ offset: true }).nullable(),
@@ -25,11 +25,12 @@ export const WeeklyPlanningSchema = z.object({
   draft: PlanningDraftSchema, applied: PlanningAppliedSchema,
   features: z.object({ meals: z.boolean(), lists: z.boolean(), upkeep: z.boolean() }),
   events: z.array(z.object({ id: z.string(), title: z.string(), start: z.string(), end: z.string(), allDay: z.boolean(), memberIds: z.array(z.string()), occurrenceStart: z.string().nullable() })),
-  meals: z.array(z.object({ recipeId: z.string().nullable().optional(), status: z.enum(['planned', 'prepared']).optional(), id: z.string(), date: z.string(), slot: z.string(), title: z.string(), canSwap: z.boolean() })),
+  meals: z.array(z.object({ readyId: z.string().nullable().optional(), recipeId: z.string().nullable().optional(), status: z.enum(['planned', 'prepared']).optional(), id: z.string(), date: z.string(), slot: z.string(), title: z.string(), canSwap: z.boolean() })),
   tasks: z.array(z.object({ id: z.string(), title: z.string(), dueDate: z.string().nullable(), eventId: z.string().nullable(), listId: z.string(), done: z.boolean() })),
   jobs: z.array(z.object({ id: z.string(), title: z.string(), date: z.string() })),
   lists: z.array(z.object({ id: z.string(), name: z.string() })),
   pantry: z.array(z.object({ id: z.string(), title: z.string(), useBy: z.string() })),
+  readyItems: z.array(MealKitDetailSchema).optional(),
   recipes: z.array(RecipeSchema.pick({ id: true, kind: true, kits: true, name: true, createdAt: true, cookedCount: true, lastCookedDate: true, favoritedBy: true, rating: true, description: true }).extend({ totalMinutes: z.number().nullable(), ingredients: z.array(z.object({ name: z.string() })) })),
   suggestions: z.array(z.object({ kit: MealKitSchema.optional(), id: z.string(), name: z.string(), totalMinutes: z.number().nullable(), uses: z.array(z.object({ title: z.string(), useBy: z.string().nullable() })) })),
 }).openapi('WeeklyPlanning');

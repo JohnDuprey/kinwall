@@ -180,6 +180,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_outings',
     'list_pending_approvals',
     'list_polls',
+    'add_ready_item',
     'list_meal_kits',
     'mark_meal_kit_done',
     'list_recipe_tags',
@@ -879,6 +880,14 @@ test('mcp: meal kit imports, reads and parent-only Done use the REST contract', 
   assert.equal((await call('mark_meal_kit_done', { id: kits[0].id }, wall.key)).isError, true);
   assert.notEqual((await call('mark_meal_kit_done', { id: kits[0].id, count: 1 })).isError, true);
   assert.equal((await call('list_meal_kits')).structuredContent.kits[0].left, 1);
+  const leftover = { kind: 'prepped', title: 'Leftover lasagna', receivedOn: '2026-11-20', quantity: 2 };
+  assert.equal((await call('add_ready_item', leftover, wall.key)).isError, true);
+  const added = await call('add_ready_item', leftover);
+  assert.notEqual(added.isError, true);
+  assert.equal(added.structuredContent.kind, 'prepped');
+  assert.equal(added.structuredContent.cookBy, '2026-11-24');
+  const planned = await call('create_meal', { readyId: added.structuredContent.id, date: '2026-11-24', slot: 'dinner', prepOn: '2026-11-23' });
+  assert.equal(planned.structuredContent.meal.prepOn, '2026-11-23');
 });
 
 test('mcp: meal planning preserves route authorization and returns resolution/validation errors', async () => {

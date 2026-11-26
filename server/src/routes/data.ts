@@ -212,7 +212,7 @@ const ExportSchema = z
     rewardRedemptions: z.array(RedemptionSchema),
     rewardMilestones: z.array(MilestoneExportSchema),
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
-    mealKits: z.array(z.object({ id: z.string(), recipeId: z.string(), provider: z.string().trim().min(1).max(50), receivedOn: MealDateSchema, quantity: z.number().int().min(1).max(20), done: z.number().int().nonnegative(), createdAt: z.string(), updatedAt: z.string() })).optional(),
+    mealKits: z.array(z.object({ id: z.string(), recipeId: z.string().nullable(), kind: z.enum(['kit', 'prepped', 'frozen']).default('kit'), cookBy: MealDateSchema.nullable().default(null), title: z.string().max(200).nullable().default(null), provider: z.string().trim().max(2000), receivedOn: MealDateSchema, quantity: z.number().int().min(1).max(20), done: z.number().int().nonnegative(), createdAt: z.string(), updatedAt: z.string() })).optional(),
     recipes: z.array(RecipeSchema),
     recipeTags: z.array(RecipeTagSchema).optional(),
     meals: z.array(MealSchema),
@@ -469,7 +469,7 @@ dataRoutes.openapi(
         rewardMilestones: await exportMilestones(db),
         // opened: the export is the family's own backup; a connected app without aiHealthAccess gets no health
         trackers: (await Promise.all((trackers as TrackerRow[]).filter((r) => r.kind !== 'health' || !healthHidden).map((r) => openRow(c.env, r)))).map(toTrackerApi),
-        mealKits: (await db.prepare('SELECT * FROM meal_kits ORDER BY received_on, id').all<{ id: string; recipe_id: string; provider: string; received_on: string; quantity: number; done: number; created_at: string; updated_at: string }>()).results.map(k => ({ id: k.id, recipeId: k.recipe_id, provider: k.provider, receivedOn: k.received_on, quantity: k.quantity, done: k.done, createdAt: k.created_at, updatedAt: k.updated_at })),
+        mealKits: (await db.prepare('SELECT * FROM meal_kits ORDER BY received_on, id').all<{ id: string; recipe_id: string | null; kind: 'kit' | 'prepped' | 'frozen'; cook_by: string | null; title: string | null; provider: string; received_on: string; quantity: number; done: number; created_at: string; updated_at: string }>()).results.map(k => ({ id: k.id, recipeId: k.recipe_id, kind: k.kind, cookBy: k.cook_by, title: k.title, provider: k.provider, receivedOn: k.received_on, quantity: k.quantity, done: k.done, createdAt: k.created_at, updatedAt: k.updated_at })),
         recipes: await readRecipes(db, { archived: true, includeTags: true }),
         recipeTags: await readRecipeTags(db),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
@@ -662,7 +662,7 @@ function upserts(db: KinwallDb, table: string, conflict: string, rows: Row[], op
   // "WHERE true" keeps SQLite from parsing ON CONFLICT as a join constraint (INSERT ... SELECT upsert quirk).
   const sql =
     `INSERT INTO ${table} (${cols.join(', ')}) SELECT ${cols.map((c) => opts.expr?.[c] ?? `j.value->>'${c}'`).join(', ')} FROM json_each(?) j WHERE true ` +
-    `ON CONFLICT(${conflict}) DO UPDATE SET ${set.join(', ')}${opts.where ? ` WHERE ${opts.where}` : ''}`;
+    `ON CONFLICT${conflict ? `(${conflict})` : ''} DO UPDATE SET ${set.join(', ')}${opts.where ? ` WHERE ${opts.where}` : ''}`;
   const stmts: KinwallStatement[] = [];
   let chunk: string[] = [];
   let size = 0;
@@ -1169,7 +1169,7 @@ dataRoutes.openapi(
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
       ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, steps: r.steps ? JSON.stringify(r.steps) : null, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, prep_minutes: r.prepMinutes ?? null, total_minutes: r.totalMinutes ?? null, archived: r.archived ? 1 : 0, source: r.source ?? null, external_id: r.externalId ?? null, image_url: r.imageUrl ?? null, ...recipeStorageKind(r.kind), makes: r.makes, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
-      ...upserts(db, 'meal_kits', 'recipe_id, provider, received_on', (body.mealKits ?? []).map(k => ({ id: k.id, recipe_id: k.recipeId, provider: k.provider, received_on: k.receivedOn, quantity: k.quantity, done: k.done, created_at: k.createdAt, updated_at: k.updatedAt })), keepCreated),
+      ...upserts(db, 'meal_kits', '', (body.mealKits ?? []).map(k => ({ id: k.id, recipe_id: k.recipeId, kind: k.kind, cook_by: k.cookBy, title: k.title, provider: k.provider, received_on: k.receivedOn, quantity: k.quantity, done: k.done, created_at: k.createdAt, updated_at: k.updatedAt })), keepCreated),
       ...recipeTagImportWrites(db, body.recipeTags ?? [], body.recipes),
       // Replace each imported recipe's ingredient set, including intentionally empty sets.
       db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.recipes.map((r) => r.id))),
@@ -1184,7 +1184,7 @@ dataRoutes.openapi(
       // Each imported restaurant's menu is replaced by the file's, like a recipe's ingredients.
       db.prepare('DELETE FROM restaurant_menu_items WHERE restaurant_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.restaurants.map((r) => r.id))),
       ...upserts(db, 'restaurant_menu_items', 'id', body.restaurants.flatMap((r) => r.menu.map((i) => ({ id: i.id, restaurant_id: r.id, section: i.section, name: i.name, description: i.description, price_cents: i.priceCents, favorite: i.favorite ? 1 : 0, sort: i.sort })))),
-      ...upserts(db, 'meals', 'id', body.meals.map((m) => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, meal_kind: m.mealKind, recipe_id: m.recipeId, recipe_snapshot: m.recipeSnapshot ? JSON.stringify(m.recipeSnapshot) : null, servings: m.servings, assignee_member_id: m.assigneeMemberId, eater_ids: JSON.stringify(m.eaterIds ?? []), notes: m.notes, planned_time: m.plannedTime, calendar_event_id: m.calendarEventId, calendar_event_start: m.calendarEventId ? m.calendarEventStart ?? null : null, status: m.status, source_url: m.sourceUrl, restaurant_id: m.restaurantId, order_type: m.orderType, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')", restaurant_id: "(SELECT id FROM restaurants WHERE id = j.value->>'restaurant_id')", assignee_member_id: memberRef('assignee_member_id') } }),
+      ...upserts(db, 'meals', 'id', body.meals.map((m) => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, ready_id: m.readyId ?? null, prep_on: m.prepOn ?? null, meal_kind: m.mealKind, recipe_id: m.recipeId, recipe_snapshot: m.recipeSnapshot ? JSON.stringify(m.recipeSnapshot) : null, servings: m.servings, assignee_member_id: m.assigneeMemberId, eater_ids: JSON.stringify(m.eaterIds ?? []), notes: m.notes, planned_time: m.plannedTime, calendar_event_id: m.calendarEventId, calendar_event_start: m.calendarEventId ? m.calendarEventStart ?? null : null, status: m.status, source_url: m.sourceUrl, restaurant_id: m.restaurantId, order_type: m.orderType, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')", restaurant_id: "(SELECT id FROM restaurants WHERE id = j.value->>'restaurant_id')", assignee_member_id: memberRef('assignee_member_id') } }),
       // Each imported meal's orders are the file's; orders by a member not on this instance are dropped.
       db.prepare('DELETE FROM meal_orders WHERE meal_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.meals.map((m) => m.id))),
       db.prepare("INSERT INTO meal_orders (meal_id, member_id, items, note, updated_at) SELECT j.value->>'meal_id', j.value->>'member_id', j.value->>'items', j.value->>'note', j.value->>'updated_at' FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(meal_id, member_id) DO NOTHING")

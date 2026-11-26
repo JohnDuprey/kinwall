@@ -7,6 +7,7 @@ import { hostTimezone } from './env.ts';
 import { readSettings } from './routes/settings.ts';
 import { todayInTz } from './routes/members.ts';
 import { eventInstances } from './routes/events.ts';
+import { readMealKits } from './meal-kits.ts';
 import { buildMeal } from './routes/meals.ts';
 import { listItemInsert } from './routes/lists.ts';
 import { readMeal, readMeals, readRecipes, mealWrite } from './meals.ts';
@@ -43,7 +44,7 @@ export async function readWeeklyPlanning(db: KinwallDb, requested?: string): Pro
     const dates = Array.from({ length: 7 }, (_, i) => addPlanningDays(weekStart, i));
     const end = dates[6];
     const features = { meals: settings.features.meals, lists: settings.features.lists, upkeep: settings.features.upkeep };
-    const [row, events, meals, recipes, pantry, jobs, listRows, taskRows] = await Promise.all([
+    const [row, events, meals, recipes, pantry, jobs, listRows, taskRows, readyItems] = await Promise.all([
       planRow(db, weekStart),
       eventInstances(db, midnight(weekStart, timezone), midnight(addPlanningDays(end, 1), timezone)),
       features.meals ? readMeals(db, weekStart, end) : [],
@@ -52,6 +53,7 @@ export async function readWeeklyPlanning(db: KinwallDb, requested?: string): Pro
       features.upkeep ? readJobs(db, today, iso => todayInTz(timezone, new Date(iso))) : [],
       features.lists ? db.prepare("SELECT id, name FROM lists WHERE kind = 'todo' AND purpose IS NULL AND archived = 0 ORDER BY sort, created_at").all<{ id: string; name: string }>() : { results: [] },
       features.lists ? db.prepare("SELECT li.id, li.title, li.due_date, li.event_id, li.list_id, li.done FROM list_items li JOIN lists l ON l.id = li.list_id WHERE l.kind = 'todo' AND l.purpose IS NULL AND l.archived = 0 AND li.done = 0 AND li.due_date BETWEEN ? AND ? ORDER BY li.due_date, li.sort").bind(weekStart, end).all<{ id: string; title: string; due_date: string | null; event_id: string | null; list_id: string; done: number }>() : { results: [] },
+      features.meals ? readMealKits(db) : [],
     ]);
     if (version !== await sourceVersion(db)) continue;
     // Expired food never becomes a suggestion for a future meal.
@@ -68,8 +70,9 @@ export async function readWeeklyPlanning(db: KinwallDb, requested?: string): Pro
       draft: row ? { dinners: features.meals ? JSON.parse(row.draft).dinners : [], prep: features.lists ? JSON.parse(row.draft).prep : [] } : emptyDraft(),
       applied: row ? { dinners: features.meals ? JSON.parse(row.applied).dinners : {}, prep: features.lists ? JSON.parse(row.applied).prep : {} } : emptyApplied(), features,
       events: events.map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, allDay: e.allDay, memberIds: e.memberIds, occurrenceStart: e.occurrenceStart })),
-      meals: meals.map(m => ({ recipeId: m.recipeId, status: m.status, id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
+      meals: meals.map(m => ({ readyId: m.readyId, recipeId: m.recipeId, status: m.status, id: m.id, date: m.date, slot: m.slot, title: m.title, canSwap: m.status === 'planned' && m.mealKind !== 'dining_out' && !(m.calendarEventId && m.calendarEventStart) })),
       pantry: expiringWithin(safePantry, 6).filter(i => i.useBy).map(i => ({ id: i.id, title: i.title, useBy: i.useBy! })),
+      readyItems,
       recipes: recipes.filter(r => r.kind !== 'basic').map(r => ({ id: r.id, kind: r.kind, kits: r.kits, name: r.name, totalMinutes: r.totalMinutes ?? null, createdAt: r.createdAt, cookedCount: r.cookedCount ?? 0, lastCookedDate: r.lastCookedDate ?? null, favoritedBy: r.favoritedBy ?? [], rating: r.rating, description: r.description, ingredients: r.ingredients.map(i => ({ name: i.name })) })),
       suggestions: [...kitChoices, ...suggestions.filter(s => !kitChoices.some(k => k.id === s.recipe.id)).map(s => ({ ...s.recipe, uses: s.uses.map(i => ({ title: i.title, useBy: i.useBy })) }))],
       tasks: taskRows.results.map(i => ({ id: i.id, title: i.title, dueDate: i.due_date, eventId: i.event_id, listId: i.list_id, done: !!i.done })),
@@ -129,8 +132,12 @@ export async function applyWeeklyPlan(db: KinwallDb, week: string, input: { revi
     const old = target ? await readMeal(db, target.id) : undefined;
     if (target && !old) throw new PlanningError(stored('error', 'This dinner can no longer be swapped here. Refresh the week or open Meals.'), 409);
     const recipe = dinner.recipeId ? snapshot.recipes.find(r => r.id === dinner.recipeId) : undefined;
+    if (dinner.readyId) {
+      const ready = snapshot.readyItems?.find(k => k.id === dinner.readyId);
+      if (!ready || ready.receivedOn > dinner.date || ready.cookBy < dinner.date) throw new PlanningError(stored('error', 'Choose a meal within this food’s dates.'));
+    }
     if (recipe?.kits?.length && !recipe.kits.some(k => k.receivedOn <= dinner.date && dinner.date <= k.cookBy)) throw new PlanningError(stored('error', 'Choose a dinner on or before the meal kit’s cook-by date.'));
-    const meal = await buildMeal(db, { date: dinner.date, slot: 'dinner', title: dinner.title, mealKind: dinner.recipeId ? 'recipe' : 'freeform', recipeId: dinner.recipeId ?? null, ...(old ? { servings: old.servings, sourceUrl: null } : {}) }, old ?? undefined);
+    const meal = await buildMeal(db, { date: dinner.date, slot: 'dinner', title: dinner.title, mealKind: dinner.recipeId ? 'recipe' : 'freeform', recipeId: dinner.recipeId ?? null, readyId: dinner.readyId ?? recipe?.kits?.find(k => k.receivedOn <= dinner.date && dinner.date <= k.cookBy)?.id ?? null, prepOn: null, ...(old ? { servings: old.servings, sourceUrl: null } : {}) }, old ?? undefined);
     if (typeof meal === 'string') throw new PlanningError(meal);
     if (dinner.recipeId && !(await readRecipes(db, { id: dinner.recipeId })).some(r => dinner.replaceMealId ? r.kind === 'meal' : r.kind !== 'basic')) throw new PlanningError(stored('error', 'Choose a meal recipe that is still in your library.'));
     writes.push(mealWrite(db, meal)); mealIds.push(meal.id);

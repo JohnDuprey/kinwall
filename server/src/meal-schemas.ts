@@ -60,8 +60,12 @@ export const RecipeInputSchema = z.object({
   archived: z.boolean().optional(), ingredients: z.array(IngredientInputSchema).max(300).optional(),
   kind: RecipeKindSchema.optional(), makes: makes.optional(), tagIds: RecipeTagIdsSchema.optional(),
 }).strict().openapi('RecipeInput');
-export const MealKitSchema = z.object({ id: z.string(), provider: z.string(), receivedOn: MealDateSchema, cookBy: MealDateSchema, quantity: z.number().int(), left: z.number().int() });
-export const MealKitDetailSchema = MealKitSchema.extend({ recipeId: z.string(), recipeName: z.string(), imageUrl: z.string().nullable() });
+export const ReadyKindSchema = z.enum(['kit', 'prepped', 'frozen']);
+export const MealKitSchema = z.object({ id: z.string(), kind: ReadyKindSchema.default('kit'), title: z.string().nullable().default(null), provider: z.string(), receivedOn: MealDateSchema, cookBy: MealDateSchema, quantity: z.number().int(), left: z.number().int() });
+export const MealKitDetailSchema = MealKitSchema.extend({ recipeId: z.string().nullable(), recipeName: z.string(), imageUrl: z.string().nullable() });
+export const ReadyPatchSchema = z.object({ quantity: z.number().int().min(1).max(20).optional(), cookBy: MealDateSchema.nullable().optional(), title: z.string().trim().min(1).max(200).optional(), kind: ReadyKindSchema.optional() }).strict();
+export const ReadyInputSchema = ReadyPatchSchema.extend({ kind: ReadyKindSchema, recipeId: z.string().min(1).optional(), title: z.string().trim().min(1).max(200).optional(), receivedOn: MealDateSchema, quantity: z.number().int().min(1).max(20), provider: z.string().trim().min(1).max(50).optional() }).refine(v => v.recipeId || v.title, 'Choose a recipe or name the food');
+export const MealPrepSchema = z.object({ date: MealDateSchema, mealIds: z.array(z.string().min(1)).min(1).max(100) }).strict();
 export const MealKitDoneSchema = z.object({ count: z.number().int().min(1).max(20).optional() }).strict();
 export const MealKitImportSchema = z.object({ receivedOn: MealDateSchema, quantity: z.number().int().min(1).max(20).default(1), provider: z.string().trim().min(1).max(50).optional() }).strict();
 export const RecipeSchema = z.object({
@@ -159,6 +163,7 @@ export const MealOrderInputSchema = z.object({
 }).strict().openapi('MealOrderInput');
 export const MealOrderSchema = z.object({ memberId: z.string(), items: z.array(OrderItemSchema), note: z.string().nullable(), updatedAt: z.string() }).openapi('MealOrder');
 export const MealInputSchema = z.object({
+  readyId: z.string().min(1).nullable().optional(), prepOn: MealDateSchema.nullable().optional(),
   date: MealDateSchema, slot: MealSlotSchema, title: z.string().trim().min(1).max(200).optional(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']).optional(), recipeId: z.string().nullable().optional(),
   servings: servings.optional(), assigneeMemberId: z.string().nullable().optional().describe("Who's cooking."), eaterIds: eaterIds.optional(), notes: text.optional(),
@@ -169,6 +174,7 @@ export const MealInputSchema = z.object({
 }).strict().openapi('MealInput');
 export const MealPatchSchema = MealInputSchema.partial().extend({ refreshRecipe: z.boolean().optional() }).strict().openapi('MealPatch');
 export const MealSchema = z.object({
+  readyId: z.string().nullable().optional(), prepOn: MealDateSchema.nullable().optional(),
   id: z.string(), date: MealDateSchema, slot: MealSlotSchema, title: z.string(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']), recipeId: z.string().nullable(), recipeSnapshot: RecipeSnapshotSchema.nullable(),
   servings, assigneeMemberId: z.string().nullable(), eaterIds: z.array(z.string()).default([]), notes: text, plannedTime: z.string().nullable(),

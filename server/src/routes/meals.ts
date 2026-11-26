@@ -7,7 +7,7 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { MealKitDetailSchema, MealKitDoneSchema, IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipeTagIdsSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { MealDateSchema, MealPrepSchema, ReadyInputSchema, ReadyPatchSchema, MealKitDetailSchema, MealKitDoneSchema, IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipeTagIdsSchema, RecipePreviewResultSchema, RecipeFavoriteInputSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, recipeStorageKind, importIngredient, matchBasic, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
@@ -17,7 +17,7 @@ import { pushToMembers, recordNotification } from '../notify.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
 import { detectRecipeKind, parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
-import { readMealKits } from '../meal-kits.ts';
+import { readMealKits, type KitRow } from '../meal-kits.ts';
 import { checkRate } from '../ratelimit.ts';
 import { familyLang, msg, perLang, requestLang, stored, tm, words } from '../i18n.ts';
 
@@ -304,6 +304,14 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
 export async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, old?: Meal): Promise<Meal | string> {
   const now = new Date().toISOString();
   const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, calendarEventStart: null, status: 'planned', sourceUrl: null, restaurantId: null, orderType: null, orders: [], createdAt: now, ...old, ...input, updatedAt: now };
+  if (input.readyId) {
+    const ready = (await readMealKits(db)).find(k => k.id === input.readyId) ?? (old?.readyId === input.readyId ? await db.prepare('SELECT k.recipe_id AS recipeId, coalesce(r.name,k.title) AS recipeName FROM meal_kits k LEFT JOIN recipes r ON r.id = k.recipe_id WHERE k.id = ?').bind(input.readyId).first<{ recipeId: string | null; recipeName: string }>() : null);
+    if (!ready) return stored('error', 'This food has already been used or removed.');
+    if (input.recipeId !== undefined && input.recipeId !== ready.recipeId) return stored('error', 'Choose the recipe for this food.');
+    meal.recipeId = ready.recipeId; meal.mealKind = ready.recipeId ? 'recipe' : 'freeform';
+    if (input.title === undefined) meal.title = ready.recipeName;
+  } else if (old?.readyId && (input.recipeId !== undefined && input.recipeId !== old.recipeId || input.mealKind !== undefined && input.mealKind !== old.mealKind)) meal.readyId = null;
+  if (meal.prepOn && (meal.prepOn >= meal.date || meal.mealKind === 'dining_out')) return stored('error', 'Choose a prep day before the meal.');
   if (input.recipeId && input.mealKind === undefined) meal.mealKind = 'recipe';
   if (meal.assigneeMemberId && !await db.prepare('SELECT id FROM members WHERE id = ?').bind(meal.assigneeMemberId).first()) return 'assignee not found';
   if (input.eaterIds) {
@@ -313,7 +321,7 @@ export async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSc
   }
   if (meal.mealKind === 'recipe') {
     if (!meal.recipeId && !meal.recipeSnapshot) return 'recipe meals require a recipe';
-    if (!old || input.recipeId !== undefined && input.recipeId !== old.recipeId || input.refreshRecipe || !meal.recipeSnapshot) {
+    if (!old || meal.recipeId !== old.recipeId || input.refreshRecipe || !meal.recipeSnapshot) {
       if (!meal.recipeId) return 'recipe no longer exists';
       const recipe = (await readRecipes(db, { id: meal.recipeId }))[0];
       if (!recipe) return 'recipe not found or archived';
@@ -338,6 +346,33 @@ export async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSc
   if (!meal.title) return 'a meal title is required';
   return meal;
 }
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals/prep', tags: ['Meals'], summary: 'List planned meals to prep on a day', security: [{ Bearer: [] }], request: { query: z.object({ date: MealDateSchema }) }, responses: { 200: { description: 'meals to prep', content: { 'application/json': { schema: z.array(MealSchema) } } } } }), async c => {
+  const ids = await c.env.DB.prepare("SELECT id FROM meals WHERE prep_on = ? AND ready_id IS NULL AND status = 'planned' ORDER BY date,id").bind(c.req.valid('query').date).all<{ id: string }>();
+  return c.json((await Promise.all(ids.results.map(m => readMeal(c.env.DB, m.id)))).filter((m): m is Meal => !!m), 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/prep', tags: ['Meals'], summary: 'Finish prepping selected planned meals, creating linked prepped food (parent only, repeat safe)', security: [{ Bearer: [] }], request: { body: body(MealPrepSchema) }, responses: { 200: ok, ...errors } }), async c => {
+  const db = c.env.DB, { date, mealIds } = c.req.valid('json');
+  const selected = await Promise.all([...new Set(mealIds)].map(id => readMeal(db, id)));
+  if (selected.some(m => !m || m.prepOn !== date || m.status !== 'planned' || m.mealKind === 'dining_out')) return c.json({ error: stored('error', 'Choose planned meals for this prep day.') }, 400);
+  const groups = new Map<string, Meal[]>();
+  for (const m of selected) if (m && !m.readyId) {
+    const key = m.recipeId ?? m.id;
+    groups.set(key, [...groups.get(key) ?? [], m]);
+  }
+  const now = new Date().toISOString(), limit = new Date(Date.parse(date) + 4 * 86400000).toISOString().slice(0, 10);
+  const writes = [];
+  for (const group of [...groups.values()].flatMap(meals => Array.from({ length: Math.ceil(meals.length / 20) }, (_, i) => meals.slice(i * 20, (i + 1) * 20)))) {
+    // A deterministic id and conditional insert/link keep retries and simultaneous taps safe.
+    const id = `prep:${group.map(m => m.id).sort().join(':')}`;
+    const ids = JSON.stringify(group.map(m => m.id));
+    writes.push(db.prepare("INSERT OR IGNORE INTO meal_kits (id,recipe_id,kind,title,provider,received_on,quantity,cook_by,created_at,updated_at) SELECT ?,?,'prepped',? ,?,?,count(*),min(max(date),?),?,? FROM meals WHERE id IN (SELECT value FROM json_each(?)) AND ready_id IS NULL AND prep_on = ? AND status = 'planned' AND recipe_id IS ? HAVING count(*) > 0")
+      .bind(id, group[0].recipeId, group[0].recipeId ? null : group[0].title, id, date, limit, now, now, ids, date, group[0].recipeId));
+    writes.push(db.prepare("UPDATE meals SET ready_id = ?,updated_at = ? WHERE id IN (SELECT value FROM json_each(?)) AND ready_id IS NULL AND prep_on = ? AND status = 'planned' AND recipe_id IS ? AND EXISTS (SELECT 1 FROM meal_kits WHERE id = ?)").bind(id, now, ids, date, group[0].recipeId, id));
+  }
+  if (writes.length) await db.batch(writes);
+  for (const meal of selected) if (meal) emit(c, 'meal.changed', { id: meal.id });
+  return c.json({ ok: true }, 200);
+});
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals', tags: ['Meals'], summary: 'Plan a meal and snapshot its recipe (admin)', security: [{ Bearer: [] }], request: { body: body(MealInputSchema) }, responses: { 201: mealResponse, ...errors } }), async (c) => {
   const meal = await buildMeal(c.env.DB, c.req.valid('json'));
   if (typeof meal === 'string') return c.json({ error: meal }, 400);
@@ -415,6 +450,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/swap', 
   const now = new Date().toISOString();
   const a2: Meal = { ...a, date: b.date, slot: b.slot, updatedAt: now };
   const b2: Meal = { ...b, date: a.date, slot: a.slot, updatedAt: now };
+  if ([a2, b2].some(m => m.prepOn && m.prepOn >= m.date)) return c.json({ error: stored('error', 'Choose a prep day before the meal.') }, 400);
   // Events first, like an edit; if the second calendar refuses, the first event goes back so all four agree.
   const failed = await syncMealEvent(c, a, a2) ?? await syncMealEvent(c, b, b2).then(async (err) => { if (err) await syncMealEvent(c, a2, a); return err; });
   if (failed) return c.json({ error: `Couldn't update a meal's calendar event: ${failed.error}` }, failed.status);
@@ -605,7 +641,29 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}/steps/
   return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
 });
 
-mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meal-kits', tags: ['Meals'], summary: 'List meal kits on hand, oldest box first', security: [{ Bearer: [] }], responses: { 200: { description: 'meal kits', content: { 'application/json': { schema: z.array(MealKitDetailSchema) } } } } }), async c => c.json(await readMealKits(c.env.DB), 200));
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meal-kits', tags: ['Meals'], summary: 'Add ready to cook food (parent only)', security: [{ Bearer: [] }], request: { body: body(ReadyInputSchema) }, responses: { 201: { description: 'ready item', content: { 'application/json': { schema: MealKitDetailSchema } } }, ...errors } }), async c => {
+  const input = c.req.valid('json'); const db = c.env.DB;
+  if (input.recipeId && !await db.prepare('SELECT id FROM recipes WHERE id = ?').bind(input.recipeId).first()) return c.json({ error: 'recipe not found' }, 400);
+  const id = crypto.randomUUID(), now = new Date().toISOString();
+  const result = await db.prepare('INSERT OR IGNORE INTO meal_kits (id,recipe_id,kind,title,provider,received_on,quantity,cook_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .bind(id, input.recipeId ?? null, input.kind, input.title ?? null, input.provider ?? `manual:${id}`, input.receivedOn, input.quantity, input.cookBy ?? null, now, now).run();
+  if (!result.meta.changes) return c.json({ error: stored('error', 'This food is already recorded for that day.') }, 400);
+  emit(c, 'meal.changed', { id });
+  if (input.recipeId) emit(c, 'recipe.changed', { id: input.recipeId });
+  return c.json((await readMealKits(db, input.recipeId, true)).find(k => k.id === id)!, 201);
+});
+mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meal-kits/{id}', tags: ['Meals'], summary: 'Edit ready to cook food (parent only)', security: [{ Bearer: [] }], request: { params, body: body(ReadyPatchSchema) }, responses: { 200: ok, ...errors } }), async c => {
+  const db = c.env.DB, { id } = c.req.valid('param'), input = c.req.valid('json');
+  const old = await db.prepare('SELECT * FROM meal_kits WHERE id = ?').bind(id).first<KitRow>();
+  if (!old) return c.json({ error: stored('error', 'This food has already been used or removed.') }, 404);
+  if (input.quantity !== undefined && input.quantity < old.done) return c.json({ error: stored('error', 'Keep at least the number already used.') }, 400);
+  await db.prepare('UPDATE meal_kits SET quantity=?,cook_by=?,title=?,kind=?,updated_at=? WHERE id=?')
+    .bind(input.quantity ?? old.quantity, input.cookBy === undefined ? old.cook_by : input.cookBy, input.title ?? old.title, input.kind ?? old.kind, new Date().toISOString(), id).run();
+  emit(c, 'meal.changed', { id });
+  if (old.recipe_id) emit(c, 'recipe.changed', { id: old.recipe_id });
+  return c.json({ ok: true }, 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meal-kits', tags: ['Meals'], summary: 'List ready to cook items of every kind, oldest first', security: [{ Bearer: [] }], responses: { 200: { description: 'ready to cook items', content: { 'application/json': { schema: z.array(MealKitDetailSchema) } } } } }), async c => c.json(await readMealKits(c.env.DB), 200));
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meal-kits/{id}/done', tags: ['Meals'], summary: 'Mark meal kits used or tossed (parent only)', security: [{ Bearer: [] }], request: { params, body: body(MealKitDoneSchema) }, responses: { 200: ok, ...errors } }), async c => {
   const id = c.req.valid('param').id;
   const version = await c.env.DB.prepare('SELECT version FROM weekly_plan_source WHERE id = 1').first<{ version: number }>();
@@ -619,9 +677,10 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meal-kits/{id}/don
   return c.json({ ok: true }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meal-kits/{id}', tags: ['Meals'], summary: 'Remove a mistaken meal kit (parent only)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }), async c => {
-  const kit = await c.env.DB.prepare('SELECT recipe_id FROM meal_kits WHERE id = ?').bind(c.req.valid('param').id).first<{ recipe_id: string }>();
+  const kit = await c.env.DB.prepare('SELECT recipe_id FROM meal_kits WHERE id = ?').bind(c.req.valid('param').id).first<{ recipe_id: string | null }>();
   if (!kit) return c.json({ error: stored('error', 'This meal kit has been removed.') }, 404);
   await c.env.DB.prepare('DELETE FROM meal_kits WHERE id = ?').bind(c.req.valid('param').id).run();
-  emit(c, 'recipe.changed', { id: kit.recipe_id });
+  if (kit.recipe_id) emit(c, 'recipe.changed', { id: kit.recipe_id });
+  emit(c, 'meal.changed', { id: c.req.valid('param').id });
   return c.json({ ok: true }, 200);
 });
