@@ -378,7 +378,22 @@ Kinwall. No tool changes who can see a trip.
 
 Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.
 
-## Meal kits
+## Ready to cook
+
+`add_ready_item` requires parent access and accepts `{ kind, recipeId?, title?, receivedOn,
+quantity, cookBy?, provider? }`. Kinds are `kit`, `prepped`, and `frozen`; choose a recipe or
+name the food (for example, leftovers). Quantity is 1–20 meals. `receivedOn` means prepped
+or frozen on for homemade food. The default window is the family setting for kits, 4 days
+for prepped food, and 90 days for frozen food; `cookBy` overrides the item date.
+
+`list_meal_kits` keeps its tool name and returns every kind, including leftovers, with `kind`,
+nullable `title` and `recipeId`, and the effective `cookBy`. Meal tools accept nullable
+`readyId` and `prepOn`; a prep day must precede the meal date. Planning with `readyId` fills
+the recipe or leftover name. Marking the meal `prepared` uses that item first; undo returns
+the unit. Unlinked recipe meals use the oldest arrived item of any kind. Prep completion
+is available in the app and through `POST /api/meals/prep` (see the REST API).
+
+### Imported meal kits
 
 `list_meal_kits` reads on-hand boxes oldest first, with recipe, provider, arrived and cook-by
 dates, quantity and units left. `import_recipe` accepts optional
@@ -391,7 +406,8 @@ full parent access, as imports do; wall and child devices cannot perform these w
 Cook-by follows **Cook meal kits within** (`mealKitDays`, 1–14, default 7), available in
 `get_household.settings`. A parent changes it in Settings or through `PATCH /api/settings`;
 there is no general settings-write MCP tool. Marking a linked meal Cooked (`update_meal`,
-status `prepared`) uses an arrived kit automatically; undoing it returns the unit. Past
+status `prepared`) uses its chosen item first, otherwise the oldest arrived food of its recipe;
+undoing it returns the unit. Past
 cook-by boxes stay on hand until used or marked done. Weekly planning suggests main-dish
 kits oldest first and allows kit choices only within their arrived/cook-by dates.
 

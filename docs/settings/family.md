@@ -114,7 +114,10 @@ When the Meals feature is on, this tab has the family's usual meal times: **Brea
 
 Under **Meals**, a parent can change **Cook meal kits within** from 1 to 14 days (default 7).
 Every box's cook-by date is its arrived date plus this many days, including boxes already on
-hand. This helps [plan meal kits](../using/meals.md#meal-kits) before their cook-by dates.
+hand, unless an item has its own date. This helps [plan meal kits](../using/meals.md#meal-kits)
+before their cook-by dates. Prepped food defaults to 4 days and frozen food to 90 days
+(about 3 months), independently of this setting. Change an individual item's date in
+**Meals → Ready to cook → Edit**, or when adding it; no extra family settings are needed.
 Wall screens and children's devices can read the API setting; only a parent can change it.
 The field is `mealKitDays` in `GET` / `PATCH /api/settings`; older settings without it use 7.
 

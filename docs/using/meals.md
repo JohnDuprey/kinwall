@@ -487,31 +487,52 @@ The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list
 
 In the grocery preview, tap ingredient rows to include or leave them out. **Add a note on each item saying which meals need it** is an on/off switch.
 
-## Meal kits
+## Ready to cook
 
-An integration can record when a meal kit box arrived as it imports a recipe, from any provider.
+Keep meal kits, food you made ahead, frozen meals, and leftovers together in **Ready to cook**
+in Meals. Each item has a type, the day it arrived or was prepped, how many meals
+it covers, and a date to use it by. Prepped food starts with 4 days; frozen food starts with
+90 days (about 3 months). Meal kits use the family's window below. These are planning dates:
+you can change an individual item's date when adding or editing it.
+
+A grown-up can tap **+ Add**, pick a recipe, or type a name such as “Leftover lasagna.”
+Choose **Prepped**, **Frozen**, or **Meal kit**, the date, and the number of meals. From a
+recipe, **Prepped this** opens the same sheet with that recipe already chosen.
+**Prepped several** lets you choose several recipes, set each one's meals count, and save
+them with one date and type. **Edit** changes the type, count, name for leftovers, or use-by date.
+
+**Plan it** opens a meal linked to that particular item. A leftover becomes a named meal
+without needing a recipe. Marking it **Cooked** uses one meal from the item; undoing **Cooked**
+gives it back. When cooking a recipe without choosing an item, Kinwall uses the oldest food
+of that recipe that had arrived by the meal's date. A leftover without a recipe is only used
+by a meal planned from it. **Done** marks remaining food used or tossed. Food past its date
+stays visible until used or marked done; check the food itself before eating it.
+
+The Board counts every kind as **ready to cook**. Planned meals show 📦 **Meal kit**,
+🥡 **Prepped**, or ❄️ **Frozen**, and recipe and swap pickers put ready food first.
+**Plan the week** includes ready food directly in each night's Dinner choices, on dates from
+arrival or prep through its use-by date. The recipe library's **Ready to cook** filter shows
+recipes with food on hand.
+
+### Prep ahead
+
+In a planned meal's details, a grown-up can turn on **Prep ahead** and choose an earlier day
+(the day before is offered first). The planner shows **🔪 Prep** and that day. On the prep
+day, the Board and Meals show **Prep today**. Tap **Done prepping** for one meal or
+**Done prepping all** to group meals of the same recipe into one prepped item, with one unit
+per planned meal. Each meal is linked to its food. The eat-by date is the latest planned
+meal date, capped at four days after prepping; edit the item to change it.
+
+To undo prepping, open the item's **Edit** sheet and **Delete** it. The planned meals stay
+and return to **Prep today** on their prep day. Deleting food always asks first.
+
+### Meal kits
+
+An integration can record when a meal kit arrived as it imports a recipe, from any provider.
 Cook-by is the arrived date plus **Cook meal kits within** in **Settings → Family → Meals**:
-7 days by default, adjustable from 1 to 14. Changing it updates boxes already on hand too.
+7 days by default, adjustable from 1 to 14. Changing it updates kits already on hand unless
+an item has its own date. You can also add a delivery by hand with the **Meal kit** type.
 
-**From your meal kits** appears first in **Use it up**, oldest boxes first, even without pantry
-food expiring. **Plan it** opens today's dinner with that recipe. Marking a linked meal
-**Cooked** uses one kit from the oldest box that had arrived by the meal's date. Unmarking
-**Cooked** gives it back. Cooking before a box arrived and ordering takeout do not use that box.
-A grown-up can tap **Done** and confirm to mark the remaining kits used or tossed without cooking.
-Boxes past cook-by stay visible with **Past its cook-by** until used or marked done; check the
-food itself before cooking.
-
-The Board shows how many kits need cooking. Planned meals show a box and cook-by date; recipe
-sheets show kits on hand. Choose **Meal kits on hand** in the recipe library's filter sheet.
-Recipe and swap pickers put on-hand kits first. **Plan the week** offers main-dish kits oldest
-first on nights from their arrived date through their cook-by date, leaving out units already
-planned that week. Side dishes and desserts still count as on hand.
-
-In **Plan the week → A few decisions**, each night's **Dinner** choices include meal kits you
-can cook that night, with arrived and cook-by dates. Tap one to choose its recipe directly.
-Kits are offered oldest first, only while units remain after counting that week's planned meals
-and your other draft choices. A recipe with two kits can therefore be chosen for two nights.
-
-Reimporting the same recipe, provider and arrived date updates that box's quantity. Another
-delivery date records a separate box. Ingredients marked **In the kit** stay off the grocery
-list as before. Kits follow the **Meals** switch; pantry suggestions follow **Lists**.
+Reimporting the same recipe, provider, and arrived date updates that kit’s quantity. Another
+delivery date records a separate kit. Ingredients marked **In the kit** stay off the grocery
+list as before. All ready food follows the **Meals** switch; pantry suggestions follow **Lists**.

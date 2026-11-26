@@ -742,7 +742,35 @@ Backups: see [Export & import](../your-data/export-import.md#trips-and-away-days
 
 Trip `packingListIds` retains its original field name for compatibility, but accepts active list IDs of any kind: reusable, groceries, shopping, to-do and pantry. Links reference existing lists; unlinking or deleting a trip does not delete them. Normal list permissions apply.
 
-## Meal kits
+## Ready to cook items
+
+The existing `/api/meal-kits` path stores all three kinds of ready to cook food. Read and
+recipe `kits` entries include `kind` (`kit`, `prepped`, `frozen`) and nullable `title`.
+`recipeId` is nullable in item reads; `recipeName` contains the recipe name or leftover title.
+`cookBy` is the item's explicit override, or `receivedOn` plus `mealKitDays` for a kit,
+4 days for prepped food, or 90 days for frozen food. An explicit date is unchanged by
+family window changes. Items with no remaining units are omitted from reads.
+
+| Method | Path | Body and behavior |
+| --- | --- | --- |
+| POST | `/api/meal-kits` | Parent only. `{ kind, recipeId?, title?, receivedOn, quantity, cookBy?, provider? }`; recipe or title required, quantity integer 1–20. `receivedOn` is the prep/freezing date for homemade food. Returns the item (201). |
+| PATCH | `/api/meal-kits/{id}` | Parent only. `{ quantity?, cookBy?, title?, kind? }`; `cookBy: null` restores the type's default window. Returns `{ ok: true }`. |
+| GET | `/api/meals/prep?date=YYYY-MM-DD` | Planned meals whose `prepOn` is that day and have no `readyId`. |
+| POST | `/api/meals/prep` | Parent only. `{ date, mealIds }` (1–100 IDs). Groups selected meals by recipe (up to 20 units per item), creates prepped items with one unit per meal, and links `readyId` atomically. Repeated completion is safe. Returns `{ ok: true }`. |
+
+Meal create, update and reads support nullable `readyId` and `prepOn`. `prepOn` must precede
+the meal date; dining out cannot be prepped ahead. Creating from a `readyId` fills its recipe
+or makes a freeform meal using the leftover title. A prepared meal consumes its `readyId`
+first; other prepared recipe meals consume the oldest arrived item of any kind. Explicit
+links reserve units before automatic recipe use. Undo is computed from meal status.
+Deleting an item clears meal links and preserves planned meals and their prep days.
+Prep completion uses the latest meal date as `cookBy`, capped at prep date +4 days.
+Full export/import preserves item kind, title, date overrides, Done counts, and meal links.
+
+Weekly planning includes `readyItems` and accepts `readyId` in dinner choices. Board
+`mealKitCount` counts all kinds, and is 0 when Meals is off.
+
+### Imported meal kits
 
 `POST /api/recipes/import` accepts optional
 `kit: { receivedOn: 'YYYY-MM-DD', quantity?: integer 1–20, provider?: string }`.
@@ -752,9 +780,9 @@ characters, and defaults to the import's `source`. The recipe is still keyed by
 updates quantity, never adds another box. Omitting `kit` keeps existing import behavior.
 
 Recipe reads include `kits: [{ id, provider, receivedOn, cookBy, quantity, left }]`, only
-entries with `left > 0`, oldest first. `cookBy` is `receivedOn + mealKitDays` calendar days.
+entries with `left > 0`, oldest first. Imported items default to kind `kit`.
 `mealKitDays` is a family setting, integer 1–14, default 7, in `GET` / `PATCH /api/settings`.
-Updating it recalculates existing boxes' dates.
+Updating it recalculates existing boxes' dates unless an item has its own override.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
@@ -763,9 +791,7 @@ Updating it recalculates existing boxes' dates.
 | DELETE | `/api/meal-kits/{id}` | Parent only. Removes a mistaken box; returns `{ ok: true }`, or 404 if missing. |
 
 Wall and child devices can read boxes but get 403 for Done, deletion, imports and settings
-changes. Remaining units are derived: a linked recipe meal marked `prepared` (Cooked) uses
-one unit of the oldest arrived box available on that meal's date; `done` units are reserved
-too. Unmarking Cooked returns the unit. Dining-out meals do not use kits. Past cook-by boxes
+changes. Remaining units follow the ready-item rules above; explicit `done` units are reserved too. Unmarking Cooked returns the unit. Dining-out meals do not use kits. Past cook-by boxes
 remain on hand until used or marked done. Full exports/imports include all boxes and their
 explicit Done counts as `mealKits`, including consumed boxes; `left` is never stored.
 
