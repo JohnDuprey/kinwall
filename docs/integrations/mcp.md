@@ -91,6 +91,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_categories` | Categories (name, emoji, color, keywords) in order. |
 | `list_notes` | The notes thread on an event or list item (`target`: `event:<id>` or `list_item:<id>`), oldest first. `memberId` null means "Someone". |
 | `list_recipe_tags` | Lists the household’s recipe tags with their IDs, including unused tags. |
+| `suggest_recipe_tags` | Read-only suggestions for recipe `id`: existing family tags with reasons, plus common words that could become new tags (`name`, recipe `count`, up to three `examples`). Uses plain rules on recipe words, ingredients, time and type; saves nothing. Same read access as recipes. |
 | `list_recipes` | [Meals](../using/meals.md) recipes with their ingredients. Filters: `search`, `category`, `archived`, `kind` (`meal` for a main dish, `side`, `dessert` or `basic`), `favoriteOf` (a member's name or ID: only their favorites). Recipes also include derived `cookedCount` (linked prepared meals across all dates) and `lastCookedDate` (latest prepared meal date, or null). Each recipe's `favoritedBy` lists the member IDs who love it. Use `tagIds` to require every selected tag. |
 | `get_recipe` | One recipe by ID. |
 | `list_restaurants` | The family's [restaurant binder](../using/meals.md#restaurants): each place's phone, address, website, ordering link, notes and menu (`favorite` marks the family's starred items). `search` matches a name, cuisine or menu item; `archived: true` includes archived places. |
@@ -229,6 +230,14 @@ Members, calendars, API keys, webhooks and photos can't be deleted over MCP. Tho
 ## Prompts
 
 Clients that show MCP prompts (often as a slash command) get **Use it up** (`use_it_up`, optional `days`, default 7). It asks the assistant to call `suggest_meals_from_pantry`, suggest what to eat over the next few days starting with what expires first, offer simple ideas for expiring food none of your recipes use, say plainly what's already past its date, and ask before planning a meal, saving a recipe or adding to the grocery list.
+
+**Tag my recipes** (`tag_my_recipes`) asks the connected assistant to read the family’s tags and
+untagged recipes with `list_recipe_tags`, `list_recipes` and `suggest_recipe_tags`. It prefers
+existing tags, proposes new ones only when useful, and asks the person before saving with
+`update_recipe` and `tagIds`. A grown-up creates any approved new tag in Manage tags first.
+The prompt grants no extra access: reading follows recipe permissions and saving still requires
+full access. Kinwall’s suggestions use plain rules; any assistant reasoning happens through the
+connected MCP client.
 
 ## Native apps
 

@@ -4282,6 +4282,17 @@ html:root[data-cast] {
 .board-custom-column > .board-card { grid-area: auto !important; }
 .board-custom-columns > .board-tiles { grid-area: auto; grid-column: 1 / -1; }
 
+.recipe-suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.recipe-suggestion-chip { display: flex; flex-direction: column; align-items: flex-start; text-align: left; white-space: normal; min-height: 44px; max-width: 100%; padding: 8px 12px; }
+.recipe-suggestion-chip small { color: var(--text-dim); font-weight: normal; }
+.recipe-tag-review { border-bottom: 1px solid var(--control-edge); padding: 12px 0 20px; }
+.recipe-tag-review > .btn { width: auto; margin-top: 8px; }
+.recipe-tag-ideas { margin: 20px 0; }
+.recipe-tag-idea { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--control-edge); }
+.recipe-tag-idea > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.recipe-tag-idea small { display: block; color: var(--text-dim); margin-top: 4px; }
+.recipe-tag-idea > .btn { flex: none; width: auto; }
+
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */

@@ -60,6 +60,7 @@ export interface Recipe extends Omit<RecipeInput, 'ingredients' | 'tagIds'> {
 }
 /** What POST /api/recipes/import-url and /parse-text read, before anything is saved. */
 export interface RecipePreview {
+  recipeCategory?: string[]; keywords?: string[]; cuisine?: string[]
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null
   // qualifier, preparation and category come only from a Kinwall share link; import those whole.

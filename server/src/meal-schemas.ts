@@ -128,6 +128,7 @@ export const RecipeImportResultSchema = z.object({
   calendarEventId: z.string().optional(), calendarError: z.string().optional().describe('Why plan.calendarId got no event (the meal is still planned).'),
 }).openapi('RecipeImportResult');
 export const RecipePreviewSchema = z.object({
+  recipeCategory: z.array(z.string()).optional(), keywords: z.array(z.string()).optional(), cuisine: z.array(z.string()).optional(),
   name: z.string().describe('Empty when the page or text had no name.'), description: z.string().nullable(), imageUrl: z.string().nullable(), sourceUrl: z.string().nullable(),
   servings: z.number().nullable(), prepMinutes: z.number().nullable(), totalMinutes: z.number().nullable(),
   kind: RecipeKindSchema.optional(), makes: z.string().nullable().optional().describe('makes: from a Kinwall share link. kind: detected from category, keywords, then name, or kept from Kinwall share data.'),

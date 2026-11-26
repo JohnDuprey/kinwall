@@ -53,6 +53,34 @@ test('mcp: 401 without a key, with WWW-Authenticate: Bearer', async () => {
   assert.match(res.headers.get('WWW-Authenticate') ?? '', /^Bearer resource_metadata="http[^"]+\/\.well-known\/oauth-protected-resource"$/);
 });
 
+test('mcp: recipe tag suggestions are read-only and work with recipe read access', async () => {
+  const { rest, mcp } = makeApp(makeEnv());
+  const tag = await (await rest('/api/recipe-tags', { method: 'POST', body: JSON.stringify({ name: 'Chicken' }) })).json() as any;
+  const recipe = await (await rest('/api/recipes', { method: 'POST', body: JSON.stringify({ name: 'Chicken bowl', ingredients: [{ name: 'Chicken', quantity: 1, unit: null, preparation: null, qualifier: null, category: null, sort: 0 }] }) })).json() as any;
+  const display = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Kitchen', scope: 'display' }) })).json() as any;
+  for (const key of [ADMIN_KEY, display.key]) {
+    const result = await (await mcp('tools/call', { name: 'suggest_recipe_tags', arguments: { id: recipe.id } }, key)).json() as any;
+    assert.notEqual(result.result.isError, true);
+    assert.deepEqual(result.result.structuredContent.suggestions.map((s: any) => s.tag.id), [tag.id]);
+    assert.equal(result.result.structuredContent.suggestions[0].reason, 'In the name, description or page details');
+  }
+  const unchanged = await (await rest(`/api/recipes/${recipe.id}`)).json() as any;
+  assert.deepEqual(unchanged.tags, []);
+  const missing = await (await mcp('tools/call', { name: 'suggest_recipe_tags', arguments: { id: crypto.randomUUID() } })).json() as any;
+  assert.equal(missing.result.isError, true);
+});
+
+test('mcp: tag my recipes prompt starts with family tags and asks before saving', async () => {
+  const { mcp } = makeApp(makeEnv());
+  const prompts = await (await mcp('prompts/list', {})).json() as any;
+  assert.ok(prompts.result.prompts.some((p: any) => p.name === 'tag_my_recipes'));
+  const prompt = await (await mcp('prompts/get', { name: 'tag_my_recipes' })).json() as any;
+  const text = prompt.result.messages[0].content.text;
+  for (const name of ['list_recipe_tags', 'list_recipes', 'suggest_recipe_tags', 'update_recipe', 'tagIds']) assert.ok(text.includes(name));
+  assert.match(text, /Ask.*before saving/);
+  assert.match(text, /existing tags first/);
+});
+
 test('mcp: GET (a standalone SSE stream) answers 405 instead of a stream that never closes', async () => {
   const env = makeEnv();
   const res = await createApp().request('/mcp', { headers: { Authorization: `Bearer ${ADMIN_KEY}`, Accept: 'text/event-stream' } }, env);
@@ -184,6 +212,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_meal_kits',
     'mark_meal_kit_done',
     'list_recipe_tags',
+    'suggest_recipe_tags',
     'list_recipes',
     'list_remembered_items',
     'list_restaurants',
@@ -570,7 +599,7 @@ test('mcp: every tool declares permission hints, and the server advertises its i
   assert.equal(byName.create_list.readOnlyHint, false);
   assert.equal(byName.delete_event.destructiveHint, true);
   for (const t of tools.filter((x) => x.name.startsWith('delete_'))) assert.equal(t.annotations.destructiveHint, true, t.name);
-  for (const name of ['list_recipe_tags', 'list_recipes', 'get_recipe', 'list_meals', 'get_meal_projection']) {
+  for (const name of ['suggest_recipe_tags', 'list_recipe_tags', 'list_recipes', 'get_recipe', 'list_meals', 'get_meal_projection']) {
     assert.equal(byName[name].readOnlyHint, true, name);
     assert.equal(byName[name].idempotentHint, true, name);
     assert.equal(byName[name].openWorldHint, false, name);

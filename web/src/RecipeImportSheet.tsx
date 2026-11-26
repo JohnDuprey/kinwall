@@ -86,7 +86,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, library
         <div className="field"><label htmlFor={`${id}-name`}>{t('Name')}</label><input id={`${id}-name`} type="text" required maxLength={200} value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-kind`}>{t('Type')}</label><Choose hideLabel label={t('Type')} id={`${id}-kind`} value={kind} onChange={next => setKind(next as RecipeKind)}
           options={(['meal', 'side', 'dessert', 'basic'] as const).map(value => ({ value, label: recipeTypeLabel(value) }))} /></div>
-        <RecipeTagField catalog={tagCatalog} initial={initialTags} value={tagIds ?? initialTags?.map(tag => tag.id) ?? []}
+        <RecipeTagField recipe={{ ...r, name, kind, id: updates?.id }} library={library} catalog={tagCatalog} initial={initialTags} value={tagIds ?? initialTags?.map(tag => tag.id) ?? []}
           onChange={setTagIds} onCatalogChange={onTagChanged} />
         <div className="field"><label htmlFor={`${id}-servings`}>{t('Servings')}</label><input id={`${id}-servings`} type="number" min="1" max="10000" step="any" value={servings || ''} onChange={e => setServings(Number(e.target.value))} /></div>
       </fieldset>

@@ -2,6 +2,7 @@ import { PlanningApplySchema, PlanningSaveSchema, PlanningParamsSchema, Planning
 import { EventFollowChoiceSchema, EventFollowSchema } from './routes/event-follows.ts';
 import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema } from './announcements.ts';
 import { InboxItemSchema, InboxSchema } from './inbox.ts';
+import { suggestTags, suggestNewTags, type SuggestionRecipe } from './recipe-tag-suggestions.ts';
 // MCP (Model Context Protocol) endpoint: POST/DELETE /mcp, stateless Streamable HTTP (GET answers 405: no SSE stream).
 //
 // Library: @modelcontextprotocol/sdk's WebStandardStreamableHTTPServerTransport - it's built on
@@ -258,6 +259,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable' | 'pantry
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   ...TRAVEL_TOOL_OUTPUT,
   add_ready_item: MealKitDetailSchema.shape, list_meal_kits: { kits: z.array(MealKitDetailSchema) }, mark_meal_kit_done: { ok: z.boolean() },
+  suggest_recipe_tags: { suggestions: z.array(z.object({ tag: RecipeTagSchema, reason: z.string() })), newTagIdeas: z.array(z.object({ name: z.string(), count: z.number(), examples: z.array(z.string()) })) },
   list_recipe_tags: { tags: z.array(RecipeTagSchema) }, list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, favorite_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
@@ -375,7 +377,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_inbox: READ, add_to_inbox: WRITE,
   list_announcements: READ, create_announcement: WRITE, update_announcement: SET, delete_announcement: DELETE,
   add_ready_item: WRITE, list_meal_kits: READ, mark_meal_kit_done: WRITE,
-  list_recipe_tags: READ, list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  suggest_recipe_tags: READ, list_recipe_tags: READ, list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, favorite_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_chore_counts: READ,
   get_weekly_plan: READ, save_weekly_plan_draft: SET, apply_weekly_plan: SET,
   get_household: READ, list_events: READ, get_event: READ, get_event_follow: READ, set_event_follow: SET, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_outings: READ, get_outing: READ, create_outing: WRITE, update_outing: SET, delete_outing: DELETE, mark_outing_interest: SET, add_outing_to_calendar: { ...WRITE, openWorldHint: true }, list_outing_categories: READ, suggest_outings: READ, import_outing: { ...SET, openWorldHint: true }, list_upkeep_jobs: READ, get_upkeep_job: READ, create_upkeep_job: WRITE, update_upkeep_job: SET, delete_upkeep_job: DELETE, log_upkeep_done: WRITE, list_upkeep_history: READ, list_upkeep_things: READ, create_upkeep_thing: WRITE, update_upkeep_thing: SET, log_school: WRITE, get_school_summary: READ, get_school_grades: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, get_medication_refill: READ, request_medication_refill: SET, set_medication_pharmacy: SET, set_medication_refill_contact: SET, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
@@ -441,6 +443,20 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   tool('mark_meal_kit_done', { title: 'Mark meal kit done', description: 'Full access: mark meal kits used or tossed without cooking. Omit count to mark all remaining units done.', inputSchema: { id: z.string(), ...MealKitDoneSchema.shape } }, async ({ id, ...input }) => {
     const result = await call(app, env, auth, 'POST', '/api/meal-kits/' + encodeURIComponent(id) + '/done', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to mark meal kit done') : okResult('Meal kit done', result.json as Record<string, unknown>);
+  });
+  tool('suggest_recipe_tags', { title: 'Suggest recipe tags', description: 'Suggest existing family tags for a recipe using words, ingredients and recipe facts. Also list common words that could make useful new tags. Nothing is saved.', inputSchema: { id: z.string() } }, async ({ id }) => {
+    const recipe = await call(app, env, auth, 'GET', `/api/recipes/${encodeURIComponent(id)}`);
+    if (recipe.status >= 400) return errorResult(recipe.json, 'recipe not found');
+    const library = await call(app, env, auth, 'GET', '/api/recipes?archived=true');
+    if (library.status >= 400) return errorResult(library.json, 'failed to read recipes');
+    const catalog = await call(app, env, auth, 'GET', '/api/recipe-tags');
+    if (catalog.status >= 400) return errorResult(catalog.json, 'failed to read recipe tags');
+    const tags = catalog.json as { id: string; name: string }[];
+    const recipes = library.json as SuggestionRecipe[];
+    return okResult('Recipe tag suggestions', {
+      suggestions: suggestTags(recipe.json as SuggestionRecipe, tags, recipes).map(s => ({ tag: tags.find(t => t.id === s.tagId)!, reason: s.reason })),
+      newTagIdeas: suggestNewTags(recipes, tags),
+    });
   });
   tool('list_recipe_tags', { title: 'List recipe tags', description: 'Find the household’s recipe tag IDs to filter or edit recipes.', inputSchema: {} }, async () => {
     const result = await call(app, env, auth, 'GET', '/api/recipe-tags');
@@ -2470,6 +2486,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
 
   // A ready-made request for assistants that show prompts (a slash command in some clients).
+  server.registerPrompt('tag_my_recipes', {
+    title: 'Tag my recipes', description: 'Review the family’s recipes and propose useful tags before saving anything.',
+  }, () => ({ messages: [{ role: 'user', content: { type: 'text', text: 'Help our family tag our recipes. Call list_recipe_tags and list_recipes, then find recipes without tags and call suggest_recipe_tags for each one. Prefer our existing tags first. Propose new tags only when clearly useful across several recipes, and explain why. Show the recipe names, proposed tags and reasons in a short review. Ask the person before saving any changes. After approval, use update_recipe with tagIds, preserving any tags already on each recipe. New tag ideas need to be created by a grown-up in Manage tags before using their IDs. Use only the access the connected tools allow; read access does not allow saving.' } }] }));
   server.registerPrompt(
     'use_it_up',
     {

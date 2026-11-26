@@ -296,7 +296,7 @@ function RecipeEditor({ recipe, library, tagCatalog, onTagChanged, onClose, onSa
             { value: 'basic', label: t('Basic') },
           ]} />
           {draft.kind === 'basic' && <p className="field-hint">{t('Something you make to use in other recipes, like a seasoning blend, sauce or dough. Basics stay out of meal planning unless you ask for them.')}</p>}</div>
-        {onTagChanged && <RecipeTagField catalog={tagCatalog} initial={recipe?.tags} value={tagIds ?? recipe?.tags?.map(tag => tag.id) ?? []}
+        {onTagChanged && <RecipeTagField recipe={{ ...draft, id: recipe?.id }} library={library} catalog={tagCatalog} initial={recipe?.tags} value={tagIds ?? recipe?.tags?.map(tag => tag.id) ?? []}
           onChange={setTagIds} onCatalogChange={onTagChanged} />}
         <div className="field"><label htmlFor={`${formId}-description`}>{t('Description')}</label><textarea id={`${formId}-description`} maxLength={10000} value={draft.description ?? ''} onChange={e => update('description', e.target.value || null)} /></div>
         {recipe?.imageUrl && draft.imageUrl && <div className="field"><span className="recipe-photo-label">{t('Photo')}</span><RecipePhoto id={recipe.id} className="recipe-hero" /><button type="button" className="link-btn" onClick={() => update('imageUrl', null)}>{t('Remove photo')}</button></div>}

@@ -11,6 +11,7 @@ type RecipeKind = z.infer<typeof RecipeKindSchema>;
 export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null; basic?: string | null };
 type Step = { text: string; bullets: string[]; title?: string | null; imageUrl?: string | null; timers?: RecipeStep['timers'] };
 export type RecipePreview = {
+  recipeCategory?: string[]; keywords?: string[]; cuisine?: string[];
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null;
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null;
   ingredients: PreviewIngredient[]; steps: Step[];
@@ -231,6 +232,10 @@ export function parseRecipeHtml(html: string, pageUrl: string): RecipePreview | 
   return {
     name: clean(recipe.name).slice(0, 200), description: clean(recipe.description).slice(0, 10000) || null,
     kind: detectRecipeKind(recipe.recipeCategory, recipe.keywords, recipe.name),
+    ...Object.fromEntries(['recipeCategory', 'keywords', 'cuisine'].map(key => {
+      const value = recipe[key === 'cuisine' ? 'recipeCuisine' : key];
+      return [key, (Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : []).filter((v): v is string => typeof v === 'string').map(v => clean(v).slice(0, 200)).filter(Boolean).slice(0, 50)];
+    })),
     imageUrl: imageUrl(recipe.image ?? recipe.thumbnailUrl, byId, pageUrl), sourceUrl,
     servings: yieldServings(recipe.recipeYield ?? recipe.yield), prepMinutes: prep,
     totalMinutes: isoMinutes(recipe.totalTime) ?? (prep || cook ? Math.min(10000, (prep ?? 0) + (cook ?? 0)) : null),

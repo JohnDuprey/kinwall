@@ -16,6 +16,16 @@ const plain = {
   recipeInstructions: [{ '@type': 'HowToStep', text: 'Brown the beef.' }, { '@type': 'HowToStep', text: 'Add everything &amp; simmer 2-3 hours.' }],
 };
 
+test('recipe page: category, keywords and cuisine reach the preview as bounded text hints', () => {
+  const r = parseRecipeHtml(page({ ...plain, recipeCategory: ['Dinner', 'Soup'], keywords: 'Quick, beans', recipeCuisine: ['Italian', { name: 'ignored' }] }), 'https://example.com/recipe')!;
+  assert.deepEqual(r.recipeCategory, ['Dinner', 'Soup']);
+  assert.deepEqual(r.keywords, ['Quick', 'beans']);
+  assert.deepEqual(r.cuisine, ['Italian']);
+  const long = parseRecipeHtml(page({ ...plain, keywords: Array.from({ length: 70 }, () => 'x'.repeat(300)) }), 'https://example.com/recipe')!;
+  assert.equal(long.keywords?.length, 50);
+  assert.ok(long.keywords?.every(word => word.length <= 200));
+});
+
 test('recipe page: plain Recipe maps name, photo, servings, times, ingredients and steps', () => {
   const r = parseRecipeHtml(page(plain), 'https://example.com/chili')!;
   assert.equal(r.name, 'Weeknight Chili');

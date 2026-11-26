@@ -137,9 +137,10 @@ const link = (recipeId: string, ingredient: string, basicId: string) => {
 link('demo-tacos', 'Taco seasoning', 'demo-taco-seasoning')
 link('demo-pizza', 'Pizza dough', 'demo-pizza-dough')
 const dinnerTag = { id: '00000000-0000-4000-8000-000000000001', name: 'Dinner' }
-const quickTag = { id: '00000000-0000-4000-8000-000000000002', name: 'Quick & Easy' }
+const quickTag = { id: '00000000-0000-4000-8000-000000000002', name: 'Quick' }
 const breakfastTag = { id: '00000000-0000-4000-8000-000000000003', name: 'Breakfast' }
-let recipeTags: RecipeTag[] = [breakfastTag, dinnerTag, quickTag]
+const vegetarianTag = { id: '00000000-0000-4000-8000-000000000004', name: 'Vegetarian' }
+let recipeTags: RecipeTag[] = [breakfastTag, dinnerTag, quickTag, vegetarianTag]
 const seedTags: Record<string, RecipeTag[]> = {
   'demo-tacos': [dinnerTag, quickTag], 'demo-pizza': [dinnerTag], 'demo-oats': [breakfastTag],
   'demo-pancakes': [breakfastTag, quickTag],

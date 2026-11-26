@@ -41,6 +41,22 @@ A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and 
 
 ### Recipe tags
 
+The editor and link import preview show **Suggested** tags above the tag picker. Tap a chip to
+select it, then save the recipe. Suggestions use your existing tags, recipe words, ingredients
+from recipes you have tagged before, and simple facts such as the total time or recipe type.
+The hint below each chip explains the match. Suggestions never add tags on their own.
+
+In **Manage tags → Suggest tags**, review recipes without tags. Tap one chip or **Add all
+suggested** for a recipe. **Add all** asks you to confirm the number of tags before saving the
+whole review. Saving shows progress; **Retry failed recipes** tries the recipes that failed.
+Recipes with no suggestions are folded at the end.
+
+**Tags you might add** shows common words found in at least three recipes and at least 10% of
+your library. Each idea includes a count and example recipes. **Add tag** creates the tag and
+makes it available in suggestions immediately; it does not tag any recipes. These actions are
+available on parent devices, like the other tag controls. The rules use English word lists;
+food preference suggestions are simple ingredient matches, so check the recipe yourself.
+
 Give any recipe one or more tags, such as **Dinner**, **Quick & Easy** or **Freezer friendly**.
 Tap a recipe to see its tags. Tags describe the whole recipe. An ingredient category still
 describes an ingredient, such as **Produce**.

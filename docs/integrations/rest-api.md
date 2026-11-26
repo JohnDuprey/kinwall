@@ -135,6 +135,10 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 
 Recipe imports detect the type when `kind` is omitted: `POST /api/recipes/import` uses the name; `POST /api/recipes/import-url` uses the page’s category, then keywords, then name. An explicit `kind` wins. Detection uses English hints and defaults to `meal` (main dish).
 
+Link import previews also include optional `recipeCategory`, `keywords` and `cuisine` arrays
+from the page’s recipe data. These text hints support tag suggestions in the preview and are
+not stored when the recipe is saved.
+
 Recipe `kind` accepts `meal` (main dish, the default), `side`, `dessert` or `basic` in recipe reads, writes, imports and the recipe list filter. Shared recipes keep this type. Older saved recipes without a type remain main dishes. Only main dishes appear in swap and pantry suggestions; sides and desserts can be planned by hand.
 
 **Recipe tags.** `GET /api/recipe-tags` lists the household's reusable tags as `{ id, name }`
