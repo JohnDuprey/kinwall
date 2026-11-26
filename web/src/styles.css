@@ -1823,9 +1823,13 @@ button.month-cell .month-daynum { flex: none; }
 .catalog-row-places { display: flex; flex-wrap: wrap; gap: 4px; }
 .catalog-row .icon-btn { width: 44px; height: 44px; flex: none; }
 .catalog-on-list { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
-.catalog-place { display: flex; align-items: flex-end; gap: 8px; }
-.catalog-place .field { flex: 1; min-width: 0; }
-.catalog-place > .icon-btn, .catalog-place > .btn { flex: none; width: auto; min-width: 44px; height: 44px; margin-bottom: 20px; }
+/* A field with a button beside its control: the field's box gives way to the grid, so the button
+   shares the control's row and height whatever the density. */
+.catalog-place { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto; column-gap: 8px; margin-bottom: 16px; }
+.catalog-place > .field { display: contents; }
+.catalog-place > .field > * { grid-column: 1; }
+.catalog-place > .icon-btn, .catalog-place > .btn { grid-column: 2; grid-row: 2; align-self: stretch; width: auto; min-width: 44px; height: auto; min-height: 44px; margin: 0; }
+.catalog-place > .icon-btn { aspect-ratio: 1; } /* round at the control's height */
 .catalog-hint { margin-bottom: 12px; }
 /* The item's stats, then Forget on its own below a divider, clear of the store picker. */
 .catalog-stats { margin: var(--gap) 0 0; }
@@ -4169,7 +4173,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 :root[data-density="compact"] .sheet-actions { gap: 8px; padding: 6px 14px 0; }
 :root[data-density="compact"] .sheet-actions .btn { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .sheet-body .btn { min-height: 44px; padding: 8px 16px; }
-:root[data-density="compact"] .field { margin-bottom: 8px; }
+:root[data-density="compact"] .field, :root[data-density="compact"] .catalog-place { margin-bottom: 8px; }
 :root[data-density="compact"] .field label { font-size: 0.75rem; margin-bottom: 3px; }
 :root[data-density="compact"] .field :is(input[type="text"], input[type="date"], input[type="time"], input[type="url"], input[type="password"], input[type="search"], input[type="number"]) { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
 :root[data-density="compact"] .field textarea { min-height: 60px; padding-top: 8px; padding-bottom: 8px; }
