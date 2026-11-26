@@ -8,11 +8,14 @@
 .meals-toolbar { margin-top: 20px; }
 .meals-toolbar h2 { margin: 0; font-size: 1.125rem; }
 .meals-toolbar .field { margin: 0; }
-.meals-navigation { display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 16px; }
-.meals-navigation > .segmented { min-width: 0; max-width: 100%; }
+.meals-navigation { --recipe-toolbar-height: max(52px, var(--ctl-h)); display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 16px; }
+.meals-navigation > .segmented { min-width: 0; max-width: 100%; height: var(--recipe-toolbar-height); box-sizing: border-box; }
+.meals-navigation > .segmented button { height: 100%; min-height: 44px; }
 .meals-navigation > .field { margin: 0; min-width: 0; }
+.meals-view .meals-navigation .meals-search { margin: 0; }
+.meals-view .meals-navigation .meals-search input[type="search"] { box-sizing: border-box; height: var(--recipe-toolbar-height); min-height: var(--recipe-toolbar-height); padding-block: 0; border-radius: 999px; }
 .meals-navigation .meals-search { grid-column: 2; }
-.meals-navigation .meals-filters-btn { grid-column: 3; flex: none; position: relative; min-height: 52px; gap: 8px; }
+.meals-navigation .meals-filters-btn { grid-column: 3; flex: none; position: relative; height: var(--recipe-toolbar-height); min-height: var(--recipe-toolbar-height); gap: 8px; }
 .recipe-filter-tags { display: flex; align-items: center; gap: 12px; }
 .recipe-filter-tags .recipe-tag-filter { flex: 1; }
 .recipe-filter-tags .recipe-tag-action { flex: none; }
