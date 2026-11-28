@@ -716,7 +716,7 @@ export default function Chores() {
         const notice = choreAwayNotice(group)
         return parentDevice
           ? <a key={group.until} className="chores-away-line" href="#/away" aria-label={notice.label}>{notice.text}</a>
-          : <p key={group.until} role="note" className="chores-away-line" aria-label={notice.label}>{notice.text}</p>
+          : <p key={group.until} className="chores-away-line" aria-label={notice.label}>{notice.text}</p>
       })}</div>}
       <div className="date-strip" role="group" aria-label={t('Day')}>
         {strip.map(d => {
