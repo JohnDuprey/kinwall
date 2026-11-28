@@ -1476,6 +1476,10 @@ a.chores-away-line { display: block; min-height: 44px; padding-block: 12px; text
 }
 .lists-col { width: min(calc(320px * var(--screen-k)), 40%); flex-shrink: 0; /* 40%: 200% zoom / XL text on a narrow tablet */ display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .lists-shell-phone .lists-col { width: 100%; }
+.lists-section-header { display: flex; align-items: center; gap: 8px; }
+.lists-section-header .lists-section-head { flex: 1; min-width: 0; }
+.lists-section-header > .icon-btn { width: 44px; height: 44px; min-width: 44px; flex: none; }
+.list-detail-phone .list-items { padding-bottom: calc(84px + var(--safe-b)); }
 
 .list-card {
   position: relative;

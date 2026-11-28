@@ -8,14 +8,14 @@
 
 Don't use lists? An admin can turn off **Lists** in **Settings → General** (tap **Change** under **Features**). It's hidden on every screen; nothing is deleted. See [Features](../settings/general.md#features).
 
-The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one, and Back (the ‹ button, the phone's back gesture or the browser's back button) or tapping **Lists** again goes back to all your lists. Each list has its own link, `#/lists/<list id>`, so a reload or a shared link opens it. **New list** or **+** creates a list and opens it; its emoji follows the type you pick (🛒 Groceries, 🧺 Shopping, 🥫 Pantry) until you choose one. To edit a list (on a parent's device), open it and tap **Edit**, or tap **Edit lists** under the lists and then the list. On a computer you can also right-click a list card.
+The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one, and Back (the ‹ button, the phone's back gesture or the browser's back button) or tapping **Lists** again goes back to all your lists. Each list has its own link, `#/lists/<list id>`, so a reload or a shared link opens it. **New list** or **+** creates a list and opens it; its emoji follows the type you pick (🛒 Groceries, 🧺 Shopping, 🥫 Pantry) until you choose one. To edit a list (on a parent's device), open it and tap **Edit**, or use the pencil button above the lists on a phone (**Edit lists** under the lists on a tablet or wall display), then tap the list. On a computer you can also right-click a list card.
 
 ## Organizing lists
 
 The Lists tab groups your lists by type under **Groceries**, **Shopping**, **Pantry**, **To-dos** and **Reusable**, in that order, each with how many lists it has. A type with no lists doesn't show. On the wall display and tablets the same sections fill the column beside the open list.
 
 * **Fold a section**: tap its heading. This device remembers which sections are folded; other screens keep their own.
-* **Edit lists**: tap **Edit lists** under the lists (on a parent's device). Tap a list to edit it, or drag it by its grip or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
+* **Edit lists**: tap the pencil button above the lists on a phone, or **Edit lists** under the lists on a tablet or wall display (on a parent's device). Tap a list to edit it, or drag it by its grip or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
 * The order is the family's: every phone, the wall and connected apps see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its type moves it to that section.
 * New lists go to the end of their section. A restored list comes back where it was.
 
@@ -59,8 +59,8 @@ With no default set, the first list of that type in your list order is used, as 
 
 ## Adding and ticking items
 
-* Type in the add bar and press Enter. The keyboard stays open for the next item.
-* **Shopping lists** open an **Add item** sheet instead: tap **+ Add**, next to **Shop** and **Catalog** (and **📷** in the phone app; during a trip **Catalog** gives way to the trip and **End**). Type the **Name** first, then fill in what you like: **Quantity**, **Store**, **Aisle**, **For**, **On sale** and **Notes**.
+* On a phone, including turned sideways, tap **+** at the bottom right of any list to open **Add item**. **Add** saves and closes it; **Add another** or Enter keeps it open for the next item. To-do and reusable lists offer **Assign to**; to-do lists also offer **Due date**, and pantry lists offer **Use by** and **Where it’s kept**. On a tablet or wall display, type in the add bar and press Enter; the keyboard stays open for the next item.
+* **Shopping lists** open an **Add item** sheet instead: tap **+** on a phone, or **+ Add** on a tablet or wall display, next to **Shop** and **Catalog** (and **📷** in the phone app; during a trip **Catalog** gives way to the trip and **End**). Type the **Name** first, then fill in what you like: **Quantity**, **Store**, **Aisle**, **For**, **On sale** and **Notes**.
   * Pick a name your family has added before and its store and aisle fill in from last time; change them if this time is different.
   * **Add** adds it and closes the sheet. **Add another** (or Enter in the name) adds it and clears the sheet for the next one, keeping the store you picked, so several items still go in quickly.
   * In [Shopping mode](#shopping-mode) the item is planned for the store you're shopping at, and **Aisle** offers that store's aisles.

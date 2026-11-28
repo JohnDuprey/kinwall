@@ -14,7 +14,7 @@ import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName } from './color.ts'
-import { useIsPhone } from './useIsPhone.ts'
+import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
 import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, FilterIcon, InfoIcon, JarIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon } from './icons.tsx'
 import { KEPT_STARTERS, expiryLabel, soonestGroupFirst } from './pantry.ts'
 import { Switch, announce, filterSortLabel, pressable, Segmented } from './a11y.tsx'
@@ -1600,12 +1600,12 @@ function ItemAddField({ id, value, onChange, onAdd, onPick, suggestions, onList,
   )
 }
 
-/** Add item (shopping lists): the name with its suggestions, then where it goes and the rest. A
+/** Add item: the name with its suggestions, then where it goes and the rest. A
  * place left alone is filled in by the server from what the catalog remembers for the name (shown
  * here as a preview); on a trip the item is planned for the trip's store. Enter in the name is Add
  * another, so several items still go in quickly. Adds are queued, so they work offline too. */
-function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onList, trip, onAdded, onClose }: {
-  listId: string; listName: string; members: Member[]; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+function ItemAddSheet({ listId, listName, kind, members, suggestions, aisleOrder, onList, trip, onAdded, onClose }: {
+  listId: string; listName: string; kind: ItemKind; members: Member[]; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onList: Set<string>; trip: string | null; onAdded: (op: Op | null) => void; onClose: () => void
 }) {
   const { toast } = useApp()
@@ -1616,6 +1616,11 @@ function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onLi
   const [forIds, setForIds] = useState<string[]>([])
   const [onSale, setOnSale] = useState(false)
   const [notes, setNotes] = useState('')
+  const [memberId, setMemberId] = useState<string | null>(null)
+  const [dueDate, setDueDate] = useState('')
+  const [category, setCategory] = useState('')
+  const shopping = kind === 'shopping'
+  const pantry = kind === 'pantry'
   const known = suggestions.items?.find(s => s.key === itemKey(title))
   const store = place?.store ?? trip ?? known?.place?.store ?? ''
   const aisle = place?.aisle ?? (known?.place?.store === store.trim() ? known.place.aisle ?? '' : '')
@@ -1625,34 +1630,49 @@ function ItemAddSheet({ listId, listName, members, suggestions, aisleOrder, onLi
     if (!clean) return
     const body: ListItemInput = {
       id: crypto.randomUUID(), title: clean, quantity: quantity.trim() || null, notes: notes.trim() || null,
-      ...(place ? { store: place.store.trim() || null } : trip ? { store: trip } : {}),
-      ...(place?.aisle != null ? { aisle: place.aisle.trim() || null } : {}),
-      ...(forIds.length ? { forMemberIds: forIds } : {}), ...(onSale ? { onSale } : {}),
+      ...(shopping && place ? { store: place.store.trim() || null } : shopping && trip ? { store: trip } : {}),
+      ...(shopping && place?.aisle != null ? { aisle: place.aisle.trim() || null } : {}),
+      ...(shopping && forIds.length ? { forMemberIds: forIds } : {}), ...(shopping && onSale ? { onSale } : {}),
+      ...(!shopping && !pantry ? { memberId } : {}),
+      ...(kind === 'todo' || pantry ? { dueDate: dueDate || null } : {}),
+      ...(pantry ? { category: category.trim() || null } : {}),
     }
     try { onAdded(await api.queueAddListItem(listId, body)) }
     catch (e) { toast(e instanceof ApiError ? e.message : t('Could not add item'), true); return }
     announce(t('Added {item} to {list}', { item: clean, list: listName }))
     if (!another) return onClose()
     setTitle(''); setQuantity(''); setForIds([]); setOnSale(false); setNotes('')
+    setMemberId(null); setDueDate(''); setCategory('')
     setPlace(p => p && { store: p.store, aisle: null }) // a store picked stays for the next one
     nameRef.current?.focus()
   }
 
   return (
-    <Sheet title={t('Add item')} onClose={onClose} dirty={!!(title.trim() || quantity.trim() || notes.trim())} actions={<>
+    <Sheet title={t('Add item')} onClose={onClose} dirty={!!(title.trim() || quantity.trim() || notes.trim() || memberId || dueDate || category.trim())} actions={<>
       <button className="btn btn-secondary" onClick={() => add(title, true)} disabled={!title.trim()}>{t('Add another')}</button>
       <button className="btn btn-primary" onClick={() => add(title, false)} disabled={!title.trim()}>{t('Add')}</button>
     </>}>
       <div className="field">
         <label htmlFor={`add-name-${listId}`}>{t('Name')}</label>
         <ItemAddField id={`add-name-${listId}`} value={title} onChange={setTitle} onAdd={x => add(x, true)} onPick={setTitle} suggestions={suggestions.items} onList={onList}
-          inputRef={nameRef} buyAgain autoFocus label={t('Name')} placeholder={t('e.g. Milk')} />
+          inputRef={nameRef} buyAgain={shopping || pantry} autoFocus label={t('Name')} placeholder={shopping || pantry ? t('e.g. Milk') : t('Add something…')} />
       </div>
-      <ItemPlaceFields shopping quantity={quantity} onQuantity={setQuantity} store={store} aisle={aisle} aisleStore={store.trim() || null}
+      <ItemPlaceFields shopping={shopping} quantity={quantity} onQuantity={setQuantity} store={store} aisle={aisle} aisleStore={store.trim() || null}
         category={known?.category ?? ''} suggestions={suggestions} aisleOrder={aisleOrder}
         onStore={v => setPlace({ store: v, aisle: null })} onAisle={v => setPlace({ store, aisle: v })} />
-      <MemberPicker members={members} selected={forIds} onChange={setForIds} label={t('For')} noneLabel={t('Everyone')} />
-      <SaleField id={`add-sale-${listId}`} on={onSale} onChange={setOnSale} />
+      {shopping && <MemberPicker members={members} selected={forIds} onChange={setForIds} label={t('For')} noneLabel={t('Everyone')} />}
+      {shopping && <SaleField id={`add-sale-${listId}`} on={onSale} onChange={setOnSale} />}
+      {!shopping && !pantry && <div className="field">
+        <Choose label={t('Assign to')} value={memberId ?? ''} onChange={v => setMemberId(v || null)}
+          options={[{ value: '', label: t('Nobody') }, ...members.map(m => ({ value: m.id, label: m.name }))]} />
+      </div>}
+      {(kind === 'todo' || pantry) && <div className="field">
+        <label htmlFor={`add-due-${listId}`}>{pantry ? t('Use by') : t('Due date')}</label>
+        <input id={`add-due-${listId}`} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+      </div>}
+      {pantry && <ValuePicker id="add-kept" label={t('Where it’s kept')} value={category}
+        options={[...KEPT_STARTERS.map(k => tm(k)), ...suggestions.categories]} newLabel={t('Somewhere else…')}
+        placeholder={t('e.g. Garage freezer')} onChange={setCategory} noneLabel={t('Not set')} />}
       <div className="field">
         <label htmlFor={`add-notes-${listId}`}>{t('Notes')}</label>
         <textarea id={`add-notes-${listId}`} className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
@@ -1738,7 +1758,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   useBackClose(exitShop, shopMode) // the app's Back button: like Escape
   const freshLink = useRef(false) // shopping mode opened by a link (Siri), not come back to with Back or Forward
   const [picking, setPicking] = useState(false) // the store step
-  const [adding, setAdding] = useState(false) // the Add item sheet (shopping lists)
+  const [adding, setAdding] = useState(false) // the Add item sheet
   const [leftovers, setLeftovers] = useState<ListItem[] | null>(null) // Checkout's "Didn't find these?" step
   const shopScroll = useRef(0) // where the aisles were, for going back to the trip
   const shopList = useRef<HTMLDivElement>(null)
@@ -2026,7 +2046,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const storeLabel = activeTrip === ANY_STORE ? t('Any store') : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
   const addSheet = adding && (
-    <ItemAddSheet listId={listId} listName={list.name} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt}
+    <ItemAddSheet listId={listId} listName={list.name} kind={itemKind(list)} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt}
       onList={activeTrip ? new Set(items.map(i => itemKey(i.title))) : onList /* on a trip, ticked ones are in the cart: not offered again */}
       onAdded={showQueued} onClose={() => setAdding(false)} />
   )
@@ -2176,7 +2196,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   )
 
   return (
-    <div className="list-detail">
+    <div className={`list-detail ${isPhone ? 'list-detail-phone' : ''}`}>
       <div className="list-detail-header">
         {isPhone && <button className="icon-btn" onClick={onBack} aria-label={t('Back to lists')}><ChevronLeft width={20} height={20} /></button>}
         <div className="list-detail-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
@@ -2190,7 +2210,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       </div>
       {taskLink && <TaskSyncAlert link={taskLink} />}
 
-      {list.kind !== 'shopping' && (
+      {list.kind !== 'shopping' && !isPhone && (
         <div className="list-add-bar">
           <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
             label={t('Add to {list}', { list: list.name })} placeholder={t('Add something…')} />
@@ -2203,7 +2223,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       {/* Shopping lists: Add (the Add item sheet), scan, Shop (or the trip and End), and View once there's something to view. */}
       {list.kind === 'shopping' && (
         <div className="list-actions">
-          <button className={`btn ${activeTrip ? 'btn-secondary' : 'btn-primary'} list-add-btn`} onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add an item')}><PlusIcon width={18} height={18} />{t('Add')}</button>
+          {!isPhone && <button className={`btn ${activeTrip ? 'btn-secondary' : 'btn-primary'} list-add-btn`} onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add an item')}><PlusIcon width={18} height={18} />{t('Add')}</button>}
           {scanBtn}
           {activeTrip ? <>
             <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={t('Shopping at {store}, {n} left. Resume shopping', { store: storeLabel ?? '', n: tripLeft })}>
@@ -2219,6 +2239,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
+      {isPhone && list.kind !== 'shopping' && (scanBtn || items.length > 0) && <div className="list-actions">
+        {scanBtn}{items.length > 0 && viewButton}
+      </div>}
+      {isPhone && <button className="fab" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add item')}><PlusIcon /></button>}
       {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop; a pantry's food isn't jobs to do). */}
       {list.kind !== 'shopping' && itemKind(list) !== 'pantry' && items.length > 0 && (
         <div className="list-actions">
@@ -2232,7 +2256,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
       <div className="list-items scroll-y">
         {items.length === 0 ? (
-          <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : itemKind(list) === 'pantry' ? '🥫' : '📝'}</span>{t('Nothing here yet — add your first item above.')}</div>
+          <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : itemKind(list) === 'pantry' ? '🥫' : '📝'}</span>{isPhone ? t('Nothing here yet — add your first item with +.') : t('Nothing here yet — add your first item above.')}</div>
         ) : view ? (
           <>
             {view.aisles.map(g => (
@@ -2372,7 +2396,8 @@ function ArchivedLists({ lists, onChanged }: { lists: List[]; onChanged: () => v
 
 export default function Lists() {
   const { members, refreshTick, focusMemberId, focusShowsShared, toast, parentDevice } = useApp()
-  const isPhone = useIsPhone()
+  const narrow = useIsPhone(), landscape = useMediaQuery(SHORT_LANDSCAPE)
+  const isPhone = narrow || landscape
   const [allLists, setLists] = useState<List[]>([])
   // A display pinned to one member shows that member's lists (and the family's, unless hidden).
   // Fetched with archived ones included; they only show in the collapsed "Archived" section.
@@ -2480,16 +2505,19 @@ export default function Lists() {
           <button type="button" className="btn btn-primary" onClick={() => setReordering(false)}>{t('Done')}</button>
         </div>
       )}
-      {sections.map(s => {
+      {sections.map((s, index) => {
         const open = reordering || !collapsed.includes(s.type)
         const ids = s.lists.map(l => l.id)
         return (
           <section key={s.type} className="lists-section" aria-label={tm(s.label)}>
-            <button className="lists-section-head" aria-expanded={open} onClick={() => toggleSection(s.type)} disabled={reordering}>
-              <ChevronRight width={18} height={18} aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }} />
-              <span className="lists-section-label">{tm(s.label)}</span>
-              <span className="lists-section-count">{s.lists.length}</span>
-            </button>
+            <div className="lists-section-header">
+              <button className="lists-section-head" aria-expanded={open} onClick={() => toggleSection(s.type)} disabled={reordering}>
+                <ChevronRight width={18} height={18} aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }} />
+                <span className="lists-section-label">{tm(s.label)}</span>
+                <span className="lists-section-count">{s.lists.length}</span>
+              </button>
+              {isPhone && index === 0 && parentDevice && !reordering && <button className="icon-btn" onClick={() => setReordering(true)} aria-label={t('Edit lists')}><EditIcon width={20} height={20} aria-hidden="true" /></button>}
+            </div>
             {open && (reordering
               ? <DragList items={s.lists.map(l => ({ ...l, title: l.name }))} onReorder={reorder}
                   renderRow={(l, handle) => <ReorderCard list={l} handle={handle} first={ids[0] === l.id} last={ids[ids.length - 1] === l.id} onMove={dir => nudge(ids, l, dir)} onEdit={() => setEditList(l)} />} />
@@ -2499,7 +2527,7 @@ export default function Lists() {
           </section>
         )
       })}
-      {!reordering && (
+      {!reordering && !isPhone && (
         <div className="lists-col-actions">
           <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> {t('New list')}</button>
           {parentDevice && <button className="btn btn-secondary" onClick={() => setReordering(true)}><EditIcon width={18} height={18} aria-hidden="true" /> {t('Edit lists')}</button>}
@@ -2525,6 +2553,7 @@ export default function Lists() {
             : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>{t('Pick a list to open it.')}</div></div>}
         </div>
       )}
+      {isPhone && !selectedId && !reordering && <button className="fab" onClick={() => setEditList('new')} aria-label={t('New list')}><PlusIcon /></button>}
       {editList && <ListEditSheet list={editList} onClose={() => setEditList(null)} onSaved={created => { setEditList(null); load(); if (created) openList(created.id) }} onDeleted={() => { setEditList(null); load() }} />}
     </div>
   )
