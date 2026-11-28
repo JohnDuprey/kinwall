@@ -1,5 +1,96 @@
 # Changelog
 
+## [1.5.0](https://github.com/JohnDuprey/kinwall/compare/v1.4.0...v1.5.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **server:** GET /api/photos/quota drops maxCount, maxBytes may be null, and adds usedBytes (photos plus upkeep files).
+
+### New
+
+* **board:** fill and pan pictures far off the frame's shape ([dd35a30](https://github.com/JohnDuprey/kinwall/commit/dd35a30ba2eb54d1db74def4d2800c1e105a46b2))
+* **board:** fill today's spare room with chores and schoolwork ([a435884](https://github.com/JohnDuprey/kinwall/commit/a4358845a4e067cc34d747147d8b976cda0d5006))
+* **calendar:** draw all-day events as one bar across their days ([adca62c](https://github.com/JohnDuprey/kinwall/commit/adca62c8ecc9843406eab30ff6d801300d44174d))
+* **calendar:** show events of a day or longer in the all-day row ([bef6adc](https://github.com/JohnDuprey/kinwall/commit/bef6adcfc4293e9b116addf1f30a079e517ed788))
+* **calendar:** show long timed events as spanning all-day bars ([638940b](https://github.com/JohnDuprey/kinwall/commit/638940b5bfa8a3307e512edf334028a0b7905103))
+* **chores:** distinguish schoolwork in chores and approvals ([0aca453](https://github.com/JohnDuprey/kinwall/commit/0aca4538675e437057776741b882ae02b3716c9d))
+* **chores:** hand out library chores to several people, or just one of them ([c2e6518](https://github.com/JohnDuprey/kinwall/commit/c2e6518ff21c66bbbba66729f00b36a0c9940e7f))
+* **chores:** simplify phone actions and away notices ([360030b](https://github.com/JohnDuprey/kinwall/commit/360030b1dd953179a0fd0498cbf09989ce2ccb66))
+* **lists:** use add buttons on phones ([04d057a](https://github.com/JohnDuprey/kinwall/commit/04d057a7ba0520126b789553db582d6269796fab))
+* **meals:** add full-screen recipe reader and printing ([67b4d50](https://github.com/JohnDuprey/kinwall/commit/67b4d503c3e491f989914d5ffc36223a1a7e7ca5))
+* **meals:** add main dish, side and dessert recipe types ([1117917](https://github.com/JohnDuprey/kinwall/commit/111791774f18ac13e21914a427f1c5d869d18c3b))
+* **meals:** add ready to cook and prep ahead controls ([2451357](https://github.com/JohnDuprey/kinwall/commit/245135769ace7248546aa9ea8f386edd66d9e9cc))
+* **meals:** compact use it up into a strip ([9f30c42](https://github.com/JohnDuprey/kinwall/commit/9f30c422531b3e00f3d58a1d646efeb964ccf4ae))
+* **meals:** detect a recipe's type when importing ([819808a](https://github.com/JohnDuprey/kinwall/commit/819808ab2687b2734e1857afed89b67bacfb6f63))
+* **meals:** group kit ingredients and suggest recipe names in search ([e170e06](https://github.com/JohnDuprey/kinwall/commit/e170e06681de69a715b654a0d4fd4a806364f5d2))
+* **meals:** move recipe filters into a sheet ([296dd57](https://github.com/JohnDuprey/kinwall/commit/296dd57f4c2b729776e023944163c781cb3e4238))
+* **meals:** print recipes from the iPhone and Android apps ([57e9b6e](https://github.com/JohnDuprey/kinwall/commit/57e9b6e0be047df9dce9c421ca3c47b2a80a94c4))
+* **meals:** show the week as day columns, and day by day on phones ([76e371c](https://github.com/JohnDuprey/kinwall/commit/76e371c9f51339dcf2bf3e457b1d7555494f2ec3))
+* **meals:** suggest recipe tags for family review ([b5d159e](https://github.com/JohnDuprey/kinwall/commit/b5d159eac7afcddb0e31e3da797ac351dea06617))
+* **meals:** support ready food and prep ahead on the server ([920fbc2](https://github.com/JohnDuprey/kinwall/commit/920fbc24962a6f449edf40b369f110d1f177452b))
+* **meals:** track arrived meal kits and prioritize cooking ([a2a6e4f](https://github.com/JohnDuprey/kinwall/commit/a2a6e4f879e20feaca140d40f404b2667d20f268))
+* **recipes:** add custom recipe tags and filtering ([#135](https://github.com/JohnDuprey/kinwall/issues/135)) ([167a400](https://github.com/JohnDuprey/kinwall/commit/167a40095f8214cdc6030d8e49cb4caef300f4e0))
+* **school:** add a new school or contact from set up's pickers ([c131648](https://github.com/JohnDuprey/kinwall/commit/c1316480c9df74fb793fce1a8ca900386c5b935b))
+* **school:** add a School hub for homeschooled and enrolled kids ([0325699](https://github.com/JohnDuprey/kinwall/commit/0325699679ae1ca07f1026e50761ea560fb393e1))
+* **school:** add days off, early release and bus reminders ([9038b63](https://github.com/JohnDuprey/kinwall/commit/9038b631c85e774fbc758d5c671a3a94d1200e79))
+* **school:** fold each kid's settings in set up ([0fa83d4](https://github.com/JohnDuprey/kinwall/commit/0fa83d4abab7cc0f14f920a7b373e986796fbaef))
+* **school:** pick a kid's school first in set up ([2c88757](https://github.com/JohnDuprey/kinwall/commit/2c887570abf8345133d616b85a2d550a89fb6cbc))
+* **school:** share a school's schedule among its kids ([290607d](https://github.com/JohnDuprey/kinwall/commit/290607d1052f491ca6d462eb8257e193d2309b54))
+* **school:** show schoolwork on the board's today card ([1320839](https://github.com/JohnDuprey/kinwall/commit/1320839b0f09a39b1e0e5a6e199822eee4e859e2))
+* **server:** replace the photo cap with an optional storage limit ([d384ccb](https://github.com/JohnDuprey/kinwall/commit/d384ccbb76ef0f3c1961886fedce2e4eb22aafb5))
+* **settings:** pair a device to anyone and choose whether it shows the whole family ([6ac8a6d](https://github.com/JohnDuprey/kinwall/commit/6ac8a6d0eff6347721288142ecb684ce0c1a1f3f)), closes [#131](https://github.com/JohnDuprey/kinwall/issues/131)
+* **sync:** bridge discord forums and github issues ([dfb09f3](https://github.com/JohnDuprey/kinwall/commit/dfb09f33385ff2749067ccdb7a884a0c473dc53b))
+* **trips:** choose who can see a trip, for surprises ([5aa3d49](https://github.com/JohnDuprey/kinwall/commit/5aa3d494486ed2eb51ba135438e527cea9169a97))
+* **trips:** plan trips together and pause chores with away days ([914a2a5](https://github.com/JohnDuprey/kinwall/commit/914a2a55dedec0f01875e0fe6822f36fe83f54cd))
+
+
+### Fixed
+
+* **board:** hide the phone family name when the inbox loads late ([e0fe637](https://github.com/JohnDuprey/kinwall/commit/e0fe637e333d45f8ab5c48abb044d9c67348c8c9))
+* **board:** keep row arrows at the right edge on phones ([85e2a63](https://github.com/JohnDuprey/kinwall/commit/85e2a63824dacab2569388c4000969fe5ce06c8b))
+* **board:** right-align chore timer start on phones ([db8050f](https://github.com/JohnDuprey/kinwall/commit/db8050f4f036c35765da7a785f45195ff7e5bb90))
+* **calendar:** keep spanning events readable on every screen ([23f2902](https://github.com/JohnDuprey/kinwall/commit/23f2902c276112adb3c4417acf7938ff33294502))
+* **calendar:** preserve distinct events in the all-day row ([4ec69c9](https://github.com/JohnDuprey/kinwall/commit/4ec69c94a2916f2f0bf82587b4c2a8ec503c8fb1))
+* **calendar:** recognize days with a skipped midnight ([8ed6a70](https://github.com/JohnDuprey/kinwall/commit/8ed6a70054d95ed07b0f81f93566632ba3e1d761))
+* **chores:** drop the repeated note role on away lines ([44746b5](https://github.com/JohnDuprey/kinwall/commit/44746b573cf02f1ecb81408f107795d1f89e8e84))
+* **chores:** group schoolwork under one heading per person ([0d5ff7b](https://github.com/JohnDuprey/kinwall/commit/0d5ff7b26cf1ba285760466ca05fa23775d59146))
+* **chores:** show dismissed days on the chores tab and allow not done there ([14dc9e6](https://github.com/JohnDuprey/kinwall/commit/14dc9e6b0d66ea4c57bca263e7144cc2dc1aa439))
+* **i18n:** translate the recipe types into German ([3a56587](https://github.com/JohnDuprey/kinwall/commit/3a56587dcb4cc000f15e4167b09a16b932bda0ec))
+* **i18n:** translate the restaurant filter button into German ([1931c8f](https://github.com/JohnDuprey/kinwall/commit/1931c8f3a0cdfee4475043f71cc85349d7ef11bd))
+* **lists:** line up catalog item buttons with their fields ([601d00f](https://github.com/JohnDuprey/kinwall/commit/601d00f3ed9da7d0009c24039415ac52d07708ff))
+* **lists:** share the phone action row with Get stuff done ([0233564](https://github.com/JohnDuprey/kinwall/commit/023356409908d46b8812404afe3dc1351065504b))
+* **meals:** align recipe search with toolbar buttons ([cce6038](https://github.com/JohnDuprey/kinwall/commit/cce6038465ca3d2891dc4be9e0501a05653f8681))
+* **meals:** compact phone headers and keep tabs in place ([a604a9c](https://github.com/JohnDuprey/kinwall/commit/a604a9c426b664a03679af2c671a350218286d47))
+* **meals:** compact phone planner and restaurant controls ([6641bd2](https://github.com/JohnDuprey/kinwall/commit/6641bd22dff819d53f789470b81dab7043a4a0d1))
+* **meals:** don't offer describing words as new recipe tags ([25ed0ad](https://github.com/JohnDuprey/kinwall/commit/25ed0ad339099ee2da70e2a5e1a0927fe5aeec96))
+* **meals:** favor useful recipe tag ideas ([8b6628d](https://github.com/JohnDuprey/kinwall/commit/8b6628d596dfe8a9766c2c38c032a8a754886620))
+* **meals:** ignore a strip resize after Use it up has closed ([c291d18](https://github.com/JohnDuprey/kinwall/commit/c291d18fc61933586b18559d3926e58b4f8c5c32))
+* **meals:** keep expired food marked on the Use it up strip ([cd2c3a6](https://github.com/JohnDuprey/kinwall/commit/cd2c3a6c2799f3cb94de2e45a8beb364b85684ad))
+* **meals:** make meal kits easier to plan and read ([8b027ed](https://github.com/JohnDuprey/kinwall/commit/8b027ed72785da3548223a94cf32bfeeefd4134d))
+* **meals:** make ready food easier to read and plan ([e429f62](https://github.com/JohnDuprey/kinwall/commit/e429f6261a144c4ae104e67c50b52fd69b907066))
+* **meals:** open the phone list at today when you switch to Meals ([ac64829](https://github.com/JohnDuprey/kinwall/commit/ac648290a0f7647ab41d5e068604771481985b52))
+* **meals:** say cook by, eat by or use by on a recipe's ready food ([761b6d4](https://github.com/JohnDuprey/kinwall/commit/761b6d431555795cfcfb415b03ea8c3280c2ecba))
+* **school:** keep schoolwork off the chores tab ([7dcfbc5](https://github.com/JohnDuprey/kinwall/commit/7dcfbc5ac506084563e3509f1e5a0f4e8a63a62f))
+* **school:** lay out the day rules form like the other fields ([746bc3a](https://github.com/JohnDuprey/kinwall/commit/746bc3a22dda95623883731e7a59a4aa7e00999a))
+* **school:** line up the early release times in set up ([cb6e63e](https://github.com/JohnDuprey/kinwall/commit/cb6e63e6a7bc5ffecabe52c15e924b225b4f1fe1))
+* **school:** prefer half days over no-school matches ([792626f](https://github.com/JohnDuprey/kinwall/commit/792626fd89d2e670b0233c94f06019ae4154b073))
+* **school:** send bus reminders on time, with a clearer countdown ([f088269](https://github.com/JohnDuprey/kinwall/commit/f0882697a3ae0b69706eb17168f75568f66f1f5f))
+* **school:** stop long calendar names widening set up ([4502bf0](https://github.com/JohnDuprey/kinwall/commit/4502bf053dbdbbf0a2b2ac4a2d9d6ebbc93c9612))
+* **school:** stop the week grid clipping its cells' edges ([dea77b4](https://github.com/JohnDuprey/kinwall/commit/dea77b4f5f3afffd6189b430b41e8baf5447af76))
+* **server:** finish the Windows Cloudflare setup from [#133](https://github.com/JohnDuprey/kinwall/issues/133) ([0652a12](https://github.com/JohnDuprey/kinwall/commit/0652a1254d03d84ea532c3bfcefd5dff502af1c7))
+* support Windows Cloudflare deployment and SQL migrations ([#133](https://github.com/JohnDuprey/kinwall/issues/133)) ([742a28f](https://github.com/JohnDuprey/kinwall/commit/742a28ffea410d47a47a50204857648e5de4b24e))
+* **sync:** preserve community text and format import dates ([1808276](https://github.com/JohnDuprey/kinwall/commit/1808276110d74d9944d066075ea312dcdbb4f86d))
+* **trips:** an older app can't turn Trips off; narrow emoji field ([7e64fe9](https://github.com/JohnDuprey/kinwall/commit/7e64fe9e2e9e2599c4c7a656ce0e64b7ce4fdac1))
+* **trips:** strike through done care tasks again ([3b17782](https://github.com/JohnDuprey/kinwall/commit/3b17782ea8cd5bce65ae3cc938fd9b448a3d998d))
+* **web:** keep complete emoji in choice leads ([873f7bc](https://github.com/JohnDuprey/kinwall/commit/873f7bc1f1b4ab3b82c35c9339514d6b80fd37b2))
+* **web:** keep picker searches separate from saved edits ([034e4c5](https://github.com/JohnDuprey/kinwall/commit/034e4c5af2cb6dd08032f477527c5f06d903f69f))
+
+
+### Chores
+
+* release the storage limit change as 1.5.0 ([c00feaf](https://github.com/JohnDuprey/kinwall/commit/c00feaf70ca95b336618bddc17341f9ff607b2ce))
+
 ## [1.4.0](https://github.com/JohnDuprey/kinwall/compare/v1.3.0...v1.4.0) (2026-11-15)
 
 
