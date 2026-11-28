@@ -5434,7 +5434,6 @@
   "✈️ Booked travel": "✈️ Gebuchte Fahrten",
   "✈️ Enjoy your trip! Your usual chores wait until you’re back, except the ones a grown-up kept due.": "✈️ Gute Reise! Deine üblichen Aufgaben warten, bis du zurück bist, außer denen, die ein Erwachsener fällig gelassen hat.",
   "✈️ Enjoy your trip! Your usual chores wait until you’re back.": "✈️ Gute Reise! Deine üblichen Aufgaben warten, bis du zurück bist.",
-  "✈️ {name} is away until {day}. Their chores wait until they’re back.": "✈️ {name} ist bis {day} weg. Die Aufgaben warten bis zur Rückkehr.",
   "✓ Booked": "✓ Gebucht",
   "✓ Booked by {name}": "✓ Gebucht von {name}",
   "✓ On the calendar": "✓ Im Kalender",
@@ -5634,5 +5633,14 @@
   "Add all suggested": "Alle Vorschläge hinzufügen",
   "No suggestions for {n} recipe": "Keine Vorschläge für {n} Rezept",
   "No suggestions for {n} recipes": "Keine Vorschläge für {n} Rezepte",
-  "All recipes have tags.": "Alle Rezepte haben Tags."
+  "All recipes have tags.": "Alle Rezepte haben Tags.",
+  "✈️ Everyone’s away until {day} · chores wait": "✈️ Alle sind bis {day} weg · Aufgaben warten",
+  "✈️ {names} is away until {day} · chores wait": "✈️ {names} ist bis {day} weg · Aufgaben warten",
+  "✈️ {names} are away until {day} · chores wait": "✈️ {names} sind bis {day} weg · Aufgaben warten",
+  "Everyone is away until {day}. Chores wait until everyone is back.": "Alle sind bis {day} weg. Die Aufgaben warten, bis alle zurück sind.",
+  "{names} is away until {day}. Their chores wait until they’re back.": "{names} ist bis {day} weg. Die Aufgaben warten bis zur Rückkehr.",
+  "{names} are away until {day}. Their chores wait until they’re back.": "{names} sind bis {day} weg. Ihre Aufgaben warten, bis sie zurück sind.",
+  "Everyone’s away: chores wait until you’re back.": "Alle sind weg: Die Aufgaben warten, bis ihr zurück seid.",
+  "From the library": "Aus der Sammlung",
+  "Plan time away": "Abwesenheit planen"
 }

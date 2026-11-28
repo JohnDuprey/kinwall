@@ -217,7 +217,7 @@ When a grown-up answers, your device gets a notification and **Chore ideas** sho
 
 ## Chore library
 
-Some jobs don't fit a schedule: clean out the car, wash the windows, flip the mattress. The **chore library** keeps them ready to hand out. Open it with **🧰 Library** at the top of the Chores tab (parent devices only).
+Some jobs don't fit a schedule: clean out the car, wash the windows, flip the mattress. The **chore library** keeps them ready to hand out. On a phone, tap **+ → From the library**; on a tablet or wall display, use **🧰 Library** at the top of Chores (parent devices only).
 
 * Each saved chore has a title, emoji, points, and optionally a checklist, the person it usually goes to, notes, whether it needs a parent's OK, and **About every** a number of days, weeks or months.
 * **About every** is not a schedule. It's a hint: once a chore has been about that long since it was last done (90% of the way there), it moves to the top with **⏰ Due-ish**. Each row says how it's going, for example "Last done 5 weeks ago · usually every 4 weeks", "Not done yet" or "To do: Maya, Sat".
@@ -232,7 +232,7 @@ Some jobs don't fit a schedule: clean out the car, wash the windows, flip the ma
 
 ## Away days
 
-When someone's away (band camp, a trip), a grown-up sets [away days](away.md) from **✈️ Away days** at the top of Chores. Their own chores pause on those days, stay due, or go to someone at home for a while ("From Maya until Tue" on the recipient's list) and come back afterward. Nothing piles up as late when they're back. While someone's away, the leaderboard marks them ✈️ **Away**.
+When someone's away (band camp, a trip), a grown-up sets [away days](away.md) from **+ → Plan time away** on a phone, or **✈️ Away days** at the top of Chores on a tablet or wall display. The compact away notice groups people by return date; on a parent's device, tap it to open Away days. Their own chores pause on those days, stay due, or go to someone at home for a while ("From Maya until Tue" on the recipient's list) and come back afterward. Nothing piles up as late when they're back. While someone's away, the leaderboard marks them ✈️ **Away**.
 
 ## Points, late completion credit
 
@@ -257,7 +257,7 @@ A member's 🔥 streak counts consecutive days on which **every chore assigned t
 
 ## Leaderboard
 
-Above the columns, a leaderboard ranks members by points, each shown with "pts". The menu at its start picks the period: **Today**, **This week** or **This month**. It changes only the leaderboard, not the chores below. The period is remembered per device, and the week follows the household week start. Tap someone's pill to open their [profile](profiles.md).
+Above the columns, a leaderboard ranks members by points, each shown with "pts". The menu at its start picks the period: **Today**, **This week** or **This month**. It changes only the leaderboard, not the chores below. The period is remembered per device, and the week follows the household week start. Tap someone's pill to open their [profile](profiles.md). On a parent's phone, tapping a pill first offers **Profile**, **Give points**, and **Rewards** (when enabled).
 
 * Ranking is by points, then completions, then name. Members with equal points and completions share a rank. Someone with no points yet shows no rank, so a fresh day doesn't put everyone at #1.
 * The leader gets 👑 (bouncing when the lead changes). Members with no activity still appear.
@@ -268,7 +268,7 @@ Above the columns, a leaderboard ranks members by points, each shown with "pts".
 Points are also a currency. A member's **balance** is every point they've ever earned from chores, check-ins and [bonus points](#bonus-points), minus what they've spent in the [sticker shop](activities.md#sticker-book) and on [rewards](rewards.md). A reward a parent says no to gives its points back.
 
 * The leaderboard and the member's today/week points always count what was **earned**. Spending never lowers a rank.
-* Each leaderboard pill also shows the balance, such as "22 to spend", and so does each person's column ("⭐ 22 to spend"). Tap the column's balance, or **🎁 Rewards** next to the date, to open [Rewards](rewards.md) for that person.
+* Each leaderboard pill also shows the balance, such as "22 to spend", and so does each person's column ("⭐ 22 to spend"). Tap the column's balance, **Rewards** from **More**, or **🎁 Rewards** next to the date on a tablet or wall display, to open [Rewards](rewards.md) for that person.
 * Spending is recorded in a points ledger. **Points history** on [Rewards](rewards.md#whats-on-the-screen), under the balance, shows it. `GET /api/members/{id}/points` returns `{ balance, earnedTotal, spentTotal, entries }`, with the last 50 ledger entries. The member list (`GET /api/members`) includes `balance` too.
 * Unticking a completed chore takes its points back out of the balance (deleting a chore doesn't: its history stays). A balance can end up below zero that way. New purchases then wait until it's back up.
 * **Settings → Family → Chores** has **Rewards** (on/off), **Sticker shop** (on/off) and **Sticker prices** (Free, 50%, 100% or 150%).
@@ -278,7 +278,7 @@ Points are also a currency. A member's **balance** is every point they've ever e
 
 Sometimes a kid earns points for something that isn't a chore: carrying the groceries, helping a sibling. A parent can give them directly.
 
-* On a parent's device, tap **⭐ Give points** next to the date on the Chores tab, or **Give points** under someone's points on their [profile](profiles.md). Pick who, how many (+5, +10, +25 or any whole number up to 500), an optional note ("Helped carry groceries", up to 80 characters) and the day it counts on (today or earlier).
+* On a parent's device, tap a person on the Chores leaderboard, then **Give points** on a phone; use **⭐ Give points** next to the date on a tablet or wall display, or **Give points** under someone's points on their [profile](profiles.md). Pick who, how many (+5, +10, +25 or any whole number up to 500), an optional note ("Helped carry groceries", up to 80 characters) and the day it counts on (today or earlier).
 * Bonus points count like chore points: the balance to spend, today's and this week's points, the [leaderboard](#leaderboard) and the profile's points earned. They aren't a chore, so they don't change [streaks](#streaks-and-grace-days) or the number of chores done.
 * The kid's own devices get a notification ("🎉 You got 10 bonus points") with the note.
 * Gave it by mistake? Tap **Undo** on the "Gave Maya 10 points" message, or tap the bonus under **Bonus points** on their profile to take it back.
@@ -315,7 +315,7 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 
 ![Edit chores on the wall display: Up and Down below each card, Set the table under Kitchen and Put a wash on under Household, available anytime](../screenshots/ipad-chores-order.png)
 
-On a parent's device, turn on **Edit chores**. Drag chores within a person's column, or use
+On a parent's device, turn on **Edit chores** (the pencil button next to the date on a phone). On a phone, **+ → New chore** adds a chore; an empty day stays compact, and explains when everyone's away. Drag chores within a person's column, or use
 **Up** and **Down** on a touchscreen or with a keyboard: below each card in a narrow column, as on
 a tablet or wall display, or beside it (↑ and ↓) on a phone. The order is saved
 for future days too. Each person's linked copy keeps its own order. A saved order takes

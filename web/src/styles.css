@@ -1067,6 +1067,9 @@ button.month-cell .month-daynum { flex: none; }
 /* Off a phone the leaderboard lives in the header: its own slim row, or inline between the date
    and Rewards once the row is wide enough for them all. */
 .chores-header .leaderboard-strip { order: 1; flex: 1 0 100%; min-width: 0; padding: 0; }
+.chores-away { margin: 2px var(--pad) 6px; display: grid; gap: 4px; }
+.chores-away-line { margin: 0; padding: 6px 10px; border-radius: var(--radius); background: var(--bg-alt); color: var(--text-dim); font-size: 0.8125rem; line-height: 20px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+a.chores-away-line { display: block; min-height: 44px; padding-block: 12px; text-decoration: none; }
 .chores-header .leaderboard-pill { min-width: 170px; padding-top: 4px; padding-bottom: 4px; }
 .chores-header .lb-avatar { width: 32px; height: 32px; font-size: 1rem; }
 @container chores-header (min-width: 1300px) {
@@ -1257,10 +1260,27 @@ button.month-cell .month-daynum { flex: none; }
 .leaderboard-pills { flex: 1; min-width: 0; display: flex; gap: var(--gap); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
 .leaderboard-item { display: contents; }
 .leaderboard-pill {
+  border: 0; font: inherit; text-align: left;
   color: var(--text); text-decoration: none; min-height: 44px; /* a link: opens their profile */
   display: flex; align-items: center; gap: calc(var(--gap) * 0.8);
   background: var(--card); border-radius: 999px; box-shadow: var(--shadow);
   padding: calc(var(--gap) * 0.65) var(--gap) calc(var(--gap) * 0.65) calc(var(--gap) * 0.65); flex-shrink: 0; min-width: 190px; scroll-snap-align: start;
+}
+
+/* Phones keep one action row, including when turned sideways. The period and people can
+   take separate rows so even the first leaderboard pill fits inside the screen. */
+@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+  .chores-header { flex-wrap: nowrap; padding: 4px 14px 2px; gap: 8px; }
+  .chores-header .period-label { flex: 1 1 auto; min-width: 0; font-size: 1rem; }
+  .chores-header .chores-rewards-btn { flex: none; min-height: 44px; padding: 6px 12px; font-size: 0.875rem; }
+  .chores-header .chores-edit-btn { width: 44px; padding: 0; justify-content: center; }
+  .chores-edit-btn .chores-rewards-label, .chores-edit-btn .chores-short-label { display: none !important; }
+  .chores-scroll > .leaderboard-strip { flex-wrap: wrap; padding: 0 14px 4px; gap: 4px; }
+  .chores-scroll > .leaderboard-strip .leaderboard-pills { flex-basis: 100%; }
+  .chores-scroll > .leaderboard-strip .leaderboard-pill { min-width: 0; max-width: 100%; }
+  .chores-scroll > .leaderboard-strip .lb-info { flex: 1; overflow: hidden; }
+  .chores-empty { margin: 8px 14px; padding: 12px; min-height: 0; flex: none; font-size: 0.875rem; }
+  .chores-empty .emoji { display: none; }
 }
 .lb-rank { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); width: 18px; text-align: center; flex-shrink: 0; }
 .lb-avatar {
@@ -4311,7 +4331,7 @@ html:root[data-cast] {
     .setup-choice, .setup-provider-card, .get-started-item
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
-  :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
+  :where(.leaderboard-pill, a.chores-away-line, .btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-edit-btn,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
     .activity-card, .school-work-main, .school-work.compact, button.school-plan-day, .school-kid-toggle, .chore-card-edit, .list-card-edit, button.plugin-chore-chip, .recipe-step, .menu-pick, .order-tick, .order-row, .note, .more-row, .setup-chore-tap, .board-poll-btn, .board-slot-row, .board-slot-chip, a.board-slot-full, button.board-slot-full, .board-slot-head-link, .catalog-row-main, .paint-btn, .trip-plan-link, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row, .toast-action, .outing-pile-head, .outing-pile-item):not(:disabled, .active):hover {

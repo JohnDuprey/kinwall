@@ -8,7 +8,7 @@ import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from '
 import { useHashParam } from './hashQuery.ts'
 import { addDays, isSameDay } from 'date-fns'
 import { GivePoints } from './GivePoints.tsx'
-import { useIsPhone } from './useIsPhone.ts'
+import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { actingMember } from './actingAs.ts'
 import { api, ApiError } from './api.ts'
@@ -37,7 +37,7 @@ import { durationLabel } from './timers.ts'
 import { PointsStepper, SuggestChoreSheet, SuggestionAnswerSheet, SuggestionCards } from './ChoreSuggest.tsx'
 import { NOT_NOW, suggestionDetails } from './choreSuggest.ts'
 import { shareText } from './rewardSplit.ts'
-import { awayUntil } from './away.ts'
+import { awayUntil, choreAwayNotice, groupChoreAway } from './away.ts'
 import type { AwayPeriod } from './trip-types.ts'
 import { choreOrder, earnedText, isLate, pointsEarned, pointsGivenOut, waitsForOk } from './choreDay.ts'
 import { latestOnly } from './latest.ts'
@@ -73,7 +73,11 @@ const LB_PERIOD_LABEL: Record<LeaderboardPeriod, string> = { today: msg('Today')
 function Leaderboard({ away }: { away: Set<string> }) {
   const [period, setPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
   useEffect(() => { saveLbPeriod(period) }, [period])
-  const { refreshTick, members } = useApp()
+  const { refreshTick, members, parentDevice, settings } = useApp()
+  const phone = useIsPhone(), landscape = useMediaQuery(SHORT_LANDSCAPE)
+  const personActions = parentDevice && (phone || landscape)
+  const [person, setPerson] = useState<LeaderboardEntry | null>(null)
+  const Pill = personActions ? 'button' : 'a'
   // Spendable balance (all-time earned minus what's been spent) next to the period's earned points.
   const spendable = (id: string) => members.find(m => m.id === id)?.balance ?? null
   const [board, setBoard] = useState<LeaderboardEntry[]>([])
@@ -103,7 +107,7 @@ function Leaderboard({ away }: { away: Set<string> }) {
       <div className="leaderboard-pills" role="list" aria-label={t('Leaderboard')}>
         {board.map(e => (
           <div key={e.memberId} role="listitem" className="leaderboard-item">
-          <a className="leaderboard-pill" href={`#/profile/${e.memberId}`}
+          <Pill className="leaderboard-pill" {...(personActions ? { type: 'button' as const, onClick: () => setPerson(e) } : { href: `#/profile/${e.memberId}` })}
             aria-label={[e.points > 0 ? tn(e.points, '{name}, rank {rank}, {n} point', '{name}, rank {rank}, {n} points', { name: e.name, rank: e.rank }) : t('{name}, no points yet', { name: e.name }), e.rank === 1 && e.points > 0 && t('leader'), e.streak >= 2 && t('{n} day streak', { n: e.streak }), spendable(e.memberId) !== null && t('{n} to spend', { n: spendable(e.memberId) ?? 0 })].filter(Boolean).join(', ')}>
             <div className="lb-rank">{e.points > 0 && `#${e.rank}`}</div>{/* no rank until they have points, not everyone "#1" at 0 */}
             <Face
@@ -122,10 +126,15 @@ function Leaderboard({ away }: { away: Set<string> }) {
               {spendable(e.memberId) !== null && <div className="lb-spend" aria-hidden="true">{t('{n} to spend', { n: spendable(e.memberId) ?? 0 })}</div>}
             </div>
             <div className="lb-points">{t('{n} pts', { n: e.points })}</div>
-          </a>
+          </Pill>
           </div>
         ))}
       </div>
+      {person && <Sheet title={person.name} onClose={() => setPerson(null)}>
+        <a className="sheet-link" href={`#/profile/${person.memberId}`}>{t('Profile')}</a>
+        <GivePoints memberId={person.memberId} className="sheet-link" label={t('Give points')}>⭐ {t('Give points')}</GivePoints>
+        {rewardsOn(settings) && <a className="sheet-link" href={`#/rewards/${person.memberId}`}>🎁 {t('Rewards')}</a>}
+      </Sheet>}
     </div>
   )
 }
@@ -448,7 +457,8 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
 }
 
 export default function Chores() {
-  const isPhone = useIsPhone()
+  const narrow = useIsPhone(), landscape = useMediaQuery(SHORT_LANDSCAPE)
+  const isPhone = narrow || landscape
   const { members, selectedMemberId, focusMemberId, focusShowsShared, settings, toast, reloadCore, refreshTick, parentDevice, meMemberId } = useApp()
   const dialog = useDialog()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
@@ -481,6 +491,7 @@ export default function Chores() {
   const [checklistId, setChecklistId] = useHashParam('checklist')
   const checklistFor = chores.find(c => c.id === checklistId) ?? null
   const [libraryOpen, setLibraryOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [repeatDraft, setRepeatDraft] = useState<RepeatDraft | null>(null) // the library's "Make it repeat", in the chore editor
   // Kids suggest chores: off a parent's device, for the person shown (else a wall asks who first).
   const [suggestFor, setSuggestFor] = useState<string | 'who' | null>(null)
@@ -511,7 +522,8 @@ export default function Chores() {
     api.getAway().then(x => { if (!canceled) setAway(x) }).catch(() => { /* say nothing */ })
     return () => { canceled = true }
   }, [refreshTick])
-  const awayNow = members.map(m => ({ m, until: awayUntil(away, m.id, key) })).filter(x => x.until && (!selectedMemberId || x.m.id === selectedMemberId))
+  const awayGroups = groupChoreAway(away, members, key, selectedMemberId)
+  const everyoneAway = members.length > 0 && members.every(m => awayUntil(away, m.id, key))
   // Loading only while a new day's chores are on their way. A refresh of the same day (a sheet
   // saved, the rev moved) keeps what's on screen, so the columns don't collapse and jump back.
   const loading = loadedKey !== key
@@ -688,19 +700,24 @@ export default function Chores() {
       {/* Scrolls the whole view as one, the day strip pinned (styles.css). */}
       <div className="chores-scroll">
       <div className="chores-header">
-        {/* The date and the buttons share a row (a phone: short date and short words, wrapping
-            when they don't fit). Off a phone the leaderboard takes the next row. */}
+        {/* Phones keep the date, Free time and Edit together. Off a phone the leaderboard
+            takes the next row and the other actions stay in the header. */}
         <h2 className="period-label" aria-label={formatDate(selectedDate, LONG_DAY)}>{formatDate(selectedDate, isPhone ? DAY : LONG_DAY)}</h2>
         {!isPhone && leaderboard}
         {(parentDevice || meMemberId) && <a className="btn btn-secondary chores-rewards-btn" href="#/routine" onClick={openRoutine}>{t('Free time')}</a>}
-        {parentDevice && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label={t('Give points')}><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">{t('Give points')}</span><span className="chores-short-label">{t('Give')}</span></GivePoints>}
-        {parentDevice && <button type="button" className={`btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label={t('Edit chores')} onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">{t('Edit chores')}</span><span className="chores-short-label">{t('Edit')}</span></button>}
-        {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">{t('Library')}</span><span className="chores-short-label">{t('Library')}</span></button>}
-        {parentDevice && <a className="btn btn-secondary chores-rewards-btn chores-library-btn" href="#/away"><span aria-hidden="true">✈️</span> <span className="chores-rewards-label">{t('Away days')}</span><span className="chores-short-label">{t('Away')}</span></a>}
+        {parentDevice && !isPhone && <GivePoints memberId={selectedMemberId} className="btn btn-secondary chores-rewards-btn chores-library-btn" label={t('Give points')}><span aria-hidden="true">⭐</span> <span className="chores-rewards-label">{t('Give points')}</span><span className="chores-short-label">{t('Give')}</span></GivePoints>}
+        {parentDevice && <button type="button" className={`btn chores-edit-btn chores-rewards-btn chores-library-btn ${editing ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={editing} aria-label={t('Edit chores')} onClick={() => setEditing(e => !e)}><span aria-hidden="true">✏️</span> <span className="chores-rewards-label">{t('Edit chores')}</span><span className="chores-short-label">{t('Edit')}</span></button>}
+        {parentDevice && !isPhone && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">{t('Library')}</span><span className="chores-short-label">{t('Library')}</span></button>}
+        {parentDevice && !isPhone && <a className="btn btn-secondary chores-rewards-btn chores-library-btn" href="#/away"><span aria-hidden="true">✈️</span> <span className="chores-rewards-label">{t('Away days')}</span><span className="chores-short-label">{t('Away')}</span></a>}
         {canSuggest && <button type="button" className="btn btn-secondary chores-rewards-btn" onClick={() => setSuggestFor(suggester ?? 'who')}><span aria-hidden="true">💡</span> <span className="chores-rewards-label">{t('Suggest a chore')}</span><span className="chores-short-label">{t('Idea')}</span></button>}
-        {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">{t('Rewards')}</span><span className="chores-short-label">{t('Rewards')}</span></a>}
+        {rewardsShown && !isPhone && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">{t('Rewards')}</span><span className="chores-short-label">{t('Rewards')}</span></a>}
       </div>
-      {awayNow.length > 0 && <p className="state-card chores-away" role="note">{awayNow.map(x => t('✈️ {name} is away until {day}. Their chores wait until they’re back.', { name: x.m.name, day: formatDate(new Date(`${x.until}T12:00:00`), DAY) })).join(' ')}</p>}
+      {awayGroups.length > 0 && <div className="chores-away" role="note">{awayGroups.map(group => {
+        const notice = choreAwayNotice(group)
+        return parentDevice
+          ? <a key={group.until} className="chores-away-line" href="#/away" aria-label={notice.label}>{notice.text}</a>
+          : <p key={group.until} role="note" className="chores-away-line" aria-label={notice.label}>{notice.text}</p>
+      })}</div>}
       <div className="date-strip" role="group" aria-label={t('Day')}>
         {strip.map(d => {
           const day = dateKey(d)
@@ -738,7 +755,7 @@ export default function Chores() {
       {error ? (
         <div className="state-card">{t("Couldn't load chores.")}</div>
       ) : !loading && !chores.some(inCategory) ? (
-        <div className="empty-card"><span className="emoji">✨</span>{category ? t('No chores in this category for this day.') : t('No chores for this day.')}</div>
+        <div className="empty-card chores-empty"><span className="emoji">✨</span>{isPhone && everyoneAway ? t("Everyone’s away: chores wait until you’re back.") : category ? t('No chores in this category for this day.') : t('No chores for this day.')}</div>
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
           {active.map(col => {
@@ -802,7 +819,13 @@ export default function Chores() {
         <SchoolworkEditor work={schoolwork} onClose={() => { setSchoolwork(null); load() }} />
       </Suspense>}
 
-      {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label={t('Add chore')}><PlusIcon /></button>}
+      {parentDevice && <button className="fab" onClick={() => isPhone ? setAddOpen(true) : setEditChore('new')} aria-label={t('Add chore')}><PlusIcon /></button>}
+
+      {addOpen && parentDevice && <Sheet title={t('Add chore')} onClose={() => setAddOpen(false)}>
+        <button type="button" className="sheet-link" onClick={() => { setAddOpen(false); setEditChore('new') }}><PlusIcon /> {t('New chore')}</button>
+        <button type="button" className="sheet-link" onClick={() => { setAddOpen(false); setLibraryOpen(true) }}>🧰 {t('From the library')}</button>
+        <a className="sheet-link" href="#/away" onClick={() => setAddOpen(false)}>✈️ {t('Plan time away')}</a>
+      </Sheet>}
 
       {suggestFor === 'who' && (
         <Sheet title={t('Who has an idea?')} onClose={() => setSuggestFor(null)}>

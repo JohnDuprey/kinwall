@@ -2,7 +2,7 @@
 // web/test/away.test.ts covers it. The server is the authority; these only explain and check a
 // draft before it's sent.
 import { addDays } from './upkeep-rules.ts'
-import { formatDate, MONTH_DAY, t } from './i18n.ts'
+import { DAY, formatDate, intlLocale, MONTH_DAY, t, tn } from './i18n.ts'
 import { longDay } from './trips.ts'
 import type { AwayPeriod, AwayPerson, Handoff } from './trip-types.ts'
 
@@ -32,6 +32,32 @@ export function awayUntil(periods: Pick<AwayPeriod, 'people'>[], memberId: strin
     for (const r of ranges) if (r.from <= addDays(until, 1) && r.to > until) { until = r.to; grew = true }
   }
   return until
+}
+
+/** One notice per return date, in date order; a person filter never means the whole family. */
+export function groupChoreAway(periods: Pick<AwayPeriod, 'people'>[], members: { id: string; name: string }[], date: string, memberId?: string | null) {
+  const groups = new Map<string, string[]>()
+  for (const member of members) {
+    if (memberId && member.id !== memberId) continue
+    const until = awayUntil(periods, member.id, date)
+    if (until) groups.set(until, [...(groups.get(until) ?? []), member.name])
+  }
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([until, names]) => ({
+    until, names, everyone: !memberId && names.length === members.length,
+  }))
+}
+
+/** Short visible words, with the complete sentence and names retained for assistive reading. */
+export function choreAwayNotice(group: ReturnType<typeof groupChoreAway>[number]) {
+  const day = formatDate(new Date(`${group.until}T12:00:00`), DAY)
+  const list = new Intl.ListFormat(intlLocale(), { style: 'long', type: 'conjunction' })
+  const names = list.format(group.names.length > 3 ? [...group.names.slice(0, 2), tn(group.names.length - 2, '{n} more', '{n} more')] : group.names)
+  return {
+    text: group.everyone ? t('✈️ Everyone’s away until {day} · chores wait', { day })
+      : tn(group.names.length, '✈️ {names} is away until {day} · chores wait', '✈️ {names} are away until {day} · chores wait', { names, day }),
+    label: group.everyone ? t('Everyone is away until {day}. Chores wait until everyone is back.', { day })
+      : tn(group.names.length, '{names} is away until {day}. Their chores wait until they’re back.', '{names} are away until {day}. Their chores wait until they’re back.', { names: list.format(group.names), day }),
+  }
 }
 
 /** "Wed, Mar 3 – Fri, Mar 5 · leave day counts, back day doesn’t". */

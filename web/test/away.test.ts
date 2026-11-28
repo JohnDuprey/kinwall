@@ -1,10 +1,35 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { awayDays, awayOn, awayUntil, handoffProblems, personSummary } from '../src/away.ts'
+import { awayDays, awayOn, awayUntil, choreAwayNotice, groupChoreAway, handoffProblems, personSummary } from '../src/away.ts'
 import type { AwayPeriod, AwayPerson } from '../src/trip-types.ts'
 
 const person = (p: Partial<AwayPerson>): AwayPerson => ({ memberId: 'maya', startDate: '2027-03-03', endDate: '2027-03-05', leaveDayAway: true, returnDayAway: true, ...p })
 const period = (p: Partial<AwayPeriod>): AwayPeriod => ({ id: 'a', label: 'Band camp', tripId: null, tripTitle: null, people: [], handoffs: [], keepDue: [], revision: 1, createdBy: null, updatedAt: '', ...p })
+
+test('groupChoreAway groups return dates, preserves names and handles filters', () => {
+  const members = [{ id: 'alex', name: 'Alex' }, { id: 'sam', name: 'Sam' }, { id: 'maya', name: 'Maya' }, { id: 'leo', name: 'Leo' }]
+  const all = period({ people: members.map(m => person({ memberId: m.id })) })
+  assert.deepEqual(groupChoreAway([], members, '2027-03-03'), [])
+  assert.deepEqual(groupChoreAway([all], [], '2027-03-03'), [])
+  assert.deepEqual(groupChoreAway([all], members, '2027-03-03'), [{ until: '2027-03-05', names: ['Alex', 'Sam', 'Maya', 'Leo'], everyone: true }])
+  assert.deepEqual(groupChoreAway([all], members, '2027-03-03', 'maya'), [{ until: '2027-03-05', names: ['Maya'], everyone: false }])
+  const split = period({ people: [person({ memberId: 'alex', endDate: '2027-03-06' }), person({ memberId: 'maya' }), person({ memberId: 'sam' })] })
+  assert.deepEqual(groupChoreAway([split], members, '2027-03-03'), [
+    { until: '2027-03-05', names: ['Sam', 'Maya'], everyone: false },
+    { until: '2027-03-06', names: ['Alex'], everyone: false },
+  ])
+  assert.deepEqual(groupChoreAway([all], members, '2027-03-06'), [])
+})
+
+test('choreAwayNotice uses singular, plural and everyone, shortening only the visible names', () => {
+  const group = { until: '2027-03-05', names: ['Maya'], everyone: false }
+  assert.equal(choreAwayNotice(group).text, '✈️ Maya is away until Fri, Mar 5 · chores wait')
+  assert.equal(choreAwayNotice({ ...group, names: ['Maya', 'Leo'] }).text, '✈️ Maya and Leo are away until Fri, Mar 5 · chores wait')
+  const many = choreAwayNotice({ ...group, names: ['Alex', 'Sam', 'Maya', 'Leo'] })
+  assert.equal(many.text, '✈️ Alex, Sam, and 2 more are away until Fri, Mar 5 · chores wait')
+  assert.equal(many.label, 'Alex, Sam, Maya, and Leo are away until Fri, Mar 5. Their chores wait until they’re back.')
+  assert.equal(choreAwayNotice({ ...group, everyone: true }).text, '✈️ Everyone’s away until Fri, Mar 5 · chores wait')
+})
 
 test('awayDays: the leave and return days count only when ticked; same day with either unticked is none', () => {
   assert.deepEqual(awayDays(person({})), { from: '2027-03-03', to: '2027-03-05' })
