@@ -2239,16 +2239,15 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
-      {isPhone && list.kind !== 'shopping' && (scanBtn || items.length > 0) && <div className="list-actions">
-        {scanBtn}{items.length > 0 && viewButton}
-      </div>}
-      {isPhone && <button className="fab" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add item')}><PlusIcon /></button>}
-      {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop; a pantry's food isn't jobs to do). */}
-      {list.kind !== 'shopping' && itemKind(list) !== 'pantry' && items.length > 0 && (
+      {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop; a pantry's food isn't jobs to do).
+          A phone has no add bar, so scan and View share its row. */}
+      {list.kind !== 'shopping' && (isPhone ? scanBtn || items.length > 0 : itemKind(list) !== 'pantry' && items.length > 0) && (
         <div className="list-actions">
-          <button className="btn btn-secondary list-do-btn" onClick={() => setGsd(listId)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />{t('Get stuff done')}</button>
+          {itemKind(list) !== 'pantry' && items.length > 0 && <button className="btn btn-secondary list-do-btn" onClick={() => setGsd(listId)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />{t('Get stuff done')}</button>}
+          {isPhone && <>{scanBtn}{items.length > 0 && viewButton}</>}
         </div>
       )}
+      {isPhone && <button className="fab" onClick={() => setAdding(true)} aria-haspopup="dialog" aria-label={t('Add item')}><PlusIcon /></button>}
       {doing && <GetStuffDone listId={listId} onClose={() => { setGsd(null); load() }} />}
       {!activeTrip && viewSummary && items.length > 0 && (
         <button className="filter-summary list-view-summary" onClick={() => setViewing(true)} aria-label={t('View: {summary}. Change view', { summary: viewSummary })}>{viewSummary}</button>
