@@ -19,7 +19,7 @@ import Sheet from './Sheet.tsx'
 import PickField, { Choose } from './PickField.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
-import { CheckIcon, EditIcon, PlusIcon } from './icons.tsx'
+import { CheckIcon, ChevronRight, EditIcon, PlusIcon } from './icons.tsx'
 import { ActivityRing } from './ActivityRing.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { Switch, announce } from './a11y.tsx'
@@ -131,9 +131,11 @@ function Leaderboard({ away }: { away: Set<string> }) {
         ))}
       </div>
       {person && <Sheet title={person.name} onClose={() => setPerson(null)}>
-        <a className="sheet-link" href={`#/profile/${person.memberId}`}>{t('Profile')}</a>
-        <GivePoints memberId={person.memberId} className="sheet-link" label={t('Give points')}>⭐ {t('Give points')}</GivePoints>
-        {rewardsOn(settings) && <a className="sheet-link" href={`#/rewards/${person.memberId}`}>🎁 {t('Rewards')}</a>}
+        <div className="sheet-links">
+          <a className="sheet-link" href={`#/profile/${person.memberId}`}><span className="pick-lead" aria-hidden="true">👤</span><span>{t('Profile')}</span><ChevronRight /></a>
+          <GivePoints memberId={person.memberId} className="sheet-link" label={t('Give points')}><span className="pick-lead" aria-hidden="true">⭐</span><span>{t('Give points')}</span><ChevronRight /></GivePoints>
+          {rewardsOn(settings) && <a className="sheet-link" href={`#/rewards/${person.memberId}`}><span className="pick-lead" aria-hidden="true">🎁</span><span>{t('Rewards')}</span><ChevronRight /></a>}
+        </div>
       </Sheet>}
     </div>
   )
@@ -822,9 +824,11 @@ export default function Chores() {
       {parentDevice && <button className="fab" onClick={() => isPhone ? setAddOpen(true) : setEditChore('new')} aria-label={t('Add chore')}><PlusIcon /></button>}
 
       {addOpen && parentDevice && <Sheet title={t('Add chore')} onClose={() => setAddOpen(false)}>
-        <button type="button" className="sheet-link" onClick={() => { setAddOpen(false); setEditChore('new') }}><PlusIcon /> {t('New chore')}</button>
-        <button type="button" className="sheet-link" onClick={() => { setAddOpen(false); setLibraryOpen(true) }}>🧰 {t('From the library')}</button>
-        <a className="sheet-link" href="#/away" onClick={() => setAddOpen(false)}>✈️ {t('Plan time away')}</a>
+        <div className="sheet-links">
+          <button type="button" className="sheet-link" onClick={() => { setAddOpen(false); setEditChore('new') }}><PlusIcon /><span>{t('New chore')}</span><ChevronRight /></button>
+          <button type="button" className="sheet-link" onClick={() => { setAddOpen(false); setLibraryOpen(true) }}><span className="pick-lead" aria-hidden="true">🧰</span><span>{t('From the library')}</span><ChevronRight /></button>
+          <a className="sheet-link" href="#/away" onClick={() => setAddOpen(false)}><span className="pick-lead" aria-hidden="true">✈️</span><span>{t('Plan time away')}</span><ChevronRight /></a>
+        </div>
       </Sheet>}
 
       {suggestFor === 'who' && (
